@@ -49,6 +49,15 @@ def test_operation_ids_are_unique():
     assert [oid for oid, n in counts.items() if n > 1] == []
 
 
+def test_no_two_models_share_a_name():
+    """Two different models with one name are both published under their
+    module paths (`salli__interfaces__api__contract__Updated`), and those
+    become type names in every generated client. Rename one, or reuse one of
+    the shared shapes in interfaces/api/contract.py."""
+    names = create_app().openapi()["components"]["schemas"]
+    assert [name for name in names if name.startswith("salli__")] == []
+
+
 def test_the_table_lists_no_route_that_is_gone():
     served = {(method, unversioned(path)) for method, path, _ in _operations()}
     assert sorted(set(OPERATION_IDS) - served) == []
