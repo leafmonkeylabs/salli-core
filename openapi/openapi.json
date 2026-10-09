@@ -12430,6 +12430,15 @@
             "title": "Holdings",
             "description": "Each as in `holdings.list`, inactive ones included."
           },
+          "holding_transactions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Holding Transactions",
+            "description": "Every holding's transactions (buys, sales, income, splits, transfers\nin), inactive holdings' included, in the order they were recorded."
+          },
           "recurring_subscriptions": {
             "items": {
               "additionalProperties": true,

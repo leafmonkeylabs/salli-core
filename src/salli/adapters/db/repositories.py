@@ -9,7 +9,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Collection, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
@@ -37,6 +37,7 @@ from salli.adapters.db.models import (
     GoalAllocationORM,
     GoalORM,
     HoldingORM,
+    HoldingTransactionORM,
     InstanceSettingORM,
     InsuranceTargetORM,
     JournalEntryORM,
@@ -72,6 +73,7 @@ from salli.application.ports import (
     FireStrategyRepository,
     FiScoreRepository,
     GoalRepository,
+    HoldingTransactionRepository,
     InstanceSettingsRepository,
     InsuranceTargetRepository,
     LedgerRepository,
@@ -2075,6 +2077,7 @@ def _holding_to_dict(r: HoldingORM) -> dict[str, Any]:
         "symbol": r.symbol,
         "name": r.name,
         "asset_class": r.asset_class,
+        "currency": r.currency,
         "cost_basis_minor": r.cost_basis_minor,
         "current_value_minor": r.current_value_minor,
         "is_active": r.is_active,
@@ -2096,6 +2099,7 @@ class SQLPortfolioRepository(PortfolioRepository):
                 symbol=holding["symbol"],
                 name=holding["name"],
                 asset_class=holding["asset_class"],
+                currency=holding["currency"],
                 cost_basis_minor=int(holding["cost_basis_minor"]),
                 current_value_minor=int(holding["current_value_minor"]),
                 is_active=holding.get("is_active", True),
@@ -2131,6 +2135,7 @@ class SQLPortfolioRepository(PortfolioRepository):
             "symbol",
             "name",
             "asset_class",
+            "currency",
             "cost_basis_minor",
             "current_value_minor",
             "is_active",
@@ -2146,7 +2151,101 @@ class SQLPortfolioRepository(PortfolioRepository):
             )
         ).scalar_one_or_none()
         if r:
+            # Its transactions go with it (ON DELETE CASCADE).
             await self._s.delete(r)
+
+
+_TRANSACTION_COLUMNS = (
+    "kind",
+    "transaction_date",
+    "quantity",
+    "price",
+    "fees_minor",
+    "amount_minor",
+    "withholding_tax_minor",
+    "split_to",
+    "split_from",
+    "lots",
+    "fx_rate",
+    "fx_rate_source",
+    "note",
+)
+
+
+def _transaction_to_dict(r: HoldingTransactionORM) -> dict[str, Any]:
+    return {
+        "id": r.id,
+        "user_id": r.user_id,
+        "holding_id": r.holding_id,
+        **{column: getattr(r, column) for column in _TRANSACTION_COLUMNS},
+        "transaction_date": r.transaction_date.isoformat(),
+        "lots": list(r.lots or []),
+        "created_at": r.created_at.isoformat(),
+        "updated_at": r.updated_at.isoformat(),
+    }
+
+
+def _transaction_columns(fields: dict[str, Any]) -> dict[str, Any]:
+    columns = {k: fields[k] for k in _TRANSACTION_COLUMNS if k in fields}
+    if isinstance(columns.get("transaction_date"), str):
+        columns["transaction_date"] = date.fromisoformat(columns["transaction_date"])
+    return columns
+
+
+class SQLHoldingTransactionRepository(HoldingTransactionRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def _row(self, user_id: str, transaction_id: str) -> HoldingTransactionORM | None:
+        return (
+            await self._s.execute(
+                select(HoldingTransactionORM).where(
+                    HoldingTransactionORM.id == transaction_id,
+                    HoldingTransactionORM.user_id == user_id,
+                )
+            )
+        ).scalar_one_or_none()
+
+    async def list(self, user_id: str, holding_id: str | None = None) -> list[dict[str, Any]]:
+        stmt = select(HoldingTransactionORM).where(HoldingTransactionORM.user_id == user_id)
+        if holding_id is not None:
+            stmt = stmt.where(HoldingTransactionORM.holding_id == holding_id)
+        stmt = stmt.order_by(HoldingTransactionORM.created_at, HoldingTransactionORM.id)
+        return [_transaction_to_dict(r) for r in (await self._s.execute(stmt)).scalars().all()]
+
+    async def get(self, user_id: str, transaction_id: str) -> dict[str, Any] | None:
+        r = await self._row(user_id, transaction_id)
+        return _transaction_to_dict(r) if r else None
+
+    async def save(self, user_id: str, transaction: dict[str, Any]) -> str:
+        tid = transaction.get("id") or str(uuid.uuid4())
+        self._s.add(
+            HoldingTransactionORM(
+                id=tid,
+                user_id=user_id,
+                holding_id=transaction["holding_id"],
+                **_transaction_columns(transaction),
+            )
+        )
+        await self._s.flush()
+        return tid
+
+    async def update(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> bool:
+        r = await self._row(user_id, transaction_id)
+        if r is None:
+            return False
+        for column, value in _transaction_columns(fields).items():
+            setattr(r, column, value)
+        await self._s.flush()
+        return True
+
+    async def delete(self, user_id: str, transaction_id: str) -> bool:
+        r = await self._row(user_id, transaction_id)
+        if r is None:
+            return False
+        await self._s.delete(r)
+        await self._s.flush()
+        return True
 
 
 # ── Recurring subscription repository ─────────────────────────────────────────
@@ -2509,6 +2608,9 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(AdvisoryReportORM, AdvisoryReportORM.user_id)
         await _delete(BudgetORM, BudgetORM.user_id)
         await _delete(DebtORM, DebtORM.user_id)
+        # Transactions cascade from their holding, but are deleted by owner
+        # first, like goal allocations, rather than relying on the cascade.
+        await _delete(HoldingTransactionORM, HoldingTransactionORM.user_id)
         await _delete(HoldingORM, HoldingORM.user_id)
         await _delete(PolicyORM, PolicyORM.user_id)
         await _delete(InsuranceTargetORM, InsuranceTargetORM.user_id)

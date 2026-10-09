@@ -23,6 +23,7 @@ from salli.adapters.db.repositories import (
     SQLFireStrategyRepository,
     SQLFiScoreRepository,
     SQLGoalRepository,
+    SQLHoldingTransactionRepository,
     SQLInstanceSettingsRepository,
     SQLInsuranceTargetRepository,
     SQLLedgerRepository,
@@ -52,6 +53,7 @@ from salli.application.ports import (
     FireStrategyRepository,
     FiScoreRepository,
     GoalRepository,
+    HoldingTransactionRepository,
     InstanceSettingsRepository,
     InsuranceTargetRepository,
     LedgerRepository,
@@ -88,6 +90,7 @@ class UnitOfWork:
     budgets: BudgetRepository
     debts: DebtRepository
     holdings: PortfolioRepository
+    holding_transactions: HoldingTransactionRepository
     recurring_subscriptions: RecurringSubscriptionRepository
     policies: PolicyRepository
     insurance_targets: InsuranceTargetRepository
@@ -127,6 +130,7 @@ class UnitOfWork:
         self.budgets = SQLBudgetRepository(self._session)
         self.debts = SQLDebtRepository(self._session)
         self.holdings = SQLPortfolioRepository(self._session)
+        self.holding_transactions = SQLHoldingTransactionRepository(self._session)
         self.recurring_subscriptions = SQLRecurringSubscriptionRepository(self._session)
         self.policies = SQLPolicyRepository(self._session)
         self.insurance_targets = SQLInsuranceTargetRepository(self._session)

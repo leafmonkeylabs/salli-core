@@ -777,7 +777,36 @@ class PortfolioRepository(ABC):
     async def update(self, user_id: str, holding_id: str, updates: dict[str, Any]) -> None: ...
 
     @abstractmethod
-    async def delete(self, user_id: str, holding_id: str) -> None: ...
+    async def delete(self, user_id: str, holding_id: str) -> None:
+        """Delete the holding, and with it its transactions."""
+        ...
+
+
+class HoldingTransactionRepository(ABC):
+    """Holdings' transactions, as plain dicts of their stored columns: money in
+    minor units of the holding's currency, quantities, prices, ratios and the
+    rate as Decimal, `transaction_date` as YYYY-MM-DD, and `lots` as a list of
+    {"lot_id", "quantity"} with the quantity a decimal string."""
+
+    @abstractmethod
+    async def list(self, user_id: str, holding_id: str | None = None) -> list[dict[str, Any]]:
+        """One holding's transactions, or all of this user's, in the order they
+        were recorded (which breaks ties between transactions on one date)."""
+        ...
+
+    @abstractmethod
+    async def get(self, user_id: str, transaction_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def save(self, user_id: str, transaction: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def update(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> bool:
+        """Set the given columns, None included. False if there is no such transaction."""
+        ...
+
+    @abstractmethod
+    async def delete(self, user_id: str, transaction_id: str) -> bool: ...
 
 
 # ── Recurring subscription ────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 
@@ -78,6 +79,80 @@ class FakeRecords:
             del self.rows[record_id]
 
 
+class FakeHoldingTransactions:
+    """Holdings' transactions as the SQL repository keeps them: every column,
+    with the defaults the table has, listed in the order they were recorded."""
+
+    DEFAULTS: dict[str, Any] = {
+        "quantity": None,
+        "price": None,
+        "fees_minor": 0,
+        "amount_minor": None,
+        "withholding_tax_minor": 0,
+        "split_to": None,
+        "split_from": None,
+        "lots": [],
+        "fx_rate": Decimal(1),
+        "fx_rate_source": None,
+        "note": None,
+    }
+
+    def __init__(self) -> None:
+        self.rows: dict[str, dict[str, Any]] = {}
+
+    async def list(self, user_id: str, holding_id: str | None = None) -> list[dict[str, Any]]:
+        return [
+            dict(row)
+            for row in self.rows.values()
+            if row["user_id"] == user_id and holding_id in (None, row["holding_id"])
+        ]
+
+    async def get(self, user_id: str, transaction_id: str) -> dict[str, Any] | None:
+        row = self.rows.get(transaction_id)
+        return dict(row) if row is not None and row["user_id"] == user_id else None
+
+    async def save(self, user_id: str, transaction: dict[str, Any]) -> str:
+        transaction_id = transaction.get("id") or str(uuid.uuid4())
+        now = datetime.now(UTC).isoformat()
+        self.rows[transaction_id] = {
+            **self.DEFAULTS,
+            **transaction,
+            "id": transaction_id,
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+        }
+        return transaction_id
+
+    async def update(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> bool:
+        if await self.get(user_id, transaction_id) is None:
+            return False
+        self.rows[transaction_id].update(fields, updated_at=datetime.now(UTC).isoformat())
+        return True
+
+    async def delete(self, user_id: str, transaction_id: str) -> bool:
+        if await self.get(user_id, transaction_id) is None:
+            return False
+        del self.rows[transaction_id]
+        return True
+
+
+class FakeHoldings(FakeRecords):
+    """Holdings, whose transactions go with them when they are deleted, as
+    the table's ON DELETE CASCADE does."""
+
+    def __init__(self, transactions: FakeHoldingTransactions) -> None:
+        super().__init__(is_active=True)
+        self.transactions = transactions
+
+    async def delete(self, user_id: str, record_id: str) -> None:
+        await super().delete(user_id, record_id)
+        for transaction_id in [
+            t for t, row in self.transactions.rows.items() if row["holding_id"] == record_id
+        ]:
+            del self.transactions.rows[transaction_id]
+
+
 class FakeLedgerReader:
     """The slice of LedgerRepository that budgets and subscriptions read."""
 
@@ -132,7 +207,8 @@ class FakeRecordsUoW:
         self.ledger = FakeLedgerReader()
         self.budgets = FakeRecords()
         self.debts = FakeRecords(is_active=True)
-        self.holdings = FakeRecords(is_active=True)
+        self.holding_transactions = FakeHoldingTransactions()
+        self.holdings = FakeHoldings(self.holding_transactions)
         self.recurring_subscriptions = FakeRecords(is_active=True)
         self.policies = FakeRecords(is_active=True)
         self.insurance_targets = FakeInsuranceTargets()

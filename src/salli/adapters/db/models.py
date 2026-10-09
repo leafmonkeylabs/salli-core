@@ -760,8 +760,9 @@ class DebtORM(Base):
 
 
 class HoldingORM(Base):
-    """A manually-declared investment holding — cost basis and current value are
-    user-entered, never fetched from a live market-data feed."""
+    """An investment holding. Its cost basis and value come from its
+    transactions (holding_transactions) once it has any; until then, from the
+    two figures the user declared here, in the base currency."""
 
     __tablename__ = "holdings"
 
@@ -770,6 +771,10 @@ class HoldingORM(Base):
     symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(40), nullable=False)
+    # ISO 4217: what it trades in, its transactions' money and its prices.
+    # Not necessarily the owner's base currency (a US fund in a rupee ledger).
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    # Declared, in the base currency; ignored once there are transactions.
     cost_basis_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     current_value_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -780,7 +785,82 @@ class HoldingORM(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    __table_args__ = (Index("ix_holdings_user_active", "user_id", "is_active"),)
+    __table_args__ = (
+        Index("ix_holdings_user_active", "user_id", "is_active"),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_holdings_currency"),
+    )
+
+
+class HoldingTransactionORM(Base):
+    """One event in a holding's history: a buy, sale, dividend, interest
+    payment, split, or transfer in (see domain/portfolio/lots.py).
+
+    Money (fees, an income amount, a transfer's cost) is BIGINT minor units of
+    the holding's currency, like every amount Salli stores. Quantities, unit
+    prices, split ratios and the exchange rate are NUMERIC(38, 18): exact
+    decimals, never floats, with the 18 places ether's wei needs and 20
+    integer digits. The domain refuses more places than that before a value
+    gets here, so the column never rounds, and a value too large for it is a
+    database error rather than a silent truncation. A unit price is not
+    money in minor units: a fund's NAV or a token's price has more places
+    than its currency.
+    """
+
+    __tablename__ = "holding_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    holding_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("holdings.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(38, 18), nullable=True)
+    price: Mapped[Decimal | None] = mapped_column(Numeric(38, 18), nullable=True)
+    fees_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    # Gross income (dividend, interest), or a transfer's total cost.
+    amount_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    withholding_tax_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    # A split turns `split_from` units into `split_to` (2-for-1 is 2 and 1).
+    split_to: Mapped[Decimal | None] = mapped_column(Numeric(38, 18), nullable=True)
+    split_from: Mapped[Decimal | None] = mapped_column(Numeric(38, 18), nullable=True)
+    # A sale's named lots, [{"lot_id": …, "quantity": "1.5"}]; empty is FIFO.
+    # Quantities are decimal strings: a JSON number is a float to most readers.
+    lots: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Base currency per unit of the holding's, on the transaction's date: the
+    # one given, or the published one (see application/fx.py).
+    fx_rate: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=1)
+    fx_rate_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('buy','sell','dividend','interest','split','transfer_in')",
+            name="ck_holding_transactions_kind",
+        ),
+        # What each kind cannot do without; the domain checks the rest.
+        CheckConstraint(
+            "(kind IN ('buy','sell') AND quantity IS NOT NULL AND price IS NOT NULL)"
+            " OR (kind = 'transfer_in' AND quantity IS NOT NULL AND amount_minor IS NOT NULL)"
+            " OR (kind IN ('dividend','interest') AND amount_minor IS NOT NULL)"
+            " OR (kind = 'split' AND split_to IS NOT NULL AND split_from IS NOT NULL)",
+            name="ck_holding_transactions_fields",
+        ),
+        CheckConstraint(
+            "(quantity IS NULL OR quantity > 0) AND (price IS NULL OR price >= 0)"
+            " AND fees_minor >= 0 AND withholding_tax_minor >= 0"
+            " AND (amount_minor IS NULL OR amount_minor >= 0) AND fx_rate > 0"
+            " AND (split_to IS NULL OR split_to > 0) AND (split_from IS NULL OR split_from > 0)",
+            name="ck_holding_transactions_signs",
+        ),
+        Index("ix_holding_transactions_holding_date", "holding_id", "transaction_date"),
+    )
 
 
 # ── Recurring subscription ────────────────────────────────────────────────────
