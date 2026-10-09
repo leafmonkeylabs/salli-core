@@ -214,3 +214,37 @@ async def test_amounts_are_at_the_currency_precision(client, fi):
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
     assert projections["fi_number"] == score["fi_number"]
     assert all(_LKR.fullmatch(p["base"]) for p in projections["points"])
+
+
+async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
+    """A rupee ledger: Sri Lanka's figures, as defaults, with their sources."""
+    score = (await client.get("/v1/fi/score", headers=AUTH)).json()
+    projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
+    impact = (
+        await client.post("/v1/fi/simulate-purchase", json={"amount": "450000"}, headers=AUTH)
+    ).json()
+
+    for body in (score, projections, impact):
+        assumptions = body["assumptions"]
+        assert assumptions["region"] == "LKR"
+        assert assumptions["inflation"]["value"] == "0.05"
+        assert assumptions["inflation"]["origin"] == "default"
+        assert "Central Bank of Sri Lanka" in assumptions["inflation"]["source"]
+        # The stored strategy's rate and returns: it has one.
+        assert assumptions["safe_withdrawal_rate"]["origin"] == "strategy"
+        assert assumptions["real_return"]["origin"] == "strategy"
+
+
+async def test_the_assumptions_route_reports_what_applies_and_the_defaults(client, fi):
+    body = (await client.get("/v1/fi/assumptions", headers=AUTH)).json()
+    assert body["applied"]["safe_withdrawal_rate"]["origin"] == "strategy"
+    assert body["defaults"]["safe_withdrawal_rate"] == {
+        "value": "0.04",
+        "origin": "default",
+        "source": body["defaults"]["safe_withdrawal_rate"]["source"],
+    }
+    assert body["overrides"] == {
+        "inflation": None,
+        "real_return": None,
+        "safe_withdrawal_rate": None,
+    }

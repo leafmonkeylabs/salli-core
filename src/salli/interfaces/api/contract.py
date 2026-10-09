@@ -96,6 +96,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/fi/projections"): "fi.projections",
     ("POST", "/fi/simulate-purchase"): "fi.simulatePurchase",
     ("GET", "/fi/surplus"): "fi.surplus",
+    ("GET", "/fi/assumptions"): "fi.assumptions",
     ("GET", "/fi/strategy"): "fi.strategy.get",
     ("POST", "/fi/strategy/generate"): "fi.strategy.generate",
     ("GET", "/fi/strategy/history"): "fi.strategy.history",

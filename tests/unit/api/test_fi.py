@@ -38,6 +38,20 @@ def _impact() -> dict:
         "stale_after_days": 45,
         "real_return_used": "0.0462962962962962962962962963",
         "swr": "0.04",
+        "assumptions": {
+            "region": "LKR",
+            "inflation": {"value": "0.05", "origin": "default", "source": "CBSL target"},
+            "real_return": {
+                "value": "0.0462962962962962962962962963",
+                "origin": "strategy",
+                "source": "The nominal returns your FIRE strategy chose.",
+            },
+            "safe_withdrawal_rate": {
+                "value": "0.04",
+                "origin": "strategy",
+                "source": "The rate your FIRE strategy chose.",
+            },
+        },
     }
 
 

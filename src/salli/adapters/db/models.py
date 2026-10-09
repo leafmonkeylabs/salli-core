@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -442,6 +443,12 @@ class UserProfileORM(Base):
     tax_ids: Mapped[list[dict[str, str]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
+
+    # The user's own FI planning assumptions, as yearly fractions ("0.03" is
+    # 3%). NULL uses the default for their base currency (domain/fi/assumptions.py).
+    fi_inflation: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    fi_real_return: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    fi_safe_withdrawal_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now

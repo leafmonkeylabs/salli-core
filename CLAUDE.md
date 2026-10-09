@@ -92,6 +92,10 @@ Tax packs live in `domain/tax/packs/`. The first pack is Sri Lanka 2025/26 (`lk_
 
 A pack also declares its tax year's shape (`year_start`/`year_end`, so the registry can name the year any date falls in, and the pack for a date), its `withholding_kinds` (the `tax_role`s an account may carry for them; only kinds the engine credits, `CREDITED_KINDS`), the accounts a resident's starter chart gets (`starter_accounts`), and how the agents should talk about it (`authority`, `law`, `year_name`). Nothing hard-codes "the current year": with none named, the latest year whose pack has begun is computed.
 
+### Financial independence
+
+`domain/fi/engine.py` is the pure FI engine; `domain/fi/assumptions.py` holds its planning assumptions. Defaults follow the base currency (a small table: each central bank's inflation target, a round real return, the 4% rule, each with its source; Sri Lanka keeps Salli's original figures). The user's own figures on their profile win, then their FIRE strategy's, then the defaults, and every FI response says which applied and where it came from.
+
 ### Agents (LangGraph)
 
 Two distinct things in `domain/agents/`:

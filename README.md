@@ -32,13 +32,22 @@ Salli is for anyone, anywhere. It started in Sri Lanka, and that is still
 where it does the most:
 
 - **Tax:** one pack so far, Sri Lanka 2025/26 (APIT, AIT and foreign service
-  income included). Packs for other countries are welcome — see
+  income included). Your tax residency (`salli profile update --tax-residency
+  LK`) decides which country's packs compute your tax, the tax year, and the
+  tax accounts in your starter chart; with none set, nothing assumes a country.
+  Packs for other countries are welcome — see
   [CONTRIBUTING.md](CONTRIBUTING.md#tax-packs).
 - **Imports:** OFX/QFX, QIF, camt.053, MT940, CSV and Excel statements from
   any bank. PDF statements vary the most, and have mostly been tried with Sri
   Lankan banks' so far.
-- **Financial independence:** the default assumptions, such as 5% long-run
-  inflation, were chosen for Sri Lanka.
+- **Financial independence:** the default assumptions follow your base
+  currency: its central bank's inflation target (5% for the rupee, 2% for the
+  US dollar, euro and pound, and so on), a round 4% real return (Sri Lanka keeps
+  Salli's original 6/10/14% nominal scenarios) and the 4% rule, each with its
+  source. Currencies without figures of their own get cautious placeholders.
+  They are starting points, not forecasts: `salli fi assumptions` shows what
+  applies and why, and `salli profile update --fi-inflation 0.03` (with
+  `--fi-real-return` and `--fi-swr`) sets your own.
 
 Everything else — the ledger, budgets, debts, investments, insurance,
 subscriptions and reports — follows no country's rules.

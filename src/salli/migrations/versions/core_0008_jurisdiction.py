@@ -15,6 +15,10 @@ A user with Sri Lankan data (either number, or a stored Sri Lankan tax
 computation) is tax resident in LK. Everyone else's residency stays NULL:
 nothing is assumed about them.
 
+`user_profiles` also gains the user's own FI planning assumptions
+(`fi_inflation`, `fi_real_return`, `fi_safe_withdrawal_rate`), all NULL: every
+user starts on the defaults for their base currency.
+
 `accounts.tax_role` was checked against Sri Lanka's five roles. Tax packs now
 declare the roles, so the check becomes one of shape (a lower-case code); every
 existing value passes it.
@@ -44,6 +48,8 @@ down_revision: str | None = "core_0007_ai_connections"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+
+_FI_ASSUMPTIONS = ("fi_inflation", "fi_real_return", "fi_safe_withdrawal_rate")
 
 _LK_TAX_ROLES = (
     "tax_role IS NULL OR tax_role IN "
@@ -80,6 +86,10 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_user_profiles_tax_ids", "user_profiles", "jsonb_typeof(tax_ids) = 'array'"
     )
+    for column in _FI_ASSUMPTIONS:
+        op.add_column(
+            "user_profiles", sa.Column(column, sa.Numeric(precision=8, scale=6), nullable=True)
+        )
 
     # LK-TIN: the column, or the onboarding memory where the column is empty.
     op.execute(
@@ -135,6 +145,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_constraint("ck_accounts_tax_role", "accounts", type_="check")
     op.create_check_constraint("ck_accounts_tax_role", "accounts", _LK_TAX_ROLES)
+    for column in reversed(_FI_ASSUMPTIONS):
+        op.drop_column("user_profiles", column)
     op.drop_constraint("ck_user_profiles_tax_ids", "user_profiles", type_="check")
     op.drop_constraint("ck_user_profiles_tax_residency", "user_profiles", type_="check")
     op.drop_column("user_profiles", "tax_ids")

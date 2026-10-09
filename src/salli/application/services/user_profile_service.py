@@ -19,6 +19,7 @@ from salli.application.services.ledger_service import LedgerService, tax_residen
 from salli.domain.accounting.models import AccountType, Direction
 from salli.domain.ai_models import DEFAULT_MODEL
 from salli.domain.currency import normalize_currency
+from salli.domain.fi.assumptions import check_override
 from salli.domain.jurisdiction import (
     LEGACY_TAX_ID_FIELDS,
     LK_NIC,
@@ -85,6 +86,35 @@ def tax_identity_view(profile: dict[str, Any]) -> dict[str, Any]:
         "tax_ids": [t.as_dict() for t in ids],
         "ird_number": tax_id_value(ids, LK_TIN) or column_tin,
         "nic": tax_id_value(ids, LK_NIC),
+    }
+
+
+#: The user's own FI assumptions: the name each has in the API, and its column.
+_FI_ASSUMPTION_COLUMNS = {
+    "inflation": "fi_inflation",
+    "real_return": "fi_real_return",
+    "safe_withdrawal_rate": "fi_safe_withdrawal_rate",
+}
+
+
+def fi_assumptions_view(profile: dict[str, Any]) -> dict[str, Any]:
+    """`profile` with the user's own FI assumptions under `fi_assumptions`, as
+    decimal strings ("0.03"), None where they use their currency's default."""
+    view = {k: v for k, v in profile.items() if k not in _FI_ASSUMPTION_COLUMNS.values()}
+    view["fi_assumptions"] = {
+        name: None if profile.get(column) is None else f"{Decimal(profile[column]).normalize():f}"
+        for name, column in _FI_ASSUMPTION_COLUMNS.items()
+    }
+    return view
+
+
+def _checked_fi_changes(changes: dict[str, Any]) -> dict[str, Decimal | None]:
+    unknown = set(changes) - set(_FI_ASSUMPTION_COLUMNS)
+    if unknown:
+        raise ValueError(f"Not FI assumptions: {', '.join(sorted(unknown))}")
+    return {
+        name: check_override(name, None if value is None else Decimal(str(value)))
+        for name, value in changes.items()
     }
 
 
@@ -244,7 +274,7 @@ class UserProfileService:
         profile = stored if stored is not None else {"id": user_id}
         # Only into a profile that exists: a read never creates one.
         await self._backfill_from_legacy_memories(user_id, profile, persist=stored is not None)
-        return tax_identity_view(profile)
+        return fi_assumptions_view(tax_identity_view(profile))
 
     async def get_tax_residency(self, user_id: str) -> str | None:
         """Where the user is taxed (ISO 3166-1 alpha-2), or None while they
@@ -278,6 +308,10 @@ class UserProfileService:
           the "LK-TIN" and "LK-NIC" tax ids. They are how the web and mobile
           apps say a user is Sri Lankan, so writing one to a profile with no
           residency makes it LK, as migration core_0008 did for existing users.
+
+        `fi_assumptions`: the user's own planning assumptions present in it
+        (`inflation`, `real_return`, `safe_withdrawal_rate`, yearly fractions);
+        None returns one to the default for their currency.
         """
         fields: dict[str, Any] = {}
         for key in (
@@ -294,7 +328,8 @@ class UserProfileService:
         if "dependents_count" in data:
             fields["dependents_count"] = int(data["dependents_count"])
         tax_changes = {key: data[key] for key in _TAX_IDENTITY_FIELDS if key in data}
-        if not fields and not tax_changes:
+        fi_changes = _checked_fi_changes(data.get("fi_assumptions") or {})
+        if not fields and not tax_changes and not fi_changes:
             return
         # One unit of work: a change that does not validate writes nothing.
         async with self._uow_factory() as uow:
@@ -311,6 +346,8 @@ class UserProfileService:
                     tax_ids=[t.as_dict() for t in ids],
                     ird_number=tax_id_value(ids, LK_TIN),
                 )
+            if fi_changes:
+                await uow.user_profiles.set_fi_assumptions(user_id, fi_changes)
         await self._recompute_life_stage(user_id)
 
     async def _recompute_life_stage(self, user_id: str) -> None:

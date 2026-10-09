@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from salli.application.ports import PayloadView, Surface
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref
 from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
@@ -42,6 +42,74 @@ def _priced(payload: dict[str, Any], keys: Iterable[str], currency: str) -> dict
     """A copy of `payload` with the amounts under `keys` normalised by `money`."""
     priced = {k: money(payload[k], currency) for k in keys if payload.get(k) is not None}
     return {**payload, **priced}
+
+
+# ── Assumptions ───────────────────────────────────────────────────────────────
+
+
+class FiAssumption(BaseModel):
+    """One planning assumption, and where it came from."""
+
+    #: A yearly fraction, in a decimal string: "0.05" is 5%.
+    value: str
+    #: "user" when set on the profile, "strategy" when the user's FIRE strategy
+    #: chose it, "default" when it is the default for `region`.
+    origin: Literal["user", "strategy", "default"]
+    #: Where the figure comes from, in words: the published figure a default
+    #: rests on, or how it was arrived at.
+    source: str
+
+
+class FiAssumptions(BaseModel):
+    """The assumptions these figures were computed with. Defaults are round,
+    conservative starting points to adjust, never forecasts."""
+
+    #: Whose defaults: the base currency ("LKR"), or "other" for a currency
+    #: Salli has no figures of its own for.
+    region: str
+    #: Yearly inflation, which turns the nominal returns into real ones.
+    inflation: FiAssumption
+    #: The base scenario's yearly return after inflation.
+    real_return: FiAssumption
+    #: What the FI number is built on: annual expenses / this.
+    safe_withdrawal_rate: FiAssumption
+
+
+class FiAssumptionOverrides(BaseModel):
+    """The planning assumptions the user set themselves; null where they use
+    the default for their currency. Yearly fractions in decimal strings."""
+
+    inflation: str | None = None
+    #: The base scenario's yearly return after inflation.
+    real_return: str | None = None
+    safe_withdrawal_rate: str | None = None
+
+
+class FiAssumptionOverridesIn(BaseModel):
+    """Set the user's own planning assumptions, as yearly fractions ("0.03" is
+    3%). Only the fields sent change; an explicit null returns one to the
+    default for their currency."""
+
+    inflation: DecimalIn | None = None
+    real_return: DecimalIn | None = None
+    safe_withdrawal_rate: DecimalIn | None = None
+
+
+class FiAssumptionsReport(BaseModel):
+    """The assumptions the user's FI figures use, the defaults for their
+    currency, and what they set themselves."""
+
+    applied: FiAssumptions
+    #: Whatever applies: what the user would have without their own figures
+    #: and their strategy's.
+    defaults: FiAssumptions
+    overrides: FiAssumptionOverrides
+
+
+@router.get("/assumptions")
+async def get_assumptions(user_id: CurrentUser, svc: AppServices) -> FiAssumptionsReport:
+    """The planning assumptions behind the user's FI figures, and where each came from."""
+    return FiAssumptionsReport.model_validate(await svc.fi.assumptions(user_id))
 
 
 # ── Score ─────────────────────────────────────────────────────────────────────
@@ -96,6 +164,8 @@ class FiScore(BaseModel):
     #: The ISO date that is.
     projected_fi_date: str | None = None
     components: list[FiScoreComponent]
+    #: The assumptions it was computed with, and where each came from.
+    assumptions: FiAssumptions | None = None
     #: Fingerprint of the inputs the score was computed from.
     inputs_hash: str | None = None
 
@@ -456,6 +526,8 @@ class FiProjections(BaseModel):
     current_portfolio: Amount | None = None
     real_returns: FiScenarioReturns | None = None
     expected_inflation: str | None = None
+    #: The assumptions these projections use, and where each came from.
+    assumptions: FiAssumptions | None = None
 
 
 class SurplusBreakdown(BaseModel):
@@ -574,6 +646,8 @@ class PurchaseImpact(BaseModel):
     #: The base scenario's real return the costing used, a fraction.
     real_return_used: str
     swr: str
+    #: The assumptions behind the costing, and where each came from.
+    assumptions: FiAssumptions
 
 
 @router.post("/simulate-purchase")

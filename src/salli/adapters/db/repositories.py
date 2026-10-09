@@ -1194,7 +1194,30 @@ class SQLUserProfileRepository(UserProfileRepository):
             "preferred_model": row.preferred_model,
             "tax_residency": row.tax_residency,
             "tax_ids": list(row.tax_ids or []),
+            "fi_inflation": row.fi_inflation,
+            "fi_real_return": row.fi_real_return,
+            "fi_safe_withdrawal_rate": row.fi_safe_withdrawal_rate,
         }
+
+    async def set_fi_assumptions(self, user_id: str, values: dict[str, Decimal | None]) -> None:
+        """Write the user's own FI assumptions present in `values`; None returns
+        one to the default. Keys are "inflation", "real_return" and
+        "safe_withdrawal_rate": nothing else can be written through this."""
+        columns = {
+            "inflation": "fi_inflation",
+            "real_return": "fi_real_return",
+            "safe_withdrawal_rate": "fi_safe_withdrawal_rate",
+        }
+        unknown = set(values) - set(columns)
+        if unknown:
+            raise ValueError(f"Not FI assumptions: {sorted(unknown)}")
+        result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise LookupError(f"User {user_id} has no profile")
+        for key, value in values.items():
+            setattr(row, columns[key], value)
+        await self._s.flush()
 
     async def set_tax_identity(
         self,

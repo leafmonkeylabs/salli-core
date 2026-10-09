@@ -72,6 +72,7 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/fi/score/history"): "fi history",
     ("GET", "/fi/projections"): "fi projections",
     ("GET", "/fi/surplus"): "fi surplus",
+    ("GET", "/fi/assumptions"): "fi assumptions",
     ("POST", "/fi/simulate-purchase"): "fi simulate-purchase",
     ("GET", "/fi/goals"): "fi goals list",
     ("POST", "/fi/goals"): "fi goals add",

@@ -128,7 +128,8 @@ def test_the_migration_reverses(monkeypatch):
             scalar(
                 url,
                 "select count(*) from information_schema.columns"
-                " where table_name = 'user_profiles' and column_name like 'tax_%'",
+                " where table_name = 'user_profiles'"
+                " and (column_name like 'tax_%' or column_name like 'fi_%')",
             )
             == 0
         )
@@ -193,3 +194,25 @@ def test_tax_packs_decide_the_roles_and_the_database_their_shape(db):
     for bad in ("APIT", "apit credit", "1apit"):
         with pytest.raises(Exception, match="ck_accounts_tax_role"):
             _execute(db, _account(bad))
+
+
+async def test_the_users_own_fi_assumptions_are_stored_exactly_and_cleared(db, uow_factory):
+    from decimal import Decimal
+
+    async with uow_factory() as uow:
+        await uow.user_profiles.upsert("u", {"base_currency": "USD"})
+        await uow.user_profiles.set_fi_assumptions(
+            "u", {"inflation": Decimal("0.0325"), "safe_withdrawal_rate": Decimal("0.035")}
+        )
+    async with uow_factory() as uow:
+        profile = await uow.user_profiles.get("u")
+        assert profile["fi_inflation"] == Decimal("0.0325")
+        assert profile["fi_safe_withdrawal_rate"] == Decimal("0.035")
+        assert profile["fi_real_return"] is None
+        await uow.user_profiles.set_fi_assumptions("u", {"inflation": None})
+        with pytest.raises(ValueError, match="Not FI assumptions"):
+            await uow.user_profiles.set_fi_assumptions("u", {"base_currency": Decimal("1")})
+    async with uow_factory() as uow:
+        profile = await uow.user_profiles.get("u")
+        assert profile["fi_inflation"] is None
+        assert profile["fi_safe_withdrawal_rate"] == Decimal("0.035")

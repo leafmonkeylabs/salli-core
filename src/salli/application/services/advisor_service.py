@@ -148,6 +148,8 @@ class AdvisorService:
                 # assumptions in fire_strategy — say so, or the model will conflate them.
                 "real_returns_used": fire_projections.get("real_returns"),
                 "expected_inflation": fire_projections.get("expected_inflation"),
+                # Which planning assumptions applied, and where each came from.
+                "assumptions": fire_projections.get("assumptions"),
             },
             "surplus_breakdown": {
                 "income_by_source": surplus.get("income_by_source", {}),

@@ -26,6 +26,7 @@ from salli.domain.jurisdiction import MAX_TAX_ID_LENGTH
 from salli.domain.risk.models import RiskCategory
 from salli.interfaces.api.contract import Amount, CountryCode, CurrencyCode
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
+from salli.interfaces.api.routers.fi import FiAssumptionOverrides, FiAssumptionOverridesIn
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -125,6 +126,8 @@ class ProfileIdentityRequest(BaseModel):
     ird_number: str | None = None
     #: The "LK-NIC" tax id, likewise.
     nic: str | None = None
+    #: The user's own FI planning assumptions; only the fields sent change.
+    fi_assumptions: FiAssumptionOverridesIn | None = None
     #: ISO 4217. Changes only while the ledger is empty (409 otherwise).
     base_currency: str | None = None
 
@@ -168,6 +171,9 @@ class Profile(BaseModel):
     tax_ids: list[TaxId] = Field(default_factory=list[TaxId])
     #: The "LK-NIC" tax id, as a field of its own like `ird_number`.
     nic: str | None = None
+    #: The FI planning assumptions the user set themselves (GET
+    #: /fi/assumptions says which apply, and the defaults).
+    fi_assumptions: FiAssumptionOverrides = Field(default_factory=FiAssumptionOverrides)
 
 
 class ProfileUpdated(BaseModel):
@@ -193,11 +199,13 @@ async def update_profile(
 ) -> ProfileUpdated:
     if body.base_currency:
         await svc.profile.set_base_currency(user_id, body.base_currency)
-    data = body.model_dump(exclude_none=True, exclude={"base_currency"})
+    data = body.model_dump(exclude_none=True, exclude={"base_currency", "fi_assumptions"})
     # A null leaves every other field as it is; for the residency it is how a
-    # client clears it.
+    # client clears it, and for an FI assumption how it returns to the default.
     if "tax_residency" in body.model_fields_set and body.tax_residency is None:
         data["tax_residency"] = None
+    if body.fi_assumptions is not None:
+        data["fi_assumptions"] = body.fi_assumptions.model_dump(exclude_unset=True)
     await svc.profile.update_identity(user_id, data)
     return ProfileUpdated(updated=True)
 

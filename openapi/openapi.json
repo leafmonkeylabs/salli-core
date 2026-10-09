@@ -3239,6 +3239,43 @@
         }
       }
     },
+    "/v1/fi/assumptions": {
+      "get": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Get Assumptions",
+        "description": "The planning assumptions behind the user's FI figures, and where each came from.",
+        "operationId": "fi.assumptions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiAssumptionsReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/fi/score": {
       "get": {
         "tags": [
@@ -13192,6 +13229,174 @@
         ],
         "title": "ExportedPosting"
       },
+      "FiAssumption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user",
+              "strategy",
+              "default"
+            ],
+            "title": "Origin"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "origin",
+          "source"
+        ],
+        "title": "FiAssumption",
+        "description": "One planning assumption, and where it came from."
+      },
+      "FiAssumptionOverrides": {
+        "properties": {
+          "inflation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflation"
+          },
+          "real_return": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real Return"
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safe Withdrawal Rate"
+          }
+        },
+        "type": "object",
+        "title": "FiAssumptionOverrides",
+        "description": "The planning assumptions the user set themselves; null where they use\nthe default for their currency. Yearly fractions in decimal strings."
+      },
+      "FiAssumptionOverridesIn": {
+        "properties": {
+          "inflation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflation"
+          },
+          "real_return": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real Return"
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safe Withdrawal Rate"
+          }
+        },
+        "type": "object",
+        "title": "FiAssumptionOverridesIn",
+        "description": "Set the user's own planning assumptions, as yearly fractions (\"0.03\" is\n3%). Only the fields sent change; an explicit null returns one to the\ndefault for their currency."
+      },
+      "FiAssumptions": {
+        "properties": {
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "inflation": {
+            "$ref": "#/components/schemas/FiAssumption"
+          },
+          "real_return": {
+            "$ref": "#/components/schemas/FiAssumption"
+          },
+          "safe_withdrawal_rate": {
+            "$ref": "#/components/schemas/FiAssumption"
+          }
+        },
+        "type": "object",
+        "required": [
+          "region",
+          "inflation",
+          "real_return",
+          "safe_withdrawal_rate"
+        ],
+        "title": "FiAssumptions",
+        "description": "The assumptions these figures were computed with. Defaults are round,\nconservative starting points to adjust, never forecasts."
+      },
+      "FiAssumptionsReport": {
+        "properties": {
+          "applied": {
+            "$ref": "#/components/schemas/FiAssumptions"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/FiAssumptions"
+          },
+          "overrides": {
+            "$ref": "#/components/schemas/FiAssumptionOverrides"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied",
+          "defaults",
+          "overrides"
+        ],
+        "title": "FiAssumptionsReport",
+        "description": "The assumptions the user's FI figures use, the defaults for their\ncurrency, and what they set themselves."
+      },
       "FiProjectionPoint": {
         "properties": {
           "year": {
@@ -13387,6 +13592,16 @@
               }
             ],
             "title": "Expected Inflation"
+          },
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": true,
@@ -13590,6 +13805,16 @@
             },
             "type": "array",
             "title": "Components"
+          },
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "inputs_hash": {
             "anyOf": [
@@ -16732,6 +16957,9 @@
               }
             ],
             "title": "Nic"
+          },
+          "fi_assumptions": {
+            "$ref": "#/components/schemas/FiAssumptionOverrides"
           }
         },
         "type": "object",
@@ -16887,6 +17115,16 @@
               }
             ],
             "title": "Nic"
+          },
+          "fi_assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumptionOverridesIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "base_currency": {
             "anyOf": [
@@ -17240,6 +17478,9 @@
           "swr": {
             "type": "string",
             "title": "Swr"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/FiAssumptions"
           }
         },
         "type": "object",
@@ -17260,7 +17501,8 @@
           "is_stale",
           "stale_after_days",
           "real_return_used",
-          "swr"
+          "swr",
+          "assumptions"
         ],
         "title": "PurchaseImpact",
         "description": "What a purchase does to the balance sheet and the FI date. Every figure is the engine's."

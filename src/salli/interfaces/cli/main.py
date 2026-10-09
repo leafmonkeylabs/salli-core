@@ -1473,6 +1473,47 @@ def fi_projections():
         console.print(table)
 
 
+@fi_app.command("assumptions")
+def fi_assumptions():
+    """The planning assumptions behind your FI figures, and where each came from."""
+    from decimal import Decimal
+
+    user_id = _require_user()
+    report = asyncio.run(_services().fi.assumptions(user_id))
+    if emit(report):
+        return
+    applied, defaults = report["applied"], report["defaults"]
+    where = (
+        "your currency" if applied["region"] != "other" else "currencies Salli has no figures for"
+    )
+    console.print(f"\n[bold]FI assumptions[/bold]  (defaults for {where}: {applied['region']})\n")
+    names = {
+        "inflation": "Inflation",
+        "real_return": "Real return (base)",
+        "safe_withdrawal_rate": "Safe withdrawal rate",
+    }
+
+    def pct(value: str) -> str:
+        return f"{Decimal(value) * 100:.2f}%"
+
+    table = Table()
+    table.add_column("Assumption")
+    table.add_column("Applied", justify="right")
+    table.add_column("From")
+    table.add_column("Default", justify="right")
+    for key, label in names.items():
+        table.add_row(
+            label, pct(applied[key]["value"]), applied[key]["origin"], pct(defaults[key]["value"])
+        )
+    console.print(table)
+    for key, label in names.items():
+        console.print(f"\n[dim]{label}:[/dim] {applied[key]['source']}")
+    console.print(
+        "\n[dim]Defaults are starting points, not forecasts. Set your own with "
+        "'salli profile update --fi-inflation 0.03' (and --fi-real-return, --fi-swr).[/dim]"
+    )
+
+
 @fi_app.command("surplus")
 def fi_surplus():
     """Show the monthly income/expense surplus breakdown."""
@@ -2332,8 +2373,21 @@ def profile_update(
     ),
     ird_number: str = typer.Option(None, "--ird-number", help="Sri Lankan TIN (LK-TIN)"),
     nic: str = typer.Option(None, "--nic", help="Sri Lankan NIC (LK-NIC)"),
+    fi_inflation: str = typer.Option(
+        None, "--fi-inflation", help="Your own yearly inflation, e.g. 0.03; 'none' for the default"
+    ),
+    fi_real_return: str = typer.Option(
+        None,
+        "--fi-real-return",
+        help="Your own yearly return after inflation, e.g. 0.04; 'none' for the default",
+    ),
+    fi_swr: str = typer.Option(
+        None, "--fi-swr", help="Your own safe withdrawal rate, e.g. 0.035; 'none' for the default"
+    ),
 ):
     """Update identity fields on the fact-find profile."""
+    from decimal import Decimal, InvalidOperation
+
     from salli.domain.jurisdiction import stored_tax_ids, with_tax_id
 
     user_id = _require_user()
@@ -2359,7 +2413,8 @@ def profile_update(
         data["ird_number"] = ird_number
     if nic is not None:
         data["nic"] = nic
-    if not data and not tax_id:
+    own = {"inflation": fi_inflation, "real_return": fi_real_return, "safe_withdrawal_rate": fi_swr}
+    if not data and not tax_id and all(v is None for v in own.values()):
         console.print("[yellow]Nothing to update.[/yellow]")
         raise typer.Exit(1)
 
@@ -2375,11 +2430,17 @@ def profile_update(
                     raise ValueError(f"Invalid --tax-id '{raw}'. Use SCHEME=NUMBER")
                 ids = with_tax_id(ids, scheme, value)
             data["tax_ids"] = [t.as_dict() for t in ids]
+        if any(v is not None for v in own.values()):
+            data["fi_assumptions"] = {
+                k: (None if v.lower() == "none" else Decimal(v))
+                for k, v in own.items()
+                if v is not None
+            }
         await svc.profile.update_identity(user_id, data)
 
     try:
         asyncio.run(_run())
-    except ValueError as exc:
+    except (ValueError, InvalidOperation) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1)
     emit({"updated": data})

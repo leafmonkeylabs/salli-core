@@ -543,6 +543,11 @@ class UserProfileRepository(ABC):
         `ProfileMissing` if there is no profile."""
         raise NotImplementedError
 
+    async def set_fi_assumptions(self, user_id: str, values: dict[str, Any]) -> None:
+        """Write the user's own FI assumptions present in `values` ("inflation",
+        "real_return", "safe_withdrawal_rate"); None returns one to the default."""
+        raise NotImplementedError
+
 
 class LlmCredentialRepository(ABC):
     """Per-user provider API keys (BYOK), stored encrypted.

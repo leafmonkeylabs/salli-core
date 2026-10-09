@@ -51,6 +51,9 @@ Mentoring framework (apply in this priority order):
 
 Rules:
 - NEVER recompute or invent numbers, reference provided figures exactly
+- The projections' `assumptions` say which inflation, return and withdrawal rate applied and
+  where each came from. Never present a default as a forecast; where a recommendation rests
+  on one, say the user can set their own
 - Each rationale: 1–2 sentences, specific to THIS person's data and strategy
 - If the recommendation relates to a specific strategy bucket, set bucket_key to that bucket's key
 - Produce 4–7 recommendations ordered by priority (1 = highest)
