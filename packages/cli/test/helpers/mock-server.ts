@@ -81,6 +81,43 @@ export class MockSalli {
     created: [] as unknown[],
     posted: [] as string[][],
     taggings: [] as unknown[],
+    /** Simple collections, by API path (budgets, debts, holdings…). */
+    collections: {
+      '/v1/budget/': [
+        {
+          id: uid(401),
+          period_start: '2026-10-01',
+          period_end: '2026-10-31',
+          currency: 'USD',
+          lines: [
+            { account_id: uid(6), limit_amount: '400.00' },
+            { account_id: uid(7), limit_amount: '1800.00' },
+          ],
+        },
+      ],
+      '/v1/debt/': [
+        { id: uid(411), name: 'Credit card', currency: 'USD', principal: '1200.00', apr: '0.2399', minimum_payment: '35.00', is_active: true },
+        { id: uid(412), name: 'Car loan', currency: 'USD', principal: '8400.00', apr: '0.069', minimum_payment: '310.00', is_active: true },
+      ],
+      '/v1/portfolio/': [
+        { id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', is_active: true },
+        { id: uid(422), symbol: 'BND', name: 'Total Bond Market', asset_class: 'bond', currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', is_active: true },
+      ],
+      '/v1/subscriptions/': [
+        { id: uid(431), name: 'Streaming', amount: '15.99', currency: 'USD', frequency: 'monthly', next_due_date: '2026-10-20', account_id: null, grace_days: 5, amount_tolerance_pct: '0.05', is_active: true },
+      ],
+      '/v1/insurance/policies': [
+        { id: uid(441), name: 'Term life', policy_type: 'life', provider: 'Acme Life', currency: 'USD', coverage_amount: '500000.00', premium_amount: '42.00', premium_frequency: 'monthly', expiry_date: '2046-01-01', is_active: true },
+      ],
+      '/v1/fi/goals': [
+        { id: uid(451), name: 'Emergency fund', kind: 'emergency_fund', currency: 'USD', target_amount: '15000.00', current_amount: '9000.00', allocated_amount: '9000.00', shortfall: '0.00', target_date: '2027-06-30', priority: 1, progress: 0.6, created_at: '2026-01-01T00:00:00+00:00' },
+      ],
+      '/v1/documents/': [
+        { id: uid(461), title: 'Receipt.pdf', namespace: 'documents', mime_type: 'application/pdf', created_at: '2026-10-02T00:00:00+00:00', content: 'Thank you for shopping' },
+      ],
+      '/v1/mcp/connections/': [{ id: uid(471), client_name: 'Claude', scope: '', expires_at: '2026-11-01T00:00:00+00:00' }],
+    } as Record<string, Array<Record<string, unknown> & { id: string }>>,
+    bodies: [] as Array<{ method: string; path: string; body: unknown }>,
   };
   /** SSE frames for the next chat turn (each a JSON event). */
   chatEvents: unknown[] = [
@@ -380,8 +417,144 @@ export class MockSalli {
       return { status: 200, raw: 'Type,Code,Account,Balance\r\nasset,1000,Cash,250.00\r\n', headers: { 'Content-Type': 'text/csv' } };
     }
 
+    // Collections: list, get, create, update, delete.
+    const collection = this.collectionRoute(req);
+    if (collection) return collection;
+
     // FI
     if (method === 'GET' && path === '/v1/fi/score') return { status: 200, body: FI_SCORE };
+    if (method === 'POST' && path === '/v1/fi/score/recompute') return { status: 200, body: FI_SCORE };
+    if (method === 'GET' && path === '/v1/fi/projections') {
+      return {
+        status: 200,
+        body: {
+          currency: 'USD',
+          points: [
+            { year: 2027, conservative: '30000.00', base: '32000.00', growth: '34000.00' },
+            { year: 2028, conservative: '48000.00', base: '52000.00', growth: '57000.00' },
+          ],
+          fi_number: '663705.00',
+          swr: '0.04',
+          fire_year_conservative: 19,
+          fire_year_base: 14,
+          fire_year_growth: 11,
+          current_portfolio: '12834.50',
+          real_returns: { conservative: '0.02', base: '0.035', growth: '0.05' },
+          expected_inflation: '0.05',
+        },
+      };
+    }
+    if (method === 'POST' && path === '/v1/fi/simulate-purchase') {
+      this.data.bodies.push({ method, path, body: req.json });
+      return {
+        status: 200,
+        body: {
+          amount: (req.json as { amount: string }).amount,
+          currency: 'USD',
+          baseline_months_to_fi: 168,
+          payable_from_liquid: true,
+          options: [
+            { key: 'cash', label: 'Pay cash', total_cost: '2400.00', interest_cost: '0.00', monthly_payment: null, term_months: null, months_to_fi: 169, months_delay: 1, exceeds_monthly_surplus: false },
+            { key: 'instalments', label: 'Pay over 12 months', total_cost: '2616.00', interest_cost: '216.00', monthly_payment: '218.00', term_months: 12, months_to_fi: 170, months_delay: 2, exceeds_monthly_surplus: false },
+          ],
+          cheapest_option_key: 'cash',
+          data_as_of: '2026-10-06',
+          is_stale: false,
+          stale_after_days: 30,
+        },
+      };
+    }
+    if (method === 'GET' && path === '/v1/debt/payoff-plan') {
+      return {
+        status: 200,
+        body: {
+          strategy: req.query.get('strategy') ?? 'avalanche',
+          currency: 'USD',
+          months_to_payoff: 26,
+          total_interest_paid: '845.12',
+          schedule: [
+            { month: 1, debt_name: 'Credit card', payment: '135.00', principal_paid: '111.01', interest_paid: '23.99', remaining_balance: '1088.99' },
+            { month: 1, debt_name: 'Car loan', payment: '310.00', principal_paid: '261.70', interest_paid: '48.30', remaining_balance: '8138.30' },
+          ],
+        },
+      };
+    }
+    if (method === 'GET' && path === '/v1/portfolio/summary') {
+      return {
+        status: 200,
+        body: {
+          currency: 'USD',
+          total_value: '14140.50',
+          total_cost_basis: '12000.00',
+          total_gain: '2140.50',
+          total_gain_pct: '0.178375',
+          allocation: [
+            { asset_class: 'equity', current_value: '11250.40', pct_of_portfolio: '0.7956' },
+            { asset_class: 'bond', current_value: '2890.10', pct_of_portfolio: '0.2044' },
+          ],
+          alerts: req.query.getAll('target').length ? [{ asset_class: 'equity', current_pct: '0.7956', target_pct: '0.6', drift_pct: '0.1956' }] : [],
+        },
+      };
+    }
+    if (method === 'GET' && path === '/v1/insurance/report') {
+      return {
+        status: 200,
+        body: {
+          currency: 'USD',
+          lines: [{ policy_type: 'life', target_amount: '750000.00', actual_coverage: '500000.00', gap: '250000.00' }],
+          missing_types: ['health'],
+          expiring_soon: [],
+        },
+      };
+    }
+    if (method === 'PUT' && path === '/v1/insurance/targets') {
+      this.data.bodies.push({ method, path, body: req.json });
+      return { status: 200, body: { id: uid(481) } };
+    }
+    if (method === 'GET' && path === '/v1/reports/goal-progress') {
+      return { status: 200, body: { goals: this.data.collections['/v1/fi/goals'], completed_count: 0, in_progress_count: 1 } };
+    }
+    if (method === 'GET' && path === '/v1/onboarding/profile') {
+      return { status: 200, body: { display_name: 'Ada', base_currency: 'USD', date_of_birth: '1990-04-01', dependents_count: 0, residency_status: 'resident' } };
+    }
+    if (method === 'PATCH' && path === '/v1/onboarding/profile') {
+      this.data.bodies.push({ method, path, body: req.json });
+      if ((req.json as { base_currency?: string }).base_currency === 'EUR') {
+        return problem(409, 'Base currency is fixed', 'Your ledger already has amounts in USD.', '/problems/base-currency-locked');
+      }
+      return { status: 200, body: { updated: true } };
+    }
+    if (method === 'GET' && path === '/v1/onboarding/export') return { status: 200, raw: '{"profile": {"display_name": "Ada"}, "progress": 0.0}', headers: { 'Content-Type': 'application/json' } };
+    if (method === 'GET' && path === '/v1/tax/packs') {
+      return { status: 200, body: [{ country: 'LK', year: '2025/26', version: '1', period_start: '2025-04-01', period_end: '2026-03-31', personal_relief: '1800000', return_due: '11-30' }] };
+    }
+    if (method === 'POST' && path === '/v1/tax/compute') {
+      return {
+        status: 200,
+        body: {
+          pack_country: 'LK', pack_year: '2025/26', pack_version: '1', currency: 'LKR',
+          gross_income: '6000000.00', foreign_service_income: '0.00', regular_income: '6000000.00', personal_relief_applied: '1800000.00',
+          qp_deduction: '0.00', taxable_income: '4200000.00', fsi_tax: '0.00', tax_before_credits: '540000.00',
+          apit_credit: '400000.00', ait_credit: '0.00', foreign_tax_credit: '0.00', total_credits: '400000.00',
+          tax_payable: '140000.00', refund_due: '0.00', rounding: 'nearest_rupee',
+          band_workings: [
+            { band: 'LKR 0 – LKR 1,000,000', rate: '6%', from_amount: '0', to_amount: '1000000', rate_fraction: '0.06', taxable_in_band: '1000000.00', tax: '60000.00' },
+            { band: 'LKR 1,000,000 – LKR 1,500,000', rate: '18%', from_amount: '1000000', to_amount: '1500000', rate_fraction: '0.18', taxable_in_band: '500000.00', tax: '90000.00' },
+          ],
+        },
+      };
+    }
+    if (method === 'GET' && path === '/v1/llm-keys') return { status: 200, body: { available: true, keys: [{ provider: 'anthropic', last4: 'Ab12', validated_at: '2026-10-01T00:00:00+00:00', readable: true }] } };
+    if (method === 'PUT' && path === '/v1/llm-keys/anthropic') {
+      this.data.bodies.push({ method, path, body: req.json });
+      return { status: 204 };
+    }
+    if (method === 'GET' && path === '/v1/mcp/connections/enabled') return { status: 200, body: { enabled: true } };
+    if (method === 'PUT' && path === '/v1/mcp/connections/enabled') {
+      this.data.bodies.push({ method, path, body: req.json });
+      return { status: 204 };
+    }
+    if (method === 'GET' && path === '/v1/advisor/reports/latest') return { status: 200, body: {} };
 
     // reminders
     if (method === 'GET' && path === '/v1/reminders/') {
@@ -419,6 +592,63 @@ export class MockSalli {
     }
 
     return problem(404, 'Not Found', 'Not Found');
+  }
+
+  /** Generic CRUD over `data.collections` (POST, GET, PATCH, DELETE). */
+  private collectionRoute(req: RecordedRequest): Reply | undefined {
+    for (const [base, items] of Object.entries(this.data.collections)) {
+      const root = base.endsWith('/') ? base : `${base}/`;
+      if (req.path === base || req.path === root) {
+        if (req.method === 'GET') {
+          const key = base.split('/').filter(Boolean).pop() ?? 'items';
+          const name = { budget: 'budgets', debt: 'debts', portfolio: 'holdings', policies: 'policies', goals: 'goals', connections: 'connections' }[key] ?? key;
+          const activeOnly = req.query.get('active_only') !== 'false';
+          return { status: 200, body: { [name]: items.filter((i) => !activeOnly || i.is_active !== false), ...(key === 'documents' ? { count: items.length } : {}) } };
+        }
+        if (req.method === 'POST') {
+          this.data.bodies.push({ method: req.method, path: req.path, body: req.json });
+          const id = uid(5000 + items.length);
+          items.push({ id, ...(req.json as object) });
+          return { status: 201, body: { id } };
+        }
+      }
+      if (req.path.startsWith(root) && req.path.length > root.length) {
+        const rest = req.path.slice(root.length).split('/');
+        const item = items.find((i) => i.id === rest[0]);
+        if (!item) continue;
+        if (rest.length === 1 && req.method === 'GET') return { status: 200, body: item };
+        if (rest.length === 1 && req.method === 'PATCH') {
+          this.data.bodies.push({ method: req.method, path: req.path, body: req.json });
+          Object.assign(item, req.json);
+          return { status: 200, body: { updated: true } };
+        }
+        if (rest.length === 1 && req.method === 'DELETE') {
+          items.splice(items.indexOf(item), 1);
+          return { status: 204 };
+        }
+        if (rest[1] === 'summary' && req.method === 'GET') {
+          return {
+            status: 200,
+            body: {
+              id: item.id, period_start: item.period_start, period_end: item.period_end, currency: 'USD',
+              total_limit: '2200.00', total_actual: '2212.35', total_variance: '-12.35',
+              lines: [
+                { account_id: uid(6), category: 'Groceries', limit_amount: '400.00', actual_amount: '412.35', variance: '-12.35' },
+                { account_id: uid(7), category: 'Rent', limit_amount: '1800.00', actual_amount: '1800.00', variance: '0.00' },
+              ],
+            },
+          };
+        }
+        if (rest[1] === 'allocations') {
+          if (req.method === 'PUT') {
+            this.data.bodies.push({ method: req.method, path: req.path, body: req.json });
+            return { status: 200, body: { updated: true } };
+          }
+          return { status: 200, body: { allocations: [{ goal_id: item.id, account_id: uid(2), currency: 'USD', allocated_amount: '9000.00' }] } };
+        }
+      }
+    }
+    return undefined;
   }
 
   private oauth(req: RecordedRequest): Reply {

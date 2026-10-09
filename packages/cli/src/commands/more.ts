@@ -1,0 +1,653 @@
+/**
+ * Reminders, reports, tax, documents, your profile and data, your own LLM
+ * keys, and AI clients connected over MCP.
+ */
+import { readFile, stat, writeFile } from 'node:fs/promises';
+import { basename, extname, resolve } from 'node:path';
+import { Option, type Command } from '@commander-js/extra-typings';
+import {
+  accountExport,
+  agentFilesUpload,
+  compareAmounts,
+  documentsDelete,
+  documentsGet,
+  documentsList,
+  llmKeysDelete,
+  llmKeysList,
+  llmKeysSet,
+  mcpConnectionsList,
+  mcpConnectionsRevoke,
+  mcpEnabledGet,
+  mcpEnabledSet,
+  profileGet,
+  profileUpdate,
+  remindersCreate,
+  remindersDelete,
+  remindersList,
+  remindersMarkDone,
+  remindersSeedFilingCalendar,
+  remindersSyncAlerts,
+  reportsBalanceSheet,
+  reportsExportCsv,
+  reportsGoalProgress,
+  reportsNetWorth,
+  taxCompute,
+  taxLatest,
+  taxPacks,
+  toJsonText,
+  type ProfileIdentityRequest,
+  type SalliClient,
+} from '@leafmonkeylabs/salli-sdk';
+import type { App } from '../app';
+import type { BalanceSheet, ReminderList, TodayReminder } from '../api-types';
+import { CliError, UsageError } from '../errors';
+import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
+import { displayDate, displayRange, isoDate, parseDate } from '../util/dates';
+import { resolveById } from '../util/resolve';
+import { readAllStdin } from '../util/stdin';
+import { renderRecord } from './records';
+import { humanize } from './status';
+import { confirmAction, countArg, currencyArg } from './shared';
+
+type Row = Record<string, unknown> & { id: string };
+const str = (v: unknown): string => (typeof v === 'string' ? v : v === null || v === undefined ? '' : String(v));
+
+// ── Reminders ────────────────────────────────────────────────────────────────
+
+function registerReminders(program: Command, app: App): void {
+  const reminders = program.command('reminders').alias('reminder').description('Deadlines and alerts: filing dates, overspending, missed charges, expiring cover');
+  const resolveReminder = async (api: SalliClient, query: string): Promise<TodayReminder> =>
+    resolveById(((await api.call(remindersList)) as ReminderList).reminders, query, 'reminder');
+
+  reminders
+    .command('list')
+    .alias('ls')
+    .description('List reminders, soonest first')
+    .addOption(new Option('--status <status>', 'Only pending or done ones').choices(['pending', 'done']))
+    .option('--alerts', 'Only alerts Salli raised (not reminders you or the filing calendar made)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const data = (await api.call(remindersList, {
+        query: { ...(opts.status ? { status: opts.status } : {}), ...(opts.alerts ? { alerts_only: true } : {}) },
+      })) as ReminderList;
+      const today = isoDate(app.runtime.now());
+      app.out.emit(data, {
+        records: (d) => d.reminders,
+        human: (d) => {
+          if (!d.reminders.length) return app.out.note('Nothing to remind you of.');
+          const c = app.out.colors;
+          const sorted = [...d.reminders].sort((a, b) => a.due_date.localeCompare(b.due_date));
+          app.out.line(
+            app.out.table(sorted, [
+              { header: 'ID', get: (r) => r.id.slice(0, 8), style: (t) => c.dim(t) },
+              { header: 'DUE', get: (r) => displayDate(r.due_date, app.out.locale), style: (t, r) => (r.status === 'pending' && r.due_date < today ? c.red(t) : t) },
+              { header: 'WHAT', get: (r) => humanize(r.kind), shrink: true },
+              { header: 'STATUS', get: (r) => r.status, style: (t, r) => (r.status === 'done' ? c.dim(t) : t) },
+              { header: 'ALERT', get: (r) => r.severity ?? '', style: (t, r) => (r.severity === 'critical' ? c.red(t) : c.yellow(t)) },
+            ]),
+          );
+        },
+      });
+    });
+
+  reminders
+    .command('add')
+    .argument('<what>', 'What to remember, e.g. quarterly_installment')
+    .requiredOption('--due <date>', 'When (YYYY-MM-DD)')
+    .description('Add a reminder')
+    .action(async (kind, opts) => {
+      const api = await app.api();
+      const created = await api.call(remindersCreate, { body: { kind, due_date: parseDate(opts.due, app.runtime.now(), '--due') } });
+      if (app.out.machine) app.out.emit(created, { human: () => undefined });
+      else app.out.success(`Reminder added for ${displayDate(parseDate(opts.due, app.runtime.now()), app.out.locale)}.`);
+    });
+
+  reminders
+    .command('done')
+    .argument('<reminder>', 'Reminder id (or its start)')
+    .description('Mark a reminder done')
+    .action(async (query) => {
+      const api = await app.api();
+      const reminder = await resolveReminder(api, query);
+      await api.call(remindersMarkDone, { path: { reminder_id: reminder.id } });
+      app.out.done({ id: reminder.id, status: 'done' }, `Done: ${humanize(reminder.kind)}.`);
+    });
+
+  reminders
+    .command('delete')
+    .argument('<reminder>', 'Reminder id (or its start)')
+    .description('Delete a reminder')
+    .option('-y, --yes', 'Do not ask for confirmation')
+    .action(async (query, opts) => {
+      const api = await app.api();
+      const reminder = await resolveReminder(api, query);
+      if (!(await confirmAction(app, opts.yes, `Delete the reminder “${humanize(reminder.kind)}”?`))) return;
+      await api.call(remindersDelete, { path: { reminder_id: reminder.id } });
+      app.out.done({ id: reminder.id, deleted: true }, 'Reminder deleted.');
+    });
+
+  reminders
+    .command('seed')
+    .description('Add the tax filing deadlines for a year of assessment')
+    .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const result = (await api.call(remindersSeedFilingCalendar, { query: opts.year ? { year: opts.year } : {} })) as { created: number; ids: string[] };
+      app.out.done(result, `Added ${result.created} filing deadline${result.created === 1 ? '' : 's'}.`);
+    });
+
+  reminders
+    .command('sync-alerts')
+    .description('Check budgets, subscriptions and insurance now, and raise alerts')
+    .action(async () => {
+      const api = await app.api();
+      const result = (await api.call(remindersSyncAlerts)) as { counts: Record<string, number>; total: number };
+      app.out.emit(result, {
+        human: (r) => {
+          if (!r.total) return app.out.success('Nothing needs your attention.');
+          app.out.success(`${r.total} alert${r.total === 1 ? '' : 's'}: ${Object.entries(r.counts).filter(([, n]) => n).map(([k, n]) => `${n} ${humanize(k).toLowerCase()}`).join(', ')}.`);
+        },
+      });
+    });
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+const REPORT_TYPES = ['balance-sheet', 'net-worth', 'goal-progress'] as const;
+
+function registerReports(program: Command, app: App): void {
+  const reports = program.command('reports').alias('report').description('Statements of where you stand: balance sheet, net worth, goals');
+
+  reports
+    .command('balance-sheet')
+    .alias('bs')
+    .description('What you own, what you owe, and your net worth')
+    .action(async () => {
+      const api = await app.api();
+      const bs = (await api.call(reportsBalanceSheet)) as BalanceSheet;
+      const lines = [
+        ...bs.assets.map((l) => ({ section: 'asset', ...l })),
+        ...bs.liabilities.map((l) => ({ section: 'liability', ...l })),
+        ...bs.equity.map((l) => ({ section: 'equity', ...l })),
+      ];
+      app.out.emit(bs, {
+        records: () => lines.map((l) => ({ ...l, currency: bs.currency })),
+        human: () => {
+          const out = app.out;
+          const c = out.colors;
+          const cur = bs.currency;
+          const all = [...lines.map((l) => out.amount(l.balance, cur)), out.amount(bs.total_assets, cur), out.amount(bs.net_worth, cur)];
+          const amountWidth = Math.max(...all.map((a) => displayWidth(a)));
+          const nameWidth = Math.max(16, ...lines.map((l) => displayWidth(singleLine(`${l.code} ${l.name}`)) + 2));
+          const row = (label: string, amount: string, strong = false): string => {
+            const text = `${padEnd(label, nameWidth)}  ${padStart(amount, amountWidth)}`;
+            return strong ? c.bold(text) : text;
+          };
+          const section = (title: string, items: typeof lines, total: string): void => {
+            out.line(c.bold(title));
+            if (!items.length) out.line(c.dim('  none'));
+            for (const l of items) out.line(row(`  ${singleLine(`${l.code} ${l.name}`)}`, out.amount(l.balance, cur)));
+            out.line(row(`Total ${title.toLowerCase()}`, out.amount(total, cur), true));
+            out.line();
+          };
+          out.line(c.dim(`In ${cur}`));
+          section('Assets', lines.filter((l) => l.section === 'asset'), bs.total_assets);
+          section('Liabilities', lines.filter((l) => l.section === 'liability'), bs.total_liabilities);
+          if (bs.equity.length) section('Equity', lines.filter((l) => l.section === 'equity'), bs.total_equity);
+          out.line(row('Net worth', out.signed(out.amount(bs.net_worth, cur), bs.net_worth), true));
+        },
+      });
+    });
+
+  reports
+    .command('net-worth')
+    .description('Your net worth now, and how it has moved')
+    .action(async () => {
+      const api = await app.api();
+      const r = (await api.call(reportsNetWorth)) as { currency: string; current_net_worth: string; as_of: string | null; trend: Array<{ date: string; net_worth: string }> };
+      app.out.emit(r, {
+        records: (d) => d.trend,
+        human: (d) => {
+          const out = app.out;
+          out.line(`${out.heading('Net worth')} ${out.signed(out.money(d.current_net_worth, d.currency), d.current_net_worth)}${d.as_of ? out.colors.dim(` as of ${displayDate(d.as_of, out.locale)}`) : ''}`);
+          if (!d.trend.length) return;
+          out.line();
+          out.line(
+            out.table(d.trend.slice(-12), [
+              { header: 'DATE', get: (t) => displayDate(t.date, out.locale) },
+              { header: `NET WORTH (${d.currency})`, get: (t) => out.amount(t.net_worth, d.currency), align: 'right' },
+            ]),
+          );
+        },
+      });
+    });
+
+  reports
+    .command('goal-progress')
+    .description('Progress towards your goals')
+    .action(async () => {
+      const api = await app.api();
+      const r = (await api.call(reportsGoalProgress)) as { goals: Row[]; completed_count: number; in_progress_count: number };
+      app.out.emit(r, {
+        records: (d) => d.goals,
+        human: (d) => {
+          const out = app.out;
+          if (!d.goals.length) return out.note('No goals yet. Add one with `salli goals add`.');
+          out.line(
+            out.table(d.goals, [
+              { header: 'GOAL', get: (g) => str(g.name), shrink: true },
+              { header: 'TARGET', get: (g) => out.money(g.target_amount, g.currency), align: 'right' },
+              { header: 'FUNDED', get: (g) => out.amount(g.current_amount, g.currency), align: 'right' },
+              { header: 'PROGRESS', get: (g) => out.percent(g.progress, 0), align: 'right' },
+            ]),
+          );
+          out.note(`${d.completed_count} reached, ${d.in_progress_count} in progress.`);
+        },
+      });
+    });
+
+  reports
+    .command('export')
+    .argument('<report>', `One of: ${REPORT_TYPES.join(', ')}`)
+    .description('A report as CSV, to a file or stdout')
+    .option('--file <path>', 'Write it here (default: stdout)')
+    .action(async (type, opts) => {
+      if (!(REPORT_TYPES as readonly string[]).includes(type)) {
+        throw new UsageError(`Unknown report "${type}".`, `Reports: ${REPORT_TYPES.join(', ')}`);
+      }
+      const api = await app.api();
+      const csv = (await api.call(reportsExportCsv, { path: { report_type: type }, parseAs: 'text' })) as string;
+      if (!opts.file || opts.file === '-') {
+        app.out.write(csv);
+        return;
+      }
+      await writeFile(opts.file, csv, 'utf8');
+      app.out.done({ report: type, path: resolve(opts.file), bytes: Buffer.byteLength(csv) }, `Wrote the ${type} report to ${opts.file}.`);
+    });
+}
+
+// ── Tax ──────────────────────────────────────────────────────────────────────
+
+interface TaxComputation {
+  pack_country: string;
+  pack_year: string;
+  pack_version: string;
+  currency: string;
+  [field: string]: unknown;
+  band_workings: Array<{ band: string; rate: string; taxable_in_band: string; tax: string }>;
+}
+
+function taxView(app: App, t: TaxComputation): void {
+  const out = app.out;
+  const cur = t.currency;
+  out.line(`${out.heading(`Income tax ${t.pack_year}`)} ${out.colors.dim(`${t.pack_country} pack v${t.pack_version} · not tax advice`)}`);
+  if (t.band_workings.length) {
+    out.line(
+      out.table(t.band_workings, [
+        { header: 'BAND', get: (b) => b.band },
+        { header: 'RATE', get: (b) => b.rate, align: 'right' },
+        { header: `TAXABLE (${cur})`, get: (b) => out.amount(b.taxable_in_band, cur), align: 'right' },
+        { header: `TAX (${cur})`, get: (b) => out.amount(b.tax, cur), align: 'right' },
+      ]),
+    );
+    out.line();
+  }
+  const m = (key: string): string => out.money(t[key], cur);
+  const shown = (key: string): boolean => typeof t[key] === 'string' && compareAmounts(t[key] as string, '0') !== 0;
+  out.line(
+    out.details([
+      ['Gross income', m('gross_income')],
+      shown('foreign_service_income') && ['Foreign service income', m('foreign_service_income')],
+      ['Personal relief', m('personal_relief_applied')],
+      shown('qp_deduction') && ['Qualifying payments', m('qp_deduction')],
+      ['Taxable income', m('taxable_income')],
+      shown('fsi_tax') && ['Tax on foreign income', m('fsi_tax')],
+      ['Tax before credits', m('tax_before_credits')],
+      shown('total_credits') && ['Credits (APIT, AIT, FTC)', m('total_credits')],
+      ['Tax payable', m('tax_payable'), out.colors.bold],
+      shown('refund_due') && ['Refund due', m('refund_due'), out.colors.green],
+    ]),
+  );
+}
+
+function registerTax(program: Command, app: App): void {
+  const tax = program.command('tax').description('Income tax, by the versioned rules of your country’s tax pack');
+
+  tax
+    .command('packs')
+    .description('The tax packs this server has')
+    .action(async () => {
+      const api = await app.api();
+      const packs = (await api.call(taxPacks)) as Array<Record<string, unknown>>;
+      app.out.emit(packs, {
+        human: (d) => {
+          app.out.line(
+            app.out.table(d, [
+              { header: 'COUNTRY', get: (p) => str(p.country) },
+              { header: 'YEAR', get: (p) => str(p.year) },
+              { header: 'VERSION', get: (p) => str(p.version) },
+              { header: 'PERIOD', get: (p) => displayRange(p.period_start, p.period_end, app.out.locale) },
+              { header: 'RETURN DUE', get: (p) => str(p.return_due) },
+            ]),
+          );
+        },
+      });
+    });
+
+  tax
+    .command('compute')
+    .description('Compute your income tax from the ledger (and store the result)')
+    .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const t = (await api.call(taxCompute, { query: opts.year ? { year: opts.year } : {} })) as TaxComputation;
+      app.out.emit(t, { records: (d) => d.band_workings, human: (d) => taxView(app, d) });
+    });
+
+  tax
+    .command('latest')
+    .description('The last stored computation for a year')
+    .option('--year <year>', 'Year of assessment (default: the server’s)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const data = (await api.call(taxLatest, { query: opts.year ? { year: opts.year } : {} })) as { result: TaxComputation | null };
+      if (!data.result && !app.out.machine) {
+        throw new CliError('No stored computation for that year.', { exitCode: 4, kind: 'not-found', hint: 'Run `salli tax compute`.' });
+      }
+      app.out.emit(data, { human: (d) => d.result && taxView(app, d.result) });
+    });
+}
+
+// ── Documents ────────────────────────────────────────────────────────────────
+
+const DOC_MIME: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.csv': 'text/csv',
+  '.txt': 'text/plain',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+function registerDocuments(program: Command, app: App): void {
+  const documents = program.command('documents').alias('docs').description('Files and notes the AI keeps for you (receipts, memories)');
+  const resolveDoc = async (api: SalliClient, query: string): Promise<Row> =>
+    resolveById(((await api.call(documentsList)) as { documents: Row[] }).documents, query, 'document');
+
+  documents
+    .command('list')
+    .alias('ls')
+    .description('List documents')
+    .option('--search <text>', 'Search titles and contents')
+    .addOption(new Option('--namespace <ns>', 'documents or memories').choices(['documents', 'memories']))
+    .action(async (opts) => {
+      const api = await app.api();
+      const data = (await api.call(documentsList, {
+        query: { ...(opts.search ? { search: opts.search } : {}), ...(opts.namespace ? { namespace: opts.namespace } : {}) },
+      })) as { documents: Row[]; count: number };
+      app.out.emit(data, {
+        records: (d) => d.documents,
+        human: (d) => {
+          if (!d.documents.length) return app.out.note('No documents.');
+          app.out.line(
+            app.out.table(d.documents, [
+              { header: 'ID', get: (x) => x.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
+              { header: 'TITLE', get: (x) => str(x.title), shrink: true },
+              { header: 'KIND', get: (x) => str(x.namespace) },
+              { header: 'TYPE', get: (x) => str(x.mime_type) },
+              { header: 'ADDED', get: (x) => displayDate(x.created_at, app.out.locale) },
+            ]),
+          );
+        },
+      });
+    });
+
+  documents
+    .command('show')
+    .argument('<document>', 'Document id (or its start)')
+    .description('Show a document')
+    .action(async (query) => {
+      const api = await app.api();
+      const doc = await resolveDoc(api, query);
+      const data = (await api.call(documentsGet, { path: { doc_id: doc.id } })) as Row;
+      app.out.emit(data, {
+        human: (d) => {
+          app.out.line(renderRecord(app, d, { hide: ['content'] }));
+          if (typeof d.content === 'string' && d.content) {
+            app.out.line();
+            app.out.line(d.content.replace(/\r\n/g, '\n'));
+          }
+        },
+      });
+    });
+
+  documents
+    .command('upload')
+    .argument('<file>', 'A file: PDF, image, CSV, text, Excel')
+    .description('Store a file (e.g. a receipt to attach: salli entries add --receipt <id>)')
+    .action(async (file) => {
+      let info;
+      try {
+        info = await stat(file);
+      } catch {
+        throw new UsageError(`No such file: ${file}`);
+      }
+      if (!info.isFile()) throw new UsageError(`Not a file: ${file}`);
+      const api = await app.api();
+      const name = basename(file);
+      const result = (await api.call(agentFilesUpload, {
+        body: { file: new File([await readFile(file)], name, { type: DOC_MIME[extname(name).toLowerCase()] ?? 'application/octet-stream' }) },
+        timeoutMs: 120_000,
+      })) as { file_ref: string; name: string };
+      if (app.out.machine) app.out.emit(result, { human: () => undefined });
+      else app.out.success(`Stored ${result.name} ${app.out.errColors.dim(result.file_ref)}`);
+    });
+
+  documents
+    .command('delete')
+    .argument('<document>', 'Document id (or its start)')
+    .description('Delete a document')
+    .option('-y, --yes', 'Do not ask for confirmation')
+    .action(async (query, opts) => {
+      const api = await app.api();
+      const doc = await resolveDoc(api, query);
+      if (!(await confirmAction(app, opts.yes, `Delete “${str(doc.title)}”?`))) return;
+      await api.call(documentsDelete, { path: { doc_id: doc.id } });
+      app.out.done({ id: doc.id, deleted: true }, `Deleted “${str(doc.title)}”.`);
+    });
+}
+
+// ── Profile and your data ────────────────────────────────────────────────────
+
+function registerProfile(program: Command, app: App): void {
+  const profile = program.command('profile').description('Your profile: name, base currency, and what tax and planning need to know');
+
+  profile
+    .command('get')
+    .alias('show')
+    .description('Show your profile')
+    .action(async () => {
+      const api = await app.api();
+      const data = (await api.call(profileGet)) as Record<string, unknown>;
+      app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d, { hide: ['risk_breakdown'] })) });
+    });
+
+  profile
+    .command('set')
+    .description('Change your profile')
+    .option('--name <name>', 'Display name')
+    .option('--base-currency <code>', 'The currency your ledger is kept in (only while it is empty)')
+    .option('--birth-date <date>', 'Date of birth (YYYY-MM-DD)')
+    .option('--dependents <n>', 'Number of dependents', countArg('--dependents'))
+    .addOption(new Option('--employment-status <status>', 'Employment status').choices(['employed', 'self_employed', 'unemployed', 'student', 'retired']))
+    .addOption(new Option('--employment-type <type>', 'Employment type').choices(['permanent', 'contract', 'self_employed', 'other']))
+    .addOption(new Option('--residency <status>', 'Tax residency').choices(['resident', 'non_resident']))
+    .option('--employer <name>', 'Employer')
+    .option('--tax-id <number>', 'Your taxpayer number')
+    .action(async (opts) => {
+      const body: ProfileIdentityRequest = Object.fromEntries(
+        Object.entries({
+          display_name: opts.name,
+          base_currency: opts.baseCurrency ? currencyArg(opts.baseCurrency) : undefined,
+          date_of_birth: opts.birthDate ? parseDate(opts.birthDate, app.runtime.now(), '--birth-date') : undefined,
+          dependents_count: opts.dependents,
+          employment_status: opts.employmentStatus,
+          employment_type: opts.employmentType,
+          residency_status: opts.residency,
+          employer: opts.employer,
+          ird_number: opts.taxId,
+        }).filter(([, v]) => v !== undefined),
+      );
+      if (!Object.keys(body).length) throw new UsageError('Nothing to change.', 'See `salli profile set --help` for what can be set.');
+      const api = await app.api();
+      const result = await api.call(profileUpdate, { body });
+      app.out.done(result as Record<string, unknown>, 'Profile updated.');
+    });
+
+  program
+    .command('export')
+    .description('Download everything Salli stores about you, as one JSON file')
+    .option('--file <path>', 'Where to write it ("-" for stdout; default: salli-export-<date>.json)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const data = await api.call(accountExport, { timeoutMs: 5 * 60_000 });
+      const text = `${toJsonText(data)}\n`;
+      if (opts.file === '-') {
+        app.out.write(text);
+        return;
+      }
+      const path = opts.file ?? `salli-export-${isoDate(app.runtime.now())}.json`;
+      await writeFile(path, text, { encoding: 'utf8', mode: 0o600 });
+      app.out.done({ path: resolve(path), bytes: Buffer.byteLength(text) }, `Saved your data to ${path} (readable only by you).`);
+    });
+}
+
+// ── Your LLM keys and MCP clients ────────────────────────────────────────────
+
+function registerKeysAndMcp(program: Command, app: App): void {
+  const keys = program.command('llm-keys').description('Your own AI provider key (used for every AI feature; never shown again)');
+
+  keys
+    .command('list')
+    .alias('ls')
+    .description('Which keys you have stored (the last four characters only)')
+    .action(async () => {
+      const api = await app.api();
+      const data = (await api.call(llmKeysList)) as { available: boolean; keys: Array<{ provider: string; last4: string; validated_at?: string | null; readable?: boolean }> };
+      app.out.emit(data, {
+        records: (d) => d.keys,
+        human: (d) => {
+          if (!d.available) app.out.warn('This server cannot store keys (it has no encryption key set).');
+          if (!d.keys.length) return app.out.note('No keys stored. Add yours with `salli llm-keys set anthropic`.');
+          app.out.line(
+            app.out.table(d.keys, [
+              { header: 'PROVIDER', get: (k) => k.provider },
+              { header: 'KEY', get: (k) => `…${k.last4}` },
+              { header: 'CHECKED', get: (k) => displayDate(k.validated_at ?? '', app.out.locale) },
+              { header: '', get: (k) => (k.readable === false ? 'unreadable: set it again' : ''), style: (t) => app.out.colors.red(t) },
+            ]),
+          );
+        },
+      });
+    });
+
+  keys
+    .command('set')
+    .argument('[provider]', 'The provider', 'anthropic')
+    .description('Store your key (checked with the provider first). Asks for it, or reads stdin')
+    .action(async (provider) => {
+      if (provider !== 'anthropic') throw new UsageError(`Unknown provider "${provider}".`, 'Providers: anthropic');
+      let key: string;
+      if (app.runtime.stdin.isTTY !== true) key = await readAllStdin(app.runtime.stdin);
+      else key = await app.prompter.password({ message: 'Anthropic API key' });
+      key = key.trim();
+      if (!key) throw new UsageError('No key given.', 'Type it when asked, or pipe it in: salli llm-keys set < key.txt');
+      const api = await app.api();
+      await api.call(llmKeysSet, { path: { provider }, body: { key } });
+      app.out.done({ provider, saved: true }, `Saved your ${provider} key.`);
+    });
+
+  keys
+    .command('delete')
+    .argument('[provider]', 'The provider', 'anthropic')
+    .description('Remove your stored key')
+    .action(async (provider) => {
+      if (provider !== 'anthropic') throw new UsageError(`Unknown provider "${provider}".`, 'Providers: anthropic');
+      const api = await app.api();
+      await api.call(llmKeysDelete, { path: { provider } });
+      app.out.done({ provider, deleted: true }, `Removed your ${provider} key.`);
+    });
+
+  const mcp = program.command('mcp').description('AI clients (Claude, ChatGPT) connected to your Salli over MCP');
+
+  mcp
+    .command('status')
+    .description('Whether AI clients may connect')
+    .action(async () => {
+      const api = await app.api();
+      const data = (await api.call(mcpEnabledGet)) as { enabled: boolean };
+      app.out.emit(data, { human: (d) => app.out.line(`MCP: ${d.enabled ? 'on' : 'off'}`) });
+    });
+
+  for (const [name, enabled, message] of [
+    ['enable', true, 'MCP on: AI clients can connect (each one still asks you first).'],
+    ['disable', false, 'MCP off: every connected AI client is cut off now.'],
+  ] as const) {
+    mcp
+      .command(name)
+      .description(enabled ? 'Let AI clients connect (each still asks for your approval)' : 'Cut off every AI client now, and refuse new ones')
+      .action(async () => {
+        const api = await app.api();
+        await api.call(mcpEnabledSet, { body: { enabled } });
+        app.out.done({ enabled }, message);
+      });
+  }
+
+  mcp
+    .command('connections')
+    .description('AI clients connected now')
+    .action(async () => {
+      const api = await app.api();
+      const data = (await api.call(mcpConnectionsList)) as { connections: Row[] };
+      app.out.emit(data, {
+        records: (d) => d.connections,
+        human: (d) => {
+          if (!d.connections.length) return app.out.note('No AI clients connected.');
+          app.out.line(
+            app.out.table(d.connections, [
+              { header: 'ID', get: (c) => c.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
+              { header: 'CLIENT', get: (c) => str(c.client_name), shrink: true },
+              { header: 'SCOPE', get: (c) => str(c.scope) },
+              { header: 'EXPIRES', get: (c) => displayDate(c.expires_at, app.out.locale) },
+            ]),
+          );
+        },
+      });
+    });
+
+  mcp
+    .command('revoke')
+    .argument('<connection>', 'Connection id (or its start)')
+    .description('Disconnect one AI client')
+    .action(async (query) => {
+      const api = await app.api();
+      const connection = resolveById(((await api.call(mcpConnectionsList)) as { connections: Row[] }).connections, query, 'connection');
+      await api.call(mcpConnectionsRevoke, { path: { token_id: connection.id } });
+      app.out.done({ id: connection.id, revoked: true }, `Disconnected ${str(connection.client_name) || connection.id.slice(0, 8)}.`);
+    });
+}
+
+/** Reminders, reports and tax. */
+export function registerMore(program: Command, app: App): void {
+  registerReminders(program, app);
+  registerReports(program, app);
+  registerTax(program, app);
+}
+
+/** Your profile and data, documents, LLM keys and MCP clients. */
+export function registerYourData(program: Command, app: App): void {
+  registerProfile(program, app);
+  registerDocuments(program, app);
+  registerKeysAndMcp(program, app);
+}

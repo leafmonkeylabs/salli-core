@@ -11,7 +11,10 @@ import { registerConfig } from './commands/config';
 import { registerContext } from './commands/context';
 import { registerDoctor } from './commands/doctor';
 import { registerEntries } from './commands/entries';
+import { registerPlanningAhead } from './commands/fi';
 import { registerLedger } from './commands/ledger';
+import { registerMore, registerYourData } from './commands/more';
+import { registerPlanning } from './commands/plan';
 import { registerQuickAdd } from './commands/quickadd';
 import { registerStatements } from './commands/statements';
 import { registerStatus } from './commands/status';
@@ -64,7 +67,13 @@ Start with:  salli login   then   salli status`,
   program.commandsGroup('Ask Salli:');
   registerChat(program, app);
 
-  program.commandsGroup('Settings:');
+  program.commandsGroup('Plan ahead:');
+  registerPlanning(program, app);
+  registerPlanningAhead(program, app);
+  registerMore(program, app);
+
+  program.commandsGroup('Your data and settings:');
+  registerYourData(program, app);
   registerContext(program, app);
   registerConfig(program, app);
   registerCompletion(program, app);

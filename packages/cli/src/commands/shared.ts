@@ -98,3 +98,39 @@ export function limitArg(value: string): number {
   if (n === undefined || n < 1) throw new UsageError(`--limit must be a positive whole number (got "${value}").`);
   return n;
 }
+
+/**
+ * An amount for a request field the spec still types as a float (debts,
+ * holdings, subscriptions, insurance, budget limits). The JSON carries the
+ * decimal string itself, which the server parses, so nothing on this side
+ * becomes a float; the cast only satisfies the generated type. When the
+ * spec types the field as an amount string, the compiler flags each use.
+ */
+export function wireAmount(amount: string): number {
+  return amount as unknown as number;
+}
+
+/**
+ * A rate as a fraction string: "0.18" stays, "18%" becomes "0.18". The
+ * decimal point is moved in the text; nothing is computed.
+ */
+export function rateArg(value: string, flag: string): string {
+  const text = value.trim();
+  if (!text.endsWith('%')) return amountArg(text, flag);
+  const number = amountArg(text.slice(0, -1), flag);
+  const negative = number.startsWith('-');
+  const digitsOnly = negative ? number.slice(1) : number;
+  const [whole = '0', fraction = ''] = digitsOnly.split('.');
+  const padded = whole.padStart(3, '0');
+  const shifted = `${padded.slice(0, -2).replace(/^0+(?=\d)/, '')}.${padded.slice(-2)}${fraction}`.replace(/\.?0+$/, '') || '0';
+  return `${negative && shifted !== '0' ? '-' : ''}${shifted.startsWith('.') ? `0${shifted}` : shifted}`;
+}
+
+/** A whole number of things (days, months, a priority), for a flag. */
+export function countArg(flag: string): (value: string) => number {
+  return (value: string) => {
+    const n = parseWholeNumber(value);
+    if (n === undefined) throw new UsageError(`${flag} must be a whole number (got "${value}").`);
+    return n;
+  };
+}
