@@ -15,9 +15,11 @@ from salli.interfaces.cli import main as cli_main
 def _run(monkeypatch, services, *argv: str) -> int:
     from salli.interfaces.cli import support
 
-    # --json switches the process into JSON mode for good: undone after.
+    # --json switches the process into JSON mode for good, and points the
+    # console at stderr: both undone after. The console's own file is None
+    # (whatever sys.stdout is at the time), never a captured stream.
     monkeypatch.setattr(support, "_json_mode", False)
-    monkeypatch.setattr(support.console, "file", sys.stdout)
+    monkeypatch.setattr(support.console, "_file", None)
     monkeypatch.setenv("SALLI_USER_ID", "u1")
     monkeypatch.setattr(cli_main, "_services", lambda: services)
     monkeypatch.setattr(sys, "argv", ["salli", *argv])
