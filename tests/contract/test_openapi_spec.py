@@ -66,8 +66,6 @@ UNTYPED = {
     # Ledger, tax, statements, documents, reminders
     "documents.get",
     "documents.list",
-    "ledger.incomeStatement",
-    "ledger.trialBalance",
     "reminders.create",
     "reminders.list",
     "reminders.seedFilingCalendar",
@@ -76,7 +74,6 @@ UNTYPED = {
     "statements.pending",
     "statements.post",
     "statements.upload",
-    "tags.list",
     "tax.compute",
     "tax.latest",
     "tax.packs",

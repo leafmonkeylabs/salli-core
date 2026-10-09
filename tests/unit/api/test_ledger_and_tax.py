@@ -87,6 +87,64 @@ async def test_income_statement(client, mock_services):
     assert body["net_income"] == "120000.00"
 
 
+async def test_a_quiet_period_still_reads_in_the_currencys_precision(client, mock_services):
+    mock_services.ledger.list_accounts.return_value = []
+    mock_services.ledger.get_entries.return_value = []
+    r = await client.get(
+        "/v1/ledger/income-statement",
+        params={"from_date": "2025-04-01", "to_date": "2025-04-30"},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    assert r.json() == {
+        "from_date": "2025-04-01",
+        "to_date": "2025-04-30",
+        "currency": "LKR",
+        "income": {},
+        "expenses": {},
+        "net_income": "0.00",
+    }
+
+
+async def test_tags_list(client, mock_services):
+    from salli.domain.accounting.models import Tag
+
+    mock_services.ledger.list_tags.return_value = [
+        Tag(id="t1", user_id="u", slug="groceries", name="Groceries", kind="category"),
+        Tag(
+            id="t2",
+            user_id="u",
+            slug="essential",
+            name="Needs",
+            kind="need",
+            color="#2f855a",
+            is_system=True,
+        ),
+    ]
+    r = await client.get("/v1/tags/", headers=AUTH)
+    assert r.status_code == 200
+    assert r.json() == {
+        "tags": [
+            {
+                "id": "t1",
+                "slug": "groceries",
+                "name": "Groceries",
+                "kind": "category",
+                "color": "",
+                "is_system": False,
+            },
+            {
+                "id": "t2",
+                "slug": "essential",
+                "name": "Needs",
+                "kind": "need",
+                "color": "#2f855a",
+                "is_system": True,
+            },
+        ]
+    }
+
+
 @pytest.mark.asyncio
 async def test_list_tax_packs(client, mock_services):
     pack = MagicMock()
