@@ -99,10 +99,13 @@ class SyncedAccount(BaseModel):
     name: str
     #: The review batch its transactions went into, if any.
     statement_id: str | None = None
-    #: Transactions queued for review.
+    #: New transactions queued for review.
     queued: int = 0
-    #: Of those, how many were already imported before.
+    #: Transactions left out as imported before: a sync overlaps the last.
     duplicates: int = 0
+    #: What the import had to say: rows that still need an account, or why
+    #: the model was not asked.
+    notes: list[str] = Field(default_factory=list)
 
 
 class BankSync(BaseModel):

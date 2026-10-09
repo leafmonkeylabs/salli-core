@@ -17721,6 +17721,13 @@
             "type": "integer",
             "title": "Duplicates",
             "default": 0
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",

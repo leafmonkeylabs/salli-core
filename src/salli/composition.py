@@ -269,17 +269,25 @@ def _build_bank_connections(
     from salli.adapters.crypto.keyring import KeyRing
 
     async def import_rows(user_id: str, rows, *, bank: str, account_id: str):  # type: ignore[no-untyped-def]
-        # Each sync is one review batch, deduplicated against earlier ones by
-        # the bank's own transaction ids.
+        # Each sync is one review batch. It overlaps the last on purpose, so
+        # what was imported before is left out (by the bank's own ids), not
+        # queued again; a refused usage meter leaves the user's rules alone
+        # to sort it, rather than failing a sync nobody is waiting on.
         if not rows:
-            return {"statement_id": None, "queued": 0, "duplicates": 0}
-        result = await parsing.import_rows(user_id, rows, bank=bank, account_id=account_id)
+            return {"statement_id": None, "queued": 0, "duplicates": 0, "notes": []}
+        result = await parsing.import_rows(
+            user_id,
+            rows,
+            bank=bank,
+            account_id=account_id,
+            keep_duplicates=False,
+            on_usage_limit="skip",
+        )
         return {
             "statement_id": result.statement_id or None,
             "queued": len(result.transactions),
-            "duplicates": sum(
-                1 for t in result.transactions if t.dedup_status == "exact_duplicate"
-            ),
+            "duplicates": result.duplicates_dropped,
+            "notes": result.errors,
         }
 
     importer: RowImporter = import_rows

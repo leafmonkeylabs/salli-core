@@ -3960,8 +3960,11 @@ def banks_sync(
             console.print(f"[red]{r['id'][:8]}: {r['error']}[/red]")
             continue
         for a in r["accounts"]:
-            fresh = a["queued"] - a["duplicates"]
-            console.print(f"{a['name']}: {fresh} new to review, {a['duplicates']} seen before")
+            console.print(
+                f"{a['name']}: {a['queued']} new to review, {a['duplicates']} seen before"
+            )
+            for note in a.get("notes", []):
+                console.print(f"  [dim]{note}[/dim]")
         for name in r["unmapped"]:
             console.print(f"[dim]{name}: not mapped, skipped[/dim]")
         for warning in r["warnings"]:
