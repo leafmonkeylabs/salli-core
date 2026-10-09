@@ -71,3 +71,12 @@ async def test_without_it_the_model_chooses_both_and_a_null_is_no_account(model)
     assert (spent.debit_account_id, spent.credit_account_id, spent.category) == ("food", "", "")
     # No answer for a row at all: nothing chosen.
     assert (earned.debit_account_id, earned.credit_account_id) == ("", "")
+
+
+def test_malformed_items_in_the_models_answer_are_left_out():
+    # `index: null` and non-object items raised TypeError, failing the whole
+    # import after the meter had charged.
+    from salli.adapters.parsing.llm_classifier import _parse_response
+
+    answer = '[{"index": null}, "junk", 3, {"index": "x"}, {"index": 1, "account_id": "a"}]'
+    assert _parse_response(answer) == {1: {"index": 1, "account_id": "a"}}

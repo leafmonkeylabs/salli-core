@@ -214,7 +214,6 @@ async def test_the_daily_run_skips_a_refused_user_and_carries_on():
 
     svc = MagicMock()
     svc.advisor = AsyncMock()
-    svc.advisor.due_users.return_value = [{"user_id": "a"}, {"user_id": "b"}]
 
     async def run(user_id, email, trigger):
         if user_id == "a":
@@ -222,7 +221,7 @@ async def test_the_daily_run_skips_a_refused_user_and_carries_on():
         return {}
 
     svc.advisor.run_advisor.side_effect = run
-    await _run_due(svc)
+    await _run_due(svc, [{"user_id": "a"}, {"user_id": "b"}])
     assert [c.args[0] for c in svc.advisor.run_advisor.await_args_list] == ["a", "b"]
 
 

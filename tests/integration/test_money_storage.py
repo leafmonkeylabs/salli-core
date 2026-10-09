@@ -118,7 +118,9 @@ async def test_a_foreign_posting_stores_its_own_amount_and_the_base_one(db, uow_
 
 
 async def test_an_entry_needs_its_owners_base_currency(db, uow_factory):
-    with pytest.raises(ValueError, match="no profile"):
+    from salli.application.ports import ProfileMissing
+
+    with pytest.raises(ProfileMissing, match="no profile"):
         await _post(
             uow_factory,
             "nobody",
@@ -127,8 +129,12 @@ async def test_an_entry_needs_its_owners_base_currency(db, uow_factory):
 
 
 async def test_a_new_profile_must_name_its_currency(db, uow_factory):
+    from salli.application.ports import ProfileMissing
+
     async with uow_factory() as uow:
-        with pytest.raises(ValueError, match="needs a base_currency"):
+        # Only ensure_user creates a profile, with its currency: any other
+        # write to a missing one is the one typed error the surfaces explain.
+        with pytest.raises(ProfileMissing, match="has no profile"):
             await uow.user_profiles.upsert("someone", {"email": "a@example.com"})
     engine = create_engine(_sync(db))
     with pytest.raises(Exception, match="base_currency"), engine.begin() as conn:

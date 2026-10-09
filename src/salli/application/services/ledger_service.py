@@ -19,7 +19,6 @@ from salli.domain.accounting.models import (
     TaxRole,
 )
 from salli.domain.currency import normalize_currency, quantize
-from salli.domain.money import from_minor
 from salli.domain.subscription import engine as subscription_engine
 from salli.domain.subscription.models import Subscription
 
@@ -183,15 +182,7 @@ class LedgerService:
             subscriptions = await uow.recurring_subscriptions.list(user_id, active_only=True)
             possible_subscriptions: list[dict[str, Any]] = []
             for s in subscriptions:
-                sub = Subscription(
-                    name=s["name"],
-                    amount=from_minor(s["amount_minor"], base),
-                    frequency=s["frequency"],
-                    next_due_date=s["next_due_date"],
-                    account_id=s["account_id"],
-                    grace_days=s["grace_days"],
-                    amount_tolerance_pct=Decimal(s["amount_tolerance_pct"]),
-                )
+                sub = Subscription.from_row(s, base)
                 matches = subscription_engine.find_matches(sub, [entry], accounts)
                 if any(m.entry_id == entry.id for m in matches):
                     possible_subscriptions.append({"subscription_id": s["id"], "name": s["name"]})

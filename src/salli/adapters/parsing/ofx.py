@@ -14,16 +14,34 @@ statements are not: their cash lines sit beside holdings this does not model.
 
 from __future__ import annotations
 
-import datetime
 import html
 import re
 from decimal import Decimal
 
 from salli.adapters.parsing.amounts import parse_decimal
-from salli.adapters.parsing.support import Extraction, StatementLine, decode_text, join_description
+from salli.adapters.parsing.support import (
+    Extraction,
+    StatementLine,
+    decode_text,
+    join_description,
+    real_date,
+)
 
 _TAG = re.compile(r"<(/?)([A-Za-z0-9.]+)>([^<]*)")
 _STATEMENTS = ("STMTRS", "CCSTMTRS")
+
+# The aggregates (elements holding other elements) of the OFX 1.6/2.x banking
+# and credit-card messages, and of what wraps them. Any other element is a
+# value.
+_AGGREGATES = frozenset(
+    [
+        "OFX", "SIGNONMSGSRSV1", "SONRS", "STATUS", "FI", "BANKMSGSRSV1", "STMTTRNRS",
+        "STMTRS", "BANKACCTFROM", "BANKACCTTO", "CCACCTFROM", "CCACCTTO", "BANKTRANLIST",
+        "STMTTRN", "PAYEE", "CURRENCY", "ORIGCURRENCY", "LEDGERBAL", "AVAILBAL", "BALLIST",
+        "BAL", "CREDITCARDMSGSRSV1", "CCSTMTTRNRS", "CCSTMTRS", "IMAGEDATA", "MKTGINFO",
+        "EXTBANKACCTTO",
+    ]
+)  # fmt: skip
 
 
 def extract_from_ofx(data: bytes) -> Extraction:
@@ -34,8 +52,10 @@ def extract_from_ofx(data: bytes) -> Extraction:
         return Extraction(errors=["This is not an OFX file: it has no <OFX> element"])
 
     result = Extraction()
+    kind = ""  # what the statement's account is: checking, savings, credit card
     in_statement = False
     statement_currency: str | None = None
+    account = ""  # the statement's account number
     txn: dict[str, str] | None = None
     path: list[str] = []  # aggregates open inside the current transaction
     seen = 0
@@ -43,7 +63,7 @@ def extract_from_ofx(data: bytes) -> Extraction:
     def finish() -> None:
         nonlocal txn
         if txn is not None:
-            _add(txn, seen, statement_currency, result)
+            _add(txn, seen, statement_currency, account, result)
         txn = None
 
     for match in _TAG.finditer(text, start):
@@ -53,28 +73,41 @@ def extract_from_ofx(data: bytes) -> Extraction:
                 finish()
             if name in _STATEMENTS:
                 in_statement = False
+                if account and kind:
+                    result.account_kinds.setdefault(account, kind)
             elif name in path:
                 del path[path.index(name) :]
         elif name in _STATEMENTS:
-            in_statement, statement_currency = True, None
+            in_statement, statement_currency, account = True, None, ""
+            kind = "credit card" if name == "CCSTMTRS" else ""
         elif not in_statement:
             continue
         elif name == "STMTTRN":
             finish()
             txn, path, seen = {}, [], seen + 1
         elif txn is not None:
-            if value:
-                txn.setdefault("/".join([*path, name]), html.unescape(value))
-            else:
+            if name in _AGGREGATES:
                 path.append(name)
+            elif value:
+                txn.setdefault("/".join([*path, name]), html.unescape(value))
         elif name == "CURDEF" and value:
             statement_currency = value
+        elif name == "ACCTID" and value:
+            account = html.unescape(value)
+            if account not in result.accounts:
+                result.accounts.append(account)
+        elif name == "ACCTTYPE" and value:
+            kind = value.lower()
     finish()
     return result
 
 
 def _add(
-    txn: dict[str, str], number: int, statement_currency: str | None, result: Extraction
+    txn: dict[str, str],
+    number: int,
+    statement_currency: str | None,
+    account: str,
+    result: Extraction,
 ) -> None:
     fitid = txn.get("FITID", "")
     label = f"OFX transaction {fitid or number}"
@@ -106,6 +139,8 @@ def _add(
             # the statement's.
             currency=txn.get("CURRENCY/CURSYM") or statement_currency,
             bank_ref=fitid,
+            ref_kind="id",
+            account=account,
         )
     )
 
@@ -120,10 +155,8 @@ def _date(value: str) -> str | None:
     match = re.match(r"(\d{4})(\d{2})(\d{2})", value)
     if match is None:
         return None
-    try:
-        return datetime.date(*(int(g) for g in match.groups())).isoformat()
-    except ValueError:
-        return None
+    # A placeholder (19000101, 99991231) is no transaction's date.
+    return real_date(*(int(g) for g in match.groups()))
 
 
 def _amount(value: str) -> Decimal:

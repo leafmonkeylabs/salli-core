@@ -138,10 +138,13 @@ def require_user() -> str:
 
 
 def services() -> Any:
+    """The services for a command. Unpooled: a command may call asyncio.run
+    more than once with them, and a pooled asyncpg connection from an earlier
+    (closed) loop fails in the next one ("attached to a different loop")."""
     from salli.composition import build_services
     from salli.config import get_settings
 
-    return build_services(get_settings())
+    return build_services(get_settings(), pooled=False)
 
 
 def resolve_id(items: list[dict[str, Any]], prefix: str, label: str = "item") -> str:

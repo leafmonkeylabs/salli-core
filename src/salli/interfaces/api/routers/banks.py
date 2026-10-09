@@ -11,19 +11,21 @@ approves it.
 
 from __future__ import annotations
 
-import hmac
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, Field
 
 from salli.application.ports import BankLinkError
-from salli.application.services.bank_connection_service import BankConnectionsUnavailable
-from salli.config import Settings, get_settings
-from salli.domain.currency import is_currency, quantize
+from salli.application.services.bank_connection_service import (
+    BankConnectionNotFound,
+    BankConnectionsUnavailable,
+    SyncInProgress,
+)
+from salli.domain.currency import quantize
 from salli.interfaces.api.contract import Amount
-from salli.interfaces.api.deps import AppServices, CurrentUser
+from salli.interfaces.api.deps import AppServices, CronSecret, CurrentUser
 
 router = APIRouter(prefix="/bank-connections", tags=["bank-connections"])
 
@@ -44,15 +46,24 @@ class BankAccount(BaseModel):
     balance_date: datetime | None
     #: The Salli account its transactions are imported into; null until mapped.
     account_id: str | None
+    #: When its transactions were last imported in full; null before the first.
+    last_imported_at: datetime | None = None
+    #: Why its last import failed, if it did.
+    notes: str | None = None
 
 
 class BankConnection(BaseModel):
     id: str
     provider: str
     name: str
-    #: "error" when the last sync failed: `last_error` says why.
+    #: "active"; "error" when the last sync failed (`last_error` says why);
+    #: "attention" when it synced but the bank reported a problem
+    #: (`warnings`) or an account could not be imported (`last_error`).
     status: str
     last_error: str | None
+    #: What the provider asked to show the user at the last sync (an
+    #: institution asking to sign in again).
+    warnings: list[str] = Field(default_factory=list)
     last_synced_at: datetime | None
     created_at: datetime
     accounts: list[BankAccount]
@@ -79,6 +90,9 @@ class BankConnected(BaseModel):
     id: str
     #: What the provider said needs attention (an institution asking to sign in again).
     warnings: list[str]
+    #: Why the accounts could not be read yet, when they could not: the
+    #: connection is kept, and a sync can finish it without a new token.
+    error: str | None = None
 
 
 class MapBankAccount(BaseModel):
@@ -120,20 +134,18 @@ def _unavailable(exc: BankConnectionsUnavailable) -> HTTPException:
 
 
 def _account(a: dict[str, Any]) -> BankAccount:
+    # The repository gives a balance only for a currency a ledger can hold.
     balance = a.get("balance")
-    currency = a["currency"]
     return BankAccount(
         remote_id=a["remote_id"],
         name=a["name"],
         institution=a.get("institution") or "",
-        currency=currency,
-        balance=(
-            str(quantize(balance, currency))
-            if balance is not None and is_currency(currency)
-            else None
-        ),
+        currency=a["currency"],
+        balance=str(quantize(balance, a["currency"])) if balance is not None else None,
         balance_date=a.get("balance_date"),
         account_id=a.get("account_id"),
+        last_imported_at=a.get("last_imported_at"),
+        notes=a.get("notes"),
     )
 
 
@@ -146,6 +158,7 @@ async def list_connections(user_id: CurrentUser, svc: AppServices) -> BankConnec
         connections=[
             BankConnection(
                 **{k: c[k] for k in ("id", "provider", "name", "status", "last_error")},
+                warnings=c.get("warnings") or [],
                 last_synced_at=c.get("last_synced_at"),
                 created_at=c["created_at"],
                 accounts=[_account(a) for a in c.get("accounts", [])],
@@ -191,8 +204,12 @@ async def sync(connection_id: str, user_id: CurrentUser, svc: AppServices) -> Ba
         result = await svc.bank_connections.sync(user_id, connection_id)
     except BankConnectionsUnavailable as exc:
         raise _unavailable(exc) from exc
-    except KeyError as exc:
+    except BankConnectionNotFound as exc:
+        # Only the connection's own lookup: a KeyError from deeper in a sync
+        # is not a missing connection.
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such connection") from exc
+    except SyncInProgress as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except BankLinkError as exc:
         # The provider refused: the connection is marked, and the user has to act.
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
@@ -202,28 +219,22 @@ async def sync(connection_id: str, user_id: CurrentUser, svc: AppServices) -> Ba
 class ScheduledBankSyncs(BaseModel):
     """Accepted: each due connection syncs after this response."""
 
-    #: Connections, anyone's, not synced in the last 12 hours.
+    #: Connections, anyone's, due a sync: not attempted in the last 12
+    #: hours (a failed one, not in the last day), and none syncing now.
     due: int
     scheduled: bool
 
 
-@router.post("/cron/sync-due", status_code=status.HTTP_202_ACCEPTED)
-async def cron_sync_due(
-    svc: AppServices,
-    settings: Annotated[Settings, Depends(get_settings)],
-    background: BackgroundTasks,
-    x_cron_secret: Annotated[str | None, Header()] = None,
-) -> ScheduledBankSyncs:
+@router.post("/cron/sync-due", status_code=status.HTTP_202_ACCEPTED, dependencies=[CronSecret])
+async def cron_sync_due(svc: AppServices, background: BackgroundTasks) -> ScheduledBankSyncs:
     """Sync every connection that is due, for a scheduler (the hosted
     product's pg_cron, or a self-hoster's cron). Auth: X-Cron-Secret header."""
-    secret = settings.cron_secret
-    if not secret or not x_cron_secret or not hmac.compare_digest(x_cron_secret, secret):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid cron secret")
     banks = svc.bank_connections
     if not banks.available:
         return ScheduledBankSyncs(due=0, scheduled=False)
     due = await banks.due()
-    background.add_task(banks.sync_due)
+    # The same list it counts: listed once, then synced.
+    background.add_task(banks.sync_due, due=due)
     return ScheduledBankSyncs(due=len(due), scheduled=True)
 
 

@@ -14,6 +14,7 @@ from typing import Literal
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
+from salli.domain.reports.insights import Cadence, SpendingAxis
 from salli.interfaces.api.contract import Amount, CurrencyCode
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
@@ -42,14 +43,15 @@ class SpendingLine(BaseModel):
     #: The category tag, account name or need, by the axis asked for.
     key: str
     total: Amount
-    #: Its share of all spending in the period ("0.4000").
-    share: str
+    #: Its share of what was spent in the period ("0.4000"); null for a line
+    #: that netted to money back (refunds only).
+    share: str | None
     by_month: dict[Month, Amount]
 
 
 class Spending(BaseModel):
     currency: CurrencyCode
-    by: Literal["category", "account", "need"]
+    by: SpendingAxis
     months: list[Month]
     #: Largest first.
     lines: list[SpendingLine]
@@ -70,7 +72,7 @@ class NetWorthByMonth(BaseModel):
 
 class RecurringPayment(BaseModel):
     payee: str
-    cadence: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
+    cadence: Cadence
     #: The middle charge; `varies` when charges differ by more than 10%.
     typical_amount: Amount
     varies: bool
@@ -152,7 +154,7 @@ async def spending(
     user_id: CurrentUser,
     svc: AppServices,
     months: int = Query(3, ge=1, le=120, description="How many months, ending this one"),
-    by: Literal["category", "account", "need"] = "category",
+    by: SpendingAxis = "category",
 ) -> Spending:
     return Spending.model_validate(await svc.insights.spending(user_id, months, by))
 

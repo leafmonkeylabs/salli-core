@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from salli.application.ports import FxUnavailableError
+from salli.application.ports import FxUnavailableError, ProfileMissing
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
 from salli.domain.secrets import redact
@@ -270,6 +270,18 @@ def create_app() -> FastAPI:
             "fx-rate-unavailable",
             "No exchange rate",
             f"{exc}. Send the exchange rate (fx_rate) with the amount.",
+        )
+
+    # A write that needs the caller's profile before it exists. Every request
+    # provisions its caller first, so this is rare: say what to do.
+    @app.exception_handler(ProfileMissing)
+    async def profile_missing_handler(request: Request, exc: ProfileMissing) -> JSONResponse:
+        return problem(
+            status.HTTP_409_CONFLICT,
+            "profile-missing",
+            "No profile yet",
+            "This account has no profile yet. Complete onboarding (POST /v1/onboarding/complete)"
+            " first.",
         )
 
     # Asked to change the base currency once amounts are stored in it.

@@ -63,11 +63,27 @@ def _subscription(**kw: Any) -> dict[str, Any]:
     }
 
 
+async def _entries(user_id: str, from_date: str | None = None, to_date: str | None = None):
+    return [
+        e
+        for e in ENTRIES
+        if (from_date is None or e.entry_date >= from_date)
+        and (to_date is None or e.entry_date <= to_date)
+    ]
+
+
+async def _before(user_id: str, before: str) -> dict[str, Decimal]:
+    from salli.domain.accounting.ledger import trial_balance
+
+    return trial_balance([e for e in ENTRIES if e.entry_date < before])
+
+
 def _service(subscriptions: list[dict[str, Any]]) -> InsightsService:
     uow = SimpleNamespace(
         ledger=SimpleNamespace(
             get_accounts=AsyncMock(return_value=ACCOUNTS),
-            get_entries=AsyncMock(return_value=ENTRIES),
+            get_entries=AsyncMock(side_effect=_entries),
+            balances_before=AsyncMock(side_effect=_before),
         ),
         user_profiles=FakeProfiles("EUR"),
         recurring_subscriptions=SimpleNamespace(list=AsyncMock(return_value=subscriptions)),
@@ -135,10 +151,10 @@ async def test_a_recurring_payment_a_subscription_matches_is_tracked():
     )
 
 
-async def test_a_subscription_named_after_the_payee_covers_it_even_unmatched():
-    # Declared against the wrong account and amount: the engine matches none of
-    # its charges, but it is plainly the same subscription.
-    named = _subscription(id="sub2", name="FitX", account_id=None, amount_minor=999)
+async def test_a_subscription_named_after_the_payee_covers_it_at_another_price():
+    # Tied to the gym account, so its own matching takes these charges; the
+    # amount is wrong, but it is plainly named after the payee.
+    named = _subscription(id="sub2", name="FitX", account_id="gym", amount_minor=999)
     found = await _service([named]).recurring("u")
     fitx = next(r for r in found["items"] if r["payee"] == "Fitx Studio")
     assert (fitx["tracked"], fitx["subscription_id"]) == (True, "sub2")
@@ -175,3 +191,29 @@ async def test_a_declared_subscription_the_ledger_has_not_shown_is_forecast_too(
     assert [(f["date"], f["amount"], f["account_id"]) for f in declared] == [
         ("2026-10-20", "-9.99", None)
     ]
+
+
+async def test_matching_alone_does_not_make_one_subscription_cover_another():
+    # Disney+ is tied to the streaming account, so the engine matched every
+    # charge there: Netflix read as "tracked by Disney Plus".
+    disney = _subscription(id="sub3", name="Disney Plus", amount_minor=799)
+    netflix = next(
+        r for r in (await _service([disney]).recurring("u"))["items"] if r["payee"] == "Netflix"
+    )
+    assert (netflix["tracked"], netflix["subscription_id"]) == (False, None)
+    # A name alone, with no charge of its own matched, covers nothing either.
+    unmatched = _subscription(id="sub4", name="FitX", account_id=None, amount_minor=999)
+    fitx = next(
+        r
+        for r in (await _service([unmatched]).recurring("u"))["items"]
+        if r["payee"] == "Fitx Studio"
+    )
+    assert fitx["tracked"] is False
+
+
+async def test_a_yearly_subscription_does_not_cover_a_monthly_payment():
+    yearly = _subscription(id="sub5", frequency="yearly")
+    netflix = next(
+        r for r in (await _service([yearly]).recurring("u"))["items"] if r["payee"] == "Netflix"
+    )
+    assert netflix["tracked"] is False

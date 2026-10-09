@@ -75,20 +75,57 @@ class Tokens:
         row = self.access.get(token_hash)
         return None if row is None or row["revoked"] else row
 
+    def _access_by_id(self, token_id):
+        return next((r for r in self.access.values() if r["id"] == token_id), None)
+
     async def get_refresh_token(self, token_hash):
         row = self.refresh.get(token_hash)
-        return None if row is None or row["revoked"] else row
+        if row is None or row["revoked"] or self._access_by_id(row["access_token_id"])["revoked"]:
+            return None
+        return row
 
     async def revoke_refresh_token(self, token_hash):
         if token_hash in self.refresh:
             self.refresh[token_hash]["revoked"] = True
 
+    async def revoke_access_token(self, token_id, user_id):
+        row = self._access_by_id(token_id)
+        if row is None or row["user_id"] != user_id or row["revoked"]:
+            return False
+        row["revoked"] = True
+        return True
+
+    async def get_access_token_by_id(self, token_id, user_id):
+        row = self._access_by_id(token_id)
+        return row if row is not None and row["user_id"] == user_id else None
+
+    async def revoke_client_grant(self, user_id, client_id, resource):
+        revoked = 0
+        for row in [*self.access.values(), *self.refresh.values()]:
+            if (row["user_id"], row["client_id"], row["resource"]) == (
+                user_id,
+                client_id,
+                resource,
+            ) and not row["revoked"]:
+                row["revoked"] = True
+                revoked += 1
+        return revoked
+
     async def list_active_connections(self, user_id, resource=None):
-        return [
-            {"token_id": r["id"], "client_id": r["client_id"], "resource": r["resource"]}
-            for r in self.access.values()
-            if r["user_id"] == user_id and not r["revoked"]
+        live = [r for r in self.access.values() if not r["revoked"]]
+        live += [
+            self._access_by_id(r["access_token_id"])
+            for r in self.refresh.values()
+            if not r["revoked"] and not self._access_by_id(r["access_token_id"])["revoked"]
         ]
+        grants = {}
+        for r in live:
+            if r["user_id"] == user_id and (resource is None or r["resource"] == resource):
+                grants.setdefault(
+                    (r["client_id"], r["resource"]),
+                    {"token_id": r["id"], "client_id": r["client_id"], "resource": r["resource"]},
+                )
+        return list(grants.values())
 
     async def save_device_code(self, device_code_hash, **fields):
         self.devices[device_code_hash] = {
@@ -219,6 +256,56 @@ async def test_connections_list_ai_clients_not_cli_sessions(world):
     await _sign_in(service, cli["client_id"], "http://127.0.0.1:5000/callback", f"{BASE}/v1")
     await _sign_in(service, claude["client_id"], "https://claude.test/cb", None)
     assert [c["client_id"] for c in await service.list_connections(USER)] == [claude["client_id"]]
+
+
+async def test_issued_tokens_carry_salli_prefixes(world):
+    service, clients, _, _ = world
+    cli = await clients.register("Salli CLI", ["http://127.0.0.1/callback"])
+    pair = await _sign_in(service, cli["client_id"], "http://127.0.0.1:5000/callback", f"{BASE}/v1")
+    assert pair["access_token"].startswith("salli_at_")
+    assert pair["refresh_token"].startswith("salli_rt_")
+
+
+async def test_disconnecting_an_ai_client_kills_its_refresh_token_too(world):
+    # Only the access token was revoked: the client refreshed and was back.
+    service, clients, tokens, profiles = world
+    profiles.mcp_enabled = True
+    claude = await clients.register("Claude", ["https://claude.test/cb"])
+    first = await _sign_in(service, claude["client_id"], "https://claude.test/cb", None)
+    rotated = await service.exchange_refresh_token(first["refresh_token"], claude["client_id"])
+
+    [connection] = await service.list_connections(USER)  # one client, one connection
+    assert await service.revoke_connection(USER, connection["token_id"])
+
+    with pytest.raises(OAuthError):
+        await service.exchange_refresh_token(rotated["refresh_token"], claude["client_id"])
+    for pair in (first, rotated):  # the earlier rotated access token too
+        assert await service.verify_access_token(pair["access_token"], audience=MCP) is None
+    assert await service.list_connections(USER) == []
+    assert not await service.revoke_connection(USER, connection["token_id"])
+
+
+async def test_a_client_whose_access_token_expired_can_still_be_disconnected(world):
+    service, clients, tokens, profiles = world
+    profiles.mcp_enabled = True
+    claude = await clients.register("Claude", ["https://claude.test/cb"])
+    pair = await _sign_in(service, claude["client_id"], "https://claude.test/cb", None)
+    # The access token ran out; the fake lists a grant by its live refresh token.
+    [access] = tokens.access.values()
+    access_id = access["id"]
+
+    assert await service.revoke_connection(USER, access_id)
+    with pytest.raises(OAuthError):
+        await service.exchange_refresh_token(pair["refresh_token"], claude["client_id"])
+
+
+async def test_a_refresh_token_dies_with_its_revoked_access_token(world):
+    service, clients, tokens, profiles = world
+    cli = await clients.register("Salli CLI", ["http://127.0.0.1/callback"])
+    pair = await _sign_in(service, cli["client_id"], "http://127.0.0.1:5000/callback", f"{BASE}/v1")
+    await service.revoke_token_by_value(pair["access_token"])
+    with pytest.raises(OAuthError):
+        await service.exchange_refresh_token(pair["refresh_token"], cli["client_id"])
 
 
 # ── loopback redirects (RFC 8252) ─────────────────────────────────────────────

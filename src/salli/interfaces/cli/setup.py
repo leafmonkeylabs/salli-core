@@ -179,7 +179,7 @@ async def _add_member(user_id: str, email: str, base_currency: str | None = None
     from salli.composition import build_services
     from salli.config import get_settings
 
-    svc = build_services(get_settings())
+    svc = build_services(get_settings(), pooled=False)
     await svc.profile.ensure_user(user_id, email, may_create=True, base_currency=base_currency)
 
 
@@ -282,7 +282,7 @@ def setup(
         add_to_env({"SALLI_USER_ID": user_id})
     from salli.composition import build_services
 
-    svc = build_services(settings)
+    svc = build_services(settings, pooled=False)
     try:
         existing = asyncio.run(svc.profile.get_base_currency(user_id))
     except LookupError:

@@ -186,7 +186,9 @@ class FiService:
     async def build_snapshot(self, user_id: str) -> FinancialSnapshot:
         async with self._uow_factory() as uow:
             currency = await uow.user_profiles.base_currency(user_id)
-            accounts: list[Account] = await uow.ledger.get_accounts(user_id)
+            # Closed accounts too: a deactivated account with a balance is
+            # still owned or owed (as net worth over time counts it).
+            accounts: list[Account] = await uow.ledger.get_accounts(user_id, include_inactive=True)
             all_entries: list[StoredJournalEntry] = await uow.ledger.get_entries(user_id)
             recent: list[StoredJournalEntry] = await uow.ledger.get_entries(
                 user_id, from_date=_months_ago_iso(12)
@@ -206,25 +208,14 @@ class FiService:
         # current account net silently against other assets (inflating net worth)
         # instead of being recognised as the borrowing it is.
         for a in accounts:
-            bal = balances.get(a.id, Decimal(0))
-            if a.type == "asset":
-                if bal >= 0:
-                    total_assets += bal
-                    if _is_investment(a):
-                        investments += bal
-                    else:
-                        liquid += bal
-                else:
-                    # Credit balance on an asset = an overdraft: economically debt.
-                    total_liabilities += -bal
-            elif a.type == "liability":
-                magnitude = -bal  # liabilities are credit-normal (stored negative)
-                if magnitude >= 0:
-                    total_liabilities += magnitude
-                else:
-                    # Debit balance on a liability = overpaid: a receivable.
-                    total_assets += -magnitude
-                    liquid += -magnitude
+            # An overdraft is debt, an overpaid card a receivable (ledger_ops).
+            owned, owed = ledger_ops.owned_and_owed(a.type, balances.get(a.id, Decimal(0)))
+            total_assets += owned
+            total_liabilities += owed
+            if a.type == "asset" and _is_investment(a):
+                investments += owned
+            else:
+                liquid += owned
 
         # Trailing-12-month income & expenses (separately)
         income = Decimal(0)

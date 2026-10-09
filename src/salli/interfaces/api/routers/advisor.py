@@ -5,16 +5,14 @@ recommendations, plus the daily cron endpoint.
 
 from __future__ import annotations
 
-import hmac
-from typing import Annotated, Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 
 from salli.application.ports import Surface
-from salli.config import Settings, get_settings
 from salli.domain.usage import UsageLimitReached
-from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
+from salli.interfaces.api.deps import AppServices, CronSecret, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/advisor", tags=["advisor"])
 
@@ -259,10 +257,9 @@ class ScheduledAdvisorRuns(BaseModel):
     scheduled: bool
 
 
-async def _run_due(svc) -> None:
-    """Background: run the advisor for each opted-in user who is due; skip anyone
-    the usage meter refuses."""
-    due = await svc.advisor.due_users()
+async def _run_due(svc, due: list[dict[str, Any]]) -> None:
+    """Background: run the advisor for each due user; skip anyone the usage
+    meter refuses."""
     for sub in due:
         try:
             await svc.advisor.run_advisor(sub["user_id"], None, trigger="scheduled")
@@ -272,19 +269,10 @@ async def _run_due(svc) -> None:
             continue
 
 
-@router.post("/cron/run-due", status_code=status.HTTP_202_ACCEPTED)
-async def cron_run_due(
-    svc: AppServices,
-    settings: Annotated[Settings, Depends(get_settings)],
-    background: BackgroundTasks,
-    x_cron_secret: Annotated[str | None, Header()] = None,
-) -> ScheduledAdvisorRuns:
+@router.post("/cron/run-due", status_code=status.HTTP_202_ACCEPTED, dependencies=[CronSecret])
+async def cron_run_due(svc: AppServices, background: BackgroundTasks) -> ScheduledAdvisorRuns:
     """Trigger the daily advisor for every opted-in user who is due. Auth: X-Cron-Secret header."""
-    secret = settings.cron_secret
-    if not secret or not x_cron_secret or not hmac.compare_digest(x_cron_secret, secret):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid cron secret")
     due = await svc.advisor.due_users()
-    # Runs after the response is sent, as it did when this returned its own
-    # JSONResponse with a background task.
-    background.add_task(_run_due, svc)
+    # Runs after the response is sent, for the users counted in it.
+    background.add_task(_run_due, svc, due)
     return ScheduledAdvisorRuns(due=len(due), scheduled=True)

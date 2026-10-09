@@ -127,9 +127,10 @@ def test_codes_are_checked_and_normalized():
     assert errors == ["Skipped 2 transaction(s) in 'EURO', which is not an ISO 4217 currency code"]
 
 
-def test_a_reference_that_repeats_within_a_file_is_not_used():
+def test_a_reference_that_repeats_within_a_file_is_only_text():
     # Two different transactions sharing a reference would otherwise be taken
-    # for one by the dedup matcher, and the second silently dropped.
+    # for one by the dedup matcher, and the second silently dropped. Not
+    # unique, it is no id: it stays part of what each row says.
     data = (
         b"Date,Description,Amount,Reference\n"
         b"2026-10-01,Transfer to J Perera,-50000.00,TXN123\n"
@@ -137,10 +138,10 @@ def test_a_reference_that_repeats_within_a_file_is_not_used():
         b"2026-10-02,Salary,300000.00,TXN124\n"
     )
     rows, _ = _extract("statement.csv", data, "LKR")
-    assert [(row.description, row.bank_ref) for row in rows] == [
-        ("Transfer to J Perera", ""),
-        ("Transfer fee", ""),
-        ("Salary", "TXN124"),
+    assert [(row.description, row.bank_ref, row.ref_kind) for row in rows] == [
+        ("Transfer to J Perera - TXN123", "TXN123", "text"),
+        ("Transfer fee - TXN123", "TXN123", "text"),
+        ("Salary - TXN124", "TXN124", "text"),
     ]
 
 
@@ -155,8 +156,29 @@ def test_excel_rows_are_extracted_as_before():
     rows, errors = _extract("statement.xlsx", data, "LKR")
     assert errors == []
     assert rows == [
-        RawRow("2025-04-25", "Salary", Decimal("300000.00"), True, "LKR", "R1", 1),
-        RawRow("2025-04-30", "Electricity", Decimal("4500.00"), False, "LKR", "R2", 1),
+        # "R1" is too short to be the bank's id: text, kept with the description.
+        RawRow(
+            "2025-04-25",
+            "Salary - R1",
+            Decimal("300000.00"),
+            True,
+            "LKR",
+            "R1",
+            1,
+            "text",
+            ref_source="xlsx",
+        ),
+        RawRow(
+            "2025-04-30",
+            "Electricity - R2",
+            Decimal("4500.00"),
+            False,
+            "LKR",
+            "R2",
+            1,
+            "text",
+            ref_source="xlsx",
+        ),
     ]
 
 
@@ -190,7 +212,9 @@ class _Uow:
     async def get_entries(self, user_id: str, **_: Any) -> list[Any]:
         return []
 
-    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
+    async def imported_between(
+        self, user_id: str, from_date: str, to_date: str, **_: Any
+    ) -> list[Any]:
         return []
 
     async def save_statement(self, **kwargs: Any) -> None:
