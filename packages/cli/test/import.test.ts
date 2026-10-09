@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ENTRIES, uid } from './helpers/fixtures';
+import { uid } from './helpers/fixtures';
 import { MockSalli } from './helpers/mock-server';
 import { runCli, ScriptedPrompter, tempConfigDir, type RunOptions } from './helpers/run';
 
@@ -29,31 +29,25 @@ const run = (args: string[], options: Partial<RunOptions> = {}) =>
   });
 
 describe('salli import', () => {
-  it('uploads the file and, with --yes, posts only what is unique and complete', async () => {
-    const result = await run(['import', statement, '--currency', 'usd', '--bank', 'Acme', '--yes']);
+  it('uploads the file into an account and, with --yes, posts only what is complete and not a possible duplicate', async () => {
+    const result = await run(['import', statement, '--account', 'checking', '--currency', 'usd', '--bank', 'Acme', '--date-order', 'DMY', '--yes']);
     expect(result.code).toBe(0);
     const upload = mock.requestsTo('POST', '/v1/statements/upload')[0];
     expect(upload?.headers['content-type']).toMatch(/^multipart\/form-data; boundary=/);
     expect(upload?.body).toContain('filename="september.csv"');
-    expect(upload?.body).toContain('SUPERMARKET 123');
-    expect(upload?.query.get('currency')).toBe('USD');
-    expect(upload?.query.get('bank')).toBe('Acme');
-    // The fuzzy match and the exact duplicate stay out.
+    expect(Object.fromEntries(upload?.query ?? [])).toEqual({ bank: 'Acme', currency: 'USD', account_id: uid(2), date_order: 'DMY' });
+    // The possible duplicate stays pending; the earlier import's repeat is never posted.
     expect(mock.data.posted).toEqual([[uid(901)]]);
-    expect(result.stderr).toContain('Read 3 transactions from Acme Bank for Sep 1 – 30, 2026.');
+    expect(result.stderr).toContain('Read 3 transactions from Acme Bank for Sep 1 – 30, 2026 into 1100 Checking.');
     expect(result.stderr).toContain('! Row 4: no amount');
-    expect(result.stderr).toContain('Posted 1 of 3; 1 already in your ledger; 1 left pending (salli statements pending).');
+    expect(result.stderr).toContain('Posted 1 of 3; 1 imported before; 1 left pending (salli statements pending).');
   });
 
-  it('finds the ids to approve by among the pending transactions, unless the upload has them', async () => {
-    expect((await run(['import', statement, '--yes'])).code).toBe(0);
-    expect(mock.requestsTo('GET', `/v1/statements/${uid(801)}`)).toHaveLength(1);
-    await mock.close();
-
-    mock = await MockSalli.start({ uploadIds: true });
-    expect((await run(['import', statement, '--yes'])).code).toBe(0);
-    expect(mock.requestsTo('GET', '/v1/statements/')).toHaveLength(0);
-    expect(mock.data.posted).toEqual([[uid(901)]]);
+  it('passes --source-account and --replaces, resolving the earlier statement by its start', async () => {
+    expect((await run(['import', statement, '--source-account', 'Visa 1234', '--replaces', '00000321'])).code).toBe(0);
+    const upload = mock.requestsTo('POST', '/v1/statements/upload')[0];
+    expect(upload?.query.get('source_account')).toBe('Visa 1234');
+    expect(upload?.query.get('replaces')).toBe(uid(801));
   });
 
   it('approves possible duplicates with --yes only when told to', async () => {
@@ -70,64 +64,37 @@ describe('salli import', () => {
       "DATE         DESCRIPTION                AMOUNT  FROM      TO         SURE  CHECK              ID
       Sep 2, 2026  SUPERMARKET 123     USD 45.20 out  Checking  Groceries   92%                     00000385
       Sep 3, 2026  COFFEE SHOP          USD 4.50 out  Checking  Groceries   61%  maybe a duplicate  00000386
-      Sep 5, 2026  RENT SEPT        USD 1,800.00 out  Checking  Rent        99%  duplicate          00000387
+      Sep 5, 2026  RENT SEPT        USD 1,800.00 out  Checking  Rent        99%  already imported   00000387
       "
     `);
     expect(result.stderr).toContain('Nothing posted.');
   });
 
-  it('reviews each transaction, and corrects one whose account you changed', async () => {
-    // The server posts with its suggested accounts and records the transaction id.
-    mock.on('POST', '/v1/statements/{id}/post', (req) => {
-      const ids = (req.json as { approved_ids: string[] }).approved_ids;
-      mock.data.posted.push(ids);
-      for (const id of ids) {
-        mock.data.entries.push({
-          ...structuredClone(ENTRIES[0]!),
-          id: `${id.slice(0, 8)}-e000-4000-8000-000000000000`,
-          entry_date: '2026-09-02',
-          source: 'statement',
-          external_ref: id,
-          reversed_by: null,
-          postings: [
-            { id: uid(951), tags: {}, account_id: uid(6), direction: 1, amount: '45.20', currency: 'USD', fx_rate: '1' },
-            { id: uid(952), tags: {}, account_id: uid(2), direction: -1, amount: '45.20', currency: 'USD', fx_rate: '1' },
-          ],
-        });
-      }
-      return { status: 200, body: { posted: ids.length, entry_ids: ids } };
-    });
+  it('reviews each transaction: a changed account is categorized before posting, a discarded one is discarded', async () => {
     const prompter = new ScriptedPrompter([
-      // 1: change "From" to the credit card, then approve
+      // 1: change where it went, then approve
       'change',
-      'credit',
-      uid(4),
+      uid(7),
       'approve',
-      // 2: the possible duplicate: skip it
-      'skip',
+      // 2: the possible duplicate: discard it
+      'discard',
     ]);
-    const result = await run(['import', statement, '--json'], { prompter });
+    const result = await run(['import', statement, '--account', 'checking', '--json'], { prompter });
     expect(result.code).toBe(0);
-    expect(prompter.asked).toEqual(['Post this one?', 'Which side?', 'Which account paid?', 'Post this one?', 'Post this one?']);
-    expect(mock.data.posted).toEqual([[uid(901)]]);
-    // Reversed, and re-entered with the chosen account, keeping its provenance.
-    expect(mock.requestsTo('POST', '/v1/entries/').filter((r) => r.path.endsWith('/reverse'))).toHaveLength(1);
-    expect(mock.data.created).toEqual([
-      {
-        entry_date: '2026-09-02',
-        description: 'SUPERMARKET 123',
-        source: 'statement',
-        external_ref: uid(901),
-        postings: [
-          { account_id: uid(6), direction: 1, amount: '45.20', currency: 'USD' },
-          { account_id: uid(4), direction: -1, amount: '45.20', currency: 'USD' },
-        ],
-      },
+    expect(prompter.asked).toEqual(['Post this one?', 'Where did it go?', 'Post this one?', 'Post this one?']);
+    expect(mock.data.bodies.filter((b) => b.path === '/v1/statements/categorize').map((b) => b.body)).toEqual([
+      { choices: [{ transaction_id: uid(901), account_id: uid(7) }] },
     ]);
+    expect(mock.data.posted).toEqual([[uid(901)]]);
+    expect(mock.data.bodies.find((b) => b.path.endsWith('/discard'))?.body).toEqual({ ids: [uid(902)] });
+    // Nothing is reversed or re-entered any more.
+    expect(mock.requestsTo('POST', '/v1/entries/')).toHaveLength(0);
     const output = JSON.parse(result.stdout);
-    expect(output.posted).toEqual({ posted: 1, entry_ids: [uid(901)] });
-    expect(output.corrections).toEqual([{ transaction_id: uid(901), reversed_entry: '00000385-e000-4000-8000-000000000000', entry: expect.any(String) }]);
-    expect(output.skipped).toEqual([uid(902), uid(903)]);
+    expect(output.categorized).toEqual([uid(901)]);
+    expect(output.posted).toEqual({ posted: 1, entry_ids: [expect.any(String)] });
+    expect(output.discarded).toBe(1);
+    expect(output.skipped).toEqual([uid(903)]);
+    expect(mock.data.statementTransactions.find((t) => t.id === uid(901))?.debit_account_id).toBe(uid(7));
   });
 
   it('refuses a file that is not there or too big', async () => {
@@ -142,14 +109,16 @@ describe('salli import', () => {
 });
 
 describe('salli statements', () => {
-  it('lists statements and pending transactions', async () => {
+  it('lists statements and what waits in review', async () => {
     expect((await run(['statements', 'list'])).stdout).toMatchInlineSnapshot(`
-      "ID        BANK       PERIOD            STATUS  IMPORTED
-      00000321  Acme Bank  Sep 1 – 30, 2026  parsed  Oct 2, 2026
+      "ID        ACCOUNT        BANK       PERIOD            STATUS   IMPORTED
+      00000321  1100 Checking  Acme Bank  Sep 1 – 30, 2026  pending  Oct 2, 2026
       "
     `);
     const pending = await run(['statements', 'pending', '--output', 'ndjson']);
-    expect(pending.stdout.trim().split('\n')).toHaveLength(3);
+    // The earlier import's repeat never waits in review.
+    expect(pending.stdout.trim().split('\n')).toHaveLength(2);
+    expect((await run(['statements', 'pending', 'ffffffff'])).code).toBe(4);
   });
 
   it('posts named transactions, or all clean ones with --all --yes', async () => {
@@ -163,5 +132,26 @@ describe('salli statements', () => {
     const all = await run(['statements', 'post', uid(801).slice(0, 8), '--all', '--yes']);
     expect(all.code).toBe(0);
     expect(mock.data.posted[1]).toEqual([uid(901)]);
+  });
+
+  it('discards named transactions, or every pending one after asking', async () => {
+    const one = await run(['statements', 'discard', '00000321', uid(902).slice(0, 8), '--json']);
+    expect(JSON.parse(one.stdout)).toEqual({ statement_id: uid(801), discarded: 1 });
+    expect((await run(['statements', 'discard', '00000321'])).code).toBe(2);
+    const rest = await run(['statements', 'discard', '00000321', '--yes']);
+    expect(rest.stderr).toContain('Discarded 1 transaction.');
+    expect((await run(['statements', 'pending'])).stderr).toContain('Nothing pending.');
+  });
+
+  it('chooses where a pending transaction goes', async () => {
+    const result = await run(['statements', 'categorize', uid(901).slice(0, 8), 'rent', '--category', 'housing', '--need', 'essential']);
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain('“SUPERMARKET 123” goes to 5100 Rent.');
+    expect(mock.data.bodies.find((b) => b.path === '/v1/statements/categorize')?.body).toEqual({
+      choices: [{ transaction_id: uid(901), account_id: uid(7), category: 'housing', need: 'essential' }],
+    });
+    const own = await run(['statements', 'categorize', uid(901).slice(0, 8), 'checking']);
+    expect(own.code).toBe(2);
+    expect(own.stderr).toContain('the statement’s own account');
   });
 });

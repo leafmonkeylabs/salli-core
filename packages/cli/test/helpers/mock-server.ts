@@ -22,6 +22,7 @@ import type {
   RuleSuggestion,
   RuleTestResult,
   RuleUpdate,
+  StatementTransaction,
   TaxPack,
 } from '@leafmonkeylabs/salli-sdk';
 import {
@@ -64,8 +65,6 @@ export interface MockOptions {
   consent?: boolean;
   /** The resource indicator for the REST API. Default: `<url>/v1`. */
   apiResource?: string;
-  /** Answer an upload with the transactions' ids (the server today sends them empty). */
-  uploadIds?: boolean;
 }
 
 type Reply = { status: number; body?: unknown; headers?: Record<string, string>; raw?: string };
@@ -155,6 +154,7 @@ export class MockSalli {
     connections: [
       { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
     ] as McpConnection[],
+    statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
     rules: [
       {
         id: uid(601),
@@ -702,25 +702,59 @@ export class MockSalli {
     }
 
     // statements
+    const txns = this.data.statementTransactions;
     if (method === 'POST' && path === '/v1/statements/upload') {
       if (!(req.headers['content-type'] ?? '').startsWith('multipart/form-data')) return problem(422, 'Request validation failed', 'file required');
-      const upload = clone(STATEMENT_UPLOAD);
-      if (!this.options.uploadIds) for (const t of upload.transactions) t.id = '';
-      return { status: 202, body: upload };
+      const account = req.query.get('account_id');
+      if (account) for (const t of txns) t.account_id = account;
+      return { status: 202, body: { ...clone(STATEMENT_UPLOAD), transactions: clone(txns) } };
     }
     if (method === 'GET' && path === '/v1/statements/') {
       return {
         status: 200,
-        body: { statements: [{ id: uid(801), bank: 'Acme Bank', period_start: '2026-09-01', period_end: '2026-09-30', status: 'parsed', created_at: '2026-10-02T10:00:00+00:00' }] },
+        body: {
+          statements: [
+            { id: uid(801), bank: 'Acme Bank', account_id: uid(2), period_start: '2026-09-01', period_end: '2026-09-30', status: 'pending', created_at: '2026-10-02T10:00:00+00:00' },
+          ],
+        },
       };
+    }
+    if (method === 'POST' && path === '/v1/statements/categorize') {
+      const { choices } = req.json as { choices: Array<{ transaction_id: string; account_id: string; category?: string; need?: string }> };
+      this.data.bodies.push({ method, path, body: req.json });
+      const updated: string[] = [];
+      for (const choice of choices) {
+        const t = txns.find((x) => x.id === choice.transaction_id);
+        if (!t) return problem(404, 'Not Found', `No transaction ${choice.transaction_id}`, '/problems/not-found');
+        if (t.dedup_status !== 'pending' && t.dedup_status !== 'fuzzy_match') {
+          return problem(422, 'Unprocessable Entity', `Transaction ${t.id} is ${t.dedup_status}: only transactions waiting for review can change`, '/problems/unprocessable');
+        }
+        if (t.credit_flag) t.credit_account_id = choice.account_id;
+        else t.debit_account_id = choice.account_id;
+        t.rule_id = null;
+        updated.push(t.id);
+      }
+      return { status: 200, body: { updated } };
     }
     if ((params = p('/v1/statements/{id}/post')) && method === 'POST') {
       const ids = (req.json as { approved_ids: string[] }).approved_ids;
       this.data.posted.push(ids);
-      return { status: 200, body: { posted: ids.length, entry_ids: ids.map((_, i) => uid(4000 + i)) } };
+      const posted = txns.filter((t) => ids.includes(t.id) && t.dedup_status !== 'exact_duplicate');
+      for (const t of posted) t.dedup_status = 'posted';
+      return { status: 200, body: { posted: posted.length, entry_ids: posted.map((_, i) => uid(4000 + i)) } };
+    }
+    if ((params = p('/v1/statements/{id}/discard')) && method === 'POST') {
+      if (params.id !== uid(801)) return problem(404, 'Not Found', 'Statement not found', '/problems/not-found');
+      this.data.bodies.push({ method, path, body: req.json });
+      const ids = (req.json as { ids?: string[] } | undefined)?.ids;
+      const chosen = txns.filter((t) => (t.dedup_status === 'pending' || t.dedup_status === 'fuzzy_match') && (!ids || ids.includes(t.id)));
+      for (const t of chosen) t.dedup_status = 'discarded';
+      return { status: 200, body: { discarded: chosen.length } };
     }
     if ((params = p('/v1/statements/{id}')) && method === 'GET') {
-      return { status: 200, body: { statement_id: params.id, transactions: clone(STATEMENT_UPLOAD.transactions) } };
+      if (params.id !== uid(801)) return problem(404, 'Not Found', 'Statement not found', '/problems/not-found');
+      const waiting = txns.filter((t) => t.dedup_status === 'pending' || t.dedup_status === 'fuzzy_match');
+      return { status: 200, body: { statement_id: params.id, transactions: clone(waiting) } };
     }
 
     // agent
