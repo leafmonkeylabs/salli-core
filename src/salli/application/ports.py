@@ -526,7 +526,8 @@ class UserProfileRepository(ABC):
     async def set_ai_settings(
         self, user_id: str, *, provider: str | None, models: dict[str, Any]
     ) -> None:
-        """Replace both, `provider` None meaning "auto"."""
+        """Replace both, `provider` None meaning "auto". `ProfileMissing` if
+        there is no profile."""
         raise NotImplementedError
 
 

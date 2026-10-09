@@ -125,3 +125,15 @@ async def test_the_host_id_is_made_once_and_kept(service, db):
     assert first.startswith("urn:uuid:")
     assert await service.host_id() == first
     assert scalar(db, "select count(*) from instance_settings") == 1
+
+
+async def test_ai_settings_for_a_missing_profile_are_a_missing_profile(uow_factory):
+    from salli.application.ports import ProfileMissing
+
+    async with uow_factory() as uow:
+        assert await uow.user_profiles.get_ai_settings("nobody") == {
+            "provider": None,
+            "models": {},
+        }
+        with pytest.raises(ProfileMissing):
+            await uow.user_profiles.set_ai_settings("nobody", provider="openai", models={})

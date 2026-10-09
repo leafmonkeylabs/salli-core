@@ -1294,7 +1294,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         row.ai_provider = provider
         row.ai_models = models or None
         await self._s.flush()
