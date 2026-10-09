@@ -9,13 +9,15 @@ POST /statements/{id}/post  — approve and post selected transactions as journa
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from typing import Annotated
+
+from fastapi import APIRouter, Form, HTTPException, status
 from pydantic import BaseModel
 
 from salli.domain.currency import quantize
 from salli.domain.parsing.models import ParsedTransaction
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, CurrencyCode
+from salli.interfaces.api.contract import Amount, CurrencyCode, FileUpload
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/statements", tags=["statements"])
@@ -85,7 +87,7 @@ class PostedStatementTransactions(BaseModel):
 
 @router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
-    file: UploadFile,
+    form: Annotated[FileUpload, Form(media_type="multipart/form-data")],
     user_id: CurrentUser,
     email: CurrentEmail,
     svc: AppServices,
@@ -101,6 +103,7 @@ async def upload_statement(
     currency). Posting a statement in another currency converts each
     transaction at the published rate for its date.
     """
+    file = form.file
     if file.filename is None:
         raise HTTPException(status_code=400, detail="filename required")
 

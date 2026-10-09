@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+from fastapi import UploadFile
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
@@ -255,3 +256,9 @@ class Updated(BaseModel):
     """What the updates that predate `Ref` return instead of an id."""
 
     updated: bool
+
+
+class FileUpload(BaseModel):
+    """A multipart/form-data body carrying one file, as `file`."""
+
+    file: UploadFile

@@ -53,9 +53,11 @@ def test_no_two_models_share_a_name():
     """Two different models with one name are both published under their
     module paths (`salli__interfaces__api__contract__Updated`), and those
     become type names in every generated client. Rename one, or reuse one of
-    the shared shapes in interfaces/api/contract.py."""
+    the shared shapes in interfaces/api/contract.py. FastAPI's own body models
+    for multipart forms come out as `fastapi___compat__v2__Body_...`: declare
+    the form as a model instead (contract.FileUpload)."""
     names = create_app().openapi()["components"]["schemas"]
-    assert [name for name in names if name.startswith("salli__")] == []
+    assert [name for name in names if name.startswith(("salli__", "fastapi__"))] == []
 
 
 def test_the_table_lists_no_route_that_is_gone():
@@ -72,9 +74,6 @@ def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
 #: get `unknown` for them. Typing one means deleting its line; nothing may be
 #: added. Grouped so work on different areas does not collide.
 UNTYPED = {
-    # Planning: financial independence, goals, the advisor, reports
-    # Budgets, debts, holdings, subscriptions, insurance
-    # Profile, onboarding, the agent, LLM keys, MCP connections
     # OAuth
     "oauth.authorizationServerMetadata",
     "oauth.authorize",

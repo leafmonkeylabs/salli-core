@@ -1092,7 +1092,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/fastapi___compat__v2__Body_agent__files__upload"
+                "$ref": "#/components/schemas/FileUpload"
               }
             }
           },
@@ -2015,7 +2015,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/fastapi___compat__v2__Body_statements__upload"
+                "$ref": "#/components/schemas/FileUpload"
               }
             }
           }
@@ -8992,6 +8992,21 @@
         "title": "FiScoreSnapshot",
         "description": "A stored Freedom Score, for a trend line."
       },
+      "FileUpload": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "FileUpload",
+        "description": "A multipart/form-data body carrying one file, as `file`."
+      },
       "FireStrategy": {
         "properties": {
           "version": {
@@ -13810,34 +13825,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "fastapi___compat__v2__Body_agent__files__upload": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_agent.files.upload"
-      },
-      "fastapi___compat__v2__Body_statements__upload": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_statements.upload"
       },
       "token": {
         "properties": {

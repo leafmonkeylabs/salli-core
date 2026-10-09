@@ -23,13 +23,14 @@ import json
 from collections.abc import AsyncIterator
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, UploadFile
+from fastapi import APIRouter, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from salli.domain.secrets import redact_obj
 from salli.domain.usage import AIAction
+from salli.interfaces.api.contract import FileUpload
 from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -208,12 +209,17 @@ class ChatAttachment(BaseModel):
 
 
 @router.post("/files")
-async def upload_file(file: UploadFile, user_id: CurrentUser, svc: AppServices) -> ChatAttachment:
+async def upload_file(
+    form: Annotated[FileUpload, Form(media_type="multipart/form-data")],
+    user_id: CurrentUser,
+    svc: AppServices,
+) -> ChatAttachment:
     """
     Upload a file to be attached to a chat message.
     Returns a file_ref ID to pass in the subsequent /agent/chat request.
     Supported: PDF, TXT, CSV, PNG, JPG, XLSX.
     """
+    file = form.file
     file_bytes = await file.read()
     doc = await svc.documents.save_file(
         user_id,
