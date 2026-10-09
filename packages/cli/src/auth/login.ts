@@ -125,9 +125,11 @@ async function registerCli(app: App, endpoints: OAuthEndpoints): Promise<string>
       hint: 'Sign in with a personal access token: `salli login --token <token>`.',
     });
   }
-  const client = await oauth.registerClient(endpoints.registration_endpoint, { ...CLIENT_METADATA, redirect_uris: [...CLIENT_METADATA.redirect_uris], grant_types: [...CLIENT_METADATA.grant_types] }, {
-    fetch: app.runtime.fetch,
-  });
+  const client = await oauth.registerClient(
+    endpoints.registration_endpoint,
+    { ...CLIENT_METADATA, redirect_uris: [...CLIENT_METADATA.redirect_uris], grant_types: [...CLIENT_METADATA.grant_types] },
+    { fetch: app.runtime.fetch, signal: app.runtime.signal },
+  );
   return client.client_id;
 }
 
@@ -151,7 +153,11 @@ type Preflight = { ok: true } | { ok: false; detail: string };
 async function preflight(app: App, url: string): Promise<Preflight> {
   let response: Response;
   try {
-    response = await app.runtime.fetch(url, { redirect: 'manual', headers: { Accept: 'text/html,application/json' } });
+    response = await app.runtime.fetch(url, {
+      redirect: 'manual',
+      headers: { Accept: 'text/html,application/json' },
+      signal: AbortSignal.any([AbortSignal.timeout(15_000), app.runtime.signal]),
+    });
   } catch {
     return { ok: true }; // let the browser try
   }
@@ -200,10 +206,10 @@ export interface BrowserLoginOptions {
 export async function browserLogin(app: App, target: LoginTarget, meta: Meta, options: BrowserLoginOptions): Promise<OAuthCredentials> {
   const endpoints = oauth.oauthEndpointsOf(meta);
   const resource = `${target.server}/v1`;
-  const loopback = await startLoopbackServer();
+  const state = oauth.randomToken(16);
+  const loopback = await startLoopbackServer(state);
   try {
     const pkce = await oauth.createPkcePair();
-    const state = oauth.randomToken(16);
     let clientId = await clientIdFor(app, target, endpoints);
     const urlFor = (id: string): string =>
       oauth.buildAuthorizationUrl({
@@ -246,7 +252,7 @@ export async function browserLogin(app: App, target: LoginTarget, meta: Meta, op
     spinner.start('Waiting for you to approve in the browser');
     let code: string;
     try {
-      code = await loopback.waitForCode({ state, signal: app.runtime.signal, timeoutMs: options.timeoutMs ?? 5 * 60_000 });
+      code = await loopback.waitForCode({ signal: app.runtime.signal, timeoutMs: options.timeoutMs ?? 5 * 60_000 });
     } finally {
       spinner.stop();
     }

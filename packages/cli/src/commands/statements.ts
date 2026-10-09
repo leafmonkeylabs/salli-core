@@ -106,7 +106,7 @@ async function postApproved(
     const accounts = changed.get(t.id) as { debit: string; credit: string };
     const posted = entries.find((e) => e.external_ref === t.id && !e.reversed_by);
     if (!posted) {
-      app.out.warn(`Could not find the entry for “${t.description}” to correct; check it with \`salli entries list\`.`);
+      app.out.warn(`Could not find the entry for “${singleLine(t.description)}” to correct; check it with \`salli entries list\`.`);
       continue;
     }
     if (posted.postings.some((p) => p.direction > 0 && p.account_id === accounts.debit) && posted.postings.some((p) => p.direction < 0 && p.account_id === accounts.credit)) {
@@ -260,8 +260,8 @@ Examples:
       const out = app.out;
       const transactions = upload.transactions.filter((t): t is Transaction => !!t.id);
       const period = upload.period_start ? ` for ${displayRange(upload.period_start, upload.period_end, out.locale)}` : '';
-      out.info(`Read ${transactions.length} transaction${transactions.length === 1 ? '' : 's'} from ${upload.bank || name}${period}.`);
-      for (const problem of upload.errors) out.warn(problem);
+      out.info(`Read ${transactions.length} transaction${transactions.length === 1 ? '' : 's'} from ${singleLine(upload.bank || name)}${period}.`);
+      for (const problem of upload.errors) out.warn(singleLine(String(problem)));
 
       let decision: { approved: Transaction[]; changed: Map<string, { debit: string; credit: string }>; skipped: Transaction[] };
       if (opts.yes) {

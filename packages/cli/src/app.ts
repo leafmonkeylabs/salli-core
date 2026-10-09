@@ -270,6 +270,8 @@ export class App {
       server,
       ...(auth ? { auth } : {}),
       fetch: this.runtime.fetch,
+      // Ctrl-C ends whatever request is in flight, as an interruption (130).
+      signal: this.runtime.signal,
       userAgent: this.userAgent,
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       ...(verbose

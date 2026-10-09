@@ -206,6 +206,20 @@ describe('createClient', () => {
     expect((error as SalliNetworkError).code).toBe('ETIMEDOUT');
   });
 
+  it('ends every request with the reason its client-wide signal was aborted for', async () => {
+    server = await startServer(() => undefined);
+    const controller = new AbortController();
+    const salli = createClient({ server: server.url, auth: 'tok', signal: controller.signal });
+    const pending = salli.call(accountsList);
+    const reason = new Error('interrupted by the user');
+    setTimeout(() => controller.abort(reason), 20);
+    await expect(pending).rejects.toBe(reason);
+    // Already aborted: nothing is sent.
+    const before = server.requests.length;
+    await expect(salli.call(accountsList)).rejects.toBe(reason);
+    expect(server.requests.length).toBe(before);
+  });
+
   it('passes a caller abort through untouched', async () => {
     server = await startServer(() => undefined);
     const salli = createClient({ server: server.url, auth: 'tok' });

@@ -5,6 +5,7 @@
 import { accountsList, normalizeAmountInput, type Account, type SalliClient } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { UsageError } from '../errors';
+import { singleLine } from '../output/text';
 import { parseWholeNumber } from '../util/numbers';
 import { accountLabel, resolveAccount } from '../util/resolve';
 
@@ -53,13 +54,13 @@ export class AccountBook {
 
   /** "5000 Groceries", or the id's start when the account is unknown. */
   label(id: string | null | undefined): string {
-    return id ? accountLabel(this.get(id), id) : '—';
+    return id ? singleLine(accountLabel(this.get(id), id)) : '—';
   }
 
   /** Just the name ("Groceries"). */
   name(id: string | null | undefined): string {
     const account = this.get(id);
-    return account ? account.name : id ? id.slice(0, 8) : '—';
+    return account ? singleLine(account.name) : id ? id.slice(0, 8) : '—';
   }
 
   resolve(query: string): Account {

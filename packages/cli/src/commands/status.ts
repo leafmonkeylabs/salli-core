@@ -20,7 +20,7 @@ import { displayDate, displayRange, isoDate, monthPeriod, monthToDate } from '..
 
 /** "budget_overspend" → "Budget overspend". */
 export function humanize(kind: string): string {
-  const text = kind.replace(/_/g, ' ').trim();
+  const text = singleLine(kind.replace(/_/g, ' '));
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 

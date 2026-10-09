@@ -50,7 +50,8 @@ import { humanize } from './status';
 import { confirmAction, countArg, currencyArg } from './shared';
 
 type Row = Record<string, unknown> & { id: string };
-const str = (v: unknown): string => (typeof v === 'string' ? v : v === null || v === undefined ? '' : String(v));
+/** A field from the server, as one line of safe text. */
+const str = (v: unknown): string => (typeof v === 'string' ? singleLine(v) : v === null || v === undefined ? '' : String(v));
 
 // ── Reminders ────────────────────────────────────────────────────────────────
 
@@ -441,7 +442,7 @@ function registerDocuments(program: Command, app: App): void {
         timeoutMs: 120_000,
       })) as { file_ref: string; name: string };
       if (app.out.machine) app.out.emit(result, { human: () => undefined });
-      else app.out.success(`Stored ${result.name} ${app.out.errColors.dim(result.file_ref)}`);
+      else app.out.success(`Stored ${singleLine(result.name)} ${app.out.errColors.dim(result.file_ref)}`);
     });
 
   documents

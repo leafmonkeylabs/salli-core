@@ -31,30 +31,47 @@ interface ReviverContext {
 type RawJsonFactory = (text: string) => unknown;
 
 /**
- * Re-indents JSON text without changing a single value: numbers keep their
- * exact source text (via `JSON.rawJSON` where the runtime has it).
+ * Parses JSON keeping each number's source text (via `JSON.rawJSON`, where
+ * the runtime has it), so encoding the result again writes `0.0` as `0.0`.
+ * Without `JSON.rawJSON` this is plain `JSON.parse`.
  */
-export function reindentJson(text: string, indent = 2): string {
+export function parseJsonExact(text: string): unknown {
   const rawJSON = (JSON as unknown as { rawJSON?: RawJsonFactory }).rawJSON;
-  if (typeof rawJSON !== 'function') return JSON.stringify(JSON.parse(text), null, indent);
-  const value: unknown = JSON.parse(text, (_key: string, val: unknown, context?: ReviverContext) =>
+  if (typeof rawJSON !== 'function') return JSON.parse(text) as unknown;
+  return JSON.parse(text, (_key: string, val: unknown, context?: ReviverContext) =>
     typeof val === 'number' && context?.source !== undefined ? rawJSON(context.source) : val,
-  );
-  return JSON.stringify(value, null, indent);
+  ) as unknown;
+}
+
+/** Re-indents JSON text without changing a single value. */
+export function reindentJson(text: string, indent = 2): string {
+  return JSON.stringify(parseJsonExact(text), null, indent);
 }
 
 /**
- * A value as JSON text: the text it arrived as (re-indented, numbers
- * untouched) when known, else its encoding.
+ * Replaces each value that kept its JSON text (a response, or one inside an
+ * object built from several responses) with an exact parse of that text.
  */
-export function toJsonText(value: unknown, indent = 2): string {
+export function exactValue(value: unknown): unknown {
   const raw = rawJsonOf(value);
   if (raw !== undefined) {
     try {
-      return reindentJson(raw, indent);
+      return parseJsonExact(raw);
     } catch {
-      // fall through to encoding the parsed value
+      // keep the parsed value
     }
   }
-  return JSON.stringify(value, null, indent) ?? 'null';
+  if (Array.isArray(value)) return value.map(exactValue);
+  if (typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, exactValue(v)]));
+  }
+  return value;
+}
+
+/**
+ * A value as JSON text, as the server sent it where known: responses (and
+ * responses inside a composite) keep their numbers' exact text.
+ */
+export function toJsonText(value: unknown, indent = 2): string {
+  return JSON.stringify(exactValue(value), null, indent) ?? 'null';
 }

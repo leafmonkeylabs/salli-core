@@ -101,6 +101,22 @@ describe('errors from the real entry point', () => {
     });
   });
 
+  it('never lets text from the server drive the terminal', async () => {
+    const esc = String.fromCharCode(27);
+    const bel = String.fromCharCode(7);
+    mock.data.accounts[0]!.name = `Cash${esc}]0;pwned${bel}${esc}[2J`;
+    const list = await run(['accounts', 'show', '1000']);
+    expect(list.stdout).toContain('1000 Cash');
+    expect(list.stdout).not.toContain(esc);
+    mock.on('GET', '/v1/accounts/', () => ({
+      status: 409,
+      body: { type: '/problems/x', title: `Conflict${esc}[31m`, status: 409, detail: `bad${esc}[2J news` },
+      headers: { 'Content-Type': 'application/problem+json' },
+    }));
+    const failed = await run(['accounts', 'list']);
+    expect(failed.stderr).toBe('✗ Conflict: bad news\n');
+  });
+
   it('quotes the request id of a server error', async () => {
     mock.on('GET', '/v1/accounts/', () => ({ status: 500, body: { detail: 'Internal server error', request_id: 'rid-42' } }));
     const result = await run(['accounts', 'list']);

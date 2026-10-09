@@ -39,7 +39,8 @@ import { resolveById } from '../util/resolve';
 import { AccountBook, amountArg, confirmAction, countArg, rateArg } from './shared';
 
 type Row = Record<string, unknown> & { id: string };
-const str = (v: unknown): string => (typeof v === 'string' ? v : v === null || v === undefined ? '' : String(v));
+/** A field from the server, as one line of safe text. */
+const str = (v: unknown): string => (typeof v === 'string' ? singleLine(v) : v === null || v === undefined ? '' : String(v));
 
 // ── FI score and the rest of `salli fi` ──────────────────────────────────────
 

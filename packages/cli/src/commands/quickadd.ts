@@ -7,6 +7,7 @@ import type { Command } from '@commander-js/extra-typings';
 import { accountsCreate, entriesCreate, entriesParse, type Account, type ParsedEntryDraft } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { UsageError } from '../errors';
+import { singleLine } from '../output/text';
 import { displayDate, isoDate, parseDate } from '../util/dates';
 import type { Choice } from '../util/prompts';
 import { AccountBook, amountArg } from './shared';
@@ -54,16 +55,16 @@ async function pickAccount(app: App, book: AccountBook, side: Side, parsed: Pars
     is_active: true,
   };
   book.accounts.push(account);
-  app.out.success(`Added ${account.code} ${account.name}.`);
+  app.out.success(`Added ${singleLine(`${account.code} ${account.name}`)}.`);
   return created.id;
 }
 
 function describe(app: App, book: AccountBook, draft: Draft, parsed: ParsedEntryDraft): string {
   const c = app.out.errColors;
   const side = (id: string | null, hint: ParsedEntryDraft['debit_account_hint']): string =>
-    id ? book.label(id) : hint ? `${c.yellow('new')} ${hint.name} (${hint.type})` : c.yellow('not chosen');
+    id ? book.label(id) : hint ? `${c.yellow('new')} ${singleLine(`${hint.name} (${hint.type})`)}` : c.yellow('not chosen');
   return [
-    `  ${c.bold(draft.description)}`,
+    `  ${c.bold(singleLine(draft.description))}`,
     `  ${c.bold(app.out.money(draft.amount, draft.currency))} · ${parsed.entry_type} · ${displayDate(draft.date, app.out.locale)}`,
     `  ${c.dim('From')}  ${side(draft.creditId, parsed.credit_account_hint)}`,
     `  ${c.dim('To  ')}  ${side(draft.debitId, parsed.debit_account_hint)}`,
@@ -203,7 +204,7 @@ Examples:
         app.out.emit({ draft: parsed, entry: created }, { human: () => undefined });
       } else {
         app.out.success(
-          `Posted “${draft.description}”: ${app.out.money(draft.amount, draft.currency)} from ${book.name(draft.creditId)} to ${book.name(draft.debitId)} ${app.out.errColors.dim(created.id.slice(0, 8))}`,
+          `Posted “${singleLine(draft.description)}”: ${app.out.money(draft.amount, draft.currency)} from ${book.name(draft.creditId)} to ${book.name(draft.debitId)} ${app.out.errColors.dim(created.id.slice(0, 8))}`,
         );
       }
     });

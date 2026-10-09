@@ -19,6 +19,7 @@ import {
 import type { App } from '../app';
 import type { Entry, EntryList, Posting, Provenance } from '../api-types';
 import { UsageError } from '../errors';
+import { singleLine } from '../output/text';
 import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, currencyArg, limitArg, tagArgs } from './shared';
@@ -173,13 +174,13 @@ Examples:
               const s = statement.statement;
               out.line();
               out.line(
-                `${c.dim('From a bank statement:')} “${statement.raw_description}” ${out.amount(statement.raw_amount, entry.postings[0]?.currency)} on ${displayDate(statement.raw_date, out.locale)}` +
-                  (s?.bank ? ` · ${s.bank}` : '') +
+                `${c.dim('From a bank statement:')} “${singleLine(statement.raw_description)}” ${out.amount(statement.raw_amount, entry.postings[0]?.currency)} on ${displayDate(statement.raw_date, out.locale)}` +
+                  (s?.bank ? ` · ${singleLine(s.bank)}` : '') +
                   (s?.period_start ? ` · statement for ${displayRange(s.period_start, s.period_end, out.locale)}` : ''),
               );
             } else if (provenance.receipt) {
               out.line();
-              out.line(`${c.dim('Receipt:')} ${provenance.receipt.title} (${provenance.receipt.mime_type}) ${c.dim(provenance.receipt.document_id)}`);
+              out.line(`${c.dim('Receipt:')} ${singleLine(`${provenance.receipt.title} (${provenance.receipt.mime_type})`)} ${c.dim(singleLine(provenance.receipt.document_id))}`);
             }
           },
         },
@@ -241,7 +242,7 @@ Examples:
       const ok = await confirmAction(
         app,
         opts.yes,
-        `Reverse “${entry.description}” (${displayDate(entry.entry_date, app.out.locale)}, ${summary.amount})?`,
+        `Reverse “${singleLine(entry.description)}” (${displayDate(entry.entry_date, app.out.locale)}, ${summary.amount})?`,
       );
       if (!ok) {
         app.out.note('Nothing changed.');
@@ -249,7 +250,7 @@ Examples:
       }
       const reversal = (await api.call(entriesReverse, { path: { entry_id: entry.id } })) as { id: string };
       if (app.out.machine) app.out.emit(reversal, { human: () => undefined });
-      else app.out.success(`Reversed “${entry.description}” with entry ${reversal.id.slice(0, 8)}.`);
+      else app.out.success(`Reversed “${singleLine(entry.description)}” with entry ${reversal.id.slice(0, 8)}.`);
     });
 
   entries
@@ -269,8 +270,8 @@ Examples:
       app.out.done(
         { posting_id: posting.id, tags },
         Object.keys(tags).length
-          ? `Tagged ${Object.entries(tags).map(([k, v]) => `${k}=${v}`).join(' ')} on “${posting.entry.description}”.`
-          : `Cleared the tags on “${posting.entry.description}”.`,
+          ? `Tagged ${Object.entries(tags).map(([k, v]) => `${k}=${v}`).join(' ')} on “${singleLine(posting.entry.description)}”.`
+          : `Cleared the tags on “${singleLine(posting.entry.description)}”.`,
       );
     });
 }

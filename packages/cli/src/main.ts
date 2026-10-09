@@ -5,6 +5,7 @@
 import { CommanderError } from '@commander-js/extra-typings';
 import { App } from './app';
 import { CliError, ExitCode, exitCodeFor, hintFor, messageFor, problemFor, UsageError } from './errors';
+import { singleLine } from './output/text';
 import { buildProgram } from './program';
 import type { Runtime } from './runtime';
 
@@ -31,9 +32,10 @@ export async function main(argv: readonly string[], runtime: Runtime): Promise<n
       return code;
     }
     const c = app.out.errColors;
-    runtime.stderr.write(`${c.red('✗')} ${messageFor(error)}\n`);
+    // A problem's title and detail come from the server: no escape sequences.
+    runtime.stderr.write(`${c.red('✗')} ${singleLine(messageFor(error))}\n`);
     const hint = hintFor(error);
-    if (hint) runtime.stderr.write(`  ${c.dim(hint)}\n`);
+    if (hint) runtime.stderr.write(`  ${c.dim(singleLine(hint))}\n`);
     const unexpected = code === ExitCode.ERROR && !(error instanceof Error && 'status' in error);
     if (unexpected && error instanceof Error && (app.globals.verbose || runtime.env.SALLI_DEBUG === '1')) {
       runtime.stderr.write(`${c.dim(error.stack ?? '')}\n`);

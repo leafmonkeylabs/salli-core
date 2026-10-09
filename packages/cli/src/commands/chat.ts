@@ -40,7 +40,7 @@ interface Session {
 
 /** "tax_specialist" → "Tax specialist". */
 const agentName = (name: string): string => {
-  const text = name.replace(/[_-]+/g, ' ').trim();
+  const text = singleLine(name.replace(/[_-]+/g, ' '));
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
@@ -58,11 +58,17 @@ interface TurnEnd {
 }
 
 /** Writes a turn's events as they arrive: the reply to stdout, progress to stderr. */
-async function renderTurn(app: App, events: AsyncIterable<AgentEvent>, options: { json: boolean; progress: boolean }): Promise<TurnEnd> {
+async function renderTurn(
+  app: App,
+  events: AsyncIterable<AgentEvent>,
+  options: { json: boolean; progress: boolean; prefix?: string },
+): Promise<TurnEnd> {
   const out = app.out;
   const c = out.errColors;
   const end: TurnEnd = { text: '' };
   let atLineStart = true;
+  // Written before the reply's first words, so a turn with none prints nothing.
+  let prefix = options.prefix;
   // In a terminal the reply and the progress lines share the screen, so a
   // progress line starts on a line of its own; piped, the reply stays whole.
   const sharedScreen = app.runtime.stdout.isTTY === true && app.runtime.stderr.isTTY === true;
@@ -83,6 +89,8 @@ async function renderTurn(app: App, events: AsyncIterable<AgentEvent>, options: 
         const text = sanitize(event.content);
         end.text += text;
         if (!options.json && text) {
+          if (prefix && atLineStart) out.write(prefix);
+          prefix = undefined;
           out.write(text);
           atLineStart = text.endsWith('\n');
         }
@@ -95,7 +103,7 @@ async function renderTurn(app: App, events: AsyncIterable<AgentEvent>, options: 
         if (app.globals.verbose) progress(`    ${preview(event.content, 120)}`);
         break;
       case 'tool_call':
-        progress(`  · ${event.name}${event.input && Object.keys(event.input as object).length ? ` ${preview(event.input)}` : ''}`);
+        progress(`  · ${singleLine(event.name)}${event.input && Object.keys(event.input as object).length ? ` ${preview(event.input)}` : ''}`);
         break;
       case 'tool_result':
         if (app.globals.verbose) progress(`    → ${preview(event.output, 120)}`);
@@ -119,7 +127,7 @@ async function renderTurn(app: App, events: AsyncIterable<AgentEvent>, options: 
 
 function describeApproval(app: App, approval: AgentApprovalRequest): string {
   const c = app.out.errColors;
-  const what = approval.description ? singleLine(String(approval.description)) : `run ${approval.action ?? 'a write'}`;
+  const what = approval.description ? singleLine(String(approval.description)) : `run ${singleLine(String(approval.action ?? 'a write'))}`;
   const params = approval.params && Object.keys(approval.params).length ? `\n    ${c.dim(preview(approval.params, 100))}` : '';
   return `${c.yellow('?')} The agent wants to ${what.charAt(0).toLowerCase()}${what.slice(1)}${params}`;
 }
@@ -142,7 +150,7 @@ async function converse(
   persona: Persona,
   message: string,
   decide: (approval: AgentApprovalRequest) => Promise<boolean>,
-  options: { json: boolean; progress: boolean; signal: AbortSignal },
+  options: { json: boolean; progress: boolean; signal: AbortSignal; prefix?: string },
 ): Promise<TurnEnd> {
   let end = await renderTurn(app, streamAgentChat(api, { thread_id: thread, message, persona }, { signal: options.signal }), options);
   while (end.approval && !end.error) {
@@ -236,13 +244,13 @@ export function registerChat(program: Command, app: App): void {
           }
           turn = new AbortController();
           try {
-            app.out.write(`${app.out.colors.green('salli')} › `);
             const end = await converse(app, api, thread, persona, message, decide, {
               json: false,
               progress: true,
               signal: turn.signal,
+              prefix: `${app.out.colors.green('salli')} › `,
             });
-            if (end.error) app.out.errLine(`${c.red('✗')} ${end.error}`);
+            if (end.error) app.out.errLine(`${c.red('✗')} ${singleLine(end.error)}`);
           } catch (error) {
             if (!turn.signal.aborted) throw error;
             app.out.errLine(c.dim('\n(stopped)'));

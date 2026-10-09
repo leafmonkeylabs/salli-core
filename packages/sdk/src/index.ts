@@ -61,7 +61,7 @@ export {
   type AgentEvent,
   type AgentStreamOptions,
 } from './agent';
-export { RAW_JSON, rawJsonOf, reindentJson, toJsonText, withRawJson } from './json';
+export { exactValue, parseJsonExact, RAW_JSON, rawJsonOf, reindentJson, toJsonText, withRawJson } from './json';
 export * as oauth from './oauth';
 export type {
   ClientMetadata,

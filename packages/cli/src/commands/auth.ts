@@ -6,6 +6,7 @@ import { authMe } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { browserLogin, deviceLogin, resolveLoginTarget, revokeCredentials, saveLoginContext, serverMeta, tokenLogin } from '../auth/login';
 import { UsageError } from '../errors';
+import { singleLine } from '../output/text';
 import { readAllStdin } from '../util/stdin';
 
 function describeExpiry(expiresAt: number | undefined, now: Date): string | undefined {
@@ -58,7 +59,7 @@ Examples:
 
       const me = await app.client(target.server, { getToken: () => (credentials.kind === 'token' ? credentials.token : credentials.tokens.access_token) }).call(authMe);
       const user = (me as { user_id?: unknown; email?: unknown } | undefined) ?? {};
-      const who = typeof user.email === 'string' ? user.email : typeof user.user_id === 'string' ? user.user_id : undefined;
+      const who = singleLine(typeof user.email === 'string' ? user.email : typeof user.user_id === 'string' ? user.user_id : '') || undefined;
       const method = credentials.kind === 'token' ? 'token' : credentials.method;
       if (app.out.machine) {
         app.out.emit({ context: target.name, server: target.server, method, user: me }, { human: () => undefined });
@@ -96,7 +97,7 @@ Examples:
             if (!r.signed_out) app.out.note(`Not signed in to context "${r.context}".`);
             else {
               app.out.success(`Signed out of ${r.server} (context "${r.context}").`);
-              if (r.problem) app.out.warn(`The server was not told to revoke the tokens: ${r.problem}`);
+              if (r.problem) app.out.warn(`The server was not told to revoke the tokens: ${singleLine(r.problem)}`);
             }
           }
           if (app.runtime.env.SALLI_TOKEN) app.out.warn('SALLI_TOKEN is still set in your environment.');

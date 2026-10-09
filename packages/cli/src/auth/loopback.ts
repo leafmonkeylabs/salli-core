@@ -12,8 +12,8 @@ import { CliError, ExitCode, InterruptedError } from '../errors';
 export interface LoopbackServer {
   /** `http://127.0.0.1:<port>/callback` */
   readonly redirectUri: string;
-  /** Resolves with the authorization code when the browser comes back. */
-  waitForCode(options: { state: string; signal: AbortSignal; timeoutMs: number }): Promise<string>;
+  /** Resolves with the authorization code when the browser comes back (or already has). */
+  waitForCode(options: { signal: AbortSignal; timeoutMs: number }): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -55,16 +55,21 @@ export function callbackPage(ok: boolean, message: string): string {
 `;
 }
 
-export async function startLoopbackServer(): Promise<LoopbackServer> {
+/** Listens for the redirect that carries `state` back. */
+export async function startLoopbackServer(expectedState: string): Promise<LoopbackServer> {
   let settle: { resolve: (code: string) => void; reject: (error: unknown) => void } | undefined;
-  let expectedState: string | undefined;
   let outcome: { code?: string; error?: unknown } | undefined;
 
+  const deliver = (): void => {
+    if (!outcome || !settle) return;
+    if (outcome.code !== undefined) settle.resolve(outcome.code);
+    else settle.reject(outcome.error);
+  };
+  // The browser can come back before anyone waits: the outcome is kept.
   const finish = (result: { code?: string; error?: unknown }): void => {
     if (outcome) return;
     outcome = result;
-    if (result.code !== undefined) settle?.resolve(result.code);
-    else settle?.reject(result.error);
+    deliver();
   };
 
   const server = http.createServer((req, res) => {
@@ -87,7 +92,7 @@ export async function startLoopbackServer(): Promise<LoopbackServer> {
       return;
     }
     const params = url.searchParams;
-    if (expectedState === undefined || params.get('state') !== expectedState) {
+    if (params.get('state') !== expectedState) {
       respond(400, false, 'This sign-in link does not match the one salli started. Run salli login again.');
       finish({
         error: new CliError('Sign-in failed: the browser returned with a different state than salli sent.', {
@@ -127,8 +132,7 @@ export async function startLoopbackServer(): Promise<LoopbackServer> {
 
   return {
     redirectUri: `http://127.0.0.1:${port}/callback`,
-    waitForCode({ state, signal, timeoutMs }) {
-      expectedState = state;
+    waitForCode({ signal, timeoutMs }) {
       return new Promise<string>((resolve, reject) => {
         const timer = setTimeout(() => {
           finish({
@@ -154,6 +158,7 @@ export async function startLoopbackServer(): Promise<LoopbackServer> {
           },
         };
         if (signal.aborted) onAbort();
+        deliver();
       });
     },
     close: () =>

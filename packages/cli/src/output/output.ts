@@ -14,7 +14,7 @@
  * response; one whose operation returns no content prints a small object
  * saying what was done.
  */
-import { formatAmount, formatRatio, reindentJson, rawJsonOf, toJsonText, type FormatAmountOptions } from '@leafmonkeylabs/salli-sdk';
+import { exactValue, formatAmount, formatRatio, toJsonText, type FormatAmountOptions } from '@leafmonkeylabs/salli-sdk';
 import type { OutputFormat } from '../config/config';
 import type { Runtime } from '../runtime';
 import type { Colors } from './colors';
@@ -37,19 +37,8 @@ export interface OutputSettings {
   locale: string | undefined;
 }
 
-type RawJsonFactory = (text: string) => unknown;
-
 // Intl puts a no-break space between a currency code and the number.
 const NBSP = new RegExp(String.fromCharCode(0xa0), 'g');
-
-/** Parses JSON keeping every number's source text (where the runtime can). */
-function parseLossless(text: string): unknown {
-  const rawJSON = (JSON as unknown as { rawJSON?: RawJsonFactory }).rawJSON;
-  if (typeof rawJSON !== 'function') return JSON.parse(text);
-  return JSON.parse(text, (_key: string, value: unknown, context?: { source?: string }) =>
-    typeof value === 'number' && context?.source !== undefined ? rawJSON(context.source) : value,
-  );
-}
 
 function isRawJson(value: unknown): boolean {
   const check = (JSON as unknown as { isRawJSON?: (v: unknown) => boolean }).isRawJSON;
@@ -144,11 +133,11 @@ export class Output {
         this.line(toJsonText(data));
         return;
       case 'ndjson': {
-        const raw = rawJsonOf(data);
-        const source = raw === undefined ? data : (parseLossless(raw) as T);
+        // Records are taken from the exact parse, so their numbers keep their text too.
+        const source = exactValue(data) as T;
         const records = view.records ? view.records(source) : source;
         if (Array.isArray(records)) for (const record of records) this.line(JSON.stringify(record));
-        else this.line(raw !== undefined && !view.records ? reindentJson(raw, 0) : JSON.stringify(records));
+        else this.line(JSON.stringify(records));
         return;
       }
       case 'csv': {

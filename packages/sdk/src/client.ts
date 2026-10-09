@@ -52,6 +52,8 @@ export interface SalliClientOptions {
   headers?: Record<string, string>;
   /** Abandon a request after this long; 0 for never. Default 30 seconds. */
   timeoutMs?: number;
+  /** Aborts every request (e.g. on Ctrl-C). The abort's reason is what the call throws. */
+  signal?: AbortSignal;
   /** Called after every request (for logging). */
   onResponse?: (log: RequestLog) => void;
 }
@@ -168,6 +170,8 @@ function createSalliFetch(options: SalliClientOptions): typeof globalThis.fetch 
         durationMs: performance.now() - started,
         error,
       });
+      // A request the caller aborted ends with the reason it was aborted for.
+      if (request.signal.aborted) throw request.signal.reason ?? error;
       if (isAbortError(error) || isTimeoutError(error)) throw error;
       throw SalliNetworkError.fromFetchError(error, request.url);
     }
@@ -205,8 +209,9 @@ interface Settled {
   response?: Response;
 }
 
-function toError(result: Settled, timeout: AbortSignal | undefined, timeoutMs: number): unknown {
+function toError(result: Settled, timeout: AbortSignal | undefined, timeoutMs: number, cancel: AbortSignal | undefined): unknown {
   const { error, request, response } = result;
+  if (cancel?.aborted) return cancel.reason ?? error;
   if (error instanceof SalliApiError || error instanceof SalliNetworkError) return error;
   if (isTimeoutError(error) || (timeout?.aborted && isAbortError(error))) {
     return new SalliNetworkError(
@@ -229,20 +234,25 @@ export function createClient(options: SalliClientOptions): SalliClient {
   async function invoke(
     fn: SdkFunction,
     args: unknown[],
-    extra: { parseAs?: 'stream'; timeoutMs?: number },
+    extra: { parseAs?: 'stream'; timeoutMs?: number; headers?: Record<string, string> },
   ): Promise<Settled> {
-    const given = (args[0] ?? {}) as Record<string, unknown> & { timeoutMs?: number; signal?: AbortSignal };
-    const { timeoutMs = extra.timeoutMs ?? defaultTimeout, signal, ...rest } = given;
+    const given = (args[0] ?? {}) as Record<string, unknown> & { timeoutMs?: number; signal?: AbortSignal; headers?: Record<string, string> };
+    const { timeoutMs = extra.timeoutMs ?? defaultTimeout, signal, headers, ...rest } = given;
     const ms = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 0;
     const timeout = ms > 0 ? AbortSignal.timeout(ms) : undefined;
-    const combined = signal && timeout ? AbortSignal.any([signal, timeout]) : (signal ?? timeout);
+    const cancels = [options.signal, signal].filter((s): s is AbortSignal => s !== undefined);
+    const cancel = cancels.length > 1 ? AbortSignal.any(cancels) : cancels[0];
+    const all = [cancel, timeout].filter((s): s is AbortSignal => s !== undefined);
+    const combined = all.length > 1 ? AbortSignal.any(all) : all[0];
+    if (cancel?.aborted) throw cancel.reason ?? new DOMException('Aborted', 'AbortError');
     const result = (await fn({
       ...rest,
       ...(extra.parseAs ? { parseAs: extra.parseAs } : {}),
+      ...(extra.headers || headers ? { headers: { ...extra.headers, ...headers } } : {}),
       ...(combined ? { signal: combined } : {}),
       client,
     })) as Settled;
-    if (result.error !== undefined) throw toError(result, timeout, ms);
+    if (result.error !== undefined) throw toError(result, timeout, ms, cancel);
     return result;
   }
 
@@ -260,11 +270,13 @@ export function createClient(options: SalliClientOptions): SalliClient {
 
     async *events(fn, ...args) {
       // A stream runs as long as the conversation does: no timeout.
-      const result = await invoke(fn, args, { parseAs: 'stream', timeoutMs: 0 });
+      const result = await invoke(fn, args, { parseAs: 'stream', timeoutMs: 0, headers: { Accept: 'text/event-stream' } });
       const stream = result.data as ReadableStream<Uint8Array> | null | undefined;
       if (!stream || typeof (stream as { getReader?: unknown }).getReader !== 'function') return;
-      const signal = (args[0] as { signal?: AbortSignal } | undefined)?.signal;
-      yield* readServerSentEvents(stream, signal);
+      const signals = [options.signal, (args[0] as { signal?: AbortSignal } | undefined)?.signal].filter(
+        (s): s is AbortSignal => s !== undefined,
+      );
+      yield* readServerSentEvents(stream, signals.length > 1 ? AbortSignal.any(signals) : signals[0]);
     },
 
     meta(metaOptions = {}) {

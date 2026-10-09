@@ -43,14 +43,15 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { UsageError } from '../errors';
-import { plural } from '../output/text';
+import { plural, singleLine } from '../output/text';
 import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { renderRecord } from './records';
 import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, countArg, rateArg, wireAmount } from './shared';
 
 type Row = Record<string, unknown> & { id: string };
-const str = (v: unknown): string => (typeof v === 'string' ? v : v === null || v === undefined ? '' : String(v));
+/** A field from the server, as one line of safe text. */
+const str = (v: unknown): string => (typeof v === 'string' ? singleLine(v) : v === null || v === undefined ? '' : String(v));
 
 async function listOf(api: SalliClient, fn: Parameters<SalliClient['call']>[0], key: string, query: Record<string, unknown> = {}): Promise<Row[]> {
   const data = (await api.call(fn, { query } as never)) as Record<string, unknown>;
@@ -675,7 +676,7 @@ function registerSubscriptions(program: Command, app: App): void {
           for (const r of reports) {
             app.out.line(`${app.out.heading(r.name)} ${c.dim(r.subscription_id.slice(0, 8))}`);
             if (!r.alerts.length) app.out.line(`  ${c.green('✓')} charged as expected`);
-            for (const a of r.alerts) app.out.line(`  ${a.kind === 'missed_charge' ? c.red('!') : c.yellow('!')} ${a.message}`);
+            for (const a of r.alerts) app.out.line(`  ${a.kind === 'missed_charge' ? c.red('!') : c.yellow('!')} ${singleLine(a.message)}`);
             const last = r.matches.at(-1);
             if (last) app.out.line(c.dim(`  last charge ${app.out.money(last.amount, r.currency)} on ${displayDate(last.entry_date, app.out.locale)}`));
           }
@@ -881,9 +882,9 @@ function registerInsurance(program: Command, app: App): void {
             );
             out.note(`Amounts in ${d.currency}.`);
           } else out.note('No cover targets yet: `salli insurance targets set`.');
-          if (d.missing_types.length) out.line(`${out.colors.red('!')} No cover at all for: ${d.missing_types.join(', ')}`);
+          if (d.missing_types.length) out.line(`${out.colors.red('!')} No cover at all for: ${singleLine(d.missing_types.join(', '))}`);
           for (const e of d.expiring_soon) {
-            out.line(`${out.colors.yellow('!')} ${e.policy_name} (${e.policy_type}) expires ${displayDate(e.expiry_date, out.locale)}, in ${e.days_until_expiry} days`);
+            out.line(`${out.colors.yellow('!')} ${singleLine(`${e.policy_name} (${e.policy_type})`)} expires ${displayDate(e.expiry_date, out.locale)}, in ${e.days_until_expiry} days`);
           }
         },
       });

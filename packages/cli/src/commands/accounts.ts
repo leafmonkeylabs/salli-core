@@ -16,6 +16,7 @@ import {
 import type { App } from '../app';
 import type { TrialBalance } from '../api-types';
 import { UsageError } from '../errors';
+import { singleLine } from '../output/text';
 import { displayDate, parseDate } from '../util/dates';
 import { AccountBook, currencyArg } from './shared';
 
@@ -92,6 +93,7 @@ Examples:
               { header: 'ID', get: (a) => a.id.slice(0, 8), style: (t) => c.dim(t) },
             ]),
           );
+          if (trial) app.out.note('Balances as the trial balance keeps them: debits positive, credits (what you owe, income) negative.');
         },
       });
     });
@@ -227,7 +229,7 @@ Examples:
       const api = await app.api();
       const account = (await AccountBook.load(api)).resolve(query);
       await api.call(accountsDeactivate, { path: { account_id: account.id } });
-      app.out.done({ id: account.id, is_active: false }, `Deactivated ${account.code} ${account.name}.`);
+      app.out.done({ id: account.id, is_active: false }, `Deactivated ${singleLine(`${account.code} ${account.name}`)}.`);
     });
 
   accounts
@@ -239,6 +241,6 @@ Examples:
       const account = (await AccountBook.load(api)).resolve(query);
       const result = await api.call(accountsReactivate, { path: { account_id: account.id } });
       if (app.out.machine) app.out.emit(result, { human: () => undefined });
-      else app.out.success(`Reactivated ${account.code} ${account.name}.`);
+      else app.out.success(`Reactivated ${singleLine(`${account.code} ${account.name}`)}.`);
     });
 }

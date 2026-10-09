@@ -5,6 +5,7 @@ import type { Command } from '@commander-js/extra-typings';
 import { authMe, SalliApiError, SalliNetworkError, SUPPORTED_API_VERSIONS } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { CliError, ExitCode, exitCodeFor, messageFor } from '../errors';
+import { singleLine } from '../output/text';
 import { VERSION } from '../version';
 
 type Status = 'ok' | 'warn' | 'fail' | 'info';
@@ -48,7 +49,7 @@ export function registerDoctor(program: Command, app: App): void {
         const started = performance.now();
         const response = await app.runtime.fetch(`${ctx.server}/v1/meta`, {
           headers: { Accept: 'application/json', 'User-Agent': app.userAgent },
-          signal: AbortSignal.timeout(10_000),
+          signal: AbortSignal.any([AbortSignal.timeout(10_000), app.runtime.signal]),
         });
         const elapsed = performance.now() - started;
         const receivedAt = app.runtime.now().getTime();
@@ -65,7 +66,7 @@ export function registerDoctor(program: Command, app: App): void {
           checks.push({
             name: 'Server',
             status: 'ok',
-            detail: `${ctx.server} answered in ${Math.round(elapsed)} ms (Salli ${String(meta.server_version ?? '?')})`,
+            detail: `${ctx.server} answered in ${Math.round(elapsed)} ms (Salli ${singleLine(String(meta.server_version ?? '?'))})`,
           });
           const version = String(meta.api_version ?? '?');
           if (SUPPORTED_API_VERSIONS.includes(version)) {
@@ -75,7 +76,7 @@ export function registerDoctor(program: Command, app: App): void {
               {
                 name: 'API version',
                 status: 'fail',
-                detail: `the server speaks ${version}; this CLI speaks ${SUPPORTED_API_VERSIONS.join(', ')}`,
+                detail: `the server speaks ${singleLine(version)}; this CLI speaks ${SUPPORTED_API_VERSIONS.join(', ')}`,
                 hint: 'Update salli, or use a server with a matching API version.',
               },
               ExitCode.INCOMPATIBLE,
