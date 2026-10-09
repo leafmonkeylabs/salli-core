@@ -12,6 +12,7 @@ import io
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import openpyxl
@@ -167,10 +168,13 @@ class _Uow:
         self.statements = self
         self._saved = saved
 
-    async def get_accounts(self, user_id: str) -> list[Any]:
-        return [object()]
+    async def get_accounts(self, user_id: str, **_: Any) -> list[Any]:
+        return [SimpleNamespace(id="a", type="asset", is_active=True)]
 
     async def get_entries(self, user_id: str, **_: Any) -> list[Any]:
+        return []
+
+    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
         return []
 
     async def save_statement(self, **kwargs: Any) -> None:

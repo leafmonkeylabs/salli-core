@@ -166,6 +166,14 @@ class StatementRepository(ABC):
     ) -> None: ...
 
     @abstractmethod
+    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
+        """The user's parsed transactions dated `from_date`..`to_date`, what a
+        new import is checked against for duplicates. Not the discarded ones,
+        which never happened, nor those already found to duplicate another:
+        that one stands for both."""
+        ...
+
+    @abstractmethod
     async def get_all_pending(self, user_id: str) -> list[Any]: ...
 
     @abstractmethod

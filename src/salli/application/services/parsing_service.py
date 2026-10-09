@@ -22,19 +22,22 @@ import re
 import uuid
 from collections import Counter
 from collections.abc import Callable
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
 from salli.domain.currency import UnknownCurrencyError, normalize_currency
 from salli.domain.dedup.matcher import (
-    CandidateTransaction,
+    DATE_WINDOW_DAYS,
+    Candidate,
     DedupStatus,
-    batch_check,
-    compute_dedup_key,
+    Imported,
+    dedup_key,
+    find_duplicates,
 )
-from salli.domain.money import to_minor
 from salli.domain.parsing.models import ParsedTransaction, ParseResult, RawRow
+from salli.domain.rules.history import booked_transactions
 
 if TYPE_CHECKING:
     from salli.adapters.parsing.csv_import import CsvMapping
@@ -45,6 +48,11 @@ if TYPE_CHECKING:
 # What a statement can be for: where money is held (a bank or cash account)
 # or owed (a card, a loan).
 _MONEY_TYPES = ("asset", "liability")
+
+# How far around an import's dates earlier imports are searched for the same
+# transactions: a bank's reference can come back with another date (pending,
+# then booked).
+_HISTORY_DAYS = 7
 
 
 def _slugify(label: str) -> str:
@@ -205,32 +213,17 @@ class ParsingService:
         period_start = min(r.date for r in kept)
         period_end = max(r.date for r in kept)
 
-        # Intra-batch dedup using the dedup matcher
-        candidates = [
-            CandidateTransaction(
-                id=str(i),
-                account_id="unknown",  # account not classified yet
-                entry_date=r.date,
-                amount_minor=to_minor(r.amount, r.currency),
-                currency=r.currency,
-                description=r.description,
-                source="statement",
-                bank_ref=r.bank_ref or None,
-            )
-            for i, r in enumerate(kept)
-        ]
-        dedup_results = batch_check(candidates, existing=[], existing_keys=set())
-
-        unique_rows = [
-            r
-            for r, dr in zip(kept, dedup_results, strict=False)
-            if dr.status != DedupStatus.EXACT_DUPLICATE
-        ]
-
-        # Load accounts for LLM classification
         async with self._uow_factory() as uow:
-            accounts = await uow.ledger.get_accounts(user_id)
-
+            every_account = await uow.ledger.get_accounts(user_id, include_inactive=True)
+            history = await uow.statements.imported_between(
+                user_id, _shift(period_start, -_HISTORY_DAYS), _shift(period_end, _HISTORY_DAYS)
+            )
+            entries = await uow.ledger.get_entries(
+                user_id,
+                from_date=_shift(period_start, -DATE_WINDOW_DAYS),
+                to_date=_shift(period_end, DATE_WINDOW_DAYS),
+            )
+        accounts = [a for a in every_account if a.is_active]
         if not accounts:
             return ParseResult(
                 statement_id="",
@@ -241,40 +234,47 @@ class ParsingService:
                 errors=[*errors, "No accounts found. Create a chart of accounts first"],
             )
 
-        # LLM classifies transactions
-        parsed = await classify_transactions(
-            unique_rows, accounts, api_key=await self._key_for(user_id, api_key)
+        # Against earlier imports and the ledger, never against itself: two
+        # identical rows in one statement are two transactions.
+        candidates = [_candidate(r) for r in kept]
+        verdicts = find_duplicates(
+            candidates,
+            account_id=account.id if account is not None else "",
+            imported=[Imported(t.id, _candidate(t.raw), t.account_id) for t in history],
+            booked=booked_transactions(entries, every_account),
+            money_accounts={a.id for a in every_account if a.type in _MONEY_TYPES},
         )
-        if account is not None:
-            for txn in parsed:
+
+        # An exact duplicate is booked already: it stays for review, but needs
+        # no accounts and costs no model call.
+        undecided = [
+            r
+            for r, v in zip(kept, verdicts, strict=True)
+            if v.status is not DedupStatus.EXACT_DUPLICATE
+        ]
+        classified = iter(
+            await classify_transactions(
+                undecided, accounts, api_key=await self._key_for(user_id, api_key)
+            )
+            if undecided
+            else []
+        )
+        parsed: list[ParsedTransaction] = []
+        for row, candidate, verdict in zip(kept, candidates, verdicts, strict=True):
+            if verdict.status is DedupStatus.EXACT_DUPLICATE:
+                txn = ParsedTransaction(
+                    raw=row, debit_account_id="", credit_account_id="", confidence=0.0
+                )
+            else:
+                txn = next(classified)
+            txn.dedup_key = dedup_key(candidate)
+            txn.dedup_status = (
+                "pending" if verdict.status is DedupStatus.UNIQUE else verdict.status.value
+            )
+            txn.duplicate_of = verdict.duplicate_of
+            if account is not None:
                 _book_money_side(txn, account.id)
-
-        # Stamp dedup keys and check against existing ledger entries
-        async with self._uow_factory() as uow:
-            existing_entries = await uow.ledger.get_entries(
-                user_id, from_date=period_start, to_date=period_end
-            )
-
-        existing_keys: set[str] = set()
-        for entry in existing_entries:
-            for posting in entry.postings:
-                if posting.bank_ref if hasattr(posting, "bank_ref") else False:
-                    existing_keys.add(posting.bank_ref)
-
-        for txn in parsed:
-            candidate = CandidateTransaction(
-                id="0",
-                account_id=txn.debit_account_id or "unknown",
-                entry_date=txn.raw.date,
-                amount_minor=to_minor(txn.raw.amount, txn.raw.currency),
-                currency=txn.raw.currency,
-                description=txn.raw.description,
-                source="statement",
-                bank_ref=txn.raw.bank_ref or None,
-            )
-            txn.dedup_key = compute_dedup_key(candidate)
-            if txn.dedup_key in existing_keys:
-                txn.dedup_status = DedupStatus.EXACT_DUPLICATE.value
+            parsed.append(txn)
 
         statement_id = str(uuid.uuid4())
         storage_key = ""
@@ -393,6 +393,21 @@ class ParsingService:
                 entry_ids.append(entry_id)
 
         return entry_ids
+
+
+def _candidate(row: RawRow) -> Candidate:
+    return Candidate(
+        date=row.date,
+        amount=row.amount,
+        currency=row.currency,
+        money_in=row.credit_flag,
+        description=row.description,
+        bank_ref=row.bank_ref,
+    )
+
+
+def _shift(day: str, days: int) -> str:
+    return (date.fromisoformat(day) + timedelta(days=days)).isoformat()
 
 
 def _counter_is_debit(txn: ParsedTransaction, kinds: dict[str, str]) -> bool:

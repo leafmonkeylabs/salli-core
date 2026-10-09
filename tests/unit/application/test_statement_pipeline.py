@@ -103,6 +103,16 @@ class Statements:
                 txn, id=row_id, statement_id=statement_id, account_id=account_id or ""
             )
 
+    async def imported_between(
+        self, user_id: str, from_date: str, to_date: str
+    ) -> list[ParsedTransaction]:
+        return [
+            replace(t)
+            for t in self.rows.values()
+            if from_date <= t.raw.date <= to_date
+            and t.dedup_status not in ("discarded", "exact_duplicate")
+        ]
+
     async def get_by_ids(self, user_id: str, ids: list[str]) -> list[ParsedTransaction]:
         return [replace(self.rows[i]) for i in ids if i in self.rows]
 
@@ -391,3 +401,83 @@ async def test_a_row_is_posted_once(usd_world):
 
     assert (len(first), again) == (1, [])
     assert len(usd_world.ledger.entries) == 1
+
+
+# ── Duplicates ────────────────────────────────────────────────────────────────
+
+
+async def test_importing_a_statement_again_marks_every_row_and_posts_none(usd_world, model):
+    data = _fixture("us_checking.csv")
+    first = await usd_world.service().parse_statement(
+        USER, "oct.csv", data, account_id="checking", api_key="k"
+    )
+    first_ids = [
+        r.id for r in usd_world.statements.rows.values() if r.statement_id == first.statement_id
+    ]
+    model.clear()
+
+    again = await usd_world.service().parse_statement(
+        USER, "oct.csv", data, account_id="checking", api_key="k"
+    )
+
+    assert {t.dedup_status for t in again.transactions} == {"exact_duplicate"}
+    assert [t.duplicate_of for t in again.transactions] == first_ids
+    assert model == []  # a duplicate costs no model call
+    stored = [r for r in usd_world.statements.rows.values() if r.statement_id == again.statement_id]
+    assert await usd_world.service().post_approved(USER, [r.id for r in stored]) == []
+
+
+async def test_two_identical_rows_in_one_statement_are_both_kept(world):
+    coffee = _row("BLUE BOTTLE COFFEE", "4.50")
+    result = await world.service().import_rows(
+        USER, [coffee, coffee], bank="", account_id="checking", api_key="k"
+    )
+    assert [t.dedup_status for t in result.transactions] == ["pending", "pending"]
+
+
+async def test_a_transaction_booked_by_hand_is_flagged_for_review(usd_world):
+    from salli.domain.accounting.models import Direction, JournalEntry, Posting
+
+    await usd_world.ledger.save_entry(
+        USER,
+        JournalEntry(
+            entry_date="2026-10-04",
+            description="Blue Bottle coffee",
+            source="manual",
+            postings=[
+                Posting(
+                    account_id="food",
+                    direction=Direction.DEBIT,
+                    amount=Decimal("4.50"),
+                    currency="USD",
+                ),
+                Posting(
+                    account_id="checking",
+                    direction=Direction.CREDIT,
+                    amount=Decimal("4.50"),
+                    currency="USD",
+                ),
+            ],
+        ),
+    )
+
+    result = await usd_world.service().import_rows(
+        USER, [_row("BLUE BOTTLE COFFEE", "4.50")], bank="", account_id="checking", api_key="k"
+    )
+
+    (txn,) = result.transactions
+    assert (txn.dedup_status, txn.duplicate_of) == ("fuzzy_match", "e1")
+    # Flagged, not dropped: the user may still post it.
+    (stored,) = usd_world.statements.rows.values()
+    assert len(await usd_world.service().post_approved(USER, [stored.id])) == 1
+
+
+async def test_rows_on_another_account_are_not_duplicates(world):
+    coffee = _row("BLUE BOTTLE COFFEE", "4.50", bank_ref="FIT-1")
+    await world.service().import_rows(USER, [coffee], bank="", account_id="checking", api_key="k")
+
+    on_card = await world.service().import_rows(
+        USER, [coffee], bank="", account_id="card", api_key="k"
+    )
+
+    assert [t.dedup_status for t in on_card.transactions] == ["pending"]

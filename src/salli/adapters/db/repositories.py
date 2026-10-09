@@ -579,6 +579,19 @@ class SQLStatementRepository(StatementRepository):
         result = await self._session.execute(stmt)
         return [_orm_to_parsed(row, account_id) for row, account_id in result.all()]
 
+    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
+        # The date lives in the row's JSON; ISO dates compare as text.
+        when = ParsedTransactionORM.extracted_json["date"].astext
+        return await self._read(
+            self._parsed(user_id)
+            .where(
+                when >= from_date,
+                when <= to_date,
+                ParsedTransactionORM.dedup_status.not_in(("discarded", "exact_duplicate")),
+            )
+            .order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
+        )
+
     async def get_all_pending(self, user_id: str) -> list[Any]:
         return await self._read(
             self._parsed(user_id)
