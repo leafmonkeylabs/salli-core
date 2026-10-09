@@ -1999,7 +1999,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StatementUpload"
+                }
               }
             }
           },
@@ -2046,7 +2048,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BankStatementList"
+                }
               }
             }
           },
@@ -2092,7 +2096,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PendingStatementTransactions"
+                }
               }
             }
           },
@@ -2148,7 +2154,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PostedStatementTransactions"
+                }
               }
             }
           },
@@ -5957,6 +5965,81 @@
         ],
         "title": "BalanceSheetRequest"
       },
+      "BankStatement": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "bank": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank"
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "bank",
+          "period_start",
+          "period_end",
+          "status",
+          "created_at"
+        ],
+        "title": "BankStatement"
+      },
+      "BankStatementList": {
+        "properties": {
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/BankStatement"
+            },
+            "type": "array",
+            "title": "Statements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statements"
+        ],
+        "title": "BankStatementList"
+      },
       "BriefingPrepareRequest": {
         "properties": {
           "thread_id": {
@@ -7260,6 +7343,27 @@
         ],
         "title": "ParsedEntryDraft"
       },
+      "PendingStatementTransactions": {
+        "properties": {
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/StatementTransaction"
+            },
+            "type": "array",
+            "title": "Transactions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "transactions"
+        ],
+        "title": "PendingStatementTransactions"
+      },
       "PolicyRequest": {
         "properties": {
           "name": {
@@ -7412,6 +7516,27 @@
           "approved_ids"
         ],
         "title": "PostRequest"
+      },
+      "PostedStatementTransactions": {
+        "properties": {
+          "posted": {
+            "type": "integer",
+            "title": "Posted"
+          },
+          "entry_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entry Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "posted",
+          "entry_ids"
+        ],
+        "title": "PostedStatementTransactions"
       },
       "Posting": {
         "properties": {
@@ -8033,6 +8158,160 @@
           "tags"
         ],
         "title": "SetPostingTagsRequest"
+      },
+      "StatementTransaction": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "credit_flag": {
+            "type": "boolean",
+            "title": "Credit Flag"
+          },
+          "bank_ref": {
+            "type": "string",
+            "title": "Bank Ref"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "debit_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debit Account Id"
+          },
+          "credit_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Account Id"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "dedup_status": {
+            "type": "string",
+            "title": "Dedup Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "date",
+          "description",
+          "amount",
+          "credit_flag",
+          "bank_ref",
+          "currency",
+          "debit_account_id",
+          "credit_account_id",
+          "category",
+          "confidence",
+          "dedup_status"
+        ],
+        "title": "StatementTransaction",
+        "description": "A transaction read from a statement and classified, awaiting review."
+      },
+      "StatementUpload": {
+        "properties": {
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "bank": {
+            "type": "string",
+            "title": "Bank"
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "total_rows": {
+            "type": "integer",
+            "title": "Total Rows"
+          },
+          "parsed": {
+            "type": "integer",
+            "title": "Parsed"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/StatementTransaction"
+            },
+            "type": "array",
+            "title": "Transactions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "bank",
+          "period_start",
+          "period_end",
+          "total_rows",
+          "parsed",
+          "errors",
+          "transactions"
+        ],
+        "title": "StatementUpload"
       },
       "SubscriptionRequest": {
         "properties": {

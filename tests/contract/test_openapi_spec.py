@@ -70,10 +70,6 @@ UNTYPED = {
     "reminders.list",
     "reminders.seedFilingCalendar",
     "reminders.syncAlerts",
-    "statements.list",
-    "statements.pending",
-    "statements.post",
-    "statements.upload",
     # Planning: financial independence, goals, the advisor, reports
     "advisor.briefing.prepare",
     "advisor.briefing.resume",
