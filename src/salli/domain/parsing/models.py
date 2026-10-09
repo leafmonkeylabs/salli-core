@@ -47,10 +47,18 @@ class ParsedTransaction:
     debit_account_id: str  # account to debit
     credit_account_id: str  # account to credit
     category: str = ""  # e.g. "salary", "bank_charge", "transfer"
+    need: str = ""  # essential | discretionary | savings, when a rule says
+    # What the entry is booked as, when that should not be the bank's text (a
+    # rule's clean name for "AMZN MKTP US*2K4…"). Empty: the bank's.
+    description: str = ""
     notes: str = ""
     confidence: float = 1.0
+    rule_id: str = ""  # the rule that decided the row, if one did
     dedup_key: str = ""  # SHA-256 idempotency key (filled by dedup module)
     dedup_status: str = "pending"  # UNIQUE | EXACT_DUPLICATE | FUZZY_MATCH
+    # What it duplicates: an earlier parsed transaction (exact) or a journal
+    # entry (fuzzy).
+    duplicate_of: str = ""
     id: str = ""  # DB primary key, populated after persistence
     statement_id: str = ""  # parent Statement's ID, populated after persistence
     # The statement's account, when it has one: the money side of this row

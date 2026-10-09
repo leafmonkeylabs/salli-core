@@ -334,20 +334,27 @@ class ParsingService:
         async with self._uow_factory() as uow:
             base = await uow.user_profiles.base_currency(user_id)
             txns = await uow.statements.get_by_ids(user_id, list(approved_ids))
+            kinds = {
+                a.id: a.type for a in await uow.ledger.get_accounts(user_id, include_inactive=True)
+            }
             entry_ids = []
 
             for txn in txns:
-                if txn.dedup_status == DedupStatus.EXACT_DUPLICATE.value:
+                # A duplicate is booked already, and so is a row posted before.
+                if txn.dedup_status in (DedupStatus.EXACT_DUPLICATE.value, "posted"):
                     continue
                 if not txn.debit_account_id or not txn.credit_account_id:
                     continue
 
-                # The classifier already produced a plain-language label for
-                # this row, which was shown during review and then thrown away
-                # at posting time. Carry it onto the debit side as a category
-                # tag so the work is not wasted and spending is classified from
-                # the moment a statement is imported.
-                category_tags = {"category": _slugify(txn.category)} if txn.category else {}
+                # What the row was for — the classifier's label or a rule's
+                # category, and a rule's need — tags the other side of the
+                # entry, the expense or income, never the bank account.
+                tags = {"category": _slugify(txn.category)} if txn.category else {}
+                if txn.need:
+                    tags["need"] = txn.need
+                debit_tags, credit_tags = (
+                    (tags, {}) if _counter_is_debit(txn, kinds) else ({}, tags)
+                )
 
                 # A statement in another currency is converted at the rate for
                 # the transaction's own date (see application/fx.py).
@@ -362,7 +369,7 @@ class ParsingService:
                         currency=txn.raw.currency,
                         fx_rate=fx_rate,
                         fx_rate_source=fx_source,
-                        tags=category_tags,
+                        tags=debit_tags,
                     ),
                     Posting(
                         account_id=txn.credit_account_id,
@@ -371,11 +378,12 @@ class ParsingService:
                         currency=txn.raw.currency,
                         fx_rate=fx_rate,
                         fx_rate_source=fx_source,
+                        tags=credit_tags,
                     ),
                 ]
                 entry = JournalEntry(
                     entry_date=txn.raw.date,
-                    description=txn.raw.description,
+                    description=txn.description or txn.raw.description,
                     source="statement",
                     external_ref=txn.id,
                     postings=postings,
@@ -385,6 +393,19 @@ class ParsingService:
                 entry_ids.append(entry_id)
 
         return entry_ids
+
+
+def _counter_is_debit(txn: ParsedTransaction, kinds: dict[str, str]) -> bool:
+    """Whether the debit, rather than the credit, is the other side of `txn`:
+    the expense money went to, the income it came from. With the statement's
+    account known, that is whichever side is not it; without, the side that
+    is an income or expense account, and the debit when that does not settle it."""
+    if txn.account_id:
+        return txn.debit_account_id != txn.account_id
+    flows = [
+        kinds.get(a) in ("income", "expense") for a in (txn.debit_account_id, txn.credit_account_id)
+    ]
+    return flows != [False, True]
 
 
 def _in_currency_of(account: Account, rows: list[RawRow]) -> tuple[list[RawRow], list[str]]:

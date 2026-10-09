@@ -555,6 +555,11 @@ class SQLStatementRepository(StatementRepository):
                     "credit_account_id": txn.credit_account_id,
                     "category": txn.category,
                     "currency": raw.currency,
+                    "need": txn.need,
+                    # "description" is the bank's text, above.
+                    "booking_description": txn.description,
+                    "rule_id": txn.rule_id,
+                    "duplicate_of": txn.duplicate_of,
                 },
                 confidence=txn.confidence,
                 dedup_key=txn.dedup_key or None,
@@ -640,6 +645,10 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         debit_account_id=j.get("debit_account_id", ""),
         credit_account_id=j.get("credit_account_id", ""),
         category=j.get("category", ""),
+        need=j.get("need", ""),
+        description=j.get("booking_description", ""),
+        rule_id=j.get("rule_id", ""),
+        duplicate_of=j.get("duplicate_of", ""),
         # Zero is a real confidence (nothing decided the row), not a missing one.
         confidence=float(row.confidence) if row.confidence is not None else 0.5,
         dedup_key=row.dedup_key or "",

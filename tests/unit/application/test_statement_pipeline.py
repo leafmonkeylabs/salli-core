@@ -308,3 +308,86 @@ async def test_nothing_to_import(world):
         "No transactions to import",
     ]
     assert world.statements.statements == {}
+
+
+# ── Posting what was approved ─────────────────────────────────────────────────
+
+
+def _parsed(world: World, row: RawRow, debit: str, credit: str, **fields: Any) -> str:
+    """A row as an import leaves it, pending review; its id."""
+    row_id = str(uuid.uuid4())
+    world.statements.rows[row_id] = ParsedTransaction(
+        raw=row, debit_account_id=debit, credit_account_id=credit, id=row_id, **fields
+    )
+    return row_id
+
+
+@pytest.fixture
+def usd_world() -> World:
+    return World(base_currency="USD")
+
+
+async def test_tags_go_on_the_other_side_never_the_bank_account(usd_world):
+    paid = _parsed(
+        usd_world,
+        _row("KEELLS", "12.00"),
+        "food",
+        "checking",
+        category="groceries",
+        need="essential",
+        account_id="checking",
+    )
+    received = _parsed(
+        usd_world,
+        _row("PAYROLL", "2400.00", money_in=True),
+        "checking",
+        "salary",
+        category="Salary",
+        account_id="checking",
+    )
+
+    await usd_world.service().post_approved(USER, [paid, received])
+
+    spent, earned = usd_world.ledger.entries
+    assert [p.tags for p in spent.postings] == [{"category": "groceries", "need": "essential"}, {}]
+    # Money in: the income is the credit, so that is where the tag goes.
+    assert [p.tags for p in earned.postings] == [{}, {"category": "salary"}]
+
+
+async def test_without_a_statement_account_the_income_or_expense_side_is_tagged(usd_world):
+    received = _parsed(
+        usd_world, _row("PAYROLL", "2400.00", money_in=True), "checking", "salary", category="pay"
+    )
+    moved = _parsed(usd_world, _row("TO CARD", "50.00"), "card", "checking", category="transfer")
+
+    await usd_world.service().post_approved(USER, [received, moved])
+
+    earned, transfer = usd_world.ledger.entries
+    assert [p.tags for p in earned.postings] == [{}, {"category": "pay"}]
+    # Neither side is income or expense: the debit, as before.
+    assert [p.tags for p in transfer.postings] == [{"category": "transfer"}, {}]
+
+
+async def test_an_entry_is_booked_with_the_description_it_should_have(usd_world):
+    plain = _parsed(usd_world, _row("POS 4821 WHOLEFDS", "84.17"), "food", "checking")
+    renamed = _parsed(
+        usd_world,
+        _row("AMZN MKTP US*2K4LT0", "12.99"),
+        "food",
+        "checking",
+        description="Amazon",
+    )
+
+    await usd_world.service().post_approved(USER, [plain, renamed])
+
+    assert [e.description for e in usd_world.ledger.entries] == ["POS 4821 WHOLEFDS", "Amazon"]
+
+
+async def test_a_row_is_posted_once(usd_world):
+    row = _parsed(usd_world, _row("RENT", "1200.00"), "food", "checking")
+
+    first = await usd_world.service().post_approved(USER, [row])
+    again = await usd_world.service().post_approved(USER, [row])
+
+    assert (len(first), again) == (1, [])
+    assert len(usd_world.ledger.entries) == 1
