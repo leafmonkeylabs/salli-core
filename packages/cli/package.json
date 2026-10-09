@@ -32,5 +32,15 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "binaries": "node scripts/build-binaries.mjs"
+  },
+  "devDependencies": {
+    "@clack/prompts": "^1.8.1",
+    "@commander-js/extra-typings": "^15.0.0",
+    "commander": "^15.0.0",
+    "picocolors": "^1.1.1",
+    "string-width": "^8.3.0"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "^2.1.0"
   }
 }

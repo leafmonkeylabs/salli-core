@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@leafmonkeylabs/salli-sdk": ["../sdk/src/index.ts"]
+    }
+  },
+  "include": ["src", "test", "scripts", "*.config.ts", "../sdk/src/env.d.ts"]
+}
