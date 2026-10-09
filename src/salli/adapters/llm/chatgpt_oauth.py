@@ -293,7 +293,7 @@ def read_callback(pending: PendingSignIn, query: Mapping[str, str]) -> Callback:
     """The authorization code and client id from the loopback callback, once
     `state` matches (sign-in, step 3). A registration must return its issued
     client id; a sign-in again may omit it, but never return another."""
-    if not hmac.compare_digest(str(query.get("state", "")), pending.state):
+    if not hmac.compare_digest(str(query.get("state", "")).encode(), pending.state.encode()):
         raise SignInError(
             "The sign-in could not be verified: it did not come from this attempt. "
             "Please start again."
@@ -575,7 +575,9 @@ class ChatGPTOAuth:
             raise SignInError("This ChatGPT sign-in has expired. Please sign in again.") from None
         except JWTError:
             raise SignInError("The ChatGPT sign-in could not be verified.") from None
-        if nonce is not None and not hmac.compare_digest(str(claims.get("nonce", "")), nonce):
+        if nonce is not None and not hmac.compare_digest(
+            str(claims.get("nonce", "")).encode(), nonce.encode()
+        ):
             raise SignInError("The ChatGPT sign-in was not the one this attempt asked for.")
         if not isinstance(claims.get("sub"), str) or not claims["sub"]:
             raise SignInError("The ChatGPT sign-in did not say which account it is.")

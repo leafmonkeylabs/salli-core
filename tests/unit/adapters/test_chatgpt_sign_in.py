@@ -140,6 +140,9 @@ def test_state_is_checked_before_anything_else():
         read_callback(pending, {"error": "access_denied", "state": "forged"})
     with pytest.raises(SignInError):
         read_callback(pending, {"code": "c", "state": "forged", "client_id": "oaiapp_new"})
+    # Not ASCII: refused like any other forgery, not a TypeError.
+    with pytest.raises(SignInError, match="did not come from this attempt"):
+        read_callback(pending, {"code": "c", "state": "fórged"})
 
 
 def test_declining_stops_the_attempt():
