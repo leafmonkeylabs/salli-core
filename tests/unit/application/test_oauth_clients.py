@@ -345,3 +345,10 @@ def test_metadata_advertises_the_device_grant(world):
     metadata = service.authorization_server_metadata(BASE)
     assert metadata["device_authorization_endpoint"] == f"{BASE}/mcp/oauth/device_authorization"
     assert "urn:ietf:params:oauth:grant-type:device_code" in metadata["grant_types_supported"]
+
+
+async def test_a_registered_client_is_told_it_may_use_the_device_grant(world):
+    # Strict OAuth libraries refuse a grant the registration did not list.
+    service, *_ = world
+    client = await service.register_client("salli CLI", ["http://127.0.0.1/callback"])
+    assert "urn:ietf:params:oauth:grant-type:device_code" in client["grant_types"]

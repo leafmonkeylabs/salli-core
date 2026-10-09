@@ -5416,7 +5416,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationServerMetadata"
+                }
               }
             }
           }
@@ -5435,7 +5437,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProtectedResourceMetadata"
+                }
               }
             }
           }
@@ -5464,7 +5468,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredClient"
+                }
               }
             }
           },
@@ -5579,13 +5585,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+          "302": {
+            "description": "To the consent page, which asks the person"
           },
           "422": {
             "description": "Validation Error",
@@ -5628,7 +5629,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentInfo"
+                }
               }
             }
           },
@@ -5667,7 +5670,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDecision"
+                }
               }
             }
           },
@@ -5719,7 +5724,14 @@
             }
           },
           "400": {
-            "description": "OAuth error (`invalid_client`)"
+            "description": "`invalid_client`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -5756,7 +5768,19 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TokenGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An OAuth error; for the device grant, `authorization_pending` and `slow_down` mean keep polling (RFC 8628 §3.5)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
               }
             }
           },
@@ -6789,6 +6813,77 @@
         ],
         "title": "AuthIdentity"
       },
+      "AuthorizationServerMetadata": {
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "title": "Issuer"
+          },
+          "authorization_endpoint": {
+            "type": "string",
+            "title": "Authorization Endpoint"
+          },
+          "token_endpoint": {
+            "type": "string",
+            "title": "Token Endpoint"
+          },
+          "registration_endpoint": {
+            "type": "string",
+            "title": "Registration Endpoint"
+          },
+          "revocation_endpoint": {
+            "type": "string",
+            "title": "Revocation Endpoint"
+          },
+          "device_authorization_endpoint": {
+            "type": "string",
+            "title": "Device Authorization Endpoint"
+          },
+          "response_types_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Response Types Supported"
+          },
+          "grant_types_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Grant Types Supported"
+          },
+          "code_challenge_methods_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Code Challenge Methods Supported"
+          },
+          "token_endpoint_auth_methods_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Token Endpoint Auth Methods Supported"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issuer",
+          "authorization_endpoint",
+          "token_endpoint",
+          "registration_endpoint",
+          "revocation_endpoint",
+          "device_authorization_endpoint",
+          "response_types_supported",
+          "grant_types_supported",
+          "code_challenge_methods_supported",
+          "token_endpoint_auth_methods_supported"
+        ],
+        "title": "AuthorizationServerMetadata",
+        "description": "RFC 8414 §2."
+      },
       "BalanceSheet": {
         "properties": {
           "currency": {
@@ -7751,6 +7846,19 @@
         ],
         "title": "ChatUserMessage"
       },
+      "ConsentDecision": {
+        "properties": {
+          "redirect_url": {
+            "type": "string",
+            "title": "Redirect Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "redirect_url"
+        ],
+        "title": "ConsentDecision"
+      },
       "ConsentDecisionRequest": {
         "properties": {
           "rt": {
@@ -7768,6 +7876,46 @@
           "approve"
         ],
         "title": "ConsentDecisionRequest"
+      },
+      "ConsentInfo": {
+        "properties": {
+          "client_name": {
+            "type": "string",
+            "title": "Client Name"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "resource": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource"
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "mcp",
+              "api"
+            ],
+            "title": "Audience"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_name",
+          "scope",
+          "resource",
+          "audience"
+        ],
+        "title": "ConsentInfo",
+        "description": "What the consent page shows the person before they decide."
       },
       "CoverageGapLine": {
         "properties": {
@@ -10753,6 +10901,25 @@
         ],
         "title": "NewPersonalAccessToken"
       },
+      "OAuthErrorBody": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "error_description": {
+            "type": "string",
+            "title": "Error Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error",
+          "error_description"
+        ],
+        "title": "OAuthErrorBody",
+        "description": "RFC 6749 §5.2."
+      },
       "OAuthInfo": {
         "properties": {
           "issuer": {
@@ -12006,6 +12173,28 @@
         ],
         "title": "ProfileUpdated"
       },
+      "ProtectedResourceMetadata": {
+        "properties": {
+          "resource": {
+            "type": "string",
+            "title": "Resource"
+          },
+          "authorization_servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Authorization Servers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource",
+          "authorization_servers"
+        ],
+        "title": "ProtectedResourceMetadata",
+        "description": "RFC 9728 §2."
+      },
       "ProvenanceReceipt": {
         "properties": {
           "document_id": {
@@ -12576,6 +12765,61 @@
           "redirect_uris"
         ],
         "title": "RegisterClientRequest"
+      },
+      "RegisteredClient": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "redirect_uris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Redirect Uris"
+          },
+          "token_endpoint_auth_method": {
+            "type": "string",
+            "title": "Token Endpoint Auth Method"
+          },
+          "grant_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Grant Types"
+          },
+          "response_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Response Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "client_name",
+          "redirect_uris",
+          "token_endpoint_auth_method",
+          "grant_types",
+          "response_types"
+        ],
+        "title": "RegisteredClient",
+        "description": "RFC 7591 §3.2.1: a public client, which proves itself with PKCE."
       },
       "Reminder": {
         "properties": {
@@ -13995,6 +14239,41 @@
           "period_end"
         ],
         "title": "TaxPackInfo"
+      },
+      "TokenGrant": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "Bearer",
+            "title": "Token Type"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "refresh_token",
+          "scope"
+        ],
+        "title": "TokenGrant",
+        "description": "RFC 6749 §5.1."
       },
       "TrialBalance": {
         "properties": {
