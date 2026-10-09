@@ -309,7 +309,7 @@ class ParsingService:
         elif missing:
             errors.append(f"{missing} transaction(s) still need an account; choose one to post")
 
-        modelled = set(undecided) if key is not None else set()
+        modelled: set[int] = set(undecided) if key is not None else set()
         for i, (txn, candidate, verdict) in enumerate(
             zip(parsed, candidates, verdicts, strict=True)
         ):
