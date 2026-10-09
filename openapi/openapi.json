@@ -1057,11 +1057,9 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message}`: the turn failed; `message` is a sentence to show.\n- `done`: the last event, always sent.\n\nA refusal from the deployment's usage meter comes before the stream opens, as an error response rather than an event.",
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "text/event-stream": {}
             }
           },
           "422": {
@@ -1105,7 +1103,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatAttachment"
+                }
               }
             }
           },
@@ -1147,11 +1147,9 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message}`: the turn failed; `message` is a sentence to show.\n- `done`: the last event, always sent.\n\nWith `workflow: \"return\"` the stream is instead a single `token` whose `content` is the JSON-encoded result of the return workflow (`{worksheet, error}`), then `done`.",
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "text/event-stream": {}
             }
           },
           "422": {
@@ -1215,7 +1213,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatHistory"
+                }
               }
             }
           },
@@ -1276,7 +1276,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessions"
+                }
               }
             }
           },
@@ -1323,7 +1325,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLog"
+                }
               }
             }
           },
@@ -6142,6 +6146,77 @@
         ],
         "title": "AgentDocumentList"
       },
+      "AgentSession": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "persona": {
+            "type": "string",
+            "enum": [
+              "scrooge",
+              "buddy"
+            ],
+            "title": "Persona"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "last_active_at": {
+            "type": "string",
+            "title": "Last Active At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "thread_id",
+          "title",
+          "persona",
+          "created_at",
+          "last_active_at"
+        ],
+        "title": "AgentSession",
+        "description": "A conversation thread."
+      },
+      "AgentSessions": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSession"
+            },
+            "type": "array",
+            "title": "Sessions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "title": "AgentSessions"
+      },
       "AllocationRequest": {
         "properties": {
           "account_id": {
@@ -6195,6 +6270,62 @@
           "pct_of_portfolio"
         ],
         "title": "AllocationSlice"
+      },
+      "AuditLog": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "title": "AuditLog"
+      },
+      "AuditLogEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "action",
+          "params",
+          "decision",
+          "created_at"
+        ],
+        "title": "AuditLogEntry",
+        "description": "A write the agent, or an MCP client, made or asked to make, and what was decided."
       },
       "AuthIdentity": {
         "properties": {
@@ -6631,6 +6762,111 @@
         "type": "object",
         "title": "BudgetUpdateRequest"
       },
+      "ChatAssistantMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "const": "assistant",
+            "title": "Role"
+          },
+          "parts": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ChatTextPart"
+                },
+                {
+                  "$ref": "#/components/schemas/ChatToolCall"
+                },
+                {
+                  "$ref": "#/components/schemas/ChatSubagentSection"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "subagent_section": "#/components/schemas/ChatSubagentSection",
+                  "text": "#/components/schemas/ChatTextPart",
+                  "tool_call": "#/components/schemas/ChatToolCall"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "parts"
+        ],
+        "title": "ChatAssistantMessage"
+      },
+      "ChatAttachment": {
+        "properties": {
+          "file_ref": {
+            "type": "string",
+            "title": "File Ref"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_ref",
+          "name",
+          "size",
+          "mime_type"
+        ],
+        "title": "ChatAttachment",
+        "description": "A file uploaded for a chat message."
+      },
+      "ChatHistory": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "messages": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ChatUserMessage"
+                },
+                {
+                  "$ref": "#/components/schemas/ChatAssistantMessage"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "role",
+                "mapping": {
+                  "assistant": "#/components/schemas/ChatAssistantMessage",
+                  "user": "#/components/schemas/ChatUserMessage"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "messages"
+        ],
+        "title": "ChatHistory",
+        "description": "A conversation replayed as it looked while streaming: the user's\nmessages, and each reply as the text, tool calls and specialist sections\nit streamed."
+      },
       "ChatRequest": {
         "properties": {
           "thread_id": {
@@ -6665,6 +6901,143 @@
           "message"
         ],
         "title": "ChatRequest"
+      },
+      "ChatSubagentSection": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "subagent_section",
+            "title": "Type"
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "parts": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ChatSubagentToken"
+                },
+                {
+                  "$ref": "#/components/schemas/ChatToolCall"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "token": "#/components/schemas/ChatSubagentToken",
+                  "tool_call": "#/components/schemas/ChatToolCall"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "agent",
+          "active",
+          "parts"
+        ],
+        "title": "ChatSubagentSection",
+        "description": "Consecutive work by one specialist: what it wrote and the tools it called."
+      },
+      "ChatSubagentToken": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "token",
+            "title": "Type"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "content"
+        ],
+        "title": "ChatSubagentToken",
+        "description": "Text a specialist wrote, inside its section."
+      },
+      "ChatTextPart": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text",
+            "title": "Type"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "content"
+        ],
+        "title": "ChatTextPart",
+        "description": "Text the agent wrote."
+      },
+      "ChatToolCall": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool_call",
+            "title": "Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "input": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Input"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "name",
+          "input",
+          "done"
+        ],
+        "title": "ChatToolCall",
+        "description": "A tool the agent called, and what it called it with."
+      },
+      "ChatUserMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "const": "user",
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatUserMessage"
       },
       "ConsentDecisionRequest": {
         "properties": {
