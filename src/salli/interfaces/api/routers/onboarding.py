@@ -380,6 +380,9 @@ class DataExport(BaseModel):
     """Each as in `reminders.list`."""
     documents: list[dict[str, Any]]
     """Each as in `documents.list`: the record, not the file it may point to."""
+    statements: list[dict[str, Any]] = Field(default_factory=list)
+    """Each imported statement as in `statements.list`, with its parsed
+    `transactions` (as statement transactions are shown), whatever their state."""
 
 
 @router.get("/export")

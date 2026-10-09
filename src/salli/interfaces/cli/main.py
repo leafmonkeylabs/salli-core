@@ -121,7 +121,7 @@ async def _agent_services():
 
     async with AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer:
         await checkpointer.setup()
-        yield build_services(settings, checkpointer=checkpointer)
+        yield build_services(settings, checkpointer=checkpointer, pooled=False)
 
 
 # ── accounts ──────────────────────────────────────────────────────────────────
@@ -309,13 +309,12 @@ def entry_add(
 
     user_id = _require_user()
     accounts = asyncio.run(_services().ledger.list_accounts(user_id))
-    by_key = {a.code: a.id for a in accounts} | {a.id: a.id for a in accounts}
 
     def parse_side(pairs: list[str], direction: Direction) -> list[dict]:
         postings = []
         for pair in pairs:
             account, _, amount_str = pair.rpartition(":")
-            account_id = by_key.get(account.strip())
+            account_id = _account_ref(accounts, account.strip())
             if account_id is None:
                 console.print(
                     f"[red]No active account {account.strip()!r}[/red] in {pair!r}: "
@@ -800,6 +799,18 @@ def parse_upload(
         "--date-order",
         help="DMY, MDY or YMD: how to read dates a CSV or QIF file leaves ambiguous",
     ),
+    source_account: str = typer.Option(
+        None,
+        "--source-account",
+        help="For a file holding several accounts: the file's account to import "
+        "(its number or name, as the error listing them says)",
+    ),
+    replaces: str = typer.Option(
+        None,
+        "--replaces",
+        help="An earlier import of this statement (its id), parsed again on purpose: "
+        "its rows are not duplicates, and those still in review are discarded",
+    ),
 ):
     """
     Parse a bank statement and queue transactions for review.
@@ -810,6 +821,9 @@ def parse_upload(
     Prints a summary and prompts for immediate inline review.
     """
     import pathlib
+
+    from salli.application.services.parsing_service import upload_view
+    from salli.domain.usage import UsageLimitReached
 
     user_id = _require_user()
     path = pathlib.Path(file)
@@ -825,20 +839,29 @@ def parse_upload(
     filename = path.name
     svc = _services()
     account_id = _account_by_code_or_id(svc, user_id, account) if account else None
+    replaced = _statement_id(svc, user_id, replaces) if replaces else None
 
-    console.print(f"[dim]Parsing {filename} …[/dim]")
-    result = asyncio.run(
-        svc.parsing.parse_statement(
-            user_id,
-            filename,
-            data,
-            bank,
-            currency=currency,
-            account_id=account_id,
-            date_order=order,
+    console.print(f"[dim]Parsing {escape(filename)} …[/dim]")
+    try:
+        result = asyncio.run(
+            svc.parsing.parse_statement(
+                user_id,
+                filename,
+                data,
+                bank,
+                currency=currency,
+                account_id=account_id,
+                source_account=source_account,
+                replaces=replaced,
+                date_order=order,
+            )
         )
-    )
-    if emit(result):
+    except (ValueError, UsageLimitReached) as refused:
+        # Not a money account, an inactive one, a currency it isn't kept in,
+        # or the usage meter said no: said plainly, not as a traceback.
+        console.print(f"[red]{escape(str(refused))}[/red]")
+        raise typer.Exit(1) from None
+    if emit(upload_view(result)):
         return
 
     console.print(
@@ -857,13 +880,25 @@ def parse_upload(
     _interactive_review(user_id, svc, result)
 
 
-def _account_by_code_or_id(svc: Any, user_id: str, ref: str) -> str:
-    """The id of the account whose code is `ref`, or whose id it is (or begins)."""
-    accounts = asyncio.run(svc.ledger.list_accounts(user_id))
+def _account_ref(accounts: list[Any], ref: str) -> str | None:
+    """The id of the account whose code is `ref`, or whose id it is (or
+    uniquely begins with); None when there is no such one account."""
     by_code = [a.id for a in accounts if a.code == ref]
     if len(by_code) == 1:
         return by_code[0]
-    return _resolve_id([{"id": a.id} for a in accounts], ref, "account")
+    by_id = [a.id for a in accounts if a.id == ref] or [
+        a.id for a in accounts if a.id.startswith(ref)
+    ]
+    return by_id[0] if len(by_id) == 1 else None
+
+
+def _account_by_code_or_id(svc: Any, user_id: str, ref: str) -> str:
+    """The id of the account whose code is `ref`, or whose id it is (or begins)."""
+    accounts = asyncio.run(svc.ledger.list_accounts(user_id))
+    found = _account_ref(accounts, ref)
+    if found is None:
+        return _resolve_id([{"id": a.id} for a in accounts], ref, "account")
+    return found
 
 
 def _interactive_review(user_id, svc, result) -> None:
@@ -875,7 +910,7 @@ def _interactive_review(user_id, svc, result) -> None:
 
     for i, txn in enumerate(result.transactions, 1):
         raw = txn.raw
-        header = f"[{i}/{len(result.transactions)}] {raw.date}  {raw.description[:50]}"
+        header = f"[{i}/{len(result.transactions)}] {raw.date}  {escape(raw.description[:50])}"
         amount_str = f"{'CR' if raw.credit_flag else 'DR'} {raw.currency} {raw.amount:,.2f}"
         duplicate = txn.dedup_status == "exact_duplicate"
         dedup = (
@@ -918,8 +953,16 @@ def _interactive_review(user_id, svc, result) -> None:
 
     if approved_ids:
         console.print(f"\n[dim]Posting {len(approved_ids)} approved transaction(s)…[/dim]")
-        asyncio.run(svc.parsing.post_approved(user_id, approved_ids))
-        console.print(f"[green]Posted {len(approved_ids)} entries.[/green]")
+        posted = asyncio.run(svc.parsing.post_approved(user_id, approved_ids))
+        console.print(f"[green]Posted {len(posted)} entries.[/green]")
+        # A row is posted only once both its sides have an account.
+        waiting = len(approved_ids) - len(posted)
+        if waiting:
+            console.print(
+                f"[yellow]{waiting} approved transaction(s) still need an account and were not "
+                "posted.[/yellow] Add a rule that gives them one (salli rules add), then "
+                "import the statement again with --replaces <statement id>."
+            )
     else:
         console.print("[dim]Nothing posted.[/dim]")
 
@@ -940,11 +983,15 @@ def parse_pending(
     ),
 ):
     """List transactions parsed but not yet posted (nor discarded)."""
+    from salli.application.services.parsing_service import transaction_view
+
     user_id = _require_user()
     svc = _services()
     statement_id = _statement_id(svc, user_id, statement) if statement else None
     pending = asyncio.run(svc.parsing.get_pending(user_id, statement_id))
-    if emit(pending):
+    # The API's field names: `description` is the bank's text,
+    # `description_override` what it will be booked as.
+    if emit([transaction_view(t) for t in pending]):
         return
 
     if not pending:
@@ -964,7 +1011,7 @@ def parse_pending(
         table.add_row(
             str(txn.id or "")[:8],
             raw.date,
-            raw.description[:40],
+            escape(raw.description[:40]),
             f"{'CR' if raw.credit_flag else 'DR'} {raw.currency} {raw.amount:,.2f}",
             txn.debit_account_id or "—",
             txn.credit_account_id or "—",
@@ -2798,20 +2845,24 @@ def subscription_add(
 ):
     """Add a recurring subscription."""
     user_id = _require_user()
-    subscription_id = asyncio.run(
-        _services().subscription.add_subscription(
-            user_id,
-            {
-                "name": name,
-                "amount": amount,
-                "frequency": frequency,
-                "next_due_date": next_due_date,
-                "account_id": account_id,
-                "grace_days": grace_days,
-                "amount_tolerance_pct": amount_tolerance_pct,
-            },
+    try:
+        subscription_id = asyncio.run(
+            _services().subscription.add_subscription(
+                user_id,
+                {
+                    "name": name,
+                    "amount": amount,
+                    "frequency": frequency,
+                    "next_due_date": next_due_date,
+                    "account_id": account_id,
+                    "grace_days": grace_days,
+                    "amount_tolerance_pct": amount_tolerance_pct,
+                },
+            )
         )
-    )
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "name": name})
     console.print(f"[green]Subscription created:[/green] {name} ({subscription_id})")
 
@@ -2852,7 +2903,11 @@ def subscription_update(
         raise typer.Exit(1)
     subs = asyncio.run(_services().subscription.list_subscriptions(user_id, active_only=False))
     subscription_id = _resolve_id(subs, subscription_id, "subscription")
-    asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    try:
+        asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "updated": data})
     console.print(f"[green]Subscription updated:[/green] {subscription_id}")
 
@@ -4053,8 +4108,8 @@ def mcp_connections():
     for c in connections:
         table.add_row(
             str(c.get("token_id", ""))[:8],
-            str(c.get("client_name", "")),
-            str(c.get("scope", "")),
+            escape(str(c.get("client_name", ""))),
+            escape(str(c.get("scope", ""))),
             str(c.get("connected_at", ""))[:16],
         )
     console.print(table)
@@ -4064,12 +4119,23 @@ def mcp_connections():
 def mcp_revoke(token_id: str = typer.Argument(..., help="Connection id")):
     """Disconnect one AI client."""
     user_id = _require_user()
-    connections = asyncio.run(_services().mcp_oauth.list_connections(user_id))
-    # A connection is named by its token id; resolve_id matches on "id".
-    token_id = _resolve_id([{"id": c["token_id"]} for c in connections], token_id, "connection")
-    asyncio.run(_services().mcp_oauth.revoke_connection(user_id, token_id))
-    emit({"id": token_id, "revoked": True})
-    console.print(f"[green]Disconnected:[/green] {token_id}")
+
+    async def _revoke() -> tuple[str, bool]:
+        svc = _services()
+        connections = await svc.mcp_oauth.list_connections(user_id)
+        ids = [{"id": c["token_id"]} for c in connections]
+        full_id = _resolve_id(ids, token_id, "connection")
+        return full_id, await svc.mcp_oauth.revoke_connection(user_id, full_id)
+
+    full_id, revoked = asyncio.run(_revoke())
+    if emit({"id": full_id, "revoked": revoked}):
+        if not revoked:
+            raise typer.Exit(1)
+        return
+    if not revoked:
+        console.print(f"[red]Nothing to disconnect:[/red] {full_id} is no longer connected.")
+        raise typer.Exit(1)
+    console.print(f"[green]Disconnected:[/green] {full_id}")
 
 
 # ── whoami ────────────────────────────────────────────────────────────────────
@@ -4154,15 +4220,15 @@ def cli() -> Any:
 
 
 def main():
+    from salli.application.ports import ProfileMissing
+
     try:
         cli()()
-    except LookupError as exc:
-        # The acting user (SALLI_USER_ID) has no profile yet: say what to do
-        # rather than end in a traceback.
-        if "has no profile" not in str(exc):
-            raise
+    except ProfileMissing as exc:
+        # The acting user (SALLI_USER_ID) has no profile yet, whichever command
+        # found out: say what to do rather than end in a traceback.
         console.print(
-            f"[red]{exc}.[/red] Start with [bold]salli onboarding complete[/bold] "
+            f"[red]{escape(str(exc))}.[/red] Start with [bold]salli onboarding complete[/bold] "
             "(or [bold]salli setup[/bold] for a new instance)."
         )
         sys.exit(1)

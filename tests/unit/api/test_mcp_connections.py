@@ -53,3 +53,15 @@ async def test_whether_mcp_is_enabled(client, mock_services):
 
     assert r.status_code == 200
     assert r.json() == {"enabled": True}
+
+
+async def test_a_write_without_a_profile_is_a_409_that_says_what_to_do(client, mock_services):
+    from salli.application.ports import ProfileMissing
+
+    mock_services.mcp_oauth = AsyncMock()
+    mock_services.mcp_oauth.set_mcp_enabled.side_effect = ProfileMissing("test-user-1")
+
+    r = await client.put("/v1/mcp/connections/enabled", json={"enabled": True}, headers=AUTH)
+
+    assert r.status_code == 409
+    assert "onboarding" in r.json()["detail"]

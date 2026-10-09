@@ -32,18 +32,29 @@ Each row is then:
 
 Tell the user about anything in `errors`: rows Salli skipped, how many still
 need an account, and guesses such as reading 01/02/2026 as day first. If a
-date order was guessed wrong, discard that import (`salli parse discard
-<statement_id> --json`) and parse again with `--date-order DMY`, `MDY` or `YMD`.
+date order was guessed wrong, parse the file again with `--date-order DMY`,
+`MDY` or `YMD` and `--replaces <statement_id>`: the earlier import's rows are
+then not taken for duplicates, and those still in review are discarded.
+
+A file holding several accounts (a QIF with a card register, an OFX with two
+statements) is imported one account at a time. If `errors` lists the file's
+accounts, ask the user which one this statement's `--account` is, and parse
+again with `--source-account "<the file's account>"`; then once more for each
+other account they want, with its own `--account`.
 
 ## 2. Review with the user
 
     salli parse pending <statement_id> --json
 
-Present the transactions as a short table: date, description (and
-`description_override`, what it will be booked as, if set), amount, the
-other account, and whether it looks like a duplicate. Ask the user which to
-post. Point out duplicates, rows with no account yet, and anything whose
-account looks wrong. Don't post anything they haven't approved.
+Each transaction has the API's fields: `description` is the bank's text and
+`description_override` what it will be booked as, if set. Present them as a
+short table: date, description (and the override), amount, the other
+account, and `dedup_status`. Ask the user which to post. Point out
+`fuzzy_match` rows (they look like something already booked or imported:
+`duplicate_of` says what), rows with no account yet, and anything whose
+account looks wrong. Exact duplicates of an earlier import are not listed
+here: the upload's result counted them, and they are never posted. Don't
+post anything they haven't approved.
 
 Rows the user says are not real (a duplicate, a card authorisation that never
 went through) are discarded, so they leave review for good:
@@ -54,7 +65,8 @@ went through) are discarded, so they leave review for good:
 
     salli parse post <id> <id> ... --json
 
-Then confirm what was posted. If they want to recategorise one after posting,
+Then confirm what was posted: the result lists an entry id for each one. A
+row with no account yet is not posted; say which. If they want to recategorise one after posting,
 use `salli entry reverse` and post it again (see `salli-record-transaction`).
 If the user keeps correcting the same kind of transaction, suggest a rule
 (`salli rules suggest --json`).

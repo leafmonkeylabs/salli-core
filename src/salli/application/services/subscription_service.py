@@ -15,7 +15,11 @@ from typing import Any
 from salli.domain.currency import quantize
 from salli.domain.money import from_minor, to_minor
 from salli.domain.subscription import engine
-from salli.domain.subscription.models import Subscription
+from salli.domain.subscription.models import (
+    Subscription,
+    normalize_due_date,
+    normalize_frequency,
+)
 
 # Subscription amounts are kept in the user's base currency, like the ledger
 # entries they are matched against.
@@ -79,13 +83,14 @@ class SubscriptionService:
         self._uow_factory = uow_factory
 
     async def add_subscription(self, user_id: str, data: dict[str, Any]) -> str:
+        """ValueError for an unknown frequency or a malformed due date."""
         async with self._uow_factory() as uow:
             currency = await uow.user_profiles.base_currency(user_id)
             subscription = {
                 "name": data["name"],
                 "amount_minor": to_minor(Decimal(str(data["amount"])), currency),
-                "frequency": data["frequency"],
-                "next_due_date": data["next_due_date"],
+                "frequency": normalize_frequency(data["frequency"]),
+                "next_due_date": normalize_due_date(data["next_due_date"]),
                 "account_id": data.get("account_id"),
                 "grace_days": data.get("grace_days", 5),
                 "amount_tolerance_pct": str(Decimal(str(data.get("amount_tolerance_pct", "0.05")))),
@@ -112,10 +117,12 @@ class SubscriptionService:
         updates: dict[str, Any] = {}
         if "name" in data:
             updates["name"] = data["name"]
+        # Checked here, not only by the API's request model: the CLI and MCP
+        # come through this service too.
         if "frequency" in data:
-            updates["frequency"] = data["frequency"]
+            updates["frequency"] = normalize_frequency(data["frequency"])
         if "next_due_date" in data:
-            updates["next_due_date"] = data["next_due_date"]
+            updates["next_due_date"] = normalize_due_date(data["next_due_date"])
         if "account_id" in data:
             updates["account_id"] = data["account_id"]
         if "grace_days" in data:

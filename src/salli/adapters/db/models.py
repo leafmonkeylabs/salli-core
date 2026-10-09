@@ -22,6 +22,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -245,6 +246,12 @@ class ParsedTransactionORM(Base):
 
     statement: Mapped[StatementORM] = relationship(
         "StatementORM", back_populates="parsed_transactions"
+    )
+
+    __table_args__ = (
+        Index("ix_parsed_transactions_statement_id", "statement_id"),
+        # What every import searches its history by: the row's date.
+        Index("ix_parsed_transactions_date", text("(extracted_json ->> 'date')")),
     )
 
 

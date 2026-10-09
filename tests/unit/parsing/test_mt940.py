@@ -4,6 +4,7 @@ reversals, the currency from each statement's opening balance, and dates
 that cross a year end.
 """
 
+import dataclasses
 from decimal import Decimal
 from pathlib import Path
 
@@ -23,7 +24,9 @@ def test_a_german_bank_export_of_two_statements():
     result = extract_from_mt940((FIXTURES / "mt940_de.sta").read_bytes())
 
     assert result.errors == []
-    assert result.lines == [
+    # Two statements, on two accounts (:25:).
+    assert result.accounts == ["37040044/0532013000", "37040044/0532013001"]
+    assert [dataclasses.replace(line, account="") for line in result.lines] == [
         StatementLine(
             date="2026-10-01",
             description=(
@@ -150,3 +153,15 @@ def test_a_non_swift_field_between_a_transaction_and_its_description():
         _statement(":61:2610021002D9,99NTRFNONREF", ":NS:22Kartenzahlung", ":86:Netflix")
     )
     assert [line.description for line in result.lines] == ["Netflix"]
+
+
+def test_no_reference_written_as_such_is_no_reference():
+    data = _statement(
+        ":61:2610011001DR12,50NTRFNOTPROVIDED//NONREF",
+        ":86:Fee",
+        ":61:2610021002DR3,00NTRFCUST-7",
+        ":86:Coffee",
+    )
+    lines = extract_from_mt940(data).lines
+    # The customer's own reference is text, never the bank's id.
+    assert [(line.bank_ref, line.ref_kind) for line in lines] == [("", "id"), ("CUST-7", "text")]

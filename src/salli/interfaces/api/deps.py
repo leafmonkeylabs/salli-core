@@ -5,17 +5,18 @@ Uses the same composition.py the CLI uses — the core never knows which surface
 
 from __future__ import annotations
 
+import hmac
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from salli.application.services.llm_credential_service import ResolvedCredentials
-from salli.application.services.mcp_oauth_service import API
+from salli.application.services.mcp_oauth_service import API, has_salli_prefix
 from salli.application.services.personal_access_token_service import is_personal_access_token
 from salli.composition import Services, build_services
-from salli.config import Settings, get_settings, insecure_dev_auth
+from salli.config import Settings, dev_auth_fallback_live, get_settings, insecure_dev_auth
 
 _bearer = HTTPBearer(auto_error=True)
 
@@ -59,6 +60,9 @@ def _get_jwks(settings: Settings) -> list[dict]:
     _jwks_cache["keys"] = keys
     _jwks_cache["ts"] = now
     return keys
+
+
+__all__ = ["insecure_dev_auth"]  # re-exported: the consent page imports it from here
 
 
 def _decode_jwt(token: str, settings: Settings) -> tuple[str, str | None]:
@@ -168,11 +172,17 @@ async def get_principal(
         record = await services.mcp_oauth.verify_access_token(token, audience=API)
         if record is not None:
             return Principal(str(record["user_id"]), None, "oauth")
-    if (
-        not settings.supabase_url
-        and not settings.supabase_jwt_secret
-        and insecure_dev_auth(settings)
-    ):
+    if dev_auth_fallback_live(settings):
+        # A Salli token that did not verify (expired, revoked, issued for MCP,
+        # or a refresh token) is refused, never taken to be a user's id.
+        # Prefixed tokens need no lookup; older unprefixed ones do.
+        if has_salli_prefix(token) or (
+            not _looks_like_jwt(token) and await services.mcp_oauth.is_salli_token(token)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="This token is invalid, expired, or has been revoked.",
+            )
         return Principal(token, None, "dev")
     if _looks_like_jwt(token):
         user_id, email = _decode_jwt(token, settings)
@@ -230,8 +240,25 @@ async def get_credentials(
     return await services.llm_credentials.resolve(user_id)
 
 
+def require_cron_secret(
+    settings: Annotated[Settings, Depends(get_settings)],
+    x_cron_secret: Annotated[str | None, Header()] = None,
+) -> None:
+    """The scheduler's own endpoints (pg_cron, not users): the X-Cron-Secret
+    header must match CRON_SECRET, and with none configured nothing does.
+    Compared as bytes: a non-ASCII header is a wrong secret, not a 500."""
+    secret = settings.cron_secret
+    if (
+        not secret
+        or not x_cron_secret
+        or not hmac.compare_digest(x_cron_secret.encode(), secret.encode())
+    ):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid cron secret")
+
+
 # Convenient type aliases for route parameters
 CurrentUser = Annotated[str, Depends(get_current_user)]
 CurrentEmail = Annotated["str | None", Depends(get_current_email)]
 AppServices = Annotated[Services, Depends(get_services)]
 Credentials = Annotated[ResolvedCredentials, Depends(get_credentials)]
+CronSecret = Depends(require_cron_secret)

@@ -2385,7 +2385,7 @@
           "statements"
         ],
         "summary": "Upload Statement",
-        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`account_id` is the account the statement is for (an active asset or\nliability account): the money side of every transaction in it. `currency`\nis the statement's ISO 4217 code, for files that do not name their own\n(OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the\naccount's currency, else the user's base currency, and a transaction in\nanother currency than the account's is skipped. Posting a statement in\nanother currency than the base converts each transaction at the published\nrate for its date. `date_order` settles dates a CSV or QIF file leaves\nambiguous (01/02/2026). Rows that could not be read, and any guess the\nimporter made, come back in `errors`.",
+        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`account_id` is the account the statement is for (an active asset or\nliability account): the money side of every transaction in it. `currency`\nis the statement's ISO 4217 code, for files that do not name their own\n(OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the\naccount's currency, else the user's base currency, and a transaction in\nanother currency than the account's is skipped. Posting a statement in\nanother currency than the base converts each transaction at the published\nrate for its date. `date_order` settles dates a CSV or QIF file leaves\nambiguous (01/02/2026). Rows that could not be read, and any guess the\nimporter made, come back in `errors`.\n\nA file holding several accounts (a QIF with a card register, an OFX with\ntwo statements) is imported one account at a time: `source_account`\nnames the file's account to import when the statement's account does not\nmatch one by name or code. `replaces` is an earlier upload of the same\nstatement, imported again on purpose: its rows are not taken for\nduplicates, and those still in review are discarded.",
         "operationId": "statements.upload",
         "security": [
           {
@@ -2433,6 +2433,38 @@
                 }
               ],
               "title": "Account Id"
+            }
+          },
+          {
+            "name": "source_account",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Account"
+            }
+          },
+          {
+            "name": "replaces",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Replaces"
             }
           },
           {
@@ -11168,6 +11200,15 @@
             "type": "array",
             "title": "Documents",
             "description": "Each as in `documents.list`: the record, not the file it may point to."
+          },
+          "statements": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Statements",
+            "description": "Each imported statement as in `statements.list`, with its parsed\n`transactions` (as statement transactions are shown), whatever their state."
           }
         },
         "additionalProperties": true,

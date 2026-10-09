@@ -19,7 +19,7 @@ of account.
 
 from __future__ import annotations
 
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 
 _ZERO_DECIMALS = [
     "BIF",
@@ -246,8 +246,13 @@ def quantum(code: str, *, strict: bool = True) -> Decimal:
 
 
 def quantize(amount: Decimal, code: str, *, strict: bool = True) -> Decimal:
-    """`amount` rounded HALF-UP to the decimals `code` has."""
-    return amount.quantize(quantum(code, strict=strict), rounding=ROUND_HALF_UP)
+    """`amount` rounded HALF-UP to the decimals `code` has.
+
+    With enough precision for any amount: the default context's 28 digits
+    made quantize raise InvalidOperation past 26 integer digits."""
+    with localcontext() as ctx:
+        ctx.prec = max(ctx.prec, amount.adjusted() + exponent(code, strict=strict) + 2)
+        return amount.quantize(quantum(code, strict=strict), rounding=ROUND_HALF_UP)
 
 
 def format_amount(amount: Decimal, code: str, *, strict: bool = True) -> str:

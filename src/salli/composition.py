@@ -37,7 +37,7 @@ from salli.application.services.subscription_service import SubscriptionService
 from salli.application.services.tax_service import TaxService
 from salli.application.services.user_profile_service import UserProfileService
 from salli.application.unit_of_work import UnitOfWork
-from salli.config import Settings, insecure_dev_auth
+from salli.config import Settings, auth_can_hold_secrets, insecure_dev_auth
 from salli.extensions import (
     Contributions,
     ExtensionContext,
@@ -86,7 +86,7 @@ class Services:
     extensions: Contributions
 
 
-def build_services(settings: Settings, checkpointer: Any = None) -> Services:
+def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = True) -> Services:
     import os
 
     # ANTHROPIC_API_KEY is deliberately NOT seeded into os.environ. Every model
@@ -101,7 +101,8 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
     if settings.tavily_api_key:
         os.environ.setdefault("TAVILY_API_KEY", settings.tavily_api_key)
 
-    session_factory = make_session_factory(settings)
+    # Unpooled for the CLI: a command may run several event loops in turn.
+    session_factory = make_session_factory(settings, pooled=pooled)
 
     # Filled in once extensions are built (they need uow_factory first). Read
     # at call time, so every unit of work — including any opened by an
@@ -307,16 +308,17 @@ def _build_llm_credentials(settings: Settings, uow_factory) -> LlmCredentialServ
 
     1. An encryption key is configured. Without one there is nowhere safe to put
        a user's key, and storing plaintext is not an acceptable fallback.
-    2. Auth is real. `deps._decode_jwt` falls back to treating the bearer token
-       *as* the user id when Supabase is entirely unconfigured — today that is a
-       documented local-dev convenience, but with BYOK it would let any caller
-       name an arbitrary user id and spend that user's key. So BYOK stays off
-       whenever that fallback is live.
+    2. Auth is real (`config.auth_can_hold_secrets`). `deps.get_principal`
+       falls back to treating the bearer token *as* the user id when Supabase
+       is unconfigured and the development fallback is on — a documented
+       local-dev convenience, but with BYOK it would let any caller name an
+       arbitrary user id and spend that user's key. So BYOK stays off whenever
+       that fallback is live.
     """
     from salli.adapters.crypto.keyring import KeyRing
     from salli.adapters.llm.key_check import validate_provider_key
 
-    auth_is_real = bool(settings.supabase_url or settings.supabase_jwt_secret)
+    auth_is_real = auth_can_hold_secrets(settings)
     if not auth_is_real and settings.byok_encryption_keys:
         logging.getLogger(__name__).warning(
             "BYOK is disabled: an encryption key is configured but authentication "
