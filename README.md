@@ -178,6 +178,26 @@ uv run salli members add partner@example.com
 Each member has their own ledger. Public sign-up is off: only accounts you
 create can use your instance.
 
+## The `salli` CLI (TypeScript)
+
+A new `salli` command line is in beta in [`packages/cli`](packages/cli/README.md).
+It is a client of a running Salli server rather than an in-process tool, so it
+works against your own instance (`uv run salli serve`) or one someone runs for
+you, from any machine. It signs in with OAuth (in a browser, or with a device
+code) and keeps tokens in your system keychain, prints tables for people and the
+API's JSON for scripts, has stable exit codes, and never does arithmetic on
+money. It is built on the TypeScript SDK in [`packages/sdk`](packages/sdk),
+generated from `openapi/openapi.json`.
+
+```bash
+npm install && npm run build
+node packages/cli/dist/salli.js login      # http://localhost:8000 by default
+node packages/cli/dist/salli.js status
+```
+
+It is meant to replace the in-process `salli` above, which will stay for running
+and administering a server.
+
 ## Configuration
 
 Everything is in `.env` (see [`.env.example`](.env.example)); `salli setup`
