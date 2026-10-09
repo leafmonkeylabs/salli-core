@@ -22,8 +22,8 @@ import io
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 
@@ -181,6 +181,18 @@ _DELIMITERS = (",", ";", "\t", "|")
 _HEADER_SCAN = 30  # rows searched for the header, past account details above it
 
 
+@dataclass(frozen=True)
+class Table:
+    """Rows of cells from one place: a CSV file, a spreadsheet's sheet, a
+    table on a PDF page."""
+
+    rows: list[list[str]]
+    #: How its rows are named in messages: "Row 5", "Page 2, row 5".
+    label: str = "Row"
+    #: The page its lines came from (`StatementLine.source_page`).
+    page: int = 0
+
+
 def extract_from_csv(
     data: bytes, mapping: CsvMapping | None = None, *, date_order: DateOrder | None = None
 ) -> Extraction:
@@ -189,7 +201,6 @@ def extract_from_csv(
     `date_order` overrides the order detected from the file's dates (and the
     mapping's).
     """
-    result = Extraction()
     text = decode_text(data)
     delimiter = mapping.delimiter if mapping and mapping.delimiter else None
     # Excel's "sep=;" first line names the delimiter.
@@ -204,23 +215,68 @@ def extract_from_csv(
     except csv.Error as exc:
         return Extraction(errors=[f"This CSV file could not be read: {exc}"])
 
-    if mapping is not None:
-        layout = _layout_from_mapping(table, mapping)
-        if isinstance(layout, str):
-            return Extraction(errors=[layout])
-    else:
-        layout = _layout_from_header(table) or _layout_from_content(table, result)
+    result = extract_from_tables(
+        [Table(table)],
+        mapping,
+        date_order=date_order,
+        # With no value to say, a semicolon file is from a country that writes
+        # decimal commas: that is why its columns are not separated by commas.
+        decimal_mark="," if delimiter == ";" else ".",
+    )
+    return result or Extraction(
+        errors=["Couldn't tell which columns hold the date and the amount in this CSV file"]
+    )
+
+
+def extract_from_tables(
+    tables: Sequence[Table],
+    mapping: CsvMapping | None = None,
+    *,
+    date_order: DateOrder | None = None,
+    decimal_mark: str = ".",
+    infer: bool = True,
+) -> Extraction | None:
+    """Every transaction in tables of cells, read as one statement: the date
+    order and the decimal mark are decided from all of them at once. None
+    when no table looks like a statement.
+
+    A table without a header Salli knows is read as the next page of the
+    statement table before it when it is as wide; and, when it is the only
+    table and `infer` allows, by what its columns hold.
+    """
+    result = Extraction()
+    laid_out: list[tuple[Table, _Layout]] = []
+    previous: tuple[_Layout, int] | None = None  # the last layout with a header, and its width
+    for table in tables:
+        width = max((len(row) for row in table.rows), default=0)
+        if mapping is not None:
+            found = _layout_from_mapping(table.rows, mapping)
+            if isinstance(found, str):
+                result.errors.append(found)
+                continue
+            layout: _Layout | None = found
+        else:
+            layout = _layout_from_header(table.rows)
+            if layout is None and previous is not None and previous[1] == width:
+                # A statement's next page often repeats no header.
+                layout = replace(previous[0], header_row=None)
+            elif layout is None and infer and len(tables) == 1:
+                layout = _layout_from_content(table.rows, result)
         if layout is None:
-            return Extraction(
-                errors=["Couldn't tell which columns hold the date and the amount in this CSV file"]
-            )
+            continue
+        if layout.header_row is not None:
+            previous = (layout, width)
+        laid_out.append((table, layout))
+    if not laid_out:
+        return Extraction(errors=result.errors) if result.errors else None
 
     date_format = mapping.date_format if mapping else None
     # Transaction rows are the ones with a date, or something meant to be one.
     # The rest (blank lines, account details, totals) are passed over.
     rows = [
-        (number, row)
-        for number, row in enumerate(table, 1)
+        (table, layout, number, row)
+        for table, layout in laid_out
+        for number, row in enumerate(table.rows, 1)
         if (layout.header_row is None or number - 1 > layout.header_row)
         and (
             candidate_orders(_cell(row, layout.date)) is not None
@@ -229,34 +285,33 @@ def extract_from_csv(
     ]
     order = date_order or (mapping.date_order if mapping else None)
     if order is None and date_format is None:
-        order, notice = detect_date_order(_cell(row, layout.date) for _, row in rows)
+        order, notice = detect_date_order(_cell(row, layout.date) for _, layout, _, row in rows)
         if notice:
             result.errors.append(notice)
     mark = (mapping.decimal_separator if mapping else None) or detect_decimal_separator(
         _cell(row, column)
-        for _, row in rows
+        for _, layout, _, row in rows
         for column in (layout.amount, layout.debit, layout.credit)
         if column is not None
     )
-    # With no value to say, a semicolon file is from a country that writes
-    # decimal commas: that is why its columns are not separated by commas.
-    mark = mark or ("," if delimiter == ";" else ".")
+    mark = mark or decimal_mark
     invert = mapping.invert_sign if mapping else False
 
-    for number, row in rows:
+    for table, layout, number, row in rows:
+        label = f"{table.label} {number}"
         date_text = _cell(row, layout.date)
         date = _date(date_text, date_format, order or "DMY")
         if date is None:
-            result.errors.append(f"Row {number}: {date_text!r} is not a date; skipped")
+            result.errors.append(f"{label}: {date_text!r} is not a date; skipped")
             continue
         try:
-            found = _amount(row, layout, mark, invert)
+            found_amount = _amount(row, layout, mark, invert)
         except ValueError as exc:
-            result.errors.append(f"Row {number}: {exc}; skipped")
+            result.errors.append(f"{label}: {exc}; skipped")
             continue
-        if found is None:
+        if found_amount is None:
             continue  # no amount, or zero: nothing moved
-        amount, credit, code = found
+        amount, credit, code = found_amount
         result.lines.append(
             StatementLine(
                 date=date,
@@ -265,6 +320,7 @@ def extract_from_csv(
                 credit_flag=credit,
                 currency=_cell(row, layout.currency) or code or layout.header_currency,
                 bank_ref=_cell(row, layout.reference),
+                source_page=table.page,
             )
         )
     return result
@@ -479,7 +535,7 @@ def _layout_from_content(table: list[list[str]], result: Extraction) -> _Layout 
     ]
     text = max(worded, key=lambda c: sum(len(v) for v in values(c, dated)), default=None)
     result.errors.append(
-        f"This CSV file has no header row Salli recognises, so column {date + 1} was read as "
+        f"This file has no header row Salli recognises, so column {date + 1} was read as "
         f"the date, column {amount + 1} as the amount"
         + (f" and column {text + 1} as the description" if text is not None else "")
         + ". If that is wrong, import it with a column mapping."

@@ -7,7 +7,12 @@ CsvMapping when detection would get it wrong.
 from decimal import Decimal
 from pathlib import Path
 
-from salli.adapters.parsing.csv_import import CsvMapping, extract_from_csv
+from salli.adapters.parsing.csv_import import (
+    CsvMapping,
+    Table,
+    extract_from_csv,
+    extract_from_tables,
+)
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "statements"
 
@@ -178,7 +183,7 @@ def test_a_file_without_a_header_row():
         ("2026-10-15", "CHECK # 1043", Decimal("12.00"), False),
     ]
     assert result.errors == [
-        "This CSV file has no header row Salli recognises, so column 1 was read as the date, "
+        "This file has no header row Salli recognises, so column 1 was read as the date, "
         "column 2 as the amount and column 5 as the description. If that is wrong, import it "
         "with a column mapping."
     ]
@@ -291,3 +296,45 @@ def test_no_header_name_means_two_things():
 
     names = Counter(name for names in _HEADERS.values() for name in names)
     assert [name for name, count in names.items() if count > 1] == []
+
+
+# Tables from elsewhere: a spreadsheet's sheets, a PDF's pages.
+
+
+def test_tables_on_several_pages_are_one_statement():
+    first = Table(
+        [
+            ["Statement of account", ""],
+            ["Date", "Description", "Debit", "Credit", "Balance"],
+            ["01/10/2026", "Rent", "1,200.00", "", "1,340.12"],
+        ],
+        label="Page 1, row",
+        page=1,
+    )
+    # The next page carries on without repeating the header.
+    second = Table(
+        [
+            ["13/10/2026", "Salary", "", "3,450.00", "4,790.12"],
+            ["31/02/2026", "Misprint", "1.00", "", "4,789.12"],
+        ],
+        label="Page 2, row",
+        page=2,
+    )
+
+    result = extract_from_tables([first, second])
+
+    assert result is not None
+    assert [(line.date, line.description, line.source_page) for line in result.lines] == [
+        ("2026-10-01", "Rent", 1),  # day-first: the 13th on page 2 settles it
+        ("2026-10-13", "Salary", 2),
+    ]
+    assert result.errors == ["Page 2, row 2: '31/02/2026' is not a date; skipped"]
+
+
+def test_tables_that_are_no_statement():
+    summary = Table([["Opening balance", "1,340.12"], ["Closing balance", "4,790.12"]])
+    assert extract_from_tables([summary, summary]) is None
+    # The only table, read by what its columns hold, when that is allowed.
+    dated = Table([["01/10/2026", "Rent", "-1,200.00"], ["13/10/2026", "Salary", "3,450.00"]])
+    assert extract_from_tables([dated], infer=False) is None
+    assert extract_from_tables([dated]) is not None
