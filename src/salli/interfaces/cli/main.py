@@ -2182,10 +2182,25 @@ def profile_update(
     ),
     residency_status: str = typer.Option(None, "--residency-status", help="resident|non_resident"),
     employer: str = typer.Option(None, "--employer"),
-    ird_number: str = typer.Option(None, "--ird-number"),
+    tax_residency: str = typer.Option(
+        None,
+        "--tax-residency",
+        help="The country you are taxed in, as an ISO 3166-1 alpha-2 code (LK, GB, …); "
+        "'none' clears it",
+    ),
+    tax_id: list[str] = typer.Option(
+        None,
+        "--tax-id",
+        help="SCHEME=NUMBER, e.g. LK-TIN=123456789 (repeat for several); SCHEME= removes one",
+    ),
+    ird_number: str = typer.Option(None, "--ird-number", help="Sri Lankan TIN (LK-TIN)"),
+    nic: str = typer.Option(None, "--nic", help="Sri Lankan NIC (LK-NIC)"),
 ):
     """Update identity fields on the fact-find profile."""
+    from salli.domain.jurisdiction import stored_tax_ids, with_tax_id
+
     user_id = _require_user()
+    svc = _services()
     data: dict[str, object] = {}
     if display_name is not None:
         data["display_name"] = display_name
@@ -2201,12 +2216,35 @@ def profile_update(
         data["residency_status"] = residency_status
     if employer is not None:
         data["employer"] = employer
+    if tax_residency is not None:
+        data["tax_residency"] = None if tax_residency.lower() in ("none", "") else tax_residency
     if ird_number is not None:
         data["ird_number"] = ird_number
-    if not data:
+    if nic is not None:
+        data["nic"] = nic
+    if not data and not tax_id:
         console.print("[yellow]Nothing to update.[/yellow]")
         raise typer.Exit(1)
-    asyncio.run(_services().profile.update_identity(user_id, data))
+
+    async def _run() -> None:
+        # One event loop for the read and the write: the services' connection
+        # pool belongs to the loop that opened it.
+        if tax_id:
+            # Each one sets or removes a scheme; the others stay as they are.
+            ids = stored_tax_ids((await svc.profile.get_profile(user_id)).get("tax_ids"))
+            for raw in tax_id:
+                scheme, sep, value = raw.partition("=")
+                if not sep:
+                    raise ValueError(f"Invalid --tax-id '{raw}'. Use SCHEME=NUMBER")
+                ids = with_tax_id(ids, scheme, value)
+            data["tax_ids"] = [t.as_dict() for t in ids]
+        await svc.profile.update_identity(user_id, data)
+
+    try:
+        asyncio.run(_run())
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
     emit({"updated": data})
     console.print("[green]Profile updated.[/green]")
 
@@ -3399,6 +3437,11 @@ def onboarding_complete(
         "--base-currency",
         help="ISO 4217 code to keep your ledger in (only while it is still empty)",
     ),
+    tax_residency: str = typer.Option(
+        None,
+        "--tax-residency",
+        help="The country you are taxed in, as an ISO 3166-1 alpha-2 code (LK, GB, …)",
+    ),
 ):
     """Save your profile and create a starter chart of accounts. Safe to re-run."""
     from decimal import Decimal
@@ -3419,6 +3462,7 @@ def onboarding_complete(
             {
                 "name": name,
                 "residency": residency,
+                "tax_residency": tax_residency,
                 "income_sources": [s.strip() for s in income.split(",") if s.strip()],
                 "primary_goal": primary_goal,
                 "goal_target_amount": Decimal(goal_amount),

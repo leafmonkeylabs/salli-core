@@ -25,7 +25,7 @@ USER = "test-user-1"
 
 
 def _profile_row() -> dict[str, Any]:
-    """What SQLUserProfileRepository.get returns for a profile row."""
+    """What UserProfileService.get_profile returns for a profile row."""
     return {
         "id": USER,
         "email": "me@example.com",
@@ -44,6 +44,9 @@ def _profile_row() -> dict[str, Any]:
         "mcp_enabled": False,
         "daily_briefing_enabled": True,
         "preferred_model": None,
+        "tax_residency": None,
+        "tax_ids": [],
+        "nic": None,
     }
 
 
@@ -69,6 +72,70 @@ async def test_updating_the_profile_says_so(client, mock_services):
     r = await client.patch("/v1/onboarding/profile", json={"employer": "Acme"}, headers=AUTH)
     assert r.status_code == 200
     assert r.json() == {"updated": True}
+
+
+async def test_the_profile_carries_the_tax_identity_and_the_fields_it_replaced(
+    client, mock_services
+):
+    """The web and mobile apps read `ird_number` and `nic`; they stay, derived
+    from the tax ids."""
+    row = {
+        **_profile_row(),
+        "tax_residency": "LK",
+        "tax_ids": [
+            {"scheme": "LK-TIN", "value": "123456789"},
+            {"scheme": "LK-NIC", "value": "200012345678"},
+        ],
+        "ird_number": "123456789",
+        "nic": "200012345678",
+    }
+    mock_services.profile.get_profile.return_value = row
+    body = (await client.get("/v1/onboarding/profile", headers=AUTH)).json()
+    assert body == row
+
+
+async def test_the_tax_identity_is_updated_through_the_profile(client, mock_services):
+    r = await client.patch(
+        "/v1/onboarding/profile",
+        json={
+            "tax_residency": "GB",
+            "tax_ids": [{"scheme": "GB-UTR", "value": "1234567890"}],
+            "nic": "200012345678",
+        },
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    mock_services.profile.update_identity.assert_awaited_once_with(
+        "test-user-1",
+        {
+            "tax_residency": "GB",
+            "tax_ids": [{"scheme": "GB-UTR", "value": "1234567890"}],
+            "nic": "200012345678",
+        },
+    )
+
+
+async def test_an_explicit_null_clears_the_residency_and_an_omitted_one_does_not(
+    client, mock_services
+):
+    await client.patch("/v1/onboarding/profile", json={"tax_residency": None}, headers=AUTH)
+    assert mock_services.profile.update_identity.await_args.args[1] == {"tax_residency": None}
+
+    await client.patch("/v1/onboarding/profile", json={"employer": "Acme"}, headers=AUTH)
+    assert mock_services.profile.update_identity.await_args.args[1] == {"employer": "Acme"}
+
+
+async def test_a_malformed_country_or_scheme_is_a_422(client, mock_services):
+    for body in (
+        {"tax_residency": "Sri Lanka"},
+        {"tax_residency": "lk"},
+        {"tax_ids": [{"scheme": "TIN", "value": "1"}]},
+        {"tax_ids": [{"scheme": "lk-tin", "value": "1"}]},
+        {"tax_ids": [{"scheme": "LK-TIN", "value": ""}]},
+    ):
+        r = await client.patch("/v1/onboarding/profile", json=body, headers=AUTH)
+        assert r.status_code == 422, body
+    mock_services.profile.update_identity.assert_not_awaited()
 
 
 # ── Onboarding steps ──────────────────────────────────────────────────────────

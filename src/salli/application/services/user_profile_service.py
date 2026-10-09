@@ -12,12 +12,25 @@ from decimal import Decimal
 from typing import Any
 
 from salli.application.fx import rate_to_base
+from salli.application.ports import ProfileMissing
 from salli.application.services.document_service import DocumentService
 from salli.application.services.fi_service import FiService
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.accounting.models import AccountType, Direction
 from salli.domain.ai_models import DEFAULT_MODEL
 from salli.domain.currency import normalize_currency
+from salli.domain.jurisdiction import (
+    LEGACY_TAX_ID_FIELDS,
+    LK_NIC,
+    LK_TIN,
+    InvalidTaxIdError,
+    TaxId,
+    normalize_country,
+    parse_tax_ids,
+    stored_tax_ids,
+    tax_id_value,
+    with_tax_id,
+)
 from salli.domain.risk import engine as risk_engine
 from salli.domain.risk.life_stage import derive_life_stage
 from salli.domain.risk.models import RiskQuestionnaireAnswers
@@ -38,13 +51,83 @@ class BaseCurrencyLockedError(ValueError):
 # "memories"). Best-effort, self-healing backfill into the structured columns the
 # first time a profile is read after this migration — narrative fields like
 # "motivation" have no structured equivalent and stay as memories.
+#
+# The `ird_number` memory is no longer copied here: migration core_0008 made it
+# the "LK-TIN" tax id, and copying it again on every read would bring back a
+# number the user had since removed.
 _LEGACY_MEMORY_TO_COLUMN = {
     "user_name": "display_name",
     "residency_status": "residency_status",
     "employer": "employer",
     "employment_type": "employment_type",
-    "ird_number": "ird_number",
 }
+
+#: The country whose numbers the legacy fields (`ird_number`, `nic`) hold.
+_LEGACY_TAX_ID_COUNTRY = "LK"
+
+#: Everything `update_identity` treats as part of the tax identity.
+_TAX_IDENTITY_FIELDS = ("tax_residency", "tax_ids", *LEGACY_TAX_ID_FIELDS)
+
+
+def tax_identity_view(profile: dict[str, Any]) -> dict[str, Any]:
+    """`profile` with its tax ids as clean dicts, and the legacy fields the web
+    and mobile apps read (`ird_number`, `nic`) derived from them.
+
+    The `ird_number` column stands in for "LK-TIN" when the tax ids have none:
+    a server that predates tax ids writes only the column.
+    """
+    ids = stored_tax_ids(profile.get("tax_ids"))
+    column = profile.get("ird_number")
+    column_tin = column.strip() if isinstance(column, str) and column.strip() else None
+    return {
+        **profile,
+        "tax_residency": profile.get("tax_residency"),
+        "tax_ids": [t.as_dict() for t in ids],
+        "ird_number": tax_id_value(ids, LK_TIN) or column_tin,
+        "nic": tax_id_value(ids, LK_NIC),
+    }
+
+
+def _apply_tax_changes(
+    current: dict[str, Any], changes: dict[str, Any]
+) -> tuple[str | None, list[TaxId]]:
+    """The residency and tax ids a profile has once `changes` apply to it.
+
+    Raises a ValueError (UnknownCountryError, InvalidTaxIdError) for anything
+    that does not validate, before anything is written.
+    """
+    residency: str | None = current.get("tax_residency")
+    if "tax_residency" in changes:
+        given = changes["tax_residency"]
+        residency = normalize_country(given) if given else None
+
+    replacing = changes.get("tax_ids") is not None
+    if replacing:
+        ids = parse_tax_ids(changes["tax_ids"])
+    else:
+        # The column stands in for a missing LK-TIN (see tax_identity_view), so
+        # an unrelated change does not clear a number only the column held.
+        view = tax_identity_view(current)
+        ids = stored_tax_ids(view["tax_ids"])
+        if view["ird_number"] and tax_id_value(ids, LK_TIN) is None:
+            ids = with_tax_id(ids, LK_TIN, view["ird_number"])
+
+    for field, scheme in LEGACY_TAX_ID_FIELDS.items():
+        if field not in changes:
+            continue
+        value = changes[field]
+        listed = tax_id_value(ids, scheme) if replacing else None
+        if listed is not None and value is not None and value.strip() != listed:
+            raise InvalidTaxIdError(f"{field} and the {scheme} tax id disagree")
+        ids = with_tax_id(ids, scheme, value)
+
+    gave_legacy_number = any(
+        isinstance(changes.get(field), str) and changes[field].strip()
+        for field in LEGACY_TAX_ID_FIELDS
+    )
+    if residency is None and gave_legacy_number and "tax_residency" not in changes:
+        residency = _LEGACY_TAX_ID_COUNTRY
+    return residency, ids
 
 
 def _age_from_dob(dob: datetime.date | str | None) -> int | None:
@@ -161,7 +244,7 @@ class UserProfileService:
         profile = stored if stored is not None else {"id": user_id}
         # Only into a profile that exists: a read never creates one.
         await self._backfill_from_legacy_memories(user_id, profile, persist=stored is not None)
-        return profile
+        return tax_identity_view(profile)
 
     async def get_preferred_model(self, user_id: str) -> str:
         """
@@ -179,6 +262,17 @@ class UserProfileService:
         return DEFAULT_MODEL
 
     async def update_identity(self, user_id: str, data: dict[str, Any]) -> None:
+        """Update the identity fields present in `data`; the rest stay as they are.
+
+        The tax identity, validated before anything is written:
+
+        - `tax_residency`: an ISO 3166-1 alpha-2 code; None or "" clears it.
+        - `tax_ids`: replaces every tax id, `[{"scheme", "value"}]`.
+        - `ird_number`, `nic`: the legacy fields, which set (or, blank, remove)
+          the "LK-TIN" and "LK-NIC" tax ids. They are how the web and mobile
+          apps say a user is Sri Lankan, so writing one to a profile with no
+          residency makes it LK, as migration core_0008 did for existing users.
+        """
         fields: dict[str, Any] = {}
         for key in (
             "display_name",
@@ -186,7 +280,6 @@ class UserProfileService:
             "employment_status",
             "employment_type",
             "residency_status",
-            "ird_number",
         ):
             if key in data:
                 fields[key] = data[key]
@@ -194,10 +287,24 @@ class UserProfileService:
             fields["date_of_birth"] = datetime.date.fromisoformat(data["date_of_birth"])
         if "dependents_count" in data:
             fields["dependents_count"] = int(data["dependents_count"])
-        if not fields:
+        tax_changes = {key: data[key] for key in _TAX_IDENTITY_FIELDS if key in data}
+        if not fields and not tax_changes:
             return
+        # One unit of work: a change that does not validate writes nothing.
         async with self._uow_factory() as uow:
-            await uow.user_profiles.upsert(user_id, fields)
+            if fields:
+                await uow.user_profiles.upsert(user_id, fields)
+            if tax_changes:
+                current = await uow.user_profiles.get(user_id)
+                if current is None:
+                    raise ProfileMissing(user_id)
+                residency, ids = _apply_tax_changes(current, tax_changes)
+                await uow.user_profiles.set_tax_identity(
+                    user_id,
+                    tax_residency=residency,
+                    tax_ids=[t.as_dict() for t in ids],
+                    ird_number=tax_id_value(ids, LK_TIN),
+                )
         await self._recompute_life_stage(user_id)
 
     async def _recompute_life_stage(self, user_id: str) -> None:

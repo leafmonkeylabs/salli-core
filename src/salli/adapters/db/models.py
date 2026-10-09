@@ -406,6 +406,8 @@ class UserProfileORM(Base):
     residency_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     employer: Mapped[str | None] = mapped_column(String(200), nullable=True)
     employment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # The Sri Lankan TIN from before `tax_ids`: kept, and kept equal to the
+    # "LK-TIN" tax id, for anything that still reads the column.
     ird_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
     risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_category: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -434,6 +436,13 @@ class UserProfileORM(Base):
     # tier: {"chatgpt": {"best": "...", "fast": "..."}, "openai": {...}}. NULL
     # or a missing tier means "let Salli pick from the account's models".
     ai_models: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Where the user is taxed: an ISO 3166-1 alpha-2 code, or NULL while they
+    # have not said. It decides which tax packs apply (domain/jurisdiction.py).
+    tax_residency: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # Their tax ids, [{"scheme": "LK-TIN", "value": "..."}, ...], one per scheme.
+    tax_ids: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -444,6 +453,11 @@ class UserProfileORM(Base):
 
     __table_args__ = (
         CheckConstraint("base_currency ~ '^[A-Z]{3}$'", name="ck_user_profiles_base_currency"),
+        CheckConstraint(
+            "tax_residency IS NULL OR tax_residency ~ '^[A-Z]{2}$'",
+            name="ck_user_profiles_tax_residency",
+        ),
+        CheckConstraint("jsonb_typeof(tax_ids) = 'array'", name="ck_user_profiles_tax_ids"),
     )
 
 

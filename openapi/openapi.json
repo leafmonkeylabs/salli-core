@@ -15591,6 +15591,22 @@
             ],
             "title": "Base Currency"
           },
+          "tax_residency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Residency"
+          },
           "nic": {
             "type": "string",
             "title": "Nic",
@@ -16617,6 +16633,40 @@
               }
             ],
             "title": "Preferred Model"
+          },
+          "tax_residency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Residency"
+          },
+          "tax_ids": {
+            "items": {
+              "$ref": "#/components/schemas/TaxId"
+            },
+            "type": "array",
+            "title": "Tax Ids"
+          },
+          "nic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nic"
           }
         },
         "type": "object",
@@ -16721,6 +16771,36 @@
             ],
             "title": "Employer"
           },
+          "tax_residency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Residency"
+          },
+          "tax_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaxId"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Ids"
+          },
           "ird_number": {
             "anyOf": [
               {
@@ -16731,6 +16811,17 @@
               }
             ],
             "title": "Ird Number"
+          },
+          "nic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nic"
           },
           "base_currency": {
             "anyOf": [
@@ -19486,6 +19577,31 @@
           "band_workings"
         ],
         "title": "TaxComputation"
+      },
+      "TaxId": {
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}-[A-Z0-9]+$",
+            "title": "Scheme",
+            "examples": [
+              "LK-TIN"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheme",
+          "value"
+        ],
+        "title": "TaxId",
+        "description": "A number a tax authority knows the user by."
       },
       "TaxPack": {
         "properties": {

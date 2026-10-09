@@ -530,6 +530,19 @@ class UserProfileRepository(ABC):
         there is no profile."""
         raise NotImplementedError
 
+    async def set_tax_identity(
+        self,
+        user_id: str,
+        *,
+        tax_residency: str | None,
+        tax_ids: list[dict[str, str]],
+        ird_number: str | None,
+    ) -> None:
+        """Write the tax residency (None clears it) and the tax ids exactly as
+        given, with `ird_number`, the legacy column the "LK-TIN" id mirrors.
+        `ProfileMissing` if there is no profile."""
+        raise NotImplementedError
+
 
 class LlmCredentialRepository(ABC):
     """Per-user provider API keys (BYOK), stored encrypted.

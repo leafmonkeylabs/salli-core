@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from salli.application.ports import AccountCodeTaken
+from salli.domain.jurisdiction import LEGACY_TAX_ID_FIELDS, InvalidTaxIdError, make_tax_id
 
 # ── Account templates per income source ───────────────────────────────────────
 
@@ -88,6 +89,7 @@ GOAL_LABELS = {
 _ANSWER_DEFAULTS: dict[str, Any] = {
     "nic": "",
     "residency": "resident",
+    "tax_residency": None,
     "employer": "",
     "employment_type": "",
     "ird_number": "",
@@ -101,10 +103,13 @@ _ANSWER_DEFAULTS: dict[str, Any] = {
 
 
 class OnboardingService:
-    def __init__(self, documents: Any, fi: Any, ledger: Any) -> None:
+    def __init__(self, documents: Any, fi: Any, ledger: Any, profile: Any = None) -> None:
         self._documents = documents
         self._fi = fi
         self._ledger = ledger
+        # Where the tax identity goes (UserProfileService). Optional so the
+        # service builds without one; then only memories record the numbers.
+        self._profile = profile
 
     async def is_complete(self, user_id: str) -> bool:
         return await self._documents.get_memory(user_id, "onboarding_complete") is not None
@@ -147,6 +152,8 @@ class OnboardingService:
 
         for slug, value in memories.items():
             await self._documents.save_memory(user_id, slug=slug, value=value)
+
+        await self._record_tax_identity(user_id, a)
 
         # If they named a concrete target, seed an initial Financial Independence goal.
         if a["primary_goal"] and a["goal_target_amount"] > 0:
@@ -211,3 +218,26 @@ class OnboardingService:
             "accounts_created": created,
             "accounts_skipped": skipped,
         }
+
+    async def _record_tax_identity(self, user_id: str, a: dict[str, Any]) -> None:
+        """Put where the user is taxed, and the Sri Lankan numbers this flow
+        collects, on the profile (where a Sri Lankan number with no residency
+        makes the user LK; see UserProfileService.update_identity)."""
+        if self._profile is None:
+            return
+        identity: dict[str, Any] = {}
+        if a.get("tax_residency"):
+            identity["tax_residency"] = a["tax_residency"]
+        for field, scheme in LEGACY_TAX_ID_FIELDS.items():
+            value = a.get(field)
+            if not value:
+                continue
+            try:
+                make_tax_id(scheme, value)
+            except InvalidTaxIdError:
+                # This flow always took any text. One that cannot be a number
+                # stays the memory it always was, rather than failing onboarding.
+                continue
+            identity[field] = value
+        if identity:
+            await self._profile.update_identity(user_id, identity)

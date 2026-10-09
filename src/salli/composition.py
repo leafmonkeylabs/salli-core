@@ -260,7 +260,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         fi=fi,
         advisor=advisor,
         profile=profile,
-        onboarding=OnboardingService(documents, fi, ledger),
+        onboarding=OnboardingService(documents, fi, ledger, profile),
         budget=budget,
         debt=debt,
         portfolio=portfolio,

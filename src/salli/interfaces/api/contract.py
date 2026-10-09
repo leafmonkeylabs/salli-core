@@ -304,6 +304,12 @@ CurrencyCode = Annotated[
     str, Field(pattern=r"^[A-Z]{3}$", examples=["USD"], description="ISO 4217 currency code")
 ]
 
+#: An ISO 3166-1 alpha-2 country code.
+CountryCode = Annotated[
+    str,
+    Field(pattern=r"^[A-Z]{2}$", examples=["LK"], description="ISO 3166-1 alpha-2 country code"),
+]
+
 
 class Problem(BaseModel):
     """An error, as RFC 9457 problem details (`application/problem+json`).
