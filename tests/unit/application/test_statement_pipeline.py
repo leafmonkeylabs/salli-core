@@ -225,3 +225,86 @@ async def test_without_an_account_rows_are_in_the_base_currency(world):
     assert first.raw.amount == Decimal("84.17")
     # Nothing forces a side: both are as the model chose them.
     assert (first.debit_account_id, first.credit_account_id) == ("food", "savings")
+
+
+# ── Rows from anywhere: import_rows ───────────────────────────────────────────
+
+
+class Storage:
+    def __init__(self) -> None:
+        self.uploads: list[tuple[str, str, bytes]] = []
+
+    async def upload(self, user_id: str, key: str, data: bytes) -> str:
+        self.uploads.append((user_id, key, data))
+        return f"stored/{key}"
+
+
+def _row(
+    description: str,
+    amount: str,
+    money_in: bool = False,
+    date: str = "2026-10-05",
+    bank_ref: str = "",
+    currency: str = "USD",
+) -> RawRow:
+    return RawRow(
+        date=date,
+        description=description,
+        amount=Decimal(amount),
+        credit_flag=money_in,
+        currency=currency,
+        bank_ref=bank_ref,
+    )
+
+
+async def test_rows_from_a_feed_import_without_a_file(world):
+    storage = Storage()
+    feed = [
+        _row("BLUE BOTTLE COFFEE", "4.50", bank_ref="txn_8f2k"),
+        _row("NORTHWIND PAYROLL", "2400.00", money_in=True, date="2026-10-01", bank_ref="txn_8f2m"),
+    ]
+
+    result = await world.service(storage=storage).import_rows(
+        USER, feed, bank="Example Bank", account_id="checking", api_key="k"
+    )
+
+    assert storage.uploads == []  # a feed has no file to keep
+    assert (result.period_start, result.period_end) == ("2026-10-01", "2026-10-05")
+    assert [t.raw.bank_ref for t in result.transactions] == ["txn_8f2k", "txn_8f2m"]
+    (statement,) = world.statements.statements.values()
+    assert statement | {"id": "-"} == {
+        "id": "-",
+        "bank": "Example Bank",
+        "account_id": "checking",
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-05",
+        "storage_key": "",
+    }
+
+
+async def test_the_original_file_is_kept(world):
+    storage = Storage()
+    data = _fixture("us_checking.csv")
+
+    result = await world.service(storage=storage).parse_statement(
+        USER, "october.csv", data, account_id="checking", api_key="k"
+    )
+
+    assert storage.uploads == [(USER, f"{result.statement_id}/october.csv", data)]
+    assert world.statements.statements[result.statement_id]["storage_key"] == (
+        f"stored/{result.statement_id}/october.csv"
+    )
+
+
+async def test_nothing_to_import(world):
+    result = await world.service().import_rows(USER, [], bank="", account_id=None)
+    assert (result.statement_id, result.errors) == ("", ["No transactions to import"])
+
+    result = await world.service().import_rows(
+        USER, [_row("HOTEL", "120.00", currency="EUR")], bank="", account_id="checking"
+    )
+    assert result.errors == [
+        "Skipped 1 transaction(s) in EUR: Checking is kept in USD",
+        "No transactions to import",
+    ]
+    assert world.statements.statements == {}

@@ -124,8 +124,6 @@ class ParsingService:
         detecting it. Rows the importer could not read are listed in
         `errors`, and so are its guesses.
         """
-        from salli.adapters.parsing.llm_classifier import classify_transactions
-
         account = await self._money_account(user_id, account_id) if account_id else None
         if currency:
             currency = normalize_currency(currency)
@@ -140,13 +138,9 @@ class ParsingService:
             async with self._uow_factory() as uow:
                 currency = await uow.user_profiles.base_currency(user_id)
 
-        # 1. Extract raw rows
         raw_rows, errors = _extract(
             filename, file_bytes, currency, date_order=date_order, csv_mapping=csv_mapping
         )
-        if account is not None:
-            raw_rows, skipped = _in_currency_of(account, raw_rows)
-            errors += skipped
         if not raw_rows:
             return ParseResult(
                 statement_id="",
@@ -158,11 +152,60 @@ class ParsingService:
                     "No transactions found in the file. Check the format is supported",
                 ],
             )
+        return await self.import_rows(
+            user_id,
+            raw_rows,
+            bank=bank,
+            account_id=account_id,
+            errors=errors,
+            filename=filename,
+            file_bytes=file_bytes,
+            api_key=api_key,
+        )
 
-        period_start = min(r.date for r in raw_rows)
-        period_end = max(r.date for r in raw_rows)
+    async def import_rows(
+        self,
+        user_id: str,
+        rows: list[RawRow],
+        *,
+        bank: str,
+        account_id: str | None,
+        errors: list[str] | None = None,
+        filename: str | None = None,
+        file_bytes: bytes | None = None,
+        api_key: Any = None,
+    ) -> ParseResult:
+        """
+        Import transactions already read from somewhere — a statement file, a
+        bank feed — as one statement for review: everything after extraction.
 
-        # 2. Intra-batch dedup using the dedup matcher
+        `account_id` is the account they are all on (validated as in
+        parse_statement), `errors` what the reading already had to say, and
+        `file_bytes` (with its `filename`) the original, kept in storage when
+        there is one. Rows from a feed carry the provider's transaction id as
+        their bank_ref.
+        """
+        from salli.adapters.parsing.llm_classifier import classify_transactions
+
+        errors = list(errors or [])
+        account = await self._money_account(user_id, account_id) if account_id else None
+        kept = rows
+        if account is not None:
+            kept, skipped = _in_currency_of(account, rows)
+            errors += skipped
+        if not kept:
+            return ParseResult(
+                statement_id="",
+                bank=bank,
+                period_start="",
+                period_end="",
+                errors=[*errors, "No transactions to import"],
+            )
+
+        period_start = min(r.date for r in kept)
+        period_end = max(r.date for r in kept)
+
+        # Intra-batch dedup using the dedup matcher
         candidates = [
             CandidateTransaction(
                 id=str(i),
@@ -174,17 +217,17 @@ class ParsingService:
                 source="statement",
                 bank_ref=r.bank_ref or None,
             )
-            for i, r in enumerate(raw_rows)
+            for i, r in enumerate(kept)
         ]
         dedup_results = batch_check(candidates, existing=[], existing_keys=set())
 
         unique_rows = [
             r
-            for r, dr in zip(raw_rows, dedup_results, strict=False)
+            for r, dr in zip(kept, dedup_results, strict=False)
             if dr.status != DedupStatus.EXACT_DUPLICATE
         ]
 
-        # 3. Load accounts for LLM classification
+        # Load accounts for LLM classification
         async with self._uow_factory() as uow:
             accounts = await uow.ledger.get_accounts(user_id)
 
@@ -194,11 +237,11 @@ class ParsingService:
                 bank=bank,
                 period_start=period_start,
                 period_end=period_end,
-                raw_rows=raw_rows,
+                raw_rows=rows,
                 errors=[*errors, "No accounts found. Create a chart of accounts first"],
             )
 
-        # 4. LLM classifies transactions
+        # LLM classifies transactions
         parsed = await classify_transactions(
             unique_rows, accounts, api_key=await self._key_for(user_id, api_key)
         )
@@ -206,7 +249,7 @@ class ParsingService:
             for txn in parsed:
                 _book_money_side(txn, account.id)
 
-        # 5. Stamp dedup keys and check against existing ledger entries
+        # Stamp dedup keys and check against existing ledger entries
         async with self._uow_factory() as uow:
             existing_entries = await uow.ledger.get_entries(
                 user_id, from_date=period_start, to_date=period_end
@@ -233,18 +276,18 @@ class ParsingService:
             if txn.dedup_key in existing_keys:
                 txn.dedup_status = DedupStatus.EXACT_DUPLICATE.value
 
-        # 6. Upload raw file to storage (best-effort — parsing proceeds even if storage fails)
         statement_id = str(uuid.uuid4())
         storage_key = ""
-        if self._storage is not None:
+        # The original is kept when there is one: a feed has no file. Storing
+        # it is best-effort, so an import never fails over it.
+        if self._storage is not None and file_bytes is not None:
             try:
                 storage_key = await self._storage.upload(
-                    user_id, f"{statement_id}/{filename}", file_bytes
+                    user_id, f"{statement_id}/{filename or 'statement'}", file_bytes
                 )
             except Exception:
                 pass
 
-        # 7. Persist to DB
         async with self._uow_factory() as uow:
             await uow.statements.save_statement(
                 user_id=user_id,
@@ -263,7 +306,7 @@ class ParsingService:
             period_start=period_start,
             period_end=period_end,
             transactions=parsed,
-            raw_rows=raw_rows,
+            raw_rows=rows,
             errors=errors,
         )
 
