@@ -147,4 +147,50 @@ async def test_the_scheduler_needs_the_cron_secret(client, app, banks):
     assert (await client.post("/v1/bank-connections/cron/sync-due")).status_code == 401
     r = await client.post("/v1/bank-connections/cron/sync-due", headers={"X-Cron-Secret": "s3cret"})
     assert (r.status_code, r.json()) == (202, {"due": 2, "scheduled": True})
-    banks.sync_due.assert_awaited_once()
+    # The connections it counted are the ones it syncs: listed once.
+    banks.due.assert_awaited_once()
+    banks.sync_due.assert_awaited_once_with(due=[("u1", "c1"), ("u2", "c2")])
+
+
+async def test_the_bank_scheduler_refuses_a_non_ascii_secret(client, app, banks):
+    from types import SimpleNamespace
+
+    from salli.config import get_settings
+
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cron_secret="s3cret")
+    r = await client.post(
+        "/v1/bank-connections/cron/sync-due", headers={"X-Cron-Secret": "sécret".encode()}
+    )
+    assert r.status_code == 401
+
+
+async def test_a_sync_already_running_is_a_conflict(client, banks):
+    from salli.application.services.bank_connection_service import SyncInProgress
+
+    banks.sync.side_effect = SyncInProgress("This bank is syncing already")
+    r = await client.post("/v1/bank-connections/c1/sync", headers=AUTH)
+    assert r.status_code == 409
+
+
+async def test_only_a_missing_connection_is_not_found(client, banks):
+    from salli.application.services.bank_connection_service import BankConnectionNotFound
+
+    banks.sync.side_effect = BankConnectionNotFound("c1")
+    assert (await client.post("/v1/bank-connections/c1/sync", headers=AUTH)).status_code == 404
+    # A KeyError from inside a sync (a payload without an id) is no 404.
+    banks.sync.side_effect = KeyError("id")
+    r = await client.post("/v1/bank-connections/c1/sync", headers=AUTH)
+    assert r.json()["detail"] != "No such connection"
+
+
+async def test_connections_show_their_warnings_and_account_notes(client, banks):
+    troubled = {
+        **_CONNECTION,
+        "status": "attention",
+        "warnings": ["Chase needs you to sign in again"],
+        "accounts": [{**_CONNECTION["accounts"][0], "notes": "Could not import"}],
+    }
+    banks.list.return_value = [troubled]
+    [shown] = (await client.get("/v1/bank-connections", headers=AUTH)).json()["connections"]
+    assert shown["warnings"] == ["Chase needs you to sign in again"]
+    assert shown["accounts"][0]["notes"] == "Could not import"

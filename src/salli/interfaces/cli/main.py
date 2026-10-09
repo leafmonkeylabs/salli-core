@@ -3867,9 +3867,18 @@ def _connection_id(user_id: str, prefix: str) -> str:
 @banks_app.command("list")
 def banks_list():
     """Your bank connections, their accounts, and where each is imported."""
+    from salli.domain.currency import format_amount
+
     user_id = _require_user()
-    banks = _services().bank_connections
-    connections = asyncio.run(banks.list(user_id))
+    svc = _services()
+    banks = svc.bank_connections
+
+    async def _read() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        connections = await banks.list(user_id)
+        accounts = {a.id: a for a in await svc.ledger.list_accounts(user_id, True)}
+        return connections, accounts
+
+    connections, accounts = asyncio.run(_read())
     if emit(
         {"available": banks.available, "providers": banks.providers, "connections": connections}
     ):
@@ -3882,16 +3891,18 @@ def banks_list():
     if not connections:
         console.print("[dim]No banks connected. Use `salli banks connect`.[/dim]")
         return
-    accounts = {a.id: a for a in asyncio.run(_services().ledger.list_accounts(user_id, True))}
     for c in connections:
         synced = c["last_synced_at"].strftime("%Y-%m-%d %H:%M") if c["last_synced_at"] else "never"
+        # Names, errors and warnings come from the bank: text, never markup.
         state = (
-            f"[red]{c['status']}: {c['last_error']}[/red]"
+            f"[red]{c['status']}: {escape(c['last_error'] or '')}[/red]"
             if c["status"] == "error"
+            else f"[yellow]{c['status']}[/yellow]"
+            if c["status"] == "attention"
             else c["status"]
         )
         table = Table(
-            title=f"{c['name']} ({c['provider']}, {c['id'][:8]}): synced {synced}, {state}"
+            title=f"{escape(c['name'])} ({c['provider']}, {c['id'][:8]}): synced {synced}, {state}"
         )
         table.add_column("Bank account")
         table.add_column("Id", style="dim")
@@ -3899,15 +3910,25 @@ def banks_list():
         table.add_column("Imported into")
         for a in c["accounts"]:
             target = accounts.get(a["account_id"]) if a["account_id"] else None
+            name = f"{a['institution']} · {a['name']}" if a["institution"] else a["name"]
+            into = (
+                escape(f"{target.code} {target.name}") if target else "[yellow]not mapped[/yellow]"
+            )
+            if a.get("notes"):
+                into += f"\n[red]{escape(a['notes'])}[/red]"
             table.add_row(
-                f"{a['institution']} · {a['name']}" if a["institution"] else a["name"],
-                a["remote_id"],
-                _money(a["balance"], a["currency"], width=0)
+                escape(name),
+                escape(a["remote_id"]),
+                format_amount(a["balance"], a["currency"])
                 if a["balance"] is not None
-                else a["currency"],
-                f"{target.code} {target.name}" if target else "[yellow]not mapped[/yellow]",
+                else escape(a["currency"]),
+                into,
             )
         console.print(table)
+        if c["status"] == "attention" and c.get("last_error"):
+            console.print(f"[yellow]{escape(c['last_error'])}[/yellow]")
+        for warning in c.get("warnings") or []:
+            console.print(f"[yellow]{escape(warning)}[/yellow]")
 
 
 @banks_app.command("connect")
@@ -3932,13 +3953,19 @@ def banks_connect(
             _services().bank_connections.connect(user_id, provider, token, name)
         )
     except (BankLinkError, BankConnectionsUnavailable, ValueError) as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(1) from exc
     if emit(connected):
         return
     console.print(f"[green]Connected[/green] ({connected['id'][:8]}).")
     for warning in connected["warnings"]:
-        console.print(f"[yellow]{warning}[/yellow]")
+        console.print(f"[yellow]{escape(warning)}[/yellow]")
+    if connected.get("error"):
+        console.print(
+            f"[yellow]Its accounts could not be read yet: {escape(connected['error'])}[/yellow] "
+            "The connection is kept; `salli banks sync` tries again."
+        )
+        return
     console.print(
         "Next: map each bank account to a Salli account with `salli banks map`, "
         "then `salli banks sync`."
@@ -3958,26 +3985,20 @@ def banks_map(
         console.print("[red]Give exactly one of --account, --create or --unmap.[/red]")
         raise typer.Exit(2)
     user_id = _require_user()
+    svc = _services()
     connection_id = _connection_id(user_id, connection)
-    account_id = None
-    if account:
-        accounts = asyncio.run(_services().ledger.list_accounts(user_id))
-        match = next((a for a in accounts if a.id == account or a.code == account), None)
-        if match is None:
-            console.print(f"[red]No active account {account!r}.[/red]")
-            raise typer.Exit(1)
-        account_id = match.id
+    account_id = _account_by_code_or_id(svc, user_id, account) if account else None
     try:
         mapped = asyncio.run(
-            _services().bank_connections.map_account(
+            svc.bank_connections.map_account(
                 user_id, connection_id, remote_id, account_id, create=create
             )
         )
     except KeyError as exc:
-        console.print(f"[red]No bank account {remote_id!r} on that connection.[/red]")
+        console.print(f"[red]No bank account {escape(remote_id)!r} on that connection.[/red]")
         raise typer.Exit(1) from exc
     except ValueError as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(1) from exc
     if emit({"remote_id": remote_id, "account_id": mapped}):
         return
@@ -3988,42 +4009,49 @@ def banks_map(
 def banks_sync(
     connection: str = typer.Argument(None, help="Connection id; every connection when omitted"),
 ):
-    """Fetch new transactions and queue them for review (`salli parse review`)."""
+    """Fetch new transactions and queue them for review (`salli parse pending`,
+    then `salli parse post`)."""
     from salli.application.ports import BankLinkError
-    from salli.application.services.bank_connection_service import BankConnectionsUnavailable
+    from salli.application.services.bank_connection_service import (
+        BankConnectionsUnavailable,
+        SyncInProgress,
+    )
 
     user_id = _require_user()
-    banks = _services().bank_connections
-    ids = (
-        [_connection_id(user_id, connection)]
-        if connection
-        else [c["id"] for c in asyncio.run(banks.list(user_id))]
-    )
-    results: list[dict[str, Any]] = []
-    failed = False
-    for connection_id in ids:
-        try:
-            synced = asyncio.run(banks.sync(user_id, connection_id))
-            results.append({"id": connection_id, **synced})
-        except (BankLinkError, BankConnectionsUnavailable) as exc:
-            failed = True
-            results.append({"id": connection_id, "error": str(exc)})
+    chosen = _connection_id(user_id, connection) if connection else None
+
+    async def _sync_all() -> list[dict[str, Any]]:
+        # One event loop for the listing and every sync.
+        banks = _services().bank_connections
+        ids = [chosen] if chosen else [c["id"] for c in await banks.list(user_id)]
+        results: list[dict[str, Any]] = []
+        for connection_id in ids:
+            try:
+                synced = await banks.sync(user_id, connection_id)
+                results.append({"id": connection_id, **synced})
+            except (BankLinkError, BankConnectionsUnavailable, SyncInProgress) as exc:
+                results.append({"id": connection_id, "error": str(exc)})
+        return results
+
+    results = asyncio.run(_sync_all())
+    failed = any("error" in r for r in results)
     if emit(results):
         raise typer.Exit(1 if failed else 0)
     for r in results:
         if "error" in r:
-            console.print(f"[red]{r['id'][:8]}: {r['error']}[/red]")
+            console.print(f"[red]{r['id'][:8]}: {escape(r['error'])}[/red]")
             continue
         for a in r["accounts"]:
             console.print(
-                f"{a['name']}: {a['queued']} new to review, {a['duplicates']} seen before"
+                f"{escape(a['name'])}: {a.get('queued', 0)} new to review, "
+                f"{a.get('duplicates', 0)} seen before"
             )
             for note in a.get("notes", []):
-                console.print(f"  [dim]{note}[/dim]")
+                console.print(f"  [dim]{escape(note)}[/dim]")
         for name in r["unmapped"]:
-            console.print(f"[dim]{name}: not mapped, skipped[/dim]")
+            console.print(f"[dim]{escape(name)}: not mapped, skipped[/dim]")
         for warning in r["warnings"]:
-            console.print(f"[yellow]{warning}[/yellow]")
+            console.print(f"[yellow]{escape(warning)}[/yellow]")
     if failed:
         raise typer.Exit(1)
 
@@ -4042,11 +4070,14 @@ def banks_sync_due(
             _services().bank_connections.sync_due(_dt.timedelta(hours=max_age_hours))
         )
     except BankConnectionsUnavailable as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(1) from exc
     if emit(counts):
         raise typer.Exit(1 if counts["failed"] else 0)
-    console.print(f"{counts['synced']} of {counts['due']} synced, {counts['failed']} failed.")
+    console.print(
+        f"{counts['synced']} of {counts['due']} synced, {counts['failed']} failed, "
+        f"{counts['skipped']} already syncing."
+    )
     if counts["failed"]:
         raise typer.Exit(1)
 

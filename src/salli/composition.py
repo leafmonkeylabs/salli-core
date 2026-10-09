@@ -37,7 +37,7 @@ from salli.application.services.subscription_service import SubscriptionService
 from salli.application.services.tax_service import TaxService
 from salli.application.services.user_profile_service import UserProfileService
 from salli.application.unit_of_work import UnitOfWork
-from salli.config import Settings, auth_can_hold_secrets, insecure_dev_auth
+from salli.config import Settings, auth_can_hold_secrets
 from salli.extensions import (
     Contributions,
     ExtensionContext,
@@ -265,7 +265,8 @@ def _build_bank_connections(
 ) -> BankConnectionService:
     """Bank connections, sealing credentials with the same key ring as stored
     LLM keys (bound to their own row, so neither opens as the other). Off
-    while development sign-in is on: anyone could then read anyone's bank."""
+    while the development sign-in fallback is live (`auth_can_hold_secrets`):
+    anyone could then read anyone's bank."""
     from salli.adapters.banks.simplefin import SimpleFinConnector
     from salli.adapters.crypto.keyring import KeyRing
 
@@ -297,7 +298,8 @@ def _build_bank_connections(
         KeyRing(settings.byok_encryption_keys),
         {"simplefin": SimpleFinConnector()},
         importer,
-        auth_is_real=not insecure_dev_auth(settings),
+        # The one gate on holding a user's secrets, shared with stored LLM keys.
+        auth_is_real=auth_can_hold_secrets(settings),
     )
 
 

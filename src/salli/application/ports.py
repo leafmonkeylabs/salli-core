@@ -871,6 +871,8 @@ class RemoteAccount:
     remote_id: str
     name: str
     institution: str
+    #: An ISO 4217 code, normalised by the connector; or a provider's own unit
+    #: (points, miles) as it gave it, which `is_currency` says no ledger holds.
     currency: str
     balance: Decimal
     balance_date: datetime | None
@@ -893,6 +895,9 @@ class BankSnapshot:
     #: Messages the provider asks to show the user (a connection needing
     #: re-authentication, an account it could not reach). Already sanitized.
     warnings: list[str]
+    #: Accounts whose institution reported a problem: what came back for
+    #: them may be incomplete, so their import marker is not moved on.
+    troubled: frozenset[str] = frozenset()
 
 
 class BankLinkError(Exception):
@@ -950,9 +955,29 @@ class BankConnectionRepository(ABC):
     async def delete(self, user_id: str, connection_id: str) -> bool: ...
 
     @abstractmethod
-    async def list_due(self, synced_before: datetime) -> list[tuple[str, str]]:
-        """(user id, connection id) of every connection, anyone's, never
-        synced or last synced before `synced_before`. For the scheduler."""
+    async def list_due(
+        self, attempted_before: datetime, failed_before: datetime, now: datetime
+    ) -> list[tuple[str, str]]:
+        """(user id, connection id) of every connection, anyone's, due a sync:
+        never attempted or last attempted before `attempted_before`, one in
+        error only if attempted before `failed_before`, and none another sync
+        holds (`claim`). For the scheduler."""
+        ...
+
+    @abstractmethod
+    async def claim(self, user_id: str, connection_id: str, now: datetime, until: datetime) -> bool:
+        """Hold the connection for a sync until `until`, and record the
+        attempt. False when another sync holds it."""
+        ...
+
+    @abstractmethod
+    async def release(self, user_id: str, connection_id: str) -> None: ...
+
+    @abstractmethod
+    async def update_account(
+        self, user_id: str, connection_id: str, remote_id: str, fields: dict[str, Any]
+    ) -> None:
+        """Set a bank account's `last_imported_at` or `notes`."""
         ...
 
 

@@ -9600,6 +9600,29 @@
               }
             ],
             "title": "Account Id"
+          },
+          "last_imported_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Imported At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -9652,6 +9675,17 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
           }
         },
         "type": "object",
@@ -9689,6 +9723,13 @@
               }
             ],
             "title": "Last Error"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
           },
           "last_synced_at": {
             "anyOf": [
@@ -11209,6 +11250,15 @@
             "type": "array",
             "title": "Statements",
             "description": "Each imported statement as in `statements.list`, with its parsed\n`transactions` (as statement transactions are shown), whatever their state."
+          },
+          "bank_connections": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Bank Connections",
+            "description": "Each bank connection as in `bank-connections.list`: its accounts, where\neach is imported, and the bank's last balances. Never its credential."
           }
         },
         "additionalProperties": true,

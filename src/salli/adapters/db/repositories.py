@@ -551,11 +551,14 @@ class SQLStatementRepository(StatementRepository):
     ) -> None:
         import uuid as _uuid
 
+        # The label fits its column, whoever made it: a bank feed's
+        # "institution · account name" can run past it.
+        width = StatementORM.__table__.c.bank.type.length or 100
         orm = StatementORM(
             id=statement_id,
             user_id=user_id,
             storage_key=storage_key,
-            bank=bank,
+            bank=(bank or "")[:width],
             account_id=account_id,
             period_start=period_start,
             period_end=period_end,
@@ -2874,18 +2877,72 @@ class SQLBankConnectionRepository(BankConnectionRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
-    async def list_due(self, synced_before: datetime) -> list[tuple[str, str]]:
+    async def list_due(
+        self, attempted_before: datetime, failed_before: datetime, now: datetime
+    ) -> list[tuple[str, str]]:
         rows = await self._s.execute(
             select(BankConnectionORM.user_id, BankConnectionORM.id)
             .where(
                 or_(
-                    BankConnectionORM.last_synced_at.is_(None),
-                    BankConnectionORM.last_synced_at < synced_before,
-                )
+                    BankConnectionORM.last_attempt_at.is_(None),
+                    BankConnectionORM.last_attempt_at < attempted_before,
+                ),
+                # A connection whose last attempt failed is retried once a day.
+                or_(
+                    BankConnectionORM.status != "error",
+                    BankConnectionORM.last_attempt_at.is_(None),
+                    BankConnectionORM.last_attempt_at < failed_before,
+                ),
+                or_(
+                    BankConnectionORM.sync_claimed_until.is_(None),
+                    BankConnectionORM.sync_claimed_until < now,
+                ),
             )
-            .order_by(BankConnectionORM.last_synced_at.asc().nulls_first())
+            .order_by(BankConnectionORM.last_attempt_at.asc().nulls_first())
         )
         return [(user_id, connection_id) for user_id, connection_id in rows.all()]
+
+    async def claim(self, user_id: str, connection_id: str, now: datetime, until: datetime) -> bool:
+        claimed = await self._s.execute(
+            update(BankConnectionORM)
+            .where(
+                BankConnectionORM.id == connection_id,
+                BankConnectionORM.user_id == user_id,
+                or_(
+                    BankConnectionORM.sync_claimed_until.is_(None),
+                    BankConnectionORM.sync_claimed_until < now,
+                ),
+            )
+            .values(sync_claimed_until=until, last_attempt_at=now)
+            .returning(BankConnectionORM.id)
+        )
+        return claimed.first() is not None
+
+    async def release(self, user_id: str, connection_id: str) -> None:
+        await self._s.execute(
+            update(BankConnectionORM)
+            .where(BankConnectionORM.id == connection_id, BankConnectionORM.user_id == user_id)
+            .values(sync_claimed_until=None)
+        )
+
+    async def update_account(
+        self, user_id: str, connection_id: str, remote_id: str, fields: dict[str, Any]
+    ) -> None:
+        row = (
+            await self._s.execute(
+                select(BankConnectionAccountORM).where(
+                    BankConnectionAccountORM.connection_id == connection_id,
+                    BankConnectionAccountORM.user_id == user_id,
+                    BankConnectionAccountORM.remote_id == remote_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        for key in ("last_imported_at", "notes"):
+            if key in fields:
+                setattr(row, key, fields[key])
+        await self._s.flush()
 
     async def _one(self, user_id: str, connection_id: str) -> BankConnectionORM | None:
         return (
@@ -2909,6 +2966,8 @@ class SQLBankConnectionRepository(BankConnectionRepository):
             "account_id": row.account_id,
             "balance": balance,
             "balance_date": row.balance_date,
+            "last_imported_at": row.last_imported_at,
+            "notes": row.notes,
         }
 
     def _connection(self, row: BankConnectionORM) -> dict[str, Any]:
@@ -2918,7 +2977,9 @@ class SQLBankConnectionRepository(BankConnectionRepository):
             "name": row.name,
             "status": row.status,
             "last_error": row.last_error,
+            "warnings": list(row.warnings or []),
             "last_synced_at": row.last_synced_at,
+            "last_attempt_at": row.last_attempt_at,
             "created_at": row.created_at,
             "accounts": [self._account(a) for a in sorted(row.accounts, key=lambda a: a.name)],
         }
@@ -2932,6 +2993,7 @@ class SQLBankConnectionRepository(BankConnectionRepository):
             credential_sealed=connection["credential_sealed"],
             key_version=connection["key_version"],
             status="active",
+            warnings=[],
             created_at=datetime.now(UTC),
         )
         self._s.add(row)
@@ -2999,6 +3061,11 @@ class SQLBankConnectionRepository(BankConnectionRepository):
         ).scalar_one_or_none()
         if row is None:
             return False
+        if row.account_id != account_id:
+            # Into another account, its history starts again: the first
+            # sync's window, then the overlap.
+            row.last_imported_at = None
+            row.notes = None
         row.account_id = account_id
         await self._s.flush()
         return True
@@ -3007,7 +3074,7 @@ class SQLBankConnectionRepository(BankConnectionRepository):
         row = await self._one(user_id, connection_id)
         if row is None:
             return
-        for key in ("name", "status", "last_error", "last_synced_at"):
+        for key in ("name", "status", "last_error", "last_synced_at", "warnings"):
             if key in fields:
                 setattr(row, key, fields[key])
         await self._s.flush()

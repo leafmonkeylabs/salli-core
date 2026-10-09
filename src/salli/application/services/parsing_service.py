@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
+from salli.domain.accounting.models import MONEY_TYPES, money_account_problem
 from salli.domain.currency import UnknownCurrencyError, normalize_currency, quantize
 from salli.domain.dedup.matcher import (
     DATE_WINDOW_DAYS,
@@ -52,7 +53,7 @@ if TYPE_CHECKING:
 
 # What a statement can be for: where money is held (a bank or cash account)
 # or owed (a card, a loan).
-_MONEY_TYPES = ("asset", "liability")
+_MONEY_TYPES = MONEY_TYPES
 
 
 def _slugify(label: str) -> str:
@@ -128,13 +129,9 @@ class ParsingService:
         liability accounts (a bank, cash or card account). ValueError otherwise."""
         async with self._uow_factory() as uow:
             account = await uow.ledger.get_account(user_id, account_id)
-        if account is None or not account.is_active:
-            raise ValueError(f"No active account {account_id!r}")
-        if account.type not in _MONEY_TYPES:
-            raise ValueError(
-                f"{account.name} is an {account.type} account. A statement is for an asset "
-                "or liability account: a bank, cash or card account."
-            )
+        problem = money_account_problem(account, account_id)
+        if problem is not None or account is None:
+            raise ValueError(problem)
         return account
 
     async def parse_statement(
