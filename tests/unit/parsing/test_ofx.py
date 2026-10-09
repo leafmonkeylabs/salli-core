@@ -28,6 +28,7 @@ def test_an_ofx1_sgml_bank_statement():
             credit_flag=False,
             currency="USD",
             bank_ref="202609020001",
+            account="000123456789",
         ),
         StatementLine(
             date="2026-09-15",
@@ -36,6 +37,7 @@ def test_an_ofx1_sgml_bank_statement():
             credit_flag=True,
             currency="USD",
             bank_ref="202609150002",
+            account="000123456789",
         ),
         StatementLine(
             date="2026-09-18",
@@ -44,6 +46,7 @@ def test_an_ofx1_sgml_bank_statement():
             credit_flag=False,
             currency="USD",
             bank_ref="202609180003",
+            account="000123456789",
         ),
         StatementLine(
             date="2026-09-20",
@@ -52,6 +55,7 @@ def test_an_ofx1_sgml_bank_statement():
             credit_flag=False,
             currency="USD",
             bank_ref="202609200004",
+            account="000123456789",
         ),
         StatementLine(
             date="2026-09-24",
@@ -60,6 +64,7 @@ def test_an_ofx1_sgml_bank_statement():
             credit_flag=True,
             currency="GBP",  # <CURRENCY>: this amount is in pounds
             bank_ref="202609240005",
+            account="000123456789",
         ),
         StatementLine(
             date="2026-09-27",
@@ -68,6 +73,7 @@ def test_an_ofx1_sgml_bank_statement():
             credit_flag=False,
             currency="USD",  # <ORIGCURRENCY>: converted from euros into dollars
             bank_ref="202609270006",
+            account="000123456789",
         ),
         # The 0.00 card verification is not money moving, so it is not a line.
         StatementLine(
@@ -77,6 +83,7 @@ def test_an_ofx1_sgml_bank_statement():
             credit_flag=True,
             currency="USD",
             bank_ref="202609300008",
+            account="000123456789",
         ),
     ]
 
@@ -188,3 +195,46 @@ def test_a_file_without_ofx_in_it():
     assert extract_from_ofx(b"Date,Amount\n").errors == [
         "This is not an OFX file: it has no <OFX> element"
     ]
+
+
+def test_an_empty_unclosed_value_is_not_an_aggregate():
+    # <MEMO> with nothing after it was taken for an aggregate: CURRENCY, NAME
+    # and FITID then landed under MEMO/..., so a pound wire was booked in
+    # dollars, without its name or id.
+    body = (
+        "<BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>USD<BANKACCTFROM><ACCTID>1</BANKACCTFROM>"
+        "<BANKTRANLIST><STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261013<TRNAMT>250.00<MEMO>"
+        "<CURRENCY><CURRATE>1.27<CURSYM>GBP</CURRENCY><NAME>WIRE J SMITH<FITID>W1</STMTTRN>"
+        "</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1>"
+    )
+    (line,) = extract_from_ofx(_ofx(body)).lines
+    assert (line.currency, line.description, line.bank_ref) == ("GBP", "WIRE J SMITH", "W1")
+
+
+def test_each_statement_is_on_its_own_account():
+    def statement(tag, account, amount, fitid):
+        source = "BANKACCTFROM" if tag == "STMTRS" else "CCACCTFROM"
+        return (
+            f"<{tag}><CURDEF>USD<{source}><ACCTID>{account}</{source}><BANKTRANLIST>"
+            f"<STMTTRN><DTPOSTED>20261013<TRNAMT>{amount}<NAME>X<FITID>{fitid}</STMTTRN>"
+            f"</BANKTRANLIST></{tag}>"
+        )
+
+    body = statement("STMTRS", "111", "-500.00", "A") + statement("CCSTMTRS", "999", "500.00", "B")
+    result = extract_from_ofx(_ofx(body))
+    assert result.accounts == ["111", "999"]
+    assert result.account_kinds["999"] == "credit card"
+    assert [(line.account, line.credit_flag) for line in result.lines] == [
+        ("111", False),
+        ("999", True),
+    ]
+
+
+def test_a_placeholder_date_is_reported_not_a_server_error():
+    body = (
+        "<STMTRS><CURDEF>USD<BANKTRANLIST><STMTTRN><DTPOSTED>99991231<TRNAMT>-1.00"
+        "<FITID>Z</STMTTRN></BANKTRANLIST></STMTRS>"
+    )
+    result = extract_from_ofx(_ofx(body))
+    assert result.lines == []
+    assert result.errors == ["OFX transaction Z: '99991231' is not a date; skipped"]

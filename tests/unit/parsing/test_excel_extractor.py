@@ -113,3 +113,37 @@ def test_a_damaged_workbook_is_said_to_be():
     assert extract_from_excel(b"PK\x03\x04 not really a workbook").errors == [
         "This Excel file could not be read (BadZipFile)"
     ]
+
+
+def test_a_float_from_a_formula_comes_back_as_typed():
+    # str(float) gave 12.100000000000001, so a rule "amount equals 12.10" missed.
+    data = _make_xlsx(
+        [
+            ["Date", "Description", "Amount"],
+            [datetime.date(2026, 10, 13), "Coffee", -(0.1 + 12.000000000000001)],
+            [datetime.date(2026, 10, 14), "Lunch", -12.100000000000001],
+        ]
+    )
+    assert [line.amount for line in extract_from_excel(data).lines] == [
+        Decimal("12.1"),
+        Decimal("12.1"),
+    ]
+
+
+def test_reading_stops_at_the_statement_sheet(monkeypatch):
+    from salli.adapters.parsing import excel_extractor
+
+    data = _make_xlsx(
+        [["Date", "Description", "Amount"], [datetime.date(2026, 10, 13), "Coffee", -4.5]],
+        [["Some", "Data"]] + [["x", i] for i in range(50)],
+    )
+    read: list[object] = []
+    real = excel_extractor._text
+
+    def counting(value: object) -> str:
+        read.append(value)
+        return real(value)
+
+    monkeypatch.setattr(excel_extractor, "_text", counting)
+    assert len(extract_from_excel(data).lines) == 1
+    assert "Data" not in read  # the second sheet was never loaded

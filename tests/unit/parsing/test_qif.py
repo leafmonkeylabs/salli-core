@@ -19,7 +19,7 @@ def _rows(result):
 
 
 def test_a_quicken_export_with_dates_that_read_both_ways():
-    result = extract_from_qif((FIXTURES / "quicken_us.qif").read_bytes())
+    result = extract_from_qif((FIXTURES / "quicken_us.qif").read_bytes(), prefer_order="MDY")
 
     # Every date is the 10th of a month or a day in October: read month-first
     # they are twelve days in one month, so that is the reading, and it is said.
@@ -32,16 +32,25 @@ def test_a_quicken_export_with_dates_that_read_both_ways():
             "1043",
         ),
         ("2026-10-02", "Blue Bottle Coffee", Decimal("4.50"), False, ""),
-        ("2026-10-05", "Northwind Payroll - Direct deposit", Decimal("2400.00"), True, ""),
-        ("2026-10-07", "Safeway #1123", Decimal("82.35"), False, ""),  # the total, not the splits
-        ("2026-10-09", "ATM Withdrawal", Decimal("60.00"), False, ""),
+        ("2026-10-05", "Northwind Payroll - Direct deposit", Decimal("2400.00"), True, "DEP"),
+        (
+            "2026-10-07",
+            "Safeway #1123",
+            Decimal("82.35"),
+            False,
+            "ATM",
+        ),  # the total, not the splits
+        ("2026-10-09", "ATM Withdrawal", Decimal("60.00"), False, "ATM"),
         ("2026-10-12", "Pacific Gas & Electric - Autopay", Decimal("89.99"), False, ""),
         ("2026-10-03", "Shell Oil 57442", Decimal("45.20"), False, ""),
         ("2026-10-10", "Payment - Thank You", Decimal("300.00"), True, ""),
     ]
     assert {line.currency for line in result.lines} == {None}  # QIF names no currency
-    skipped, notice = result.errors
-    assert "read them month first (MDY)" in notice and "DMY" in notice
+    skipped, *notice = result.errors
+    # Day-first, the dates run to December: a month or more ahead of today
+    # while that lasts, and then a reading as good as month-first, which a
+    # dollar statement's country prefers. Either way, month first.
+    assert all("read them month first (MDY)" in n and "DMY" in n for n in notice)
     assert skipped == (
         "Skipped 1 record(s) in the investment register: "
         "only bank, card and cash registers are imported"
@@ -101,3 +110,17 @@ def test_an_unreadable_record_is_reported_and_the_rest_kept():
         "QIF record at line 2: '31/02/2026' is not a date; skipped",
         "QIF record at line 6: 'abc' is not an amount; skipped",
     ]
+
+
+def test_each_register_is_on_the_account_its_account_record_names():
+    result = extract_from_qif((FIXTURES / "quicken_us.qif").read_bytes(), prefer_order="MDY")
+    assert result.accounts == ["Everyday Checking", "Rewards Visa"]
+    assert result.account_kinds == {
+        "Everyday Checking": "bank account",
+        "Rewards Visa": "credit card",
+    }
+    assert [line.account for line in result.lines] == ["Everyday Checking"] * 6 + [
+        "Rewards Visa"
+    ] * 2
+    # N is what someone wrote (a cheque number, "ATM"), never the bank's id.
+    assert {line.ref_kind for line in result.lines} == {"text"}

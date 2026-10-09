@@ -16,14 +16,20 @@ in any case.
 
 from __future__ import annotations
 
-import datetime
 import re
 import xml.etree.ElementTree as ET
 from decimal import Decimal
 from typing import NoReturn
 from xml.parsers import expat
 
-from salli.adapters.parsing.support import Extraction, StatementLine, join_description
+from salli.adapters.parsing.support import (
+    Extraction,
+    RefKind,
+    StatementLine,
+    join_description,
+    real_date,
+    too_large,
+)
 
 # Statuses of entries that are not bookings yet. A statement should hold only
 # booked entries, but some banks add pending ones, which would be posted a
@@ -55,8 +61,15 @@ def extract_from_camt053(data: bytes) -> Extraction:
     result = Extraction()
     for statement in statements.iterfind("{*}Stmt"):
         account_currency = (statement.findtext("{*}Acct/{*}Ccy") or "").strip() or None
+        account = (
+            statement.findtext("{*}Acct/{*}Id/{*}IBAN")
+            or statement.findtext("{*}Acct/{*}Id/{*}Othr/{*}Id")
+            or ""
+        ).strip()
+        if account and account not in result.accounts:
+            result.accounts.append(account)
         for number, entry in enumerate(statement.iterfind("{*}Ntry"), 1):
-            _add(entry, number, account_currency, result)
+            _add(entry, number, account_currency, account, result)
     return result
 
 
@@ -75,8 +88,14 @@ def _refuse_dtd(data: bytes) -> None:
     parser.Parse(data, True)
 
 
-def _add(entry: ET.Element, number: int, account_currency: str | None, result: Extraction) -> None:
-    reference = _reference(entry)
+def _add(
+    entry: ET.Element,
+    number: int,
+    account_currency: str | None,
+    account: str,
+    result: Extraction,
+) -> None:
+    reference, kind = _reference(entry)
     label = f"camt.053 entry {reference or number}"
 
     status = (entry.findtext("{*}Sts/{*}Cd") or entry.findtext("{*}Sts") or "").strip().upper()
@@ -97,6 +116,9 @@ def _add(entry: ET.Element, number: int, account_currency: str | None, result: E
         result.errors.append(f"{label}: {indicator!r} is neither credit nor debit; skipped")
         return
     amount = Decimal(amount_text)
+    if too_large(amount):
+        result.errors.append(f"{label}: {amount_text!r} is not an amount; skipped")
+        return
     if amount == 0:
         return
 
@@ -111,6 +133,8 @@ def _add(entry: ET.Element, number: int, account_currency: str | None, result: E
             credit_flag=credit,
             currency=(amount_element.get("Ccy") or "").strip() or account_currency,
             bank_ref=reference,
+            ref_kind=kind,
+            account=account,
         )
     )
 
@@ -121,10 +145,9 @@ def _date(entry: ET.Element) -> str | None:
     for path in ("{*}BookgDt/{*}Dt", "{*}BookgDt/{*}DtTm", "{*}ValDt/{*}Dt", "{*}ValDt/{*}DtTm"):
         text = (entry.findtext(path) or "").strip()
         if text:
-            try:
-                return datetime.date.fromisoformat(text[:10]).isoformat()
-            except ValueError:
-                return None
+            # 9999-12-31 and the like are placeholders, no booking's date.
+            match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", text[:10])
+            return real_date(*(int(g) for g in match.groups())) if match else None
     return None
 
 
@@ -145,9 +168,13 @@ def _description(entry: ET.Element, credit: bool) -> str:
     return join_description(party or "", remittance or entry.findtext("{*}AddtlNtryInf") or "")
 
 
-def _reference(entry: ET.Element) -> str:
-    for path in ("{*}AcctSvcrRef", "{*}NtryRef"):
+def _reference(entry: ET.Element) -> tuple[str, RefKind]:
+    """The servicing bank's own reference for the entry (an id), else the
+    entry's reference within this statement (NtryRef, often just 1, 2, 3...:
+    text, which identifies nothing on its own)."""
+    paths: tuple[tuple[str, RefKind], ...] = (("{*}AcctSvcrRef", "id"), ("{*}NtryRef", "text"))
+    for path, kind in paths:
         text = (entry.findtext(path) or "").strip()
         if text.upper() not in _NO_REFERENCE:
-            return text
-    return ""
+            return text, kind
+    return "", "id"

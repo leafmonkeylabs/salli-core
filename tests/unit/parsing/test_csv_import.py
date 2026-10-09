@@ -158,10 +158,16 @@ def test_an_indian_export_with_lakh_grouping():
 def test_ambiguous_dates_are_reported_and_can_be_overridden():
     data = b"Date,Description,Amount\n10/01/2026,A,-1.00\n10/05/2026,B,-2.00\n"
 
-    guessed = extract_from_csv(data)
+    # A dollar statement's country writes the month first.
+    guessed = extract_from_csv(data, prefer_order="MDY")
     assert [line.date for line in guessed.lines] == ["2026-10-01", "2026-10-05"]
     (notice,) = guessed.errors
     assert "month first (MDY)" in notice
+
+    elsewhere = extract_from_csv(data)
+    assert [line.date for line in elsewhere.lines] == ["2026-01-10", "2026-05-10"]
+    (notice,) = elsewhere.errors
+    assert "day first (DMY)" in notice
 
     told = extract_from_csv(data, date_order="DMY")
     assert [line.date for line in told.lines] == ["2026-01-10", "2026-05-10"]
@@ -184,8 +190,9 @@ def test_a_file_without_a_header_row():
     ]
     assert result.errors == [
         "This file has no header row Salli recognises, so column 1 was read as the date, "
-        "column 2 as the amount and column 5 as the description. If that is wrong, import it "
-        "with a column mapping."
+        "column 2 as the amount and column 5 as the description. If that is wrong, set the "
+        "date order (--date-order), or give the file a header row naming its columns "
+        "(Date, Description, Amount)."
     ]
 
 
@@ -338,3 +345,184 @@ def test_tables_that_are_no_statement():
     dated = Table([["01/10/2026", "Rent", "-1,200.00"], ["13/10/2026", "Salary", "3,450.00"]])
     assert extract_from_tables([dated], infer=False) is None
     assert extract_from_tables([dated]) is not None
+
+
+# Money misreads found in review: each crafted file used to import wrongly.
+
+
+def _ways(result):
+    return [(line.description, line.amount, line.credit_flag) for line in result.lines]
+
+
+def test_direction_words_from_more_banks():
+    # Unsigned amounts beside a direction column: an unknown word fell back to
+    # the (always positive) sign, so every debit became money in.
+    for out_word, in_word in [
+        ("DBIT", "CRDT"),
+        ("Belastung", "Gutschrift"),
+        ("Addebito", "Accredito"),
+        ("Debet", "Credit"),
+        ("Money Out", "Money In"),
+    ]:
+        data = (
+            f"Date,Description,Amount,Debit/Credit\n"
+            f"13/10/2026,Rent,1200.00,{out_word}\n14/10/2026,Salary,3000.00,{in_word}\n"
+        ).encode()
+        assert _ways(extract_from_csv(data)) == [
+            ("Rent", Decimal("1200.00"), False),
+            ("Salary", Decimal("3000.00"), True),
+        ], out_word
+
+
+def test_an_unknown_direction_word_is_reported_not_guessed():
+    data = (
+        b"Date,Description,Amount,Debit/Credit\n"
+        b"13/10/2026,Rent,1200.00,DR\n14/10/2026,Odd,5.00,XFER\n15/10/2026,Pay,10.00,CR\n"
+    )
+    result = extract_from_csv(data)
+    assert _ways(result) == [("Rent", Decimal("1200.00"), False), ("Pay", Decimal("10.00"), True)]
+    assert result.errors == ["Row 3: 'XFER' does not say whether money went in or out; skipped"]
+
+
+def test_a_direction_column_in_words_nobody_knows_stops_the_file():
+    data = (
+        b"Date,Description,Amount,Debit/Credit\n13/10/2026,Rent,1200.00,X\n14/10/2026,Pay,5.00,Y\n"
+    )
+    result = extract_from_csv(data)
+    assert result.lines == []
+    (error,) = result.errors
+    assert "Column 4" in error and "'X'" in error
+
+
+def test_a_direction_column_found_by_what_it_holds():
+    # A blank-headed S/H column, and a "Type" column of DR/CR.
+    blank = "Datum;Text;Betrag;\n13.10.2026;Miete;1.200,00;S\n14.10.2026;Lohn;3.000,00;H\n"
+    typed = b"Date,Description,Amount,Type\n13/10/2026,Rent,1200.00,DR\n14/10/2026,Pay,3000.00,CR\n"
+    for data in (blank.encode(), typed):
+        assert [w for _, _, w in _ways(extract_from_csv(data))] == [False, True]
+
+
+def test_a_card_statement_that_marks_only_its_credits():
+    # "15000.00 CR" is a payment; unmarked lines are purchases.
+    data = b"Date,Description,Amount\n13/10/2026,Coffee,4.50\n14/10/2026,Payment,15000.00 CR\n"
+    result = extract_from_csv(data)
+    assert _ways(result) == [
+        ("Coffee", Decimal("4.50"), False),
+        ("Payment", Decimal("15000.00"), True),
+    ]
+    assert any("unmarked ones were read as money out" in e for e in result.errors)
+    # Inverting a card's signs leaves what the bank marked alone.
+    flipped = extract_from_csv(data, CsvMapping(date=0, description=1, amount=2, invert_sign=True))
+    assert [w for _, _, w in _ways(flipped)] == [True, True]
+
+
+def test_soll_and_haben_marks_on_amounts():
+    data = b"Datum;Text;Betrag\n13.10.2026;Miete;1.200,00 S\n14.10.2026;Lohn;3.000,00 H\n"
+    assert [(a, w) for _, a, w in _ways(extract_from_csv(data))] == [
+        (Decimal("1200.00"), False),
+        (Decimal("3000.00"), True),
+    ]
+
+
+def test_a_dash_in_an_empty_money_column_is_no_amount():
+    data = (
+        "Date,Description,Debit,Credit\n13/10/2026,Rent,1200.00,-\n14/10/2026,Pay,–,3000.00\n"
+    ).encode()
+    result = extract_from_csv(data)
+    assert result.errors == []
+    assert [w for _, _, w in _ways(result)] == [False, True]
+
+
+def test_bracketed_sides_are_split_columns_not_one_amount():
+    data = (
+        b"Date,Description,Amount (debit),Amount (credit),Amount (EUR)\n"
+        b"13/10/2026,Rent,1200.00,,-1200.00\n14/10/2026,Pay,,3000.00,3000.00\n"
+    )
+    assert _ways(extract_from_csv(data)) == [
+        ("Rent", Decimal("1200.00"), False),
+        ("Pay", Decimal("3000.00"), True),
+    ]
+
+
+def test_debit_and_credit_columns_win_over_an_unsigned_amount():
+    data = (
+        b"Date,Description,Amount,Debit,Credit\n"
+        b"13/10/2026,Rent,1200.00,1200.00,\n14/10/2026,Pay,3000.00,,3000.00\n"
+    )
+    assert [w for _, _, w in _ways(extract_from_csv(data))] == [False, True]
+
+
+def test_value_over_date_is_a_value_date_not_an_amount():
+    data = b"Date,Description,Value,Debit,Credit\n,,Date,,\n13/10/2026,Rent,13/10/2026,1200.00,\n"
+    assert _ways(extract_from_csv(data)) == [("Rent", Decimal("1200.00"), False)]
+
+
+def test_a_free_text_reference_is_part_of_the_description():
+    # "BARBER" every month: as a bank_ref, the next month's haircut was an
+    # exact duplicate of this one.
+    data = (
+        b"Date,Description,Reference,Amount\n"
+        b"13/10/2026,Card payment,BARBER,-20.00\n16/10/2026,Card payment,GROCER,-40.00\n"
+    )
+    lines = extract_from_csv(data).lines
+    assert [(line.description, line.ref_kind) for line in lines] == [
+        ("Card payment - BARBER", "text"),
+        ("Card payment - GROCER", "text"),
+    ]
+
+
+def test_unique_id_shaped_references_are_the_banks_ids():
+    data = (
+        b"Date,Description,Reference,Amount\n"
+        b"13/10/2026,Coffee,TX20261001000123,-4.50\n14/10/2026,Coffee,TX20261002000456,-4.50\n"
+    )
+    lines = extract_from_csv(data).lines
+    assert [(line.description, line.bank_ref, line.ref_kind) for line in lines] == [
+        ("Coffee", "TX20261001000123", "id"),
+        ("Coffee", "TX20261002000456", "id"),
+    ]
+
+
+def test_the_currency_on_the_side_that_moved():
+    data = b"Date,Description,Debit,Credit\n13/10/2026,Refund,0.00,EUR 12.00\n"
+    assert [line.currency for line in extract_from_csv(data).lines] == ["EUR"]
+
+
+def test_three_decimal_amounts_in_a_semicolon_file_of_a_three_decimal_currency():
+    data = b"Date;Description;Amount\n13/10/2026;Fee;-1.250\n14/10/2026;Pay;2.500\n"
+    assert [line.amount for line in extract_from_csv(data, currency="KWD").lines] == [
+        Decimal("1.250"),
+        Decimal("2.500"),
+    ]
+
+
+def test_dates_with_more_in_the_cell():
+    data = (
+        b"Date,Description,Amount\n14/10/2026*,Coffee,-4.50\nMon 16/10/2026,Lunch,-9.00\n"
+        b'"17/10/2026\n18/10/2026",Taxi,-12.00\n'
+    )
+    assert [line.date for line in extract_from_csv(data).lines] == [
+        "2026-10-14",
+        "2026-10-16",
+        "2026-10-17",
+    ]
+
+
+def test_a_row_with_an_amount_and_an_unreadable_date_is_reported():
+    data = b"Date,Description,Amount\n13/10/2026,Coffee,-4.50\n2026-13-45,Lunch,-9.00\n"
+    result = extract_from_csv(data)
+    assert [line.description for line in result.lines] == ["Coffee"]
+    assert result.errors == ["Row 3: '2026-13-45' is not a date; skipped"]
+
+
+def test_an_absurd_amount_is_reported_not_imported():
+    data = b"Date,Description,Amount\n13/10/2026,Misread,-12345678901234567.00\n"
+    result = extract_from_csv(data)
+    assert result.lines == []
+    assert result.errors == ["Row 2: '-12345678901234567.00' is not an amount; skipped"]
+
+
+def test_a_huge_field_is_said_not_a_server_error():
+    data = b"Date,Description,Amount\n13/10/2026," + b"x" * 200_000 + b",-1.00\n"
+    (error,) = extract_from_csv(data).errors
+    assert "longer than" in error

@@ -34,6 +34,15 @@ class RawRow:
     currency: str  # ISO 4217 — the file's own where it names one, else the caller's
     bank_ref: str = ""  # reference / transaction ID from the bank
     source_page: int = 0
+    #: "id": the bank's (or feed's) own id for the transaction, which may
+    #: identify it alone; "text": a reference someone wrote (a cheque number,
+    #: a customer reference), only ever part of what the row says.
+    ref_kind: str = "id"
+    #: The account in the file the row is on, when the file holds several.
+    source_account: str = ""
+    #: Where the row came from ("ofx", "csv", "feed:simplefin"...). An id is
+    #: only compared with ids from the same kind of source.
+    ref_source: str = ""
 
 
 @dataclass

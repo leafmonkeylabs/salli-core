@@ -662,24 +662,35 @@ def _extract(
     date_order: DateOrder | None = None,
     csv_mapping: CsvMapping | None = None,
 ) -> tuple[list[RawRow], list[str]]:
-    """The file's transactions as RawRows, and what could not be read.
+    """The file's transactions as RawRows, and what could not be read. Each
+    row names the account in the file it is on, when the file holds several.
 
-    Numbers come from deterministic importers only, never the LLM.
+    Numbers come from deterministic importers only, never the LLM. Dates
+    that read either way are read the way the statement's country writes
+    them (`dates.default_order`).
     """
+    from salli.adapters.parsing.dates import default_order
+
+    prefer = default_order(currency)
     kind = _statement_format(filename, data)
     if kind == "pdf":
         from salli.adapters.parsing.pdf_extractor import extract_from_pdf
 
-        extraction = extract_from_pdf(data, date_order=date_order)
+        extraction = extract_from_pdf(
+            data, date_order=date_order, prefer_order=prefer, currency=currency
+        )
     elif kind == "xlsx":
         from salli.adapters.parsing.excel_extractor import extract_from_excel
 
-        extraction = extract_from_excel(data, date_order=date_order)
+        extraction = extract_from_excel(
+            data, date_order=date_order, prefer_order=prefer, currency=currency
+        )
     elif kind == "xls":
-        return [], [
+        message = (
             "This is an old-style (.xls) or password-protected Excel workbook, which Salli "
             "can't read. Save it as an unprotected .xlsx, or as CSV, and import that"
-        ]
+        )
+        return [], [message]
     elif kind == "ofx":
         from salli.adapters.parsing.ofx import extract_from_ofx
 
@@ -687,7 +698,7 @@ def _extract(
     elif kind == "qif":
         from salli.adapters.parsing.qif import extract_from_qif
 
-        extraction = extract_from_qif(data, date_order=date_order)
+        extraction = extract_from_qif(data, date_order=date_order, prefer_order=prefer)
     elif kind == "camt053":
         from salli.adapters.parsing.camt053 import extract_from_camt053
 
@@ -699,16 +710,21 @@ def _extract(
     elif kind == "csv":
         from salli.adapters.parsing.csv_import import extract_from_csv
 
-        extraction = extract_from_csv(data, csv_mapping, date_order=date_order)
+        extraction = extract_from_csv(
+            data, csv_mapping, date_order=date_order, prefer_order=prefer, currency=currency
+        )
     else:
-        return [], [
+        message = (
             "Salli can't read this file. It reads PDF, Excel (.xlsx), CSV, OFX/QFX, QIF, "
             "camt.053 and MT940 statements"
-        ]
-    return _raw_rows(extraction, currency)
+        )
+        return [], [message]
+    return _raw_rows(extraction, currency, kind)
 
 
-def _raw_rows(extraction: Extraction, currency: str) -> tuple[list[RawRow], list[str]]:
+def _raw_rows(
+    extraction: Extraction, currency: str, source: str = ""
+) -> tuple[list[RawRow], list[str]]:
     """An importer's lines as RawRows, each in a currency Salli knows.
 
     A line in a currency the file names is in that one; any other line is in
@@ -716,11 +732,6 @@ def _raw_rows(extraction: Extraction, currency: str) -> tuple[list[RawRow], list
     and says so, rather than booking them as something they are not.
     """
     errors = list(extraction.errors)
-    # The dedup matcher takes two rows with the same bank reference for one
-    # transaction. A reference repeated within a file is not one — a bank
-    # reusing an id, a cheque number on a payment and on its fee — and would
-    # silently drop real transactions, so it is left off those rows.
-    references = Counter(line.bank_ref for line in extraction.lines if line.bank_ref)
     unknown: Counter[str] = Counter()
     rows: list[RawRow] = []
     for line in extraction.lines:
@@ -736,8 +747,11 @@ def _raw_rows(extraction: Extraction, currency: str) -> tuple[list[RawRow], list
                 amount=line.amount,
                 credit_flag=line.credit_flag,
                 currency=code,
-                bank_ref=line.bank_ref if references[line.bank_ref] == 1 else "",
+                bank_ref=line.bank_ref,
                 source_page=line.source_page,
+                ref_kind=line.ref_kind,
+                source_account=line.account,
+                ref_source=source,
             )
         )
     for code, count in unknown.items():
