@@ -160,6 +160,8 @@ async def get_policy(policy_id: str, user_id: CurrentUser, svc: AppServices) -> 
 async def update_policy(
     policy_id: str, body: PolicyUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
+    if await svc.insurance.get_policy(user_id, policy_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such policy")
     await svc.insurance.update_policy(user_id, policy_id, body.model_dump(exclude_none=True))
     return Updated(updated=True)
 

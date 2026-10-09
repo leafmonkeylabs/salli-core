@@ -111,6 +111,8 @@ async def get_debt(debt_id: str, user_id: CurrentUser, svc: AppServices) -> Debt
 async def update_debt(
     debt_id: str, body: DebtUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
+    if await svc.debt.get_debt(user_id, debt_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such debt")
     await svc.debt.update_debt(user_id, debt_id, body.model_dump(exclude_none=True))
     return Updated(updated=True)
 

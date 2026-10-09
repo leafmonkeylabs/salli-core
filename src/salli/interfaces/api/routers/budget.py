@@ -111,6 +111,8 @@ async def update_budget(
     budget_id: str, body: BudgetUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
     data = body.model_dump(exclude_none=True)
+    if await svc.budget.get_budget(user_id, budget_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such budget")
     await svc.budget.update_budget(user_id, budget_id, data)
     return Updated(updated=True)
 

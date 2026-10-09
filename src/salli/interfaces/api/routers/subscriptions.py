@@ -131,6 +131,8 @@ async def get_subscription(
 async def update_subscription(
     subscription_id: str, body: SubscriptionUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
+    if await svc.subscription.get_subscription(user_id, subscription_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such subscription")
     await svc.subscription.update_subscription(
         user_id, subscription_id, body.model_dump(exclude_none=True)
     )

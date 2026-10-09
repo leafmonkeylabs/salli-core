@@ -250,6 +250,8 @@ async def create_goal(body: GoalRequest, user_id: CurrentUser, svc: AppServices)
 async def update_goal(
     goal_id: str, body: GoalUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> GoalUpdated:
+    if not any(g["id"] == goal_id for g in await svc.fi.list_goals(user_id)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such goal")
     await svc.fi.update_goal(user_id, goal_id, body.model_dump(exclude_none=True))
     return GoalUpdated(updated=True)
 

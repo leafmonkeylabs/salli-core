@@ -142,6 +142,8 @@ async def get_holding(holding_id: str, user_id: CurrentUser, svc: AppServices) -
 async def update_holding(
     holding_id: str, body: HoldingUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
+    if await svc.portfolio.get_holding(user_id, holding_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such holding")
     await svc.portfolio.update_holding(user_id, holding_id, body.model_dump(exclude_none=True))
     return Updated(updated=True)
 
