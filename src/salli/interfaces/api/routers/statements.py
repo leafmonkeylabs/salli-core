@@ -1,11 +1,12 @@
 """
 Statement parsing router.
 
-POST /statements/upload     — upload a bank statement (PDF, XLSX, CSV, OFX/QFX, QIF, camt.053,
-                              MT940), returns ParseResult
-GET  /statements/            — statements uploaded so far, newest first
-GET  /statements/{id}       — fetch pending transactions for a statement
-POST /statements/{id}/post  — approve and post selected transactions as journal entries
+POST /statements/upload        — upload a bank statement (PDF, XLSX, CSV, OFX/QFX, QIF,
+                                 camt.053, MT940), returns ParseResult
+GET  /statements/               — statements uploaded so far, newest first
+GET  /statements/{id}           — a statement's transactions still to review
+POST /statements/{id}/post      — approve and post selected transactions as journal entries
+POST /statements/{id}/discard   — discard pending transactions: they are never posted
 """
 
 from __future__ import annotations
@@ -86,6 +87,16 @@ class PostedStatementTransactions(BaseModel):
     #: How many transactions became journal entries.
     posted: int
     entry_ids: list[str]
+
+
+class DiscardRequest(BaseModel):
+    #: The transactions to discard; every pending one of the statement when omitted.
+    ids: list[str] | None = None
+
+
+class DiscardedStatementTransactions(BaseModel):
+    #: How many pending transactions were discarded.
+    discarded: int
 
 
 @router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
@@ -169,8 +180,10 @@ async def list_statements(
 async def get_pending(
     statement_id: str, user_id: CurrentUser, svc: AppServices
 ) -> PendingStatementTransactions:
-    """Return unposted transactions for a statement."""
-    txns = await svc.parsing.get_pending(user_id)
+    """A statement's transactions still to review: neither posted nor discarded."""
+    if await svc.parsing.get_statement(user_id, statement_id) is None:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    txns = await svc.parsing.get_pending(user_id, statement_id)
     return PendingStatementTransactions(
         statement_id=statement_id, transactions=[_transaction(t) for t in txns]
     )
@@ -190,6 +203,22 @@ async def post_approved(
     """Post approved transactions as journal entries."""
     entry_ids = await svc.parsing.post_approved(user_id, body.approved_ids)
     return PostedStatementTransactions(posted=len(entry_ids), entry_ids=entry_ids)
+
+
+@router.post("/{statement_id}/discard")
+async def discard(
+    statement_id: str,
+    user_id: CurrentUser,
+    svc: AppServices,
+    body: DiscardRequest | None = None,
+) -> DiscardedStatementTransactions:
+    """Discard a statement's pending transactions — those named in `ids`, or
+    every one. A discarded transaction is never posted, leaves review, and is
+    no duplicate of anything imported later."""
+    count = await svc.parsing.discard(user_id, statement_id, body.ids if body else None)
+    if count is None:
+        raise HTTPException(status_code=404, detail="Statement not found")
+    return DiscardedStatementTransactions(discarded=count)
 
 
 def _transaction(t: ParsedTransaction) -> StatementTransaction:

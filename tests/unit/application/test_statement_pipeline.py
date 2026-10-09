@@ -104,10 +104,27 @@ class Statements:
             "storage_key": storage_key,
         }
         for txn in transactions:
-            row_id = str(uuid.uuid4())
-            self.rows[row_id] = replace(
-                txn, id=row_id, statement_id=statement_id, account_id=account_id or ""
-            )
+            txn.id, txn.statement_id = str(uuid.uuid4()), statement_id
+            txn.account_id = account_id or ""
+            self.rows[txn.id] = replace(txn)
+
+    async def get_statement(self, user_id: str, statement_id: str) -> dict[str, Any] | None:
+        return self.statements.get(statement_id)
+
+    async def get_pending(self, user_id: str, statement_id: str) -> list[ParsedTransaction]:
+        return [
+            replace(t)
+            for t in self.rows.values()
+            if t.statement_id == statement_id and t.dedup_status not in ("posted", "discarded")
+        ]
+
+    async def discard(self, user_id: str, statement_id: str, ids: list[str] | None = None) -> int:
+        chosen = [
+            t for t in await self.get_pending(user_id, statement_id) if ids is None or t.id in ids
+        ]
+        for t in chosen:
+            self.rows[t.id].dedup_status = "discarded"
+        return len(chosen)
 
     async def imported_between(
         self, user_id: str, from_date: str, to_date: str
@@ -429,9 +446,7 @@ async def test_importing_a_statement_again_marks_every_row_and_posts_none(usd_wo
     first = await usd_world.service().parse_statement(
         USER, "oct.csv", data, account_id="checking", api_key="k"
     )
-    first_ids = [
-        r.id for r in usd_world.statements.rows.values() if r.statement_id == first.statement_id
-    ]
+    first_ids = [t.id for t in first.transactions]
     model.clear()
 
     again = await usd_world.service().parse_statement(
@@ -619,3 +634,48 @@ async def test_without_an_ai_key_the_rules_sort_what_they_can(world, model, cred
         "this statement"
     ]
     assert len(world.statements.rows) == 2  # imported all the same, for review
+
+
+# ── Review ────────────────────────────────────────────────────────────────────
+
+
+async def test_an_import_returns_the_ids_its_rows_were_saved_under(world):
+    result = await world.service().parse_statement(
+        USER, "oct.csv", _fixture("us_checking.csv"), account_id="checking", api_key="k"
+    )
+
+    ids = [t.id for t in result.transactions]
+    assert all(ids) and set(ids) == set(world.statements.rows)
+    assert {t.statement_id for t in result.transactions} == {result.statement_id}
+
+
+async def test_a_discarded_row_never_posts_and_leaves_review(usd_world):
+    result = await usd_world.service().parse_statement(
+        USER, "oct.csv", _fixture("us_checking.csv"), account_id="checking", api_key="k"
+    )
+    statement_id = result.statement_id
+    first, *rest = (t.id for t in result.transactions)
+    service = usd_world.service()
+
+    assert await service.discard(USER, statement_id, [first]) == 1
+    pending = await service.get_pending(USER, statement_id)
+    assert [t.id for t in pending] == rest
+    assert await service.post_approved(USER, [first]) == []
+
+    assert await service.discard(USER, statement_id) == len(rest)  # the rest
+    assert await service.get_pending(USER, statement_id) == []
+    assert await service.discard(USER, "not-theirs") is None
+
+
+async def test_a_discarded_row_is_no_duplicate_of_a_later_import(world):
+    coffee = _row("BLUE BOTTLE COFFEE", "4.50")
+    first = await world.service().import_rows(
+        USER, [coffee], bank="", account_id="checking", api_key="k"
+    )
+    await world.service().discard(USER, first.statement_id)
+
+    again = await world.service().import_rows(
+        USER, [coffee], bank="", account_id="checking", api_key="k"
+    )
+
+    assert [t.dedup_status for t in again.transactions] == ["pending"]

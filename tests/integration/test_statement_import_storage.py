@@ -108,3 +108,26 @@ async def test_another_accounts_history_is_not_a_duplicate(uow_factory, chart):
     assert {t.dedup_status for t in await _rows(uow_factory, on_checking.statement_id)} == {
         "pending"
     }
+
+
+async def test_discarded_rows_leave_review_and_history(uow_factory, chart):
+    parsing = ParsingService(uow_factory)
+    first = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=chart["checking"], api_key="k"
+    )
+    ids = [t.id for t in first.transactions]
+    # The upload hands back the ids its rows were stored under.
+    assert sorted(ids) == sorted(t.id for t in await _rows(uow_factory, first.statement_id))
+
+    assert await parsing.discard("u2", first.statement_id) is None  # not theirs
+    assert await parsing.discard("u1", first.statement_id, ids[:1]) == 1
+    assert len(await _rows(uow_factory, first.statement_id)) == 4
+    assert await parsing.post_approved("u1", ids[:1]) == []
+    assert await parsing.discard("u1", first.statement_id) == 4
+    assert await parsing.get_pending("u1") == []
+
+    # Nothing discarded counts as history: the same file again is all new.
+    again = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=chart["checking"], api_key="k"
+    )
+    assert {t.dedup_status for t in again.transactions} == {"pending"}

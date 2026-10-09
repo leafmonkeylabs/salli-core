@@ -566,6 +566,8 @@ class SQLStatementRepository(StatementRepository):
                 dedup_status=txn.dedup_status,
             )
             self._session.add(pt)
+            # What the caller hands back to the user names real rows.
+            txn.id, txn.statement_id, txn.account_id = pt.id, statement_id, account_id or ""
 
     def _parsed(self, user_id: str) -> Any:
         """This user's parsed transactions, each with its statement's account."""
@@ -595,17 +597,34 @@ class SQLStatementRepository(StatementRepository):
     async def get_all_pending(self, user_id: str) -> list[Any]:
         return await self._read(
             self._parsed(user_id)
-            .where(ParsedTransactionORM.posted_entry_id.is_(None))
-            .order_by(ParsedTransactionORM.statement_id)
+            .where(*_PENDING)
+            .order_by(ParsedTransactionORM.statement_id, ParsedTransactionORM.created_at)
         )
 
     async def get_pending(self, user_id: str, statement_id: str) -> list[Any]:
         return await self._read(
-            self._parsed(user_id).where(
+            self._parsed(user_id)
+            .where(ParsedTransactionORM.statement_id == statement_id, *_PENDING)
+            .order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
+        )
+
+    async def discard(self, user_id: str, statement_id: str, ids: list[str] | None = None) -> int:
+        stmt = (
+            select(ParsedTransactionORM)
+            .join(StatementORM)
+            .where(
+                StatementORM.user_id == user_id,
                 ParsedTransactionORM.statement_id == statement_id,
-                ParsedTransactionORM.posted_entry_id.is_(None),
+                *_PENDING,
             )
         )
+        if ids is not None:
+            stmt = stmt.where(ParsedTransactionORM.id.in_(ids))
+        rows = (await self._session.execute(stmt)).scalars().all()
+        for row in rows:
+            row.dedup_status = "discarded"
+        await self._session.flush()
+        return len(rows)
 
     async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]:
         return await self._read(self._parsed(user_id).where(ParsedTransactionORM.id.in_(ids)))
@@ -636,6 +655,13 @@ class SQLStatementRepository(StatementRepository):
             "status": row.status,
             "created_at": row.created_at.isoformat(),
         }
+
+
+# Waiting for review: not posted, and not discarded.
+_PENDING = (
+    ParsedTransactionORM.posted_entry_id.is_(None),
+    ParsedTransactionORM.dedup_status != "discarded",
+)
 
 
 def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> Any:

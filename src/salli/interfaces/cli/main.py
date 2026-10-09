@@ -873,7 +873,14 @@ def _interactive_review(user_id, svc, result) -> None:
         raw = txn.raw
         header = f"[{i}/{len(result.transactions)}] {raw.date}  {raw.description[:50]}"
         amount_str = f"{'CR' if raw.credit_flag else 'DR'} {raw.currency} {raw.amount:,.2f}"
-        dedup = "[yellow]DUPLICATE — skipping[/yellow]" if txn.dedup_status == "duplicate" else ""
+        duplicate = txn.dedup_status == "exact_duplicate"
+        dedup = (
+            "[yellow]DUPLICATE of an earlier import — skipping[/yellow]"
+            if duplicate
+            else "[yellow]Looks like an entry already booked: check before approving[/yellow]"
+            if txn.dedup_status == "fuzzy_match"
+            else ""
+        )
 
         console.print(
             Panel(
@@ -886,7 +893,7 @@ def _interactive_review(user_id, svc, result) -> None:
             )
         )
 
-        if txn.dedup_status == "duplicate":
+        if duplicate:
             skipped += 1
             continue
 
@@ -916,12 +923,23 @@ def _interactive_review(user_id, svc, result) -> None:
         console.print(f"[dim]{skipped} transaction(s) skipped/duplicated.[/dim]")
 
 
+def _statement_id(svc: Any, user_id: str, ref: str) -> str:
+    """The id of the user's statement whose id is `ref`, or begins with it."""
+    statements = asyncio.run(svc.parsing.list_statements(user_id, 1000))
+    return _resolve_id(statements, ref, "statement")
+
+
 @parse_app.command("pending")
-def parse_pending():
-    """List transactions parsed but not yet posted."""
+def parse_pending(
+    statement: str = typer.Argument(
+        None, help="Only this statement's (its id, or the start of it)"
+    ),
+):
+    """List transactions parsed but not yet posted (nor discarded)."""
     user_id = _require_user()
     svc = _services()
-    pending = asyncio.run(svc.parsing.get_pending(user_id))
+    statement_id = _statement_id(svc, user_id, statement) if statement else None
+    pending = asyncio.run(svc.parsing.get_pending(user_id, statement_id))
     if emit(pending):
         return
 
@@ -968,6 +986,28 @@ def parse_post(
     entry_ids = asyncio.run(_run())
     emit({"entry_ids": entry_ids})
     console.print(f"[green]Posted {len(entry_ids)} transaction(s).[/green]")
+
+
+@parse_app.command("discard")
+def parse_discard(
+    statement: str = typer.Argument(..., help="The statement (its id, or the start of it)"),
+    ids: list[str] = typer.Argument(
+        None, help="Transactions to discard (default: every pending one of the statement)"
+    ),
+):
+    """Discard pending transactions: they are never posted and leave review."""
+    user_id = _require_user()
+    svc = _services()
+    statement_id = _statement_id(svc, user_id, statement)
+    chosen = None
+    if ids:
+        pending = asyncio.run(svc.parsing.get_pending(user_id, statement_id))
+        pending_ids = [{"id": str(txn.id)} for txn in pending]
+        chosen = [_resolve_id(pending_ids, id_, "pending transaction") for id_ in ids]
+    count = asyncio.run(svc.parsing.discard(user_id, statement_id, chosen))
+    if emit({"statement_id": statement_id, "discarded": count}):
+        return
+    console.print(f"[green]Discarded {count} transaction(s).[/green]")
 
 
 @parse_app.command("list")

@@ -2566,7 +2566,7 @@
           "statements"
         ],
         "summary": "Get Pending",
-        "description": "Return unposted transactions for a statement.",
+        "description": "A statement's transactions still to review: neither posted nor discarded.",
         "operationId": "statements.pending",
         "security": [
           {
@@ -2679,6 +2679,71 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/statements/{statement_id}/discard": {
+      "post": {
+        "tags": [
+          "statements"
+        ],
+        "summary": "Discard",
+        "description": "Discard a statement's pending transactions — those named in `ids`, or\nevery one. A discarded transaction is never posted, leaves review, and is\nno duplicate of anything imported later.",
+        "operationId": "statements.discard",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "statement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Statement Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DiscardRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardedStatementTransactions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -10527,6 +10592,39 @@
         ],
         "title": "DeviceAuthorization",
         "description": "RFC 8628 §3.2."
+      },
+      "DiscardRequest": {
+        "properties": {
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "title": "DiscardRequest"
+      },
+      "DiscardedStatementTransactions": {
+        "properties": {
+          "discarded": {
+            "type": "integer",
+            "title": "Discarded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "discarded"
+        ],
+        "title": "DiscardedStatementTransactions"
       },
       "EntryProvenance": {
         "properties": {

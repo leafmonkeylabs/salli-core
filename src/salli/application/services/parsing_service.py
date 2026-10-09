@@ -364,10 +364,31 @@ class ParsingService:
         async with self._uow_factory() as uow:
             return await uow.statements.list_statements(user_id, limit)
 
-    async def get_pending(self, user_id: str) -> list[ParsedTransaction]:
-        """Return all unposted transactions across all statements for this user."""
+    async def get_statement(self, user_id: str, statement_id: str) -> dict[str, Any] | None:
+        """One of this user's statements, or None if it is not theirs."""
         async with self._uow_factory() as uow:
-            return await uow.statements.get_all_pending(user_id)
+            return await uow.statements.get_statement(user_id, statement_id)
+
+    async def get_pending(
+        self, user_id: str, statement_id: str | None = None
+    ) -> list[ParsedTransaction]:
+        """Transactions waiting for review — neither posted nor discarded —
+        across every statement of this user's, or in one."""
+        async with self._uow_factory() as uow:
+            if statement_id is None:
+                return await uow.statements.get_all_pending(user_id)
+            return await uow.statements.get_pending(user_id, statement_id)
+
+    async def discard(
+        self, user_id: str, statement_id: str, ids: list[str] | None = None
+    ) -> int | None:
+        """Discard a statement's pending transactions (those of `ids`, or every
+        one): they are never posted and leave review. How many, or None when
+        the statement is not this user's."""
+        async with self._uow_factory() as uow:
+            if await uow.statements.get_statement(user_id, statement_id) is None:
+                return None
+            return await uow.statements.discard(user_id, statement_id, ids)
 
     async def post_approved(
         self,
@@ -389,8 +410,9 @@ class ParsingService:
             entry_ids = []
 
             for txn in txns:
-                # A duplicate is booked already, and so is a row posted before.
-                if txn.dedup_status in (DedupStatus.EXACT_DUPLICATE.value, "posted"):
+                # A duplicate is booked already, and so is a row posted before;
+                # a discarded one never happened.
+                if txn.dedup_status in (DedupStatus.EXACT_DUPLICATE.value, "posted", "discarded"):
                     continue
                 if not txn.debit_account_id or not txn.credit_account_id:
                     continue

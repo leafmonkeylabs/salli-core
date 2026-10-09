@@ -163,7 +163,10 @@ class StatementRepository(ABC):
         transactions: list[Any],
         storage_key: str = "",
         account_id: str | None = None,
-    ) -> None: ...
+    ) -> None:
+        """Store the statement and its transactions, and fill in each
+        transaction's new `id` and `statement_id`."""
+        ...
 
     @abstractmethod
     async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
@@ -174,10 +177,21 @@ class StatementRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_all_pending(self, user_id: str) -> list[Any]: ...
+    async def get_all_pending(self, user_id: str) -> list[Any]:
+        """Transactions waiting for review: neither posted nor discarded."""
+        ...
 
     @abstractmethod
-    async def get_pending(self, user_id: str, statement_id: str) -> list[Any]: ...
+    async def get_pending(self, user_id: str, statement_id: str) -> list[Any]:
+        """One statement's transactions waiting for review."""
+        ...
+
+    @abstractmethod
+    async def discard(self, user_id: str, statement_id: str, ids: list[str] | None = None) -> int:
+        """Mark a statement's pending transactions (those of `ids`, or all of
+        them) discarded: never posted, out of review, and no duplicate of
+        anything imported later. Returns how many."""
+        ...
 
     @abstractmethod
     async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]: ...

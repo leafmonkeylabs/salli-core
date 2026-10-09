@@ -156,3 +156,44 @@ async def test_posting_reports_the_entries_it_made(client, mock_services):
     )
     assert r.status_code == 200
     assert r.json() == {"posted": 2, "entry_ids": ["e1", "e2"]}
+
+
+async def test_a_statements_own_pending_transactions(client, mock_services):
+    mock_services.parsing.get_statement.return_value = {"id": "st-1"}
+    mock_services.parsing.get_pending.return_value = [_transaction()]
+
+    r = await client.get("/v1/statements/st-1", headers=AUTH)
+
+    assert r.status_code == 200
+    assert [t["id"] for t in r.json()["transactions"]] == ["txn-1"]
+    mock_services.parsing.get_pending.assert_awaited_once_with("test-user-1", "st-1")
+
+
+async def test_a_statement_that_is_not_yours_is_not_found(client, mock_services):
+    mock_services.parsing.get_statement.return_value = None
+
+    r = await client.get("/v1/statements/st-9", headers=AUTH)
+
+    assert r.status_code == 404
+    mock_services.parsing.get_pending.assert_not_awaited()
+
+
+async def test_discarding_some_or_every_pending_transaction(client, mock_services):
+    mock_services.parsing.discard.return_value = 2
+
+    r = await client.post(
+        "/v1/statements/st-1/discard", json={"ids": ["txn-1", "txn-2"]}, headers=AUTH
+    )
+    assert (r.status_code, r.json()) == (200, {"discarded": 2})
+    mock_services.parsing.discard.assert_awaited_with("test-user-1", "st-1", ["txn-1", "txn-2"])
+
+    # Without ids, the statement's every pending transaction.
+    r = await client.post("/v1/statements/st-1/discard", headers=AUTH)
+    assert r.status_code == 200
+    mock_services.parsing.discard.assert_awaited_with("test-user-1", "st-1", None)
+
+
+async def test_discarding_in_a_statement_that_is_not_yours(client, mock_services):
+    mock_services.parsing.discard.return_value = None
+    r = await client.post("/v1/statements/st-9/discard", json={}, headers=AUTH)
+    assert r.status_code == 404
