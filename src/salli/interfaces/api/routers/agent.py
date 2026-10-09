@@ -170,7 +170,7 @@ async def chat(
         ai_text = "".join(ai_acc)[:500]
         if ai_text:
             await svc.agent._try_generate_title(
-                user_id, body.thread_id, body.message, ai_text, api_key=creds.anthropic
+                user_id, body.thread_id, body.message, ai_text, api_key=creds.llm or creds.anthropic
             )
 
     return StreamingResponse(
@@ -182,7 +182,7 @@ async def chat(
                     message=body.message,
                     file_refs=body.file_refs or None,
                     persona=body.persona,
-                    api_key=creds.anthropic,
+                    api_key=creds.llm or creds.anthropic,
                     # The same id the usage meter above was told about. If
                     # these two ever diverge a meter prices one model while
                     # another runs, so they are deliberately the one variable.
@@ -265,7 +265,7 @@ async def resume(body: ResumeRequest, user_id: CurrentUser, svc: AppServices, cr
                 thread_id=body.thread_id,
                 decision=body.decision,
                 persona=body.persona,
-                api_key=creds.anthropic,
+                api_key=creds.llm or creds.anthropic,
                 model=await svc.profile.get_preferred_model(user_id),
             )
         ),

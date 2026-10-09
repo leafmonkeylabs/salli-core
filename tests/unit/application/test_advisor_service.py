@@ -282,6 +282,7 @@ async def test_generate_advice_returns_structured_recommendations():
     if not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("ANTHROPIC_API_KEY not set — skipping live LLM call")
 
+    from salli.adapters.llm.anthropic_adapter import AnthropicClient
     from salli.domain.agents.advisor import generate_advice
 
     context = {
@@ -294,7 +295,7 @@ async def test_generate_advice_returns_structured_recommendations():
         "profile": {},
         "current_rates_research": "",
     }
-    advice = await generate_advice(context)
+    advice = await generate_advice(context, llm=AnthropicClient(os.environ["ANTHROPIC_API_KEY"]))
 
     assert advice.summary
     assert advice.fire_tier_assessment

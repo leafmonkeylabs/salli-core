@@ -1,6 +1,6 @@
 """
-The one place a chat model is constructed, and therefore the one place an API
-key is unwrapped.
+The one place a chat model is constructed, and therefore the one place an
+Anthropic key is unwrapped.
 
 Every agent, worker, and one-shot LLM call goes through `chat_model()`. That
 matters for two reasons:
@@ -13,6 +13,11 @@ matters for two reasons:
    running on the instance's key for a user who was supposed to be on their own.
    That fail-loud property is the whole point — it is why composition.py no
    longer seeds that environment variable.
+
+`api_key` is what the model runs on: an Anthropic key (a Secret or a plain
+string), as it always was, or a resolved `LLMClient` for any provider
+(application/ports.py), which builds its own chat model. The agents therefore
+never branch on which company runs them.
 """
 
 from __future__ import annotations
@@ -50,10 +55,22 @@ def reveal(api_key: Any) -> str:
     return str(revealed)
 
 
+def is_llm_client(credential: Any) -> bool:
+    """Whether `credential` is a resolved LLMClient rather than a bare key.
+
+    Duck-typed: the port lives in application/, which the domain must not import.
+    """
+    return all(callable(getattr(credential, name, None)) for name in ("chat_model", "generate"))
+
+
 def chat_model(
-    *, api_key: Any, model: str = CONVERSATION_MODEL, cache: bool = False, **kwargs: Any
+    *, api_key: Any, model: str | None = None, cache: bool = False, **kwargs: Any
 ) -> Any:
-    """Build a ChatAnthropic bound to exactly this key.
+    """Build a chat model bound to exactly this credential.
+
+    Given an LLMClient, it builds the model for its provider: `model` defaults
+    to the client's "best" model, never to a Claude id it could not run.
+    Otherwise this is a ChatAnthropic on that key, as below.
 
     `cache` turns on Anthropic's automatic prompt caching by putting a
     top-level `cache_control` on the request, which caches the longest stable
@@ -74,8 +91,12 @@ def chat_model(
     in the prefix invalidates it. `usage.cache_read_input_tokens` is the only
     proof it is working. See UNIT_ECONOMICS.md.
     """
+    if is_llm_client(api_key):
+        return api_key.chat_model(model=model, cache=cache, **kwargs)
+
     from langchain_anthropic import ChatAnthropic
 
+    model = model or CONVERSATION_MODEL
     if cache:
         # Merged, not assigned: a caller may already be passing model_kwargs,
         # and clobbering it here would drop whatever they set.

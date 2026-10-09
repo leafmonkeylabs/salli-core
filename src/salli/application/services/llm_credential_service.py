@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from salli.application.ports import LLMClient
 from salli.domain.secrets import Secret
 
 _log = logging.getLogger(__name__)
@@ -33,10 +34,24 @@ class ResolvedCredentials:
     Immutable and resolved once per request: the usage meter runs before the
     stream opens, so it has to see the same answer the LLM call will later act
     on. Resolving twice invites the two to disagree.
+
+    `llm` is the provider-neutral client every AI feature runs on (None when
+    there is nothing to run on). Built from the Anthropic key when not given,
+    so code that only knows about that key keeps working unchanged.
     """
 
     anthropic: Secret
     anthropic_is_user_key: bool
+    llm: LLMClient | None = None
+
+    def __post_init__(self) -> None:
+        if self.llm is None and self.anthropic:
+            from salli.adapters.llm.anthropic_adapter import AnthropicClient
+
+            client = AnthropicClient(
+                self.anthropic, source="user" if self.anthropic_is_user_key else "platform"
+            )
+            object.__setattr__(self, "llm", client)
 
     @property
     def byok(self) -> bool:
@@ -46,6 +61,27 @@ class ResolvedCredentials:
         every metered path spends.
         """
         return self.anthropic_is_user_key
+
+
+def as_llm(credential: Any) -> LLMClient | None:
+    """An already-resolved credential as an LLMClient: a client as it is, an
+    Anthropic key (a Secret or a string) wrapped as one, and nothing (None, or
+    an empty key) as None.
+
+    Callers that resolved at a boundary (an HTTP route, a test) hand either
+    kind down; the services take both, so neither has to know which it got.
+    """
+    if credential is None:
+        return None
+    from salli.domain.agents.model_factory import is_llm_client
+
+    if isinstance(credential, LLMClient) or is_llm_client(credential):
+        return credential
+    if not credential:
+        return None
+    from salli.adapters.llm.anthropic_adapter import AnthropicClient
+
+    return AnthropicClient(credential)
 
 
 class LlmCredentialService:

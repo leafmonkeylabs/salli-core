@@ -57,11 +57,14 @@ async def _gather(state: BriefingState, advisor_svc: Any) -> dict[str, Any]:
     return {"context": context}
 
 
-async def _narrate(state: BriefingState) -> dict[str, Any]:
+async def _narrate(state: BriefingState, advisor_svc: Any) -> dict[str, Any]:
     from salli.domain.agents import advisor as advisor_llm
 
     try:
-        advice = await advisor_llm.generate_advice(state.context)
+        # The user's own model, on whichever provider they use: resolved here,
+        # per run, exactly as a manual advisor run resolves it.
+        llm = await advisor_svc.llm_for(state.user_id)
+        advice = await advisor_llm.generate_advice(state.context, llm=llm)
     except Exception as e:
         # generate_advice calls the provider, so `e` can be an SDK error whose
         # message embeds the rejected API key, see error_label.
@@ -137,7 +140,7 @@ def build_briefing_workflow(advisor_svc: Any, checkpointer: Any = None) -> Any:
         return await _gather(state, advisor_svc)
 
     async def narrate(state: BriefingState) -> dict[str, Any]:
-        return await _narrate(state)
+        return await _narrate(state, advisor_svc)
 
     def review(state: BriefingState) -> dict[str, Any]:
         return _review(state)

@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 from typing import Any, cast
 
-from salli.domain.ai_models import EXTRACTION_MODEL
 from salli.domain.parsing.models import ParsedTransaction, RawRow
 
 _CLASSIFICATION_PROMPT = """\
@@ -81,25 +80,23 @@ async def classify_transactions(
     raw_rows: list[RawRow],
     accounts: list[Any],
     *,
-    api_key: Any,
+    llm: Any,
     money_account: Any = None,
     batch_size: int = 30,
 ) -> list[ParsedTransaction]:
     """
-    Classify raw rows into ParsedTransactions using Claude, one per row, in order.
+    Classify raw rows into ParsedTransactions, one per row, in order.
     Batches to stay within context limits.
+
+    `llm` is the user's resolved LLMClient (application/ports.py): their own
+    key or ChatGPT plan, else the platform's key, whichever provider that is.
+    Bulk classification is mechanical, so it asks for the "fast" tier; the
+    usage meter is never told a model for statement imports on that basis
+    (see routers/statements.py).
 
     `money_account` is the account every row is on, when the statement says:
     the model then chooses only the other side, and the money side is that account.
     """
-    import anthropic
-
-    from salli.domain.agents.model_factory import reveal
-
-    # Explicit key, not the SDK's zero-arg environment lookup: statement
-    # classification must bill whoever's key resolved for this request.
-    client = anthropic.AsyncAnthropic(api_key=reveal(api_key))
-
     accounts_json = json.dumps(
         [{"id": a.id, "code": a.code, "name": a.name, "type": a.type} for a in accounts]
     )
@@ -137,19 +134,12 @@ async def classify_transactions(
                 transactions_json=txn_json,
             )
 
-        message = await client.messages.create(
-            # Pinned to the extraction model: bulk classification is mechanical,
-            # and the usage meter is never told a model for statement imports
-            # on that basis (see routers/statements.py). Changing this without
-            # changing that would meter one model and run another.
-            model=EXTRACTION_MODEL,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
+        # The whole prompt is the user turn, as it always was: on Anthropic
+        # this is the same request the SDK call it replaced made.
+        raw_text = await llm.generate(
+            instructions="", input=prompt, tier="fast", max_output_tokens=4096
         )
-
-        block = message.content[0]
-        raw_text = block.text.strip() if hasattr(block, "text") else ""  # type: ignore[union-attr]
-        classifications = _parse_response(raw_text)
+        classifications = _parse_response(raw_text.strip())
 
         for i, row in enumerate(batch):
             clf = classifications.get(batch_start + i, {})

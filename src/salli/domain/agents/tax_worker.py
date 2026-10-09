@@ -38,8 +38,10 @@ explain the next steps concisely.
 def build_tax_worker(
     ledger_svc: Any, tax_svc: Any, *, api_key: Any, model: str | None = None, tools: Any = None
 ) -> Any:
-    """`api_key` is required and keyword-only on purpose: a missed call site
-    must raise, not fall back to the ANTHROPIC_API_KEY environment variable.
+    """`api_key` is what the model runs on: an Anthropic key, or a resolved
+    LLMClient for any provider (see model_factory). It is required and
+    keyword-only on purpose: a missed call site must raise, not fall back to
+    the ANTHROPIC_API_KEY environment variable.
 
     `tools` lets the caller pass an already-built tool list. They are
     user-independent (they read the current user from a contextvar at call
@@ -50,7 +52,7 @@ def build_tax_worker(
 
     from langgraph.prebuilt import create_react_agent
 
-    from salli.domain.agents.model_factory import CONVERSATION_MODEL, chat_model
+    from salli.domain.agents.model_factory import chat_model
     from salli.domain.agents.tools import make_read_tools
 
     today = datetime.date.today().strftime("%A, %d %B %Y")
@@ -62,9 +64,7 @@ def build_tax_worker(
 
     tools = make_read_tools(ledger_svc, tax_svc) if tools is None else tools
     return create_react_agent(
-        model=chat_model(
-            api_key=api_key, model=model or CONVERSATION_MODEL, temperature=0, cache=True
-        ),
+        model=chat_model(api_key=api_key, model=model, temperature=0, cache=True),
         tools=tools,
         name="tax_specialist",
         prompt=dated_prompt,

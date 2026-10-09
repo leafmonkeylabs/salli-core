@@ -171,6 +171,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         fi,
         checkpointer=checkpointer,
         uow_factory=uow_factory,
+        credentials=llm_credentials,
     )
     # The user's categorisation rules: statement import and quick add both
     # try them before any model.
@@ -179,19 +180,12 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         uow_factory, storage, llm_credentials, fx=fx, rules=rules, usage=extensions.usage_meter
     )
 
-    # Free-text → draft journal entry (voice/text quick-add) and Voice Mode
-    # speech-to-text. Both are now always constructed: which key they run on is
-    # resolved per request, so a user with their own key gets the feature even
-    # where no platform key exists. Previously both were None unless a platform
-    # key was configured, which 503'd exactly the users BYOK is for.
-    from salli.adapters.llm.anthropic_adapter import AnthropicLLMAdapter
-
-    entry_parse = EntryParseService(
-        ledger,
-        lambda key: AnthropicLLMAdapter(key, settings.langsmith_project),
-        credentials=llm_credentials,
-        rules=rules,
-    )
+    # Free-text → draft journal entry (voice/text quick-add). Always
+    # constructed: which model it runs on is resolved per request, so a user
+    # with their own key or ChatGPT plan gets the feature even where no
+    # platform key exists. It was once None unless a platform key was
+    # configured, which 503'd exactly the users BYOK is for.
+    entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
     reports = ReportService(ledger, fi)

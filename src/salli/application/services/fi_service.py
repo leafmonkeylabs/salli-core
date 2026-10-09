@@ -166,20 +166,32 @@ class FiService:
         self._uow_factory = uow_factory
         self._credentials = credentials
 
-    async def _key_for(self, user_id: str, api_key: Any) -> Any:
-        """Use the caller's already-resolved key, else resolve for this user.
+    async def llm_for(self, user_id: str, api_key: Any = None) -> Any:
+        """The model access to run on: the caller's already-resolved credential
+        (an LLMClient, or an Anthropic key as it always was), else this user's,
+        resolved now. LLMNotConfigured when there is nothing to run on.
 
         The HTTP routes resolve once at the boundary and pass it down, so the hot
         path does one lookup. The MCP server, the agent's own tools, and the CLI
         have no such boundary, so they omit it and this resolves on their behalf
-        — which keeps every surface on the same key rather than leaving some of
-        them on the platform's.
+        — which keeps every surface on the same credential rather than leaving
+        some of them on the platform's.
         """
+        from salli.application.services.llm_credential_service import as_llm
+        from salli.domain.llm import LLMNotConfigured
+
         if api_key is not None:
-            return api_key
-        if self._credentials is None:
+            llm = as_llm(api_key)
+        elif self._credentials is None:
             raise RuntimeError("No LLM credential source configured")
-        return (await self._credentials.resolve(user_id)).anthropic
+        else:
+            llm = (await self._credentials.resolve(user_id)).llm
+        if llm is None:
+            raise LLMNotConfigured(
+                "This needs an AI model: add your own API key or connect your ChatGPT "
+                "plan in Settings."
+            )
+        return llm
 
     # ── Snapshot ────────────────────────────────────────────────────────────────
 
@@ -601,7 +613,7 @@ class FiService:
 
         result = await fs_llm.generate_strategy(
             context,
-            api_key=await self._key_for(user_id, api_key),
+            llm=await self.llm_for(user_id, api_key),
             # The model the usage meter was told about. Metering Opus and then
             # running Sonnet would charge for an answer the user never got.
             model=model,

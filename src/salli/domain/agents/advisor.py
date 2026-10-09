@@ -93,21 +93,26 @@ class Advice(BaseModel):
     recommendations: list[Recommendation] = Field(default_factory=list)
 
 
-async def generate_advice(context: dict[str, Any], *, api_key: Any) -> Advice:
-    from langchain_core.messages import HumanMessage, SystemMessage
+async def generate_advice(context: dict[str, Any], *, llm: Any) -> Advice:
+    """Prioritised recommendations for `context`, validated. `llm` is the
+    user's resolved LLMClient (application/ports.py)."""
+    from pydantic import ValidationError
 
-    from salli.domain.agents.model_factory import chat_model
+    from salli.domain.llm import LLMUnreadableAnswer, parse_json_answer
 
-    model = chat_model(api_key=api_key, temperature=0.3, max_tokens=2000)
-    structured = model.with_structured_output(Advice)
     payload = json.dumps(context, indent=2, default=str)
-    result = await structured.ainvoke(
-        [
-            SystemMessage(content=ADVISOR_PROMPT),
-            HumanMessage(
-                content=f"Here is the person's current financial picture:\n\n{payload}\n\n"
-                f"Produce 4–7 prioritised mentoring recommendations tied to their FIRE strategy."
-            ),
-        ]
+    text = await llm.generate(
+        instructions=ADVISOR_PROMPT,
+        input=f"Here is the person's current financial picture:\n\n{payload}\n\n"
+        f"Produce 4–7 prioritised mentoring recommendations tied to their FIRE strategy.",
+        tier="best",
+        schema=Advice,
+        temperature=0.3,
+        max_output_tokens=2000,
     )
-    return result  # type: ignore[return-value]
+    try:
+        return Advice.model_validate(parse_json_answer(text))
+    except ValidationError as exc:
+        raise LLMUnreadableAnswer(
+            "The advice the AI wrote could not be read. Please try again."
+        ) from exc

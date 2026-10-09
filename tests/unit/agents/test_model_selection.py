@@ -29,7 +29,7 @@ class TestOneCatalogue:
         from salli.adapters.llm.anthropic_adapter import _MODEL_TIERS
 
         assert _MODEL_TIERS["fast"] == EXTRACTION_MODEL
-        assert _MODEL_TIERS["strong"] == DEFAULT_MODEL
+        assert _MODEL_TIERS["best"] == DEFAULT_MODEL
 
     def test_no_model_id_is_spelled_out_anywhere_else(self):
         """A literal model id outside the catalogue is how the three tables got

@@ -17,8 +17,21 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from salli.domain.ai_models import DEFAULT_MODEL
+from salli.domain.llm import LLMError
 
 _WORKER_NODES = {"tax_specialist", "finance_specialist"}
+
+
+def _error_event(exc: BaseException) -> dict[str, Any]:
+    """The `error` event for a failed turn: a sentence to show, and, for the
+    typed model errors, a stable `code` and the `link` where the user can fix
+    it (ChatGPT's usage settings, when a plan's limit was reached)."""
+    if isinstance(exc, LLMError):
+        event: dict[str, Any] = {"message": exc.message, "code": exc.code}
+        if exc.link:
+            event["link"] = exc.link
+        return event
+    return {"message": _provider_error_message(exc)}
 
 
 def _provider_error_message(exc: BaseException) -> str:
@@ -30,8 +43,11 @@ def _provider_error_message(exc: BaseException) -> str:
 
     Never interpolates the provider's own message — an SDK error can quote the
     key it rejected. (`_sse` redacts as a second line of defence, but the right
-    answer is not to put it there in the first place.)
+    answer is not to put it there in the first place.) The typed errors in
+    domain/llm.py already carry our own sentence, so they say it.
     """
+    if isinstance(exc, LLMError):
+        return exc.message
     text = f"{type(exc).__name__}: {exc}"
     if "401" in text or "authentication_error" in text or "invalid x-api-key" in text.lower():
         return (
@@ -122,6 +138,7 @@ class AgentService:
         fi_svc: Any = None,
         checkpointer: Any = None,
         uow_factory: Any = None,
+        credentials: Any = None,
     ) -> None:
         self._ledger_svc = ledger_svc
         self._tax_svc = tax_svc
@@ -136,6 +153,9 @@ class AgentService:
         self._fi_svc = fi_svc
         self._checkpointer = checkpointer
         self._uow_factory = uow_factory
+        # LlmCredentialService: what a turn runs on when the caller did not
+        # resolve it already (the CLI, which has no request boundary).
+        self._credentials = credentials
         # Compiled graphs, keyed by (persona, date, key fingerprint, model) — see
         # _get_agent. Bounded because the key dimension is per-user.
         self._agents: OrderedDict[tuple[str, str, str, str], Any] = OrderedDict()
@@ -214,12 +234,21 @@ class AgentService:
         import hashlib
         import importlib
 
+        from salli.domain.agents.model_factory import is_llm_client
+
         if persona not in self._PERSONA_BUILDERS:
             persona = "scrooge"
 
-        raw = api_key.reveal() if hasattr(api_key, "reveal") else (api_key or "")
-        fingerprint = hashlib.sha256(raw.encode()).hexdigest()[:16] if raw else "none"
-        model = model or DEFAULT_MODEL
+        if is_llm_client(api_key):
+            # A resolved client names its provider and credential without
+            # holding the secret, and its own "best" model is the default:
+            # never a Claude id a model on another provider could not run.
+            fingerprint = api_key.fingerprint
+            model = model or api_key.model_for("best")
+        else:
+            raw = api_key.reveal() if hasattr(api_key, "reveal") else (api_key or "")
+            fingerprint = hashlib.sha256(raw.encode()).hexdigest()[:16] if raw else "none"
+            model = model or DEFAULT_MODEL
         cache_key = (persona, datetime.date.today().isoformat(), fingerprint, model)
 
         cached = self._agents.get(cache_key)
@@ -436,11 +465,21 @@ class AgentService:
                 # router's handler, and the client got a clean `done` with no
                 # reply and no explanation. A provider 401 looked identical to
                 # a successful empty answer.
-                yield ("error", {"message": _provider_error_message(exc)})
+                yield ("error", _error_event(exc))
         finally:
             if active_worker:
                 yield ("subagent_end", {"agent": active_worker})
             yield ("done", None)
+
+    async def _credential_for(self, user_id: str, api_key: Any) -> Any:
+        """The caller's credential (an HTTP route resolves it at the boundary),
+        else this user's, resolved now: the CLI has no boundary to do it at.
+        Left as it is when there is nothing to resolve with, so a missing key
+        still fails loud in the model factory."""
+        if api_key is not None or self._credentials is None:
+            return api_key
+        creds = await self._credentials.resolve(user_id)
+        return creds.llm if creds.llm is not None else creds.anthropic
 
     # ── Session management ────────────────────────────────────────────────────
 
@@ -479,23 +518,27 @@ class AgentService:
     async def _try_generate_title(
         self, user_id: str, thread_id: str, user_msg: str, ai_text: str, *, api_key: Any
     ) -> None:
-        """Fire-and-forget: generate a Haiku title and persist it."""
+        """Fire-and-forget: generate a title on the fast model and persist it.
+
+        `api_key` is the turn's credential: an LLMClient, or an Anthropic key."""
         if not self._uow_factory:
             return
         try:
-            from langchain_core.messages import HumanMessage
+            from salli.application.services.llm_credential_service import as_llm
 
-            from salli.domain.agents.model_factory import HAIKU, chat_model
-
-            haiku = chat_model(api_key=api_key, model=HAIKU, temperature=0, max_tokens=20)
+            llm = as_llm(api_key)
+            if llm is None:
+                return
             prompt = (
                 "Generate a 3-5 word title for this conversation. "
                 "Reply with ONLY the title. No quotes, no punctuation, no explanation.\n\n"
                 f"User: {user_msg[:200]}\n"
                 f"Assistant: {ai_text[:400]}"
             )
-            response = await haiku.ainvoke([HumanMessage(content=prompt)])
-            title = str(response.content).strip()[:100]
+            answer = await llm.generate(
+                instructions="", input=prompt, tier="fast", temperature=0, max_output_tokens=20
+            )
+            title = answer.strip()[:100]
             if title:
                 async with self._uow_factory() as uow:
                     await uow.agent_sessions.set_title(user_id, thread_id, title)
@@ -556,6 +599,7 @@ class AgentService:
         set_current_user(user_id)  # tools read this, never the LLM-supplied id
         await self._ensure_session(user_id, thread_id, persona=persona)
 
+        api_key = await self._credential_for(user_id, api_key)
         agent = self._get_agent(persona, api_key, model)
         config = {
             "configurable": {"thread_id": f"{user_id}:{thread_id}", "user_id": user_id},
@@ -584,6 +628,7 @@ class AgentService:
         from salli.domain.agents.tools import set_current_user
 
         set_current_user(user_id)
+        api_key = await self._credential_for(user_id, api_key)
         # Server-owned, not the request's `persona` — see _persona_for_thread.
         agent = self._get_agent(
             await self._persona_for_thread(user_id, thread_id, persona), api_key, model

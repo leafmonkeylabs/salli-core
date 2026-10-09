@@ -13,6 +13,9 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Protocol, TypedDict
 
+from pydantic import BaseModel
+
+from salli.domain.llm import Tier
 from salli.domain.usage import AIAction
 
 
@@ -259,30 +262,79 @@ class StatementRepository(ABC):
         ...
 
 
-class LLMPort(ABC):
-    """
-    Single gateway to the LLM — tiering, retries, and usage metering live here.
-    The domain never calls Anthropic directly.
+class LLMClient(ABC):
+    """One user's way to a language model, for one request, whichever provider
+    is behind it: Anthropic or OpenAI on an API key, or the user's ChatGPT plan.
+
+    LlmCredentialService.resolve builds it: it has already decided the
+    provider, the credential and the model for each tier, so nothing that
+    holds one ever branches on which company runs the model. Two ways in, which
+    between them cover every AI feature:
+
+    - `generate`: one instruction, one input, the model's text back. Statement
+      sorting, quick add, the FIRE strategy and the advisor ask for JSON and
+      parse it themselves; naming a conversation takes the text as it is.
+    - `chat_model`: a LangChain chat model with tool calling and streaming, for
+      the LangGraph agents.
+
+    Errors are the typed ones in domain/llm.py, in our own words.
     """
 
+    #: "anthropic", "openai" or "chatgpt".
+    provider: str
+    #: "user" when the user's own key or plan pays, "platform" for the
+    #: deployment's key.
+    source: str
+
+    @property
     @abstractmethod
-    async def extract_structured(
-        self,
-        prompt: str,
-        schema: dict[str, Any],
-        *,
-        model_tier: str = "fast",
-    ) -> dict[str, Any]:
-        """Run structured extraction; returns validated JSON matching schema."""
+    def fingerprint(self) -> str:
+        """Names this provider and credential without containing it: what a
+        compiled agent graph is cached under."""
         ...
 
     @abstractmethod
-    async def stream_agent(
+    def model_for(self, tier: Tier) -> str:
+        """The model this client runs for a tier ("fast" or "best")."""
+        ...
+
+    @abstractmethod
+    async def generate(
         self,
-        thread_id: str,
-        user_message: str,
-    ):
-        """Stream agent tokens; yields (event_type, payload) tuples."""
+        *,
+        instructions: str,
+        input: str,
+        tier: Tier = "fast",
+        model: str | None = None,
+        schema: dict[str, Any] | type[BaseModel] | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> str:
+        """The model's answer to `input` under `instructions`, once it is complete.
+
+        With `schema` (a JSON Schema, or a pydantic model), the answer is JSON
+        of that shape; the caller still parses and validates it, because a
+        model only ever proposes. `max_output_tokens` and `temperature` are
+        hints a route honours where it may: Anthropic does, as it always has;
+        the ChatGPT plan forbids both, and so the OpenAI routes never send them.
+        """
+        ...
+
+    @abstractmethod
+    def chat_model(
+        self,
+        *,
+        model: str | None = None,
+        tier: Tier = "best",
+        cache: bool = False,
+        **options: Any,
+    ) -> Any:
+        """A LangChain chat model (tool calling, streaming) for the agents.
+
+        `cache` asks for prompt caching where the provider offers it; `options`
+        are Anthropic's own settings (temperature, max_tokens), which the
+        OpenAI routes do not send.
+        """
         ...
 
 
