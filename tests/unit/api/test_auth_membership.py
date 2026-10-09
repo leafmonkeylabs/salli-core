@@ -31,6 +31,16 @@ def _creds(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
+def _services(profile, oauth_user: str | None = None) -> SimpleNamespace:
+    """Services for authentication: the profile service, and an OAuth server
+    that knows one token ("salli-oauth-token") if given a user for it."""
+
+    async def verify(token: str, audience: str = "api"):
+        return {"user_id": oauth_user} if oauth_user and token == "salli-oauth-token" else None
+
+    return SimpleNamespace(profile=profile, mcp_oauth=SimpleNamespace(verify_access_token=verify))
+
+
 async def _caller(token: str, settings: Settings, services) -> str:
     """Authenticate the token, then check membership — as a request does."""
     principal = await get_principal(_creds(token), settings, services)
@@ -92,7 +102,7 @@ DEV = {"salli_insecure_dev_auth": True, "environment": "development"}
 
 async def test_a_closed_instance_refuses_a_stranger_and_creates_nothing():
     profile, profiles = _profile_service({"owner": {"id": "owner"}})
-    services = SimpleNamespace(profile=profile)
+    services = _services(profile)
 
     with pytest.raises(HTTPException) as caught:
         await _caller("stranger", _settings(**DEV), services)
@@ -103,13 +113,13 @@ async def test_a_closed_instance_refuses_a_stranger_and_creates_nothing():
 
 async def test_a_closed_instance_answers_its_members():
     profile, _ = _profile_service({"owner": {"id": "owner"}})
-    services = SimpleNamespace(profile=profile)
+    services = _services(profile)
     assert await _caller("owner", _settings(**DEV), services) == "owner"
 
 
 async def test_an_open_instance_creates_an_account_on_first_contact():
     profile, profiles = _profile_service()
-    services = SimpleNamespace(profile=profile)
+    services = _services(profile)
     settings = _settings(**DEV, salli_registration="open")
 
     assert await _caller("newcomer", settings, services) == "newcomer"
@@ -137,3 +147,14 @@ async def test_a_deleted_account_is_forgotten():
     del profiles.rows["owner"]
     profile.forget("owner")
     assert not await profile.ensure_user("owner", None, may_create=False)
+
+
+async def test_a_salli_token_is_its_user_even_under_the_dev_fallback():
+    # The fallback takes any token as a user id; a CLI that signed in with
+    # the device flow was taken to be the user named by its access token.
+    profile, _ = _profile_service({"owner": {"id": "owner"}})
+    services = _services(profile, oauth_user="owner")
+    principal = await get_principal(_creds("salli-oauth-token"), _settings(**DEV), services)
+    assert (principal.user_id, principal.method) == ("owner", "oauth")
+    dev = await get_principal(_creds("someone"), _settings(**DEV), services)
+    assert (dev.user_id, dev.method) == ("someone", "dev")

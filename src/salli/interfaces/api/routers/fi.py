@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator, Iterable
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
@@ -128,8 +128,22 @@ _SCORE_MONEY = (
 )
 
 
+#: Ratios, to four places ("0.5500"); months of expenses saved, to two. The
+#: stored score keeps every digit the engine computed; nothing reads 28 of them.
+_SCORE_PLACES = {
+    "savings_rate": Decimal("0.0001"),
+    "progress_to_fi": Decimal("0.0001"),
+    "debt_to_asset": Decimal("0.0001"),
+    "emergency_fund_months": Decimal("0.01"),
+}
+
+
 def _fi_score(score: dict[str, Any], currency: str) -> FiScore:
-    return FiScore.model_validate({**_priced(score, _SCORE_MONEY, currency), "currency": currency})
+    shown = _priced(score, _SCORE_MONEY, currency)
+    for key, places in _SCORE_PLACES.items():
+        if shown.get(key) is not None:
+            shown[key] = str(Decimal(str(shown[key])).quantize(places, rounding=ROUND_HALF_UP))
+    return FiScore.model_validate({**shown, "currency": currency})
 
 
 async def _gate_strategy_stream(

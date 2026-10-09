@@ -2375,6 +2375,9 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
                 "client_id": client.client_id,
                 "client_name": client.client_name or "Unnamed app",
                 "scope": token.scope,
+                # Which audience it was issued for: an AI client (MCP) or the
+                # user's own CLI (the API). Without it every token read as MCP.
+                "resource": token.resource,
                 "connected_at": token.created_at,
             }
             for token, client in rows

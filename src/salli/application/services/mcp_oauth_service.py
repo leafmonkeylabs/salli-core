@@ -423,6 +423,10 @@ class McpOAuthService:
         return [r for r in rows if self._token_audience(r) == MCP]
 
     async def revoke_connection(self, user_id: str, token_id: str) -> bool:
+        """Disconnect an AI client. Only one of those: a CLI session's token
+        is not a connection, and is signed out with `salli logout`."""
+        if token_id not in {c["token_id"] for c in await self.list_connections(user_id)}:
+            return False
         async with self._uow_factory() as uow:
             return await uow.oauth_tokens.revoke_access_token(token_id, user_id)
 

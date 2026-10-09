@@ -168,6 +168,13 @@ async def get_principal(
                 detail="This token is invalid, expired, or has been revoked.",
             )
         return Principal(user_id, None, "pat")
+    # Salli's own tokens before the development fallback: under it, a CLI
+    # signed in with the device flow was taken to be the user whose id is
+    # its access token.
+    if not _looks_like_jwt(token):
+        record = await services.mcp_oauth.verify_access_token(token, audience=API)
+        if record is not None:
+            return Principal(str(record["user_id"]), None, "oauth")
     if (
         not settings.supabase_url
         and not settings.supabase_jwt_secret
@@ -177,12 +184,7 @@ async def get_principal(
     if _looks_like_jwt(token):
         user_id, email = _decode_jwt(token, settings)
         return Principal(user_id, email, "session")
-    record = await services.mcp_oauth.verify_access_token(token, audience=API)
-    if record is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate token"
-        )
-    return Principal(str(record["user_id"]), None, "oauth")
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate token")
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]

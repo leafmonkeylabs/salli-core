@@ -157,8 +157,9 @@ async def test_score_amounts_leave_as_plain_decimals_in_the_currency(client, moc
     assert body["fi_number"] == "45000000.00"
     assert body["monthly_income"] == "333333.33"
     assert body["annual_expenses"] == "1800000.00"
-    # Ratios are not money: as computed.
-    assert body["savings_rate"] == "0.5500000000000000000000000000"
+    # Ratios are not money: to four places, and months of savings to two.
+    assert (body["savings_rate"], body["progress_to_fi"]) == ("0.5500", "0.0267")
+    assert (body["debt_to_asset"], body["emergency_fund_months"]) == ("0.0000", "6.67")
 
 
 async def test_a_score_stored_by_an_earlier_version_still_reads(client, mock_services):
