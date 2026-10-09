@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE" OLDFILEUID="NONE" NEWFILEUID="NONE"?>
+<OFX>
+  <SIGNONMSGSRSV1>
+    <SONRS>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <DTSERVER>20261003101500.000[+2:CEST]</DTSERVER>
+      <LANGUAGE>DEU</LANGUAGE>
+    </SONRS>
+  </SIGNONMSGSRSV1>
+  <CREDITCARDMSGSRSV1>
+    <CCSTMTTRNRS>
+      <TRNUID>0</TRNUID>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <CCSTMTRS>
+        <CURDEF>EUR</CURDEF>
+        <CCACCTFROM>
+          <ACCTID>XXXXXXXXXXXX4417</ACCTID>
+        </CCACCTFROM>
+        <BANKTRANLIST>
+          <DTSTART>20260901</DTSTART>
+          <DTEND>20260930</DTEND>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260903000000.000[+2:CEST]</DTPOSTED>
+            <DTUSER>20260901</DTUSER>
+            <TRNAMT>-42.90</TRNAMT>
+            <FITID>CC-20260903-01</FITID>
+            <NAME>DB Fernverkehr</NAME>
+            <MEMO>Bahnticket München–Berlin</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260910</DTPOSTED>
+            <TRNAMT>-18.00</TRNAMT>
+            <FITID>CC-20260910-01</FITID>
+            <PAYEE>
+              <NAME>Spotify AB</NAME>
+              <ADDR1>Regeringsgatan 19</ADDR1>
+              <CITY>Stockholm</CITY>
+              <STATE>AB</STATE>
+              <POSTALCODE>11153</POSTALCODE>
+              <COUNTRY>SWE</COUNTRY>
+            </PAYEE>
+            <MEMO></MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260915</DTPOSTED>
+            <TRNAMT>-129.99</TRNAMT>
+            <FITID>CC-20260915-01</FITID>
+            <NAME>AMAZON MKTPLACE PMTS AMZN.CO</NAME>
+            <MEMO>AMAZON MKTPLACE PMTS AMZN.COM/BILL WA</MEMO>
+            <CURRENCY>
+              <CURRATE>0.8613</CURRATE>
+              <CURSYM>USD</CURSYM>
+            </CURRENCY>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT</TRNTYPE>
+            <DTPOSTED>20260928</DTPOSTED>
+            <TRNAMT>500.00</TRNAMT>
+            <FITID>CC-20260928-01</FITID>
+            <NAME>Zahlung – vielen Dank</NAME>
+          </STMTTRN>
+        </BANKTRANLIST>
+        <LEDGERBAL>
+          <BALAMT>-1200.00</BALAMT>
+          <DTASOF>20260930</DTASOF>
+        </LEDGERBAL>
+      </CCSTMTRS>
+    </CCSTMTTRNRS>
+  </CREDITCARDMSGSRSV1>
+</OFX>
