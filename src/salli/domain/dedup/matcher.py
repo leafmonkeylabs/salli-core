@@ -68,6 +68,10 @@ class Imported:
     id: str
     row: Candidate
     account_id: str = ""  # its statement's account; "" when it had none
+    #: The user discarded it. It still is that bank transaction (its reference
+    #: matches, so a feed does not bring it back), but nothing else about it
+    #: stands for anything booked.
+    discarded: bool = False
 
 
 @dataclass(frozen=True)
@@ -122,8 +126,9 @@ def find_duplicates(
     """A verdict for each of an import's `rows`, in order.
 
     `account_id` is the account the import is on ("" when it does not say),
-    `imported` the earlier imports' rows around its dates (none the user
-    discarded, none already found to duplicate another), `booked` the ledger's
+    `imported` the earlier imports' rows around its dates (none already found
+    to duplicate another; those the user discarded match on their bank
+    reference alone), `booked` the ledger's
     entries around them, and `money_accounts` the user's asset and liability
     accounts, which tell a transfer's two sides apart.
     """
@@ -157,7 +162,8 @@ def find_duplicates(
     # banks gave them different references are different transactions.
     by_identity: dict[tuple[str, int, str, bool, str], list[Imported]] = defaultdict(list)
     for e in earlier:
-        by_identity[identity(e.row)].append(e)
+        if not e.discarded:
+            by_identity[identity(e.row)].append(e)
     for i, row in enumerate(rows):
         if verdicts[i].status is not DedupStatus.UNIQUE:
             continue

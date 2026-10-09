@@ -77,3 +77,5 @@ class ParseResult:
     transactions: list[ParsedTransaction] = field(default_factory=list)
     raw_rows: list[RawRow] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    #: Rows left out as already imported (a bank feed's overlap), not kept.
+    duplicates_dropped: int = 0

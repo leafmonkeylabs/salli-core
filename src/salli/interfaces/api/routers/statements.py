@@ -18,7 +18,6 @@ from pydantic import BaseModel
 
 from salli.domain.currency import quantize
 from salli.domain.parsing.models import ParsedTransaction
-from salli.domain.usage import AIAction
 from salli.interfaces.api.contract import Amount, CurrencyCode, FileUpload
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
@@ -152,8 +151,8 @@ async def upload_statement(
     if len(data) > 10 * 1024 * 1024:  # 10 MB hard cap
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
 
-    await svc.usage.charge(user_id, AIAction.STATEMENT_IMPORT, email=email)
-
+    # The usage meter is charged inside, and only if the model is about to
+    # run: a statement the user's rules sort entirely costs nothing.
     result = await svc.parsing.parse_statement(
         user_id=user_id,
         filename=file.filename,
@@ -162,6 +161,7 @@ async def upload_statement(
         currency=currency,
         account_id=account_id,
         date_order=date_order,
+        email=email,
     )
 
     if result.errors and not result.transactions:

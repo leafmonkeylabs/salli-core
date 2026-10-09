@@ -76,10 +76,12 @@ async def test_an_import_keeps_its_account_and_a_reimport_finds_it(uow_factory, 
     second = await parsing.parse_statement(
         "u1", "oct.csv", STATEMENT, account_id=checking, api_key="k"
     )
-    again = await _rows(uow_factory, second.statement_id)
+    again = second.transactions
     assert {t.dedup_status for t in again} == {"exact_duplicate"}
     assert sorted(t.duplicate_of for t in again) == sorted(t.id for t in imported)
-    assert {t.confidence for t in again} == {0.0}  # nothing decided them, and that reads back
+    assert {t.confidence for t in again} == {0.0}  # nothing decided them
+    # Said once, in the import's result; nothing for anyone to review.
+    assert await _rows(uow_factory, second.statement_id) == []
 
     # The first import posts; its duplicates post nothing.
     assert len(await parsing.post_approved("u1", [t.id for t in imported])) == 5
@@ -90,9 +92,7 @@ async def test_an_import_keeps_its_account_and_a_reimport_finds_it(uow_factory, 
     third = await parsing.parse_statement(
         "u1", "oct.csv", STATEMENT, account_id=checking, api_key="k"
     )
-    assert sorted(t.duplicate_of for t in await _rows(uow_factory, third.statement_id)) == sorted(
-        t.id for t in imported
-    )
+    assert sorted(t.duplicate_of for t in third.transactions) == sorted(t.id for t in imported)
 
 
 async def test_another_accounts_history_is_not_a_duplicate(uow_factory, chart):

@@ -23,7 +23,7 @@ import uuid
 from collections import Counter
 from collections.abc import Callable
 from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
@@ -39,6 +39,7 @@ from salli.domain.dedup.matcher import (
 from salli.domain.parsing.models import ParsedTransaction, ParseResult, RawRow
 from salli.domain.rules.engine import Facts, Rule
 from salli.domain.rules.history import booked_transactions
+from salli.domain.usage import AIAction, UsageLimitReached
 
 if TYPE_CHECKING:
     from salli.adapters.parsing.csv_import import CsvMapping
@@ -70,6 +71,7 @@ class ParsingService:
         credentials: Any = None,
         fx: Any = None,
         rules: Any = None,
+        usage: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._storage = storage
@@ -78,6 +80,10 @@ class ParsingService:
         self._fx = fx
         # The user's categorisation rules (RulesService), tried before the model.
         self._rules = rules
+        # The deployment's usage meter (application/ports.UsageMeter), charged
+        # only when the model is about to run: an import the user's rules
+        # decide, or one with no key, spends nothing and costs nothing.
+        self._usage = usage
 
     async def _key_for(self, user_id: str, api_key: Any) -> Any:
         """Use the caller's already-resolved key, else resolve for this user;
@@ -139,6 +145,7 @@ class ParsingService:
         date_order: DateOrder | None = None,
         csv_mapping: CsvMapping | None = None,
         api_key: Any = None,
+        email: str | None = None,
     ) -> ParseResult:
         """
         Parse a bank statement file and store the extracted transactions.
@@ -192,6 +199,7 @@ class ParsingService:
             filename=filename,
             file_bytes=file_bytes,
             api_key=api_key,
+            email=email,
         )
 
     async def import_rows(
@@ -205,10 +213,20 @@ class ParsingService:
         filename: str | None = None,
         file_bytes: bytes | None = None,
         api_key: Any = None,
+        email: str | None = None,
+        keep_duplicates: bool = True,
+        on_usage_limit: Literal["raise", "skip"] = "raise",
     ) -> ParseResult:
         """
         Import transactions already read from somewhere — a statement file, a
         bank feed — as one statement for review: everything after extraction.
+
+        A statement keeps its exact duplicates, so its result can say what was
+        imported before; a feed (`keep_duplicates=False`), which overlaps its
+        last sync on purpose, leaves them out and only counts them. When the
+        usage meter refuses the model, a request (`on_usage_limit="raise"`)
+        is refused, as it always was; a scheduled sync ("skip") goes ahead
+        with the user's rules alone and says so.
 
         `account_id` is the account they are all on (validated as in
         parse_statement), `errors` what the reading already had to say, and
@@ -263,10 +281,38 @@ class ParsingService:
         verdicts = find_duplicates(
             candidates,
             account_id=account.id if account is not None else "",
-            imported=[Imported(t.id, _candidate(t.raw), t.account_id) for t in history],
+            imported=[
+                Imported(
+                    t.id, _candidate(t.raw), t.account_id, discarded=t.dedup_status == "discarded"
+                )
+                for t in history
+                # A statement imported again on purpose brings back what was
+                # discarded from it; a feed's overlap with its last sync must not.
+                if not keep_duplicates or t.dedup_status != "discarded"
+            ],
             booked=booked_transactions(entries, every_account),
             money_accounts={a.id for a in every_account if a.type in _MONEY_TYPES},
         )
+
+        dropped = 0
+        if not keep_duplicates:
+            fresh = [
+                i for i, v in enumerate(verdicts) if v.status is not DedupStatus.EXACT_DUPLICATE
+            ]
+            dropped = len(kept) - len(fresh)
+            kept = [kept[i] for i in fresh]
+            candidates = [candidates[i] for i in fresh]
+            verdicts = [verdicts[i] for i in fresh]
+            if not kept:
+                return ParseResult(
+                    statement_id="",
+                    bank=bank,
+                    period_start=period_start,
+                    period_end=period_end,
+                    raw_rows=rows,
+                    errors=errors,
+                    duplicates_dropped=dropped,
+                )
 
         # The statement's account is the money side of every row; an exact
         # duplicate gets nothing more. It is booked already: it stays for
@@ -294,6 +340,14 @@ class ParsingService:
         # key to ask it with. Without one the import still goes ahead.
         undecided = [i for i in live if not _booked(parsed[i])]
         key = await self._key_for(user_id, api_key) if undecided else None
+        if key is not None and self._usage is not None:
+            try:
+                await self._usage.charge(user_id, AIAction.STATEMENT_IMPORT, email=email)
+            except UsageLimitReached as refused:
+                if on_usage_limit == "raise":
+                    raise
+                key = None
+                errors.append(f"The model was not asked: {refused}")
         if key is not None:
             guesses = await classify_transactions(
                 [kept[i] for i in undecided], accounts, api_key=key, money_account=account
@@ -357,6 +411,7 @@ class ParsingService:
             transactions=parsed,
             raw_rows=rows,
             errors=errors,
+            duplicates_dropped=dropped,
         )
 
     async def list_statements(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:

@@ -115,7 +115,8 @@ class Statements:
         return [
             replace(t)
             for t in self.rows.values()
-            if t.statement_id == statement_id and t.dedup_status not in ("posted", "discarded")
+            if t.statement_id == statement_id
+            and t.dedup_status not in ("posted", "discarded", "exact_duplicate")
         ]
 
     async def discard(self, user_id: str, statement_id: str, ids: list[str] | None = None) -> int:
@@ -132,8 +133,7 @@ class Statements:
         return [
             replace(t)
             for t in self.rows.values()
-            if from_date <= t.raw.date <= to_date
-            and t.dedup_status not in ("discarded", "exact_duplicate")
+            if from_date <= t.raw.date <= to_date and t.dedup_status != "exact_duplicate"
         ]
 
     async def get_by_ids(self, user_id: str, ids: list[str]) -> list[ParsedTransaction]:
@@ -679,3 +679,93 @@ async def test_a_discarded_row_is_no_duplicate_of_a_later_import(world):
     )
 
     assert [t.dedup_status for t in again.transactions] == ["pending"]
+
+
+async def test_a_discarded_bank_transaction_does_not_come_back_with_the_next_sync(world):
+    # The feed overlaps its last sync; what the user discarded is still that
+    # bank transaction, by its reference.
+    card_hold = _row("HOTEL AUTH HOLD", "200.00", bank_ref="t-77")
+    first = await world.service().import_rows(
+        USER, [card_hold], bank="", account_id="checking", api_key="k"
+    )
+    await world.service().discard(USER, first.statement_id)
+
+    again = await world.service().import_rows(
+        USER, [card_hold], bank="", account_id="checking", api_key="k", keep_duplicates=False
+    )
+
+    assert (again.statement_id, again.transactions, again.duplicates_dropped) == ("", [], 1)
+
+
+async def test_a_feed_leaves_out_what_it_imported_before_and_keeps_what_is_new(world, model):
+    seen = _row("WHOLE FOODS", "84.17", bank_ref="t-1")
+    new = _row("BLUE BOTTLE COFFEE", "4.50", date="2026-10-06", bank_ref="t-2")
+    await world.service().import_rows(USER, [seen], bank="", account_id="checking", api_key="k")
+    model.clear()
+
+    synced = await world.service().import_rows(
+        USER, [seen, new], bank="", account_id="checking", api_key="k", keep_duplicates=False
+    )
+
+    assert [t.raw.bank_ref for t in synced.transactions] == ["t-2"]
+    assert synced.duplicates_dropped == 1
+    assert [[r.bank_ref for r in call] for call in model] == [["t-2"]]
+    # An exact duplicate a statement keeps is in its result, never in review.
+    stored = await world.service().import_rows(
+        USER, [seen], bank="", account_id="checking", api_key="k"
+    )
+    assert [t.dedup_status for t in stored.transactions] == ["exact_duplicate"]
+    assert await world.service().get_pending(USER, stored.statement_id) == []
+
+
+class Meter:
+    def __init__(self, refuse: bool = False) -> None:
+        self.charged: list[tuple[str, Any, str | None]] = []
+        self.refuse = refuse
+
+    async def charge(self, user_id: str, action: Any, *, model_id: Any = None, email: Any = None):
+        from salli.domain.usage import UsageLimitReached
+
+        if self.refuse:
+            raise UsageLimitReached(action, message="Monthly imports used up", status_code=402)
+        self.charged.append((user_id, action, email))
+
+
+async def test_the_meter_is_charged_only_when_the_model_is_asked(world, model):
+    from salli.domain.usage import AIAction
+
+    _rule(world, "uber", account_id="transport")
+    meter = Meter()
+    service = world.service(usage=meter)
+
+    # The user's rules sort it all: no model, no charge.
+    await service.import_rows(
+        USER, [_row("UBER *TRIP 8H3K2", "23.40")], bank="", account_id="checking", api_key="k"
+    )
+    assert meter.charged == []
+
+    await service.import_rows(
+        USER,
+        [_row("WHOLE FOODS", "84.17")],
+        bank="",
+        account_id="checking",
+        api_key="k",
+        email="me@example.com",
+    )
+    assert meter.charged == [(USER, AIAction.STATEMENT_IMPORT, "me@example.com")]
+
+
+async def test_a_refusing_meter_refuses_a_request_and_lets_a_sync_go_on(world, model):
+    from salli.domain.usage import UsageLimitReached
+
+    service = world.service(usage=Meter(refuse=True))
+    rows = [_row("WHOLE FOODS", "84.17")]
+    with pytest.raises(UsageLimitReached):
+        await service.import_rows(USER, rows, bank="", account_id="checking", api_key="k")
+
+    synced = await service.import_rows(
+        USER, rows, bank="", account_id="checking", api_key="k", on_usage_limit="skip"
+    )
+    [groceries] = synced.transactions
+    assert groceries.debit_account_id == ""  # no rule, and the model was not asked
+    assert model == [] and any("Monthly imports used up" in e for e in synced.errors)

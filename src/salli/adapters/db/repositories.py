@@ -589,7 +589,7 @@ class SQLStatementRepository(StatementRepository):
             .where(
                 when >= from_date,
                 when <= to_date,
-                ParsedTransactionORM.dedup_status.not_in(("discarded", "exact_duplicate")),
+                ParsedTransactionORM.dedup_status != "exact_duplicate",
             )
             .order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
         )
@@ -660,7 +660,9 @@ class SQLStatementRepository(StatementRepository):
 # Waiting for review: not posted, and not discarded.
 _PENDING = (
     ParsedTransactionORM.posted_entry_id.is_(None),
-    ParsedTransactionORM.dedup_status != "discarded",
+    # An exact duplicate needs nothing from anyone: its import's result said
+    # so once, and it never posts.
+    ParsedTransactionORM.dedup_status.not_in(("discarded", "exact_duplicate")),
 )
 
 

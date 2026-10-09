@@ -137,16 +137,6 @@ def _metered_requests(svc: MagicMock):
             lambda c: c.post("/entries/parse", json={"text": "lunch 1500"}, headers=AUTH),
             lambda: svc.entry_parse.parse_draft,
         ),
-        (
-            AIAction.STATEMENT_IMPORT,
-            None,
-            lambda c: c.post(
-                "/statements/upload",
-                files={"file": ("s.csv", b"date,amount\n", "text/csv")},
-                headers=AUTH,
-            ),
-            lambda: svc.parsing.parse_statement,
-        ),
     ]
 
 
@@ -191,6 +181,23 @@ async def test_the_advisor_meters_inside_the_service_and_still_maps(client, mock
     r = await client.post("/advisor/run", headers=AUTH)
     assert r.status_code == 402
     assert r.json() == _refusal(402, {"error": "x"})
+
+
+async def test_statement_imports_meter_inside_the_service_and_still_map(client, mock_services):
+    """A statement is metered in ParsingService, only when the model is about
+    to run (rules-only imports are free, and bank syncs are metered too), so
+    a refusal arrives from the service rather than the router."""
+    mock_services.parsing.parse_statement.side_effect = UsageLimitReached(
+        AIAction.STATEMENT_IMPORT, message="no", status_code=402, detail={"error": "x"}
+    )
+    r = await client.post(
+        "/statements/upload",
+        files={"file": ("s.csv", b"date,amount\n", "text/csv")},
+        headers=AUTH,
+    )
+    assert r.status_code == 402
+    assert r.json() == _refusal(402, {"error": "x"})
+    mock_services.usage.charge.assert_not_awaited()
 
 
 def _refusal(status: int, detail: dict) -> dict:
