@@ -1,0 +1,9 @@
+"Umsätze Girokonto";"Zeitraum: 01.10.2026 - 31.10.2026"
+"Kontonummer";"DE89370400440532013000"
+
+"Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Beguenstigter/Zahlungspflichtiger";"Kontonummer/IBAN";"BIC (SWIFT-Code)";"Betrag";"Waehrung";"Info"
+"DE89370400440532013000";"01.10.26";"01.10.26";"DAUERAUFTRAG";"Miete Oktober 2026 Whg 3";"Hausverwaltung Schmidt GmbH";"DE02120300000000202051";"BYLADEM1001";"-1.200,00";"EUR";"Umsatz gebucht"
+"DE89370400440532013000";"05.10.26";"05.10.26";"FOLGELASTSCHRIFT";"Kundennummer 123456789 Rechnung 10/2026";"Telekom Deutschland GmbH";"DE12500105170648489890";"INGDDEFFXXX";"-54,99";"EUR";"Umsatz gebucht"
+"DE89370400440532013000";"14.10.26";"14.10.26";"KARTENZAHLUNG";"2026-10-13T18:22 Debitk.12 VISA Debit";"Bäckerei Müller";"";"";"-23,47";"EUR";"Umsatz gebucht"
+"DE89370400440532013000";"28.10.26";"28.10.26";"GUTSCHR. UEBERWEISUNG";"LOHN/GEHALT 10/2026";"Contoso GmbH";"DE44500105175407324931";"INGDDEFFXXX";"3.450,00";"EUR";"Umsatz gebucht"
+"DE89370400440532013000";"30.10.26";"01.11.26";"ENTGELTABSCHLUSS";"Entgeltabrechnung siehe Anlage";"";"";"";"-4,90";"EUR";"Umsatz gebucht"

@@ -1,0 +1,11 @@
+"Account Name:","FlexAccount ****12345"
+"Account Balance:","£4,356.03"
+"Available Balance: ","£4,356.03"
+
+"Date","Transaction type","Description","Paid out","Paid in","Balance"
+"01 Oct 2026","Direct debit","Thames Water","£38.00","","£2,066.67"
+"03 Oct 2026","Visa purchase","TESCO STORES 2041","£56.21","","£2,010.46"
+"07 Oct 2026","Bank credit","EMPLOYER LTD SALARY","","£2,850.00","£4,860.46"
+"12 Oct 2026","Transfer to","Savings","£500.00","","£4,360.46"
+"15 Oct 2026","Contactless payment","PRET A MANGER","£4.85","","£4,355.61"
+"31 Oct 2026","Interest","Interest earned","","£0.42","£4,356.03"
