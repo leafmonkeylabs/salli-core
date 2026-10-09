@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref, Updated
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref, Updated
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/budget", tags=["budget"])
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/budget", tags=["budget"])
 
 class BudgetLineRequest(BaseModel):
     account_id: str
-    limit_amount: float
+    limit_amount: AmountIn
 
 
 class BudgetRequest(BaseModel):

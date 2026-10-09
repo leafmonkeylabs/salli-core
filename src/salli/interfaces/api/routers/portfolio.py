@@ -11,7 +11,7 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref, Updated
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref, Updated
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -21,16 +21,16 @@ class HoldingRequest(BaseModel):
     symbol: str
     name: str
     asset_class: str
-    cost_basis: float
-    current_value: float
+    cost_basis: AmountIn
+    current_value: AmountIn
 
 
 class HoldingUpdateRequest(BaseModel):
     symbol: str | None = None
     name: str | None = None
     asset_class: str | None = None
-    cost_basis: float | None = None
-    current_value: float | None = None
+    cost_basis: AmountIn | None = None
+    current_value: AmountIn | None = None
     is_active: bool | None = None
 
 
@@ -98,7 +98,7 @@ def _parse_target(target: list[str]) -> dict[str, Decimal] | None:
         asset_class, _, pct = pair.partition(":")
         if not asset_class or not pct:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Invalid target entry '{pair}'. Use asset_class:pct.",
             )
         parsed[asset_class] = Decimal(pct)

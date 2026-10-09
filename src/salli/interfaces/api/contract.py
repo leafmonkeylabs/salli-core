@@ -20,11 +20,12 @@ their URLs are dictated by the protocols and by clients configured long ago.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import UploadFile
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, WithJsonSchema
 
 API_PREFIX = "/v1"
 API_VERSION = "1"
@@ -228,6 +229,34 @@ def operation_id(route: APIRoute) -> str:
 
 
 # ── Shared shapes ──────────────────────────────────────────────────────────────
+
+_DECIMAL = r"^-?\d+(\.\d+)?$"
+
+#: An amount of money in a request: a decimal string ("1234.50"), read exactly.
+#: A JSON number is still accepted for clients that send one, but it is read
+#: through a binary float first, so large or long amounts can change: send a
+#: string.
+AmountIn = Annotated[
+    Decimal,
+    WithJsonSchema(
+        {
+            "type": "string",
+            "pattern": _DECIMAL,
+            "examples": ["1234.50"],
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+        },
+        mode="validation",
+    ),
+]
+
+#: A rate or fraction in a request ("0.0725" is 7.25%), read exactly, likewise.
+DecimalIn = Annotated[
+    Decimal,
+    WithJsonSchema(
+        {"type": "string", "pattern": _DECIMAL, "examples": ["0.05"]},
+        mode="validation",
+    ),
+]
 
 #: An amount of money: a decimal string with exactly its currency's decimals
 #: ("1234.50", "1200", "1.234"). Never a JSON number — a client would read it as

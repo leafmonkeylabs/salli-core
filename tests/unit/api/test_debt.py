@@ -118,3 +118,19 @@ async def test_a_plan_that_never_finishes_has_no_payoff_month(client, mock_servi
 async def test_a_missing_debt_is_not_found(client, mock_services):
     _uow(mock_services)
     assert (await client.get("/v1/debt/nope", headers=AUTH)).status_code == 404
+
+
+async def test_money_sent_as_a_string_is_kept_exactly(client, mock_services):
+    # As a JSON number this would go through a float and lose its last digits.
+    _uow(mock_services)
+    debt_id = await _create(
+        client,
+        {
+            "name": "Mortgage",
+            "principal": "12345678901234567.89",
+            "apr": "0.0725",
+            "minimum_payment": "1500.10",
+        },
+    )
+    debt = (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()
+    assert (debt["principal"], debt["minimum_payment"]) == ("12345678901234567.89", "1500.10")

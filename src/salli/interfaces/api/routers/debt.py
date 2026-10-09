@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from salli.domain.debt.models import PayoffStrategy
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref, Updated
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref, Updated
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/debt", tags=["debt"])
@@ -18,16 +18,17 @@ router = APIRouter(prefix="/debt", tags=["debt"])
 
 class DebtRequest(BaseModel):
     name: str
-    principal: float
-    apr: float
-    minimum_payment: float
+    principal: AmountIn
+    #: A yearly rate as a fraction ("0.18" is 18%).
+    apr: DecimalIn
+    minimum_payment: AmountIn
 
 
 class DebtUpdateRequest(BaseModel):
     name: str | None = None
-    principal: float | None = None
-    apr: float | None = None
-    minimum_payment: float | None = None
+    principal: AmountIn | None = None
+    apr: DecimalIn | None = None
+    minimum_payment: AmountIn | None = None
     is_active: bool | None = None
 
 
@@ -86,13 +87,13 @@ async def add_debt(body: DebtRequest, user_id: CurrentUser, svc: AppServices) ->
 async def get_payoff_plan(
     user_id: CurrentUser,
     svc: AppServices,
-    extra_monthly_payment: float = Query(0, ge=0),
+    extra_monthly_payment: AmountIn = Query(Decimal(0), ge=0),
     strategy: str = Query("avalanche", pattern="^(avalanche|snowball)$"),
 ) -> PayoffPlan:
     """Avalanche/snowball payoff plan — months to payoff, total interest, schedule."""
     plan = await svc.debt.get_payoff_plan(
         user_id,
-        Decimal(str(extra_monthly_payment)),
+        extra_monthly_payment,
         strategy,  # type: ignore[arg-type]
     )
     return PayoffPlan.model_validate(plan)

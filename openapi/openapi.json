@@ -3754,9 +3754,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "number",
-              "minimum": 0,
-              "default": 0,
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                }
+              ],
+              "default": "0",
               "title": "Extra Monthly Payment"
             }
           },
@@ -7699,8 +7707,13 @@
             "title": "Account Id"
           },
           "limit_amount": {
-            "type": "number",
-            "title": "Limit Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -8802,16 +8815,30 @@
             "title": "Name"
           },
           "principal": {
-            "type": "number",
-            "title": "Principal"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Principal",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "apr": {
-            "type": "number",
-            "title": "Apr"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Apr",
+            "examples": [
+              "0.05"
+            ]
           },
           "minimum_payment": {
-            "type": "number",
-            "title": "Minimum Payment"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Minimum Payment",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -8839,7 +8866,12 @@
           "principal": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -8850,7 +8882,11 @@
           "apr": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
               },
               {
                 "type": "null"
@@ -8861,7 +8897,12 @@
           "minimum_payment": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -10569,12 +10610,22 @@
             "title": "Asset Class"
           },
           "cost_basis": {
-            "type": "number",
-            "title": "Cost Basis"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost Basis",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "current_value": {
-            "type": "number",
-            "title": "Current Value"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Value",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -10625,7 +10676,12 @@
           "cost_basis": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -10636,7 +10692,12 @@
           "current_value": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -11935,12 +11996,22 @@
             "title": "Provider"
           },
           "coverage_amount": {
-            "type": "number",
-            "title": "Coverage Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Coverage Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "premium_amount": {
-            "type": "number",
-            "title": "Premium Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Premium Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "premium_frequency": {
             "type": "string",
@@ -12001,7 +12072,12 @@
           "coverage_amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -12012,7 +12088,12 @@
           "premium_amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -13048,17 +13129,13 @@
       "PurchaseRequest": {
         "properties": {
           "amount": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)"
-              }
-            ],
-            "title": "Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "term_months": {
             "anyOf": [
@@ -14328,11 +14405,22 @@
             "title": "Name"
           },
           "amount": {
-            "type": "number",
-            "title": "Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "frequency": {
             "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
             "title": "Frequency"
           },
           "next_due_date": {
@@ -14356,9 +14444,13 @@
             "default": 5
           },
           "amount_tolerance_pct": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Amount Tolerance Pct",
-            "default": 0.05
+            "default": "0.05",
+            "examples": [
+              "0.05"
+            ]
           }
         },
         "type": "object",
@@ -14386,7 +14478,12 @@
           "amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -14397,7 +14494,13 @@
           "frequency": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "yearly"
+                ]
               },
               {
                 "type": "null"
@@ -14441,7 +14544,11 @@
           "amount_tolerance_pct": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
               },
               {
                 "type": "null"
@@ -14643,8 +14750,13 @@
             "title": "Policy Type"
           },
           "target_amount": {
-            "type": "number",
-            "title": "Target Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",

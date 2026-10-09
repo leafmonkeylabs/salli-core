@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from salli.application.ports import PayloadView, Surface
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
@@ -493,7 +493,8 @@ class PurchaseRequest(BaseModel):
     silently costing the plan ~100x too dearly.
     """
 
-    amount: Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=2)]
+    #: In the base currency, at its own precision (no decimals for JPY, three for KWD).
+    amount: Annotated[AmountIn, Field(ge=0, max_digits=18)]
     term_months: Annotated[int | None, Field(default=None, ge=1, le=600)] = None
     annual_interest_rate: Annotated[Decimal, Field(default=Decimal(0), ge=0, le=1)] = Decimal(0)
 

@@ -110,7 +110,7 @@ class RuleSuggestion(RuleDraft):
 
 
 def _invalid(exc: InvalidRule) -> HTTPException:
-    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
 
 @router.get("")
