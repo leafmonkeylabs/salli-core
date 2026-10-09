@@ -567,7 +567,14 @@ function registerProfile(program: Command, app: App): void {
 // ── Your LLM keys and MCP clients ────────────────────────────────────────────
 
 function registerKeysAndMcp(program: Command, app: App): void {
-  const keys = program.command('llm-keys').description('Your own AI provider key (used for every AI feature; never shown again)');
+  const keys = program.command('llm-keys').description('Your own Anthropic or OpenAI key, for Salli’s AI (never shown again)');
+  const KEY_PROVIDERS = ['anthropic', 'openai'] as const;
+  const keyProvider = (provider: string): (typeof KEY_PROVIDERS)[number] => {
+    if (!(KEY_PROVIDERS as readonly string[]).includes(provider)) {
+      throw new UsageError(`Unknown provider "${provider}".`, `Providers: ${KEY_PROVIDERS.join(', ')}. For your ChatGPT plan: salli ai connect chatgpt`);
+    }
+    return provider as (typeof KEY_PROVIDERS)[number];
+  };
 
   keys
     .command('list')
@@ -580,7 +587,7 @@ function registerKeysAndMcp(program: Command, app: App): void {
         records: (d) => d.keys,
         human: (d) => {
           if (!d.available) app.out.warn('This server cannot store keys (it has no encryption key set).');
-          if (!d.keys.length) return app.out.note('No keys stored. Add yours with `salli llm-keys set anthropic`.');
+          if (!d.keys.length) return app.out.note('No keys stored. Add yours with `salli llm-keys set anthropic` (or openai).');
           app.out.line(
             app.out.table(d.keys, [
               { header: 'PROVIDER', get: (k) => k.provider },
@@ -595,13 +602,13 @@ function registerKeysAndMcp(program: Command, app: App): void {
 
   keys
     .command('set')
-    .argument('[provider]', 'The provider', 'anthropic')
+    .argument('[provider]', 'anthropic or openai', 'anthropic')
     .description('Store your key (checked with the provider first). Asks for it, or reads stdin')
-    .action(async (provider) => {
-      if (provider !== 'anthropic') throw new UsageError(`Unknown provider "${provider}".`, 'Providers: anthropic');
+    .action(async (name) => {
+      const provider = keyProvider(name);
       let key: string;
       if (app.runtime.stdin.isTTY !== true) key = await readAllStdin(app.runtime.stdin);
-      else key = await app.prompter.password({ message: 'Anthropic API key' });
+      else key = await app.prompter.password({ message: provider === 'openai' ? 'OpenAI API key' : 'Anthropic API key' });
       key = key.trim();
       if (!key) throw new UsageError('No key given.', 'Type it when asked, or pipe it in: salli llm-keys set < key.txt');
       const api = await app.api();
@@ -611,10 +618,10 @@ function registerKeysAndMcp(program: Command, app: App): void {
 
   keys
     .command('delete')
-    .argument('[provider]', 'The provider', 'anthropic')
+    .argument('[provider]', 'anthropic or openai', 'anthropic')
     .description('Remove your stored key')
-    .action(async (provider) => {
-      if (provider !== 'anthropic') throw new UsageError(`Unknown provider "${provider}".`, 'Providers: anthropic');
+    .action(async (name) => {
+      const provider = keyProvider(name);
       const api = await app.api();
       await api.call(llmKeysDelete, { path: { provider } });
       app.out.done({ provider, deleted: true }, `Removed your ${provider} key.`);

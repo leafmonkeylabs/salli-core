@@ -10,11 +10,22 @@ import { SalliOAuthError } from '@leafmonkeylabs/salli-sdk';
 import { CliError, ExitCode, InterruptedError } from '../errors';
 
 export interface LoopbackServer {
-  /** `http://127.0.0.1:<port>/callback` */
+  /** `http://127.0.0.1:<port><path>` */
   readonly redirectUri: string;
   /** Resolves with the authorization code when the browser comes back (or already has). */
   waitForCode(options: { signal: AbortSignal; timeoutMs: number }): Promise<string>;
+  /** The same, with every parameter the redirect carried (a `client_id`, say). */
+  waitForCallback(options: { signal: AbortSignal; timeoutMs: number }): Promise<URLSearchParams>;
   close(): Promise<void>;
+}
+
+export interface LoopbackOptions {
+  /** The port to listen on; 0 (the default) lets the system pick one. */
+  port?: number;
+  /** The redirect's path. Default `/callback`. */
+  path?: string;
+  /** What the pages and errors tell someone to run to start again. Default `salli login`. */
+  again?: string;
 }
 
 const escapeHtml = (text: string): string =>
@@ -56,17 +67,19 @@ export function callbackPage(ok: boolean, message: string): string {
 }
 
 /** Listens for the redirect that carries `state` back. */
-export async function startLoopbackServer(expectedState: string): Promise<LoopbackServer> {
-  let settle: { resolve: (code: string) => void; reject: (error: unknown) => void } | undefined;
-  let outcome: { code?: string; error?: unknown } | undefined;
+export async function startLoopbackServer(expectedState: string, options: LoopbackOptions = {}): Promise<LoopbackServer> {
+  const path = options.path ?? '/callback';
+  const again = options.again ?? 'salli login';
+  let settle: { resolve: (params: URLSearchParams) => void; reject: (error: unknown) => void } | undefined;
+  let outcome: { code?: string; params?: URLSearchParams; error?: unknown } | undefined;
 
   const deliver = (): void => {
     if (!outcome || !settle) return;
-    if (outcome.code !== undefined) settle.resolve(outcome.code);
+    if (outcome.params !== undefined) settle.resolve(outcome.params);
     else settle.reject(outcome.error);
   };
   // The browser can come back before anyone waits: the outcome is kept.
-  const finish = (result: { code?: string; error?: unknown }): void => {
+  const finish = (result: { code?: string; params?: URLSearchParams; error?: unknown }): void => {
     if (outcome) return;
     outcome = result;
     deliver();
@@ -82,7 +95,7 @@ export async function startLoopbackServer(expectedState: string): Promise<Loopba
       });
       res.end(callbackPage(ok, message));
     };
-    if (req.method !== 'GET' || url.pathname !== '/callback') {
+    if (req.method !== 'GET' || url.pathname !== path) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not found');
       return;
@@ -93,12 +106,12 @@ export async function startLoopbackServer(expectedState: string): Promise<Loopba
     }
     const params = url.searchParams;
     if (params.get('state') !== expectedState) {
-      respond(400, false, 'This sign-in link does not match the one salli started. Run salli login again.');
+      respond(400, false, `This sign-in link does not match the one salli started. Run ${again} again.`);
       finish({
         error: new CliError('Sign-in failed: the browser returned with a different state than salli sent.', {
           exitCode: ExitCode.NOT_SIGNED_IN,
           kind: 'not-signed-in',
-          hint: 'Run `salli login` again.',
+          hint: `Run \`${again}\` again.`,
         }),
       });
       return;
@@ -116,40 +129,38 @@ export async function startLoopbackServer(expectedState: string): Promise<Loopba
     }
     const code = params.get('code');
     if (!code) {
-      respond(400, false, 'The server sent no authorization code. Run salli login again.');
+      respond(400, false, `The server sent no authorization code. Run ${again} again.`);
       finish({ error: new SalliOAuthError('invalid_request', 'no authorization code in the redirect') });
       return;
     }
     respond(200, true, 'You can close this tab and go back to your terminal.');
-    finish({ code });
+    finish({ code, params });
   });
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve());
+    server.listen(options.port ?? 0, '127.0.0.1', () => resolve());
   });
   const { port } = server.address() as AddressInfo;
 
-  return {
-    redirectUri: `http://127.0.0.1:${port}/callback`,
-    waitForCode({ signal, timeoutMs }) {
-      return new Promise<string>((resolve, reject) => {
+  const waitForCallback = ({ signal, timeoutMs }: { signal: AbortSignal; timeoutMs: number }): Promise<URLSearchParams> =>
+    new Promise<URLSearchParams>((resolve, reject) => {
         const timer = setTimeout(() => {
           finish({
             error: new CliError('Sign-in timed out waiting for the browser.', {
               exitCode: ExitCode.NOT_SIGNED_IN,
               kind: 'not-signed-in',
-              hint: 'Run `salli login` again, or `salli login --device` to sign in from another device.',
+              hint: again === 'salli login' ? 'Run `salli login` again, or `salli login --device` to sign in from another device.' : `Run \`${again}\` again.`,
             }),
           });
         }, timeoutMs);
         const onAbort = (): void => finish({ error: new InterruptedError() });
         signal.addEventListener('abort', onAbort, { once: true });
         settle = {
-          resolve: (code) => {
+          resolve: (params) => {
             clearTimeout(timer);
             signal.removeEventListener('abort', onAbort);
-            resolve(code);
+            resolve(params);
           },
           reject: (error) => {
             clearTimeout(timer);
@@ -160,7 +171,11 @@ export async function startLoopbackServer(expectedState: string): Promise<Loopba
         if (signal.aborted) onAbort();
         deliver();
       });
-    },
+
+  return {
+    redirectUri: `http://127.0.0.1:${port}${path}`,
+    waitForCallback,
+    waitForCode: async (wait) => (await waitForCallback(wait)).get('code') ?? '',
     close: () =>
       new Promise<void>((resolve) => {
         // Let the page finish sending, then drop whatever the browser keeps open.

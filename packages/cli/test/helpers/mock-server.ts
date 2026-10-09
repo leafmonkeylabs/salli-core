@@ -10,6 +10,11 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
   Account,
+  AiModelChoice,
+  AiModels,
+  AiSettings,
+  ChatGptConnection,
+  ChatGptCredential,
   FiAssumptionsReport,
   TaxYearStatus,
   HoldingLots,
@@ -181,6 +186,13 @@ export class MockSalli {
     connections: [
       { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
     ] as McpConnection[],
+    ai: {
+      provider: 'auto' as AiSettings['provider'],
+      chatgpt: {
+        available: true, status: 'not_connected', connected: false, email: null, client_id: null, scopes: [], expires_at: null,
+        paused_until: null, detail: null, readable: true, manage_usage_url: 'https://chatgpt.com/settings/usage',
+      } as ChatGptConnection,
+    },
     taxYear: { country: 'LK', country_source: 'tax_residency', year: '2026/27', start: '2026-04-01', end: '2027-03-31', has_pack: false, latest_year: '2025/26' } as TaxYearStatus,
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
     prices: [
@@ -741,7 +753,7 @@ export class MockSalli {
       };
     }
     if (method === 'GET' && path === '/v1/llm-keys') return { status: 200, body: { available: true, keys: [{ provider: 'anthropic', last4: 'Ab12', validated_at: '2026-10-01T00:00:00+00:00', readable: true }] } };
-    if (method === 'PUT' && path === '/v1/llm-keys/anthropic') {
+    if (method === 'PUT' && /^\/v1\/llm-keys\/(anthropic|openai)$/.test(path)) {
       this.data.bodies.push({ method, path, body: req.json });
       return { status: 204 };
     }
@@ -758,6 +770,10 @@ export class MockSalli {
       return { status: 204 };
     }
     if (method === 'GET' && path === '/v1/advisor/reports/latest') return { status: 200, body: {} };
+
+    // AI providers and the ChatGPT plan
+    const aiReply = this.aiRoute(req);
+    if (aiReply) return aiReply;
 
     // bank connections
     const banks = this.banksRoute(req);
@@ -857,6 +873,60 @@ export class MockSalli {
     }
 
     return problem(404, 'Not Found', 'Not Found');
+  }
+
+  /** AI settings, models, the host id, and the ChatGPT connection (never any token back). */
+  private aiRoute(req: RecordedRequest): Reply | undefined {
+    const { method, path } = req;
+    const ai = this.data.ai;
+    const settings = (): AiSettings => ({
+      provider: ai.provider,
+      active: { provider: ai.provider === 'auto' ? (ai.chatgpt.status === 'active' ? 'chatgpt' : 'anthropic') : ai.provider, source: 'user' },
+      keys: ['anthropic'],
+      chatgpt: ai.chatgpt.status === 'active' ? ai.chatgpt.email : null,
+      chatgpt_available: true,
+      platform_key: false,
+      models: {},
+    });
+    if (path === '/v1/ai/settings' && method === 'GET') return { status: 200, body: settings() };
+    if (path === '/v1/ai/settings' && method === 'PUT') {
+      ai.provider = (req.json as { provider: AiSettings['provider'] }).provider;
+      return { status: 200, body: settings() };
+    }
+    const models = match('/v1/ai/models/{provider}', path);
+    if (models) {
+      if (method === 'PUT') this.data.bodies.push({ method, path, body: req.json });
+      const chosen = method === 'PUT' ? (req.json as AiModelChoice) : {};
+      const body: AiModels = {
+        provider: models.provider as AiModels['provider'],
+        models: [
+          { id: 'gpt-5', name: 'GPT-5' },
+          { id: 'gpt-5-mini', name: 'GPT-5 mini' },
+        ],
+        fast: chosen.fast ?? 'gpt-5-mini',
+        best: chosen.best ?? 'gpt-5',
+        chosen,
+      };
+      return { status: 200, body };
+    }
+    if (path === '/v1/ai/host' && method === 'GET') return { status: 200, body: { ext_agent_host_id: 'host-e2e-1' } };
+    if (path === '/v1/ai/connections/chatgpt' && method === 'GET') return { status: 200, body: ai.chatgpt };
+    if (path === '/v1/ai/connections/chatgpt' && method === 'PUT') {
+      const credential = req.json as ChatGptCredential;
+      this.data.bodies.push({ method, path, body: credential });
+      if (credential.id_token !== 'id-token-ok') {
+        return problem(422, 'Unprocessable Entity', { error: 'invalid_id_token', message: 'The ID token could not be verified.' }, '/problems/unprocessable');
+      }
+      const firstTime = ai.chatgpt.client_id === null;
+      ai.chatgpt = { ...ai.chatgpt, status: 'active', connected: true, email: 'ada@example.com', client_id: credential.client_id, first_time: firstTime };
+      return { status: 200, body: ai.chatgpt };
+    }
+    if (path === '/v1/ai/connections/chatgpt' && method === 'DELETE') {
+      const was = ai.chatgpt.connected;
+      ai.chatgpt = { ...ai.chatgpt, status: 'signed_out', connected: false };
+      return { status: 200, body: { disconnected: was, revoked: was, message: was ? 'Disconnected from ChatGPT.' : 'ChatGPT is not connected.' } };
+    }
+    return undefined;
   }
 
   /** Portfolio transactions, lots, prices and performance. */

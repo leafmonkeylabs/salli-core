@@ -4,6 +4,7 @@
 import { Command, type OutputConfiguration } from '@commander-js/extra-typings';
 import type { App } from './app';
 import { registerAccounts } from './commands/accounts';
+import { registerAi } from './commands/ai';
 import { registerAuth } from './commands/auth';
 import { registerBanks } from './commands/banks';
 import { registerChat } from './commands/chat';
@@ -82,6 +83,7 @@ Start with:  salli login   then   salli status`,
 
   program.commandsGroup('Your data and settings:');
   registerYourData(program, app);
+  registerAi(program, app);
   registerExports(program, app);
   registerTokens(program, app);
   registerContext(program, app);
