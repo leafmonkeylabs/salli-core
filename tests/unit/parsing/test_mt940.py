@@ -143,3 +143,10 @@ def test_an_mt942_interim_report_is_refused():
     assert result.errors == [
         "This is an MT942 interim report, not a statement; import the MT940 instead"
     ]
+
+
+def test_a_non_swift_field_between_a_transaction_and_its_description():
+    result = extract_from_mt940(
+        _statement(":61:2610021002D9,99NTRFNONREF", ":NS:22Kartenzahlung", ":86:Netflix")
+    )
+    assert [line.description for line in result.lines] == ["Netflix"]

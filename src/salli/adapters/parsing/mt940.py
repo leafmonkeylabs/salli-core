@@ -65,6 +65,8 @@ def extract_from_mt940(data: bytes) -> Extraction:
     pending: tuple[int, list[str], str | None] | None = None  # a :61: awaiting its :86:
     seen = 0
     for tag, lines in fields:
+        if tag == "NS":
+            continue  # a bank's own non-SWIFT field, which may sit between :61: and :86:
         if tag == "86" and pending is not None:
             _add(*pending, _information(lines), result)
             pending = None
@@ -108,9 +110,8 @@ def _add(
         return
     date = _date(match.group("value"), match.group("entry"))
     if date is None:
-        result.errors.append(
-            f"MT940 transaction {number}: {first[:10]!r} has no real date; skipped"
-        )
+        dates = match.group("value") + (match.group("entry") or "")
+        result.errors.append(f"MT940 transaction {number}: {dates!r} has no real date; skipped")
         return
     amount = Decimal(match.group("amount").replace(",", "."))
     if amount == 0:
