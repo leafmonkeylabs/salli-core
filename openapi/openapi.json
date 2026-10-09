@@ -1608,7 +1608,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingResult"
+                }
               }
             }
           },
@@ -1643,7 +1645,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
               }
             }
           }
@@ -1675,7 +1679,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileUpdated"
+                }
               }
             }
           },
@@ -1720,7 +1726,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DeclaredEntries"
+                }
               }
             }
           },
@@ -1765,7 +1773,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DeclaredEntries"
+                }
               }
             }
           },
@@ -1810,7 +1820,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RiskProfile"
+                }
               }
             }
           },
@@ -1855,7 +1867,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DeclaredGoals"
+                }
               }
             }
           },
@@ -1890,7 +1904,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DataExport"
+                }
               }
             }
           }
@@ -1925,7 +1941,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletion"
+                }
               }
             }
           },
@@ -5777,6 +5795,27 @@
         ],
         "title": "AccountActivity"
       },
+      "AccountDeletion": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted",
+          "counts"
+        ],
+        "title": "AccountDeletion"
+      },
       "AccountHint": {
         "properties": {
           "name": {
@@ -6816,6 +6855,166 @@
         ],
         "title": "DailyBriefingRequest"
       },
+      "DataExport": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedAccount"
+            },
+            "type": "array",
+            "title": "Accounts",
+            "description": "Active accounts only."
+          },
+          "journal_entries": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedJournalEntry"
+            },
+            "type": "array",
+            "title": "Journal Entries"
+          },
+          "tax_computation_2025_26": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Computation 2025 26",
+            "description": "The latest 2025/26 computation as the tax engine recorded it, or null."
+          },
+          "budgets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Budgets",
+            "description": "Each as in `budgets.list`."
+          },
+          "debts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Debts",
+            "description": "Each as in `debts.list`, inactive ones included."
+          },
+          "holdings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Holdings",
+            "description": "Each as in `holdings.list`, inactive ones included."
+          },
+          "recurring_subscriptions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Recurring Subscriptions",
+            "description": "Each as in `subscriptions.list`, inactive ones included."
+          },
+          "insurance_policies": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Insurance Policies",
+            "description": "Each as in `insurance.policies.list`, inactive ones included."
+          },
+          "insurance_targets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Insurance Targets",
+            "description": "Each as in `insurance.targets.list`."
+          },
+          "goals": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Goals",
+            "description": "Each as in `goals.list`: active goals."
+          },
+          "fi_score_history": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Fi Score History",
+            "description": "Each as in `fi.score.history`."
+          },
+          "advisor_reports": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Advisor Reports",
+            "description": "The advisor's reports, as stored."
+          },
+          "reminders_and_alerts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Reminders And Alerts",
+            "description": "Each as in `reminders.list`."
+          },
+          "documents": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "Each as in `documents.list`: the record, not the file it may point to."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "user_id",
+          "profile",
+          "accounts",
+          "journal_entries",
+          "tax_computation_2025_26",
+          "budgets",
+          "debts",
+          "holdings",
+          "recurring_subscriptions",
+          "insurance_policies",
+          "insurance_targets",
+          "goals",
+          "fi_score_history",
+          "advisor_reports",
+          "reminders_and_alerts",
+          "documents"
+        ],
+        "title": "DataExport",
+        "description": "Everything Salli has stored about the user, as one document.\n\nThe profile, accounts and journal entries are typed here; each other\nsection says where its records come from. An enabled extension may add\nsections of its own after these."
+      },
       "Debt": {
         "properties": {
           "id": {
@@ -6989,6 +7188,38 @@
         "type": "object",
         "title": "DebtUpdateRequest"
       },
+      "DeclaredEntries": {
+        "properties": {
+          "entries_created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entries Created"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries_created"
+        ],
+        "title": "DeclaredEntries"
+      },
+      "DeclaredGoals": {
+        "properties": {
+          "goal_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Goal Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "goal_ids"
+        ],
+        "title": "DeclaredGoals"
+      },
       "DeleteAccountRequest": {
         "properties": {
           "confirm_email": {
@@ -7105,6 +7336,176 @@
           "days_until_expiry"
         ],
         "title": "ExpiringPolicy"
+      },
+      "ExportedAccount": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "income",
+              "expense"
+            ],
+            "title": "Type"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "type",
+          "currency",
+          "parent_id",
+          "is_active"
+        ],
+        "title": "ExportedAccount"
+      },
+      "ExportedJournalEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "entry_date": {
+            "type": "string",
+            "title": "Entry Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "statement",
+              "sms",
+              "system"
+            ],
+            "title": "Source"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "reversed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversed By"
+          },
+          "postings": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedPosting"
+            },
+            "type": "array",
+            "title": "Postings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entry_date",
+          "description",
+          "source",
+          "external_ref",
+          "reversed_by",
+          "postings"
+        ],
+        "title": "ExportedJournalEntry"
+      },
+      "ExportedPosting": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "title": "Direction"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "direction",
+          "amount",
+          "currency"
+        ],
+        "title": "ExportedPosting"
       },
       "GoalRequest": {
         "properties": {
@@ -8046,6 +8447,39 @@
         ],
         "title": "OnboardingRequest"
       },
+      "OnboardingResult": {
+        "properties": {
+          "memories_saved": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Memories Saved"
+          },
+          "accounts_created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accounts Created"
+          },
+          "accounts_skipped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accounts Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "memories_saved",
+          "accounts_created",
+          "accounts_skipped"
+        ],
+        "title": "OnboardingResult",
+        "description": "What the all-in-one onboarding saved and opened. Running it again skips\nwhat already exists rather than duplicating it."
+      },
       "OnboardingStatusResponse": {
         "properties": {
           "complete": {
@@ -8718,6 +9152,196 @@
         ],
         "title": "PostingRequest"
       },
+      "Profile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "base_currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Base Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "date_of_birth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Of Birth"
+          },
+          "dependents_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependents Count"
+          },
+          "employment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employment Status"
+          },
+          "residency_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Residency Status"
+          },
+          "employer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employer"
+          },
+          "employment_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employment Type"
+          },
+          "ird_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ird Number"
+          },
+          "risk_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Score"
+          },
+          "risk_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Category"
+          },
+          "life_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Life Stage"
+          },
+          "mcp_enabled": {
+            "type": "boolean",
+            "title": "Mcp Enabled"
+          },
+          "daily_briefing_enabled": {
+            "type": "boolean",
+            "title": "Daily Briefing Enabled"
+          },
+          "preferred_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "base_currency",
+          "date_of_birth",
+          "dependents_count",
+          "employment_status",
+          "residency_status",
+          "employer",
+          "employment_type",
+          "ird_number",
+          "risk_score",
+          "risk_category",
+          "life_stage",
+          "mcp_enabled",
+          "daily_briefing_enabled",
+          "preferred_model"
+        ],
+        "title": "Profile",
+        "description": "The structured fact-find profile: identity, risk profile, life stage.\n\nA fact the user has not given yet is null."
+      },
       "ProfileIdentityRequest": {
         "properties": {
           "display_name": {
@@ -8822,6 +9446,19 @@
         },
         "type": "object",
         "title": "ProfileIdentityRequest"
+      },
+      "ProfileUpdated": {
+        "properties": {
+          "updated": {
+            "type": "boolean",
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "ProfileUpdated"
       },
       "ProvenanceReceipt": {
         "properties": {
@@ -9278,6 +9915,68 @@
           "token"
         ],
         "title": "RevokeRequest"
+      },
+      "RiskBreakdown": {
+        "properties": {
+          "time_horizon": {
+            "type": "integer",
+            "title": "Time Horizon"
+          },
+          "drawdown_reaction": {
+            "type": "integer",
+            "title": "Drawdown Reaction"
+          },
+          "income_stability": {
+            "type": "integer",
+            "title": "Income Stability"
+          },
+          "investment_experience": {
+            "type": "integer",
+            "title": "Investment Experience"
+          },
+          "dependents": {
+            "type": "integer",
+            "title": "Dependents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time_horizon",
+          "drawdown_reaction",
+          "income_stability",
+          "investment_experience",
+          "dependents"
+        ],
+        "title": "RiskBreakdown",
+        "description": "The points each answer contributed to the score."
+      },
+      "RiskProfile": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "conservative",
+              "balanced",
+              "aggressive"
+            ],
+            "title": "Category"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/RiskBreakdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "category",
+          "breakdown"
+        ],
+        "title": "RiskProfile",
+        "description": "The scored questionnaire, as saved to the profile."
       },
       "RiskQuestionnaireRequest": {
         "properties": {

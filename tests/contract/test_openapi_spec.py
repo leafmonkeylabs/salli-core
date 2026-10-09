@@ -102,8 +102,6 @@ UNTYPED = {
     "reports.netWorth",
     # Budgets, debts, holdings, subscriptions, insurance
     # Profile, onboarding, the agent, LLM keys, MCP connections
-    "account.delete",
-    "account.export",
     "agent.auditLog",
     "agent.chat",
     "agent.files.upload",
@@ -113,13 +111,6 @@ UNTYPED = {
     "llmKeys.list",
     "mcp.connections.list",
     "mcp.enabled.get",
-    "onboarding.balanceSheet",
-    "onboarding.complete",
-    "onboarding.goals",
-    "onboarding.income",
-    "onboarding.riskQuestionnaire",
-    "profile.get",
-    "profile.update",
     # OAuth
     "oauth.authorizationServerMetadata",
     "oauth.authorize",
