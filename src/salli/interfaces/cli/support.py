@@ -173,10 +173,13 @@ def money(amount: Decimal | str | None, currency: str, width: int = 16) -> str:
     For display only — the amount is never parsed back."""
     from salli.domain.currency import exponent, quantize
 
+    places = exponent(currency, strict=False)
     if amount is None or amount == "":
-        return f"{currency} {'—':>{width}}"
+        return f"{currency} {'—':>{width}}" if width > 0 else f"{currency} —"
     value = quantize(Decimal(str(amount)), currency, strict=False)
-    return f"{currency} {value:>{width},.{exponent(currency, strict=False)}f}"
+    if width <= 0:  # inline, in a sentence: no padding (">0" is not a format)
+        return f"{currency} {value:,.{places}f}"
+    return f"{currency} {value:>{width},.{places}f}"
 
 
 def amount(value: Decimal | str | None, currency: str) -> str:

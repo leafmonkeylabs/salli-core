@@ -137,8 +137,10 @@ def declared_flows(
     for c in charges:
         first = c.next_due
         while first < start:
-            first = add_period(first, c.cadence, None if c.cadence == "weekly" else c.next_due.day)
-        anchor = None if c.cadence == "weekly" else c.next_due.day
+            first = add_period(
+                first, c.cadence, None if c.cadence in ("weekly", "biweekly") else c.next_due.day
+            )
+        anchor = None if c.cadence in ("weekly", "biweekly") else c.next_due.day
         for day in _dates(first, c.cadence, anchor, end):
             flows.append(Flow(day.isoformat(), None, -c.amount, base, c.name, "subscription"))
     return flows

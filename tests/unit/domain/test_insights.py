@@ -341,3 +341,17 @@ def test_income_is_found_when_asked_for():
         "salary",
     )
     assert salary.next_expected == "2026-10-25"
+
+
+def test_a_paycheck_every_other_week_is_biweekly():
+    entries = [
+        _entry(day, "bank", "salary", "2100", "ACME CORP PAYROLL")
+        for day in ("2026-08-14", "2026-08-28", "2026-09-11", "2026-09-25")
+    ]
+    [pay] = detect_recurring(booked_transactions(entries, ACCOUNTS), TODAY, direction="in")
+    assert (pay.cadence, pay.next_expected, pay.anchor_day) == ("biweekly", "2026-10-09", None)
+
+
+def test_twice_a_month_on_set_days_is_not_a_rhythm():
+    days = ["2026-07-08", "2026-07-22", "2026-08-08", "2026-08-22", "2026-09-08", "2026-09-22"]
+    assert _recurring(_charges(days, "WHOLE FOODS #123", "120")) == []

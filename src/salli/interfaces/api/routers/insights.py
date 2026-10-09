@@ -70,7 +70,7 @@ class NetWorthByMonth(BaseModel):
 
 class RecurringPayment(BaseModel):
     payee: str
-    cadence: Literal["weekly", "monthly", "quarterly", "yearly"]
+    cadence: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
     #: The middle charge; `varies` when charges differ by more than 10%.
     typical_amount: Amount
     varies: bool

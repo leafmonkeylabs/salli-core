@@ -16272,6 +16272,7 @@
             "type": "string",
             "enum": [
               "weekly",
+              "biweekly",
               "monthly",
               "quarterly",
               "yearly"

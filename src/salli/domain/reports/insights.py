@@ -28,12 +28,14 @@ from salli.domain.accounting.models import Account, StoredJournalEntry
 from salli.domain.rules.engine import Direction, payee_name, payee_word
 from salli.domain.rules.history import Booked
 
-Cadence = Literal["weekly", "monthly", "quarterly", "yearly"]
+Cadence = Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
 SpendingAxis = Literal["category", "account", "need"]
 
 # (cadence, period in days, tolerance in days)
 _CADENCES: tuple[tuple[Cadence, int, int], ...] = (
     ("weekly", 7, 2),
+    # Every other week: how many people in the US are paid.
+    ("biweekly", 14, 2),
     ("monthly", 30, 5),
     ("quarterly", 91, 10),
     ("yearly", 365, 15),
@@ -219,8 +221,8 @@ class Recurring:
 def add_period(day: dt.date, cadence: Cadence, anchor_day: int | None = None) -> dt.date:
     """The next date a `cadence` lands on after `day`: on `anchor_day` (or
     `day`'s own) in the next month, quarter or year, kept to that month."""
-    if cadence == "weekly":
-        return day + dt.timedelta(days=7)
+    if cadence in ("weekly", "biweekly"):
+        return day + dt.timedelta(days=7 if cadence == "weekly" else 14)
     months = {"monthly": 1, "quarterly": 3, "yearly": 12}[cadence]
     total = day.month - 1 + months
     year, month = day.year + total // 12, total % 12 + 1
@@ -273,7 +275,7 @@ def detect_recurring(
         money_accounts = Counter(b.money_account_id for b in rows)
         names = Counter(payee_name(b.facts.description) for b in rows)
         anchor = None
-        if cadence != "weekly":
+        if cadence not in ("weekly", "biweekly"):
             anchors = Counter(d.day for d in days)
             anchor = max(anchors, key=lambda d: (anchors[d], d))
         found.append(
