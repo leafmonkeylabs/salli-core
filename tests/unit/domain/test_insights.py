@@ -324,3 +324,61 @@ def test_a_charge_a_week_late_has_not_stopped():
     entries = _charges(["2026-06-30", "2026-07-30", "2026-08-30"], "GYM CLUB", "40")
     [gym] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 10, 6))
     assert gym.next_expected == "2026-09-30"
+
+
+# ── What review found ─────────────────────────────────────────────────────────
+
+
+def test_a_refund_only_line_has_no_share_and_the_others_stay_within_one():
+    entries = [
+        _entry("2026-10-02", "food", "bank", "100", tags={"category": "groceries"}),
+        _entry("2026-10-03", "bank", "fun", "30", tags={"category": "concert"}),  # a refund
+    ]
+    lines = {line.key: line for line in spending(entries, ACCOUNTS, ["2026-10"], "account")}
+    assert lines["Food"].share == Decimal(1)
+    assert lines["Fun"].share is None and lines["Fun"].total == Decimal(-30)
+
+
+def test_a_closed_account_is_still_owned_or_owed():
+    closed = Account(
+        id="old", user_id="u", code="1900", name="Old", type="asset", currency="USD",
+        is_active=False,
+    )  # fmt: skip
+    entries = [_entry("2026-09-01", "old", "open", "500")]
+    [point] = net_worth_series(entries, [*ACCOUNTS, closed], ["2026-10"])
+    assert point.assets == Decimal(500)
+
+
+def test_net_worth_from_opening_balances_and_the_windows_entries_alone():
+    before = [
+        _entry("2025-01-01", "bank", "open", "1000"),
+        _entry("2025-02-01", "card", "bank", "0.5"),
+    ]
+    during = [_entry("2026-10-02", "food", "bank", "100")]
+    from salli.domain.accounting.ledger import trial_balance
+
+    whole = net_worth_series([*before, *during], ACCOUNTS, ["2026-09", "2026-10"])
+    windowed = net_worth_series(during, ACCOUNTS, ["2026-09", "2026-10"], trial_balance(before))
+    assert whole == windowed
+
+
+def test_two_subscriptions_from_one_merchant_are_two():
+    # APPLE.COM/BILL at 2.99 on the 3rd and 10.99 on the 5th merged, their
+    # gaps looked irregular, and both disappeared.
+    entries = [
+        _entry(f"2026-{m:02d}-{d:02d}", "fun", "card", amount, "APPLE.COM/BILL")
+        for m in (6, 7, 8, 9, 10)
+        for d, amount in ((3, "2.99"), (5, "10.99"))
+    ]
+    found = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 10, 9))
+    assert sorted(r.typical_amount for r in found) == [Decimal("2.99"), Decimal("10.99")]
+    assert {r.cadence for r in found} == {"monthly"}
+
+
+def test_a_bill_that_drifts_in_price_stays_one_series():
+    entries = [
+        _entry(f"2026-{m:02d}-15", "fun", "card", amount, "CITY POWER")
+        for m, amount in zip(range(5, 11), ("80", "85", "92", "101", "110", "120"), strict=True)
+    ]
+    [power] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 10, 20))
+    assert power.occurrences == 6 and power.varies

@@ -13,9 +13,12 @@ derived, not stored on the entry.
 from __future__ import annotations
 
 import datetime
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Literal, cast, get_args
+from typing import Any, Literal, cast, get_args
+
+from salli.domain.money import from_minor
 
 Frequency = Literal["weekly", "monthly", "quarterly", "yearly"]
 AlertKind = Literal["missed_charge", "price_change"]
@@ -50,6 +53,21 @@ class Subscription:
     account_id: str | None = None  # restrict matching to this expense account, if set
     grace_days: int = 5
     amount_tolerance_pct: Decimal = Decimal("0.05")
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any], currency: str) -> Subscription:
+        """A stored subscription (as the repository returns it: its amount in
+        `currency`'s minor units) as the domain's. The one place that reads
+        those rows; ValueError for a frequency or date that isn't one."""
+        return cls(
+            name=row["name"],
+            amount=from_minor(row["amount_minor"], currency),
+            frequency=normalize_frequency(row["frequency"]),
+            next_due_date=normalize_due_date(row["next_due_date"]),
+            account_id=row.get("account_id"),
+            grace_days=row.get("grace_days", 5),
+            amount_tolerance_pct=Decimal(str(row.get("amount_tolerance_pct", "0.05"))),
+        )
 
 
 @dataclass(frozen=True)

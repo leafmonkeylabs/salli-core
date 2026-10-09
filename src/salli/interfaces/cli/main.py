@@ -10,12 +10,13 @@ from __future__ import annotations
 import asyncio
 import sys
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, cast
 
 import typer
 from rich.markup import escape
 from rich.table import Table
 
+from salli.domain.reports.insights import SPENDING_AXES, SpendingAxis
 from salli.interfaces.cli.setup import members_app, serve, setup
 from salli.interfaces.cli.skills import skills_app
 from salli.interfaces.cli.support import amount as _amount
@@ -3771,14 +3772,15 @@ def insights_cash_flow(
 @insights_app.command("spending")
 def insights_spending(
     months: int = typer.Option(3, "--months", "-m", min=1, max=120, help="Months, ending this one"),
-    by: str = typer.Option("category", "--by", help="category, account, or need"),
+    by: str = typer.Option("category", "--by", help=", ".join(SPENDING_AXES)),
 ):
     """Where the money went: by category (or account, or need), largest first."""
-    if by not in ("category", "account", "need"):
-        console.print("[red]--by must be category, account, or need[/red]")
+    if by not in SPENDING_AXES:
+        console.print(f"[red]--by must be one of {', '.join(SPENDING_AXES)}[/red]")
         raise typer.Exit(2)
     user_id = _require_user()
-    data = asyncio.run(_services().insights.spending(user_id, months, by))  # type: ignore[arg-type]
+    axis = cast(SpendingAxis, by)
+    data = asyncio.run(_services().insights.spending(user_id, months, axis))
     if emit(data):
         return
     if not data["lines"]:

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,7 +95,7 @@ from salli.domain.accounting.models import (
     StoredJournalEntry,
     Tag,
 )
-from salli.domain.currency import is_currency
+from salli.domain.currency import exponent, is_currency
 from salli.domain.money import from_minor, to_minor
 from salli.domain.tax.models import TaxComputation
 
@@ -342,6 +342,26 @@ class SQLLedgerRepository(LedgerRepository):
 
         result = await self._session.execute(stmt)
         return [_entry_from_orm(row) for row in result.scalars().all()]
+
+    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
+        # Exactly what Posting.base_signed sums, unrounded: direction times
+        # amount (minor units of its currency) times the rate, per currency,
+        # then scaled by that currency's decimals.
+        rows = await self._session.execute(
+            select(
+                PostingORM.account_id,
+                PostingORM.currency,
+                func.sum(PostingORM.direction * PostingORM.amount_minor * PostingORM.fx_rate),
+            )
+            .join(JournalEntryORM, JournalEntryORM.id == PostingORM.entry_id)
+            .where(JournalEntryORM.user_id == user_id, JournalEntryORM.entry_date < before)
+            .group_by(PostingORM.account_id, PostingORM.currency)
+        )
+        balances: dict[str, Decimal] = {}
+        for account_id, currency, total in rows.all():
+            scaled = Decimal(total).scaleb(-exponent(currency, strict=False))
+            balances[account_id] = balances.get(account_id, Decimal(0)) + scaled
+        return balances
 
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
         stmt = select(AccountORM).where(AccountORM.user_id == user_id).order_by(AccountORM.code)

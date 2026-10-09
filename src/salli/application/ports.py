@@ -41,6 +41,12 @@ class LedgerRepository(ABC):
         """Mark an entry as reversed by another entry."""
         ...
 
+    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
+        """Each account's signed base-currency balance from every entry dated
+        before `before` (YYYY-MM-DD): debits up, credits down, exactly as
+        `Posting.base_signed` sums them. Summed by the store, not loaded."""
+        raise NotImplementedError
+
     @abstractmethod
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
         """Return Account list for the user."""
