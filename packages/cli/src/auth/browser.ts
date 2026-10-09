@@ -57,3 +57,19 @@ export async function openInBrowser(
   }
   return false;
 }
+
+/**
+ * Whether a browser can open on this machine, as far as can be told: not in
+ * an SSH session or on CI, and on Linux and the BSDs only with a display (or
+ * under WSL). BROWSER, when set, is taken at its word.
+ */
+export function browserAvailable(env: Record<string, string | undefined>, platform: NodeJS.Platform): boolean {
+  const set = (name: string): boolean => {
+    const value = env[name]?.trim().toLowerCase();
+    return !!value && value !== '0' && value !== 'false';
+  };
+  if (set('BROWSER')) return true;
+  if (set('CI') || set('SSH_CONNECTION') || set('SSH_CLIENT') || set('SSH_TTY')) return false;
+  if (platform === 'darwin' || platform === 'win32') return true;
+  return set('DISPLAY') || set('WAYLAND_DISPLAY') || set('WSL_DISTRO_NAME');
+}

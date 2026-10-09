@@ -12,7 +12,7 @@ export interface OAuthCredentials {
   client_id: string;
   token_endpoint: string;
   revocation_endpoint?: string;
-  /** RFC 8707 resource the tokens are for: `<server>/v1`. */
+  /** RFC 8707 resource the tokens are for: the server's `api_resource`. */
   resource?: string;
   /** How the user signed in. */
   method: 'browser' | 'device';

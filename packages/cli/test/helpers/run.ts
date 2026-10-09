@@ -28,6 +28,8 @@ export interface RunOptions {
   prompter?: Prompter;
   /** What opening a URL does. Default: follow it like a browser would. */
   openUrl?: (url: string) => Promise<boolean>;
+  /** Whether a browser can open at all (default: yes). */
+  browser?: boolean;
   now?: Date;
   signal?: AbortSignal;
 }
@@ -82,6 +84,7 @@ export async function runCli(args: string[], options: RunOptions): Promise<RunRe
       opened.push(url);
       return (options.openUrl ?? followInBrowser)(url);
     },
+    canOpenBrowser: () => options.browser ?? true,
     signal: options.signal ?? new AbortController().signal,
     standalone: false,
     prompter: options.prompter ?? new ScriptedPrompter([], false),

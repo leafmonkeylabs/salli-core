@@ -5,7 +5,7 @@ import type { Command } from '@commander-js/extra-typings';
 import { authMe } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { identityOf } from '../auth/credentials';
-import { browserLogin, deviceLogin, resolveLoginTarget, revokeCredentials, saveLoginContext, serverMeta, tokenLogin } from '../auth/login';
+import { interactiveLogin, resolveLoginTarget, revokeCredentials, saveLoginContext, serverMeta, tokenLogin } from '../auth/login';
 import { UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { readAllStdin } from '../util/stdin';
@@ -25,15 +25,16 @@ export function registerAuth(program: Command, app: App): void {
   program
     .command('login')
     .description('Sign in to a Salli server')
-    .option('--device', 'Sign in from another device with a code (no browser here)')
+    .option('--device', 'Sign in with a code, approved on another device')
     .option('--token <token>', 'Use a personal access token ("-" reads it from stdin)')
     .option('--no-browser', 'Print the sign-in link instead of opening a browser')
     .addHelpText(
       'after',
       `
 Signs in to the current context's server, or to --server, saving the context.
-By default a browser opens to approve the sign-in; tokens are kept in your
-system keychain.
+A browser opens to approve the sign-in; where none can (over SSH, say), you
+approve with a code on another device instead. Tokens are kept in your
+system keychain. A personal access token (salli tokens create) suits scripts.
 
 Examples:
   $ salli login
@@ -51,10 +52,8 @@ Examples:
       if (opts.token !== undefined) {
         const token = opts.token === '-' ? await readAllStdin(app.runtime.stdin) : opts.token;
         credentials = await tokenLogin(app, target, token);
-      } else if (opts.device) {
-        credentials = await deviceLogin(app, target, meta);
       } else {
-        credentials = await browserLogin(app, target, meta, { openBrowser: opts.browser });
+        credentials = await interactiveLogin(app, target, meta, { device: opts.device === true, openBrowser: opts.browser });
       }
       await app.saveCredentials(target.name, credentials);
 

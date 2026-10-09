@@ -5,7 +5,7 @@
  */
 import { homedir } from 'node:os';
 import type { Readable, Writable } from 'node:stream';
-import { openInBrowser } from './auth/browser';
+import { browserAvailable, openInBrowser } from './auth/browser';
 import type { Prompter } from './util/prompts';
 
 export interface OutputStream extends Writable {
@@ -30,6 +30,8 @@ export interface Runtime {
   fetch: typeof globalThis.fetch;
   /** Opens a URL in the user's browser; resolves false if it could not. */
   openUrl(url: string): Promise<boolean>;
+  /** Whether a browser can open here at all (not over SSH, not headless). */
+  canOpenBrowser(): boolean;
   /** Aborts when the user presses Ctrl-C. */
   signal: AbortSignal;
   /** True inside a standalone (bun --compile) binary. */
@@ -59,6 +61,7 @@ export function processRuntime(signal: AbortSignal): Runtime {
     now: () => new Date(),
     fetch: globalThis.fetch.bind(globalThis),
     openUrl: (url) => openInBrowser(url, process.env, process.platform),
+    canOpenBrowser: () => browserAvailable(process.env, process.platform),
     signal,
     standalone: isStandaloneBinary(),
   };

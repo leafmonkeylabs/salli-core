@@ -116,13 +116,56 @@ describe('salli login (browser, PKCE, loopback)', () => {
     expect(result.code).toBe(0);
   });
 
-  it('reports a server that will not accept a loopback port, before opening a browser', async () => {
+  it('asks for tokens for the API resource the server names', async () => {
+    await startMock({ apiResource: 'https://api.example.com/v1' });
+    const result = await run(['login', '--server', mock.url]);
+    expect(result.code).toBe(0);
+    expect(new URL(result.opened[0] ?? '').searchParams.get('resource')).toBe('https://api.example.com/v1');
+    expect(mock.requestsTo('POST', '/mcp/oauth/token')[0]?.form?.resource).toBe('https://api.example.com/v1');
+  });
+
+  it('reports what the server refuses before opening a browser', async () => {
     await startMock({ strictLoopback: true });
     const result = await run(['login', '--server', mock.url]);
     expect(result.code).toBe(3);
     expect(result.opened).toEqual([]);
     expect(result.stderr).toContain('redirect_uri does not match a registered value');
-    expect(result.stderr).toContain('RFC 8252');
+    expect(result.stderr).toContain('salli login --device');
+  });
+
+  it('signs in with a code instead where no browser can open', async () => {
+    await startMock();
+    const result = await run(['login', '--server', mock.url], { browser: false });
+    expect(result.code).toBe(0);
+    expect(result.opened).toEqual([]);
+    expect(result.stderr).toContain('No browser here');
+    expect(result.stderr).toContain('WDJB-MJHT');
+    expect(mock.requestsTo('POST', '/mcp/oauth/device_authorization')[0]?.form).toMatchObject({ client_id: 'client-1', resource: `${mock.url}/v1` });
+    expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'device' });
+  });
+
+  it('signs in with a code instead when the browser does not open', async () => {
+    await startMock();
+    const result = await run(['login', '--server', mock.url], { openUrl: async () => false });
+    expect(result.code).toBe(0);
+    expect(result.opened).toHaveLength(1);
+    expect(result.stderr).toContain('No browser opened');
+    expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'device' });
+  });
+
+  it('prints the link for a server without device sign-in, when the browser does not open', async () => {
+    await startMock({ device: false });
+    const pending = run(['login', '--server', mock.url], { openUrl: async () => false });
+    const started = Date.now();
+    while (Date.now() - started < 5000 && mock.requestsTo('GET', '/mcp/oauth/authorize').length === 0) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const preflight = mock.requestsTo('GET', '/mcp/oauth/authorize')[0];
+    await fetch(`${mock.url}${preflight?.path}?${preflight?.query.toString()}`, { redirect: 'follow' }).then((r) => r.text());
+    const result = await pending;
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain('Open this link to sign in');
+    expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'browser' });
   });
 
   it('registers again when the server has forgotten the client', async () => {

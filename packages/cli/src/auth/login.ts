@@ -2,13 +2,17 @@
  * Signing in, three ways:
  *
  * - browser (default): OAuth 2.1 authorization code + PKCE (S256), with the
- *   browser redirected back to a loopback server on 127.0.0.1 (RFC 8252);
+ *   browser redirected back to a loopback server on 127.0.0.1, on whatever
+ *   port the system gives it (RFC 8252);
  * - device: the device authorization grant (RFC 8628), for a machine with
- *   no browser: approve on another device with a short code;
+ *   no browser: approve on another device with a short code. Also what the
+ *   browser sign-in falls back to when no browser can open here;
  * - token: a personal access token, used as it is.
  *
- * The CLI registers itself with each server once (RFC 7591) and keeps the
- * client_id in the context.
+ * OAuth tokens are asked for the server's API (`resource` is the
+ * `api_resource` from `/v1/meta`): a token issued for MCP is refused by the
+ * API. The CLI registers itself with each server once (RFC 7591) and keeps
+ * the client_id in the context.
  */
 import {
   authMe,
@@ -146,9 +150,9 @@ type Preflight = { ok: true } | { ok: false; detail: string };
 
 /**
  * Asks the authorization endpoint whether it accepts this request before
- * the browser does, so a problem (an unknown client after a server reset, a
- * server that will not take a loopback port) is reported here rather than
- * on a web page while the terminal waits.
+ * the browser does, so a problem (an unknown client after a server reset)
+ * is dealt with here rather than shown on a web page while the terminal
+ * waits.
  */
 async function preflight(app: App, url: string): Promise<Preflight> {
   let response: Response;
@@ -199,13 +203,20 @@ function oauthCredentials(
 export interface BrowserLoginOptions {
   /** Open the browser (default), or only print the URL. */
   openBrowser: boolean;
+  /** When the browser does not open, throw `NoBrowserError` instead of printing the URL. */
+  failWithoutBrowser?: boolean;
   timeoutMs?: number;
+}
+
+/** No browser could be opened (so another way to sign in is needed). */
+export class NoBrowserError extends Error {
+  override readonly name = 'NoBrowserError';
 }
 
 /** Authorization code + PKCE with a loopback redirect. */
 export async function browserLogin(app: App, target: LoginTarget, meta: Meta, options: BrowserLoginOptions): Promise<OAuthCredentials> {
   const endpoints = oauth.oauthEndpointsOf(meta);
-  const resource = `${target.server}/v1`;
+  const resource = endpoints.api_resource;
   const state = oauth.randomToken(16);
   const loopback = await startLoopbackServer(state);
   try {
@@ -223,7 +234,7 @@ export async function browserLogin(app: App, target: LoginTarget, meta: Meta, op
 
     let url = urlFor(clientId);
     let check = await preflight(app, url);
-    if (!check.ok && /client/i.test(check.detail) && !/redirect/i.test(check.detail)) {
+    if (!check.ok && /client/i.test(check.detail)) {
       // The server forgot this client (reset, or a different deployment): register again.
       clientId = await clientIdFor(app, target, endpoints, true);
       url = urlFor(clientId);
@@ -233,14 +244,13 @@ export async function browserLogin(app: App, target: LoginTarget, meta: Meta, op
       throw new CliError(`The server would not start a browser sign-in: ${check.detail}`, {
         exitCode: ExitCode.NOT_SIGNED_IN,
         kind: 'not-signed-in',
-        hint: /redirect/i.test(check.detail)
-          ? 'The server must accept loopback redirects on any port (RFC 8252). Try `salli login --device`, or `salli login --token`.'
-          : 'Try `salli login --device`, or `salli login --token <token>`.',
+        hint: 'Try `salli login --device`, or `salli login --token <token>`.',
       });
     }
 
     const out = app.out;
     const opened = options.openBrowser ? await app.runtime.openUrl(url) : false;
+    if (options.openBrowser && !opened && options.failWithoutBrowser) throw new NoBrowserError('No browser could be opened.');
     out.info(
       opened
         ? `Opening your browser to sign in to ${out.errColors.bold(target.server)}…`
@@ -282,11 +292,11 @@ export async function deviceLogin(app: App, target: LoginTarget, meta: Meta): Pr
       hint: 'Use `salli login` (in a browser on this machine) or `salli login --token <token>`.',
     });
   }
-  const resource = `${target.server}/v1`;
+  const resource = endpoints.api_resource;
   let clientId = await clientIdFor(app, target, endpoints);
   const request = (id: string): Promise<oauth.DeviceAuthorization> =>
     oauth.requestDeviceAuthorization({
-      deviceAuthorizationEndpoint: endpoints.device_authorization_endpoint as string,
+      deviceAuthorizationEndpoint: endpoints.device_authorization_endpoint,
       clientId: id,
       resource,
       fetch: app.runtime.fetch,
@@ -330,6 +340,33 @@ export async function deviceLogin(app: App, target: LoginTarget, meta: Meta): Pr
     throw error;
   } finally {
     spinner.stop();
+  }
+}
+
+export interface InteractiveLoginOptions {
+  /** --device: the device flow, whatever else is possible. */
+  device: boolean;
+  /** False for --no-browser: print the link to open rather than opening it. */
+  openBrowser: boolean;
+}
+
+/**
+ * Signs in with the browser when one can open here, and otherwise (or with
+ * --device) with a code approved on another device.
+ */
+export async function interactiveLogin(app: App, target: LoginTarget, meta: Meta, options: InteractiveLoginOptions): Promise<OAuthCredentials> {
+  if (options.device) return deviceLogin(app, target, meta);
+  const deviceOffered = Boolean(oauth.oauthEndpointsOf(meta).device_authorization_endpoint);
+  if (options.openBrowser && deviceOffered && !app.runtime.canOpenBrowser()) {
+    app.out.note('No browser here, so sign in with a code on another device (or pass --no-browser for a link to open).');
+    return deviceLogin(app, target, meta);
+  }
+  try {
+    return await browserLogin(app, target, meta, { openBrowser: options.openBrowser, failWithoutBrowser: deviceOffered });
+  } catch (error) {
+    if (!(error instanceof NoBrowserError)) throw error;
+    app.out.note('No browser opened, so sign in with a code instead.');
+    return deviceLogin(app, target, meta);
   }
 }
 

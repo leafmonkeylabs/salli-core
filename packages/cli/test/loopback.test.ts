@@ -1,5 +1,6 @@
 import { SalliOAuthError } from '@leafmonkeylabs/salli-sdk';
 import { describe, expect, it } from 'vitest';
+import { browserAvailable } from '../src/auth/browser';
 import { callbackPage, startLoopbackServer } from '../src/auth/loopback';
 import { CliError } from '../src/errors';
 
@@ -60,5 +61,21 @@ describe('the loopback redirect listener', () => {
 
   it('escapes what the server says on the page', () => {
     expect(callbackPage(false, '<script>alert(1)</script>')).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+});
+
+describe('whether a browser can open', () => {
+  it('is yes on a desktop, no over SSH, on CI or on a Linux box with no display', () => {
+    expect(browserAvailable({}, 'darwin')).toBe(true);
+    expect(browserAvailable({}, 'win32')).toBe(true);
+    expect(browserAvailable({ SSH_CONNECTION: '10.0.0.2 51234 10.0.0.1 22' }, 'darwin')).toBe(false);
+    expect(browserAvailable({ CI: 'true' }, 'darwin')).toBe(false);
+    expect(browserAvailable({ CI: 'false' }, 'darwin')).toBe(true);
+    expect(browserAvailable({}, 'linux')).toBe(false);
+    expect(browserAvailable({ DISPLAY: ':0' }, 'linux')).toBe(true);
+    expect(browserAvailable({ WAYLAND_DISPLAY: 'wayland-0' }, 'linux')).toBe(true);
+    expect(browserAvailable({ WSL_DISTRO_NAME: 'Ubuntu' }, 'linux')).toBe(true);
+    // BROWSER is taken at its word, even over SSH.
+    expect(browserAvailable({ BROWSER: 'w3m', SSH_TTY: '/dev/pts/1' }, 'linux')).toBe(true);
   });
 });
