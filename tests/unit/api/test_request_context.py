@@ -36,7 +36,13 @@ async def test_unhandled_exception_returns_json_with_request_id(client, mock_ser
     mock_services.ledger.list_accounts.side_effect = RuntimeError("boom")
     r = await client.get("/accounts/", headers=AUTH)
     assert r.status_code == 500
+    assert r.headers["content-type"] == "application/problem+json"
     body = r.json()
+    assert (body["type"], body["title"], body["status"]) == (
+        "about:blank",
+        "Internal Server Error",
+        500,
+    )
     assert body["detail"] == "Internal server error"
     assert body["request_id"] == r.headers["x-request-id"]
 

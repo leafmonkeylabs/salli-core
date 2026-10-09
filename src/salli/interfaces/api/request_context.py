@@ -85,9 +85,18 @@ class RequestContextMiddleware:
                 raise
             from fastapi.responses import JSONResponse
 
+            # Problem details like every other error (contract.Problem); the
+            # `detail` and `request_id` clients already read are kept.
             response = JSONResponse(
                 status_code=500,
-                content={"detail": "Internal server error", "request_id": rid},
+                content={
+                    "type": "about:blank",
+                    "title": "Internal Server Error",
+                    "status": 500,
+                    "detail": "Internal server error",
+                    "request_id": rid,
+                },
+                media_type="application/problem+json",
                 headers={"X-Request-Id": rid},
             )
             await response(scope, receive, send)

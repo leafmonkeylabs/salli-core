@@ -99,3 +99,15 @@ def test_untyped_operations_only_shrink():
     assert not added, f"Give these a response model (a return type): {added}"
     fixed = sorted(UNTYPED - untyped)
     assert not fixed, f"These are typed now; delete them from UNTYPED: {fixed}"
+
+
+def test_every_error_is_documented_as_problem_details():
+    spec = create_app().openapi()
+    problem = {"$ref": "#/components/schemas/Problem"}
+    for method, path, op in _operations():
+        default = op["responses"].get("default", {})
+        assert default.get("content", {}).get("application/problem+json", {}).get("schema") == (
+            problem
+        ), f"{method} {path} does not document its errors"
+    # FastAPI's own 422 shape is never sent, so it must not be advertised.
+    assert "HTTPValidationError" not in spec["components"]["schemas"]

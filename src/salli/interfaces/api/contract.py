@@ -20,6 +20,7 @@ their URLs are dictated by the protocols and by clients configured long ago.
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -289,6 +290,46 @@ class Problem(BaseModel):
     title: str
     status: int
     detail: Any = None
+    #: On a 500: the id the server logged it under (also in `X-Request-Id`),
+    #: for a bug report.
+    request_id: str | None = None
+
+
+_PROBLEM_REF = {"$ref": "#/components/schemas/Problem"}
+
+
+def document_problems(spec: dict[str, Any]) -> dict[str, Any]:
+    """Say in the spec what every error really is: problem details.
+
+    FastAPI documents a 422 as its own `HTTPValidationError`, a shape this API
+    never sends (main.py turns it into a Problem), and documents no other
+    error at all. Every operation gets `default` (any error) and, where FastAPI
+    put its 422, a Problem instead; responses a route documents itself (the
+    OAuth token endpoint's RFC 6749 errors) are left alone. Mutates and
+    returns `spec`.
+    """
+    problem_json = {"application/problem+json": {"schema": _PROBLEM_REF}}
+    for operations in spec.get("paths", {}).values():
+        for operation in operations.values():
+            responses = operation.setdefault("responses", {})
+            validation = responses.get("422")
+            if validation and "HTTPValidationError" in str(validation.get("content", "")):
+                responses["422"] = {
+                    "description": "The request failed validation; `detail` lists each field",
+                    "content": problem_json,
+                }
+            responses.setdefault(
+                "default",
+                {"description": "An error, as RFC 9457 problem details", "content": problem_json},
+            )
+    schemas = spec.setdefault("components", {}).setdefault("schemas", {})
+    schemas["Problem"] = Problem.model_json_schema()
+    # FastAPI's validation-error shapes, now that nothing refers to them
+    # (in this order: the first is what refers to the second).
+    for name in ("HTTPValidationError", "ValidationError"):
+        if name in schemas and f'"#/components/schemas/{name}"' not in json.dumps(spec):
+            del schemas[name]
+    return spec
 
 
 class Ref(BaseModel):
