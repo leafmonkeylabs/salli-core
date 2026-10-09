@@ -19,7 +19,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AuthIdentity"
+                }
               }
             }
           }
@@ -5486,7 +5488,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
               }
             }
           }
@@ -5893,6 +5897,19 @@
           "allocated_amount"
         ],
         "title": "AllocationRequest"
+      },
+      "AuthIdentity": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "AuthIdentity"
       },
       "BalanceSheetRequest": {
         "properties": {
@@ -6368,6 +6385,26 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "Health",
+        "description": "`GET /healthz`: the process is up and serving."
       },
       "HoldingRequest": {
         "properties": {

@@ -64,7 +64,6 @@ def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
 #: added. Grouped so work on different areas does not collide.
 UNTYPED = {
     # Ledger, tax, statements, documents, reminders
-    "auth.me",
     "documents.get",
     "documents.list",
     "entries.create",
@@ -74,7 +73,6 @@ UNTYPED = {
     "entries.reverse",
     "ledger.incomeStatement",
     "ledger.trialBalance",
-    "meta.health",
     "reminders.create",
     "reminders.list",
     "reminders.seedFilingCalendar",

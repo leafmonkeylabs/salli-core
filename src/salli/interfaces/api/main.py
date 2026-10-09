@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from salli.application.ports import FxUnavailableError
@@ -110,6 +111,14 @@ async def lifespan(app: FastAPI):
             await checkpointer_ctx.__aexit__(None, None, None)
         except Exception:
             pass
+
+
+class Health(BaseModel):
+    """`GET /healthz`: the process is up and serving."""
+
+    status: Literal["ok"]
+    #: The server's version (salli-core's).
+    version: str
 
 
 def problem(
@@ -289,8 +298,8 @@ def create_app() -> FastAPI:
 
     # ── Health ────────────────────────────────────────────────────────────────
     @app.get("/healthz", tags=["meta"])
-    async def health():
-        return {"status": "ok", "version": app.version}
+    async def health() -> Health:
+        return Health(status="ok", version=app.version)
 
     return app
 
