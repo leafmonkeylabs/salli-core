@@ -33,6 +33,7 @@ describe('salli status', () => {
       Net worth       USD 14,034.50
         Assets        USD 15,234.50
         Liabilities   USD  1,200.00
+      Safe to spend   USD 1,234.56 until Nov 1, 2026, when Salary comes in
 
       October 2026 so far (Oct 1 – 9, 2026)
         Income        USD 5,000.00
@@ -43,6 +44,12 @@ describe('salli status', () => {
       FI score        72.5 (B) · 1.9% of the way to financial independence
         Savings rate  55.8% of income
         FI by         Oct 9, 2040
+
+      Needs attention
+        ! Checking runs short on Nov 2
+          It is forecast to reach USD -370.00 before payday.
+        • 2 transactions to review
+          From the statement imported on Oct 2.
 
       Coming up
       ! Oct 9, 2026   Budget overspend            warning
@@ -203,12 +210,65 @@ describe('salli status', () => {
               "created_at": "2026-04-01T09:00:00+00:00"
             }
           ]
+        },
+        "safe_to_spend": {
+          "currency": "USD",
+          "amount": "1234.56",
+          "cash_today": "12784.50",
+          "until": "2026-11-01",
+          "next_income": {
+            "date": "2026-11-01",
+            "description": "Salary",
+            "amount": "5000.00",
+            "currency": "USD"
+          },
+          "committed": [
+            {
+              "date": "2026-10-20",
+              "description": "Streaming",
+              "amount": "15.99",
+              "currency": "USD"
+            }
+          ],
+          "notes": [
+            "Keeps one month of spending aside."
+          ]
+        },
+        "signals": {
+          "signals": [
+            {
+              "kind": "low_balance_ahead",
+              "severity": "high",
+              "title": "Checking runs short on Nov 2",
+              "detail": "It is forecast to reach USD -370.00 before payday.",
+              "action": "see_forecast",
+              "amount": "-370.00",
+              "currency": "USD",
+              "date": "2026-11-02",
+              "refs": [
+                "00000002-5a11-4000-8000-000000000002"
+              ]
+            },
+            {
+              "kind": "review_waiting",
+              "severity": "info",
+              "title": "2 transactions to review",
+              "detail": "From the statement imported on Oct 2.",
+              "action": "review",
+              "amount": null,
+              "currency": null,
+              "date": null,
+              "refs": [
+                "00000321-5a11-4000-8000-000000000801"
+              ]
+            }
+          ]
         }
       }
       "
     `);
     const data = JSON.parse(result.stdout);
-    expect(Object.keys(data)).toEqual(['context', 'server', 'period', 'balance_sheet', 'income_statement', 'fi_score', 'reminders']);
+    expect(Object.keys(data)).toEqual(['context', 'server', 'period', 'balance_sheet', 'income_statement', 'fi_score', 'reminders', 'safe_to_spend', 'signals']);
     expect(data.balance_sheet.net_worth).toBe('14034.50');
     expect(data.fi_score.grade).toBe('B');
   });

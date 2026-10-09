@@ -98,3 +98,12 @@ export function displayRange(from: unknown, to: unknown, locale?: string): strin
   if (!start || !end) return [from, to].filter((v) => typeof v === 'string' && v).join(' – ');
   return plainSpaces(new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).formatRange(start, end));
 }
+
+/** "Oct 2026" for a YYYY-MM month; the input as given when it is not one. */
+export function displayMonth(value: unknown, locale?: string): string {
+  if (typeof value !== 'string' || !value) return '';
+  const m = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!m) return value;
+  const date = new Date(digits(m[1]), digits(m[2]) - 1, 1);
+  return plainSpaces(new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric' }).format(date));
+}

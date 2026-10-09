@@ -10,6 +10,14 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
   Account,
+  CashFlow,
+  CashForecast,
+  FinanceSignal,
+  FinanceSignals,
+  NetWorthByMonth,
+  RecurringPayments,
+  SafeToSpend,
+  Spending,
   AgentDocument,
   CategorizationRule,
   EntryProvenance,
@@ -155,6 +163,10 @@ export class MockSalli {
       { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
     ] as McpConnection[],
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
+    signals: [
+      { kind: 'low_balance_ahead', severity: 'high', title: 'Checking runs short on Nov 2', detail: 'It is forecast to reach USD -370.00 before payday.', action: 'see_forecast', amount: '-370.00', currency: 'USD', date: '2026-11-02', refs: [uid(2)] },
+      { kind: 'review_waiting', severity: 'info', title: '2 transactions to review', detail: 'From the statement imported on Oct 2.', action: 'review', amount: null, currency: null, date: null, refs: [uid(801)] },
+    ] as FinanceSignal[],
     rules: [
       {
         id: uid(601),
@@ -683,6 +695,12 @@ export class MockSalli {
     }
     if (method === 'GET' && path === '/v1/advisor/reports/latest') return { status: 200, body: {} };
 
+    // insights
+    if (method === 'GET' && path.startsWith('/v1/insights/')) {
+      const insights = this.insights(path.slice('/v1/insights/'.length), req.query);
+      if (insights) return insights;
+    }
+
     // rules, tokens, plain-text exports
     const rules = this.rulesRoute(req);
     if (rules) return rules;
@@ -771,6 +789,95 @@ export class MockSalli {
     }
 
     return problem(404, 'Not Found', 'Not Found');
+  }
+
+  /** The insights, as the server shapes them. */
+  private insights(name: string, query: URLSearchParams): Reply | undefined {
+    this.data.bodies.push({ method: 'GET', path: `/v1/insights/${name}`, body: Object.fromEntries(query) });
+    switch (name) {
+      case 'cash-flow':
+        return {
+          status: 200,
+          body: {
+            currency: 'USD',
+            months: [
+              { month: '2026-09', income: '5000.00', expenses: '2400.00', net: '2600.00', savings_rate: '0.52' },
+              { month: '2026-10', income: '5000.00', expenses: '2212.35', net: '2787.65', savings_rate: '0.5575' },
+            ],
+          } satisfies CashFlow,
+        };
+      case 'spending':
+        return {
+          status: 200,
+          body: {
+            currency: 'USD',
+            by: (query.get('by') ?? 'category') as Spending['by'],
+            months: ['2026-08', '2026-09', '2026-10'],
+            lines: [
+              { key: query.get('by') === 'account' ? uid(7) : 'rent', total: '5400.00', share: '0.7', by_month: { '2026-10': '1800.00' } },
+              { key: query.get('by') === 'account' ? uid(6) : 'groceries', total: '2312.35', share: '0.3', by_month: { '2026-10': '412.35' } },
+            ],
+          } satisfies Spending,
+        };
+      case 'net-worth':
+        return {
+          status: 200,
+          body: {
+            currency: 'USD',
+            points: [
+              { month: '2026-09', assets: '13000.00', liabilities: '1500.00', net_worth: '11500.00' },
+              { month: '2026-10', assets: '15234.50', liabilities: '1200.00', net_worth: '14034.50' },
+            ],
+          } satisfies NetWorthByMonth,
+        };
+      case 'recurring':
+        return {
+          status: 200,
+          body: {
+            items: [
+              { payee: 'Streaming', cadence: 'monthly', typical_amount: '15.99', varies: false, currency: 'USD', account_id: uid(6), occurrences: 6, last_date: '2026-09-20', next_expected: '2026-10-20', examples: ['STREAMING CO'], tracked: true, subscription_id: uid(431) },
+              { payee: 'Gym', cadence: 'monthly', typical_amount: '39.99', varies: true, currency: 'USD', account_id: uid(6), occurrences: 4, last_date: '2026-10-01', next_expected: '2026-11-01', examples: ['GYM'], tracked: false, subscription_id: null },
+            ],
+          } satisfies RecurringPayments,
+        };
+      case 'forecast':
+        return {
+          status: 200,
+          body: {
+            currency: 'USD',
+            start: '2026-10-09',
+            end: '2026-12-08',
+            today: '13034.50',
+            end_balance: '14200.00',
+            lowest: '-120.00',
+            lowest_date: '2026-11-02',
+            daily: [{ date: '2026-10-09', balance: '13034.50' }],
+            accounts: [{ account_id: uid(2), name: 'Checking', currency: 'USD', today: '12784.50', end: '13950.00', lowest: '-370.00', lowest_date: '2026-11-02' }],
+            flows: [
+              { date: '2026-10-20', account_id: uid(2), amount: '-15.99', currency: 'USD', description: 'Streaming', source: 'subscription' },
+              { date: '2026-11-01', account_id: uid(2), amount: '5000.00', currency: 'USD', description: 'Salary', source: 'recurring' },
+            ],
+            notes: ['Based on 6 months of history.'],
+          } satisfies CashForecast,
+        };
+      case 'safe-to-spend':
+        return {
+          status: 200,
+          body: {
+            currency: 'USD',
+            amount: '1234.56',
+            cash_today: '12784.50',
+            until: '2026-11-01',
+            next_income: { date: '2026-11-01', description: 'Salary', amount: '5000.00', currency: 'USD' },
+            committed: [{ date: '2026-10-20', description: 'Streaming', amount: '15.99', currency: 'USD' }],
+            notes: ['Keeps one month of spending aside.'],
+          } satisfies SafeToSpend,
+        };
+      case 'signals':
+        return { status: 200, body: { signals: this.data.signals } satisfies FinanceSignals };
+      default:
+        return undefined;
+    }
   }
 
   /** The categorization rules: CRUD, a test against booked entries, and suggestions. */

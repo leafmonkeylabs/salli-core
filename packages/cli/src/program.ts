@@ -12,6 +12,7 @@ import { registerContext } from './commands/context';
 import { registerDoctor } from './commands/doctor';
 import { registerEntries } from './commands/entries';
 import { registerExports } from './commands/exports';
+import { registerInsights } from './commands/insights';
 import { registerPlanningAhead } from './commands/fi';
 import { registerLedger } from './commands/ledger';
 import { registerMore, registerYourData } from './commands/more';
@@ -74,6 +75,7 @@ Start with:  salli login   then   salli status`,
   program.commandsGroup('Plan ahead:');
   registerPlanning(program, app);
   registerPlanningAhead(program, app);
+  registerInsights(program, app);
   registerMore(program, app);
 
   program.commandsGroup('Your data and settings:');

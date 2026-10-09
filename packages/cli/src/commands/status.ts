@@ -5,6 +5,8 @@ import type { Command } from '@commander-js/extra-typings';
 import {
   compareAmounts,
   fiScoreGet,
+  insightsSafeToSpend,
+  insightsSignals,
   isAbortError,
   ledgerIncomeStatement,
   remindersList,
@@ -14,6 +16,7 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { problemFor } from '../errors';
+import { safeToSpendLine, signalLines } from './insights';
 import { displayWidth, padEnd, padStart, singleLine, truncate } from '../output/text';
 import { displayDate, displayRange, isoDate, monthPeriod, monthToDate } from '../util/dates';
 
@@ -47,6 +50,8 @@ export function registerStatus(program: Command, app: App): void {
         api.call(ledgerIncomeStatement, { query: { from_date: period.from, to_date: period.to } }),
         api.call(fiScoreGet),
         api.call(remindersList, { query: { status: 'pending' } }),
+        api.call(insightsSafeToSpend),
+        api.call(insightsSignals),
       ]);
       const failure = settled.find((s): s is PromiseRejectedResult => s.status === 'rejected' && fatal(s.reason));
       if (failure) throw failure.reason;
@@ -61,6 +66,8 @@ export function registerStatus(program: Command, app: App): void {
       const income = value(settled[1], 'income_statement');
       const fi = value(settled[2], 'fi_score');
       const reminders = value(settled[3], 'reminders');
+      const safeToSpend = value(settled[4], 'safe_to_spend');
+      const signals = value(settled[5], 'signals');
 
       const result = {
         context: ctx.name,
@@ -70,6 +77,8 @@ export function registerStatus(program: Command, app: App): void {
         income_statement: income,
         fi_score: fi,
         reminders,
+        safe_to_spend: safeToSpend,
+        signals,
         ...(Object.keys(unavailable).length ? { unavailable } : {}),
       };
 
@@ -99,6 +108,10 @@ export function registerStatus(program: Command, app: App): void {
             ]);
           } else {
             lines.push(`${label('Net worth')}${c.dim('unavailable')}`);
+          }
+          if (safeToSpend) {
+            const room = Number.isFinite(out.width) ? out.width - 16 : Number.POSITIVE_INFINITY;
+            lines.push(`${label(c.bold('Safe to spend'))}${truncate(safeToSpendLine(out, safeToSpend), room)}`);
           }
           lines.push('');
 
@@ -136,6 +149,13 @@ export function registerStatus(program: Command, app: App): void {
           const pending = (reminders?.reminders ?? [])
             .filter((r) => r.status === 'pending')
             .sort((a, b) => a.due_date.localeCompare(b.due_date));
+          const top = signals?.signals.slice(0, 3) ?? [];
+          if (top.length) {
+            lines.push(c.bold('Needs attention'));
+            for (const signal of top) lines.push(...signalLines(out, signal, '  '));
+            if ((signals?.signals.length ?? 0) > 3) lines.push(c.dim(`  +${(signals?.signals.length ?? 0) - 3} more: salli insights signals`));
+            lines.push('');
+          }
           lines.push(c.bold('Coming up'));
           if (pending.length === 0) lines.push(`  ${c.dim(reminders ? 'Nothing due.' : 'unavailable')}`);
           const today = isoDate(now);
