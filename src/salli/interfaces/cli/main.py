@@ -2711,20 +2711,24 @@ def subscription_add(
 ):
     """Add a recurring subscription."""
     user_id = _require_user()
-    subscription_id = asyncio.run(
-        _services().subscription.add_subscription(
-            user_id,
-            {
-                "name": name,
-                "amount": amount,
-                "frequency": frequency,
-                "next_due_date": next_due_date,
-                "account_id": account_id,
-                "grace_days": grace_days,
-                "amount_tolerance_pct": amount_tolerance_pct,
-            },
+    try:
+        subscription_id = asyncio.run(
+            _services().subscription.add_subscription(
+                user_id,
+                {
+                    "name": name,
+                    "amount": amount,
+                    "frequency": frequency,
+                    "next_due_date": next_due_date,
+                    "account_id": account_id,
+                    "grace_days": grace_days,
+                    "amount_tolerance_pct": amount_tolerance_pct,
+                },
+            )
         )
-    )
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "name": name})
     console.print(f"[green]Subscription created:[/green] {name} ({subscription_id})")
 
@@ -2765,7 +2769,11 @@ def subscription_update(
         raise typer.Exit(1)
     subs = asyncio.run(_services().subscription.list_subscriptions(user_id, active_only=False))
     subscription_id = _resolve_id(subs, subscription_id, "subscription")
-    asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    try:
+        asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "updated": data})
     console.print(f"[green]Subscription updated:[/green] {subscription_id}")
 
@@ -3747,15 +3755,15 @@ def cli() -> Any:
 
 
 def main():
+    from salli.application.ports import ProfileMissing
+
     try:
         cli()()
-    except LookupError as exc:
-        # The acting user (SALLI_USER_ID) has no profile yet: say what to do
-        # rather than end in a traceback.
-        if "has no profile" not in str(exc):
-            raise
+    except ProfileMissing as exc:
+        # The acting user (SALLI_USER_ID) has no profile yet, whichever command
+        # found out: say what to do rather than end in a traceback.
         console.print(
-            f"[red]{exc}.[/red] Start with [bold]salli onboarding complete[/bold] "
+            f"[red]{escape(str(exc))}.[/red] Start with [bold]salli onboarding complete[/bold] "
             "(or [bold]salli setup[/bold] for a new instance)."
         )
         sys.exit(1)

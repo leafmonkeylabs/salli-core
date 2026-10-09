@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from salli.application.ports import ProfileMissing
 from salli.interfaces.cli import main as cli_main
 
 
@@ -18,6 +19,20 @@ def _run(monkeypatch, services, *argv: str) -> int:
     with pytest.raises(SystemExit) as exited:
         cli_main.main()
     return int(exited.value.code or 0)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [("mcp", "enable"), ("mcp", "disable")],
+)
+def test_a_write_without_a_profile_says_to_onboard(monkeypatch, capsys, argv):
+    # The repository raised ValueError("A new profile needs a base_currency"),
+    # which the "no profile" handler did not catch: a traceback.
+    oauth = SimpleNamespace(set_mcp_enabled=AsyncMock(side_effect=ProfileMissing("u1")))
+    code = _run(monkeypatch, SimpleNamespace(mcp_oauth=oauth), *argv)
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "has no profile" in out and "salli onboarding complete" in out
 
 
 def test_mcp_revoke_says_when_nothing_was_disconnected(monkeypatch, capsys):

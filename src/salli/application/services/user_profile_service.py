@@ -135,15 +135,13 @@ class UserProfileService:
         goals, policies) is a number in the base currency. Changing the
         currency under them would silently reinterpret all of it, so once there
         is any, it is refused (`BaseCurrencyLockedError`). Setting the currency
-        it already has is always fine.
+        it already has is always fine. The profile must exist (`ProfileMissing`
+        otherwise): this never creates one.
         """
         code = normalize_currency(currency)
         async with self._uow_factory() as uow:
-            if await uow.user_profiles.get(user_id) is None:
-                # Choosing a currency is a natural first step (`salli onboarding
-                # complete --base-currency`): the profile starts in it.
-                await uow.user_profiles.upsert(user_id, {"base_currency": code})
-                return code
+            # `ProfileMissing` without a profile: creating one is ensure_user's,
+            # behind its may_create gate, so callers ensure the user first.
             current = await uow.user_profiles.base_currency(user_id)
             if code == current:
                 return code

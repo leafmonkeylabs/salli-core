@@ -240,6 +240,24 @@ class FxQuote:
     as_of: str
 
 
+class ProfileMissing(LookupError):
+    """The user has no profile row yet, so nothing that needs one (a base
+    currency, a setting) can be read or written. Callers create it first:
+    `UserProfileService.ensure_user`, which `salli setup` and onboarding run."""
+
+    def __init__(self, user_id: str) -> None:
+        super().__init__(f"User {user_id} has no profile")
+        self.user_id = user_id
+
+
+class AccountCodeTaken(ValueError):
+    """The user already has an account with this code (active or not)."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(f"An account with code {code} already exists")
+        self.code = code
+
+
 class FxUnavailableError(LookupError):
     """No source could give this rate. Never answered with a made-up number."""
 
@@ -366,10 +384,10 @@ class UserProfileRepository(ABC):
         ...
 
     async def base_currency(self, user_id: str) -> str:
-        """The ISO code the user's amounts are kept in. `LookupError` if no profile."""
+        """The ISO code the user's amounts are kept in. `ProfileMissing` if none."""
         profile = await self.get(user_id)
         if not profile or not profile.get("base_currency"):
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         return str(profile["base_currency"])
 
     async def has_financial_data(self, user_id: str) -> bool:

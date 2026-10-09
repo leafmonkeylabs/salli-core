@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import delete, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -53,6 +54,7 @@ from salli.adapters.db.models import (
     UserProfileORM,
 )
 from salli.application.ports import (
+    AccountCodeTaken,
     AdvisoryRepository,
     AgentDocumentRepository,
     AgentSessionRepository,
@@ -72,6 +74,7 @@ from salli.application.ports import (
     PersonalAccessTokenRepository,
     PolicyRepository,
     PortfolioRepository,
+    ProfileMissing,
     RecurringSubscriptionRepository,
     ReminderRepository,
     RuleRepository,
@@ -275,7 +278,7 @@ class SQLLedgerRepository(LedgerRepository):
         )
         base = result.scalar_one_or_none()
         if base is None:
-            raise ValueError(f"User {user_id} has no profile, so their base currency is unknown")
+            raise ProfileMissing(user_id)
         return base
 
     async def save_entry(self, user_id: str, entry: JournalEntry) -> str:
@@ -350,7 +353,15 @@ class SQLLedgerRepository(LedgerRepository):
             is_active=account.is_active,
             tax_role=account.tax_role,
         )
-        self._session.add(orm)
+        # In a savepoint, so a code taken meanwhile (two onboardings at once)
+        # is a typed error the caller can act on, not a failed commit.
+        try:
+            async with self._session.begin_nested():
+                self._session.add(orm)
+        except IntegrityError as exc:
+            if "uq_accounts_user_code" in str(exc.orig):
+                raise AccountCodeTaken(account.code) from exc
+            raise
         return account_id
 
     async def get_entry_by_id(self, user_id: str, entry_id: str) -> StoredJournalEntry | None:
@@ -999,7 +1010,9 @@ class SQLUserProfileRepository(UserProfileRepository):
         row = result.scalar_one_or_none()
         if row is None:
             if not fields.get("base_currency"):
-                raise ValueError("A new profile needs a base_currency")
+                # Only ensure_user creates a profile (with its currency); any
+                # other write to a missing one is a missing profile.
+                raise ProfileMissing(user_id)
             row = UserProfileORM(id=user_id)
             self._s.add(row)
         for k, v in fields.items():
@@ -1013,7 +1026,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         )
         base = result.scalar_one_or_none()
         if base is None:
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         return base
 
     async def has_financial_data(self, user_id: str) -> bool:
@@ -1053,7 +1066,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         setattr(row, field, value)
         await self._s.flush()
 
@@ -1071,7 +1084,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         setattr(row, field, value)
         await self._s.flush()
 
