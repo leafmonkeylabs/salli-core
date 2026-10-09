@@ -43,6 +43,7 @@ export {
   compareAmounts,
   currencyDigits,
   formatAmount,
+  formatDecimal,
   formatRatio,
   isAmount,
   isNegativeAmount,
@@ -51,6 +52,7 @@ export {
   normalizeAmountInput,
   type DecimalString,
   type FormatAmountOptions,
+  type FormatDecimalOptions,
   type FormatRatioOptions,
 } from './money';
 export { parseEventData, readServerSentEvents, type EventSourceMessage } from './sse';

@@ -2,13 +2,21 @@
  * salli login | logout | whoami
  */
 import type { Command } from '@commander-js/extra-typings';
-import { authMe } from '@leafmonkeylabs/salli-sdk';
+import { authMe, type AuthIdentity } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { identityOf } from '../auth/credentials';
 import { interactiveLogin, resolveLoginTarget, revokeCredentials, saveLoginContext, serverMeta, tokenLogin } from '../auth/login';
 import { UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { readAllStdin } from '../util/stdin';
+
+/** How the server says you signed in (`method` in /v1/auth/me). */
+const SIGN_IN_METHODS: Record<AuthIdentity['method'], string> = {
+  session: 'a web session',
+  oauth: 'an OAuth sign-in',
+  pat: 'a personal access token',
+  dev: 'development sign-in (any token is a user id)',
+};
 
 function describeExpiry(expiresAt: number | undefined, now: Date): string | undefined {
   if (expiresAt === undefined) return undefined;
@@ -132,7 +140,7 @@ Examples:
               ['Context', ctx.name],
               ['Server', ctx.server],
               ['Signed in with', via],
-              ['Server sees', data.method === 'pat' ? 'a personal access token' : data.method === 'dev' ? 'development sign-in (any token is a user id)' : data.method],
+              ['Server sees', SIGN_IN_METHODS[data.method]],
               ['Token expires', credentials?.kind === 'oauth' ? describeExpiry(credentials.tokens.expires_at, app.runtime.now()) : undefined],
             ]),
           );

@@ -14,7 +14,7 @@
  * response; one whose operation returns no content prints a small object
  * saying what was done.
  */
-import { exactValue, formatAmount, formatRatio, toJsonText, type FormatAmountOptions } from '@leafmonkeylabs/salli-sdk';
+import { exactValue, formatAmount, formatDecimal, formatRatio, toJsonText, type FormatAmountOptions } from '@leafmonkeylabs/salli-sdk';
 import type { OutputFormat } from '../config/config';
 import type { Runtime } from '../runtime';
 import type { Colors } from './colors';
@@ -188,6 +188,12 @@ export class Output {
     return typeof amount === 'string' && /^-/.test(amount.trim()) && !/^-0*(\.0*)?$/.test(amount.trim())
       ? this.colors.red(text)
       : text;
+  }
+
+  /** A quantity that is neither money nor a ratio (months, a score), rounded for reading. */
+  decimal(value: unknown, maximumFractionDigits = 2): string {
+    if (value === null || value === undefined || value === '') return '—';
+    return formatDecimal(value as string, { locale: this.locale, maximumFractionDigits });
   }
 
   /** A fraction as a percentage: "0.185" → "18.5%". */

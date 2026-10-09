@@ -4,6 +4,7 @@ import {
   compareAmounts,
   currencyDigits,
   formatAmount,
+  formatDecimal,
   formatRatio,
   isAmount,
   isNegativeAmount,
@@ -127,6 +128,17 @@ describe('formatRatio', () => {
     expect(formatRatio(0.5, { locale: 'en-US' })).toBe('50%');
     expect(formatRatio('unknown')).toBe('unknown');
     expect(formatRatio(null)).toBe('');
+  });
+});
+
+describe('formatDecimal', () => {
+  it('rounds a long decimal for reading, from its text', () => {
+    expect(formatDecimal('1.871411691201311695436611839', { locale: 'en-US', maximumFractionDigits: 1 })).toBe('1.9');
+    expect(formatDecimal('12345.5', { locale: 'en-US' })).toBe('12,345.5');
+    expect(formatDecimal('6', { locale: 'en-US' })).toBe('6');
+    expect(formatDecimal(2.25, { locale: 'en-US', maximumFractionDigits: 1 })).toBe('2.3');
+    expect(formatDecimal('n/a')).toBe('n/a');
+    expect(formatDecimal(undefined)).toBe('');
   });
 });
 

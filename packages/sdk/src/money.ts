@@ -198,6 +198,28 @@ export function formatRatio(
   }).format(text as DecimalString);
 }
 
+export interface FormatDecimalOptions {
+  locale?: string | readonly string[] | undefined;
+  /** Decimals to show at most. Default 2. */
+  maximumFractionDigits?: number;
+}
+
+/**
+ * Formats a quantity that is not money and not a ratio (months of cover, a
+ * score) for reading: "1.871411691201311695" → "1.87". Rounded by Intl from
+ * the decimal string itself. Returns the input as given when it is not a
+ * number.
+ */
+export function formatDecimal(value: string | number | null | undefined, options: FormatDecimalOptions = {}): string {
+  if (value === null || value === undefined || value === '') return '';
+  const text = typeof value === 'number' ? String(value) : value.trim();
+  if (typeof value === 'string' && !isAmount(text)) return text;
+  return formatter(options.locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: options.maximumFractionDigits ?? 2,
+  }).format(text as DecimalString);
+}
+
 /**
  * Normalises an amount someone typed into the API's format, or returns
  * undefined when it is not one. Accepts `1500`, `1500.5`, `-12.30`, and

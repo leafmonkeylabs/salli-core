@@ -59,7 +59,7 @@ function scoreView(app: App, s: FiScore): void {
       ['FI number', out.money(s.fi_number, cur)],
       ['Net worth', out.money(s.net_worth, cur)],
       ['Progress to FI', out.percent(s.progress_to_fi)],
-      ['Emergency fund', `${s.emergency_fund_months} months`],
+      ['Emergency fund', `${out.decimal(s.emergency_fund_months, 1)} months`],
       ['FI by', s.projected_fi_date ? displayDate(s.projected_fi_date, out.locale) : 'not yet in reach'],
     ]),
   );
