@@ -125,6 +125,11 @@ class Pricing:
         self._quotes = [quote for _, quote in ranked]
         self._dates = [quote.on for quote in self._quotes]
 
+    @property
+    def last_day(self) -> date | None:
+        """The day of the latest price there is, if any."""
+        return self._dates[-1] if self._dates else None
+
     def quote(self, on: date) -> Quote | None:
         """The latest price quoted on or before `on`."""
         index = bisect_right(self._dates, on)

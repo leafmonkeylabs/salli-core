@@ -35,7 +35,7 @@ from salli.application.market_data import StoredPriceHistory, symbol_key
 from salli.application.ports import FxRatePort, FxUnavailableError
 from salli.domain.currency import normalize_currency, quantize, quantum
 from salli.domain.money import from_minor, to_minor
-from salli.domain.portfolio import engine
+from salli.domain.portfolio import engine, performance
 from salli.domain.portfolio.lots import (
     EXACT,
     INCOME,
@@ -53,6 +53,7 @@ from salli.domain.portfolio.lots import (
     validate,
 )
 from salli.domain.portfolio.models import Holding
+from salli.domain.portfolio.returns import RATE, annualised
 from salli.domain.portfolio.valuation import Close, Pricing, Valuation
 
 _STEP = Decimal(1).scaleb(-PLACES)
@@ -429,6 +430,62 @@ def _valuation_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, An
             "unrealised_gain_base": _money(value_base - cost_base, base),
             "notes": notes,
         }
+
+
+_RATE_STEP = Decimal("0.000001")
+
+
+def _rate_view(rate: Decimal | None) -> str | None:
+    """A rate of return as a fraction of one, to six places ("0.073512")."""
+    if rate is None:
+        return None
+    with localcontext(RATE):
+        return str(rate.quantize(_RATE_STEP))
+
+
+def _figures_view(f: performance.Figures, currency: str, days: int) -> dict[str, Any]:
+    with localcontext(EXACT):
+        return {
+            "currency": currency,
+            "opening_value": _money(f.opening_value, currency),
+            "closing_value": _money(f.closing_value, currency),
+            "opening_cost": _money(f.opening_cost, currency),
+            "closing_cost": _money(f.closing_cost, currency),
+            "opening_unrealised_gain": _money(f.opening_unrealised, currency),
+            "unrealised_gain": _money(f.closing_unrealised, currency),
+            "realised_gain": _money(f.realised, currency),
+            "dividends": _money(f.dividends, currency),
+            "interest": _money(f.interest, currency),
+            "withholding_tax": _money(f.withholding_tax, currency),
+            "net_income": _money(f.net_income, currency),
+            "paid_in": _money(f.paid_in, currency),
+            "taken_out": _money(f.taken_out, currency),
+            "total_return": _money(f.total_return, currency),
+            "twr": _rate_view(f.twr),
+            "twr_annualised": _rate_view(annualised(f.twr, days) if f.twr is not None else None),
+            "xirr": _rate_view(f.xirr),
+        }
+
+
+def _at_cost_notes(
+    figures: performance.HoldingFigures, symbol: str, currency: str, base: str
+) -> list[str]:
+    """What a holding's valuations in the period had to carry at cost."""
+    notes: list[str] = []
+    unpriced = sorted({a.on for a in figures.at_cost if a.missing == "price"})
+    if unpriced:
+        others = f" and {len(unpriced) - 1} other day(s)" if len(unpriced) > 1 else ""
+        notes.append(
+            f"No price for {symbol} on {unpriced[0].isoformat()}{others}: valued at what it cost"
+        )
+    for price_on in sorted(
+        {a.price_on for a in figures.at_cost if a.missing == "rate" and a.price_on}
+    ):
+        notes.append(
+            f"No {currency}→{base} rate for {price_on.isoformat()}: "
+            f"its value in {base} is carried at what it cost"
+        )
+    return notes
 
 
 class PortfolioService:
@@ -858,6 +915,93 @@ class PortfolioService:
             tracked = await self._tracked(uow, user_id, [holding])
         [valuation] = await self._value_now(base, tracked)
         return _valuation_view(tracked[0], valuation, base)
+
+    # ── performance ───────────────────────────────────────────────────────────
+
+    async def get_performance(
+        self,
+        user_id: str,
+        start: str | date | None = None,
+        end: str | date | None = None,
+        holding_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Gains, income and returns from `start` to `end` inclusive (a tax
+        year, say): per holding in its own currency and the base one, and for
+        the portfolio (or just `holding_id`; None if there is no such holding)
+        in the base one. With no `start`, since the first transaction; `end`
+        defaults to today (or the latest transaction or price, if later).
+
+        Every holding counts, inactive ones too: a sale's gain belongs to its
+        tax year however the holding is filed now. A holding declared by
+        value has no history to measure, so it is listed apart."""
+        async with self._uow_factory() as uow:
+            if holding_id is not None:
+                holding = await uow.holdings.get(user_id, holding_id)
+                if holding is None:
+                    return None
+                holdings = [holding]
+            else:
+                holdings = await uow.holdings.list(user_id, active_only=False)
+            base = await uow.user_profiles.base_currency(user_id)
+            tracked = await self._tracked(uow, user_id, holdings)
+
+        measured = [t for t in tracked if t.tracked]
+        first = _date(start) if start else None
+        last = (
+            _date(end)
+            if end
+            else max(
+                [self._today()]
+                + [tx.on for t in measured for tx in t.transactions]
+                + [day for t in measured if (day := t.pricing.last_day) is not None]
+            )
+        )
+        if first is not None and first > last:
+            raise ValueError(f"The period starts ({first}) after it ends ({last})")
+
+        histories = [
+            performance.History(t.holding["id"], t.transactions, t.pricing, {}) for t in measured
+        ]
+        days = performance.valuation_days(histories, first, last)
+        rates = await self._rates(base, measured, days)
+        histories = [
+            performance.History(h.key, h.transactions, h.pricing, rates.get(t.currency, {}))
+            for h, t in zip(histories, measured, strict=True)
+        ]
+        result = performance.report(histories, first, last)
+
+        notes: list[str] = []
+        declared = [t for t in tracked if not t.tracked]
+        if declared:
+            symbols = ", ".join(symbol_key(t.holding["symbol"]) for t in declared)
+            notes.append(
+                f"Declared by value, with no transactions to measure, so not in these "
+                f"figures: {symbols}"
+            )
+        holdings_view: list[dict[str, Any]] = []
+        for t, figures in zip(measured, result.holdings, strict=True):
+            symbol = symbol_key(t.holding["symbol"])
+            holdings_view.append(
+                {
+                    "holding_id": t.holding["id"],
+                    "symbol": t.holding["symbol"],
+                    "name": t.holding["name"],
+                    "asset_class": t.holding["asset_class"],
+                    "is_active": t.holding["is_active"],
+                    "native": _figures_view(figures.native, t.currency, result.days),
+                    "base": _figures_view(figures.base, base, result.days),
+                    "notes": _at_cost_notes(figures, symbol, t.currency, base),
+                }
+            )
+        return {
+            "start": result.start.isoformat(),
+            "end": result.end.isoformat(),
+            "days": result.days,
+            "base_currency": base,
+            "portfolio": _figures_view(result.portfolio, base, result.days),
+            "holdings": holdings_view,
+            "notes": notes,
+        }
 
     # ── summary ───────────────────────────────────────────────────────────────
 

@@ -63,6 +63,7 @@ jobs:
           src/salli/domain/agents/jurisdiction.py src/salli/domain/agents/prompting.py
           src/salli/domain/fi/assumptions.py
           src/salli/domain/portfolio/lots.py src/salli/domain/portfolio/valuation.py
+          src/salli/domain/portfolio/returns.py src/salli/domain/portfolio/performance.py
           src/salli/application/market_data.py
       - name: Tests
         # Includes the contract tests: every API route has a CLI command, and
