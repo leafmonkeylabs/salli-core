@@ -73,10 +73,6 @@ def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
 #: added. Grouped so work on different areas does not collide.
 UNTYPED = {
     # Planning: financial independence, goals, the advisor, reports
-    "reports.balanceSheet",
-    "reports.exportCsv",
-    "reports.goalProgress",
-    "reports.netWorth",
     # Budgets, debts, holdings, subscriptions, insurance
     # Profile, onboarding, the agent, LLM keys, MCP connections
     # OAuth

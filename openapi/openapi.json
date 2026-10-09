@@ -4910,7 +4910,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceSheet"
+                }
               }
             }
           }
@@ -4934,7 +4936,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/NetWorthStatement"
+                }
               }
             }
           }
@@ -4958,7 +4962,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/GoalProgressReport"
+                }
               }
             }
           }
@@ -4996,11 +5002,9 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The report as a CSV file.",
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "text/csv": {}
             }
           },
           "422": {
@@ -6644,6 +6648,122 @@
           "user_id"
         ],
         "title": "AuthIdentity"
+      },
+      "BalanceSheet": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/BalanceSheetLine"
+            },
+            "type": "array",
+            "title": "Assets"
+          },
+          "liabilities": {
+            "items": {
+              "$ref": "#/components/schemas/BalanceSheetLine"
+            },
+            "type": "array",
+            "title": "Liabilities"
+          },
+          "equity": {
+            "items": {
+              "$ref": "#/components/schemas/BalanceSheetLine"
+            },
+            "type": "array",
+            "title": "Equity"
+          },
+          "total_assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_equity": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Equity",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "assets",
+          "liabilities",
+          "equity",
+          "total_assets",
+          "total_liabilities",
+          "total_equity",
+          "net_worth"
+        ],
+        "title": "BalanceSheet",
+        "description": "Every asset, liability and equity account, valued in the base currency."
+      },
+      "BalanceSheetLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "code",
+          "name",
+          "balance"
+        ],
+        "title": "BalanceSheetLine"
       },
       "BalanceSheetRequest": {
         "properties": {
@@ -9342,6 +9462,32 @@
         ],
         "title": "GoalList"
       },
+      "GoalProgressReport": {
+        "properties": {
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/Goal"
+            },
+            "type": "array",
+            "title": "Goals"
+          },
+          "completed_count": {
+            "type": "integer",
+            "title": "Completed Count"
+          },
+          "in_progress_count": {
+            "type": "integer",
+            "title": "In Progress Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "goals",
+          "completed_count",
+          "in_progress_count"
+        ],
+        "title": "GoalProgressReport"
+      },
       "GoalRequest": {
         "properties": {
           "name": {
@@ -10245,6 +10391,85 @@
           "default_currency"
         ],
         "title": "Meta"
+      },
+      "NetWorthPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "net_worth"
+        ],
+        "title": "NetWorthPoint"
+      },
+      "NetWorthStatement": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "current_net_worth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Net Worth"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/NetWorthPoint"
+            },
+            "type": "array",
+            "title": "Trend"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "current_net_worth",
+          "as_of",
+          "trend"
+        ],
+        "title": "NetWorthStatement",
+        "description": "Net worth now, and its trend across stored FI scores."
       },
       "OAuthInfo": {
         "properties": {
