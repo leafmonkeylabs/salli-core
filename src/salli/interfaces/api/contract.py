@@ -179,10 +179,15 @@ OPERATION_IDS: dict[Route, str] = {
     ("DELETE", "/mcp/connections/{token_id}"): "mcp.connections.revoke",
     ("GET", "/mcp/connections/enabled"): "mcp.enabled.get",
     ("PUT", "/mcp/connections/enabled"): "mcp.enabled.set",
+    # personal access tokens
+    ("GET", "/tokens"): "tokens.list",
+    ("POST", "/tokens"): "tokens.create",
+    ("DELETE", "/tokens/{token_id}"): "tokens.revoke",
     # OAuth (protocol paths, outside /v1)
     ("GET", "/.well-known/oauth-authorization-server"): "oauth.authorizationServerMetadata",
     ("GET", "/.well-known/oauth-protected-resource"): "oauth.protectedResourceMetadata",
     ("POST", "/mcp/oauth/register"): "oauth.register",
+    ("POST", "/mcp/oauth/device_authorization"): "oauth.deviceAuthorization",
     ("GET", "/mcp/oauth/authorize"): "oauth.authorize",
     ("GET", "/mcp/oauth/consent-info"): "oauth.consentInfo",
     ("POST", "/mcp/oauth/consent"): "oauth.consent",

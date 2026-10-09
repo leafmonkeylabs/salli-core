@@ -18,7 +18,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from salli.application.services.user_profile_service import UserProfileService
 from salli.config import Settings
-from salli.interfaces.api.deps import _decode_jwt, get_current_user
+from salli.interfaces.api.deps import _decode_jwt, get_current_user, get_principal
 
 pytestmark = pytest.mark.asyncio
 
@@ -29,6 +29,12 @@ def _settings(**overrides) -> Settings:
 
 def _creds(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+async def _caller(token: str, settings: Settings, services) -> str:
+    """Authenticate the token, then check membership — as a request does."""
+    principal = await get_principal(_creds(token), settings, services)
+    return await get_current_user(principal, settings, services)
 
 
 class _Profiles:
@@ -89,7 +95,7 @@ async def test_a_closed_instance_refuses_a_stranger_and_creates_nothing():
     services = SimpleNamespace(profile=profile)
 
     with pytest.raises(HTTPException) as caught:
-        await get_current_user(_creds("stranger"), _settings(**DEV), services)
+        await _caller("stranger", _settings(**DEV), services)
 
     assert caught.value.status_code == 403
     assert "stranger" not in profiles.rows
@@ -98,7 +104,7 @@ async def test_a_closed_instance_refuses_a_stranger_and_creates_nothing():
 async def test_a_closed_instance_answers_its_members():
     profile, _ = _profile_service({"owner": {"id": "owner"}})
     services = SimpleNamespace(profile=profile)
-    assert await get_current_user(_creds("owner"), _settings(**DEV), services) == "owner"
+    assert await _caller("owner", _settings(**DEV), services) == "owner"
 
 
 async def test_an_open_instance_creates_an_account_on_first_contact():
@@ -106,7 +112,7 @@ async def test_an_open_instance_creates_an_account_on_first_contact():
     services = SimpleNamespace(profile=profile)
     settings = _settings(**DEV, salli_registration="open")
 
-    assert await get_current_user(_creds("newcomer"), settings, services) == "newcomer"
+    assert await _caller("newcomer", settings, services) == "newcomer"
     assert "newcomer" in profiles.rows
 
 

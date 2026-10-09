@@ -26,6 +26,7 @@ from salli.adapters.db.repositories import (
     SQLLlmCredentialRepository,
     SQLOAuthClientRepository,
     SQLOAuthTokenRepository,
+    SQLPersonalAccessTokenRepository,
     SQLPolicyRepository,
     SQLPortfolioRepository,
     SQLRecurringSubscriptionRepository,
@@ -50,6 +51,7 @@ from salli.application.ports import (
     LlmCredentialRepository,
     OAuthClientRepository,
     OAuthTokenRepository,
+    PersonalAccessTokenRepository,
     PolicyRepository,
     PortfolioRepository,
     RecurringSubscriptionRepository,
@@ -86,6 +88,7 @@ class UnitOfWork:
     oauth_clients: OAuthClientRepository
     oauth_tokens: OAuthTokenRepository
     llm_credentials: LlmCredentialRepository
+    personal_access_tokens: PersonalAccessTokenRepository
 
     def __init__(
         self,
@@ -120,6 +123,7 @@ class UnitOfWork:
         self.oauth_clients = SQLOAuthClientRepository(self._session)
         self.oauth_tokens = SQLOAuthTokenRepository(self._session)
         self.llm_credentials = SQLLlmCredentialRepository(self._session)
+        self.personal_access_tokens = SQLPersonalAccessTokenRepository(self._session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:

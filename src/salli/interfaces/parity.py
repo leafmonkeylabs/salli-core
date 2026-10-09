@@ -149,6 +149,9 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/llm-keys"): "llm-keys list",
     ("PUT", "/llm-keys/{provider}"): "llm-keys set",
     ("DELETE", "/llm-keys/{provider}"): "llm-keys delete",
+    ("GET", "/tokens"): "tokens list",
+    ("POST", "/tokens"): "tokens create",
+    ("DELETE", "/tokens/{token_id}"): "tokens revoke",
     # MCP connections
     ("GET", "/mcp/connections/"): "mcp connections",
     ("DELETE", "/mcp/connections/{token_id}"): "mcp revoke",
@@ -166,6 +169,7 @@ NO_CLI: dict[Route, str] = {
     ("GET", "/.well-known/oauth-authorization-server"): "OAuth discovery (RFC 8414)",
     ("GET", "/.well-known/oauth-protected-resource"): "OAuth discovery (RFC 9728)",
     ("POST", "/mcp/oauth/register"): "dynamic client registration by an MCP client",
+    ("POST", "/mcp/oauth/device_authorization"): "device sign-in, started by a remote client",
     ("GET", "/mcp/oauth/authorize"): "browser redirect step of the OAuth flow",
     ("POST", "/mcp/oauth/token"): "token exchange by an MCP client",
     ("POST", "/mcp/oauth/revoke"): "token revocation by an MCP client (RFC 7009)",

@@ -43,6 +43,12 @@ class OAuthInfo(BaseModel):
     token_endpoint: str
     registration_endpoint: str
     revocation_endpoint: str
+    device_authorization_endpoint: str
+    #: The resource indicator (RFC 8707) to request a token for this REST API.
+    #: Tokens issued for MCP are not accepted here, nor these by MCP.
+    api_resource: str
+    #: Where a person approves a device sign-in.
+    device_verification_uri: str
 
 
 class Meta(BaseModel):
@@ -81,6 +87,9 @@ async def get_meta() -> Meta:
             token_endpoint=f"{base}/mcp/oauth/token",
             registration_endpoint=f"{base}/mcp/oauth/register",
             revocation_endpoint=f"{base}/mcp/oauth/revoke",
+            device_authorization_endpoint=f"{base}/mcp/oauth/device_authorization",
+            api_resource=f"{base}/v1",
+            device_verification_uri=f"{base}/mcp/oauth/device",
         ),
         default_currency=settings.salli_default_currency.upper(),
     )

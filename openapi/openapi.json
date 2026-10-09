@@ -5086,6 +5086,120 @@
         ]
       }
     },
+    "/v1/tokens": {
+      "get": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "List Tokens",
+        "operationId": "tokens.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PersonalAccessToken"
+                  },
+                  "type": "array",
+                  "title": "Response Tokens.List"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "Create Token",
+        "operationId": "tokens.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewPersonalAccessToken"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tokens/{token_id}": {
+      "delete": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "Revoke Token",
+        "operationId": "tokens.revoke",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/meta": {
       "get": {
         "tags": [
@@ -5392,6 +5506,51 @@
         ]
       }
     },
+    "/mcp/oauth/device_authorization": {
+      "post": {
+        "tags": [
+          "mcp-oauth"
+        ],
+        "summary": "Device Authorization",
+        "description": "Start a device sign-in (RFC 8628 §3.1): a code the person approves on\nthe device page, and the device code the client polls the token endpoint with.",
+        "operationId": "oauth.deviceAuthorization",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/deviceAuthorization"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceAuthorization"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "OAuth error (`invalid_client`)"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/mcp/oauth/token": {
       "post": {
         "tags": [
@@ -5437,17 +5596,8 @@
           "mcp-oauth"
         ],
         "summary": "Revoke",
+        "description": "RFC 7009 says form-encoded; older clients of this endpoint sent JSON.\nBoth are accepted.",
         "operationId": "oauth.revoke",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RevokeRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5457,16 +5607,6 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Oauth.Revoke"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -6102,6 +6242,34 @@
         ],
         "title": "CreateReminderRequest"
       },
+      "CreateTokenRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "expires_in_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateTokenRequest"
+      },
       "DailyBriefingRequest": {
         "properties": {
           "enabled": {
@@ -6216,6 +6384,45 @@
           "confirm_email"
         ],
         "title": "DeleteAccountRequest"
+      },
+      "DeviceAuthorization": {
+        "properties": {
+          "device_code": {
+            "type": "string",
+            "title": "Device Code"
+          },
+          "user_code": {
+            "type": "string",
+            "title": "User Code"
+          },
+          "verification_uri": {
+            "type": "string",
+            "title": "Verification Uri"
+          },
+          "verification_uri_complete": {
+            "type": "string",
+            "title": "Verification Uri Complete"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "interval": {
+            "type": "integer",
+            "title": "Interval"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_code",
+          "user_code",
+          "verification_uri",
+          "verification_uri_complete",
+          "expires_in",
+          "interval"
+        ],
+        "title": "DeviceAuthorization",
+        "description": "RFC 8628 §3.2."
       },
       "GoalRequest": {
         "properties": {
@@ -6630,6 +6837,66 @@
         ],
         "title": "Meta"
       },
+      "NewPersonalAccessToken": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "expires_at",
+          "last_used_at",
+          "token"
+        ],
+        "title": "NewPersonalAccessToken"
+      },
       "OAuthInfo": {
         "properties": {
           "issuer": {
@@ -6651,6 +6918,18 @@
           "revocation_endpoint": {
             "type": "string",
             "title": "Revocation Endpoint"
+          },
+          "device_authorization_endpoint": {
+            "type": "string",
+            "title": "Device Authorization Endpoint"
+          },
+          "api_resource": {
+            "type": "string",
+            "title": "Api Resource"
+          },
+          "device_verification_uri": {
+            "type": "string",
+            "title": "Device Verification Uri"
           }
         },
         "type": "object",
@@ -6659,7 +6938,10 @@
           "authorization_endpoint",
           "token_endpoint",
           "registration_endpoint",
-          "revocation_endpoint"
+          "revocation_endpoint",
+          "device_authorization_endpoint",
+          "api_resource",
+          "device_verification_uri"
         ],
         "title": "OAuthInfo"
       },
@@ -6967,6 +7249,61 @@
           "currency"
         ],
         "title": "ParsedEntryDraft"
+      },
+      "PersonalAccessToken": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at",
+          "expires_at",
+          "last_used_at"
+        ],
+        "title": "PersonalAccessToken"
       },
       "PolicyRequest": {
         "properties": {
@@ -7426,19 +7763,6 @@
         ],
         "title": "ResumeRequest"
       },
-      "RevokeRequest": {
-        "properties": {
-          "token": {
-            "type": "string",
-            "title": "Token"
-          }
-        },
-        "type": "object",
-        "required": [
-          "token"
-        ],
-        "title": "RevokeRequest"
-      },
       "RiskQuestionnaireRequest": {
         "properties": {
           "time_horizon_years": {
@@ -7805,6 +8129,35 @@
         ],
         "title": "ValidationError"
       },
+      "deviceAuthorization": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": ""
+          },
+          "resource": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id"
+        ],
+        "title": "Body_oauth.deviceAuthorization"
+      },
       "fastapi___compat__v2__Body_agent__files__upload": {
         "properties": {
           "file": {
@@ -7886,6 +8239,17 @@
               }
             ],
             "title": "Refresh Token"
+          },
+          "device_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Code"
           }
         },
         "type": "object",

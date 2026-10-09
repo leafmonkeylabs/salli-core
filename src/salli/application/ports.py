@@ -723,9 +723,71 @@ class OAuthTokenRepository(ABC):
     async def revoke_refresh_token(self, token_hash: str) -> None: ...
 
     @abstractmethod
-    async def list_active_connections(self, user_id: str) -> list[dict[str, Any]]:
+    async def list_active_connections(
+        self, user_id: str, resource: str | None = None
+    ) -> list[dict[str, Any]]:
         """Active (non-revoked, non-expired) client connections for a user,
-        one row per access token, joined with the client's display name."""
+        one row per access token, joined with the client's display name. With
+        `resource`, only tokens issued for it."""
+        ...
+
+    # Device authorization (RFC 8628). Not abstract: only a server that offers
+    # device sign-in needs them.
+
+    async def save_device_code(
+        self,
+        device_code_hash: str,
+        user_code: str,
+        client_id: str,
+        scope: str,
+        resource: str | None,
+        interval_seconds: int,
+        expires_at: datetime,
+    ) -> None:
+        raise NotImplementedError
+
+    async def get_device_code(self, device_code_hash: str) -> dict[str, Any] | None:
+        """The authorization a device is polling for, in any state."""
+        raise NotImplementedError
+
+    async def get_device_code_by_user_code(self, user_code: str) -> dict[str, Any] | None:
+        """A pending, unexpired authorization, by the code the person typed."""
+        raise NotImplementedError
+
+    async def update_device_code(self, device_id: str, **fields: Any) -> None:
+        """Set status / user_id / last_polled_at."""
+        raise NotImplementedError
+
+
+class PersonalAccessTokenRepository(ABC):
+    """Long-lived tokens for scripts and CI, stored hashed."""
+
+    @abstractmethod
+    async def create(
+        self,
+        user_id: str,
+        name: str,
+        token_hash: str,
+        prefix: str,
+        expires_at: datetime | None,
+    ) -> dict[str, Any]: ...
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """The user's tokens that are not revoked, newest first (never the hash)."""
+        ...
+
+    @abstractmethod
+    async def get_active(self, token_hash: str) -> dict[str, Any] | None:
+        """The token if it exists, is not revoked and has not expired."""
+        ...
+
+    @abstractmethod
+    async def revoke(self, user_id: str, token_id: str) -> bool: ...
+
+    @abstractmethod
+    async def touch(self, token_id: str, at: datetime) -> None:
+        """Record use, for "last used" in the list."""
         ...
 
 

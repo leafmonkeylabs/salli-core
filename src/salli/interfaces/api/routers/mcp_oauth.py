@@ -7,7 +7,10 @@ MCP OAuth router — the authorization-server half of MCP support.
                                        browser to the web app's consent screen
 - GET  /mcp/oauth/consent-info      — (authenticated) what's being requested
 - POST /mcp/oauth/consent           — (authenticated) Allow/Deny
-- POST /mcp/oauth/token             — authorization_code / refresh_token grants
+- POST /mcp/oauth/device_authorization — RFC 8628, sign-in for a device
+                                       without a browser (the CLI over SSH)
+- POST /mcp/oauth/token             — authorization_code / refresh_token /
+                                       device_code grants
 - POST /mcp/oauth/revoke            — RFC 7009, client-presented token revocation
 - GET/DELETE /mcp/connections       — (authenticated) Settings UI surface
 
@@ -23,7 +26,11 @@ from fastapi import APIRouter, Form, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from salli.application.services.mcp_oauth_service import ConsentError, OAuthError
+from salli.application.services.mcp_oauth_service import (
+    DEVICE_GRANT_TYPE,
+    ConsentError,
+    OAuthError,
+)
 from salli.config import get_settings
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
@@ -150,6 +157,37 @@ def _oauth_error_response(error: str, description: str, http_status: int = 400) 
     )
 
 
+class DeviceAuthorization(BaseModel):
+    """RFC 8628 §3.2."""
+
+    device_code: str
+    user_code: str
+    verification_uri: str
+    verification_uri_complete: str
+    expires_in: int
+    interval: int
+
+
+@router.post(
+    "/mcp/oauth/device_authorization",
+    response_model=DeviceAuthorization,
+    responses={400: {"description": "OAuth error (`invalid_client`)"}},
+)
+async def device_authorization(
+    svc: AppServices,
+    client_id: str = Form(...),
+    scope: str = Form(""),
+    resource: str | None = Form(None),
+) -> DeviceAuthorization | JSONResponse:
+    """Start a device sign-in (RFC 8628 §3.1): a code the person approves on
+    the device page, and the device code the client polls the token endpoint with."""
+    try:
+        started = await svc.mcp_oauth.start_device_authorization(client_id, scope, resource)
+    except OAuthError as exc:
+        return _oauth_error_response("invalid_client", str(exc))
+    return DeviceAuthorization.model_validate(started)
+
+
 @router.post("/mcp/oauth/token")
 async def token(
     svc: AppServices,
@@ -159,9 +197,14 @@ async def token(
     client_id: str = Form(...),
     code_verifier: str | None = Form(None),
     refresh_token: str | None = Form(None),
+    device_code: str | None = Form(None),
 ):
     try:
-        if grant_type == "authorization_code":
+        if grant_type == DEVICE_GRANT_TYPE:
+            if not device_code:
+                return _oauth_error_response("invalid_request", "device_code is required")
+            result = await svc.mcp_oauth.exchange_device_code(device_code, client_id)
+        elif grant_type == "authorization_code":
             if not (code and redirect_uri and code_verifier):
                 return _oauth_error_response(
                     "invalid_request", "code, redirect_uri, and code_verifier are required"
@@ -179,17 +222,21 @@ async def token(
         else:
             return _oauth_error_response("unsupported_grant_type", grant_type)
     except OAuthError as exc:
-        return _oauth_error_response("invalid_grant", str(exc))
+        return _oauth_error_response(exc.error, str(exc))
     return result
 
 
-class RevokeRequest(BaseModel):
-    token: str
-
-
 @router.post("/mcp/oauth/revoke")
-async def revoke(body: RevokeRequest, svc: AppServices) -> dict[str, Any]:
-    await svc.mcp_oauth.revoke_token_by_value(body.token)
+async def revoke(request: Request, svc: AppServices) -> dict[str, Any]:
+    """RFC 7009 says form-encoded; older clients of this endpoint sent JSON.
+    Both are accepted."""
+    if request.headers.get("content-type", "").startswith("application/json"):
+        body: Any = await request.json()
+    else:
+        body = await request.form()
+    token = body.get("token") if hasattr(body, "get") else None
+    if isinstance(token, str) and token:
+        await svc.mcp_oauth.revoke_token_by_value(token)
     return {}  # RFC 7009: always 200, whether or not the token existed
 
 

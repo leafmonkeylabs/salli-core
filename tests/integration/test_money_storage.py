@@ -9,30 +9,12 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from salli.application.unit_of_work import UnitOfWork
 from salli.domain.accounting.models import Account, Direction, JournalEntry, Posting
 from salli.migrations.support import CORE_SCRIPT_LOCATION, upgrade
 from tests.integration.pg import _sync, requires_postgres, scalar, scratch_database
 
 pytestmark = requires_postgres
-
-
-@pytest.fixture
-def db(monkeypatch):
-    with scratch_database() as url:
-        monkeypatch.setenv("DATABASE_URL", url)
-        upgrade(CORE_SCRIPT_LOCATION)
-        yield url
-
-
-@pytest.fixture
-async def uow_factory(db):
-    engine = create_async_engine(db, connect_args={"statement_cache_size": 0})
-    sessions = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    yield lambda: UnitOfWork(sessions)
-    await engine.dispose()
 
 
 async def _user(uow_factory, user_id: str, base: str) -> None:
