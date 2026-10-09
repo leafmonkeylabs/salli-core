@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from salli.domain.accounting.models import AccountType, Source
 from salli.domain.risk.models import RiskCategory
@@ -310,6 +310,8 @@ class ExportedAccount(BaseModel):
     currency: CurrencyCode
     parent_id: str | None
     is_active: bool
+    #: What the tax pack treats the account as, if anything.
+    tax_role: str | None = None
 
 
 class ExportedPosting(BaseModel):
@@ -318,6 +320,12 @@ class ExportedPosting(BaseModel):
     #: In the posting's own currency.
     amount: Amount
     currency: CurrencyCode
+    #: Base-currency units per unit of `currency`, as booked ("1" when they
+    #: are the same), and where the rate came from.
+    fx_rate: str = "1"
+    fx_rate_source: str | None = None
+    #: Classification tags by kind: {"category": "groceries", "need": "essential"}.
+    tags: dict[str, str] = Field(default_factory=dict)
 
 
 class ExportedJournalEntry(BaseModel):
@@ -343,10 +351,13 @@ class DataExport(BaseModel):
     user_id: str
     profile: Profile
     accounts: list[ExportedAccount]
-    """Active accounts only."""
+    """Every account, closed ones included: entries refer to them."""
     journal_entries: list[ExportedJournalEntry]
     tax_computation_2025_26: dict[str, Any] | None
-    """The latest 2025/26 computation as the tax engine recorded it, or null."""
+    """The latest 2025/26 computation as the tax engine recorded it, or null.
+    Kept for tools that read it; `tax_computations` has every year."""
+    tax_computations: list[dict[str, Any]] = Field(default_factory=list)
+    """The latest computation for each tax year a pack covers, as recorded."""
     budgets: list[dict[str, Any]]
     """Each as in `budgets.list`."""
     debts: list[dict[str, Any]]

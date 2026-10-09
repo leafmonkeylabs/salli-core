@@ -10041,7 +10041,7 @@
             },
             "type": "array",
             "title": "Accounts",
-            "description": "Active accounts only."
+            "description": "Every account, closed ones included: entries refer to them."
           },
           "journal_entries": {
             "items": {
@@ -10061,7 +10061,16 @@
               }
             ],
             "title": "Tax Computation 2025 26",
-            "description": "The latest 2025/26 computation as the tax engine recorded it, or null."
+            "description": "The latest 2025/26 computation as the tax engine recorded it, or null.\nKept for tools that read it; `tax_computations` has every year."
+          },
+          "tax_computations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Tax Computations",
+            "description": "The latest computation for each tax year a pack covers, as recorded."
           },
           "budgets": {
             "items": {
@@ -10623,6 +10632,17 @@
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
+          },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
           }
         },
         "type": "object",
@@ -10734,6 +10754,29 @@
             "examples": [
               "USD"
             ]
+          },
+          "fx_rate": {
+            "type": "string",
+            "title": "Fx Rate",
+            "default": "1"
+          },
+          "fx_rate_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Rate Source"
+          },
+          "tags": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Tags"
           }
         },
         "type": "object",
@@ -12307,6 +12350,24 @@
             "type": "object",
             "title": "Expenses"
           },
+          "total_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
           "net_income": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
@@ -12315,6 +12376,13 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/IncomeStatementLine"
+            },
+            "type": "array",
+            "title": "Lines"
           }
         },
         "type": "object",
@@ -12324,9 +12392,59 @@
           "currency",
           "income",
           "expenses",
-          "net_income"
+          "total_income",
+          "total_expenses",
+          "net_income",
+          "lines"
         ],
         "title": "IncomeStatement"
+      },
+      "IncomeStatementLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ],
+            "title": "Type"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "code",
+          "name",
+          "type",
+          "amount",
+          "is_active"
+        ],
+        "title": "IncomeStatementLine"
       },
       "InsurancePolicy": {
         "properties": {

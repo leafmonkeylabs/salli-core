@@ -24,7 +24,7 @@ class _Ledger:
     async def get_entry_by_id(self, user_id: str, entry_id: str) -> StoredJournalEntry | None:
         return self.entry if entry_id == self.entry.id else None
 
-    async def get_accounts(self, user_id: str) -> list:
+    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list:
         return []
 
 

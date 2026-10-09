@@ -81,7 +81,7 @@ class FakeLedgerReader:
         self.accounts: list[Any] = []
         self.entries: list[Any] = []
 
-    async def get_accounts(self, user_id: str) -> list[Any]:
+    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
         return self.accounts
 
     async def get_entries(

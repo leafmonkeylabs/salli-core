@@ -22,7 +22,7 @@ class FakeLedgerRepo:
     def __init__(self, entries):
         self._entries = entries
 
-    async def get_accounts(self, user_id):
+    async def get_accounts(self, user_id, include_inactive=False):
         return []
 
     async def get_entries(self, user_id, from_date=None, to_date=None):
