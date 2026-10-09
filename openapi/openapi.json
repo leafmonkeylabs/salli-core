@@ -4493,7 +4493,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyList"
+                }
               }
             }
           },
@@ -4535,7 +4537,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -4565,7 +4569,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageReport"
+                }
               }
             }
           }
@@ -4589,7 +4595,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageTargetList"
+                }
               }
             }
           }
@@ -4621,7 +4629,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -4711,7 +4721,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicy"
+                }
               }
             }
           },
@@ -4764,7 +4776,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Updated"
+                }
               }
             }
           },
@@ -6631,6 +6645,146 @@
         ],
         "title": "ConsentDecisionRequest"
       },
+      "CoverageGapLine": {
+        "properties": {
+          "policy_type": {
+            "type": "string",
+            "title": "Policy Type"
+          },
+          "target_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "actual_coverage": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Actual Coverage",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "gap": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Gap",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "policy_type",
+          "target_amount",
+          "actual_coverage",
+          "gap"
+        ],
+        "title": "CoverageGapLine"
+      },
+      "CoverageReport": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CoverageGapLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "missing_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Types"
+          },
+          "expiring_soon": {
+            "items": {
+              "$ref": "#/components/schemas/ExpiringPolicy"
+            },
+            "type": "array",
+            "title": "Expiring Soon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "lines",
+          "missing_types",
+          "expiring_soon"
+        ],
+        "title": "CoverageReport"
+      },
+      "CoverageTarget": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "policy_type": {
+            "type": "string",
+            "title": "Policy Type"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "target_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "policy_type",
+          "currency",
+          "target_amount"
+        ],
+        "title": "CoverageTarget",
+        "description": "The coverage wanted for one policy type."
+      },
+      "CoverageTargetList": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/CoverageTarget"
+            },
+            "type": "array",
+            "title": "Targets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "targets"
+        ],
+        "title": "CoverageTargetList"
+      },
       "CreateReminderRequest": {
         "properties": {
           "kind": {
@@ -6923,6 +7077,34 @@
           "possible_subscriptions"
         ],
         "title": "EntryProvenance"
+      },
+      "ExpiringPolicy": {
+        "properties": {
+          "policy_name": {
+            "type": "string",
+            "title": "Policy Name"
+          },
+          "policy_type": {
+            "type": "string",
+            "title": "Policy Type"
+          },
+          "expiry_date": {
+            "type": "string",
+            "title": "Expiry Date"
+          },
+          "days_until_expiry": {
+            "type": "integer",
+            "title": "Days Until Expiry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "policy_name",
+          "policy_type",
+          "expiry_date",
+          "days_until_expiry"
+        ],
+        "title": "ExpiringPolicy"
       },
       "GoalRequest": {
         "properties": {
@@ -7448,6 +7630,105 @@
           "net_income"
         ],
         "title": "IncomeStatement"
+      },
+      "InsurancePolicy": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "policy_type": {
+            "type": "string",
+            "title": "Policy Type"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "coverage_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Coverage Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "premium_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Premium Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "premium_frequency": {
+            "type": "string",
+            "title": "Premium Frequency"
+          },
+          "expiry_date": {
+            "type": "string",
+            "title": "Expiry Date"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "policy_type",
+          "provider",
+          "currency",
+          "coverage_amount",
+          "premium_amount",
+          "premium_frequency",
+          "expiry_date",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "InsurancePolicy"
+      },
+      "InsurancePolicyList": {
+        "properties": {
+          "policies": {
+            "items": {
+              "$ref": "#/components/schemas/InsurancePolicy"
+            },
+            "type": "array",
+            "title": "Policies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "policies"
+        ],
+        "title": "InsurancePolicyList"
       },
       "JournalEntry": {
         "properties": {

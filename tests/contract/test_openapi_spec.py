@@ -92,13 +92,6 @@ UNTYPED = {
     "reports.goalProgress",
     "reports.netWorth",
     # Budgets, debts, holdings, subscriptions, insurance
-    "insurance.policies.create",
-    "insurance.policies.get",
-    "insurance.policies.list",
-    "insurance.policies.update",
-    "insurance.report",
-    "insurance.targets.list",
-    "insurance.targets.set",
     # Profile, onboarding, the agent, LLM keys, MCP connections
     "account.delete",
     "account.export",

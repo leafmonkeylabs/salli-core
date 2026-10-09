@@ -95,6 +95,30 @@ class FakeLedgerReader:
         ]
 
 
+class FakeInsuranceTargets:
+    """Coverage targets: at most one per user and policy type, as in the SQL
+    repository, so setting one again replaces its amount and keeps its id."""
+
+    def __init__(self) -> None:
+        self.rows: dict[tuple[str, str], dict[str, Any]] = {}
+
+    async def upsert(self, user_id: str, policy_type: str, target_amount_minor: int) -> str:
+        now = datetime.now(UTC).isoformat()
+        row = self.rows.setdefault(
+            (user_id, policy_type),
+            {"id": str(uuid.uuid4()), "user_id": user_id, "policy_type": policy_type},
+        )
+        row.update(target_amount_minor=target_amount_minor, updated_at=now)
+        row.setdefault("created_at", now)
+        return row["id"]
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        return [dict(row) for (owner, _), row in self.rows.items() if owner == user_id]
+
+    async def delete(self, user_id: str, policy_type: str) -> None:
+        self.rows.pop((user_id, policy_type), None)
+
+
 class FakeRecordsUoW:
     """A unit of work over declared records, for the services that keep them.
     Every repository is named, so a service reaching for a wrong one fails."""
@@ -106,6 +130,8 @@ class FakeRecordsUoW:
         self.debts = FakeRecords(is_active=True)
         self.holdings = FakeRecords(is_active=True)
         self.recurring_subscriptions = FakeRecords(is_active=True)
+        self.policies = FakeRecords(is_active=True)
+        self.insurance_targets = FakeInsuranceTargets()
 
     async def __aenter__(self) -> FakeRecordsUoW:
         return self
