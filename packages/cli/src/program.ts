@@ -3,9 +3,11 @@
  */
 import { Command, type OutputConfiguration } from '@commander-js/extra-typings';
 import type { App } from './app';
+import { registerAuth } from './commands/auth';
 import { registerCompletion } from './commands/completion';
 import { registerConfig } from './commands/config';
 import { registerContext } from './commands/context';
+import { registerDoctor } from './commands/doctor';
 import { OUTPUT_FORMATS } from './config/config';
 import { VERSION } from './version';
 
@@ -39,6 +41,10 @@ Exit codes: 0 ok, 1 error, 2 usage, 3 not signed in, 4 not found,
 
 Start with:  salli login   then   salli status`,
   );
+
+  program.commandsGroup('Getting started:');
+  registerAuth(program, app);
+  registerDoctor(program, app);
 
   program.commandsGroup('Settings:');
   registerContext(program, app);

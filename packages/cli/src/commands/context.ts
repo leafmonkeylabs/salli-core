@@ -4,6 +4,7 @@
 import type { Command } from '@commander-js/extra-typings';
 import { normalizeServerUrl } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
+import { revokeCredentials } from '../auth/login';
 import { DEFAULT_CONTEXT, findContext, validateContextName, type ContextEntry } from '../config/config';
 import { NotFoundError, UsageError } from '../errors';
 
@@ -130,6 +131,8 @@ Examples:
       validateContextName(name);
       const config = await app.config();
       if (!findContext(config, name)) throw new NotFoundError(`No context named "${name}".`);
+      const credentials = await app.loadCredentials(name).catch(() => undefined);
+      if (credentials) await revokeCredentials(app, credentials);
       const removedCredentials = await app.deleteCredentials(name).catch(() => false);
       await app.updateConfig((c) => {
         c.contexts = c.contexts.filter((x) => x.name !== name);

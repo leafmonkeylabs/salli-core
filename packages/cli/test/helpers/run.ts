@@ -90,6 +90,16 @@ export async function runCli(args: string[], options: RunOptions): Promise<RunRe
   return { code, stdout: stdout.text, stderr: stderr.text, opened };
 }
 
+/** The URL of a port nothing listens on (fetch refuses some low ports outright). */
+export async function closedServerUrl(): Promise<string> {
+  const { createServer } = await import('node:http');
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as { port: number };
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return `http://127.0.0.1:${port}`;
+}
+
 export async function tempConfigDir(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
   const dir = await mkdtemp(join(tmpdir(), 'salli-cli-test-'));
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
