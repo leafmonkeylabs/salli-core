@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict
 
 from salli.domain.usage import AIAction
 
@@ -266,6 +266,24 @@ class FxQuote:
     as_of: str
 
 
+class ProfileMissing(LookupError):
+    """The user has no profile row yet, so nothing that needs one (a base
+    currency, a setting) can be read or written. Callers create it first:
+    `UserProfileService.ensure_user`, which `salli setup` and onboarding run."""
+
+    def __init__(self, user_id: str) -> None:
+        super().__init__(f"User {user_id} has no profile")
+        self.user_id = user_id
+
+
+class AccountCodeTaken(ValueError):
+    """The user already has an account with this code (active or not)."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(f"An account with code {code} already exists")
+        self.code = code
+
+
 class FxUnavailableError(LookupError):
     """No source could give this rate. Never answered with a made-up number."""
 
@@ -392,10 +410,10 @@ class UserProfileRepository(ABC):
         ...
 
     async def base_currency(self, user_id: str) -> str:
-        """The ISO code the user's amounts are kept in. `LookupError` if no profile."""
+        """The ISO code the user's amounts are kept in. `ProfileMissing` if none."""
         profile = await self.get(user_id)
         if not profile or not profile.get("base_currency"):
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         return str(profile["base_currency"])
 
     async def has_financial_data(self, user_id: str) -> bool:
@@ -679,6 +697,21 @@ class OAuthClientRepository(ABC):
     async def get(self, client_id: str) -> dict[str, Any] | None: ...
 
 
+class McpConnectionRow(TypedDict):
+    """One connected client grant (a client, for one resource)."""
+
+    #: The newest access token of the grant: what revoking it takes.
+    token_id: str
+    client_id: str
+    #: As the client registered itself; "Unnamed app" when it gave no name.
+    client_name: str
+    scope: str
+    #: The resource it was issued for: None or the MCP URL for an AI client,
+    #: the API's for the user's own CLI.
+    resource: str | None
+    connected_at: datetime
+
+
 class OAuthTokenRepository(ABC):
     @abstractmethod
     async def save_authorization_code(
@@ -737,7 +770,8 @@ class OAuthTokenRepository(ABC):
 
     @abstractmethod
     async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
-        """None if missing, expired, or revoked."""
+        """None if missing, expired, or revoked — or if the access token it
+        was issued with has been revoked."""
         ...
 
     @abstractmethod
@@ -749,12 +783,30 @@ class OAuthTokenRepository(ABC):
     async def revoke_refresh_token(self, token_hash: str) -> None: ...
 
     @abstractmethod
+    async def token_exists(self, token_hash: str) -> bool:
+        """Whether an access or refresh token with this hash was ever issued,
+        expired, revoked or for any resource."""
+        ...
+
+    @abstractmethod
+    async def get_access_token_by_id(self, token_id: str, user_id: str) -> dict[str, Any] | None:
+        """The user's access token row by id, whatever its state (expired or
+        revoked included), with its client and resource. None if not theirs."""
+        ...
+
+    @abstractmethod
+    async def revoke_client_grant(self, user_id: str, client_id: str, resource: str | None) -> int:
+        """Revoke every access and refresh token this client holds for this
+        user and resource. Returns how many it revoked."""
+        ...
+
+    @abstractmethod
     async def list_active_connections(
         self, user_id: str, resource: str | None = None
-    ) -> list[dict[str, Any]]:
-        """Active (non-revoked, non-expired) client connections for a user,
-        one row per access token, joined with the client's display name. With
-        `resource`, only tokens issued for it."""
+    ) -> list[McpConnectionRow]:
+        """Connected clients for a user: one row per client grant (client and
+        resource) holding a live access token or a live refresh token, joined
+        with the client's display name. With `resource`, only grants for it."""
         ...
 
     # Device authorization (RFC 8628). Not abstract: only a server that offers

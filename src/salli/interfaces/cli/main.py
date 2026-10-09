@@ -117,7 +117,7 @@ async def _agent_services():
 
     async with AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer:
         await checkpointer.setup()
-        yield build_services(settings, checkpointer=checkpointer)
+        yield build_services(settings, checkpointer=checkpointer, pooled=False)
 
 
 # ── accounts ──────────────────────────────────────────────────────────────────
@@ -2794,20 +2794,24 @@ def subscription_add(
 ):
     """Add a recurring subscription."""
     user_id = _require_user()
-    subscription_id = asyncio.run(
-        _services().subscription.add_subscription(
-            user_id,
-            {
-                "name": name,
-                "amount": amount,
-                "frequency": frequency,
-                "next_due_date": next_due_date,
-                "account_id": account_id,
-                "grace_days": grace_days,
-                "amount_tolerance_pct": amount_tolerance_pct,
-            },
+    try:
+        subscription_id = asyncio.run(
+            _services().subscription.add_subscription(
+                user_id,
+                {
+                    "name": name,
+                    "amount": amount,
+                    "frequency": frequency,
+                    "next_due_date": next_due_date,
+                    "account_id": account_id,
+                    "grace_days": grace_days,
+                    "amount_tolerance_pct": amount_tolerance_pct,
+                },
+            )
         )
-    )
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "name": name})
     console.print(f"[green]Subscription created:[/green] {name} ({subscription_id})")
 
@@ -2848,7 +2852,11 @@ def subscription_update(
         raise typer.Exit(1)
     subs = asyncio.run(_services().subscription.list_subscriptions(user_id, active_only=False))
     subscription_id = _resolve_id(subs, subscription_id, "subscription")
-    asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    try:
+        asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "updated": data})
     console.print(f"[green]Subscription updated:[/green] {subscription_id}")
 
@@ -3713,14 +3721,14 @@ def mcp_connections():
     if emit(connections):
         return
     table = Table(title="MCP connections")
-    for column in ("ID", "Client", "Scope", "Expires"):
+    for column in ("ID", "Client", "Scope", "Connected"):
         table.add_column(column)
     for c in connections:
         table.add_row(
-            str(c.get("id", ""))[:8],
-            str(c.get("client_name", "")),
-            str(c.get("scope", "")),
-            str(c.get("expires_at", "")),
+            str(c.get("token_id", ""))[:8],
+            escape(str(c.get("client_name", ""))),
+            escape(str(c.get("scope", ""))),
+            str(c.get("connected_at", "")),
         )
     console.print(table)
 
@@ -3729,11 +3737,23 @@ def mcp_connections():
 def mcp_revoke(token_id: str = typer.Argument(..., help="Connection id")):
     """Disconnect one AI client."""
     user_id = _require_user()
-    connections = asyncio.run(_services().mcp_oauth.list_connections(user_id))
-    token_id = _resolve_id(connections, token_id, "connection")
-    asyncio.run(_services().mcp_oauth.revoke_connection(user_id, token_id))
-    emit({"id": token_id, "revoked": True})
-    console.print(f"[green]Disconnected:[/green] {token_id}")
+
+    async def _revoke() -> tuple[str, bool]:
+        svc = _services()
+        connections = await svc.mcp_oauth.list_connections(user_id)
+        ids = [{"id": c["token_id"]} for c in connections]
+        full_id = _resolve_id(ids, token_id, "connection")
+        return full_id, await svc.mcp_oauth.revoke_connection(user_id, full_id)
+
+    full_id, revoked = asyncio.run(_revoke())
+    if emit({"id": full_id, "revoked": revoked}):
+        if not revoked:
+            raise typer.Exit(1)
+        return
+    if not revoked:
+        console.print(f"[red]Nothing to disconnect:[/red] {full_id} is no longer connected.")
+        raise typer.Exit(1)
+    console.print(f"[green]Disconnected:[/green] {full_id}")
 
 
 # ── whoami ────────────────────────────────────────────────────────────────────
@@ -3818,15 +3838,15 @@ def cli() -> Any:
 
 
 def main():
+    from salli.application.ports import ProfileMissing
+
     try:
         cli()()
-    except LookupError as exc:
-        # The acting user (SALLI_USER_ID) has no profile yet: say what to do
-        # rather than end in a traceback.
-        if "has no profile" not in str(exc):
-            raise
+    except ProfileMissing as exc:
+        # The acting user (SALLI_USER_ID) has no profile yet, whichever command
+        # found out: say what to do rather than end in a traceback.
         console.print(
-            f"[red]{exc}.[/red] Start with [bold]salli onboarding complete[/bold] "
+            f"[red]{escape(str(exc))}.[/red] Start with [bold]salli onboarding complete[/bold] "
             "(or [bold]salli setup[/bold] for a new instance)."
         )
         sys.exit(1)

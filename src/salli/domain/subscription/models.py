@@ -12,12 +12,33 @@ derived, not stored on the entry.
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, cast, get_args
 
 Frequency = Literal["weekly", "monthly", "quarterly", "yearly"]
 AlertKind = Literal["missed_charge", "price_change"]
+
+FREQUENCIES: tuple[Frequency, ...] = get_args(Frequency)
+
+
+def normalize_frequency(value: str) -> Frequency:
+    """One of `FREQUENCIES`, whatever its case ("Monthly" is "monthly").
+    ValueError for anything else: an unknown frequency stored would break every
+    report and forecast that reads it later."""
+    folded = str(value).strip().casefold()
+    if folded not in FREQUENCIES:
+        raise ValueError(f"Unknown frequency {value!r}: use one of {', '.join(FREQUENCIES)}")
+    return cast(Frequency, folded)
+
+
+def normalize_due_date(value: str) -> str:
+    """A next due date as YYYY-MM-DD. ValueError for anything that isn't one."""
+    try:
+        return datetime.date.fromisoformat(str(value).strip()).isoformat()
+    except ValueError as exc:
+        raise ValueError(f"Invalid next due date {value!r}: use YYYY-MM-DD") from exc
 
 
 @dataclass(frozen=True)
