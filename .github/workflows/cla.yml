@@ -1,0 +1,42 @@
+name: CLA
+
+# Checks that everyone who wrote commits in a pull request has accepted the
+# Contributor License Agreement (CLA.md), and records signatures posted as
+# pull request comments. See .github/cla/check.js.
+#
+# pull_request_target gives this job write access even on pull requests from
+# forks, so it must never run code from the pull request: it checks out the
+# default branch and runs the bot from there, with no credentials persisted.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write # signatures are committed to the cla-signatures branch
+  pull-requests: write # the bot's comment on the pull request
+  statuses: write # the "cla" commit status
+
+# One run at a time per pull request, so its status always reflects the latest
+# run. GitHub keeps only the newest waiting run; check.js reads every comment,
+# so a signature whose run was dropped is still recorded.
+concurrency:
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  cla:
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const run = require('./.github/cla/check.js');
+            await run({ github, context, core });

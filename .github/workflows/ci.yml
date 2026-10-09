@@ -46,6 +46,13 @@ jobs:
         # salli-core carries no billing vocabulary.
         run: uv run pytest -q
 
+  cla-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests for the CLA bot
+        run: node --test .github/cla/check.test.js
+
   secrets:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,8 @@
+{
+  "document": "CLA.md",
+  "signPhrase": "I have read the Salli CLA and I agree to its terms.",
+  "signaturesBranch": "cla-signatures",
+  "signaturesPath": "signatures.json",
+  "statusContext": "cla",
+  "allowlist": ["chandralegend"]
+}
