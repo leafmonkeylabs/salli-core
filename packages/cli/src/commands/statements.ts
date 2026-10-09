@@ -212,12 +212,14 @@ export function registerStatements(program: Command, app: App): void {
     .option('--currency <code>', 'The statement’s currency (default: your base currency)')
     .option('--bank <name>', 'The bank, as a hint for reading the file')
     .option('-y, --yes', 'Approve every transaction that is unique and complete, without asking')
+    .option('--allow-possible-duplicates', 'With --yes, approve possible duplicates too (they need a person to check)')
     .addHelpText(
       'after',
       `
 Duplicates of what is already in your ledger are skipped. With --yes,
-possible duplicates and transactions without a suggested account stay
-pending for you to review later (salli statements pending).
+possible duplicates (unless --allow-possible-duplicates) and transactions
+without a suggested account stay pending for you to review later
+(salli statements pending).
 
 Examples:
   $ salli import ~/Downloads/september.pdf
@@ -248,7 +250,10 @@ Examples:
 
       let decision: { approved: Transaction[]; changed: Map<string, { debit: string; credit: string }>; skipped: Transaction[] };
       if (opts.yes) {
-        decision = { approved: transactions.filter(isClean), changed: new Map(), skipped: transactions.filter((t) => !isClean(t)) };
+        const approve = (t: Transaction): boolean =>
+          isClean(t) ||
+          (opts.allowPossibleDuplicates === true && t.dedup_status === 'fuzzy_match' && !!t.debit_account_id && !!t.credit_account_id);
+        decision = { approved: transactions.filter(approve), changed: new Map(), skipped: transactions.filter((t) => !approve(t)) };
       } else if (app.prompter.interactive) {
         decision = await review(app, book, transactions);
       } else {

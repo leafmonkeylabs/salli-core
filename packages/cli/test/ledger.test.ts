@@ -36,8 +36,8 @@ describe('salli status', () => {
 
       October 2026 so far (Oct 1 – 9, 2026)
         Net income    USD 2,787.65
-        Income        Salary 5,000.00
-        Spending      Rent 1,800.00 · Groceries 412.35
+        Income        Salary USD 5,000.00
+        Spending      Rent USD 1,800.00 · Groceries USD 412.35
 
       FI score        72.5 (B) · 1.9% of the way to financial independence
         Savings rate  55.8% of income
@@ -55,6 +55,129 @@ describe('salli status', () => {
 
   it('prints every API response as JSON', async () => {
     const result = await run(['status', '--json']);
+    expect(result.stdout.replaceAll(mock.url, 'http://salli.test')).toMatchInlineSnapshot(`
+      "{
+        "context": "default",
+        "server": "http://salli.test",
+        "period": {
+          "from": "2026-10-01",
+          "to": "2026-10-09"
+        },
+        "balance_sheet": {
+          "currency": "USD",
+          "assets": [
+            {
+              "account_id": "00000001-5a11-4000-8000-000000000001",
+              "code": "1000",
+              "name": "Cash",
+              "balance": "250.00"
+            },
+            {
+              "account_id": "00000002-5a11-4000-8000-000000000002",
+              "code": "1100",
+              "name": "Checking",
+              "balance": "12784.50"
+            },
+            {
+              "account_id": "00000003-5a11-4000-8000-000000000003",
+              "code": "1200",
+              "name": "Euro Savings",
+              "balance": "2200.00"
+            }
+          ],
+          "liabilities": [
+            {
+              "account_id": "00000004-5a11-4000-8000-000000000004",
+              "code": "2000",
+              "name": "Credit Card",
+              "balance": "1200.00"
+            }
+          ],
+          "equity": [],
+          "total_assets": "15234.50",
+          "total_liabilities": "1200.00",
+          "total_equity": "0.00",
+          "net_worth": "14034.50"
+        },
+        "income_statement": {
+          "from_date": "2026-10-01",
+          "to_date": "2026-10-09",
+          "currency": "USD",
+          "income": {
+            "Salary": "5000.00"
+          },
+          "expenses": {
+            "Groceries": "412.35",
+            "Rent": "1800.00"
+          },
+          "net_income": "2787.65"
+        },
+        "fi_score": {
+          "pack_version": "1",
+          "overall_score": "72.5",
+          "grade": "B",
+          "monthly_income": "5000.00",
+          "monthly_expenses": "2212.35",
+          "monthly_surplus": "2787.65",
+          "savings_rate": "0.5575",
+          "swr": "0.04",
+          "annual_expenses": "26548.20",
+          "fi_number": "663705.00",
+          "net_worth": "14034.50",
+          "fi_asset_base": "12834.50",
+          "progress_to_fi": "0.0193",
+          "emergency_fund_months": "5.8",
+          "debt_to_asset": "0.0788",
+          "projected_fi_years": "14",
+          "currency": "USD",
+          "components": [
+            {
+              "key": "savings_rate",
+              "label": "Savings rate",
+              "score": "90",
+              "weight": "0.3",
+              "detail": "56% of income saved"
+            },
+            {
+              "key": "emergency_fund",
+              "label": "Emergency fund",
+              "score": "80",
+              "weight": "0.2",
+              "detail": "5.8 months covered"
+            }
+          ],
+          "projected_fi_date": "2040-10-09",
+          "inputs_hash": "abc"
+        },
+        "reminders": {
+          "reminders": [
+            {
+              "id": "0000012d-5a11-4000-8000-000000000301",
+              "kind": "budget_overspend",
+              "due_date": "2026-10-09",
+              "status": "pending",
+              "alert_type": "budget_overspend",
+              "source_domain": "budget",
+              "source_id": "00000191-5a11-4000-8000-000000000401",
+              "severity": "warning",
+              "created_at": "2026-10-08T09:00:00+00:00"
+            },
+            {
+              "id": "0000012e-5a11-4000-8000-000000000302",
+              "kind": "return_due_2025/26",
+              "due_date": "2026-11-30",
+              "status": "pending",
+              "alert_type": null,
+              "source_domain": null,
+              "source_id": null,
+              "severity": null,
+              "created_at": "2026-04-01T09:00:00+00:00"
+            }
+          ]
+        }
+      }
+      "
+    `);
     const data = JSON.parse(result.stdout);
     expect(Object.keys(data)).toEqual(['context', 'server', 'period', 'balance_sheet', 'income_statement', 'fi_score', 'reminders']);
     expect(data.balance_sheet.net_worth).toBe('14034.50');
@@ -86,8 +209,43 @@ describe('salli accounts', () => {
       5900  Old Expenses  expense    USD       inactive  00000008
       "
     `);
-    const json = await run(['accounts', 'list', '--json']);
-    expect(JSON.parse(json.stdout)).toHaveLength(8);
+    const json = await run(['accounts', 'list', '--type', 'asset', '--json']);
+    expect(json.stdout).toMatchInlineSnapshot(`
+      "[
+        {
+          "id": "00000001-5a11-4000-8000-000000000001",
+          "code": "1000",
+          "name": "Cash",
+          "type": "asset",
+          "currency": "USD",
+          "parent_id": null,
+          "is_active": true,
+          "tax_role": null
+        },
+        {
+          "id": "00000002-5a11-4000-8000-000000000002",
+          "code": "1100",
+          "name": "Checking",
+          "type": "asset",
+          "currency": "USD",
+          "parent_id": null,
+          "is_active": true,
+          "tax_role": null
+        },
+        {
+          "id": "00000003-5a11-4000-8000-000000000003",
+          "code": "1200",
+          "name": "Euro Savings",
+          "type": "asset",
+          "currency": "EUR",
+          "parent_id": null,
+          "is_active": true,
+          "tax_role": null
+        }
+      ]
+      "
+    `);
+    expect(JSON.parse((await run(['accounts', 'list', '--json'])).stdout)).toHaveLength(8);
     expect(json.stdout).toContain('"tax_role": null');
   });
 
@@ -208,7 +366,65 @@ describe('salli entries', () => {
       From a bank statement: “SUPERMARKET 123” 412.35 on Oct 5, 2026 · Acme Bank · statement for Oct 1 – 31, 2026
       "
     `);
-    const json = JSON.parse((await run(['entries', 'show', uid(203), '--json'])).stdout);
+    const shown = await run(['entries', 'show', uid(203), '--json']);
+    expect(shown.stdout).toMatchInlineSnapshot(`
+      "{
+        "entry": {
+          "id": "000000cb-5a11-4000-8000-000000000203",
+          "entry_date": "2026-10-05",
+          "description": "Weekly groceries",
+          "source": "statement",
+          "external_ref": "00000385-5a11-4000-8000-000000000901",
+          "reversed_by": null,
+          "postings": [
+            {
+              "id": "00000069-5a11-4000-8000-000000000105",
+              "tags": {
+                "category": "groceries",
+                "need": "essential"
+              },
+              "account_id": "00000006-5a11-4000-8000-000000000006",
+              "direction": 1,
+              "amount": "412.35",
+              "currency": "USD",
+              "fx_rate": "1"
+            },
+            {
+              "id": "0000006a-5a11-4000-8000-000000000106",
+              "tags": {},
+              "account_id": "00000004-5a11-4000-8000-000000000004",
+              "direction": -1,
+              "amount": "412.35",
+              "currency": "USD",
+              "fx_rate": "1"
+            }
+          ]
+        },
+        "provenance": {
+          "entry_id": "000000cb-5a11-4000-8000-000000000203",
+          "entry_date": "2026-10-05",
+          "description": "Weekly groceries",
+          "source": "statement",
+          "external_ref": "00000385-5a11-4000-8000-000000000901",
+          "statement": {
+            "parsed_transaction_id": "00000385-5a11-4000-8000-000000000901",
+            "raw_description": "SUPERMARKET 123",
+            "raw_amount": "412.35",
+            "raw_date": "2026-10-05",
+            "bank_ref": "REF9",
+            "statement": {
+              "id": "00000321-5a11-4000-8000-000000000801",
+              "bank": "Acme Bank",
+              "period_start": "2026-10-01",
+              "period_end": "2026-10-31"
+            }
+          },
+          "receipt": null
+        }
+      }
+      "
+    `);
+    const json = JSON.parse(shown.stdout);
     expect(Object.keys(json)).toEqual(['entry', 'provenance']);
     expect(json.provenance.statement.raw_description).toBe('SUPERMARKET 123');
   });

@@ -19,8 +19,8 @@ Net worth       USD 14,034.50
 
 October 2026 so far (Oct 1 – 9, 2026)
   Net income    USD 2,787.65
-  Income        Salary 5,000.00
-  Spending      Rent 1,800.00 · Groceries 412.35
+  Income        Salary USD 5,000.00
+  Spending      Rent USD 1,800.00 · Groceries USD 412.35
 
 FI score        72.5 (B) · 1.9% of the way to financial independence
   Savings rate  55.8% of income
@@ -133,7 +133,8 @@ or cancel. It posts nothing you have not seen unless you pass `--yes`.
 `salli import` reads a statement on the server and walks you through each
 transaction (approve, skip, change an account); duplicates of what is already in
 your ledger are skipped. With `--yes` it posts only what is unique and has both
-accounts, and leaves the rest pending for `salli statements pending`.
+accounts (`--allow-possible-duplicates` adds possible duplicates), and leaves the
+rest pending for `salli statements pending`.
 
 `salli chat` streams the AI's reply as it is written and shows the tools and
 specialists it uses. Before the AI changes anything it says what and asks; nothing

@@ -112,7 +112,7 @@ export function registerStatus(program: Command, app: App): void {
             block(cur, [['Net income', income.net_income, 2]]);
             const top = (items: Record<string, string>): string => {
               const sorted = Object.entries(items).sort(([, a], [, b]) => compareAmounts(b, a));
-              const shown = sorted.slice(0, 3).map(([name, amount]) => `${singleLine(name)} ${out.amount(amount, cur)}`);
+              const shown = sorted.slice(0, 3).map(([name, amount]) => `${singleLine(name)} ${out.money(amount, cur)}`);
               return shown.join(' · ') + (sorted.length > 3 ? c.dim(` · +${sorted.length - 3} more`) : '');
             };
             const room = Number.isFinite(out.width) ? out.width - 16 : Number.POSITIVE_INFINITY;

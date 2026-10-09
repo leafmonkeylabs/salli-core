@@ -45,6 +45,12 @@ describe('salli import', () => {
     expect(result.stderr).toContain('Posted 1 of 3; 1 already in your ledger; 1 left pending (salli statements pending).');
   });
 
+  it('approves possible duplicates with --yes only when told to', async () => {
+    const result = await run(['import', statement, '--yes', '--allow-possible-duplicates']);
+    expect(result.code).toBe(0);
+    expect(mock.data.posted).toEqual([[uid(901), uid(902)]]);
+  });
+
   it('leaves everything pending without a terminal or --yes', async () => {
     const result = await run(['import', statement]);
     expect(result.code).toBe(0);
