@@ -36,7 +36,7 @@ export function buildProgram(app: App, output: OutputConfiguration): Command {
     .exitOverride()
     .configureOutput(output)
     .showSuggestionAfterError(true)
-    .configureHelp({ showGlobalOptions: false });
+    .configureHelp({ showGlobalOptions: true });
 
   program.hook('preAction', async (_root, command) => {
     await app.init(command.optsWithGlobals());

@@ -117,6 +117,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | See accounts and balances | `salli accounts list --balances`, `salli accounts show checking` |
 | Reports | `salli ledger income-statement --month 2026-09`, `salli reports balance-sheet` |
 | Ask the AI | `salli ask "how much did I spend on groceries?"`, or `salli chat` |
+| Ask about a document | `salli ask "what is this charge?" --attach receipt.pdf` |
 | Budgets, debts, investments | `salli budgets summary <id>`, `salli debts payoff-plan`, `salli portfolio` |
 | Financial independence | `salli fi score`, `salli fi afford 2400 --months 12` |
 | Tax | `salli tax compute` |

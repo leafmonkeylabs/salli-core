@@ -71,7 +71,8 @@ describe('errors from the real entry point', () => {
     await cleanup();
   });
 
-  const run = (args: string[]) => runCli(args, { configDir: dir, env: { SALLI_SERVER: mock.url, SALLI_TOKEN: 'pat-valid' } });
+  const run = (args: string[], signal?: AbortSignal) =>
+    runCli(args, { configDir: dir, env: { SALLI_SERVER: mock.url, SALLI_TOKEN: 'pat-valid' }, ...(signal ? { signal } : {}) });
 
   it('renders a problem as one line, and as JSON on stderr with --json', async () => {
     mock.on('GET', '/v1/accounts/', () => ({
@@ -155,6 +156,15 @@ describe('errors from the real entry point', () => {
     const version = await run(['--version']);
     expect(version.code).toBe(0);
     expect(version.stdout).toBe('0.1.0-test\n');
+  });
+
+  it('exits 130 when interrupted mid-request', async () => {
+    mock.on('GET', '/v1/accounts/', () => new Promise(() => undefined)); // never answers
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new InterruptedError()), 50);
+    const result = await run(['accounts', 'list'], controller.signal);
+    expect(result.code).toBe(130);
+    expect(result.stderr).toBe('✗ Cancelled.\n');
   });
 
   it('exits 7 when the server cannot be reached', async () => {
