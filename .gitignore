@@ -6,6 +6,12 @@ dist/
 build/
 .venv/
 
+# Node (packages/*)
+node_modules/
+packages/*/dist/
+packages/*/coverage/
+*.tsbuildinfo
+
 # Local config — never commit
 .env
 .env.*
