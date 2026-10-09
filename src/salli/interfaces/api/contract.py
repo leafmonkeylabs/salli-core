@@ -199,6 +199,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/insights/spending"): "insights.spending",
     ("GET", "/insights/net-worth"): "insights.netWorth",
     ("GET", "/insights/recurring"): "insights.recurring",
+    ("GET", "/insights/forecast"): "insights.forecast",
     # bank connections
     ("GET", "/bank-connections"): "bankConnections.list",
     ("POST", "/bank-connections"): "bankConnections.connect",

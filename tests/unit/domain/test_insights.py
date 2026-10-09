@@ -236,10 +236,11 @@ def test_a_monthly_charge_is_found_with_when_the_next_one_is_due():
     assert netflix.entry_ids == tuple(e.id for e in entries)
 
 
-def test_the_next_month_is_counted_in_calendar_months():
+def test_the_next_month_is_counted_in_calendar_months_on_the_usual_day():
+    # On the 31st, which September does not have: October's is the 31st again.
     entries = _charges(["2026-07-31", "2026-08-31", "2026-09-30"], "GYM CLUB", "40")
     [gym] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 10, 1))
-    assert gym.next_expected == "2026-10-30"
+    assert (gym.next_expected, gym.anchor_day) == ("2026-10-31", 31)
     entries = _charges(["2025-11-30", "2025-12-31", "2026-01-31"], "GYM CLUB", "40")
     [gym] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 2, 1))
     assert gym.next_expected == "2026-02-28"
@@ -324,3 +325,19 @@ def test_a_charge_a_week_late_has_not_stopped():
     entries = _charges(["2026-06-30", "2026-07-30", "2026-08-30"], "GYM CLUB", "40")
     [gym] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 10, 6))
     assert gym.next_expected == "2026-09-30"
+
+
+def test_income_is_found_when_asked_for():
+    entries = [
+        _entry(day, "bank", "salary", "4000", "ACME PAYROLL")
+        for day in ("2026-07-25", "2026-08-25", "2026-09-25")
+    ]
+    booked = booked_transactions(entries, ACCOUNTS)
+    assert detect_recurring(booked, TODAY) == []  # payments only, by default
+    [salary] = detect_recurring(booked, TODAY, direction="in")
+    assert (salary.direction, salary.money_account_id, salary.account_id) == (
+        "in",
+        "bank",
+        "salary",
+    )
+    assert salary.next_expected == "2026-10-25"

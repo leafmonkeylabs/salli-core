@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from typing import Any
 
 import typer
@@ -515,7 +516,6 @@ def income_statement(
     to_date: str = typer.Option(..., "--to"),
 ):
     """Print net income (income − expenses) for a date range."""
-    from decimal import Decimal
 
     user_id = _require_user()
     svc = _services()
@@ -3799,6 +3799,53 @@ def insights_recurring():
             f"[dim]{untracked} not tracked: add one with `salli subscription add` "
             "to be told when it is missed or its price changes.[/dim]"
         )
+
+
+@insights_app.command("forecast")
+def insights_forecast(
+    days: int = typer.Option(60, "--days", "-d", min=1, max=366, help="How many days ahead"),
+    flows: int = typer.Option(10, "--flows", help="How many upcoming flows to list"),
+):
+    """Where your cash is heading: the lowest point, and what moves it."""
+    user_id = _require_user()
+    data = asyncio.run(_services().insights.forecast(user_id, days))
+    if emit(data):
+        return
+    base = data["currency"]
+    console.print(
+        f"Cash today {_money(data['today'], base, width=0)}; "
+        f"in {days} days {_money(data['end_balance'], base, width=0)}."
+    )
+    low = Decimal(data["lowest"])
+    style = "red" if low < 0 else "yellow" if low < Decimal(data["today"]) else "green"
+    console.print(
+        f"[{style}]Lowest: {_money(data['lowest'], base, width=0)} on {data['lowest_date']}[/{style}]"
+    )
+    if data["accounts"]:
+        table = Table(title="By account")
+        for column in ("Account", "Today", "Lowest", "On", f"In {days} days"):
+            table.add_column(column, justify="left" if column in ("Account", "On") else "right")
+        for a in data["accounts"]:
+            table.add_row(
+                a["name"],
+                _money(a["today"], a["currency"], width=0),
+                _money(a["lowest"], a["currency"], width=0),
+                a["lowest_date"],
+                _money(a["end"], a["currency"], width=0),
+            )
+        console.print(table)
+    upcoming = data["flows"][:flows]
+    if upcoming:
+        table = Table(title="Coming up")
+        table.add_column("Date")
+        table.add_column("What")
+        table.add_column("Amount", justify="right")
+        for f in upcoming:
+            label = f["description"] + (
+                " [dim](declared)[/dim]" if f["source"] == "subscription" else ""
+            )
+            table.add_row(f["date"], label, _money(f["amount"], f["currency"], width=0))
+        console.print(table)
 
 
 # ── banks ─────────────────────────────────────────────────────────────────────

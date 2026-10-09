@@ -142,3 +142,36 @@ async def test_a_subscription_named_after_the_payee_covers_it_even_unmatched():
     found = await _service([named]).recurring("u")
     fitx = next(r for r in found["items"] if r["payee"] == "Fitx Studio")
     assert (fitx["tracked"], fitx["subscription_id"]) == (True, "sub2")
+
+
+async def test_the_forecast_carries_cash_forward_without_counting_a_subscription_twice():
+    # Netflix is both seen in the ledger and declared (sub1): one charge a month.
+    result = await _service([_subscription()]).forecast("u", days=30)
+    assert (result["start"], result["end"], result["currency"]) == (
+        "2026-10-09",
+        "2026-11-08",
+        "EUR",
+    )
+    assert result["today"] == "2831.04"
+    assert [(f["date"], f["description"], f["amount"]) for f in result["flows"]] == [
+        ("2026-11-01", "Fitx Studio", "-39.00"),
+        ("2026-11-08", "Netflix", "-12.99"),
+    ]
+    assert (result["end_balance"], result["lowest"], result["lowest_date"]) == (
+        "2779.05",
+        "2779.05",
+        "2026-11-08",
+    )
+    [bank] = result["accounts"]
+    assert (bank["account_id"], bank["name"], bank["currency"]) == ("bank", "Checking", "EUR")
+
+
+async def test_a_declared_subscription_the_ledger_has_not_shown_is_forecast_too():
+    spotify = _subscription(
+        id="sub3", name="Spotify", account_id=None, amount_minor=999, next_due_date="2026-10-20"
+    )
+    result = await _service([spotify]).forecast("u", days=30)
+    declared = [f for f in result["flows"] if f["source"] == "subscription"]
+    assert [(f["date"], f["amount"], f["account_id"]) for f in declared] == [
+        ("2026-10-20", "-9.99", None)
+    ]

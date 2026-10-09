@@ -25,7 +25,7 @@ from statistics import median
 from typing import Literal
 
 from salli.domain.accounting.models import Account, StoredJournalEntry
-from salli.domain.rules.engine import payee_name, payee_word
+from salli.domain.rules.engine import Direction, payee_name, payee_word
 from salli.domain.rules.history import Booked
 
 Cadence = Literal["weekly", "monthly", "quarterly", "yearly"]
@@ -206,30 +206,46 @@ class Recurring:
     examples: tuple[str, ...] = field(default_factory=tuple)
     #: The journal entries the charges were booked as.
     entry_ids: tuple[str, ...] = field(default_factory=tuple)
+    #: Money out (a payment) or in (a salary), of `money_account_id`: the
+    #: bank account or card it moves.
+    direction: Direction = "out"
+    money_account_id: str = ""
+    #: The day of the month it falls on, for a monthly or longer rhythm: a
+    #: bill on the 31st is on the 30th in a short month, and the 31st again
+    #: after it.
+    anchor_day: int | None = None
 
 
-def _add_period(day: dt.date, cadence: Cadence) -> dt.date:
+def add_period(day: dt.date, cadence: Cadence, anchor_day: int | None = None) -> dt.date:
+    """The next date a `cadence` lands on after `day`: on `anchor_day` (or
+    `day`'s own) in the next month, quarter or year, kept to that month."""
     if cadence == "weekly":
         return day + dt.timedelta(days=7)
     months = {"monthly": 1, "quarterly": 3, "yearly": 12}[cadence]
     total = day.month - 1 + months
     year, month = day.year + total // 12, total % 12 + 1
-    return dt.date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
+    wanted = anchor_day or day.day
+    return dt.date(year, month, min(wanted, calendar.monthrange(year, month)[1]))
 
 
-def detect_recurring(booked: Sequence[Booked], today: dt.date) -> list[Recurring]:
-    """Payments out to one payee, at least three, at a regular rhythm, and
-    still going: one more than a quarter of a period overdue has stopped."""
-    groups: dict[tuple[str, str], list[Booked]] = defaultdict(list)
+def detect_recurring(
+    booked: Sequence[Booked], today: dt.date, direction: Direction | None = "out"
+) -> list[Recurring]:
+    """Money to or from one payee, at least three times, at a regular rhythm,
+    and still going: one more than a quarter of a period overdue has stopped.
+
+    Payments out by default; `direction="in"` finds income (a salary), and
+    None both."""
+    groups: dict[tuple[str, str, Direction], list[Booked]] = defaultdict(list)
     for b in booked:
-        if b.facts.direction != "out":
+        if direction is not None and b.facts.direction != direction:
             continue
         word = payee_word(b.facts.description)
         if word:
-            groups[(word, b.facts.currency)].append(b)
+            groups[(word, b.facts.currency, b.facts.direction)].append(b)
 
     found: list[Recurring] = []
-    for (word, currency), rows in groups.items():
+    for (word, currency, moved), rows in groups.items():
         rows.sort(key=lambda b: b.entry.entry_date)
         days = [dt.date.fromisoformat(b.entry.entry_date) for b in rows]
         if len(set(days)) < 3:
@@ -254,7 +270,12 @@ def detect_recurring(booked: Sequence[Booked], today: dt.date) -> list[Recurring
         typical = median(amounts)
         varies = any(abs(a - typical) > typical * Decimal("0.10") for a in amounts)
         accounts = Counter(b.counter_account_id for b in rows)
+        money_accounts = Counter(b.money_account_id for b in rows)
         names = Counter(payee_name(b.facts.description) for b in rows)
+        anchor = None
+        if cadence != "weekly":
+            anchors = Counter(d.day for d in days)
+            anchor = max(anchors, key=lambda d: (anchors[d], d))
         found.append(
             Recurring(
                 # The way it is most often written; of those, the shortest.
@@ -267,9 +288,12 @@ def detect_recurring(booked: Sequence[Booked], today: dt.date) -> list[Recurring
                 account_id=max(accounts, key=lambda k: (accounts[k], k)),
                 occurrences=len(rows),
                 last_date=days[-1].isoformat(),
-                next_expected=_add_period(days[-1], cadence).isoformat(),
+                next_expected=add_period(days[-1], cadence, anchor).isoformat(),
                 examples=tuple(dict.fromkeys(b.facts.description for b in rows))[:3],
                 entry_ids=tuple(b.entry.id for b in rows),
+                direction=moved,
+                money_account_id=max(money_accounts, key=lambda k: (money_accounts[k], k)),
+                anchor_day=anchor,
             )
         )
     found.sort(key=lambda r: (r.next_expected, r.payee))
