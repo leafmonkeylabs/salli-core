@@ -104,7 +104,10 @@ def _service(
         ),
         user_profiles=FakeProfiles("EUR"),
         recurring_subscriptions=SimpleNamespace(list=AsyncMock(return_value=subscriptions)),
-        statements=SimpleNamespace(list_statements=AsyncMock(return_value=statements or [])),
+        statements=SimpleNamespace(
+            list_statements=AsyncMock(return_value=statements or []),
+            get_all_pending=AsyncMock(return_value=[]),
+        ),
         bank_connections=SimpleNamespace(list=AsyncMock(return_value=[])),
     )
 
@@ -277,3 +280,25 @@ async def test_an_account_whose_balance_cant_be_known_is_left_out_and_said(monke
     result = await _service([]).forecast("u", days=30)
     assert result["accounts"] == []
     assert any(n.startswith("Checking: its balance in GBP can't be known") for n in result["notes"])
+
+
+async def test_safe_to_spend_is_the_low_point_before_money_comes_in():
+    # No salary rhythm in this ledger, so it looks 30 days ahead: FitX on
+    # Nov 1 is committed; Netflix on Nov 8 falls on the last day, outside.
+    result = await _service([_subscription()]).safe_to_spend("u")
+    assert (result["amount"], result["cash_today"], result["until"]) == (
+        "2792.04",
+        "2831.04",
+        "2026-11-08",
+    )
+    assert result["next_income"] is None
+    assert [(f["date"], f["description"], f["amount"]) for f in result["committed"]] == [
+        ("2026-11-01", "Fitx Studio", "-39.00")
+    ]
+
+
+async def test_signals_point_at_new_recurring_charges_nobody_tracks():
+    result = await _service([]).signals("u")
+    kinds = {(s["kind"], s["title"]) for s in result["signals"]}
+    assert ("new_recurring", "New recurring payment: Fitx Studio") in kinds
+    assert all(s["severity"] in ("high", "medium", "info") for s in result["signals"])
