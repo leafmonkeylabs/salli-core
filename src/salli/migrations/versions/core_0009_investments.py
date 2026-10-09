@@ -14,6 +14,8 @@ Additive and safe on existing data:
   it gets LKR, as core_0002 would have given its owner.)
 - `holding_transactions` is a new, empty table. A holding without
   transactions keeps its declared figures, exactly as before.
+- `holding_prices` is a new, empty table: the closing prices a user keeps,
+  one per symbol and day.
 
 Revision ID: core_0009_investments
 Revises: core_0008_jurisdiction
@@ -92,8 +94,30 @@ def upgrade() -> None:
         unique=False,
     )
 
+    op.create_table(
+        "holding_prices",
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("user_id", sa.String(length=64), nullable=False),
+        sa.Column("symbol", sa.String(length=20), nullable=False),
+        sa.Column("price_date", sa.Date(), nullable=False),
+        sa.Column("close", sa.Numeric(precision=38, scale=18), nullable=False),
+        sa.Column("currency", sa.String(length=3), nullable=False),
+        sa.Column("source", sa.String(length=50), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint("close > 0", name="ck_holding_prices_close"),
+        sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_holding_prices_currency"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "user_id", "symbol", "price_date", name="uq_holding_prices_user_symbol_date"
+        ),
+    )
+    op.create_index("ix_holding_prices_user_id", "holding_prices", ["user_id"], unique=False)
+
 
 def downgrade() -> None:
+    op.drop_index("ix_holding_prices_user_id", table_name="holding_prices")
+    op.drop_table("holding_prices")
     op.drop_index("ix_holding_transactions_holding_date", table_name="holding_transactions")
     op.drop_index("ix_holding_transactions_user_id", table_name="holding_transactions")
     op.drop_table("holding_transactions")

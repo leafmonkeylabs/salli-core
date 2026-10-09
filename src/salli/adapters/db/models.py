@@ -863,6 +863,41 @@ class HoldingTransactionORM(Base):
     )
 
 
+class HoldingPriceORM(Base):
+    """A closing price for a symbol on a day, as the user recorded it (or a
+    provider gave it, when the user asked for a refresh). One per user, symbol
+    and day: recording another replaces it. The price is as quoted that day,
+    not adjusted for later splits (the domain adjusts), and like a
+    transaction's unit price it is an exact NUMERIC(38, 18), not money in
+    minor units."""
+
+    __tablename__ = "holding_prices"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Upper case; a holding's symbol matches it whatever case it was typed in.
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    price_date: Mapped[date] = mapped_column(Date, nullable=False)
+    close: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    # "user", or the provider's name.
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "symbol", "price_date", name="uq_holding_prices_user_symbol_date"
+        ),
+        CheckConstraint("close > 0", name="ck_holding_prices_close"),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_holding_prices_currency"),
+    )
+
+
 # ── Recurring subscription ────────────────────────────────────────────────────
 
 

@@ -12439,6 +12439,15 @@
             "title": "Holding Transactions",
             "description": "Every holding's transactions (buys, sales, income, splits, transfers\nin), inactive holdings' included, in the order they were recorded."
           },
+          "holding_prices": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Holding Prices",
+            "description": "Every closing price recorded, newest first."
+          },
           "recurring_subscriptions": {
             "items": {
               "additionalProperties": true,

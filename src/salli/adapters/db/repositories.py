@@ -37,6 +37,7 @@ from salli.adapters.db.models import (
     GoalAllocationORM,
     GoalORM,
     HoldingORM,
+    HoldingPriceORM,
     HoldingTransactionORM,
     InstanceSettingORM,
     InsuranceTargetORM,
@@ -73,6 +74,7 @@ from salli.application.ports import (
     FireStrategyRepository,
     FiScoreRepository,
     GoalRepository,
+    HoldingPriceRepository,
     HoldingTransactionRepository,
     InstanceSettingsRepository,
     InsuranceTargetRepository,
@@ -2248,6 +2250,87 @@ class SQLHoldingTransactionRepository(HoldingTransactionRepository):
         return True
 
 
+def _price_to_dict(r: HoldingPriceORM) -> dict[str, Any]:
+    return {
+        "id": r.id,
+        "user_id": r.user_id,
+        "symbol": r.symbol,
+        "price_date": r.price_date.isoformat(),
+        "close": r.close,
+        "currency": r.currency,
+        "source": r.source,
+        "created_at": r.created_at.isoformat(),
+        "updated_at": r.updated_at.isoformat(),
+    }
+
+
+class SQLHoldingPriceRepository(HoldingPriceRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def upsert(self, user_id: str, price: dict[str, Any]) -> str:
+        now = datetime.now(UTC)
+        values = {
+            "symbol": price["symbol"],
+            "price_date": date.fromisoformat(str(price["price_date"])),
+            "close": price["close"],
+            "currency": price["currency"],
+            "source": price["source"],
+        }
+        # One statement, so two recordings of the same close cannot race into
+        # a unique-constraint error.
+        stmt = (
+            pg_insert(HoldingPriceORM)
+            .values(id=str(uuid.uuid4()), user_id=user_id, created_at=now, updated_at=now, **values)
+            .on_conflict_do_update(
+                constraint="uq_holding_prices_user_symbol_date",
+                set_={
+                    "close": values["close"],
+                    "currency": values["currency"],
+                    "source": values["source"],
+                    "updated_at": now,
+                },
+            )
+            .returning(HoldingPriceORM.id)
+        )
+        return str((await self._s.execute(stmt)).scalar_one())
+
+    async def list(
+        self,
+        user_id: str,
+        symbol: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> list[dict[str, Any]]:
+        stmt = select(HoldingPriceORM).where(HoldingPriceORM.user_id == user_id)
+        if symbol is not None:
+            stmt = stmt.where(HoldingPriceORM.symbol == symbol)
+        if start is not None:
+            stmt = stmt.where(HoldingPriceORM.price_date >= date.fromisoformat(start))
+        if end is not None:
+            stmt = stmt.where(HoldingPriceORM.price_date <= date.fromisoformat(end))
+        stmt = stmt.order_by(HoldingPriceORM.price_date, HoldingPriceORM.symbol)
+        return [_price_to_dict(r) for r in (await self._s.execute(stmt)).scalars().all()]
+
+    async def get(self, user_id: str, quote_id: str) -> dict[str, Any] | None:
+        r = (
+            await self._s.execute(
+                select(HoldingPriceORM).where(
+                    HoldingPriceORM.id == quote_id, HoldingPriceORM.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+        return _price_to_dict(r) if r else None
+
+    async def delete(self, user_id: str, quote_id: str) -> bool:
+        result = await self._s.execute(
+            delete(HoldingPriceORM).where(
+                HoldingPriceORM.id == quote_id, HoldingPriceORM.user_id == user_id
+            )
+        )
+        return bool(result.rowcount)  # type: ignore[attr-defined]
+
+
 # ── Recurring subscription repository ─────────────────────────────────────────
 
 
@@ -2612,6 +2695,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # first, like goal allocations, rather than relying on the cascade.
         await _delete(HoldingTransactionORM, HoldingTransactionORM.user_id)
         await _delete(HoldingORM, HoldingORM.user_id)
+        await _delete(HoldingPriceORM, HoldingPriceORM.user_id)
         await _delete(PolicyORM, PolicyORM.user_id)
         await _delete(InsuranceTargetORM, InsuranceTargetORM.user_id)
         await _delete(TaxComputationORM, TaxComputationORM.user_id)

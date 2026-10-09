@@ -151,6 +151,7 @@ class DataPortabilityService:
             "debts": await self._debt.list_debts(user_id, active_only=False),
             "holdings": await self._portfolio.list_holdings(user_id, active_only=False),
             "holding_transactions": await self._portfolio.export_transactions(user_id),
+            "holding_prices": await self._portfolio.list_prices(user_id),
             "recurring_subscriptions": await self._subscription.list_subscriptions(
                 user_id, active_only=False
             ),

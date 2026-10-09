@@ -8,7 +8,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Protocol, TypedDict
@@ -392,6 +392,53 @@ class FxRatePort(ABC):
 
         Raises FxUnavailableError when there is no such rate.
         """
+        ...
+
+
+@dataclass(frozen=True)
+class PriceQuote:
+    """A closing price: what one unit of `symbol` closed at on `on`, in
+    `currency`, as quoted that day (not adjusted for later splits), and
+    where it came from ("user" for one a person recorded)."""
+
+    symbol: str
+    on: date
+    close: Decimal
+    currency: str
+    source: str
+
+
+class PriceUnavailableError(LookupError):
+    """No price for this symbol (on or before that date). Never answered
+    with a made-up number."""
+
+
+class MarketDataPort(ABC):
+    """Closing prices for a symbol.
+
+    Salli's implementation is the price history a user keeps
+    (application/market_data.py). It ships no network provider: none it
+    could find was both keyless and clearly licensed for an open-source app
+    that also runs as a hosted service (in 2026 Stooq's downloads need a key,
+    and CoinGecko's keyless API is not for production use and its terms
+    discourage storing its data). One added later must be asked only when a
+    user asks for a refresh, and what it says stored under its name — never
+    fetched implicitly, on a read.
+    """
+
+    @abstractmethod
+    async def latest(
+        self, symbol: str, *, currency: str | None = None, on_or_before: date | None = None
+    ) -> PriceQuote:
+        """The most recent close on or before `on_or_before` (by default, the
+        most recent there is). `currency` asks for a price in that currency
+        where the source can quote one; the quote says what it is in.
+        Raises PriceUnavailableError."""
+        ...
+
+    @abstractmethod
+    async def history(self, symbol: str, start: date, end: date) -> list[PriceQuote]:
+        """Every close from `start` to `end` inclusive, oldest first."""
         ...
 
 
@@ -807,6 +854,36 @@ class HoldingTransactionRepository(ABC):
 
     @abstractmethod
     async def delete(self, user_id: str, transaction_id: str) -> bool: ...
+
+
+class HoldingPriceRepository(ABC):
+    """The closing prices a user keeps, one per symbol and day, as plain
+    dicts: symbol (upper case), price_date (YYYY-MM-DD), close (Decimal),
+    currency, source."""
+
+    @abstractmethod
+    async def upsert(self, user_id: str, price: dict[str, Any]) -> str:
+        """Record a close; one already recorded for that symbol and day is
+        replaced. Returns its id."""
+        ...
+
+    @abstractmethod
+    async def list(
+        self,
+        user_id: str,
+        symbol: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Closes oldest first: one symbol's or all, from `start` to `end`
+        inclusive (YYYY-MM-DD; either may be open)."""
+        ...
+
+    @abstractmethod
+    async def get(self, user_id: str, quote_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def delete(self, user_id: str, quote_id: str) -> bool: ...
 
 
 # ── Recurring subscription ────────────────────────────────────────────────────

@@ -62,7 +62,8 @@ jobs:
           src/salli/domain/jurisdiction.py src/salli/domain/tax
           src/salli/domain/agents/jurisdiction.py src/salli/domain/agents/prompting.py
           src/salli/domain/fi/assumptions.py
-          src/salli/domain/portfolio/lots.py
+          src/salli/domain/portfolio/lots.py src/salli/domain/portfolio/valuation.py
+          src/salli/application/market_data.py
       - name: Tests
         # Includes the contract tests: every API route has a CLI command, and
         # salli-core carries no billing vocabulary.

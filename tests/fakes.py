@@ -153,6 +153,61 @@ class FakeHoldings(FakeRecords):
             del self.transactions.rows[transaction_id]
 
 
+class FakeHoldingPrices:
+    """Closing prices as the SQL repository keeps them: one per user, symbol
+    and day (recording another replaces it), listed oldest first."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, dict[str, Any]] = {}
+
+    async def upsert(self, user_id: str, price: dict[str, Any]) -> str:
+        now = datetime.now(UTC).isoformat()
+        for row in self.rows.values():
+            if (row["user_id"], row["symbol"], row["price_date"]) == (
+                user_id,
+                price["symbol"],
+                price["price_date"],
+            ):
+                row.update(price, updated_at=now)
+                return row["id"]
+        quote_id = str(uuid.uuid4())
+        self.rows[quote_id] = {
+            **price,
+            "id": quote_id,
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+        }
+        return quote_id
+
+    async def list(
+        self,
+        user_id: str,
+        symbol: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = [
+            dict(row)
+            for row in self.rows.values()
+            if row["user_id"] == user_id
+            and symbol in (None, row["symbol"])
+            and (start is None or row["price_date"] >= start)
+            and (end is None or row["price_date"] <= end)
+        ]
+        return sorted(rows, key=lambda row: (row["price_date"], row["symbol"]))
+
+    async def get(self, user_id: str, quote_id: str) -> dict[str, Any] | None:
+        row = self.rows.get(quote_id)
+        return dict(row) if row is not None and row["user_id"] == user_id else None
+
+    async def delete(self, user_id: str, quote_id: str) -> bool:
+        if await self.get(user_id, quote_id) is None:
+            return False
+        del self.rows[quote_id]
+        return True
+
+
 class FakeLedgerReader:
     """The slice of LedgerRepository that budgets and subscriptions read."""
 
@@ -209,6 +264,7 @@ class FakeRecordsUoW:
         self.debts = FakeRecords(is_active=True)
         self.holding_transactions = FakeHoldingTransactions()
         self.holdings = FakeHoldings(self.holding_transactions)
+        self.holding_prices = FakeHoldingPrices()
         self.recurring_subscriptions = FakeRecords(is_active=True)
         self.policies = FakeRecords(is_active=True)
         self.insurance_targets = FakeInsuranceTargets()

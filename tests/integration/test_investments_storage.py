@@ -155,3 +155,38 @@ def test_existing_holdings_are_in_their_owners_base_currency(monkeypatch):
         assert scalar(url, "select currency from holdings where id = 'h2'") == "LKR"
         assert scalar(url, "select current_value_minor from holdings where id = 'h1'") == 125000
         assert scalar(url, "select count(*) from holding_transactions") == 0
+
+
+async def test_a_days_price_is_kept_once_and_exactly(uow_factory):
+    await _profile(uow_factory, "USD")
+    svc = PortfolioService(uow_factory)
+    await _holding(svc, "USD")
+    first = await svc.set_price(
+        USER, {"symbol": "eth", "close": "2512.000000000000000001", "date": "2026-10-01"}
+    )
+    second = await svc.set_price(USER, {"symbol": "ETH", "close": "2600", "date": "2026-10-01"})
+    await svc.set_price(USER, {"symbol": "ETH", "close": "2700", "date": "2026-10-02"})
+    assert first == second
+    assert [(p["date"], p["close"]) for p in await svc.list_prices(USER, "ETH")] == [
+        ("2026-10-02", "2700"),
+        ("2026-10-01", "2600"),
+    ]
+    assert [p["close"] for p in await svc.list_prices(USER, "ETH", end="2026-10-01")] == ["2600"]
+    await svc.set_price(
+        USER, {"symbol": "ETH", "close": "0.000000000000000001", "date": "2026-10-03"}
+    )
+    assert (await svc.list_prices(USER, "ETH"))[0]["close"] == "0.000000000000000001"
+
+    async with uow_factory() as uow:
+        counts = await uow.data_portability.delete_all(USER)
+    assert counts["holding_prices"] == 3
+
+
+async def test_another_users_prices_are_theirs(uow_factory):
+    await _profile(uow_factory, "USD")
+    await _profile(uow_factory, "USD", user="neighbour")
+    svc = PortfolioService(uow_factory)
+    price = await svc.set_price(USER, {"symbol": "ETH", "close": "1", "currency": "USD"})
+    assert await svc.list_prices("neighbour") == []
+    assert await svc.delete_price("neighbour", price) is False
+    assert await svc.delete_price(USER, price) is True

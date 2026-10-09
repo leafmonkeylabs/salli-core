@@ -412,6 +412,8 @@ class DataExport(BaseModel):
     holding_transactions: list[dict[str, Any]] = Field(default_factory=list)
     """Every holding's transactions (buys, sales, income, splits, transfers
     in), inactive holdings' included, in the order they were recorded."""
+    holding_prices: list[dict[str, Any]] = Field(default_factory=list)
+    """Every closing price recorded, newest first."""
     recurring_subscriptions: list[dict[str, Any]]
     """Each as in `subscriptions.list`, inactive ones included."""
     insurance_policies: list[dict[str, Any]]
