@@ -25,9 +25,9 @@ interface CommandLike {
 
 function walk(root: CommandLike): Node[] {
   const nodes: Node[] = [];
-  const globals = root.options.filter((o) => !o.hidden);
+  const globals = root.options.filter((o) => !o.hidden && o.long !== '--version');
   const visit = (cmd: CommandLike, path: string): void => {
-    const own = cmd === root ? [] : cmd.options.filter((o) => !o.hidden);
+    const own = cmd === root ? root.options.filter((o) => o.long === '--version') : cmd.options.filter((o) => !o.hidden);
     const options = [...own, ...globals, { long: '--help', description: 'Show help', required: false, optional: false }]
       .flatMap((o) =>
         [o.long, o.short]
@@ -100,7 +100,7 @@ function bash(root: CommandLike): string {
 #   salli completion bash > ~/.local/share/bash-completion/completions/salli
 # or add to ~/.bashrc:  source <(salli completion bash)
 _salli() {
-  local cur prev path="" w i
+  local cur prev salli_path="" w i
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
   case "$prev" in
@@ -110,12 +110,12 @@ _salli() {
   for ((i = 1; i < COMP_CWORD; i++)); do
     w="\${COMP_WORDS[i]}"
     [[ "$w" == -* ]] && continue
-    case "\${path:+$path }$w" in
-      ${paths.map((p) => shQuote(p)).join('|')}) path="\${path:+$path }$w" ;;
+    case "\${salli_path:+$salli_path }$w" in
+      ${paths.map((p) => shQuote(p)).join('|')}) salli_path="\${salli_path:+$salli_path }$w" ;;
     esac
   done
   local words
-  case "$path" in
+  case "$salli_path" in
     '') words=${shQuote(words(top))} ;;
 ${cases.map(({ alias, node }) => `    ${shQuote(alias)}) words=${shQuote(words(node))} ;;`).join('\n')}
   esac
@@ -141,19 +141,19 @@ function zsh(root: CommandLike): string {
 #   salli completion zsh > "\${fpath[1]}/_salli"   (then restart zsh)
 # or add to ~/.zshrc:  source <(salli completion zsh)
 _salli() {
-  local w path=""
+  local w salli_path=""
   local -a cmds opts
   for w in \${words[2,CURRENT-1]}; do
     [[ $w == -* ]] && continue
-    case "\${path:+$path }$w" in
-      (${paths.map((p) => p.replace(/ /g, '\\ ')).join('|')}) path="\${path:+$path }$w" ;;
+    case "\${salli_path:+$salli_path }$w" in
+      (${paths.map((p) => p.replace(/ /g, '\\ ')).join('|')}) salli_path="\${salli_path:+$salli_path }$w" ;;
     esac
   done
   if [[ \${words[CURRENT-1]} == (-o|--output) ]]; then
     compadd -- ${OUTPUT_FORMATS.join(' ')}
     return
   fi
-  case "$path" in
+  case "$salli_path" in
     ('') cmds=(${top.cmds}); opts=(${top.opts}) ;;
 ${[...canon.entries()]
   .map(([alias, path]) => {
@@ -188,15 +188,15 @@ function fish(root: CommandLike): string {
     'function __salli_path',
     '  set -l tokens (commandline -opc)',
     '  set -e tokens[1]',
-    '  set -l path',
+    '  set -l salli_path',
     '  for t in $tokens',
     "    string match -q -- '-*' $t; and continue",
-    '    set -l candidate (string join " " $path $t)',
+    '    set -l candidate (string join " " $salli_path $t)',
     '    if contains -- $candidate $__salli_paths',
-    '      set path $path $t',
+    '      set salli_path $salli_path $t',
     '    end',
     '  end',
-    '  string join " " $path',
+    '  string join " " $salli_path',
     'end',
     'complete -c salli -f',
     `complete -c salli -s o -l output -x -a '${OUTPUT_FORMATS.join(' ')}' -d 'Output format'`,

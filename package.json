@@ -7,16 +7,16 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "scripts": {
     "generate": "npm run generate --workspace @leafmonkeylabs/salli-sdk",
-    "check:generated": "npm run generate && git diff --exit-code -- packages/sdk/src/generated",
+    "check:generated": "npm run generate && git diff --exit-code -- packages/sdk/src/generated && test -z \"$(git status --porcelain -- packages/sdk/src/generated)\"",
     "typecheck": "npm run typecheck --workspaces",
     "lint": "eslint .",
     "test": "npm run test --workspaces",
     "build": "npm run build --workspaces",
-    "binaries": "npm run binaries --workspace @leafmonkeylabs/salli"
+    "binaries": "npm run binaries --workspace @leafmonkeylabs/salli --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

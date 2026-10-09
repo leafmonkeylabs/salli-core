@@ -19,7 +19,7 @@
   ],
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "bin": {
     "salli": "./dist/salli.js"

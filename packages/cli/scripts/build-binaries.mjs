@@ -64,6 +64,6 @@ for (const target of targets) {
   }
   const bytes = statSync(outfile).size;
   sums.push(`${createHash('sha256').update(readFileSync(outfile)).digest('hex')}  ${file}`);
-  console.log(`${file}  ${(bytes / 1024 / 1024).toFixed(1)} MB${target === host ? '  (this machine)' : ''}`);
+  console.log(`${file}  ${(bytes / 1024 / 1024).toFixed(1)} MiB${target === host ? '  (this machine)' : ''}`);
 }
 writeFileSync(join(outDir, 'SHA256SUMS'), `${sums.join('\n')}\n`);
