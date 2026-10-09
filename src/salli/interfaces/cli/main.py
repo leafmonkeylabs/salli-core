@@ -1023,18 +1023,25 @@ def parse_categorize(
 ):
     """Choose where a pending transaction goes before posting it."""
     user_id = _require_user()
-    svc = _services()
-    accounts = asyncio.run(svc.ledger.list_accounts(user_id))
-    account_id = next((a.id for a in accounts if account in (a.id, a.code)), None)
-    if account_id is None:
-        console.print(f"[red]No active account {account!r}.[/red]")
-        raise typer.Exit(1)
-    pending = [{"id": str(t.id)} for t in asyncio.run(svc.parsing.get_pending(user_id))]
-    transaction_id = _resolve_id(pending, transaction, "pending transaction")
-    choice = {"transaction_id": transaction_id, "account_id": account_id}
-    choice |= {k: v for k, v in (("category", category), ("need", need)) if v}
+
+    # One event loop for the whole command: a pooled database connection
+    # belongs to the loop that opened it, so a second asyncio.run on the same
+    # services would fail.
+    async def _run() -> list[str]:
+        svc = _services()
+        accounts = await svc.ledger.list_accounts(user_id)
+        account_id = next((a.id for a in accounts if account in (a.id, a.code)), None)
+        if account_id is None:
+            console.print(f"[red]No active account {account!r}.[/red]")
+            raise typer.Exit(1)
+        pending = [{"id": str(t.id)} for t in await svc.parsing.get_pending(user_id)]
+        transaction_id = _resolve_id(pending, transaction, "pending transaction")
+        choice = {"transaction_id": transaction_id, "account_id": account_id}
+        choice |= {k: v for k, v in (("category", category), ("need", need)) if v}
+        return await svc.parsing.categorize(user_id, [choice])
+
     try:
-        updated = asyncio.run(svc.parsing.categorize(user_id, [choice]))
+        updated = asyncio.run(_run())
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc

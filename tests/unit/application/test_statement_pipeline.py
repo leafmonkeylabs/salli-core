@@ -833,3 +833,14 @@ async def test_a_choice_that_cannot_be_is_refused(world, model, account, status,
 async def test_choosing_for_someone_elses_transaction_is_not_found(world):
     with pytest.raises(KeyError):
         await world.service().categorize(USER, [{"transaction_id": "nope", "account_id": "food"}])
+
+
+async def test_a_choice_needs_to_know_which_of_your_accounts_moved(world):
+    # No statement account and no model: neither side is known yet.
+    world.statements = _ChoosingStatements()
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id=None
+    )
+    [txn] = result.transactions
+    with pytest.raises(ValueError, match="no account"):
+        await world.service().categorize(USER, [{"transaction_id": txn.id, "account_id": "food"}])

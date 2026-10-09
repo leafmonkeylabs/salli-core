@@ -493,6 +493,12 @@ class ParsingService:
                 money_side = txn.account_id or (
                     txn.debit_account_id if money_in else txn.credit_account_id
                 )
+                if not money_side:
+                    raise ValueError(
+                        f"Transaction {txn.id} came from a statement with no account, so "
+                        "nothing says which of your accounts it moved: import it again "
+                        "with its account"
+                    )
                 fields: dict[str, Any] = {
                     "debit_account_id": money_side if money_in else account.id,
                     "credit_account_id": account.id if money_in else money_side,
