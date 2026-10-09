@@ -8597,11 +8597,33 @@
           "user_id": {
             "type": "string",
             "title": "User Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "session",
+              "oauth",
+              "pat",
+              "dev"
+            ],
+            "title": "Method"
           }
         },
         "type": "object",
         "required": [
-          "user_id"
+          "user_id",
+          "method"
         ],
         "title": "AuthIdentity"
       },
