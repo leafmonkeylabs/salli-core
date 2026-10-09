@@ -146,6 +146,7 @@ class EntryProvenance(BaseModel):
 
 
 def _posting(p: DomainPosting) -> Posting:
+    assert p.id is not None  # read back from storage, so it has one
     return Posting(
         id=p.id,
         tags=p.tags,

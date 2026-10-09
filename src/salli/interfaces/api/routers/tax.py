@@ -178,7 +178,7 @@ def _fmt_computation(result: DomainTaxComputation | dict[str, Any]) -> dict[str,
         }
     else:
         # Raw stored dict from JSONB (dataclasses.asdict serialised to JSON)
-        raw: dict = result  # type: ignore[assignment]
+        raw = result
         # Computations stored before the currency was recorded were all LK, in LKR.
         currency = raw.get("currency", "LKR")
 
