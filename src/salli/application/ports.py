@@ -169,11 +169,24 @@ class StatementRepository(ABC):
         ...
 
     @abstractmethod
-    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
+    async def imported_between(
+        self,
+        user_id: str,
+        from_date: str,
+        to_date: str,
+        *,
+        account_id: str | None = None,
+        excluding_statement: str | None = None,
+    ) -> list[Any]:
         """The user's parsed transactions dated `from_date`..`to_date`, what a
-        new import is checked against for duplicates. Not the discarded ones,
-        which never happened, nor those already found to duplicate another:
-        that one stands for both."""
+        new import is checked against for duplicates: the discarded ones too
+        (a discarded card hold is still that transaction), but not those
+        already found to duplicate another, which that one stands for.
+
+        With `account_id`, only rows on that account or on a statement with
+        no account (which may be on any). `excluding_statement`'s rows are
+        left out unless posted: a statement being imported again on purpose
+        does not duplicate itself."""
         ...
 
     @abstractmethod
@@ -194,7 +207,13 @@ class StatementRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]: ...
+    async def get_by_ids(
+        self, user_id: str, ids: list[str], *, for_update: bool = False
+    ) -> list[Any]:
+        """The user's parsed transactions with these ids. `for_update` locks
+        them until the unit of work ends, so two approvals of the same rows
+        post them once: the second waits, then reads them posted."""
+        ...
 
     @abstractmethod
     async def list_statements(self, user_id: str, limit: int = 50) -> list[Any]:
@@ -207,6 +226,11 @@ class StatementRepository(ABC):
 
     @abstractmethod
     async def mark_posted(self, transaction_id: str, entry_id: str) -> None: ...
+
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every statement of the user's, each with all its parsed
+        transactions whatever their state, for the data export."""
+        raise NotImplementedError
 
     @abstractmethod
     async def get_statement(self, user_id: str, statement_id: str) -> dict[str, Any] | None:

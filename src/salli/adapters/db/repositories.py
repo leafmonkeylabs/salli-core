@@ -579,6 +579,9 @@ class SQLStatementRepository(StatementRepository):
                     "booking_description": txn.description,
                     "rule_id": txn.rule_id,
                     "duplicate_of": txn.duplicate_of,
+                    "ref_kind": raw.ref_kind,
+                    "ref_source": raw.ref_source,
+                    "source_account": raw.source_account,
                 },
                 confidence=txn.confidence,
                 dedup_key=txn.dedup_key or None,
@@ -600,17 +603,37 @@ class SQLStatementRepository(StatementRepository):
         result = await self._session.execute(stmt)
         return [_orm_to_parsed(row, account_id) for row, account_id in result.all()]
 
-    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
-        # The date lives in the row's JSON; ISO dates compare as text.
+    async def imported_between(
+        self,
+        user_id: str,
+        from_date: str,
+        to_date: str,
+        *,
+        account_id: str | None = None,
+        excluding_statement: str | None = None,
+    ) -> list[Any]:
+        # The date lives in the row's JSON, indexed as an expression
+        # (ix_parsed_transactions_date); ISO dates compare as text.
         when = ParsedTransactionORM.extracted_json["date"].astext
-        return await self._read(
-            self._parsed(user_id)
-            .where(
-                when >= from_date,
-                when <= to_date,
-                ParsedTransactionORM.dedup_status != "exact_duplicate",
+        stmt = self._parsed(user_id).where(
+            when >= from_date,
+            when <= to_date,
+            ParsedTransactionORM.dedup_status != "exact_duplicate",
+        )
+        if account_id is not None:
+            # Rows of statements with no account may be on any account.
+            stmt = stmt.where(
+                or_(StatementORM.account_id == account_id, StatementORM.account_id.is_(None))
             )
-            .order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
+        if excluding_statement is not None:
+            stmt = stmt.where(
+                or_(
+                    ParsedTransactionORM.statement_id != excluding_statement,
+                    ParsedTransactionORM.posted_entry_id.is_not(None),
+                )
+            )
+        return await self._read(
+            stmt.order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
         )
 
     async def get_all_pending(self, user_id: str) -> list[Any]:
@@ -645,8 +668,46 @@ class SQLStatementRepository(StatementRepository):
         await self._session.flush()
         return len(rows)
 
-    async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]:
-        return await self._read(self._parsed(user_id).where(ParsedTransactionORM.id.in_(ids)))
+    async def get_by_ids(
+        self, user_id: str, ids: list[str], *, for_update: bool = False
+    ) -> list[Any]:
+        stmt = self._parsed(user_id).where(ParsedTransactionORM.id.in_(ids))
+        if for_update:
+            stmt = stmt.with_for_update(of=ParsedTransactionORM)
+        return await self._read(stmt)
+
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        statements = (
+            (
+                await self._session.execute(
+                    select(StatementORM)
+                    .where(StatementORM.user_id == user_id)
+                    .order_by(StatementORM.created_at, StatementORM.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        rows = await self._read(
+            self._parsed(user_id).order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
+        )
+        by_statement: dict[str, list[Any]] = {}
+        for txn in rows:
+            by_statement.setdefault(txn.statement_id, []).append(txn)
+        return [
+            {
+                "id": st.id,
+                "bank": st.bank,
+                "account_id": st.account_id,
+                "period_start": st.period_start,
+                "period_end": st.period_end,
+                "storage_key": st.storage_key,
+                "status": st.status,
+                "created_at": st.created_at.isoformat() if st.created_at else None,
+                "transactions": by_statement.get(st.id, []),
+            }
+            for st in statements
+        ]
 
     async def mark_posted(self, transaction_id: str, entry_id: str) -> None:
         stmt = select(ParsedTransactionORM).where(ParsedTransactionORM.id == transaction_id)
@@ -699,6 +760,9 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         bank_ref=j.get("bank_ref", ""),
         # Rows saved before the currency was recorded were all rupees.
         currency=j.get("currency", "LKR"),
+        ref_kind=j.get("ref_kind", "id"),
+        ref_source=j.get("ref_source", ""),
+        source_account=j.get("source_account", ""),
     )
     return ParsedTransaction(
         raw=raw,

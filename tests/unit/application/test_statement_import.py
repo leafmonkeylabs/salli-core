@@ -212,7 +212,9 @@ class _Uow:
     async def get_entries(self, user_id: str, **_: Any) -> list[Any]:
         return []
 
-    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
+    async def imported_between(
+        self, user_id: str, from_date: str, to_date: str, **_: Any
+    ) -> list[Any]:
         return []
 
     async def save_statement(self, **kwargs: Any) -> None:

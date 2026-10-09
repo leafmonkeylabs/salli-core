@@ -17,6 +17,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Literal
+
+#: Where a parsed transaction stands. "pending": waiting for review (nothing
+#: found like it); "unique": the same, as rows saved early on say;
+#: "fuzzy_match": waiting, flagged as maybe booked already; "exact_duplicate":
+#: booked already, never posted; "posted"; "discarded" by the user.
+DedupState = Literal["pending", "unique", "fuzzy_match", "exact_duplicate", "posted", "discarded"]
 
 
 @dataclass(frozen=True)
@@ -64,7 +71,7 @@ class ParsedTransaction:
     confidence: float = 1.0
     rule_id: str = ""  # the rule that decided the row, if one did
     dedup_key: str = ""  # SHA-256 idempotency key (filled by dedup module)
-    dedup_status: str = "pending"  # UNIQUE | EXACT_DUPLICATE | FUZZY_MATCH
+    dedup_status: DedupState = "pending"
     # What it duplicates: an earlier parsed transaction (exact) or a journal
     # entry (fuzzy).
     duplicate_of: str = ""

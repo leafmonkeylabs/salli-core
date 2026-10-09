@@ -18,6 +18,7 @@ Flow:
 
 from __future__ import annotations
 
+import asyncio
 import re
 import uuid
 from collections import Counter
@@ -27,18 +28,20 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
-from salli.domain.currency import UnknownCurrencyError, normalize_currency
+from salli.domain.currency import UnknownCurrencyError, normalize_currency, quantize
 from salli.domain.dedup.matcher import (
     DATE_WINDOW_DAYS,
+    REFERENCE_WINDOW_DAYS,
     Candidate,
     DedupStatus,
     Imported,
     dedup_key,
     find_duplicates,
 )
-from salli.domain.parsing.models import ParsedTransaction, ParseResult, RawRow
+from salli.domain.parsing.models import DedupState, ParsedTransaction, ParseResult, RawRow
 from salli.domain.rules.engine import Facts, Rule
 from salli.domain.rules.history import booked_transactions
+from salli.domain.secrets import redact
 from salli.domain.usage import AIAction, UsageLimitReached
 
 if TYPE_CHECKING:
@@ -50,11 +53,6 @@ if TYPE_CHECKING:
 # What a statement can be for: where money is held (a bank or cash account)
 # or owed (a card, a loan).
 _MONEY_TYPES = ("asset", "liability")
-
-# How far around an import's dates earlier imports are searched for the same
-# transactions: a bank's reference can come back with another date (pending,
-# then booked).
-_HISTORY_DAYS = 7
 
 
 def _slugify(label: str) -> str:
@@ -103,7 +101,8 @@ class ParsingService:
         return (await self._credentials.resolve(user_id)).anthropic or None
 
     async def _decide(self, user_id: str, rows: list[RawRow]) -> list[Rule | None]:
-        """The rule that decides each row, or None; each hit is counted."""
+        """The rule that decides each row, or None. Hits are counted once the
+        import is saved (`_count_hits`), so a refused import counts none."""
         if self._rules is None or not rows:
             return [None] * len(rows)
         return await self._rules.decide(
@@ -117,7 +116,12 @@ class ParsingService:
                 )
                 for r in rows
             ],
+            record=False,
         )
+
+    async def _count_hits(self, user_id: str, decided: list[Rule | None]) -> None:
+        if self._rules is not None and any(decided):
+            await self._rules.record_hits(user_id, decided)
 
     async def _money_account(self, user_id: str, account_id: str) -> Account:
         """The account a statement is for: one of the user's active asset or
@@ -142,6 +146,8 @@ class ParsingService:
         *,
         currency: str | None = None,
         account_id: str | None = None,
+        source_account: str | None = None,
+        replaces: str | None = None,
         date_order: DateOrder | None = None,
         csv_mapping: CsvMapping | None = None,
         api_key: Any = None,
@@ -161,6 +167,15 @@ class ParsingService:
         ambiguous, and `csv_mapping` states a CSV's layout instead of
         detecting it. Rows the importer could not read are listed in
         `errors`, and so are its guesses.
+
+        A file holding several accounts (a QIF with a card register, an OFX
+        with two statements) is imported one account at a time:
+        `source_account` names the file's account to import, when the
+        statement's account does not match one by name or code.
+
+        `replaces` is the id of an earlier import of the same statement, being
+        imported again on purpose: its rows are not taken for duplicates, and
+        those still waiting for review are discarded once this one is saved.
         """
         account = await self._money_account(user_id, account_id) if account_id else None
         if currency:
@@ -175,11 +190,18 @@ class ParsingService:
         else:
             async with self._uow_factory() as uow:
                 currency = await uow.user_profiles.base_currency(user_id)
+        if replaces is not None:
+            async with self._uow_factory() as uow:
+                if await uow.statements.get_statement(user_id, replaces) is None:
+                    raise ValueError(f"No statement {replaces!r} to replace")
 
-        raw_rows, errors = _extract(
-            filename, file_bytes, currency, date_order=date_order, csv_mapping=csv_mapping
+        # Reading a file is CPU work, kept off the event loop: a heavy PDF or
+        # workbook must not stall every other request this worker serves.
+        raw_rows, errors = await asyncio.to_thread(
+            _extract, filename, file_bytes, currency, date_order=date_order, csv_mapping=csv_mapping
         )
-        if not raw_rows:
+        raw_rows, refusal = _on_account(raw_rows, account, source_account, errors)
+        if refusal is not None or not raw_rows:
             return ParseResult(
                 statement_id="",
                 bank=bank,
@@ -187,19 +209,20 @@ class ParsingService:
                 period_end="",
                 errors=[
                     *errors,
-                    "No transactions found in the file. Check the format is supported",
+                    refusal or "No transactions found in the file. Check the format is supported",
                 ],
             )
-        return await self.import_rows(
+        return await self._import(
             user_id,
             raw_rows,
+            account=account,
             bank=bank,
-            account_id=account_id,
             errors=errors,
             filename=filename,
             file_bytes=file_bytes,
             api_key=api_key,
             email=email,
+            replaces=replaces,
         )
 
     async def import_rows(
@@ -232,12 +255,43 @@ class ParsingService:
         parse_statement), `errors` what the reading already had to say, and
         `file_bytes` (with its `filename`) the original, kept in storage when
         there is one. Rows from a feed carry the provider's transaction id as
-        their bank_ref.
+        their bank_ref, with `ref_kind="id"` and their feed as `ref_source`.
         """
-        from salli.adapters.parsing.llm_classifier import classify_transactions
+        account = await self._money_account(user_id, account_id) if account_id else None
+        return await self._import(
+            user_id,
+            rows,
+            account=account,
+            bank=bank,
+            errors=errors,
+            filename=filename,
+            file_bytes=file_bytes,
+            api_key=api_key,
+            email=email,
+            keep_duplicates=keep_duplicates,
+            on_usage_limit=on_usage_limit,
+        )
+
+    async def _import(
+        self,
+        user_id: str,
+        rows: list[RawRow],
+        *,
+        account: Account | None,
+        bank: str,
+        errors: list[str] | None,
+        filename: str | None,
+        file_bytes: bytes | None,
+        api_key: Any,
+        email: str | None,
+        keep_duplicates: bool = True,
+        on_usage_limit: Literal["raise", "skip"] = "raise",
+        replaces: str | None = None,
+    ) -> ParseResult:
+        """`import_rows` with the statement's account already resolved."""
+        from salli.adapters.parsing import llm_classifier
 
         errors = list(errors or [])
-        account = await self._money_account(user_id, account_id) if account_id else None
         kept = rows
         if account is not None:
             kept, skipped = _in_currency_of(account, rows)
@@ -253,11 +307,16 @@ class ParsingService:
 
         period_start = min(r.date for r in kept)
         period_end = max(r.date for r in kept)
+        money_id = account.id if account is not None else ""
 
         async with self._uow_factory() as uow:
             every_account = await uow.ledger.get_accounts(user_id, include_inactive=True)
             history = await uow.statements.imported_between(
-                user_id, _shift(period_start, -_HISTORY_DAYS), _shift(period_end, _HISTORY_DAYS)
+                user_id,
+                _shift(period_start, -REFERENCE_WINDOW_DAYS),
+                _shift(period_end, REFERENCE_WINDOW_DAYS),
+                account_id=money_id or None,
+                excluding_statement=replaces,
             )
             entries = await uow.ledger.get_entries(
                 user_id,
@@ -276,34 +335,42 @@ class ParsingService:
             )
 
         # Against earlier imports and the ledger, never against itself: two
-        # identical rows in one statement are two transactions.
+        # identical rows in one statement are two transactions. Each verdict
+        # is stamped on its row at once.
         candidates = [_candidate(r) for r in kept]
         verdicts = find_duplicates(
             candidates,
-            account_id=account.id if account is not None else "",
+            account_id=money_id,
             imported=[
                 Imported(
                     t.id, _candidate(t.raw), t.account_id, discarded=t.dedup_status == "discarded"
                 )
                 for t in history
-                # A statement imported again on purpose brings back what was
-                # discarded from it; a feed's overlap with its last sync must not.
-                if not keep_duplicates or t.dedup_status != "discarded"
             ],
             booked=booked_transactions(entries, every_account),
             money_accounts={a.id for a in every_account if a.type in _MONEY_TYPES},
         )
+        parsed: list[ParsedTransaction] = []
+        for row, candidate, verdict in zip(kept, candidates, verdicts, strict=True):
+            txn = ParsedTransaction(
+                raw=row,
+                debit_account_id="",
+                credit_account_id="",
+                account_id=money_id,
+                dedup_key=dedup_key(candidate),
+                dedup_status=_status(verdict.status),
+                duplicate_of=verdict.duplicate_of,
+            )
+            # The statement's account is the money side of every row.
+            if money_id:
+                _place(txn, money_id, money=True)
+            parsed.append(txn)
 
         dropped = 0
         if not keep_duplicates:
-            fresh = [
-                i for i, v in enumerate(verdicts) if v.status is not DedupStatus.EXACT_DUPLICATE
-            ]
-            dropped = len(kept) - len(fresh)
-            kept = [kept[i] for i in fresh]
-            candidates = [candidates[i] for i in fresh]
-            verdicts = [verdicts[i] for i in fresh]
-            if not kept:
+            fresh = [t for t in parsed if t.dedup_status != "exact_duplicate"]
+            dropped, parsed = len(parsed) - len(fresh), fresh
+            if not parsed:
                 return ParseResult(
                     statement_id="",
                     bank=bank,
@@ -314,69 +381,64 @@ class ParsingService:
                     duplicates_dropped=dropped,
                 )
 
-        # The statement's account is the money side of every row; an exact
-        # duplicate gets nothing more. It is booked already: it stays for
-        # review, but needs no other account, no rule and no model call.
-        money_id = account.id if account is not None else ""
-        parsed = [
-            ParsedTransaction(
-                raw=row, debit_account_id="", credit_account_id="", account_id=money_id
-            )
-            for row in kept
-        ]
-        if money_id:
-            for txn in parsed:
-                _place(txn, money_id, money=True)
-        live = [i for i, v in enumerate(verdicts) if v.status is not DedupStatus.EXACT_DUPLICATE]
+        # An exact duplicate is booked already: it stays for review, but needs
+        # no other account, no rule and no model call.
+        live = [t for t in parsed if t.dedup_status != "exact_duplicate"]
         valid = {a.id for a in accounts}
 
         # The user's rules first: what one decides is booked the same way every
         # time, and costs no model call.
-        for i, rule in zip(live, await self._decide(user_id, [kept[i] for i in live]), strict=True):
+        decided = await self._decide(user_id, [t.raw for t in live])
+        for txn, rule in zip(live, decided, strict=True):
             if rule is not None:
-                _apply(rule, parsed[i], valid)
+                _apply(rule, txn, valid)
 
         # The model, for the rows still missing an account, when there is a
         # key to ask it with. Without one the import still goes ahead.
-        undecided = [i for i in live if not _booked(parsed[i])]
+        undecided = [t for t in live if not _booked(t)]
         key = await self._key_for(user_id, api_key) if undecided else None
+        why_not = "" if key is not None or not undecided else "with no AI key set up"
         if key is not None and self._usage is not None:
             try:
                 await self._usage.charge(user_id, AIAction.STATEMENT_IMPORT, email=email)
             except UsageLimitReached as refused:
                 if on_usage_limit == "raise":
                     raise
-                key = None
+                key, why_not = None, "with the model not asked (usage limit)"
                 errors.append(f"The model was not asked: {refused}")
+        modelled: set[int] = set()
         if key is not None:
-            guesses = await classify_transactions(
-                [kept[i] for i in undecided], accounts, api_key=key, money_account=account
-            )
-            for i, guess in zip(undecided, guesses, strict=True):
-                _take(guess, parsed[i], valid)
-        missing = sum(1 for i in live if not _booked(parsed[i]))
-        if missing and key is None:
+            try:
+                guesses = await llm_classifier.classify_transactions(
+                    [t.raw for t in undecided], accounts, api_key=key, money_account=account
+                )
+            except Exception as failure:  # the provider's error, a timeout, a bad answer
+                # The rows stay undecided: an import, or a bank feed's sync,
+                # must not fail because the model did.
+                why_not = "with the model unreachable"
+                errors.append(
+                    f"The model could not be reached: {redact(type(failure).__name__)}"
+                    f" ({redact(str(failure))[:200]})"
+                )
+            else:
+                for txn, guess in zip(undecided, guesses, strict=True):
+                    _take(guess, txn, valid)
+                    modelled.add(id(txn))
+        missing = sum(1 for t in live if not _booked(t))
+        if missing and why_not:
             errors.append(
-                f"{missing} transaction(s) need an account: with no AI key set up, only your "
-                "rules sorted this statement"
+                f"{missing} transaction(s) need an account: {why_not}, only your rules "
+                "sorted this statement"
             )
         elif missing:
             errors.append(f"{missing} transaction(s) still need an account; choose one to post")
 
-        modelled: set[int] = set(undecided) if key is not None else set()
-        for i, (txn, candidate, verdict) in enumerate(
-            zip(parsed, candidates, verdicts, strict=True)
-        ):
-            txn.dedup_key = dedup_key(candidate)
-            txn.dedup_status = (
-                "pending" if verdict.status is DedupStatus.UNIQUE else verdict.status.value
-            )
-            txn.duplicate_of = verdict.duplicate_of
+        for txn in parsed:
             # Sure when the statement and a rule decided it, the model's
             # confidence when the model did, and nothing while a side is open.
-            if verdict.status is DedupStatus.EXACT_DUPLICATE or not _booked(txn):
+            if txn.dedup_status == "exact_duplicate" or not _booked(txn):
                 txn.confidence = 0.0
-            elif i not in modelled:
+            elif id(txn) not in modelled:
                 txn.confidence = 1.0
 
         statement_id = str(uuid.uuid4())
@@ -402,6 +464,9 @@ class ParsingService:
                 storage_key=storage_key,
                 account_id=account.id if account is not None else None,
             )
+            if replaces is not None:
+                await uow.statements.discard(user_id, replaces)
+        await self._count_hits(user_id, decided)
 
         return ParseResult(
             statement_id=statement_id,
@@ -458,7 +523,9 @@ class ParsingService:
 
         async with self._uow_factory() as uow:
             base = await uow.user_profiles.base_currency(user_id)
-            txns = await uow.statements.get_by_ids(user_id, list(approved_ids))
+            # Locked until this unit of work ends: a second approval of the
+            # same rows waits, then finds them posted.
+            txns = await uow.statements.get_by_ids(user_id, list(approved_ids), for_update=True)
             kinds = {
                 a.id: a.type for a in await uow.ledger.get_accounts(user_id, include_inactive=True)
             }
@@ -521,6 +588,48 @@ class ParsingService:
         return entry_ids
 
 
+def transaction_view(t: ParsedTransaction) -> dict[str, Any]:
+    """A parsed transaction as every surface shows it (the API's
+    StatementTransaction, `salli parse ... --json`): `description` is the
+    bank's text, `description_override` what it will be booked as."""
+    raw = t.raw
+    return {
+        "id": t.id,
+        "date": raw.date,
+        "description": raw.description,
+        # As the extractor read it, which can carry more or fewer decimals
+        # than the currency has; posting stores it at the currency's.
+        "amount": str(quantize(raw.amount, raw.currency, strict=False)),
+        "credit_flag": raw.credit_flag,
+        "bank_ref": raw.bank_ref,
+        "currency": raw.currency,
+        "account_id": t.account_id or None,
+        "debit_account_id": t.debit_account_id,
+        "credit_account_id": t.credit_account_id,
+        "category": t.category,
+        "need": t.need or None,
+        "rule_id": t.rule_id or None,
+        "description_override": t.description or None,
+        "confidence": t.confidence,
+        "dedup_status": t.dedup_status,
+        "duplicate_of": t.duplicate_of or None,
+    }
+
+
+def upload_view(result: ParseResult) -> dict[str, Any]:
+    """An import's result as every surface shows it (the API's StatementUpload)."""
+    return {
+        "statement_id": result.statement_id,
+        "bank": result.bank,
+        "period_start": result.period_start,
+        "period_end": result.period_end,
+        "total_rows": len(result.raw_rows),
+        "parsed": len(result.transactions),
+        "errors": result.errors,
+        "transactions": [transaction_view(t) for t in result.transactions],
+    }
+
+
 def _candidate(row: RawRow) -> Candidate:
     return Candidate(
         date=row.date,
@@ -529,7 +638,56 @@ def _candidate(row: RawRow) -> Candidate:
         money_in=row.credit_flag,
         description=row.description,
         bank_ref=row.bank_ref,
+        ref_kind="text" if row.ref_kind == "text" else "id",
+        source=row.ref_source,
     )
+
+
+def _status(status: DedupStatus) -> DedupState:
+    """How a verdict is kept on its row: a unique one waits for review."""
+    if status is DedupStatus.EXACT_DUPLICATE:
+        return "exact_duplicate"
+    if status is DedupStatus.FUZZY_MATCH:
+        return "fuzzy_match"
+    return "pending"
+
+
+def _on_account(
+    rows: list[RawRow], account: Account | None, source_account: str | None, errors: list[str]
+) -> tuple[list[RawRow], str | None]:
+    """The rows of a file to import on `account`, or why none can be.
+
+    A file holding one account's rows (most do) is imported as it is. One
+    holding several (a QIF's checking and card registers, two OFX
+    statements) is never flattened onto one account, where a card payment
+    would net to nothing: `source_account` names the file's account to take,
+    else the one whose name or number matches the statement's account; with
+    no statement account named the rows go in together, and the accounts
+    found are said."""
+    found = list(dict.fromkeys(r.source_account for r in rows if r.source_account))
+    if len(found) < 2:
+        return rows, None
+    listed = ", ".join(repr(a) for a in found)
+    wanted = source_account
+    if wanted is None and account is not None:
+        names = {account.name.casefold(), account.code.casefold()}
+        matching = [a for a in found if a.casefold() in names]
+        wanted = matching[0] if len(matching) == 1 else None
+    if wanted is None and account is None:
+        errors.append(
+            f"This file holds {len(found)} accounts ({listed}); they were imported together. "
+            "Import it once per account, naming the statement's account and the file's "
+            "(source account), to keep them apart"
+        )
+        return rows, None
+    if wanted is None or wanted not in found:
+        return [], (
+            f"This file holds {len(found)} accounts ({listed}), and "
+            + (f"none is {wanted!r}" if wanted else "Salli can't tell which one this is")
+            + ". Import it again naming the file's account to take (source account)"
+        )
+    errors.append(f"Imported the transactions on {wanted!r}; the file also holds others")
+    return [r for r in rows if r.source_account == wanted], None
 
 
 def _shift(day: str, days: int) -> str:

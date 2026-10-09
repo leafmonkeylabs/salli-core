@@ -16,7 +16,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Form, HTTPException, status
 from pydantic import BaseModel
 
-from salli.domain.currency import quantize
+from salli.application.services.parsing_service import transaction_view
 from salli.domain.parsing.models import ParsedTransaction
 from salli.interfaces.api.contract import Amount, CurrencyCode, FileUpload
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
@@ -125,6 +125,8 @@ async def upload_statement(
     bank: str = "",
     currency: str | None = None,
     account_id: str | None = None,
+    source_account: str | None = None,
+    replaces: str | None = None,
     date_order: Literal["DMY", "MDY", "YMD"] | None = None,
 ) -> StatementUpload:
     """
@@ -142,6 +144,13 @@ async def upload_statement(
     rate for its date. `date_order` settles dates a CSV or QIF file leaves
     ambiguous (01/02/2026). Rows that could not be read, and any guess the
     importer made, come back in `errors`.
+
+    A file holding several accounts (a QIF with a card register, an OFX with
+    two statements) is imported one account at a time: `source_account`
+    names the file's account to import when the statement's account does not
+    match one by name or code. `replaces` is an earlier upload of the same
+    statement, imported again on purpose: its rows are not taken for
+    duplicates, and those still in review are discarded.
     """
     file = form.file
     if file.filename is None:
@@ -160,6 +169,8 @@ async def upload_statement(
         bank=bank,
         currency=currency,
         account_id=account_id,
+        source_account=source_account,
+        replaces=replaces,
         date_order=date_order,
         email=email,
     )
@@ -240,25 +251,4 @@ async def discard(
 
 
 def _transaction(t: ParsedTransaction) -> StatementTransaction:
-    raw = t.raw
-    return StatementTransaction(
-        id=t.id,
-        date=raw.date,
-        description=raw.description,
-        # As the extractor read it, which can carry more or fewer decimals
-        # than the currency has; posting stores it at the currency's.
-        amount=str(quantize(raw.amount, raw.currency, strict=False)),
-        credit_flag=raw.credit_flag,
-        bank_ref=raw.bank_ref,
-        currency=raw.currency,
-        account_id=t.account_id or None,
-        debit_account_id=t.debit_account_id,
-        credit_account_id=t.credit_account_id,
-        category=t.category,
-        need=t.need or None,
-        rule_id=t.rule_id or None,
-        description_override=t.description or None,
-        confidence=t.confidence,
-        dedup_status=t.dedup_status,
-        duplicate_of=t.duplicate_of or None,
-    )
+    return StatementTransaction.model_validate(transaction_view(t))
