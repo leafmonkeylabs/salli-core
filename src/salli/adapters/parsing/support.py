@@ -43,7 +43,7 @@ def decode_text(data: bytes) -> str:
     which accepts any byte, so reading never fails outright.
     """
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return data.decode("utf-16")
+        return data.decode("utf-16", errors="replace")
     for encoding in ("utf-8-sig", "cp1252"):
         try:
             return data.decode(encoding)

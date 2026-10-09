@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections import Counter
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
-from salli.domain.currency import normalize_currency
+from salli.domain.currency import UnknownCurrencyError, normalize_currency
 from salli.domain.dedup.matcher import (
     CandidateTransaction,
     DedupStatus,
@@ -32,6 +33,11 @@ from salli.domain.dedup.matcher import (
 )
 from salli.domain.money import to_minor
 from salli.domain.parsing.models import ParsedTransaction, ParseResult, RawRow
+
+if TYPE_CHECKING:
+    from salli.adapters.parsing.csv_import import CsvMapping
+    from salli.adapters.parsing.dates import DateOrder
+    from salli.adapters.parsing.support import Extraction
 
 
 def _slugify(label: str) -> str:
@@ -77,14 +83,20 @@ class ParsingService:
         bank: str = "",
         *,
         currency: str | None = None,
+        date_order: DateOrder | None = None,
+        csv_mapping: CsvMapping | None = None,
         api_key: Any = None,
     ) -> ParseResult:
         """
         Parse a bank statement file and store the extracted transactions.
         Returns a ParseResult — caller should display pending transactions for review.
 
-        `currency` is the statement's (a statement never mixes currencies); it
-        defaults to the user's base currency.
+        `currency` is the statement's, for the rows of a file that does not
+        name its own (OFX, camt.053 and MT940 always do; a CSV may); it
+        defaults to the user's base currency. `date_order` ("DMY", "MDY" or
+        "YMD") settles dates a QIF or CSV file leaves ambiguous, and
+        `csv_mapping` states a CSV's layout instead of detecting it. Rows the
+        importer could not read are listed in `errors`, and so are its guesses.
         """
         from salli.adapters.parsing.llm_classifier import classify_transactions
 
@@ -95,14 +107,19 @@ class ParsingService:
                 currency = await uow.user_profiles.base_currency(user_id)
 
         # 1. Extract raw rows
-        raw_rows = _extract(filename, file_bytes, currency)
+        raw_rows, errors = _extract(
+            filename, file_bytes, currency, date_order=date_order, csv_mapping=csv_mapping
+        )
         if not raw_rows:
             return ParseResult(
                 statement_id="",
                 bank=bank,
                 period_start="",
                 period_end="",
-                errors=["No transactions found in the file. Check the format is supported"],
+                errors=[
+                    *errors,
+                    "No transactions found in the file. Check the format is supported",
+                ],
             )
 
         period_start = min(r.date for r in raw_rows)
@@ -141,7 +158,7 @@ class ParsingService:
                 period_start=period_start,
                 period_end=period_end,
                 raw_rows=raw_rows,
-                errors=["No accounts found. Create a chart of accounts first"],
+                errors=[*errors, "No accounts found. Create a chart of accounts first"],
             )
 
         # 4. LLM classifies transactions
@@ -206,6 +223,7 @@ class ParsingService:
             period_end=period_end,
             transactions=parsed,
             raw_rows=raw_rows,
+            errors=errors,
         )
 
     async def list_statements(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
@@ -287,44 +305,152 @@ class ParsingService:
 
 # ── Format detection ───────────────────────────────────────────────────────────
 
+_FORMAT_BY_EXTENSION = {
+    "pdf": "pdf",
+    "xlsx": "xlsx",
+    "xls": "xlsx",
+    "ofx": "ofx",
+    "qfx": "ofx",
+    "qif": "qif",
+    "xml": "camt053",
+    "sta": "mt940",
+    "940": "mt940",
+    "mt940": "mt940",
+    "csv": "csv",
+    "tsv": "csv",
+    "txt": "csv",
+}
 
-def _extract(filename: str, data: bytes, currency: str) -> list[RawRow]:
+
+def _statement_format(filename: str, data: bytes) -> str | None:
+    """Which importer reads this file.
+
+    What a file holds says what it is more reliably than its name: banks
+    save MT940 as .txt and OFX as .xml, and a download can lose its
+    extension. So distinctive content decides first, and the extension only
+    when there is none — as there never is in a CSV.
+    """
+    from salli.adapters.parsing.support import decode_text
+
+    if data.startswith(b"%PDF"):
+        return "pdf"
+    if data.startswith(b"PK"):  # a ZIP archive, which is what an .xlsx is
+        return "xlsx"
+    head = decode_text(data[:8192])
+    if re.search(r"OFXHEADER\s*:|<OFX[\s>]", head, re.I):
+        return "ofx"
+    if re.search(r"^\s*!Type\s*:", head, re.I | re.M):
+        return "qif"
+    if "<Document" in head and ("camt.053" in head or "BkToCstmrStmt" in head):
+        return "camt053"
+    if re.search(r"(?:^|\{4:)\s*:20:", head, re.M) and re.search(r"^:61:", head, re.M):
+        return "mt940"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext in _FORMAT_BY_EXTENSION:
+        return _FORMAT_BY_EXTENSION[ext]
+    # Nothing distinctive and no telling extension: text can still be a CSV.
+    return "csv" if b"\x00" not in data[:8192] else None
 
-    if ext == "pdf":
-        from salli.adapters.parsing.pdf_extractor import extract_from_pdf
 
-        raw = extract_from_pdf(data)
-    elif ext in ("xlsx", "xls"):
-        from salli.adapters.parsing.excel_extractor import extract_from_excel
+def _extract(
+    filename: str,
+    data: bytes,
+    currency: str,
+    *,
+    date_order: DateOrder | None = None,
+    csv_mapping: CsvMapping | None = None,
+) -> tuple[list[RawRow], list[str]]:
+    """The file's transactions as RawRows, and what could not be read.
 
-        raw = extract_from_excel(data)
-    elif ext == "csv":
-        from salli.adapters.parsing.excel_extractor import extract_from_csv
+    Numbers come from deterministic importers only, never the LLM.
+    """
+    from salli.adapters.parsing.support import Extraction, StatementLine
 
-        raw = extract_from_csv(data)
-    else:
-        # Sniff by magic bytes
-        if data[:4] == b"%PDF":
+    kind = _statement_format(filename, data)
+    if kind in ("pdf", "xlsx"):
+        if kind == "pdf":
             from salli.adapters.parsing.pdf_extractor import extract_from_pdf
 
             raw = extract_from_pdf(data)
-        elif data[:2] in (b"PK", b"\x50\x4b"):  # ZIP = XLSX
+        else:
             from salli.adapters.parsing.excel_extractor import extract_from_excel
 
             raw = extract_from_excel(data)
-        else:
-            return []
-
-    return [
-        RawRow(
-            date=r["date"],
-            description=r["description"],
-            amount=r["amount"],
-            credit_flag=r["credit_flag"],
-            currency=currency,
-            bank_ref=r.get("bank_ref", ""),
-            source_page=r.get("page", 0),
+        extraction = Extraction(
+            lines=[
+                StatementLine(
+                    date=r["date"],
+                    description=r["description"],
+                    amount=r["amount"],
+                    credit_flag=r["credit_flag"],
+                    bank_ref=r.get("bank_ref", ""),
+                    source_page=r.get("page", 0),
+                )
+                for r in raw
+            ]
         )
-        for r in raw
-    ]
+    elif kind == "ofx":
+        from salli.adapters.parsing.ofx import extract_from_ofx
+
+        extraction = extract_from_ofx(data)
+    elif kind == "qif":
+        from salli.adapters.parsing.qif import extract_from_qif
+
+        extraction = extract_from_qif(data, date_order=date_order)
+    elif kind == "camt053":
+        from salli.adapters.parsing.camt053 import extract_from_camt053
+
+        extraction = extract_from_camt053(data)
+    elif kind == "mt940":
+        from salli.adapters.parsing.mt940 import extract_from_mt940
+
+        extraction = extract_from_mt940(data)
+    elif kind == "csv":
+        from salli.adapters.parsing.csv_import import extract_from_csv
+
+        extraction = extract_from_csv(data, csv_mapping, date_order=date_order)
+    else:
+        return [], [
+            "Salli can't read this file. It reads PDF, Excel (.xlsx), CSV, OFX/QFX, QIF, "
+            "camt.053 and MT940 statements"
+        ]
+    return _raw_rows(extraction, currency)
+
+
+def _raw_rows(extraction: Extraction, currency: str) -> tuple[list[RawRow], list[str]]:
+    """An importer's lines as RawRows, each in a currency Salli knows.
+
+    A line in a currency the file names is in that one; any other line is in
+    the statement's `currency`. A code that is not ISO 4217 skips its rows,
+    and says so, rather than booking them as something they are not.
+    """
+    errors = list(extraction.errors)
+    # The dedup matcher takes two rows with the same bank reference for one
+    # transaction. A reference repeated within a file is not one — a bank
+    # reusing an id, a cheque number on a payment and on its fee — and would
+    # silently drop real transactions, so it is left off those rows.
+    references = Counter(line.bank_ref for line in extraction.lines if line.bank_ref)
+    unknown: Counter[str] = Counter()
+    rows: list[RawRow] = []
+    for line in extraction.lines:
+        try:
+            code = normalize_currency(line.currency) if line.currency else currency
+        except UnknownCurrencyError:
+            unknown[line.currency or ""] += 1
+            continue
+        rows.append(
+            RawRow(
+                date=line.date,
+                description=line.description,
+                amount=line.amount,
+                credit_flag=line.credit_flag,
+                currency=code,
+                bank_ref=line.bank_ref if references[line.bank_ref] == 1 else "",
+                source_page=line.source_page,
+            )
+        )
+    for code, count in unknown.items():
+        errors.append(
+            f"Skipped {count} transaction(s) in {code!r}, which is not an ISO 4217 currency code"
+        )
+    return rows, errors

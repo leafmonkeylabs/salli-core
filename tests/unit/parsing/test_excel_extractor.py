@@ -1,6 +1,6 @@
 """
-Unit tests for the Excel/CSV extractor.
-Builds in-memory workbooks and CSV bytes — no real files needed.
+Unit tests for the Excel extractor.
+Builds in-memory workbooks — no real files needed.
 """
 
 import io
@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import openpyxl
 
-from salli.adapters.parsing.excel_extractor import extract_from_csv, extract_from_excel
+from salli.adapters.parsing.excel_extractor import extract_from_excel
 
 
 def _make_xlsx(rows: list[list]) -> bytes:
@@ -52,20 +52,6 @@ def test_extract_from_excel_skips_blank_rows():
         ]
     )
     rows = extract_from_excel(data)
-    assert len(rows) == 1
-
-
-def test_extract_from_csv_basic():
-    csv_bytes = b"Date,Description,Debit,Credit\n25/04/2025,Salary,,300000.00\n"
-    rows = extract_from_csv(csv_bytes)
-    assert len(rows) == 1
-    assert rows[0]["amount"] == Decimal("300000.00")
-    assert rows[0]["credit_flag"] is True
-
-
-def test_extract_from_csv_latin1():
-    csv_bytes = "Date,Description,Debit,Credit\n25/04/2025,Caf\xe9,,1500.00\n".encode("latin-1")
-    rows = extract_from_csv(csv_bytes)
     assert len(rows) == 1
 
 

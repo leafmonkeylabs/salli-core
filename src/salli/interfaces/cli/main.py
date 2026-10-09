@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import typer
+from rich.markup import escape
 from rich.table import Table
 
 from salli.interfaces.cli.setup import members_app, serve, setup
@@ -774,16 +775,27 @@ def tax_latest(year: str = typer.Option("2025/26", help="Year of assessment")):
 
 @parse_app.command("upload")
 def parse_upload(
-    file: str = typer.Argument(..., help="Path to bank statement (PDF, XLSX, or CSV)"),
+    file: str = typer.Argument(
+        ...,
+        help="Path to bank statement (PDF, XLSX, CSV, OFX/QFX, QIF, camt.053 or MT940)",
+    ),
     bank: str = typer.Option("unknown", "--bank", help="Bank name hint (e.g. 'ComBank', 'HNB')"),
     currency: str = typer.Option(
-        None, "--currency", help="ISO 4217 code of the statement (default: your base currency)"
+        None,
+        "--currency",
+        help="ISO 4217 code of the statement, if the file names none (default: your base currency)",
+    ),
+    date_order: str = typer.Option(
+        None,
+        "--date-order",
+        help="DMY, MDY or YMD: how to read dates a CSV or QIF file leaves ambiguous",
     ),
 ):
     """
     Parse a bank statement and queue transactions for review.
 
-    Runs PDF/XLSX/CSV extraction, deduplication, and LLM classification.
+    Reads PDF, XLSX, CSV, OFX/QFX, QIF, camt.053 and MT940 statements, then runs
+    deduplication and LLM classification.
     Prints a summary and prompts for immediate inline review.
     """
     import pathlib
@@ -793,6 +805,10 @@ def parse_upload(
     if not path.exists():
         console.print(f"[red]File not found:[/red] {file}")
         raise typer.Exit(1)
+    order = date_order.upper() if date_order else None
+    if order not in (None, "DMY", "MDY", "YMD"):
+        console.print("[red]--date-order must be DMY, MDY or YMD[/red]")
+        raise typer.Exit(1)
 
     data = path.read_bytes()
     filename = path.name
@@ -800,7 +816,9 @@ def parse_upload(
 
     console.print(f"[dim]Parsing {filename} …[/dim]")
     result = asyncio.run(
-        svc.parsing.parse_statement(user_id, filename, data, bank, currency=currency)
+        svc.parsing.parse_statement(
+            user_id, filename, data, bank, currency=currency, date_order=order
+        )
     )
     if emit(result):
         return
@@ -810,6 +828,9 @@ def parse_upload(
         f"({result.period_start} → {result.period_end}), "
         f"{len(result.errors)} error(s)\n"
     )
+    # Rows the importer skipped, and anything it had to guess.
+    for error in result.errors:
+        console.print(f"[yellow]{escape(error)}[/yellow]")
 
     if not result.transactions:
         console.print("[dim]No transactions found.[/dim]")

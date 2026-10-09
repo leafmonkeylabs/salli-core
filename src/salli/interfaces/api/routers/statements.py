@@ -1,7 +1,8 @@
 """
 Statement parsing router.
 
-POST /statements/upload     — upload a bank statement (PDF/XLSX/CSV), returns ParseResult
+POST /statements/upload     — upload a bank statement (PDF, XLSX, CSV, OFX/QFX, QIF, camt.053,
+                              MT940), returns ParseResult
 GET  /statements/            — statements uploaded so far, newest first
 GET  /statements/{id}       — fetch pending transactions for a statement
 POST /statements/{id}/post  — approve and post selected transactions as journal entries
@@ -9,7 +10,7 @@ POST /statements/{id}/post  — approve and post selected transactions as journa
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Form, HTTPException, status
 from pydantic import BaseModel
@@ -93,6 +94,7 @@ async def upload_statement(
     svc: AppServices,
     bank: str = "",
     currency: str | None = None,
+    date_order: Literal["DMY", "MDY", "YMD"] | None = None,
 ) -> StatementUpload:
     """
     Parse a bank statement file. Returns the statement_id and extracted transactions.
@@ -100,8 +102,11 @@ async def upload_statement(
     Passes the deployment's usage meter before any parsing starts.
 
     `currency` is the statement's ISO 4217 code (default: the user's base
-    currency). Posting a statement in another currency converts each
-    transaction at the published rate for its date.
+    currency), for files that do not name their own: OFX, camt.053 and MT940
+    always do, and a CSV may. Posting a statement in another currency converts
+    each transaction at the published rate for its date. `date_order` settles
+    dates a CSV or QIF file leaves ambiguous (01/02/2026). Rows that could not
+    be read, and any guess the importer made, come back in `errors`.
     """
     file = form.file
     if file.filename is None:
@@ -119,6 +124,7 @@ async def upload_statement(
         file_bytes=data,
         bank=bank,
         currency=currency,
+        date_order=date_order,
     )
 
     if result.errors and not result.transactions:

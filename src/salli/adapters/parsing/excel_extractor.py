@@ -1,16 +1,16 @@
 """
-Excel/CSV bank statement extractor using openpyxl.
+Excel bank statement extractor using openpyxl.
 
 Most Sri Lankan banks offer .xlsx exports from their internet banking.
 The extractor handles:
   - Single-sheet with header row (most common)
   - Multiple sheets (uses first sheet that looks like a statement)
-  - .csv files (treated as single-column Excel via csv module)
+
+CSV files have their own importer (csv_import.py).
 """
 
 from __future__ import annotations
 
-import csv
 import io
 from typing import Any
 
@@ -39,22 +39,6 @@ def extract_from_excel(data: bytes) -> list[dict[str, Any]]:
 
     wb.close()
     return []
-
-
-def extract_from_csv(data: bytes) -> list[dict[str, Any]]:
-    """Extract from CSV; tries UTF-8 then latin-1 encoding."""
-    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
-        try:
-            text = data.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        return []
-
-    reader = csv.reader(io.StringIO(text))
-    table = list(reader)
-    return _parse_raw_table(table, page=1)
 
 
 def _parse_sheet(sheet) -> list[dict[str, Any]]:
