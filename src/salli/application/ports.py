@@ -1192,6 +1192,22 @@ class UsageMeter(ABC):
     ) -> None: ...
 
 
+class ChatGPTPlanPolicy(ABC):
+    """Whether a user may power Salli's AI with their ChatGPT plan here.
+
+    OpenAI lets open-source and self-hosted apps offer ChatGPT plan usage;
+    a paid or remotely hosted product needs its approval first. Salli as
+    shipped allows it (application/defaults.py), subject to
+    `Settings.salli_chatgpt_plan_usage`; a hosted deployment's extension can
+    say no until it is approved, or yes for only some users while it is
+    being reviewed. Asked when a user connects their plan and on every
+    request that would use it.
+    """
+
+    @abstractmethod
+    async def allows(self, user_id: str) -> bool: ...
+
+
 class Surface(StrEnum):
     """A response whose depth an `EntitlementPolicy` may shape."""
 

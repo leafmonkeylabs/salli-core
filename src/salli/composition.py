@@ -6,12 +6,19 @@ Both the CLI (Phase 1) and FastAPI (Phase 2) wire up services here.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from salli.adapters.db.session import make_session_factory
 from salli.adapters.fx.chain import default_fx_rates
-from salli.application.ports import EntitlementPolicy, FxRatePort, StoragePort, UsageMeter
+from salli.application.ports import (
+    ChatGPTPlanPolicy,
+    EntitlementPolicy,
+    FxRatePort,
+    StoragePort,
+    UsageMeter,
+)
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
 from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
@@ -47,6 +54,9 @@ from salli.extensions import (
     combine,
     enabled_specs,
 )
+
+#: Whether a user may use their ChatGPT plan on this deployment.
+PlanAllowed = Callable[[str], Awaitable[bool]]
 
 
 @dataclass
@@ -116,8 +126,19 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         return UnitOfWork(session_factory, purgers)
 
     storage = _build_storage(settings)
-    chatgpt = _build_chatgpt(settings, uow_factory)
-    llm_credentials = _build_llm_credentials(settings, uow_factory, chatgpt)
+
+    # Whether a user may use their ChatGPT plan: the setting, then an enabled
+    # extension's policy (a hosted product needs OpenAI's approval first).
+    # Read at call time: extensions are built after the services that ask.
+    plan_policy: list[ChatGPTPlanPolicy] = []
+
+    async def plan_allowed(user_id: str) -> bool:
+        if not settings.salli_chatgpt_plan_usage:
+            return False
+        return not plan_policy or await plan_policy[0].allows(user_id)
+
+    chatgpt = _build_chatgpt(settings, uow_factory, plan_allowed)
+    llm_credentials = _build_llm_credentials(settings, uow_factory, chatgpt, plan_allowed)
 
     # Extensions are built before Salli's own services so their meter and policy
     # can be injected into them. Raises if an enabled extension is unavailable.
@@ -135,6 +156,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         )
     )
     purgers.extend(extensions.user_data_purgers)
+    plan_policy.append(extensions.chatgpt_plan)
 
     fx = default_fx_rates()
     ledger = LedgerService(uow_factory, fx=fx)
@@ -302,20 +324,27 @@ def _build_bank_connections(
     )
 
 
-def _build_chatgpt(settings: Settings, uow_factory) -> ChatGPTConnectionService:
+def _build_chatgpt(
+    settings: Settings, uow_factory, plan_allowed: PlanAllowed | None = None
+) -> ChatGPTConnectionService:
     """A user's ChatGPT plan: behind the same two gates as stored API keys
-    (see _build_llm_credentials), sealed with the same key ring."""
+    (see _build_llm_credentials), sealed with the same key ring, and only
+    where the deployment allows plan use."""
     from salli.adapters.crypto.keyring import KeyRing
 
     return ChatGPTConnectionService(
         uow_factory,
         KeyRing(settings.byok_encryption_keys),
         feature_enabled=auth_can_hold_secrets(settings),
+        plan_allowed=plan_allowed,
     )
 
 
 def _build_llm_credentials(
-    settings: Settings, uow_factory, chatgpt: ChatGPTConnectionService | None = None
+    settings: Settings,
+    uow_factory,
+    chatgpt: ChatGPTConnectionService | None = None,
+    plan_allowed: PlanAllowed | None = None,
 ) -> LlmCredentialService:
     """Always constructed; `available` decides whether users may supply keys.
 
@@ -347,6 +376,7 @@ def _build_llm_credentials(
         validator=validate_provider_key,
         feature_enabled=auth_is_real,
         chatgpt=chatgpt,
+        plan_allowed=plan_allowed,
     )
 
 

@@ -13,8 +13,9 @@ A spec has two halves, because they are needed at different times:
   FastAPI app or the `salli` CLI is created, before any service exists; their
   handlers reach services through the usual request/command plumbing.
 - `build(ctx)` — returns an `Extension` with the runtime parts: a `UsageMeter`,
-  an `EntitlementPolicy`, extra services, and purgers for its own per-user
-  tables. Called by `build_services`, before Salli's own services are built so
+  an `EntitlementPolicy`, a `ChatGPTPlanPolicy` (whether users may use their
+  ChatGPT plan: a hosted product needs OpenAI's approval first), extra
+  services, and purgers for its own per-user tables. Called by `build_services`, before Salli's own services are built so
   the meter and policy can be injected into them.
 
 Installing a package is not enough to activate it. Only the extensions named in
@@ -30,8 +31,8 @@ from dataclasses import dataclass, field
 from importlib.metadata import EntryPoint, entry_points
 from typing import Any, cast
 
-from salli.application.defaults import FullAccess, UnmeteredUsage
-from salli.application.ports import EntitlementPolicy, UsageMeter
+from salli.application.defaults import ChatGPTPlanAllowed, FullAccess, UnmeteredUsage
+from salli.application.ports import ChatGPTPlanPolicy, EntitlementPolicy, UsageMeter
 
 ENTRY_POINT_GROUP = "salli.extensions"
 
@@ -74,6 +75,8 @@ class Extension:
     name: str
     usage_meter: UsageMeter | None = None
     entitlements: EntitlementPolicy | None = None
+    #: Whether users may use their ChatGPT plan here (see ChatGPTPlanPolicy).
+    chatgpt_plan: ChatGPTPlanPolicy | None = None
     #: Extra services, reachable as `services.extensions.services[key]`.
     services: dict[str, Any] = field(default_factory=dict[str, Any])
     user_data_purgers: list[UserDataPurger] = field(default_factory=list[UserDataPurger])
@@ -107,6 +110,7 @@ class Contributions:
     user_data_purgers: list[UserDataPurger]
     user_data_exporters: list[UserDataExporter] = field(default_factory=list[UserDataExporter])
     names: tuple[str, ...] = ()
+    chatgpt_plan: ChatGPTPlanPolicy = field(default_factory=ChatGPTPlanAllowed)
 
 
 def parse_enabled(raw: str | None) -> list[str]:
@@ -184,6 +188,7 @@ def combine(extensions: list[Extension]) -> Contributions:
     extension — two would leave it ambiguous which one is in force."""
     meter: tuple[str, UsageMeter] | None = None
     policy: tuple[str, EntitlementPolicy] | None = None
+    plan: tuple[str, ChatGPTPlanPolicy] | None = None
     services: dict[str, Any] = {}
     purgers: list[UserDataPurger] = []
     exporters: list[UserDataExporter] = []
@@ -199,6 +204,12 @@ def combine(extensions: list[Extension]) -> Contributions:
                     f"Both {policy[0]!r} and {ext.name!r} provide an entitlement policy."
                 )
             policy = (ext.name, ext.entitlements)
+        if ext.chatgpt_plan is not None:
+            if plan is not None:
+                raise ExtensionError(
+                    f"Both {plan[0]!r} and {ext.name!r} decide who may use a ChatGPT plan."
+                )
+            plan = (ext.name, ext.chatgpt_plan)
         for key, service in ext.services.items():
             if key in services:
                 raise ExtensionError(f"Service {key!r} is provided by two extensions.")
@@ -213,4 +224,5 @@ def combine(extensions: list[Extension]) -> Contributions:
         user_data_purgers=purgers,
         user_data_exporters=exporters,
         names=tuple(ext.name for ext in extensions),
+        chatgpt_plan=plan[1] if plan else ChatGPTPlanAllowed(),
     )

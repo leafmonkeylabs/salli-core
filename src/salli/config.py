@@ -101,6 +101,13 @@ class Settings(BaseSettings):
     # installed stops startup rather than being skipped.
     salli_extensions: str = ""
 
+    # Whether users may power Salli's AI with their ChatGPT plan (Sign in with
+    # ChatGPT plan usage). OpenAI offers it to open-source and self-hosted apps
+    # such as Salli as shipped, so it is on for self-hosting. A paid or
+    # remotely hosted product needs OpenAI's approval first: it turns this off,
+    # or decides per user through its extension (ChatGPTPlanPolicy), until then.
+    salli_chatgpt_plan_usage: bool = True
+
     # The base currency a new account is given when nothing else says which —
     # `salli setup` asks, and onboarding can change it while the ledger is
     # still empty. Existing users keep theirs; this only applies to new ones.

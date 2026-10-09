@@ -30,7 +30,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -46,6 +46,7 @@ from salli.adapters.llm.chatgpt_oauth import (
 )
 from salli.domain.llm import (
     LLMError,
+    LLMNotEligible,
     LLMProviderUnavailable,
     LLMSignInRequired,
     chatgpt_usage_limit,
@@ -230,12 +231,17 @@ class ChatGPTConnectionService:
         oauth: ChatGPTOAuth | None = None,
         *,
         feature_enabled: bool = True,
+        plan_allowed: Callable[[str], Awaitable[bool]] | None = None,
         clock: Callable[[], dt.datetime] | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._keyring = keyring
         self._oauth = oauth or ChatGPTOAuth()
         self._feature_enabled = feature_enabled
+        # Whether this deployment lets a user use their ChatGPT plan: the
+        # setting, and an extension's ChatGPTPlanPolicy (a hosted product
+        # needs OpenAI's approval first).
+        self._plan_allowed = plan_allowed
         self._clock = clock or (lambda: dt.datetime.now(dt.UTC))
 
     @property
@@ -259,6 +265,17 @@ class ChatGPTConnectionService:
             return await uow.instance_settings.get_or_create(
                 HOST_ID_KEY, f"urn:uuid:{uuid.uuid4()}"
             )
+
+    async def allowed(self, user_id: str) -> bool:
+        """Whether this user may connect and use their ChatGPT plan here."""
+        if not self.available:
+            return False
+        return self._plan_allowed is None or await self._plan_allowed(user_id)
+
+    async def _require_allowed(self, user_id: str) -> None:
+        self._require_available()
+        if self._plan_allowed is not None and not await self._plan_allowed(user_id):
+            raise ChatGPTUnavailable("Using a ChatGPT plan is switched off on this Salli server.")
 
     def _require_available(self) -> None:
         if not self._feature_enabled:
@@ -331,7 +348,7 @@ class ChatGPTConnectionService:
         the issued client id (an identifier, needed to sign in again with the
         same registration), what was granted, and whether it needs the user."""
         out: dict[str, Any] = {
-            "available": self.available,
+            "available": await self.allowed(user_id),
             "status": "not_connected",
             "connected": False,
             "email": None,
@@ -349,7 +366,11 @@ class ChatGPTConnectionService:
         if row is None:
             return out
         out["status"] = row["status"]
-        out["detail"] = row["status_detail"]
+        out["detail"] = (
+            row["status_detail"]
+            if out["available"]
+            else "Using a ChatGPT plan is switched off on this Salli server."
+        )
         paused = row["paused_until"]
         if paused and paused > self._clock():
             out["paused_until"] = paused.isoformat()
@@ -425,6 +446,12 @@ class ChatGPTConnectionService:
         if not self.available:
             raise LLMSignInRequired(
                 "This Salli server can't use a ChatGPT plan right now.", provider=PROVIDER
+            )
+        if self._plan_allowed is not None and not await self._plan_allowed(user_id):
+            raise LLMNotEligible(
+                "Using a ChatGPT plan is switched off on this Salli server. Disconnect ChatGPT, "
+                "or choose another AI provider with `salli ai use`.",
+                provider=PROVIDER,
             )
         now = self._clock()
         async with self._uow_factory() as uow:
@@ -519,7 +546,7 @@ class ChatGPTConnectionService:
         before signs in again with its issued client id and the retained hints
         ("Later sign-ins reuse the saved client ID"); `new_account` registers
         afresh, for a different ChatGPT account."""
-        self._require_available()
+        await self._require_allowed(user_id)
         host_id = await self.host_id()
         if new_account:
             return SignInContext(host_id=host_id)
@@ -563,7 +590,7 @@ class ChatGPTConnectionService:
         token. A sign-in without plan use is kept as signed in with plan use
         off, as OpenAI's errors guide asks, and refused with a choice.
         """
-        self._require_available()
+        await self._require_allowed(user_id)
         if not client_id or client_id == DYNAMIC_CLIENT_ID:
             raise SignInError(
                 "The sign-in has no issued client id: `dynamic_agent_client` starts a "
