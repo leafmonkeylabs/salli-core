@@ -1,15 +1,27 @@
 # Salli
 
-Your own personal-finance platform — a double-entry ledger, budgets, debts,
-investments, insurance, subscriptions, reports, income tax and
-financial-independence planning, with an AI advisor that explains it all. Runs
-on your machine, on your own data, with your own LLM key.
+Your own personal-finance platform — a double-entry ledger, bank connections
+and statement imports, budgets, debts, investments, insurance, subscriptions,
+cash-flow forecasts, income tax and financial-independence planning, with an
+AI advisor that explains it all. Runs on your machine, on your own data, with
+the AI you already pay for.
 
 - **CLI-first.** Everything Salli does, `salli` does from the terminal, with
   `--json` on every command. The HTTP API and the MCP server are the same
   services over other transports.
 - **The LLM never does the maths.** Money and tax come from deterministic
   engines; the model parses documents, explains results and drafts advice.
+- **Your transactions come to you.** Connect banks through SimpleFIN and they
+  sync on a schedule, or import a statement in any common format (OFX, QIF,
+  camt.053, MT940, CSV, Excel, PDF). Nothing is booked until you review it,
+  and a transaction is never hidden or booked twice.
+- **See what's coming.** Cash flow, spending, net worth over time, the
+  recurring payments you may not be tracking, a forecast of your cash to its
+  lowest point, what is safe to spend before payday, and the signals that
+  need your attention: `salli insights`.
+- **Real investment tracking.** Transactions and lots, the prices you keep,
+  realised and unrealised gains, income, time-weighted and money-weighted
+  returns.
 - **Rules that learn.** Deterministic rules book imported and quick-added
   transactions before any model is asked, so a payee is booked the same way
   every time; `salli rules suggest` offers the rules your own bookkeeping
@@ -19,8 +31,12 @@ on your machine, on your own data, with your own LLM key.
 - **Your books, in plain text.** `salli export beancount` or `salli export hledger`
   writes every account and entry as a Beancount file or an hledger journal, so
   you can leave with your whole ledger at any time, or use Fava alongside.
-- **Works with your AI.** Connect Claude or ChatGPT over MCP, or let your own
-  agent drive the CLI with the bundled skills.
+- **Works with the AI you already have.** Connect Claude, Claude Code or
+  ChatGPT to Salli over MCP, so your subscription does the thinking and Salli
+  supplies the numbers ([docs/ai-clients.md](docs/ai-clients.md)). Salli's own
+  AI features run on your ChatGPT plan (`salli ai connect chatgpt`), an OpenAI
+  or Anthropic key, or no key at all: your rules still sort your statements.
+  Or let your own agent drive the CLI with the bundled skills.
 
 > **Not tax advice.** Salli estimates tax from your own records using each
 > tax pack's rules as we read them. No pack has yet been reviewed by a
