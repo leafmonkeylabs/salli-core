@@ -1452,7 +1452,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDocumentList"
+                }
               }
             }
           },
@@ -1498,7 +1500,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDocument"
+                }
               }
             }
           },
@@ -2218,7 +2222,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderList"
+                }
               }
             }
           },
@@ -2260,7 +2266,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -2307,7 +2315,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SeededReminders"
+                }
               }
             }
           },
@@ -2337,7 +2347,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SyncedAlerts"
+                }
               }
             }
           }
@@ -5910,6 +5922,131 @@
         ],
         "title": "AddEntryRequest"
       },
+      "AgentDocument": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "storage_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Key"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "title",
+          "content",
+          "storage_key",
+          "mime_type",
+          "tags",
+          "source",
+          "namespace",
+          "slug",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentDocument"
+      },
+      "AgentDocumentList": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentDocument"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents",
+          "count"
+        ],
+        "title": "AgentDocumentList"
+      },
       "AllocationRequest": {
         "properties": {
           "account_id": {
@@ -8039,6 +8176,104 @@
         ],
         "title": "RegisterClientRequest"
       },
+      "Reminder": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "due_date": {
+            "type": "string",
+            "title": "Due Date"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "alert_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Type"
+          },
+          "source_domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Domain"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "due_date",
+          "status",
+          "alert_type",
+          "source_domain",
+          "source_id",
+          "severity",
+          "created_at"
+        ],
+        "title": "Reminder",
+        "description": "Something due: a filing deadline, one the user set, or a detected alert."
+      },
+      "ReminderList": {
+        "properties": {
+          "reminders": {
+            "items": {
+              "$ref": "#/components/schemas/Reminder"
+            },
+            "type": "array",
+            "title": "Reminders"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reminders"
+        ],
+        "title": "ReminderList"
+      },
       "ResumeRequest": {
         "properties": {
           "thread_id": {
@@ -8142,6 +8377,27 @@
           "key"
         ],
         "title": "SaveKeyRequest"
+      },
+      "SeededReminders": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "ids"
+        ],
+        "title": "SeededReminders"
       },
       "SetPostingTagsRequest": {
         "properties": {
@@ -8455,6 +8711,27 @@
         },
         "type": "object",
         "title": "SubscriptionUpdateRequest"
+      },
+      "SyncedAlerts": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "counts",
+          "total"
+        ],
+        "title": "SyncedAlerts"
       },
       "Tag": {
         "properties": {

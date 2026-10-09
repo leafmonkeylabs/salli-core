@@ -63,13 +63,6 @@ def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
 #: get `unknown` for them. Typing one means deleting its line; nothing may be
 #: added. Grouped so work on different areas does not collide.
 UNTYPED = {
-    # Ledger, tax, statements, documents, reminders
-    "documents.get",
-    "documents.list",
-    "reminders.create",
-    "reminders.list",
-    "reminders.seedFilingCalendar",
-    "reminders.syncAlerts",
     # Planning: financial independence, goals, the advisor, reports
     "advisor.briefing.prepare",
     "advisor.briefing.resume",
