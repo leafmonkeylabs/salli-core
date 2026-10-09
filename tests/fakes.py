@@ -103,6 +103,7 @@ class FakeRecordsUoW:
         self.user_profiles = FakeProfiles(base_currency)
         self.ledger = FakeLedgerReader()
         self.budgets = FakeRecords()
+        self.debts = FakeRecords(is_active=True)
 
     async def __aenter__(self) -> FakeRecordsUoW:
         return self

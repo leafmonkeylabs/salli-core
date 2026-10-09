@@ -3607,7 +3607,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DebtList"
+                }
               }
             }
           },
@@ -3649,7 +3651,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -3708,7 +3712,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PayoffPlan"
+                }
               }
             }
           },
@@ -3753,7 +3759,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Debt"
+                }
               }
             }
           },
@@ -3806,7 +3814,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Updated"
+                }
               }
             }
           },
@@ -6602,6 +6612,90 @@
         ],
         "title": "DailyBriefingRequest"
       },
+      "Debt": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "principal": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Principal",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "apr": {
+            "type": "string",
+            "title": "Apr"
+          },
+          "minimum_payment": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Minimum Payment",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "currency",
+          "principal",
+          "apr",
+          "minimum_payment",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Debt"
+      },
+      "DebtList": {
+        "properties": {
+          "debts": {
+            "items": {
+              "$ref": "#/components/schemas/Debt"
+            },
+            "type": "array",
+            "title": "Debts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "debts"
+        ],
+        "title": "DebtList"
+      },
       "DebtRequest": {
         "properties": {
           "name": {
@@ -7699,6 +7793,122 @@
           "currency"
         ],
         "title": "ParsedEntryDraft"
+      },
+      "PayoffPlan": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "avalanche",
+              "snowball"
+            ],
+            "title": "Strategy"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "months_to_payoff": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months To Payoff"
+          },
+          "total_interest_paid": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Interest Paid",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "schedule": {
+            "items": {
+              "$ref": "#/components/schemas/PayoffScheduleEntry"
+            },
+            "type": "array",
+            "title": "Schedule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strategy",
+          "currency",
+          "months_to_payoff",
+          "total_interest_paid",
+          "schedule"
+        ],
+        "title": "PayoffPlan"
+      },
+      "PayoffScheduleEntry": {
+        "properties": {
+          "month": {
+            "type": "integer",
+            "title": "Month"
+          },
+          "debt_name": {
+            "type": "string",
+            "title": "Debt Name"
+          },
+          "payment": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Payment",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "principal_paid": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Principal Paid",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "interest_paid": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Interest Paid",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "remaining_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Remaining Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "debt_name",
+          "payment",
+          "principal_paid",
+          "interest_paid",
+          "remaining_balance"
+        ],
+        "title": "PayoffScheduleEntry",
+        "description": "What one debt is paid in one month of the plan."
       },
       "PendingStatementTransactions": {
         "properties": {
