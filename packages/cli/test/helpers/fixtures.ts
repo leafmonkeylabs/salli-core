@@ -204,7 +204,8 @@ export const STATEMENT_UPLOAD = {
       credit_account_id: uid(2),
       category: 'Groceries',
       confidence: 0.92,
-      dedup_status: 'unique',
+      // What the server says for a transaction that matched nothing.
+      dedup_status: 'pending',
     },
     {
       id: uid(902),

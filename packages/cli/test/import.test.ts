@@ -45,6 +45,17 @@ describe('salli import', () => {
     expect(result.stderr).toContain('Posted 1 of 3; 1 already in your ledger; 1 left pending (salli statements pending).');
   });
 
+  it('finds the ids to approve by among the pending transactions, unless the upload has them', async () => {
+    expect((await run(['import', statement, '--yes'])).code).toBe(0);
+    expect(mock.requestsTo('GET', `/v1/statements/${uid(801)}`)).toHaveLength(1);
+    await mock.close();
+
+    mock = await MockSalli.start({ uploadIds: true });
+    expect((await run(['import', statement, '--yes'])).code).toBe(0);
+    expect(mock.requestsTo('GET', '/v1/statements/')).toHaveLength(0);
+    expect(mock.data.posted).toEqual([[uid(901)]]);
+  });
+
   it('approves possible duplicates with --yes only when told to', async () => {
     const result = await run(['import', statement, '--yes', '--allow-possible-duplicates']);
     expect(result.code).toBe(0);

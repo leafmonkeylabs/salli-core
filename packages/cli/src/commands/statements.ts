@@ -40,9 +40,41 @@ const MAX_BYTES = 10 * 1024 * 1024;
 const isDuplicate = (t: Transaction): boolean =>
   t.dedup_status === 'exact_duplicate' || t.dedup_status === 'confirmed_duplicate';
 
-/** Unique, complete, and not a possible duplicate: safe to post unreviewed. */
+/**
+ * Not a duplicate, not a possible one, and complete: safe to post unreviewed.
+ * (The server says "pending" for a transaction that matched nothing, and may
+ * say "unique".)
+ */
 const isClean = (t: Transaction): boolean =>
-  !!t.id && t.dedup_status === 'unique' && !!t.debit_account_id && !!t.credit_account_id;
+  !!t.id && !isDuplicate(t) && t.dedup_status !== 'fuzzy_match' && !!t.debit_account_id && !!t.credit_account_id;
+
+/** What a statement transaction says, to recognise it in another listing. */
+const contentOf = (t: Transaction): string =>
+  JSON.stringify([t.date, t.description, t.amount, t.currency, t.credit_flag, t.bank_ref]);
+
+/**
+ * An upload's transactions, each with the id it is approved by.
+ *
+ * The server persists the transactions it read but answers the upload with
+ * their ids empty; the statement's pending transactions carry them, so each
+ * one is matched there by what it says. When the upload carries its ids,
+ * it is returned as it is, and this goes away once every server does.
+ */
+async function withIds(app: App, api: SalliClient, upload: StatementUpload): Promise<Transaction[]> {
+  if (upload.transactions.every((t) => t.id)) return upload.transactions;
+  const { transactions: pending } = await api.call(statementsPending, { path: { statement_id: upload.statement_id } });
+  const used = new Set<string>();
+  const matched = upload.transactions.flatMap((t) => {
+    if (t.id) return [t];
+    const match = pending.find((p) => !used.has(p.id) && contentOf(p) === contentOf(t));
+    if (!match) return [];
+    used.add(match.id);
+    return [{ ...t, id: match.id }];
+  });
+  const missing = upload.transactions.length - matched.length;
+  if (missing) app.out.warn(`${missing} transaction${missing === 1 ? '' : 's'} could not be found to approve; see \`salli statements pending\`.`);
+  return matched;
+}
 
 function transactionTable(app: App, book: AccountBook, list: readonly Transaction[]): string {
   const c = app.out.colors;
@@ -74,7 +106,7 @@ async function postApproved(
   api: SalliClient,
   statementId: string,
   approved: readonly Transaction[],
-  changed: ReadonlyMap<string, AccountChoice>,
+  changed: ReadonlyMap<Transaction, AccountChoice>,
 ): Promise<{ result: PostedStatementTransactions; corrections: Correction[] }> {
   const result = await api.call(statementsPost, {
     path: { statement_id: statementId },
@@ -84,7 +116,7 @@ async function postApproved(
   const corrections = await applyAccountChoices(
     app,
     api,
-    approved.filter((t) => changed.has(t.id)),
+    approved.filter((t) => changed.has(t)),
     changed,
   );
   return { result, corrections };
@@ -102,7 +134,7 @@ async function applyAccountChoices(
   app: App,
   api: SalliClient,
   toCorrect: readonly Transaction[],
-  changed: ReadonlyMap<string, AccountChoice>,
+  changed: ReadonlyMap<Transaction, AccountChoice>,
 ): Promise<Correction[]> {
   const corrections: Correction[] = [];
   if (toCorrect.length === 0) return corrections;
@@ -111,7 +143,7 @@ async function applyAccountChoices(
     query: { from_date: dates[0] as string, to_date: dates[dates.length - 1] as string },
   });
   for (const t of toCorrect) {
-    const accounts = changed.get(t.id);
+    const accounts = changed.get(t);
     if (!accounts) continue;
     const posted = entries.find((e) => e.external_ref === t.id && !e.reversed_by);
     if (!posted) {
@@ -150,12 +182,13 @@ async function review(
   app: App,
   book: AccountBook,
   transactions: Transaction[],
-): Promise<{ approved: Transaction[]; changed: Map<string, AccountChoice>; skipped: Transaction[] }> {
+): Promise<{ approved: Transaction[]; changed: Map<Transaction, AccountChoice>; skipped: Transaction[] }> {
   const out = app.out;
   const c = out.errColors;
   const approved: Transaction[] = [];
   const skipped: Transaction[] = [];
-  const changed = new Map<string, AccountChoice>();
+  // Keyed by the transaction itself, so a choice can never land on another.
+  const changed = new Map<Transaction, AccountChoice>();
   let approveRest = false;
 
   for (const [i, t] of transactions.entries()) {
@@ -171,12 +204,12 @@ async function review(
       continue;
     }
     for (;;) {
-      const accounts = changed.get(t.id) ?? { debit: t.debit_account_id ?? '', credit: t.credit_account_id ?? '' };
+      const accounts = changed.get(t) ?? { debit: t.debit_account_id ?? '', credit: t.credit_account_id ?? '' };
       out.info('');
       out.info(`${position} ${c.bold(displayDate(t.date, out.locale))}  ${c.bold(singleLine(t.description))}`);
       out.info(
         `      ${out.money(t.amount, t.currency)} ${t.credit_flag ? 'in' : 'out'} · from ${book.name(accounts.credit || null)} to ${book.name(accounts.debit || null)}` +
-          c.dim(` · ${out.percent(t.confidence, 0)} sure${changed.has(t.id) ? ' · changed' : ''}`),
+          c.dim(` · ${out.percent(t.confidence, 0)} sure${changed.has(t) ? ' · changed' : ''}`),
       );
       if (t.dedup_status === 'fuzzy_match') out.warn('      This looks like something already in your ledger.');
       const complete = !!accounts.debit && !!accounts.credit;
@@ -204,7 +237,7 @@ async function review(
           options: book.accounts.filter((a) => a.is_active).map((a) => ({ value: a.id, label: `${a.code} ${a.name}`, hint: a.type })),
           placeholder: 'Type to search',
         });
-        changed.set(t.id, { ...accounts, [side]: account });
+        changed.set(t, { ...accounts, [side]: account });
         continue;
       }
       if (choice === 'approve') approved.push(t);
@@ -261,12 +294,13 @@ Examples:
       }
       const book = await AccountBook.load(api);
       const out = app.out;
-      const transactions = parsed.transactions;
+      const read = parsed.transactions.length;
       const period = parsed.period_start ? ` for ${displayRange(parsed.period_start, parsed.period_end, out.locale)}` : '';
-      out.info(`Read ${transactions.length} transaction${transactions.length === 1 ? '' : 's'} from ${singleLine(parsed.bank || name)}${period}.`);
+      out.info(`Read ${read} transaction${read === 1 ? '' : 's'} from ${singleLine(parsed.bank || name)}${period}.`);
       for (const problem of parsed.errors) out.warn(singleLine(String(problem)));
+      const transactions = await withIds(app, api, parsed);
 
-      let decision: { approved: Transaction[]; changed: Map<string, AccountChoice>; skipped: Transaction[] };
+      let decision: { approved: Transaction[]; changed: Map<Transaction, AccountChoice>; skipped: Transaction[] };
       if (opts.yes) {
         const approve = (t: Transaction): boolean =>
           isClean(t) ||
@@ -277,8 +311,8 @@ Examples:
       } else {
         // No one to ask: leave everything pending, say how to finish.
         out.emit(parsed, {
-          records: (u) => u.transactions,
-          human: (u) => out.line(transactionTable(app, book, u.transactions)),
+          records: () => transactions,
+          human: () => out.line(transactionTable(app, book, transactions)),
         });
         out.note(
           `Nothing posted. Review in a terminal with \`salli statements pending\`, or post with \`salli statements post ${parsed.statement_id.slice(0, 8)} --all --yes\`.`,

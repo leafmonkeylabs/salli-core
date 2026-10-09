@@ -63,6 +63,8 @@ export interface MockOptions {
   consent?: boolean;
   /** The resource indicator for the REST API. Default: `<url>/v1`. */
   apiResource?: string;
+  /** Answer an upload with the transactions' ids (the server today sends them empty). */
+  uploadIds?: boolean;
 }
 
 type Reply = { status: number; body?: unknown; headers?: Record<string, string>; raw?: string };
@@ -698,7 +700,9 @@ export class MockSalli {
     // statements
     if (method === 'POST' && path === '/v1/statements/upload') {
       if (!(req.headers['content-type'] ?? '').startsWith('multipart/form-data')) return problem(422, 'Request validation failed', 'file required');
-      return { status: 202, body: clone(STATEMENT_UPLOAD) };
+      const upload = clone(STATEMENT_UPLOAD);
+      if (!this.options.uploadIds) for (const t of upload.transactions) t.id = '';
+      return { status: 202, body: upload };
     }
     if (method === 'GET' && path === '/v1/statements/') {
       return {
