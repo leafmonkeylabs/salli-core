@@ -10,6 +10,8 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
   Account,
+  BankConnection,
+  BankConnections,
   CashFlow,
   CashForecast,
   FinanceSignal,
@@ -163,6 +165,22 @@ export class MockSalli {
       { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
     ] as McpConnection[],
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
+    bankConnections: [
+      {
+        id: uid(1101),
+        provider: 'simplefin',
+        name: 'Acme Credit Union',
+        status: 'active',
+        last_error: null,
+        warnings: [],
+        last_synced_at: '2026-10-08T06:00:00Z',
+        created_at: '2026-09-01T09:00:00Z',
+        accounts: [
+          { remote_id: 'ACT-1', name: 'Everyday Checking', institution: 'Acme CU', currency: 'USD', balance: '12784.50', balance_date: '2026-10-08', account_id: uid(2) },
+          { remote_id: 'ACT-2', name: 'Rewards Visa', institution: 'Acme CU', currency: 'USD', balance: '-1200.00', balance_date: '2026-10-08', account_id: null },
+        ],
+      },
+    ] as BankConnection[],
     signals: [
       { kind: 'low_balance_ahead', severity: 'high', title: 'Checking runs short on Nov 2', detail: 'It is forecast to reach USD -370.00 before payday.', action: 'see_forecast', amount: '-370.00', currency: 'USD', date: '2026-11-02', refs: [uid(2)] },
       { kind: 'review_waiting', severity: 'info', title: '2 transactions to review', detail: 'From the statement imported on Oct 2.', action: 'review', amount: null, currency: null, date: null, refs: [uid(801)] },
@@ -695,6 +713,10 @@ export class MockSalli {
     }
     if (method === 'GET' && path === '/v1/advisor/reports/latest') return { status: 200, body: {} };
 
+    // bank connections
+    const banks = this.banksRoute(req);
+    if (banks) return banks;
+
     // insights
     if (method === 'GET' && path.startsWith('/v1/insights/')) {
       const insights = this.insights(path.slice('/v1/insights/'.length), req.query);
@@ -789,6 +811,55 @@ export class MockSalli {
     }
 
     return problem(404, 'Not Found', 'Not Found');
+  }
+
+  /** Bank connections: list, connect (a setup token), map, sync, disconnect. */
+  private banksRoute(req: RecordedRequest): Reply | undefined {
+    const { method, path } = req;
+    const connections = this.data.bankConnections;
+    if (path === '/v1/bank-connections' && method === 'GET') {
+      return { status: 200, body: { available: true, providers: ['simplefin'], connections } satisfies BankConnections };
+    }
+    if (path === '/v1/bank-connections' && method === 'POST') {
+      const input = req.json as { provider: string; setup_token: string; name?: string };
+      this.data.bodies.push({ method, path, body: input });
+      if (input.setup_token !== 'setup-token-ok') return problem(422, 'Unprocessable Entity', 'That setup token was not accepted.', '/problems/unprocessable');
+      const id = uid(1100 + connections.length);
+      connections.push({ id, provider: input.provider, name: input.name ?? 'Acme Credit Union', status: 'active', last_error: null, warnings: [], last_synced_at: null, created_at: '2026-10-09T10:00:00Z', accounts: [] });
+      return { status: 201, body: { id, warnings: ['Only 90 days of history are available.'] } };
+    }
+    let params = match('/v1/bank-connections/{id}/accounts/{remote}', path);
+    if (params && method === 'PUT') {
+      const connection = connections.find((c) => c.id === params?.id);
+      const account = connection?.accounts.find((a) => a.remote_id === params?.remote);
+      if (!account) return problem(404, 'Not Found', 'No such bank account', '/problems/not-found');
+      const body = req.json as { account_id?: string | null; create?: boolean };
+      this.data.bodies.push({ method, path, body });
+      account.account_id = body.create ? uid(1200) : (body.account_id ?? null);
+      return { status: 200, body: { remote_id: account.remote_id, account_id: account.account_id } };
+    }
+    params = match('/v1/bank-connections/{id}/sync', path);
+    if (params && method === 'POST') {
+      const connection = connections.find((c) => c.id === params?.id);
+      if (!connection) return problem(404, 'Not Found', 'No such connection', '/problems/not-found');
+      if (connection.status === 'error') return problem(422, 'Unprocessable Entity', 'The bank refused the credential.', '/problems/unprocessable');
+      return {
+        status: 200,
+        body: {
+          accounts: connection.accounts.filter((a) => a.account_id).map((a) => ({ remote_id: a.remote_id, name: a.name, statement_id: uid(802), queued: 3, duplicates: 1, notes: [] })),
+          unmapped: connection.accounts.filter((a) => !a.account_id).map((a) => a.name),
+          warnings: [],
+        },
+      };
+    }
+    params = match('/v1/bank-connections/{id}', path);
+    if (params && method === 'DELETE') {
+      const index = connections.findIndex((c) => c.id === params?.id);
+      if (index < 0) return problem(404, 'Not Found', 'No such connection', '/problems/not-found');
+      connections.splice(index, 1);
+      return { status: 204 };
+    }
+    return undefined;
   }
 
   /** The insights, as the server shapes them. */

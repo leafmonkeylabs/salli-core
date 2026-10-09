@@ -5,6 +5,7 @@ import { Command, type OutputConfiguration } from '@commander-js/extra-typings';
 import type { App } from './app';
 import { registerAccounts } from './commands/accounts';
 import { registerAuth } from './commands/auth';
+import { registerBanks } from './commands/banks';
 import { registerChat } from './commands/chat';
 import { registerCompletion } from './commands/completion';
 import { registerConfig } from './commands/config';
@@ -68,6 +69,7 @@ Start with:  salli login   then   salli status`,
   registerLedger(program, app);
   registerStatements(program, app);
   registerRules(program, app);
+  registerBanks(program, app);
 
   program.commandsGroup('Ask Salli:');
   registerChat(program, app);
