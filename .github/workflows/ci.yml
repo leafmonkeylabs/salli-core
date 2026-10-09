@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # Migration tests create and drop their own databases on this server.
+      SALLI_TEST_DATABASE_URL: postgresql+asyncpg://postgres:ci@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.12.18"
+      - run: uv sync --group dev --frozen
+      - name: Lint
+        run: |
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+      - name: Type-check the extension seam
+        # The rest of the codebase predates strict typing; these modules are
+        # held to it so the seam extensions build on stays precise.
+        run: >-
+          uv run pyright
+          src/salli/extensions.py src/salli/application/defaults.py
+          src/salli/domain/usage.py src/salli/migrations/support.py
+          src/salli/interfaces/cli/support.py
+      - name: Tests
+        # Includes the contract tests: every API route has a CLI command, and
+        # salli-core carries no billing vocabulary.
+        run: uv run pytest -q
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        env:
+          VERSION: 8.30.1
+          SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+          ./gitleaks git . --redact --no-banner
