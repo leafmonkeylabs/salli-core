@@ -10,6 +10,13 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
   Account,
+  HoldingLots,
+  HoldingTransaction,
+  HoldingTransactionList,
+  PerformanceFigures,
+  PortfolioPerformance,
+  RecordedPrice,
+  RecordedPriceList,
   BankConnection,
   BankConnections,
   CashFlow,
@@ -131,8 +138,16 @@ export class MockSalli {
         { id: uid(412), name: 'Car loan', currency: 'USD', principal: '8400.00', apr: '0.069', minimum_payment: '310.00', is_active: true, ...STAMPS },
       ],
       '/v1/portfolio/': [
-        { id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', is_active: true, ...STAMPS },
-        { id: uid(422), symbol: 'BND', name: 'Total Bond Market', asset_class: 'bond', currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', is_active: true, ...STAMPS },
+        {
+          id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', is_active: true, ...STAMPS,
+          tracking: 'transactions', unrealised_gain: '2250.40', native: { currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', unrealised_gain: '2250.40' },
+          quantity: '40', price: { date: '2026-10-08', close: '281.26', per_unit: '281.26', source: 'user' }, fx_rate: '1', priced: true, converted: true, notes: [],
+        },
+        {
+          id: uid(422), symbol: 'BND', name: 'Total Bond Market', asset_class: 'bond', currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', is_active: true, ...STAMPS,
+          tracking: 'declared', unrealised_gain: '-109.90', native: { currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', unrealised_gain: '-109.90' },
+          quantity: null, price: null, fx_rate: null, priced: null, converted: null, notes: [],
+        },
       ],
       '/v1/subscriptions/': [
         { id: uid(431), name: 'Streaming', amount: '15.99', currency: 'USD', frequency: 'monthly', next_due_date: '2026-10-20', account_id: null, grace_days: 5, amount_tolerance_pct: '0.05', is_active: true, ...STAMPS },
@@ -165,6 +180,15 @@ export class MockSalli {
       { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
     ] as McpConnection[],
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
+    prices: [
+      { id: uid(1301), symbol: 'VTI', date: '2026-10-08', close: '281.26', currency: 'USD', source: 'user', created_at: '2026-10-08T18:00:00Z', updated_at: '2026-10-08T18:00:00Z' },
+    ] as RecordedPrice[],
+    holdingTransactions: [
+      {
+        id: uid(1401), holding_id: uid(421), kind: 'buy', date: '2025-03-01', currency: 'USD', quantity: '45', price: '200.00', fees: '0.00', amount: null,
+        withholding_tax: '0.00', ratio: null, lots: [], fx_rate: '1', fx_rate_source: 'user', total: '9000.00', note: null, created_at: '2025-03-01T10:00:00Z', updated_at: '2025-03-01T10:00:00Z',
+      },
+    ] as HoldingTransaction[],
     bankConnections: [
       {
         id: uid(1101),
@@ -527,6 +551,8 @@ export class MockSalli {
     }
 
     // Collections: list, get, create, update, delete.
+    const investments = this.investmentsRoute(req);
+    if (investments) return investments;
     const collection = this.collectionRoute(req);
     if (collection) return collection;
 
@@ -811,6 +837,74 @@ export class MockSalli {
     }
 
     return problem(404, 'Not Found', 'Not Found');
+  }
+
+  /** Portfolio transactions, lots, prices and performance. */
+  private investmentsRoute(req: RecordedRequest): Reply | undefined {
+    const { method, path } = req;
+    const figures = (currency: string): PerformanceFigures => ({
+      currency, opening_value: '10000.00', opening_cost: '9000.00', opening_unrealised_gain: '1000.00', closing_value: '11250.40', closing_cost: '9000.00',
+      unrealised_gain: '2250.40', realised_gain: '120.00', dividends: '180.00', interest: '0.00', withholding_tax: '27.00', net_income: '153.00',
+      paid_in: '0.00', taken_out: '0.00', total_return: '1523.40', twr: '0.1523', twr_annualised: '0.1980', xirr: '0.1874',
+    });
+    if (method === 'GET' && (path === '/v1/portfolio/performance' || /^\/v1\/portfolio\/[^/]+\/performance$/.test(path))) {
+      this.data.bodies.push({ method, path, body: Object.fromEntries(req.query) });
+      const body: PortfolioPerformance = {
+        start: req.query.get('from_date') ?? '2026-01-01', end: req.query.get('to_date') ?? '2026-10-09', days: 282, base_currency: 'USD',
+        portfolio: figures('USD'),
+        holdings: [{ holding_id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', is_active: true, native: figures('USD'), base: figures('USD'), notes: [] }],
+        notes: ['BND is declared, so it has no returns.'],
+      };
+      return { status: 200, body };
+    }
+    if (method === 'GET' && path === '/v1/portfolio/prices') {
+      return { status: 200, body: { prices: this.data.prices } satisfies RecordedPriceList };
+    }
+    if (method === 'POST' && path === '/v1/portfolio/prices') {
+      this.data.bodies.push({ method, path, body: req.json });
+      return { status: 201, body: { id: uid(1301) } };
+    }
+    let params = match('/v1/portfolio/prices/{id}', path);
+    if (params && method === 'DELETE') {
+      const index = this.data.prices.findIndex((p) => p.id === params?.id);
+      if (index < 0) return problem(404, 'Not Found', 'No such price', '/problems/not-found');
+      this.data.prices.splice(index, 1);
+      return { status: 204 };
+    }
+    params = match('/v1/portfolio/{holding}/lots', path);
+    if (params && method === 'GET') {
+      const body: HoldingLots = {
+        holding_id: params.holding ?? "", currency: 'USD', base_currency: 'USD', quantity: '40', cost: '9000.00', cost_base: '9000.00',
+        lots: [
+          { id: uid(1401), kind: 'buy', opened_on: '2025-03-01', opened_quantity: '45', quantity: '40', cost: '9000.00', cost_base: '9000.00', cost_per_unit: '225.00', is_open: true },
+        ],
+        sales: [
+          { transaction_id: uid(1402), date: '2026-05-01', quantity: '5', proceeds: '1245.00', fees: '1.00', cost: '1125.00', gain: '120.00', fx_rate: '1', proceeds_base: '1245.00', fees_base: '1.00', cost_base: '1125.00', gain_base: '120.00', consumed: [] },
+        ],
+      };
+      return { status: 200, body };
+    }
+    params = match('/v1/portfolio/{holding}/transactions', path);
+    if (params && method === 'GET') return { status: 200, body: { transactions: this.data.holdingTransactions } satisfies HoldingTransactionList };
+    if (params && method === 'POST') {
+      this.data.bodies.push({ method, path, body: req.json });
+      return { status: 201, body: { id: uid(1403) } };
+    }
+    params = match('/v1/portfolio/{holding}/transactions/{id}', path);
+    if (params) {
+      const txn = this.data.holdingTransactions.find((t) => t.id === params?.id);
+      if (!txn) return problem(404, 'Not Found', 'No such transaction', '/problems/not-found');
+      if (method === 'GET') return { status: 200, body: txn };
+      if (method === 'PATCH') {
+        this.data.bodies.push({ method, path, body: req.json });
+        return { status: 200, body: { updated: true } };
+      }
+      if (method === 'DELETE') {
+        this.data.holdingTransactions.splice(this.data.holdingTransactions.indexOf(txn), 1);
+        return { status: 204 };
+      }
+    }
+    return undefined;
   }
 
   /** Bank connections: list, connect (a setup token), map, sync, disconnect. */

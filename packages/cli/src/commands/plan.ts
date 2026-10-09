@@ -42,7 +42,6 @@ import {
   type Budget,
   type BudgetSummaryLine,
   type Debt,
-  type Holding,
   type InsurancePolicy,
   type SalliClient,
   type Subscription,
@@ -53,6 +52,7 @@ import { UsageError } from '../errors';
 import { plural, singleLine } from '../output/text';
 import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
+import { registerInvestments, resolveHolding } from './investments';
 import { renderRecord } from './records';
 import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, countArg, rateArg } from './shared';
 
@@ -374,9 +374,12 @@ function registerDebts(program: Command, app: App): void {
 // ── Investments ──────────────────────────────────────────────────────────────
 
 function registerPortfolio(program: Command, app: App): void {
-  program
+  const portfolio = program
     .command('portfolio')
-    .description('Your investments: value, gain, allocation and rebalancing (holdings: `salli holdings`)')
+    .description('Your investments: value and allocation, transactions, lots, prices and performance (holdings: `salli holdings`)');
+  portfolio
+    .command('summary', { isDefault: true })
+    .description('Value, gain, allocation and rebalancing')
     .option('--target <class:fraction>', 'A target allocation, e.g. equity:0.6 (repeatable) for rebalancing alerts', collect)
     .action(async (opts) => {
       for (const t of opts.target ?? []) {
@@ -423,9 +426,9 @@ function registerPortfolio(program: Command, app: App): void {
       });
     });
 
+  registerInvestments(portfolio, app);
+
   const holdings = program.command('holdings').alias('holding').description('Investment holdings you track (values as you last entered them)');
-  const resolveHolding = async (api: SalliClient, query: string): Promise<Holding> =>
-    resolveById((await api.call(holdingsList, { query: { active_only: false } })).holdings, query, 'holding');
 
   holdings
     .command('list')
@@ -446,6 +449,7 @@ function registerPortfolio(program: Command, app: App): void {
               { header: 'SYMBOL', get: (h) => h.symbol },
               { header: 'NAME', get: (h) => h.name, shrink: true },
               { header: 'CLASS', get: (h) => h.asset_class },
+              { header: 'QUANTITY', get: (h) => h.quantity ?? '', align: 'right' },
               { header: 'INVESTED', get: (h) => app.out.money(h.cost_basis, h.currency), align: 'right' },
               { header: 'VALUE', get: (h) => app.out.money(h.current_value, h.currency), align: 'right' },
             ]),

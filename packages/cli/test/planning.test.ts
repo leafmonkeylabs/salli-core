@@ -129,9 +129,9 @@ describe('investments, subscriptions and insurance', () => {
 
   it('lists holdings, subscriptions and policies', async () => {
     expect((await run(['holdings', 'list'])).stdout).toMatchInlineSnapshot(`
-      "ID        SYMBOL  NAME                CLASS       INVESTED          VALUE
-      000001a5  VTI     Total Stock Market  equity  USD 9,000.00  USD 11,250.40
-      000001a6  BND     Total Bond Market   bond    USD 3,000.00   USD 2,890.10
+      "ID        SYMBOL  NAME                CLASS   QUANTITY      INVESTED          VALUE
+      000001a5  VTI     Total Stock Market  equity        40  USD 9,000.00  USD 11,250.40
+      000001a6  BND     Total Bond Market   bond              USD 3,000.00   USD 2,890.10
       "
     `);
     expect((await run(['subscriptions', 'list'])).stdout).toMatchInlineSnapshot(`
