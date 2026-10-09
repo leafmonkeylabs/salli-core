@@ -12,6 +12,7 @@ import { registerDoctor } from './commands/doctor';
 import { registerEntries } from './commands/entries';
 import { registerLedger } from './commands/ledger';
 import { registerQuickAdd } from './commands/quickadd';
+import { registerStatements } from './commands/statements';
 import { registerStatus } from './commands/status';
 import { OUTPUT_FORMATS } from './config/config';
 import { VERSION } from './version';
@@ -57,6 +58,7 @@ Start with:  salli login   then   salli status`,
   registerAccounts(program, app);
   registerEntries(program, app);
   registerLedger(program, app);
+  registerStatements(program, app);
 
   program.commandsGroup('Settings:');
   registerContext(program, app);
