@@ -27,16 +27,29 @@ where it does the most:
 - **Tax:** one pack so far, Sri Lanka 2025/26 (APIT, AIT and foreign service
   income included). Packs for other countries are welcome — see
   [CONTRIBUTING.md](CONTRIBUTING.md#tax-packs).
-- **Currency:** the ledger's base currency is LKR, and can't be changed yet.
-  Accounts in other currencies are converted to it with the built-in
-  exchange-rate feed.
 - **Imports:** statement import was built against Sri Lankan banks' PDF and
   Excel exports; other banks' exports may need work.
 - **Financial independence:** the default assumptions, such as 5% long-run
   inflation, were chosen for Sri Lanka.
 
-Budgets, debts, investments, insurance, subscriptions and reports follow no
-country's rules, but for now they all report in LKR.
+Everything else — the ledger, budgets, debts, investments, insurance,
+subscriptions and reports — follows no country's rules.
+
+### Currencies
+
+Your ledger is kept in one **base currency** — any ISO 4217 currency, chosen
+when you set up (`salli setup` asks) and fixed once you have entries. Amounts
+are kept at your currency's own precision: no decimals for yen, three for
+Kuwaiti dinar.
+
+Accounts can be held in other currencies. An amount in another currency carries
+the exchange rate into your base currency: the one your bank used, if you give
+it (`--fx-rate`, or `fx_rate` in the API), or else the published rate for the
+entry's date — [ECB reference rates](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html)
+through [Frankfurter](https://frankfurter.dev), and
+[Rates By Exchange Rate API](https://www.exchangerate-api.com) for today's rate
+in currencies the ECB does not publish. Every posting records which. When
+there is no rate, Salli asks for one rather than guessing.
 
 ## Quickstart (about 10 minutes)
 
@@ -54,7 +67,8 @@ uv run salli setup
 `supabase start` runs Postgres and Auth locally (the `-x` list skips the parts
 Salli doesn't use, which keeps the first download small). `salli setup` writes
 `.env`, migrates the database, creates your account, and seeds a starter chart
-of accounts. It asks for your email, a password, and optionally an
+of accounts. It asks for your email, a password, the currency you keep your
+money in, and optionally an
 [Anthropic API key](https://console.anthropic.com/) — without one, everything
 except the AI features works.
 
