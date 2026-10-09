@@ -5104,7 +5104,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/McpConnections"
+                }
               }
             }
           }
@@ -5168,7 +5170,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/McpEnabled"
+                }
               }
             }
           }
@@ -8648,6 +8652,69 @@
         ],
         "title": "LlmKeys",
         "description": "The user's own keys, as far as they are ever shown: the key itself is write-only."
+      },
+      "McpConnection": {
+        "properties": {
+          "token_id": {
+            "type": "string",
+            "title": "Token Id"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "client_name": {
+            "type": "string",
+            "title": "Client Name"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "connected_at": {
+            "type": "string",
+            "title": "Connected At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token_id",
+          "client_id",
+          "client_name",
+          "scope",
+          "connected_at"
+        ],
+        "title": "McpConnection",
+        "description": "An AI client connected over MCP: one live access token."
+      },
+      "McpConnections": {
+        "properties": {
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/McpConnection"
+            },
+            "type": "array",
+            "title": "Connections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connections"
+        ],
+        "title": "McpConnections"
+      },
+      "McpEnabled": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "McpEnabled"
       },
       "McpEnabledRequest": {
         "properties": {
