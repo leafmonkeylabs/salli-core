@@ -23,6 +23,8 @@ from salli.adapters.db.models import (
     AgentDocumentORM,
     AgentSessionORM,
     AuditLogORM,
+    BankConnectionAccountORM,
+    BankConnectionORM,
     BudgetORM,
     CategorizationRuleORM,
     DebtORM,
@@ -57,6 +59,7 @@ from salli.application.ports import (
     AgentDocumentRepository,
     AgentSessionRepository,
     AuditLogRepository,
+    BankConnectionRepository,
     BudgetRepository,
     DataPortabilityRepository,
     DebtRepository,
@@ -73,6 +76,7 @@ from salli.application.ports import (
     PortfolioRepository,
     RecurringSubscriptionRepository,
     ReminderRepository,
+    RemoteAccount,
     RuleRepository,
     StatementRepository,
     TaxComputationRepository,
@@ -86,6 +90,7 @@ from salli.domain.accounting.models import (
     StoredJournalEntry,
     Tag,
 )
+from salli.domain.currency import is_currency
 from salli.domain.money import from_minor, to_minor
 from salli.domain.tax.models import TaxComputation
 
@@ -2189,6 +2194,8 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
         await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
         await _delete(CategorizationRuleORM, CategorizationRuleORM.user_id)
+        await _delete(BankConnectionAccountORM, BankConnectionAccountORM.user_id)
+        await _delete(BankConnectionORM, BankConnectionORM.user_id)
 
         # Extensions' tables have no foreign keys into Salli's, so they can go
         # at any point before the profile row.
@@ -2680,3 +2687,141 @@ class SQLRuleRepository(RuleRepository):
                 row.hits += count
                 row.last_hit_at = at
         await self._s.flush()
+
+
+class SQLBankConnectionRepository(BankConnectionRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def _one(self, user_id: str, connection_id: str) -> BankConnectionORM | None:
+        return (
+            await self._s.execute(
+                select(BankConnectionORM).where(
+                    BankConnectionORM.id == connection_id, BankConnectionORM.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+
+    @staticmethod
+    def _account(row: BankConnectionAccountORM) -> dict[str, Any]:
+        balance = None
+        if row.balance_minor is not None and is_currency(row.currency):
+            balance = from_minor(row.balance_minor, row.currency)
+        return {
+            "remote_id": row.remote_id,
+            "name": row.name,
+            "institution": row.institution,
+            "currency": row.currency,
+            "account_id": row.account_id,
+            "balance": balance,
+            "balance_date": row.balance_date,
+        }
+
+    def _connection(self, row: BankConnectionORM) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "provider": row.provider,
+            "name": row.name,
+            "status": row.status,
+            "last_error": row.last_error,
+            "last_synced_at": row.last_synced_at,
+            "created_at": row.created_at,
+            "accounts": [self._account(a) for a in sorted(row.accounts, key=lambda a: a.name)],
+        }
+
+    async def create(self, user_id: str, connection: dict[str, Any]) -> str:
+        row = BankConnectionORM(
+            id=connection.get("id") or str(uuid.uuid4()),
+            user_id=user_id,
+            provider=connection["provider"],
+            name=connection["name"],
+            credential_sealed=connection["credential_sealed"],
+            key_version=connection["key_version"],
+            status="active",
+            created_at=datetime.now(UTC),
+        )
+        self._s.add(row)
+        await self._s.flush()
+        return row.id
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        rows = (
+            await self._s.execute(
+                select(BankConnectionORM)
+                .where(BankConnectionORM.user_id == user_id)
+                .order_by(BankConnectionORM.created_at)
+            )
+        ).scalars()
+        return [self._connection(r) for r in rows]
+
+    async def get_secret(self, user_id: str, connection_id: str) -> dict[str, Any] | None:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return None
+        return {
+            **self._connection(row),
+            "credential_sealed": row.credential_sealed,
+            "key_version": row.key_version,
+        }
+
+    async def upsert_accounts(
+        self, user_id: str, connection_id: str, accounts: list[RemoteAccount]
+    ) -> None:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return
+        existing = {a.remote_id: a for a in row.accounts}
+        for remote in accounts:
+            current = existing.get(remote.remote_id)
+            if current is None:
+                current = BankConnectionAccountORM(
+                    id=str(uuid.uuid4()),
+                    connection_id=connection_id,
+                    user_id=user_id,
+                    remote_id=remote.remote_id,
+                    created_at=datetime.now(UTC),
+                )
+                row.accounts.append(current)
+            current.name = remote.name
+            current.institution = remote.institution
+            current.currency = remote.currency
+            current.balance_minor = (
+                to_minor(remote.balance, remote.currency) if is_currency(remote.currency) else None
+            )
+            current.balance_date = remote.balance_date
+        await self._s.flush()
+
+    async def map_account(
+        self, user_id: str, connection_id: str, remote_id: str, account_id: str | None
+    ) -> bool:
+        row = (
+            await self._s.execute(
+                select(BankConnectionAccountORM).where(
+                    BankConnectionAccountORM.connection_id == connection_id,
+                    BankConnectionAccountORM.user_id == user_id,
+                    BankConnectionAccountORM.remote_id == remote_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        row.account_id = account_id
+        await self._s.flush()
+        return True
+
+    async def update(self, user_id: str, connection_id: str, fields: dict[str, Any]) -> None:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return
+        for key in ("name", "status", "last_error", "last_synced_at"):
+            if key in fields:
+                setattr(row, key, fields[key])
+        await self._s.flush()
+
+    async def delete(self, user_id: str, connection_id: str) -> bool:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return False
+        await self._s.delete(row)
+        await self._s.flush()
+        return True

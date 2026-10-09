@@ -785,6 +785,95 @@ class OAuthTokenRepository(ABC):
         raise NotImplementedError
 
 
+# ── Bank connections ─────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class RemoteAccount:
+    """An account at a bank, as a connection provider reports it."""
+
+    remote_id: str
+    name: str
+    institution: str
+    currency: str
+    balance: Decimal
+    balance_date: datetime | None
+
+
+@dataclass(frozen=True)
+class RemoteTransaction:
+    remote_id: str
+    account_remote_id: str
+    posted: str  # YYYY-MM-DD
+    #: Signed: positive is money into the account, as banks report it.
+    amount: Decimal
+    description: str
+
+
+@dataclass(frozen=True)
+class BankSnapshot:
+    accounts: list[RemoteAccount]
+    transactions: list[RemoteTransaction]
+    #: Messages the provider asks to show the user (a connection needing
+    #: re-authentication, an account it could not reach). Already sanitized.
+    warnings: list[str]
+
+
+class BankLinkError(Exception):
+    """The provider refused: a used or unknown setup token, revoked access."""
+
+
+class BankConnector(ABC):
+    """A provider that reads accounts and transactions from people's banks."""
+
+    provider: str
+
+    @abstractmethod
+    async def link(self, setup: str) -> str:
+        """Exchange what the user pasted (a setup token, a code) for the
+        credential to keep. Raises BankLinkError."""
+        ...
+
+    @abstractmethod
+    async def fetch(
+        self, credential: str, start: datetime | None, balances_only: bool = False
+    ) -> BankSnapshot:
+        """Accounts, and transactions posted since `start`. Raises BankLinkError
+        when the credential no longer works."""
+        ...
+
+
+class BankConnectionRepository(ABC):
+    @abstractmethod
+    async def create(self, user_id: str, connection: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """Connections with their accounts, never the credential."""
+        ...
+
+    @abstractmethod
+    async def get_secret(self, user_id: str, connection_id: str) -> dict[str, Any] | None:
+        """The sealed credential and its key version, for a sync."""
+        ...
+
+    @abstractmethod
+    async def upsert_accounts(
+        self, user_id: str, connection_id: str, accounts: list[RemoteAccount]
+    ) -> None: ...
+
+    @abstractmethod
+    async def map_account(
+        self, user_id: str, connection_id: str, remote_id: str, account_id: str | None
+    ) -> bool: ...
+
+    @abstractmethod
+    async def update(self, user_id: str, connection_id: str, fields: dict[str, Any]) -> None: ...
+
+    @abstractmethod
+    async def delete(self, user_id: str, connection_id: str) -> bool: ...
+
+
 class RuleRepository(ABC):
     """A user's categorisation rules, as plain dicts (see domain/rules)."""
 
