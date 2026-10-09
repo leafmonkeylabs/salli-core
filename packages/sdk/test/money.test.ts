@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   amountSign,
+  compareAmounts,
   currencyDigits,
   formatAmount,
   formatRatio,
@@ -148,5 +149,24 @@ describe('normalizeAmountInput', () => {
     expect(normalizeAmountInput('abc')).toBeUndefined();
     expect(normalizeAmountInput('1e3')).toBeUndefined();
     expect(normalizeAmountInput('')).toBeUndefined();
+  });
+});
+
+describe('compareAmounts', () => {
+  it('orders amounts exactly by their digits', () => {
+    expect(compareAmounts('412.35', '1800.00')).toBe(-1);
+    expect(compareAmounts('1800', '1800.00')).toBe(0);
+    expect(compareAmounts('0.10', '0.09')).toBe(1);
+    expect(compareAmounts('-5', '3')).toBe(-1);
+    expect(compareAmounts('-5.5', '-5.25')).toBe(-1);
+    expect(compareAmounts('-0.00', '0')).toBe(0);
+    expect(compareAmounts('007.5', '7.50')).toBe(0);
+    // Beyond a double's precision, still exact.
+    expect(compareAmounts('9007199254740993', '9007199254740992')).toBe(1);
+    expect(compareAmounts('0.30000000000000001', '0.3')).toBe(1);
+  });
+
+  it('sorts a list without converting to numbers', () => {
+    expect(['1800.00', '412.35', '9.99', '1800.01'].sort(compareAmounts)).toEqual(['9.99', '412.35', '1800.00', '1800.01']);
   });
 });

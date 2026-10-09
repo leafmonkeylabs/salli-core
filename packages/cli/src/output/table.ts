@@ -85,15 +85,24 @@ export function renderTable<T>(rows: readonly T[], columns: readonly Column<T>[]
   return [header, ...body].join('\n');
 }
 
-export type DetailRow = readonly [label: string, value: string | number | null | undefined];
+export type DetailRow =
+  | readonly [label: string, value: string | number | null | undefined]
+  | readonly [label: string, value: string | number | null | undefined, style: ((text: string) => string) | undefined];
 
-/** Label/value lines, labels aligned. Rows with no value are left out. */
+/**
+ * Label/value lines, labels aligned. Rows with no value are left out.
+ * Values are sanitised (they come from the server); `style` colours one.
+ */
 export function renderDetails(rows: ReadonlyArray<DetailRow | false | undefined | null>, colors: Colors): string {
   const shown = rows.filter(
     (row): row is DetailRow => !!row && row[1] !== undefined && row[1] !== null && row[1] !== '',
   );
   const width = Math.max(0, ...shown.map(([label]) => displayWidth(label)));
   return shown
-    .map(([label, value]) => `${colors.dim(padEnd(label, width))}  ${String(value)}`)
+    .map((row) => {
+      const text = singleLine(String(row[1]));
+      const style = row[2];
+      return `${colors.dim(padEnd(row[0], width))}  ${style ? style(text) : text}`;
+    })
     .join('\n');
 }

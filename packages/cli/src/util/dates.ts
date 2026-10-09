@@ -6,6 +6,11 @@ import { digits } from './numbers';
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 
+// Intl separates some parts with thin or no-break spaces, which terminals
+// render at different widths; plain spaces line up everywhere.
+const SPECIAL_SPACES = new RegExp('[\\u00a0\\u2009\\u202f]', 'g');
+const plainSpaces = (text: string): string => text.replace(SPECIAL_SPACES, ' ');
+
 /** A local date as YYYY-MM-DD. */
 export function isoDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -73,5 +78,18 @@ export function displayDate(value: unknown, locale?: string): string {
   const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (!day) return value;
   const date = new Date(digits(day[1]), digits(day[2]) - 1, digits(day[3]));
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+  return plainSpaces(new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(date));
+}
+
+/** "Oct 1 – 9, 2026": a date range as compactly as the locale allows. */
+export function displayRange(from: unknown, to: unknown, locale?: string): string {
+  const parse = (value: unknown): Date | undefined => {
+    if (typeof value !== 'string') return undefined;
+    const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    return day ? new Date(digits(day[1]), digits(day[2]) - 1, digits(day[3])) : undefined;
+  };
+  const start = parse(from);
+  const end = parse(to);
+  if (!start || !end) return [from, to].filter((v) => typeof v === 'string' && v).join(' – ');
+  return plainSpaces(new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).formatRange(start, end));
 }

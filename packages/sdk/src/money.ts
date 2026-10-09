@@ -48,6 +48,32 @@ export function negateAmount(amount: string): string {
   return `-${a.replace(/^\+/, '')}`;
 }
 
+/**
+ * Orders two amounts exactly, by their digits: -1, 0 or 1. For sorting and
+ * comparing what the server sent; it never computes a new amount.
+ */
+export function compareAmounts(a: string, b: string): -1 | 0 | 1 {
+  const parse = (text: string): { negative: boolean; whole: string; fraction: string } => {
+    const t = text.trim();
+    const negative = t.startsWith('-') && !isZeroAmount(t);
+    const [whole = '0', fraction = ''] = t.replace(/^[+-]/, '').split('.');
+    return { negative, whole: whole.replace(/^0+(?=\d)/, ''), fraction: fraction.replace(/0+$/, '') };
+  };
+  const x = parse(a);
+  const y = parse(b);
+  if (x.negative !== y.negative) return x.negative ? -1 : 1;
+  let magnitude: -1 | 0 | 1 = 0;
+  if (x.whole.length !== y.whole.length) magnitude = x.whole.length < y.whole.length ? -1 : 1;
+  else if (x.whole !== y.whole) magnitude = x.whole < y.whole ? -1 : 1;
+  else {
+    const width = Math.max(x.fraction.length, y.fraction.length);
+    const fx = x.fraction.padEnd(width, '0');
+    const fy = y.fraction.padEnd(width, '0');
+    if (fx !== fy) magnitude = fx < fy ? -1 : 1;
+  }
+  return (x.negative ? -magnitude : magnitude) as -1 | 0 | 1;
+}
+
 function fractionDigitsOf(amount: string): number {
   const dot = amount.indexOf('.');
   return dot === -1 ? 0 : amount.length - dot - 1;

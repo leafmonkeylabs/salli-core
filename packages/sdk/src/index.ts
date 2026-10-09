@@ -39,6 +39,7 @@ export {
 } from './errors';
 export {
   amountSign,
+  compareAmounts,
   currencyDigits,
   formatAmount,
   formatRatio,

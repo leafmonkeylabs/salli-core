@@ -3,11 +3,16 @@
  */
 import { Command, type OutputConfiguration } from '@commander-js/extra-typings';
 import type { App } from './app';
+import { registerAccounts } from './commands/accounts';
 import { registerAuth } from './commands/auth';
 import { registerCompletion } from './commands/completion';
 import { registerConfig } from './commands/config';
 import { registerContext } from './commands/context';
 import { registerDoctor } from './commands/doctor';
+import { registerEntries } from './commands/entries';
+import { registerLedger } from './commands/ledger';
+import { registerQuickAdd } from './commands/quickadd';
+import { registerStatus } from './commands/status';
 import { OUTPUT_FORMATS } from './config/config';
 import { VERSION } from './version';
 
@@ -44,7 +49,14 @@ Start with:  salli login   then   salli status`,
 
   program.commandsGroup('Getting started:');
   registerAuth(program, app);
+  registerStatus(program, app);
   registerDoctor(program, app);
+
+  program.commandsGroup('Your ledger:');
+  registerQuickAdd(program, app);
+  registerAccounts(program, app);
+  registerEntries(program, app);
+  registerLedger(program, app);
 
   program.commandsGroup('Settings:');
   registerContext(program, app);

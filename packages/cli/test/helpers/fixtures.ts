@@ -3,7 +3,8 @@
  * like the Python handlers' responses (src/salli/interfaces/api/routers).
  */
 
-export const uid = (n: number): string => `a1b2c3d4-0000-4000-8000-${String(n).padStart(12, '0')}`;
+/** Fixture ids: distinct in their first eight characters, as real UUIDs are. */
+export const uid = (n: number): string => `${n.toString(16).padStart(8, '0')}-5a11-4000-8000-${String(n).padStart(12, '0')}`;
 
 export interface AccountFixture {
   id: string;
