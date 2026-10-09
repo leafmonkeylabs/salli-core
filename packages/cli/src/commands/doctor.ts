@@ -4,6 +4,7 @@
 import type { Command } from '@commander-js/extra-typings';
 import { authMe, SalliApiError, SalliNetworkError, SUPPORTED_API_VERSIONS } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
+import { identityOf } from '../auth/credentials';
 import { CliError, ExitCode, exitCodeFor, messageFor } from '../errors';
 import { singleLine } from '../output/text';
 import { VERSION } from '../version';
@@ -132,10 +133,19 @@ export function registerDoctor(program: Command, app: App): void {
         );
       } else if (reachable) {
         try {
-          const me = (await app.client(ctx.server, auth.provider).call(authMe)) as { user_id?: unknown; email?: unknown } | undefined;
-          const who = typeof me?.email === 'string' ? me.email : typeof me?.user_id === 'string' ? me.user_id : 'yes';
+          const me = await app.client(ctx.server, auth.provider).call(authMe);
+          const { email, userId } = identityOf(me);
+          const who = singleLine(email ?? userId) || 'yes';
           const via = auth.source === 'env' ? ' (SALLI_TOKEN)' : auth.credentials?.kind === 'token' ? ' (access token)' : '';
           checks.push({ name: 'Signed in', status: 'ok', detail: `as ${who}${via}` });
+          if (me.method === 'dev') {
+            checks.push({
+              name: 'Server sign-in',
+              status: 'warn',
+              detail: 'development mode: the server takes any token as a user id',
+              hint: 'Fine on your own machine; never expose such a server.',
+            });
+          }
         } catch (error) {
           const code = exitCodeFor(error);
           fail(

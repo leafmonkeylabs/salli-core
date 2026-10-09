@@ -39,7 +39,14 @@ import {
   subscriptionsReport,
   subscriptionsReports,
   subscriptionsUpdate,
+  type Budget,
+  type BudgetSummaryLine,
+  type Debt,
+  type Holding,
+  type InsurancePolicy,
   type SalliClient,
+  type Subscription,
+  type SubscriptionReport,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { UsageError } from '../errors';
@@ -47,16 +54,10 @@ import { plural, singleLine } from '../output/text';
 import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { renderRecord } from './records';
-import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, countArg, rateArg, wireAmount } from './shared';
+import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, countArg, rateArg } from './shared';
 
-type Row = Record<string, unknown> & { id: string };
 /** A field from the server, as one line of safe text. */
-const str = (v: unknown): string => (typeof v === 'string' ? singleLine(v) : v === null || v === undefined ? '' : String(v));
-
-async function listOf(api: SalliClient, fn: Parameters<SalliClient['call']>[0], key: string, query: Record<string, unknown> = {}): Promise<Row[]> {
-  const data = (await api.call(fn, { query } as never)) as Record<string, unknown>;
-  return (Array.isArray(data[key]) ? data[key] : []) as Row[];
-}
+const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
 
 function changes<T extends Record<string, unknown>>(values: T): Partial<T> {
   return Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)) as Partial<T>;
@@ -71,8 +72,8 @@ function requireChanges(body: Record<string, unknown>, flags: string): void {
 function registerBudgets(program: Command, app: App): void {
   const budgets = program.command('budgets').alias('budget').description('Spending limits per category, against what you actually spent');
 
-  const resolveBudget = async (api: SalliClient, query: string): Promise<Row> =>
-    resolveById(await listOf(api, budgetsList, 'budgets'), query, 'budget');
+  const resolveBudget = async (api: SalliClient, query: string): Promise<Budget> =>
+    resolveById((await api.call(budgetsList)).budgets, query, 'budget');
 
   const periodOf = (opts: { month?: string; from?: string; to?: string }, required: boolean): { period_start?: string; period_end?: string } => {
     const now = app.runtime.now();
@@ -92,7 +93,7 @@ function registerBudgets(program: Command, app: App): void {
     const book = await AccountBook.load(api);
     return values.map((value) => {
       const { account, amount } = accountAmountArg(value, '--line');
-      return { account_id: book.resolve(account).id, limit_amount: wireAmount(amount) };
+      return { account_id: book.resolve(account).id, limit_amount: amount };
     });
   };
 
@@ -104,16 +105,16 @@ function registerBudgets(program: Command, app: App): void {
       const api = await app.api();
       const data = await api.call(budgetsList);
       app.out.emit(data, {
-        records: (d) => (d as { budgets: Row[] }).budgets,
+        records: (d) => d.budgets,
         human: (d) => {
-          const rows = (d as { budgets: Row[] }).budgets;
+          const rows = d.budgets;
           if (!rows.length) return app.out.note('No budgets yet. Add one with `salli budgets add`.');
           app.out.line(
             app.out.table(rows, [
               { header: 'ID', get: (b) => b.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
               { header: 'PERIOD', get: (b) => displayRange(b.period_start, b.period_end, app.out.locale) },
-              { header: 'CATEGORIES', get: (b) => (Array.isArray(b.lines) ? b.lines.length : 0), align: 'right' },
-              { header: 'CURRENCY', get: (b) => str(b.currency) },
+              { header: 'CATEGORIES', get: (b) => b.lines.length, align: 'right' },
+              { header: 'CURRENCY', get: (b) => b.currency },
             ]),
           );
         },
@@ -127,14 +128,13 @@ function registerBudgets(program: Command, app: App): void {
     .action(async (query) => {
       const api = await app.api();
       const budget = await resolveBudget(api, query);
-      const [data, book] = await Promise.all([api.call(budgetsGet, { path: { budget_id: budget.id } }), AccountBook.load(api)]);
-      const b = data as Row & { lines?: Array<{ account_id: string; limit_amount: string }> };
-      app.out.emit(data, {
-        records: () => b.lines ?? [],
+      const [b, book] = await Promise.all([api.call(budgetsGet, { path: { budget_id: budget.id } }), AccountBook.load(api)]);
+      app.out.emit(b, {
+        records: () => b.lines,
         human: () => {
           app.out.line(app.out.heading(`Budget ${displayRange(b.period_start, b.period_end, app.out.locale)}`));
           app.out.line(
-            app.out.table(b.lines ?? [], [
+            app.out.table(b.lines, [
               { header: 'CATEGORY', get: (l) => book.label(l.account_id), shrink: true },
               { header: `LIMIT (${str(b.currency)})`, get: (l) => app.out.amount(l.limit_amount, b.currency), align: 'right' },
             ]),
@@ -150,16 +150,20 @@ function registerBudgets(program: Command, app: App): void {
     .action(async (query) => {
       const api = await app.api();
       const budget = await resolveBudget(api, query);
-      const data = (await api.call(budgetsSummary, { path: { budget_id: budget.id } })) as Row & {
-        lines: Array<{ category: string; limit_amount: string; actual_amount: string; variance: string }>;
-      };
+      const data = await api.call(budgetsSummary, { path: { budget_id: budget.id } });
       app.out.emit(data, {
         records: (d) => d.lines,
         human: (d) => {
           const out = app.out;
           const cur = d.currency;
           out.line(out.heading(`Budget ${displayRange(d.period_start, d.period_end, out.locale)}`));
-          const total = { category: 'Total', limit_amount: str(d.total_limit), actual_amount: str(d.total_actual), variance: str(d.total_variance) };
+          const total: BudgetSummaryLine = {
+            account_id: '',
+            category: 'Total',
+            limit_amount: d.total_limit,
+            actual_amount: d.total_actual,
+            variance: d.total_variance,
+          };
           out.line(
             out.table([...d.lines, total], [
               { header: 'CATEGORY', get: (l) => l.category, shrink: true, style: (t, l) => (l === total ? out.colors.bold(t) : t) },
@@ -204,7 +208,7 @@ function registerBudgets(program: Command, app: App): void {
       const body = { ...periodOf(opts, false), ...(opts.line ? { lines: await linesOf(api, opts.line) } : {}) };
       requireChanges(body, '--month, --from, --to or --line');
       const result = await api.call(budgetsUpdate, { path: { budget_id: budget.id }, body });
-      app.out.done(result as Record<string, unknown>, 'Budget updated.');
+      app.out.done(result, 'Budget updated.');
     });
 
   budgets
@@ -225,16 +229,16 @@ function registerBudgets(program: Command, app: App): void {
 
 function registerDebts(program: Command, app: App): void {
   const debts = program.command('debts').alias('debt').description('Your debts, and the fastest way to pay them off');
-  const resolveDebt = async (api: SalliClient, query: string): Promise<Row> =>
-    resolveById(await listOf(api, debtsList, 'debts', { active_only: false }), query, 'debt');
-  const debtTable = (rows: Row[]): string =>
+  const resolveDebt = async (api: SalliClient, query: string): Promise<Debt> =>
+    resolveById((await api.call(debtsList, { query: { active_only: false } })).debts, query, 'debt');
+  const debtTable = (rows: readonly Debt[]): string =>
     app.out.table(rows, [
       { header: 'ID', get: (d) => d.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
-      { header: 'NAME', get: (d) => str(d.name), shrink: true, style: (t, d) => (d.is_active === false ? app.out.colors.dim(t) : t) },
+      { header: 'NAME', get: (d) => d.name, shrink: true, style: (t, d) => (d.is_active ? t : app.out.colors.dim(t)) },
       { header: 'BALANCE', get: (d) => app.out.money(d.principal, d.currency), align: 'right' },
       { header: 'APR', get: (d) => app.out.percent(d.apr, 2), align: 'right' },
       { header: 'MINIMUM', get: (d) => app.out.money(d.minimum_payment, d.currency), align: 'right' },
-      { header: '', get: (d) => (d.is_active === false ? 'paid off' : ''), style: (t) => app.out.colors.dim(t) },
+      { header: '', get: (d) => (d.is_active ? '' : 'paid off'), style: (t) => app.out.colors.dim(t) },
     ]);
 
   debts
@@ -246,9 +250,9 @@ function registerDebts(program: Command, app: App): void {
       const api = await app.api();
       const data = await api.call(debtsList, { query: { active_only: !opts.all } });
       app.out.emit(data, {
-        records: (d) => (d as { debts: Row[] }).debts,
+        records: (d) => d.debts,
         human: (d) => {
-          const rows = (d as { debts: Row[] }).debts;
+          const rows = d.debts;
           if (!rows.length) return app.out.note('No debts. Add one with `salli debts add`.');
           app.out.line(debtTable(rows));
         },
@@ -262,7 +266,7 @@ function registerDebts(program: Command, app: App): void {
     .action(async (query) => {
       const api = await app.api();
       const debt = await resolveDebt(api, query);
-      const data = (await api.call(debtsGet, { path: { debt_id: debt.id } })) as Row;
+      const data = await api.call(debtsGet, { path: { debt_id: debt.id } });
       app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d, { money: ['principal', 'minimum_payment'], ratios: ['apr'] })) });
     });
 
@@ -278,9 +282,9 @@ function registerDebts(program: Command, app: App): void {
       const created = await api.call(debtsCreate, {
         body: {
           name,
-          principal: wireAmount(amountArg(opts.balance, '--balance')),
-          apr: wireAmount(rateArg(opts.apr, '--apr')),
-          minimum_payment: wireAmount(amountArg(opts.minimum, '--minimum')),
+          principal: amountArg(opts.balance, '--balance'),
+          apr: rateArg(opts.apr, '--apr'),
+          minimum_payment: amountArg(opts.minimum, '--minimum'),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
@@ -302,14 +306,14 @@ function registerDebts(program: Command, app: App): void {
       const debt = await resolveDebt(api, query);
       const body = changes({
         name: opts.name,
-        principal: opts.balance ? wireAmount(amountArg(opts.balance, '--balance')) : undefined,
-        apr: opts.apr ? wireAmount(rateArg(opts.apr, '--apr')) : undefined,
-        minimum_payment: opts.minimum ? wireAmount(amountArg(opts.minimum, '--minimum')) : undefined,
+        principal: opts.balance ? amountArg(opts.balance, '--balance') : undefined,
+        apr: opts.apr ? rateArg(opts.apr, '--apr') : undefined,
+        minimum_payment: opts.minimum ? amountArg(opts.minimum, '--minimum') : undefined,
         is_active: opts.paidOff ? false : opts.active ? true : undefined,
       });
       requireChanges(body, '--name, --balance, --apr, --minimum, --paid-off or --active');
       const result = await api.call(debtsUpdate, { path: { debt_id: debt.id }, body });
-      app.out.done(result as Record<string, unknown>, `Updated “${str(debt.name)}”.`);
+      app.out.done(result, `Updated “${str(debt.name)}”.`);
     });
 
   debts
@@ -334,15 +338,9 @@ function registerDebts(program: Command, app: App): void {
     .option('--months <n>', 'Months of the schedule to show', countArg('--months'), 12)
     .action(async (opts) => {
       const api = await app.api();
-      const plan = (await api.call(debtsPayoffPlan, {
-        query: { strategy: opts.strategy, extra_monthly_payment: wireAmount(amountArg(opts.extra, '--extra')) },
-      })) as {
-        strategy: string;
-        currency: string;
-        months_to_payoff: number | null;
-        total_interest_paid: string;
-        schedule: Array<{ month: number; debt_name: string; payment: string; principal_paid: string; interest_paid: string; remaining_balance: string }>;
-      };
+      const plan = await api.call(debtsPayoffPlan, {
+        query: { strategy: opts.strategy, extra_monthly_payment: amountArg(opts.extra, '--extra') },
+      });
       app.out.emit(plan, {
         records: (p) => p.schedule,
         human: (p) => {
@@ -387,15 +385,7 @@ function registerPortfolio(program: Command, app: App): void {
         rateArg(fraction, '--target');
       }
       const api = await app.api();
-      const s = (await api.call(portfolioSummary, { query: { target: opts.target ?? [] } })) as {
-        currency: string;
-        total_value: string;
-        total_cost_basis: string;
-        total_gain: string;
-        total_gain_pct: string;
-        allocation: Array<{ asset_class: string; current_value: string; pct_of_portfolio: string }>;
-        alerts: Array<{ asset_class: string; current_pct: string; target_pct: string; drift_pct: string }>;
-      };
+      const s = await api.call(portfolioSummary, { query: { target: opts.target ?? [] } });
       app.out.emit(s, {
         records: (d) => d.allocation,
         human: (d) => {
@@ -434,8 +424,8 @@ function registerPortfolio(program: Command, app: App): void {
     });
 
   const holdings = program.command('holdings').alias('holding').description('Investment holdings you track (values as you last entered them)');
-  const resolveHolding = async (api: SalliClient, query: string): Promise<Row> =>
-    resolveById(await listOf(api, holdingsList, 'holdings', { active_only: false }), query, 'holding');
+  const resolveHolding = async (api: SalliClient, query: string): Promise<Holding> =>
+    resolveById((await api.call(holdingsList, { query: { active_only: false } })).holdings, query, 'holding');
 
   holdings
     .command('list')
@@ -446,16 +436,16 @@ function registerPortfolio(program: Command, app: App): void {
       const api = await app.api();
       const data = await api.call(holdingsList, { query: { active_only: !opts.all } });
       app.out.emit(data, {
-        records: (d) => (d as { holdings: Row[] }).holdings,
+        records: (d) => d.holdings,
         human: (d) => {
-          const rows = (d as { holdings: Row[] }).holdings;
+          const rows = d.holdings;
           if (!rows.length) return app.out.note('No holdings yet. Add one with `salli holdings add`.');
           app.out.line(
             app.out.table(rows, [
               { header: 'ID', get: (h) => h.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
-              { header: 'SYMBOL', get: (h) => str(h.symbol) },
-              { header: 'NAME', get: (h) => str(h.name), shrink: true },
-              { header: 'CLASS', get: (h) => str(h.asset_class) },
+              { header: 'SYMBOL', get: (h) => h.symbol },
+              { header: 'NAME', get: (h) => h.name, shrink: true },
+              { header: 'CLASS', get: (h) => h.asset_class },
               { header: 'INVESTED', get: (h) => app.out.money(h.cost_basis, h.currency), align: 'right' },
               { header: 'VALUE', get: (h) => app.out.money(h.current_value, h.currency), align: 'right' },
             ]),
@@ -471,7 +461,7 @@ function registerPortfolio(program: Command, app: App): void {
     .action(async (query) => {
       const api = await app.api();
       const holding = await resolveHolding(api, query);
-      const data = (await api.call(holdingsGet, { path: { holding_id: holding.id } })) as Row;
+      const data = await api.call(holdingsGet, { path: { holding_id: holding.id } });
       app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d, { money: ['cost_basis', 'current_value'] })) });
     });
 
@@ -490,8 +480,8 @@ function registerPortfolio(program: Command, app: App): void {
           symbol,
           name: opts.name,
           asset_class: opts.class,
-          cost_basis: wireAmount(amountArg(opts.invested, '--invested')),
-          current_value: wireAmount(amountArg(opts.value, '--value')),
+          cost_basis: amountArg(opts.invested, '--invested'),
+          current_value: amountArg(opts.value, '--value'),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
@@ -516,13 +506,13 @@ function registerPortfolio(program: Command, app: App): void {
         symbol: opts.symbol,
         name: opts.name,
         asset_class: opts.class,
-        cost_basis: opts.invested ? wireAmount(amountArg(opts.invested, '--invested')) : undefined,
-        current_value: opts.value ? wireAmount(amountArg(opts.value, '--value')) : undefined,
+        cost_basis: opts.invested ? amountArg(opts.invested, '--invested') : undefined,
+        current_value: opts.value ? amountArg(opts.value, '--value') : undefined,
         is_active: opts.sold ? false : opts.active ? true : undefined,
       });
       requireChanges(body, '--symbol, --name, --class, --invested, --value, --sold or --active');
       const result = await api.call(holdingsUpdate, { path: { holding_id: holding.id }, body });
-      app.out.done(result as Record<string, unknown>, `Updated ${str(holding.symbol)}.`);
+      app.out.done(result, `Updated ${str(holding.symbol)}.`);
     });
 
   holdings
@@ -545,8 +535,8 @@ const FREQUENCIES = ['weekly', 'monthly', 'quarterly', 'yearly'] as const;
 
 function registerSubscriptions(program: Command, app: App): void {
   const subs = program.command('subscriptions').alias('subscription').description('Recurring charges, and alerts when one is missed or changes price');
-  const resolveSub = async (api: SalliClient, query: string): Promise<Row> =>
-    resolveById(await listOf(api, subscriptionsList, 'subscriptions', { active_only: false }), query, 'subscription');
+  const resolveSub = async (api: SalliClient, query: string): Promise<Subscription> =>
+    resolveById((await api.call(subscriptionsList, { query: { active_only: false } })).subscriptions, query, 'subscription');
 
   subs
     .command('list')
@@ -557,16 +547,16 @@ function registerSubscriptions(program: Command, app: App): void {
       const api = await app.api();
       const data = await api.call(subscriptionsList, { query: { active_only: !opts.all } });
       app.out.emit(data, {
-        records: (d) => (d as { subscriptions: Row[] }).subscriptions,
+        records: (d) => d.subscriptions,
         human: (d) => {
-          const rows = (d as { subscriptions: Row[] }).subscriptions;
+          const rows = d.subscriptions;
           if (!rows.length) return app.out.note('No subscriptions yet. Add one with `salli subscriptions add`.');
           app.out.line(
             app.out.table(rows, [
               { header: 'ID', get: (s) => s.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
-              { header: 'NAME', get: (s) => str(s.name), shrink: true },
+              { header: 'NAME', get: (s) => s.name, shrink: true },
               { header: 'AMOUNT', get: (s) => app.out.money(s.amount, s.currency), align: 'right' },
-              { header: 'EVERY', get: (s) => str(s.frequency).replace(/ly$/, '').replace('dai', 'day') },
+              { header: 'EVERY', get: (s) => s.frequency.replace(/ly$/, '').replace('dai', 'day') },
               { header: 'NEXT', get: (s) => displayDate(s.next_due_date, app.out.locale) },
             ]),
           );
@@ -581,7 +571,7 @@ function registerSubscriptions(program: Command, app: App): void {
     .action(async (query) => {
       const api = await app.api();
       const sub = await resolveSub(api, query);
-      const data = (await api.call(subscriptionsGet, { path: { subscription_id: sub.id } })) as Row;
+      const data = await api.call(subscriptionsGet, { path: { subscription_id: sub.id } });
       app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d, { money: ['amount'], ratios: ['amount_tolerance_pct'] })) });
     });
 
@@ -601,12 +591,12 @@ function registerSubscriptions(program: Command, app: App): void {
       const created = await api.call(subscriptionsCreate, {
         body: {
           name,
-          amount: wireAmount(amountArg(opts.amount, '--amount')),
-          frequency: opts.frequency as string,
+          amount: amountArg(opts.amount, '--amount'),
+          frequency: opts.frequency,
           next_due_date: parseDate(opts.next, app.runtime.now(), '--next'),
           ...(account ? { account_id: account } : {}),
           ...(opts.graceDays !== undefined ? { grace_days: opts.graceDays } : {}),
-          ...(opts.tolerance ? { amount_tolerance_pct: wireAmount(rateArg(opts.tolerance, '--tolerance')) } : {}),
+          ...(opts.tolerance ? { amount_tolerance_pct: rateArg(opts.tolerance, '--tolerance') } : {}),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
@@ -631,17 +621,17 @@ function registerSubscriptions(program: Command, app: App): void {
       const sub = await resolveSub(api, query);
       const body = changes({
         name: opts.name,
-        amount: opts.amount ? wireAmount(amountArg(opts.amount, '--amount')) : undefined,
-        frequency: opts.frequency as string | undefined,
+        amount: opts.amount ? amountArg(opts.amount, '--amount') : undefined,
+        frequency: opts.frequency,
         next_due_date: opts.next ? parseDate(opts.next, app.runtime.now(), '--next') : undefined,
         account_id: opts.account ? (await AccountBook.load(api)).resolve(opts.account).id : undefined,
         grace_days: opts.graceDays,
-        amount_tolerance_pct: opts.tolerance ? wireAmount(rateArg(opts.tolerance, '--tolerance')) : undefined,
+        amount_tolerance_pct: opts.tolerance ? rateArg(opts.tolerance, '--tolerance') : undefined,
         is_active: opts.cancelled ? false : opts.active ? true : undefined,
       });
       requireChanges(body, '--name, --amount, --frequency, --next, --account, --grace-days, --tolerance, --cancelled or --active');
       const result = await api.call(subscriptionsUpdate, { path: { subscription_id: sub.id }, body });
-      app.out.done(result as Record<string, unknown>, `Updated “${str(sub.name)}”.`);
+      app.out.done(result, `Updated “${str(sub.name)}”.`);
     });
 
   subs
@@ -663,18 +653,17 @@ function registerSubscriptions(program: Command, app: App): void {
     .description('Missed charges and price changes')
     .action(async (query) => {
       const api = await app.api();
-      type Report = { subscription_id: string; name: string; currency: string; alerts: Array<{ kind: string; message: string }>; matches: Array<{ entry_date: string; amount: string }> };
       const data = query
         ? await api.call(subscriptionsReport, { path: { subscription_id: (await resolveSub(api, query)).id } })
         : await api.call(subscriptionsReports);
-      const reports: Report[] = query ? [data as Report] : ((data as { reports: Report[] }).reports ?? []);
+      const reports: SubscriptionReport[] = 'reports' in data ? data.reports : [data];
       app.out.emit(data, {
         records: () => reports,
         human: () => {
           const c = app.out.colors;
           if (!reports.length) return app.out.note('No subscriptions to check.');
           for (const r of reports) {
-            app.out.line(`${app.out.heading(r.name)} ${c.dim(r.subscription_id.slice(0, 8))}`);
+            app.out.line(`${app.out.heading(r.name)} ${c.dim(singleLine(r.subscription_id.slice(0, 8)))}`);
             if (!r.alerts.length) app.out.line(`  ${c.green('✓')} charged as expected`);
             for (const a of r.alerts) app.out.line(`  ${a.kind === 'missed_charge' ? c.red('!') : c.yellow('!')} ${singleLine(a.message)}`);
             const last = r.matches.at(-1);
@@ -690,8 +679,8 @@ function registerSubscriptions(program: Command, app: App): void {
 function registerInsurance(program: Command, app: App): void {
   const insurance = program.command('insurance').description('Insurance policies, the cover you want, and the gaps');
   const policies = insurance.command('policies').alias('policy').description('Your policies');
-  const resolvePolicy = async (api: SalliClient, query: string): Promise<Row> =>
-    resolveById(await listOf(api, insurancePoliciesList, 'policies', { active_only: false }), query, 'policy');
+  const resolvePolicy = async (api: SalliClient, query: string): Promise<InsurancePolicy> =>
+    resolveById((await api.call(insurancePoliciesList, { query: { active_only: false } })).policies, query, 'policy');
 
   policies
     .command('list')
@@ -702,18 +691,18 @@ function registerInsurance(program: Command, app: App): void {
       const api = await app.api();
       const data = await api.call(insurancePoliciesList, { query: { active_only: !opts.all } });
       app.out.emit(data, {
-        records: (d) => (d as { policies: Row[] }).policies,
+        records: (d) => d.policies,
         human: (d) => {
-          const rows = (d as { policies: Row[] }).policies;
+          const rows = d.policies;
           if (!rows.length) return app.out.note('No policies yet. Add one with `salli insurance policies add`.');
           app.out.line(
             app.out.table(rows, [
               { header: 'ID', get: (p) => p.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
-              { header: 'NAME', get: (p) => str(p.name), shrink: true },
-              { header: 'TYPE', get: (p) => str(p.policy_type) },
-              { header: 'PROVIDER', get: (p) => str(p.provider), shrink: true },
+              { header: 'NAME', get: (p) => p.name, shrink: true },
+              { header: 'TYPE', get: (p) => p.policy_type },
+              { header: 'PROVIDER', get: (p) => p.provider, shrink: true },
               { header: 'COVER', get: (p) => app.out.money(p.coverage_amount, p.currency), align: 'right' },
-              { header: 'PREMIUM', get: (p) => `${app.out.money(p.premium_amount, p.currency)} ${str(p.premium_frequency)}`, align: 'right' },
+              { header: 'PREMIUM', get: (p) => `${app.out.money(p.premium_amount, p.currency)} ${p.premium_frequency}`, align: 'right' },
               { header: 'EXPIRES', get: (p) => displayDate(p.expiry_date, app.out.locale) },
             ]),
           );
@@ -728,7 +717,7 @@ function registerInsurance(program: Command, app: App): void {
     .action(async (query) => {
       const api = await app.api();
       const policy = await resolvePolicy(api, query);
-      const data = (await api.call(insurancePoliciesGet, { path: { policy_id: policy.id } })) as Row;
+      const data = await api.call(insurancePoliciesGet, { path: { policy_id: policy.id } });
       app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d, { money: ['coverage_amount', 'premium_amount'] })) });
     });
 
@@ -749,8 +738,8 @@ function registerInsurance(program: Command, app: App): void {
           name,
           policy_type: opts.type,
           provider: opts.provider,
-          coverage_amount: wireAmount(amountArg(opts.cover, '--cover')),
-          premium_amount: wireAmount(amountArg(opts.premium, '--premium')),
+          coverage_amount: amountArg(opts.cover, '--cover'),
+          premium_amount: amountArg(opts.premium, '--premium'),
           premium_frequency: opts.frequency,
           expiry_date: parseDate(opts.expires, app.runtime.now(), '--expires'),
         },
@@ -779,15 +768,15 @@ function registerInsurance(program: Command, app: App): void {
         name: opts.name,
         policy_type: opts.type,
         provider: opts.provider,
-        coverage_amount: opts.cover ? wireAmount(amountArg(opts.cover, '--cover')) : undefined,
-        premium_amount: opts.premium ? wireAmount(amountArg(opts.premium, '--premium')) : undefined,
-        premium_frequency: opts.frequency as string | undefined,
+        coverage_amount: opts.cover ? amountArg(opts.cover, '--cover') : undefined,
+        premium_amount: opts.premium ? amountArg(opts.premium, '--premium') : undefined,
+        premium_frequency: opts.frequency,
         expiry_date: opts.expires ? parseDate(opts.expires, app.runtime.now(), '--expires') : undefined,
         is_active: opts.lapsed ? false : opts.active ? true : undefined,
       });
       requireChanges(body, '--name, --type, --provider, --cover, --premium, --frequency, --expires, --lapsed or --active');
       const result = await api.call(insurancePoliciesUpdate, { path: { policy_id: policy.id }, body });
-      app.out.done(result as Record<string, unknown>, `Updated “${str(policy.name)}”.`);
+      app.out.done(result, `Updated “${str(policy.name)}”.`);
     });
 
   policies
@@ -813,13 +802,13 @@ function registerInsurance(program: Command, app: App): void {
       const api = await app.api();
       const data = await api.call(insuranceTargetsList);
       app.out.emit(data, {
-        records: (d) => (d as { targets: Row[] }).targets,
+        records: (d) => d.targets,
         human: (d) => {
-          const rows = (d as { targets: Row[] }).targets;
+          const rows = d.targets;
           if (!rows.length) return app.out.note('No targets yet. Set one with `salli insurance targets set life --amount 500000`.');
           app.out.line(
             app.out.table(rows, [
-              { header: 'TYPE', get: (t) => str(t.policy_type) },
+              { header: 'TYPE', get: (t) => t.policy_type },
               { header: 'TARGET', get: (t) => app.out.money(t.target_amount, t.currency), align: 'right' },
             ]),
           );
@@ -835,7 +824,7 @@ function registerInsurance(program: Command, app: App): void {
     .action(async (type, opts) => {
       const api = await app.api();
       const result = await api.call(insuranceTargetsSet, {
-        body: { policy_type: type, target_amount: wireAmount(amountArg(opts.amount, '--amount')) },
+        body: { policy_type: type, target_amount: amountArg(opts.amount, '--amount') },
       });
       if (app.out.machine) app.out.emit(result, { human: () => undefined });
       else app.out.success(`Target for ${type} cover set.`);
@@ -856,12 +845,7 @@ function registerInsurance(program: Command, app: App): void {
     .description('Cover against your targets, missing types, and policies expiring soon')
     .action(async () => {
       const api = await app.api();
-      const r = (await api.call(insuranceReport)) as {
-        currency: string;
-        lines: Array<{ policy_type: string; target_amount: string; actual_coverage: string; gap: string }>;
-        missing_types: string[];
-        expiring_soon: Array<{ policy_name: string; policy_type: string; expiry_date: string; days_until_expiry: number }>;
-      };
+      const r = await api.call(insuranceReport);
       app.out.emit(r, {
         records: (d) => d.lines,
         human: (d) => {

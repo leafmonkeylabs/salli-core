@@ -1,23 +1,25 @@
 /**
- * What the mock server knows: a small USD household ledger, shaped exactly
- * like the Python handlers' responses (src/salli/interfaces/api/routers).
+ * What the mock server knows: a small USD household ledger. Each fixture
+ * is typed with the SDK's generated type for its response, so the compiler
+ * keeps the mock in step with the OpenAPI document.
  */
+import type {
+  Account,
+  BalanceSheet,
+  FiScore,
+  IncomeStatement,
+  JournalEntry,
+  Posting,
+  Reminder,
+  StatementUpload,
+  Tag,
+  TrialBalance,
+} from '@leafmonkeylabs/salli-sdk';
 
 /** Fixture ids: distinct in their first eight characters, as real UUIDs are. */
 export const uid = (n: number): string => `${n.toString(16).padStart(8, '0')}-5a11-4000-8000-${String(n).padStart(12, '0')}`;
 
-export interface AccountFixture {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-  currency: string;
-  parent_id: string | null;
-  is_active: boolean;
-  tax_role: string | null;
-}
-
-export const ACCOUNTS: AccountFixture[] = [
+export const ACCOUNTS: Account[] = [
   { id: uid(1), code: '1000', name: 'Cash', type: 'asset', currency: 'USD', parent_id: null, is_active: true, tax_role: null },
   { id: uid(2), code: '1100', name: 'Checking', type: 'asset', currency: 'USD', parent_id: null, is_active: true, tax_role: null },
   { id: uid(3), code: '1200', name: 'Euro Savings', type: 'asset', currency: 'EUR', parent_id: null, is_active: true, tax_role: null },
@@ -28,7 +30,7 @@ export const ACCOUNTS: AccountFixture[] = [
   { id: uid(8), code: '5900', name: 'Old Expenses', type: 'expense', currency: 'USD', parent_id: null, is_active: false, tax_role: null },
 ];
 
-const posting = (id: number, account: number, direction: 1 | -1, amount: string, currency = 'USD', fx = '1') => ({
+const posting = (id: number, account: number, direction: 1 | -1, amount: string, currency = 'USD', fx = '1'): Posting => ({
   id: uid(100 + id),
   tags: {},
   account_id: uid(account),
@@ -38,7 +40,7 @@ const posting = (id: number, account: number, direction: 1 | -1, amount: string,
   fx_rate: fx,
 });
 
-export const ENTRIES = [
+export const ENTRIES: JournalEntry[] = [
   {
     id: uid(201),
     entry_date: '2026-10-01',
@@ -90,22 +92,29 @@ export const BALANCE_SHEET = {
   total_liabilities: '1200.00',
   total_equity: '0.00',
   net_worth: '14034.50',
-};
+} satisfies BalanceSheet;
 
-export const INCOME_STATEMENT = (from: string, to: string) => ({
+export const INCOME_STATEMENT = (from: string, to: string): IncomeStatement => ({
   from_date: from,
   to_date: to,
   currency: 'USD',
   income: { Salary: '5000.00' },
   expenses: { Groceries: '412.35', Rent: '1800.00' },
+  total_income: '5000.00',
+  total_expenses: '2212.35',
   net_income: '2787.65',
+  lines: [
+    { account_id: uid(5), code: '4000', name: 'Salary', type: 'income', amount: '5000.00', is_active: true },
+    { account_id: uid(6), code: '5000', name: 'Groceries', type: 'expense', amount: '412.35', is_active: true },
+    { account_id: uid(7), code: '5100', name: 'Rent', type: 'expense', amount: '1800.00', is_active: true },
+  ],
 });
 
 export const TRIAL_BALANCE = {
   currency: 'USD',
   balances: { [uid(1)]: '250.00', [uid(2)]: '12784.50', [uid(4)]: '-1200.00', [uid(5)]: '-11834.50' },
   net: '0.00',
-};
+} satisfies TrialBalance;
 
 export const FI_SCORE = {
   pack_version: '1',
@@ -131,9 +140,9 @@ export const FI_SCORE = {
   ],
   projected_fi_date: '2040-10-09',
   inputs_hash: 'abc',
-};
+} satisfies FiScore;
 
-export const REMINDERS = [
+export const REMINDERS: Reminder[] = [
   {
     id: uid(301),
     kind: 'budget_overspend',
@@ -169,9 +178,9 @@ export const REMINDERS = [
   },
 ];
 
-export const TAGS = [
+export const TAGS: Tag[] = [
   { id: uid(501), slug: 'groceries', name: 'Groceries', kind: 'category', color: '#4caf50', is_system: false },
-  { id: uid(502), slug: 'essential', name: 'Essential', kind: 'need', color: null, is_system: true },
+  { id: uid(502), slug: 'essential', name: 'Essential', kind: 'need', color: '#9e9e9e', is_system: true },
 ];
 
 export const STATEMENT_UPLOAD = {
@@ -226,4 +235,4 @@ export const STATEMENT_UPLOAD = {
       dedup_status: 'exact_duplicate',
     },
   ],
-};
+} satisfies StatementUpload;

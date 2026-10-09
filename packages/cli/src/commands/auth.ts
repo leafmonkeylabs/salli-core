@@ -4,6 +4,7 @@
 import type { Command } from '@commander-js/extra-typings';
 import { authMe } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
+import { identityOf } from '../auth/credentials';
 import { browserLogin, deviceLogin, resolveLoginTarget, revokeCredentials, saveLoginContext, serverMeta, tokenLogin } from '../auth/login';
 import { UsageError } from '../errors';
 import { singleLine } from '../output/text';
@@ -58,8 +59,8 @@ Examples:
       await app.saveCredentials(target.name, credentials);
 
       const me = await app.client(target.server, { getToken: () => (credentials.kind === 'token' ? credentials.token : credentials.tokens.access_token) }).call(authMe);
-      const user = (me as { user_id?: unknown; email?: unknown } | undefined) ?? {};
-      const who = singleLine(typeof user.email === 'string' ? user.email : typeof user.user_id === 'string' ? user.user_id : '') || undefined;
+      const { email, userId } = identityOf(me);
+      const who = singleLine(email ?? userId) || undefined;
       const method = credentials.kind === 'token' ? 'token' : credentials.method;
       if (app.out.machine) {
         app.out.emit({ context: target.name, server: target.server, method, user: me }, { human: () => undefined });
@@ -115,7 +116,7 @@ Examples:
       const me = await api.call(authMe);
       app.out.emit(me, {
         human: (data) => {
-          const user = (data as { user_id?: unknown; email?: unknown } | undefined) ?? {};
+          const { email, userId } = identityOf(data);
           const credentials = auth.credentials;
           const via =
             auth.source === 'env'
@@ -127,11 +128,12 @@ Examples:
                 : 'access token';
           app.out.line(
             app.out.details([
-              ['User', typeof user.email === 'string' ? user.email : undefined],
-              ['User id', typeof user.user_id === 'string' ? user.user_id : undefined],
+              ['User', email && singleLine(email)],
+              ['User id', singleLine(userId)],
               ['Context', ctx.name],
               ['Server', ctx.server],
               ['Signed in with', via],
+              ['Server sees', data.method === 'pat' ? 'a personal access token' : data.method === 'dev' ? 'development sign-in (any token is a user id)' : data.method],
               ['Token expires', credentials?.kind === 'oauth' ? describeExpiry(credentials.tokens.expires_at, app.runtime.now()) : undefined],
             ]),
           );

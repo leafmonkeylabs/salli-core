@@ -4,7 +4,6 @@
 import { Option, type Command } from '@commander-js/extra-typings';
 import { compareAmounts, ledgerIncomeStatement, ledgerTrialBalance, tagsList } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import type { IncomeStatement, TagList, TrialBalance } from '../api-types';
 import { UsageError } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
 import { displayRange, isoDate, monthPeriod, parseDate } from '../util/dates';
@@ -28,7 +27,7 @@ export function registerLedger(program: Command, app: App): void {
             ...(opts.from ? { from_date: parseDate(opts.from, now, '--from') } : {}),
             ...(opts.to ? { to_date: parseDate(opts.to, now, '--to') } : {}),
           },
-        }) as Promise<TrialBalance>,
+        }),
         AccountBook.load(api),
       ]);
       const rows = Object.entries(tb.balances)
@@ -74,13 +73,10 @@ export function registerLedger(program: Command, app: App): void {
           ? { from: parseDate(opts.from, now, '--from'), to: opts.to ? parseDate(opts.to, now, '--to') : isoDate(now) }
           : monthPeriod(undefined, now, app.out.locale);
       const api = await app.api();
-      const statement = (await api.call(ledgerIncomeStatement, {
+      const statement = await api.call(ledgerIncomeStatement, {
         query: { from_date: period.from, to_date: period.to },
-      })) as IncomeStatement;
-      const lines = [
-        ...Object.entries(statement.income).map(([name, amount]) => ({ kind: 'income', name, amount })),
-        ...Object.entries(statement.expenses).map(([name, amount]) => ({ kind: 'expense', name, amount })),
-      ];
+      });
+      const { lines } = statement;
       app.out.emit(statement, {
         records: () => lines.map((l) => ({ ...l, currency: statement.currency })),
         human: () => {
@@ -90,23 +86,31 @@ export function registerLedger(program: Command, app: App): void {
           out.line(
             `${out.heading('Income statement')} ${c.dim(`· ${displayRange(statement.from_date, statement.to_date, out.locale)} · ${cur}`)}`,
           );
-          const byAmount = (items: Record<string, string>) => Object.entries(items).sort(([, a], [, b]) => compareAmounts(b, a));
-          const income = byAmount(statement.income).map(([name, amount]) => [singleLine(name), out.amount(amount, cur)] as const);
-          const expenses = byAmount(statement.expenses).map(([name, amount]) => [singleLine(name), out.amount(amount, cur)] as const);
+          const rows = (type: 'income' | 'expense') =>
+            lines
+              .filter((l) => l.type === type)
+              .sort((a, b) => compareAmounts(b.amount, a.amount))
+              .map((l) => [singleLine(`${l.code} ${l.name}`) + (l.is_active ? '' : ' (closed)'), out.amount(l.amount, cur)] as const);
+          const income = rows('income');
+          const expenses = rows('expense');
+          const totalIncome = out.amount(statement.total_income, cur);
+          const totalExpenses = out.amount(statement.total_expenses, cur);
           const net = out.amount(statement.net_income, cur);
-          const nameWidth = Math.max(12, ...[...income, ...expenses].map(([name]) => displayWidth(name) + 2));
-          const amountWidth = Math.max(displayWidth(net), ...[...income, ...expenses].map(([, amount]) => displayWidth(amount)));
-          const lines: string[] = [];
-          const section = (title: string, items: ReadonlyArray<readonly [string, string]>): void => {
-            lines.push(c.bold(title));
-            if (items.length === 0) lines.push(c.dim('  none'));
-            for (const [name, amount] of items) lines.push(`  ${padEnd(name, nameWidth - 2)}  ${padStart(amount, amountWidth)}`);
+          const named = [...income, ...expenses];
+          const nameWidth = Math.max('Total expenses'.length + 2, ...named.map(([name]) => displayWidth(name) + 2));
+          const amountWidth = Math.max(...[totalIncome, totalExpenses, net, ...named.map(([, amount]) => amount)].map((a) => displayWidth(a)));
+          const text: string[] = [];
+          const section = (title: string, items: ReadonlyArray<readonly [string, string]>, total: string): void => {
+            text.push(c.bold(title));
+            if (items.length === 0) text.push(c.dim('  none'));
+            for (const [name, amount] of items) text.push(`  ${padEnd(name, nameWidth - 2)}  ${padStart(amount, amountWidth)}`);
+            text.push(`  ${padEnd(`Total ${title.toLowerCase()}`, nameWidth - 2)}  ${padStart(total, amountWidth)}`);
+            text.push('');
           };
-          section('Income', income);
-          section('Expenses', expenses);
-          lines.push('');
-          lines.push(`${c.bold(padEnd('Net income', nameWidth))}  ${c.bold(out.signed(padStart(net, amountWidth), statement.net_income))}`);
-          out.line(lines.join('\n'));
+          section('Income', income, totalIncome);
+          section('Expenses', expenses, totalExpenses);
+          text.push(`${c.bold(padEnd('Net income', nameWidth))}  ${c.bold(out.signed(padStart(net, amountWidth), statement.net_income))}`);
+          out.line(text.join('\n'));
         },
       });
     });
@@ -119,7 +123,7 @@ export function registerLedger(program: Command, app: App): void {
     .addOption(new Option('--kind <kind>', 'Only one axis').choices(['category', 'need']))
     .action(async (opts) => {
       const api = await app.api();
-      const data = (await api.call(tagsList, { query: opts.kind ? { kind: opts.kind as 'category' | 'need' } : {} })) as TagList;
+      const data = await api.call(tagsList, { query: opts.kind ? { kind: opts.kind as 'category' | 'need' } : {} });
       app.out.emit(data, {
         records: (d) => d.tags,
         human: (d) => {

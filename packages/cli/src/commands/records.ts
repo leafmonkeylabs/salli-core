@@ -11,7 +11,10 @@ const HIDDEN = new Set(['currency', 'user_id', 'inputs_hash']);
 
 /** "next_due_date" → "Next due date". */
 export function fieldLabel(key: string): string {
-  const text = key.replace(/_/g, ' ').replace(/\bpct\b/, '%').replace(/\bid\b/i, 'ID');
+  const text = key
+    .replace(/_/g, ' ')
+    .replace(/\bpct\b/, '%')
+    .replace(/\b(id|mcp|ird|fi|apr|swr|llm)\b/gi, (word) => word.toUpperCase());
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 

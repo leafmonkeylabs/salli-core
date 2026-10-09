@@ -14,17 +14,12 @@ import {
   statementsPending,
   statementsPost,
   statementsUpload,
+  type PostedStatementTransactions,
   type SalliClient,
+  type StatementTransaction,
+  type StatementUpload,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import type {
-  EntryList,
-  StatementList,
-  StatementPending,
-  StatementPost,
-  StatementUpload,
-  TodayStatementTransaction,
-} from '../api-types';
 import { CliError, UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { displayDate, displayRange } from '../util/dates';
@@ -32,18 +27,24 @@ import { readUpload } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { AccountBook, confirmAction, currencyArg, limitArg } from './shared';
 
-type Transaction = TodayStatementTransaction & { id: string };
+type Transaction = StatementTransaction;
+
+/** The accounts chosen in review for a transaction, where they differ from the suggestion. */
+interface AccountChoice {
+  debit: string;
+  credit: string;
+}
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
-const isDuplicate = (t: TodayStatementTransaction): boolean =>
+const isDuplicate = (t: Transaction): boolean =>
   t.dedup_status === 'exact_duplicate' || t.dedup_status === 'confirmed_duplicate';
 
 /** Unique, complete, and not a possible duplicate: safe to post unreviewed. */
-const isClean = (t: TodayStatementTransaction): boolean =>
+const isClean = (t: Transaction): boolean =>
   !!t.id && t.dedup_status === 'unique' && !!t.debit_account_id && !!t.credit_account_id;
 
-function transactionTable(app: App, book: AccountBook, list: readonly TodayStatementTransaction[]): string {
+function transactionTable(app: App, book: AccountBook, list: readonly Transaction[]): string {
   const c = app.out.colors;
   return app.out.table(list, [
     { header: 'DATE', get: (t) => displayDate(t.date, app.out.locale) },
@@ -57,7 +58,7 @@ function transactionTable(app: App, book: AccountBook, list: readonly TodayState
       get: (t) => (isDuplicate(t) ? 'duplicate' : t.dedup_status === 'fuzzy_match' ? 'maybe a duplicate' : !t.debit_account_id || !t.credit_account_id ? 'needs an account' : ''),
       style: (s) => c.yellow(s),
     },
-    { header: 'ID', get: (t) => (t.id ?? '').slice(0, 8), style: (s) => c.dim(s) },
+    { header: 'ID', get: (t) => t.id.slice(0, 8), style: (s) => c.dim(s) },
   ]);
 }
 
@@ -67,34 +68,51 @@ interface Correction {
   entry: string;
 }
 
-/**
- * Posts approved transactions. Ones whose accounts were changed in review
- * are posted too (so the server marks them done), then corrected: the
- * statement API takes only ids, so the entry it posts carries the suggested
- * account; it is reversed and re-entered with the chosen one.
- */
+/** Posts approved transactions, with the accounts chosen in review. */
 async function postApproved(
   app: App,
   api: SalliClient,
   statementId: string,
   approved: readonly Transaction[],
-  changed: ReadonlyMap<string, { debit: string; credit: string }>,
-): Promise<{ result: StatementPost; corrections: Correction[] }> {
-  const result = (await api.call(statementsPost, {
+  changed: ReadonlyMap<string, AccountChoice>,
+): Promise<{ result: PostedStatementTransactions; corrections: Correction[] }> {
+  const result = await api.call(statementsPost, {
     path: { statement_id: statementId },
     body: { approved_ids: approved.map((t) => t.id) },
     timeoutMs: 120_000,
-  })) as StatementPost;
-  const corrections: Correction[] = [];
-  const toCorrect = approved.filter((t) => changed.has(t.id));
-  if (toCorrect.length === 0) return { result, corrections };
+  });
+  const corrections = await applyAccountChoices(
+    app,
+    api,
+    approved.filter((t) => changed.has(t.id)),
+    changed,
+  );
+  return { result, corrections };
+}
 
+/**
+ * Gives posted statement transactions the accounts chosen in review.
+ *
+ * The statement API takes only the ids to post, so the entry it posts
+ * carries the account it suggested; each changed one is reversed and
+ * re-entered with the chosen accounts. When the API takes accounts per
+ * transaction, they go in the post request instead and this goes away.
+ */
+async function applyAccountChoices(
+  app: App,
+  api: SalliClient,
+  toCorrect: readonly Transaction[],
+  changed: ReadonlyMap<string, AccountChoice>,
+): Promise<Correction[]> {
+  const corrections: Correction[] = [];
+  if (toCorrect.length === 0) return corrections;
   const dates = toCorrect.map((t) => t.date).sort();
-  const entries = (await api.call(entriesList, {
+  const entries = await api.call(entriesList, {
     query: { from_date: dates[0] as string, to_date: dates[dates.length - 1] as string },
-  })) as EntryList;
+  });
   for (const t of toCorrect) {
-    const accounts = changed.get(t.id) as { debit: string; credit: string };
+    const accounts = changed.get(t.id);
+    if (!accounts) continue;
     const posted = entries.find((e) => e.external_ref === t.id && !e.reversed_by);
     if (!posted) {
       app.out.warn(`Could not find the entry for “${singleLine(t.description)}” to correct; check it with \`salli entries list\`.`);
@@ -103,9 +121,9 @@ async function postApproved(
     if (posted.postings.some((p) => p.direction > 0 && p.account_id === accounts.debit) && posted.postings.some((p) => p.direction < 0 && p.account_id === accounts.credit)) {
       continue; // the server already used the chosen accounts
     }
-    const reversal = (await api.call(entriesReverse, { path: { entry_id: posted.id } })) as { id: string };
+    const reversal = await api.call(entriesReverse, { path: { entry_id: posted.id } });
     try {
-      const entry = (await api.call(entriesCreate, {
+      const entry = await api.call(entriesCreate, {
         body: {
           entry_date: t.date,
           description: t.description,
@@ -116,28 +134,28 @@ async function postApproved(
             { account_id: accounts.credit, direction: -1, amount: t.amount, currency: t.currency },
           ],
         },
-      })) as { id: string };
+      });
       corrections.push({ transaction_id: t.id, reversed_entry: posted.id, entry: entry.id });
     } catch (error) {
       throw new CliError(
-        `“${t.description}” was posted and reversed, but re-entering it with your accounts failed: ${(error as Error).message}`,
+        `“${singleLine(t.description)}” was posted and reversed, but re-entering it with your accounts failed: ${(error as Error).message}`,
         { hint: `Add it with \`salli entries add\` (reversal ${reversal.id.slice(0, 8)} cancels the original).` },
       );
     }
   }
-  return { result, corrections };
+  return corrections;
 }
 
 async function review(
   app: App,
   book: AccountBook,
   transactions: Transaction[],
-): Promise<{ approved: Transaction[]; changed: Map<string, { debit: string; credit: string }>; skipped: Transaction[] }> {
+): Promise<{ approved: Transaction[]; changed: Map<string, AccountChoice>; skipped: Transaction[] }> {
   const out = app.out;
   const c = out.errColors;
   const approved: Transaction[] = [];
   const skipped: Transaction[] = [];
-  const changed = new Map<string, { debit: string; credit: string }>();
+  const changed = new Map<string, AccountChoice>();
   let approveRest = false;
 
   for (const [i, t] of transactions.entries()) {
@@ -233,22 +251,22 @@ Examples:
       spinner.start(`Reading ${name}`);
       let parsed: StatementUpload;
       try {
-        parsed = (await api.call(statementsUpload, {
+        parsed = await api.call(statementsUpload, {
           body: { file: upload },
           query: { ...(opts.bank ? { bank: opts.bank } : {}), ...(opts.currency ? { currency: currencyArg(opts.currency) } : {}) },
           timeoutMs: 5 * 60_000,
-        })) as StatementUpload;
+        });
       } finally {
         spinner.stop();
       }
       const book = await AccountBook.load(api);
       const out = app.out;
-      const transactions = parsed.transactions.filter((t): t is Transaction => !!t.id);
+      const transactions = parsed.transactions;
       const period = parsed.period_start ? ` for ${displayRange(parsed.period_start, parsed.period_end, out.locale)}` : '';
       out.info(`Read ${transactions.length} transaction${transactions.length === 1 ? '' : 's'} from ${singleLine(parsed.bank || name)}${period}.`);
       for (const problem of parsed.errors) out.warn(singleLine(String(problem)));
 
-      let decision: { approved: Transaction[]; changed: Map<string, { debit: string; credit: string }>; skipped: Transaction[] };
+      let decision: { approved: Transaction[]; changed: Map<string, AccountChoice>; skipped: Transaction[] };
       if (opts.yes) {
         const approve = (t: Transaction): boolean =>
           isClean(t) ||
@@ -270,7 +288,7 @@ Examples:
 
       const posted = decision.approved.length
         ? await postApproved(app, api, parsed.statement_id, decision.approved, decision.changed)
-        : { result: { posted: 0, entry_ids: [] } as StatementPost, corrections: [] };
+        : { result: { posted: 0, entry_ids: [] } satisfies PostedStatementTransactions, corrections: [] };
       const skipped = decision.skipped.map((t) => t.id);
       out.emit(
         { upload: parsed, posted: posted.result, corrections: posted.corrections, skipped },
@@ -303,7 +321,7 @@ Examples:
     .option('--limit <n>', 'At most this many', limitArg)
     .action(async (opts) => {
       const api = await app.api();
-      const data = (await api.call(statementsList, { query: opts.limit ? { limit: opts.limit } : {} })) as StatementList;
+      const data = await api.call(statementsList, { query: opts.limit ? { limit: opts.limit } : {} });
       app.out.emit(data, {
         records: (d) => d.statements,
         human: (d) => {
@@ -317,7 +335,7 @@ Examples:
               { header: 'ID', get: (s) => s.id.slice(0, 8), style: (t) => c.dim(t) },
               { header: 'BANK', get: (s) => s.bank ?? '', shrink: true },
               { header: 'PERIOD', get: (s) => (s.period_start ? displayRange(s.period_start, s.period_end, app.out.locale) : '') },
-              { header: 'STATUS', get: (s) => s.status ?? '' },
+              { header: 'STATUS', get: (s) => s.status },
               { header: 'IMPORTED', get: (s) => displayDate(s.created_at, app.out.locale) },
             ]),
           );
@@ -328,18 +346,18 @@ Examples:
   async function pendingFor(api: SalliClient, statementId: string | undefined): Promise<{ statementIds: string[]; transactions: Transaction[] }> {
     let ids: string[];
     if (statementId) {
-      const list = ((await api.call(statementsList)) as StatementList).statements;
+      const { statements: list } = await api.call(statementsList);
       ids = [statementId.length >= 32 ? statementId : resolveById(list, statementId, 'statement').id];
     } else {
-      ids = ((await api.call(statementsList)) as StatementList).statements.map((s) => s.id);
+      ids = (await api.call(statementsList)).statements.map((s) => s.id);
     }
     // Pending transactions are read per statement; the server today answers
     // with every pending transaction whichever statement is asked, so they
     // are merged by id.
     const seen = new Map<string, Transaction>();
     for (const id of ids) {
-      const data = (await api.call(statementsPending, { path: { statement_id: id } })) as StatementPending;
-      for (const t of data.transactions) if (t.id && !seen.has(t.id)) seen.set(t.id, t as Transaction);
+      const data = await api.call(statementsPending, { path: { statement_id: id } });
+      for (const t of data.transactions) if (!seen.has(t.id)) seen.set(t.id, t);
     }
     return { statementIds: ids, transactions: [...seen.values()] };
   }
@@ -387,11 +405,11 @@ Examples:
         const ok = await confirmAction(app, opts.yes, `Post ${chosen.length} transaction${chosen.length === 1 ? '' : 's'} to your ledger?`);
         if (!ok) return;
       }
-      const result = (await api.call(statementsPost, {
+      const result = await api.call(statementsPost, {
         path: { statement_id: statementIds[0] as string },
         body: { approved_ids: chosen.map((t) => t.id) },
         timeoutMs: 120_000,
-      })) as StatementPost;
+      });
       if (app.out.machine) app.out.emit(result, { human: () => undefined });
       else {
         app.out.success(`Posted ${result.posted} transaction${result.posted === 1 ? '' : 's'}.`);

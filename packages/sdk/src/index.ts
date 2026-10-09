@@ -24,6 +24,7 @@ export {
   type RequestLog,
   type SalliClient,
   type SalliClientOptions,
+  type StreamRequest,
   type TokenProvider,
 } from './client';
 export {
@@ -57,22 +58,18 @@ export {
   parseAgentEvent,
   streamAgentChat,
   streamAgentResume,
+  streamStrategyGeneration,
   type AgentApprovalRequest,
   type AgentEvent,
   type AgentStreamOptions,
+  type StrategyEvent,
 } from './agent';
 export { exactValue, parseJsonExact, RAW_JSON, rawJsonOf, reindentJson, toJsonText, withRawJson } from './json';
 export * as oauth from './oauth';
-export type {
-  ClientMetadata,
-  DeviceAuthorization,
-  OAuthEndpoints,
-  OAuthTokenProvider,
-  PkcePair,
-  RegisteredClient,
-  StoredTokens,
-  TokenResponse,
-} from './oauth';
+// `DeviceAuthorization` and `RegisteredClient` at the top level are the
+// server's (generated) shapes; the protocol-level ones, which allow what the
+// RFCs leave optional, are `oauth.DeviceAuthorization` and so on.
+export type { ClientMetadata, OAuthEndpoints, OAuthTokenProvider, PkcePair, StoredTokens, TokenResponse } from './oauth';
 
 /** The API versions this SDK speaks (`api_version` in `/v1/meta`). */
 export const SUPPORTED_API_VERSIONS: readonly string[] = ['1'];

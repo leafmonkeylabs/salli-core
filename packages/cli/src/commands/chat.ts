@@ -20,6 +20,10 @@ import {
   streamAgentResume,
   type AgentApprovalRequest,
   type AgentEvent,
+  type ChatSubagentSection,
+  type ChatSubagentToken,
+  type ChatTextPart,
+  type ChatToolCall,
   type SalliClient,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
@@ -33,12 +37,8 @@ import { collect, confirmAction, limitArg } from './shared';
 type Persona = 'scrooge' | 'buddy';
 const PERSONAS = ['scrooge', 'buddy'] as const;
 
-interface Session {
-  thread_id: string;
-  title?: string | null;
-  last_active_at?: string | null;
-  created_at?: string | null;
-}
+/** A piece of a stored reply: text, a tool call, or a specialist's section. */
+type HistoryPart = ChatTextPart | ChatToolCall | ChatSubagentSection | ChatSubagentToken;
 
 /** "tax_specialist" → "Tax specialist". */
 const agentName = (name: string): string => {
@@ -137,14 +137,14 @@ function describeApproval(app: App, approval: AgentApprovalRequest): string {
 /** Uploads a file for the agent to read; returns its reference. */
 async function attach(app: App, api: SalliClient, path: string): Promise<string> {
   const file = await readUpload(path);
-  const result = (await api.call(agentFilesUpload, { body: { file }, timeoutMs: 120_000 })) as { file_ref: string; name?: string };
-  app.out.note(`Attached ${singleLine(result.name ?? file.name)}.`);
+  const result = await api.call(agentFilesUpload, { body: { file }, timeoutMs: 120_000 });
+  app.out.note(`Attached ${singleLine(result.name || file.name)}.`);
   return result.file_ref;
 }
 
 async function resolveThread(api: SalliClient, query: string): Promise<string> {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query)) return query;
-  const { sessions } = (await api.call(agentSessionsList, { query: { limit: 200 } })) as { sessions: Session[] };
+  const { sessions } = await api.call(agentSessionsList, { query: { limit: 200 } });
   return resolveById(
     sessions.map((s) => ({ ...s, id: s.thread_id })),
     query,
@@ -345,9 +345,9 @@ Examples:
     .addOption(personaOption())
     .action(async (opts) => {
       const api = await app.api();
-      const data = (await api.call(agentSessionsList, {
+      const data = await api.call(agentSessionsList, {
         query: { limit: opts.limit ?? 50, persona: opts.persona as Persona },
-      })) as { sessions: Session[] };
+      });
       app.out.emit(data, {
         records: (d) => d.sessions,
         human: (d) => {
@@ -360,7 +360,7 @@ Examples:
             app.out.table(d.sessions, [
               { header: 'THREAD', get: (s) => s.thread_id.slice(0, 8), style: (t) => c.dim(t) },
               { header: 'TITLE', get: (s) => s.title || '(untitled)', shrink: true },
-              { header: 'LAST ACTIVE', get: (s) => displayDate(s.last_active_at ?? s.created_at ?? '', app.out.locale) },
+              { header: 'LAST ACTIVE', get: (s) => displayDate(s.last_active_at || s.created_at, app.out.locale) },
             ]),
           );
         },
@@ -375,29 +375,26 @@ Examples:
     .action(async (query, opts) => {
       const api = await app.api();
       const thread = await resolveThread(api, query);
-      const data = (await api.call(agentHistory, { path: { thread_id: thread }, query: { persona: opts.persona as Persona } })) as {
-        thread_id: string;
-        messages: Array<{ role: string; content?: string; parts?: Array<Record<string, unknown>> }>;
-      };
+      const data = await api.call(agentHistory, { path: { thread_id: thread }, query: { persona: opts.persona as Persona } });
       app.out.emit(data, {
         records: (d) => d.messages,
         human: (d) => {
           const c = app.out.colors;
-          const printParts = (parts: Array<Record<string, unknown>>, indent: string): void => {
+          const printParts = (parts: readonly HistoryPart[], indent: string): void => {
             for (const part of parts) {
-              if (part.type === 'text' || part.type === 'token') app.out.line(indent + sanitize(String(part.content ?? '')));
-              else if (part.type === 'tool_call') app.out.line(c.dim(`${indent}· ${String(part.name ?? '')}`));
+              if (part.type === 'text' || part.type === 'token') app.out.line(indent + sanitize(part.content));
+              else if (part.type === 'tool_call') app.out.line(c.dim(`${indent}· ${singleLine(part.name)}`));
               else if (part.type === 'subagent_section') {
-                app.out.line(c.dim(`${indent}↳ ${agentName(String(part.agent ?? ''))}`));
-                printParts((part.parts as Array<Record<string, unknown>>) ?? [], `${indent}  `);
+                app.out.line(c.dim(`${indent}↳ ${agentName(part.agent)}`));
+                printParts(part.parts, `${indent}  `);
               }
             }
           };
           for (const m of d.messages) {
-            if (m.role === 'user') app.out.line(`\n${c.cyan('you')} › ${sanitize(m.content ?? '')}`);
+            if (m.role === 'user') app.out.line(`\n${c.cyan('you')} › ${sanitize(m.content)}`);
             else {
               app.out.line(`\n${c.green('salli')} ›`);
-              printParts(m.parts ?? [], '  ');
+              printParts(m.parts, '  ');
             }
           }
         },
@@ -423,9 +420,7 @@ Examples:
     .option('--limit <n>', 'At most this many', limitArg)
     .action(async (opts) => {
       const api = await app.api();
-      const data = (await api.call(agentAuditLog, { query: { limit: opts.limit ?? 100 } })) as {
-        entries: Array<{ created_at?: string; action?: string; decision?: string; params?: unknown }>;
-      };
+      const data = await api.call(agentAuditLog, { query: { limit: opts.limit ?? 100 } });
       app.out.emit(data, {
         records: (d) => d.entries,
         human: (d) => {
@@ -436,9 +431,9 @@ Examples:
           const c = app.out.colors;
           app.out.line(
             app.out.table(d.entries, [
-              { header: 'WHEN', get: (e) => displayDate(e.created_at ?? '', app.out.locale) },
-              { header: 'ACTION', get: (e) => e.action ?? '' },
-              { header: 'DECISION', get: (e) => e.decision ?? '', style: (t) => (t === 'approved' ? c.green(t) : c.red(t)) },
+              { header: 'WHEN', get: (e) => displayDate(e.created_at, app.out.locale) },
+              { header: 'ACTION', get: (e) => e.action },
+              { header: 'DECISION', get: (e) => e.decision, style: (t) => (t === 'approved' ? c.green(t) : c.red(t)) },
               { header: 'DETAILS', get: (e) => preview(e.params, 80), shrink: true },
             ]),
           );

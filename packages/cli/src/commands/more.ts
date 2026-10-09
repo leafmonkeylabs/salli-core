@@ -35,11 +35,13 @@ import {
   taxLatest,
   taxPacks,
   toJsonText,
+  type AgentDocument,
   type ProfileIdentityRequest,
+  type Reminder,
   type SalliClient,
+  type TaxComputation,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import type { BalanceSheet, ReminderList, TodayReminder } from '../api-types';
 import { CliError, UsageError } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
 import { displayDate, displayRange, isoDate, parseDate } from '../util/dates';
@@ -50,16 +52,15 @@ import { renderRecord } from './records';
 import { humanize } from './status';
 import { confirmAction, countArg, currencyArg } from './shared';
 
-type Row = Record<string, unknown> & { id: string };
 /** A field from the server, as one line of safe text. */
-const str = (v: unknown): string => (typeof v === 'string' ? singleLine(v) : v === null || v === undefined ? '' : String(v));
+const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
 
 // ── Reminders ────────────────────────────────────────────────────────────────
 
 function registerReminders(program: Command, app: App): void {
   const reminders = program.command('reminders').alias('reminder').description('Deadlines and alerts: filing dates, overspending, missed charges, expiring cover');
-  const resolveReminder = async (api: SalliClient, query: string): Promise<TodayReminder> =>
-    resolveById(((await api.call(remindersList)) as ReminderList).reminders, query, 'reminder');
+  const resolveReminder = async (api: SalliClient, query: string): Promise<Reminder> =>
+    resolveById((await api.call(remindersList)).reminders, query, 'reminder');
 
   reminders
     .command('list')
@@ -69,9 +70,9 @@ function registerReminders(program: Command, app: App): void {
     .option('--alerts', 'Only alerts Salli raised (not reminders you or the filing calendar made)')
     .action(async (opts) => {
       const api = await app.api();
-      const data = (await api.call(remindersList, {
+      const data = await api.call(remindersList, {
         query: { ...(opts.status ? { status: opts.status } : {}), ...(opts.alerts ? { alerts_only: true } : {}) },
-      })) as ReminderList;
+      });
       const today = isoDate(app.runtime.now());
       app.out.emit(data, {
         records: (d) => d.reminders,
@@ -134,7 +135,7 @@ function registerReminders(program: Command, app: App): void {
     .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
     .action(async (opts) => {
       const api = await app.api();
-      const result = (await api.call(remindersSeedFilingCalendar, { query: opts.year ? { year: opts.year } : {} })) as { created: number; ids: string[] };
+      const result = await api.call(remindersSeedFilingCalendar, { query: opts.year ? { year: opts.year } : {} });
       app.out.done(result, `Added ${result.created} filing deadline${result.created === 1 ? '' : 's'}.`);
     });
 
@@ -143,7 +144,7 @@ function registerReminders(program: Command, app: App): void {
     .description('Check budgets, subscriptions and insurance now, and raise alerts')
     .action(async () => {
       const api = await app.api();
-      const result = (await api.call(remindersSyncAlerts)) as { counts: Record<string, number>; total: number };
+      const result = await api.call(remindersSyncAlerts);
       app.out.emit(result, {
         human: (r) => {
           if (!r.total) return app.out.success('Nothing needs your attention.');
@@ -166,7 +167,7 @@ function registerReports(program: Command, app: App): void {
     .description('What you own, what you owe, and your net worth')
     .action(async () => {
       const api = await app.api();
-      const bs = (await api.call(reportsBalanceSheet)) as BalanceSheet;
+      const bs = await api.call(reportsBalanceSheet);
       const lines = [
         ...bs.assets.map((l) => ({ section: 'asset', ...l })),
         ...bs.liabilities.map((l) => ({ section: 'liability', ...l })),
@@ -206,7 +207,7 @@ function registerReports(program: Command, app: App): void {
     .description('Your net worth now, and how it has moved')
     .action(async () => {
       const api = await app.api();
-      const r = (await api.call(reportsNetWorth)) as { currency: string; current_net_worth: string; as_of: string | null; trend: Array<{ date: string; net_worth: string }> };
+      const r = await api.call(reportsNetWorth);
       app.out.emit(r, {
         records: (d) => d.trend,
         human: (d) => {
@@ -229,7 +230,7 @@ function registerReports(program: Command, app: App): void {
     .description('Progress towards your goals')
     .action(async () => {
       const api = await app.api();
-      const r = (await api.call(reportsGoalProgress)) as { goals: Row[]; completed_count: number; in_progress_count: number };
+      const r = await api.call(reportsGoalProgress);
       app.out.emit(r, {
         records: (d) => d.goals,
         human: (d) => {
@@ -237,7 +238,7 @@ function registerReports(program: Command, app: App): void {
           if (!d.goals.length) return out.note('No goals yet. Add one with `salli goals add`.');
           out.line(
             out.table(d.goals, [
-              { header: 'GOAL', get: (g) => str(g.name), shrink: true },
+              { header: 'GOAL', get: (g) => g.name, shrink: true },
               { header: 'TARGET', get: (g) => out.money(g.target_amount, g.currency), align: 'right' },
               { header: 'FUNDED', get: (g) => out.amount(g.current_amount, g.currency), align: 'right' },
               { header: 'PROGRESS', get: (g) => out.percent(g.progress, 0), align: 'right' },
@@ -258,7 +259,7 @@ function registerReports(program: Command, app: App): void {
         throw new UsageError(`Unknown report "${type}".`, `Reports: ${REPORT_TYPES.join(', ')}`);
       }
       const api = await app.api();
-      const csv = (await api.call(reportsExportCsv, { path: { report_type: type }, parseAs: 'text' })) as string;
+      const csv = String(await api.call(reportsExportCsv, { path: { report_type: type }, parseAs: 'text' }));
       if (!opts.file || opts.file === '-') {
         app.out.write(csv);
         return;
@@ -269,15 +270,6 @@ function registerReports(program: Command, app: App): void {
 }
 
 // ── Tax ──────────────────────────────────────────────────────────────────────
-
-interface TaxComputation {
-  pack_country: string;
-  pack_year: string;
-  pack_version: string;
-  currency: string;
-  [field: string]: unknown;
-  band_workings: Array<{ band: string; rate: string; taxable_in_band: string; tax: string }>;
-}
 
 function taxView(app: App, t: TaxComputation): void {
   const out = app.out;
@@ -294,20 +286,20 @@ function taxView(app: App, t: TaxComputation): void {
     );
     out.line();
   }
-  const m = (key: string): string => out.money(t[key], cur);
-  const shown = (key: string): boolean => typeof t[key] === 'string' && compareAmounts(t[key] as string, '0') !== 0;
+  const m = (amount: string): string => out.money(amount, cur);
+  const nonzero = (amount: string): boolean => compareAmounts(amount, '0') !== 0;
   out.line(
     out.details([
-      ['Gross income', m('gross_income')],
-      shown('foreign_service_income') && ['Foreign service income', m('foreign_service_income')],
-      ['Personal relief', m('personal_relief_applied')],
-      shown('qp_deduction') && ['Qualifying payments', m('qp_deduction')],
-      ['Taxable income', m('taxable_income')],
-      shown('fsi_tax') && ['Tax on foreign income', m('fsi_tax')],
-      ['Tax before credits', m('tax_before_credits')],
-      shown('total_credits') && ['Credits (APIT, AIT, FTC)', m('total_credits')],
-      ['Tax payable', m('tax_payable'), out.colors.bold],
-      shown('refund_due') && ['Refund due', m('refund_due'), out.colors.green],
+      ['Gross income', m(t.gross_income)],
+      nonzero(t.foreign_service_income) && ['Foreign service income', m(t.foreign_service_income)],
+      ['Personal relief', m(t.personal_relief_applied)],
+      nonzero(t.qp_deduction) && ['Qualifying payments', m(t.qp_deduction)],
+      ['Taxable income', m(t.taxable_income)],
+      nonzero(t.fsi_tax) && ['Tax on foreign income', m(t.fsi_tax)],
+      ['Tax before credits', m(t.tax_before_credits)],
+      nonzero(t.total_credits) && ['Credits (APIT, AIT, FTC)', m(t.total_credits)],
+      ['Tax payable', m(t.tax_payable), out.colors.bold],
+      nonzero(t.refund_due) && ['Refund due', m(t.refund_due), out.colors.green],
     ]),
   );
 }
@@ -320,16 +312,17 @@ function registerTax(program: Command, app: App): void {
     .description('The tax packs this server has')
     .action(async () => {
       const api = await app.api();
-      const packs = (await api.call(taxPacks)) as Array<Record<string, unknown>>;
+      const packs = await api.call(taxPacks);
       app.out.emit(packs, {
         human: (d) => {
           app.out.line(
             app.out.table(d, [
-              { header: 'COUNTRY', get: (p) => str(p.country) },
-              { header: 'YEAR', get: (p) => str(p.year) },
-              { header: 'VERSION', get: (p) => str(p.version) },
+              { header: 'COUNTRY', get: (p) => p.country },
+              { header: 'YEAR', get: (p) => p.year },
+              { header: 'VERSION', get: (p) => p.version },
+              { header: 'CURRENCY', get: (p) => p.currency },
               { header: 'PERIOD', get: (p) => displayRange(p.period_start, p.period_end, app.out.locale) },
-              { header: 'RETURN DUE', get: (p) => str(p.return_due) },
+              { header: 'RETURN DUE', get: (p) => displayDate(p.return_due, app.out.locale) },
             ]),
           );
         },
@@ -342,7 +335,7 @@ function registerTax(program: Command, app: App): void {
     .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
     .action(async (opts) => {
       const api = await app.api();
-      const t = (await api.call(taxCompute, { query: opts.year ? { year: opts.year } : {} })) as TaxComputation;
+      const t = await api.call(taxCompute, { query: opts.year ? { year: opts.year } : {} });
       app.out.emit(t, { records: (d) => d.band_workings, human: (d) => taxView(app, d) });
     });
 
@@ -352,7 +345,7 @@ function registerTax(program: Command, app: App): void {
     .option('--year <year>', 'Year of assessment (default: the server’s)')
     .action(async (opts) => {
       const api = await app.api();
-      const data = (await api.call(taxLatest, { query: opts.year ? { year: opts.year } : {} })) as { result: TaxComputation | null };
+      const data = await api.call(taxLatest, { query: opts.year ? { year: opts.year } : {} });
       if (!data.result && !app.out.machine) {
         throw new CliError('No stored computation for that year.', { exitCode: 4, kind: 'not-found', hint: 'Run `salli tax compute`.' });
       }
@@ -364,8 +357,8 @@ function registerTax(program: Command, app: App): void {
 
 function registerDocuments(program: Command, app: App): void {
   const documents = program.command('documents').alias('docs').description('Files and notes the AI keeps for you (receipts, memories)');
-  const resolveDoc = async (api: SalliClient, query: string): Promise<Row> =>
-    resolveById(((await api.call(documentsList)) as { documents: Row[] }).documents, query, 'document');
+  const resolveDoc = async (api: SalliClient, query: string): Promise<AgentDocument> =>
+    resolveById((await api.call(documentsList)).documents, query, 'document');
 
   documents
     .command('list')
@@ -375,9 +368,9 @@ function registerDocuments(program: Command, app: App): void {
     .addOption(new Option('--namespace <ns>', 'documents or memories').choices(['documents', 'memories']))
     .action(async (opts) => {
       const api = await app.api();
-      const data = (await api.call(documentsList, {
+      const data = await api.call(documentsList, {
         query: { ...(opts.search ? { search: opts.search } : {}), ...(opts.namespace ? { namespace: opts.namespace } : {}) },
-      })) as { documents: Row[]; count: number };
+      });
       app.out.emit(data, {
         records: (d) => d.documents,
         human: (d) => {
@@ -385,9 +378,9 @@ function registerDocuments(program: Command, app: App): void {
           app.out.line(
             app.out.table(d.documents, [
               { header: 'ID', get: (x) => x.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
-              { header: 'TITLE', get: (x) => str(x.title), shrink: true },
-              { header: 'KIND', get: (x) => str(x.namespace) },
-              { header: 'TYPE', get: (x) => str(x.mime_type) },
+              { header: 'TITLE', get: (x) => x.title, shrink: true },
+              { header: 'KIND', get: (x) => x.namespace },
+              { header: 'TYPE', get: (x) => x.mime_type },
               { header: 'ADDED', get: (x) => displayDate(x.created_at, app.out.locale) },
             ]),
           );
@@ -402,11 +395,11 @@ function registerDocuments(program: Command, app: App): void {
     .action(async (query) => {
       const api = await app.api();
       const doc = await resolveDoc(api, query);
-      const data = (await api.call(documentsGet, { path: { doc_id: doc.id } })) as Row;
+      const data = await api.call(documentsGet, { path: { doc_id: doc.id } });
       app.out.emit(data, {
         human: (d) => {
           app.out.line(renderRecord(app, d, { hide: ['content'] }));
-          if (typeof d.content === 'string' && d.content) {
+          if (d.content) {
             app.out.line();
             app.out.line(d.content.replace(/\r\n/g, '\n'));
           }
@@ -421,7 +414,7 @@ function registerDocuments(program: Command, app: App): void {
     .action(async (file) => {
       const upload = await readUpload(file);
       const api = await app.api();
-      const result = (await api.call(agentFilesUpload, { body: { file: upload }, timeoutMs: 120_000 })) as { file_ref: string; name: string };
+      const result = await api.call(agentFilesUpload, { body: { file: upload }, timeoutMs: 120_000 });
       if (app.out.machine) app.out.emit(result, { human: () => undefined });
       else app.out.success(`Stored ${singleLine(result.name)} ${app.out.errColors.dim(result.file_ref)}`);
     });
@@ -451,8 +444,8 @@ function registerProfile(program: Command, app: App): void {
     .description('Show your profile')
     .action(async () => {
       const api = await app.api();
-      const data = (await api.call(profileGet)) as Record<string, unknown>;
-      app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d, { hide: ['risk_breakdown'] })) });
+      const data = await api.call(profileGet);
+      app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d)) });
     });
 
   profile
@@ -484,7 +477,7 @@ function registerProfile(program: Command, app: App): void {
       if (!Object.keys(body).length) throw new UsageError('Nothing to change.', 'See `salli profile set --help` for what can be set.');
       const api = await app.api();
       const result = await api.call(profileUpdate, { body });
-      app.out.done(result as Record<string, unknown>, 'Profile updated.');
+      app.out.done(result, 'Profile updated.');
     });
 
   program
@@ -516,7 +509,7 @@ function registerKeysAndMcp(program: Command, app: App): void {
     .description('Which keys you have stored (the last four characters only)')
     .action(async () => {
       const api = await app.api();
-      const data = (await api.call(llmKeysList)) as { available: boolean; keys: Array<{ provider: string; last4: string; validated_at?: string | null; readable?: boolean }> };
+      const data = await api.call(llmKeysList);
       app.out.emit(data, {
         records: (d) => d.keys,
         human: (d) => {
@@ -526,8 +519,8 @@ function registerKeysAndMcp(program: Command, app: App): void {
             app.out.table(d.keys, [
               { header: 'PROVIDER', get: (k) => k.provider },
               { header: 'KEY', get: (k) => `…${k.last4}` },
-              { header: 'CHECKED', get: (k) => displayDate(k.validated_at ?? '', app.out.locale) },
-              { header: '', get: (k) => (k.readable === false ? 'unreadable: set it again' : ''), style: (t) => app.out.colors.red(t) },
+              { header: 'CHECKED', get: (k) => displayDate(k.validated_at, app.out.locale) },
+              { header: '', get: (k) => (k.readable ? '' : 'unreadable: set it again'), style: (t) => app.out.colors.red(t) },
             ]),
           );
         },
@@ -568,7 +561,7 @@ function registerKeysAndMcp(program: Command, app: App): void {
     .description('Whether AI clients may connect')
     .action(async () => {
       const api = await app.api();
-      const data = (await api.call(mcpEnabledGet)) as { enabled: boolean };
+      const data = await api.call(mcpEnabledGet);
       app.out.emit(data, { human: (d) => app.out.line(`MCP: ${d.enabled ? 'on' : 'off'}`) });
     });
 
@@ -591,17 +584,17 @@ function registerKeysAndMcp(program: Command, app: App): void {
     .description('AI clients connected now')
     .action(async () => {
       const api = await app.api();
-      const data = (await api.call(mcpConnectionsList)) as { connections: Row[] };
+      const data = await api.call(mcpConnectionsList);
       app.out.emit(data, {
         records: (d) => d.connections,
         human: (d) => {
           if (!d.connections.length) return app.out.note('No AI clients connected.');
           app.out.line(
             app.out.table(d.connections, [
-              { header: 'ID', get: (c) => c.id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
-              { header: 'CLIENT', get: (c) => str(c.client_name), shrink: true },
-              { header: 'SCOPE', get: (c) => str(c.scope) },
-              { header: 'EXPIRES', get: (c) => displayDate(c.expires_at, app.out.locale) },
+              { header: 'ID', get: (c) => c.token_id.slice(0, 8), style: (t) => app.out.colors.dim(t) },
+              { header: 'CLIENT', get: (c) => c.client_name, shrink: true },
+              { header: 'SCOPE', get: (c) => c.scope },
+              { header: 'CONNECTED', get: (c) => displayDate(c.connected_at, app.out.locale) },
             ]),
           );
         },
@@ -614,9 +607,14 @@ function registerKeysAndMcp(program: Command, app: App): void {
     .description('Disconnect one AI client')
     .action(async (query) => {
       const api = await app.api();
-      const connection = resolveById(((await api.call(mcpConnectionsList)) as { connections: Row[] }).connections, query, 'connection');
-      await api.call(mcpConnectionsRevoke, { path: { token_id: connection.id } });
-      app.out.done({ id: connection.id, revoked: true }, `Disconnected ${str(connection.client_name) || connection.id.slice(0, 8)}.`);
+      const { connections } = await api.call(mcpConnectionsList);
+      const connection = resolveById(
+        connections.map((c) => ({ ...c, id: c.token_id })),
+        query,
+        'connection',
+      );
+      await api.call(mcpConnectionsRevoke, { path: { token_id: connection.token_id } });
+      app.out.done({ token_id: connection.token_id, revoked: true }, `Disconnected ${str(connection.client_name) || connection.token_id.slice(0, 8)}.`);
     });
 }
 

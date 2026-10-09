@@ -141,7 +141,7 @@ describe('errors from the real entry point', () => {
     expect(badFlag.code).toBe(2);
     expect(JSON.parse(badFlag.stderr)).toMatchObject({ type: '/problems/cli/usage', exit_code: 2 });
 
-    const badFormat = await run(['accounts', 'list', '-o', 'xml']);
+    const badFormat = await run(['accounts', 'list', '--output', 'xml']);
     expect(badFormat.code).toBe(2);
     expect(badFormat.stderr).toContain('--output must be one of: table, json, ndjson, csv');
   });

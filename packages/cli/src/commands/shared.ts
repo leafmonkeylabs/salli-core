@@ -1,6 +1,6 @@
 /**
  * What several commands share: confirmation, the chart of accounts as a
- * lookup, and reading loosely typed responses.
+ * lookup, and reading what people type (amounts, rates, currencies).
  */
 import { accountsList, normalizeAmountInput, type Account, type SalliClient } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
@@ -98,17 +98,6 @@ export function limitArg(value: string): number {
   const n = parseWholeNumber(value);
   if (n === undefined || n < 1) throw new UsageError(`--limit must be a positive whole number (got "${value}").`);
   return n;
-}
-
-/**
- * An amount for a request field the spec still types as a float (debts,
- * holdings, subscriptions, insurance, budget limits). The JSON carries the
- * decimal string itself, which the server parses, so nothing on this side
- * becomes a float; the cast only satisfies the generated type. When the
- * spec types the field as an amount string, the compiler flags each use.
- */
-export function wireAmount(amount: string): number {
-  return amount as unknown as number;
 }
 
 /**

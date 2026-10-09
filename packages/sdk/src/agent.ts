@@ -16,11 +16,22 @@
  *   error             the turn failed
  *   done              the turn is over
  */
-import { agentChat, agentResume } from './generated/sdk.gen';
-import type { ChatRequest, ResumeRequest } from './generated/types.gen';
+import type {
+  AgentChatData,
+  AgentResumeData,
+  ChatRequest,
+  FireStrategy,
+  FiStrategyGenerateData,
+  ResumeRequest,
+} from './generated/types.gen';
 import type { SalliClient } from './client';
 import { withRawJson } from './json';
-import type { EventSourceMessage } from './sse';
+import { parseEventData, type EventSourceMessage } from './sse';
+
+// Typed by the operations' own paths, so a renamed route fails to compile.
+const CHAT: AgentChatData['url'] = '/v1/agent/chat';
+const RESUME: AgentResumeData['url'] = '/v1/agent/resume';
+const STRATEGY: FiStrategyGenerateData['url'] = '/v1/fi/strategy/generate';
 
 /** What the agent asks permission for before it writes anything. */
 export interface AgentApprovalRequest {
@@ -88,10 +99,7 @@ export async function* streamAgentChat(
   body: ChatRequest,
   options: AgentStreamOptions = {},
 ): AsyncGenerator<AgentEvent, void, undefined> {
-  for await (const message of salli.events(agentChat, {
-    body,
-    ...(options.signal ? { signal: options.signal } : {}),
-  })) {
+  for await (const message of salli.events({ url: CHAT, body, ...(options.signal ? { signal: options.signal } : {}) })) {
     yield parseAgentEvent(message);
   }
 }
@@ -102,10 +110,28 @@ export async function* streamAgentResume(
   body: ResumeRequest,
   options: AgentStreamOptions = {},
 ): AsyncGenerator<AgentEvent, void, undefined> {
-  for await (const message of salli.events(agentResume, {
-    body,
-    ...(options.signal ? { signal: options.signal } : {}),
-  })) {
+  for await (const message of salli.events({ url: RESUME, body, ...(options.signal ? { signal: options.signal } : {}) })) {
     yield parseAgentEvent(message);
+  }
+}
+
+/** One event of the FIRE strategy generator's stream. */
+export type StrategyEvent =
+  | { type: 'status'; message: string }
+  | { type: 'done'; strategy: FireStrategy }
+  | { type: 'error'; message: string }
+  | { type: 'unknown'; data: unknown };
+
+/** Starts drafting a FIRE strategy and yields its progress, then the strategy. */
+export async function* streamStrategyGeneration(
+  salli: SalliClient,
+  options: AgentStreamOptions = {},
+): AsyncGenerator<StrategyEvent, void, undefined> {
+  for await (const message of salli.events({ url: STRATEGY, ...(options.signal ? { signal: options.signal } : {}) })) {
+    const value = parseEventData(message) as { type?: unknown } | undefined;
+    const type = value?.type;
+    const event: StrategyEvent =
+      type === 'status' || type === 'done' || type === 'error' ? (value as StrategyEvent) : { type: 'unknown', data: value ?? message.data };
+    yield withRawJson(event, message.data);
   }
 }

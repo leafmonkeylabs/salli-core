@@ -95,6 +95,22 @@ export type AccountActivity = {
 };
 
 /**
+ * AccountDeletion
+ */
+export type AccountDeletion = {
+    /**
+     * Deleted
+     */
+    deleted: boolean;
+    /**
+     * Counts
+     */
+    counts: {
+        [key: string]: number;
+    };
+};
+
+/**
  * AccountHint
  *
  * A suggested NEW account (name + type) when the parser couldn't match an
@@ -195,6 +211,238 @@ export type AddEntryRequest = {
 };
 
 /**
+ * AdvisoryActionParams
+ *
+ * What applying a recommendation sets up: a reminder's label and due date.
+ */
+export type AdvisoryActionParams = {
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Due In Days
+     */
+    due_in_days?: number | null;
+    [key: string]: unknown;
+};
+
+/**
+ * AdvisoryRecommendation
+ *
+ * A recommendation in an advisory report, and what became of it.
+ */
+export type AdvisoryRecommendation = {
+    /**
+     * Id
+     */
+    id?: string | null;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Rationale
+     */
+    rationale?: string | null;
+    /**
+     * Category
+     */
+    category?: string | null;
+    /**
+     * Priority
+     */
+    priority?: number | null;
+    /**
+     * Bucket Key
+     */
+    bucket_key?: string | null;
+    /**
+     * Action Type
+     */
+    action_type?: string | null;
+    action_params?: AdvisoryActionParams | null;
+    /**
+     * Status
+     */
+    status?: 'pending' | 'applied' | 'dismissed' | null;
+    [key: string]: unknown;
+};
+
+/**
+ * AdvisoryReport
+ *
+ * A Wealth Advisor run: a summary, and recommendations to act on.
+ *
+ * A report just run carries `fire_tier_assessment`; a stored one carries
+ * `user_id` and `created_at`. A deployment's entitlement policy may withhold
+ * parts of it and add fields of its own, so every field is optional.
+ */
+export type AdvisoryReport = {
+    /**
+     * Id
+     */
+    id?: string | null;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * Trigger
+     */
+    trigger?: string | null;
+    /**
+     * Fi Score Id
+     */
+    fi_score_id?: string | null;
+    /**
+     * Summary
+     */
+    summary?: string | null;
+    /**
+     * Fire Tier Assessment
+     */
+    fire_tier_assessment?: string | null;
+    /**
+     * Recommendations
+     */
+    recommendations?: Array<AdvisoryRecommendation> | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * AdvisoryReportList
+ */
+export type AdvisoryReportList = {
+    /**
+     * Reports
+     */
+    reports: Array<AdvisoryReport>;
+};
+
+/**
+ * AgentDocument
+ */
+export type AgentDocument = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Content
+     */
+    content: string | null;
+    /**
+     * Storage Key
+     */
+    storage_key: string | null;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Namespace
+     */
+    namespace: string;
+    /**
+     * Slug
+     */
+    slug: string | null;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AgentDocumentList
+ */
+export type AgentDocumentList = {
+    /**
+     * Documents
+     */
+    documents: Array<AgentDocument>;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
+ * AgentSession
+ *
+ * A conversation thread.
+ */
+export type AgentSession = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Title
+     */
+    title: string | null;
+    /**
+     * Persona
+     */
+    persona: 'scrooge' | 'buddy';
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Active At
+     */
+    last_active_at: string;
+};
+
+/**
+ * AgentSessions
+ */
+export type AgentSessions = {
+    /**
+     * Sessions
+     */
+    sessions: Array<AgentSession>;
+};
+
+/**
  * AllocationRequest
  */
 export type AllocationRequest = {
@@ -209,6 +457,210 @@ export type AllocationRequest = {
 };
 
 /**
+ * AllocationSlice
+ */
+export type AllocationSlice = {
+    /**
+     * Asset Class
+     */
+    asset_class: string;
+    /**
+     * Current Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    current_value: string;
+    /**
+     * Pct Of Portfolio
+     */
+    pct_of_portfolio: string;
+};
+
+/**
+ * AuditLog
+ */
+export type AuditLog = {
+    /**
+     * Entries
+     */
+    entries: Array<AuditLogEntry>;
+};
+
+/**
+ * AuditLogEntry
+ *
+ * A write the agent, or an MCP client, made or asked to make, and what was decided.
+ */
+export type AuditLogEntry = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Params
+     */
+    params: {
+        [key: string]: unknown;
+    };
+    /**
+     * Decision
+     */
+    decision: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AuthIdentity
+ */
+export type AuthIdentity = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * Method
+     */
+    method: 'session' | 'oauth' | 'pat' | 'dev';
+};
+
+/**
+ * AuthorizationServerMetadata
+ *
+ * RFC 8414 §2.
+ */
+export type AuthorizationServerMetadata = {
+    /**
+     * Issuer
+     */
+    issuer: string;
+    /**
+     * Authorization Endpoint
+     */
+    authorization_endpoint: string;
+    /**
+     * Token Endpoint
+     */
+    token_endpoint: string;
+    /**
+     * Registration Endpoint
+     */
+    registration_endpoint: string;
+    /**
+     * Revocation Endpoint
+     */
+    revocation_endpoint: string;
+    /**
+     * Device Authorization Endpoint
+     */
+    device_authorization_endpoint: string;
+    /**
+     * Response Types Supported
+     */
+    response_types_supported: Array<string>;
+    /**
+     * Grant Types Supported
+     */
+    grant_types_supported: Array<string>;
+    /**
+     * Code Challenge Methods Supported
+     */
+    code_challenge_methods_supported: Array<string>;
+    /**
+     * Token Endpoint Auth Methods Supported
+     */
+    token_endpoint_auth_methods_supported: Array<string>;
+};
+
+/**
+ * BalanceSheet
+ *
+ * Every asset, liability and equity account, valued in the base currency.
+ */
+export type BalanceSheet = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Assets
+     */
+    assets: Array<BalanceSheetLine>;
+    /**
+     * Liabilities
+     */
+    liabilities: Array<BalanceSheetLine>;
+    /**
+     * Equity
+     */
+    equity: Array<BalanceSheetLine>;
+    /**
+     * Total Assets
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_assets: string;
+    /**
+     * Total Liabilities
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_liabilities: string;
+    /**
+     * Total Equity
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_equity: string;
+    /**
+     * Net Worth
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net_worth: string;
+};
+
+/**
+ * BalanceSheetLine
+ */
+export type BalanceSheetLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    balance: string;
+};
+
+/**
  * BalanceSheetRequest
  */
 export type BalanceSheetRequest = {
@@ -219,6 +671,84 @@ export type BalanceSheetRequest = {
 };
 
 /**
+ * BankStatement
+ */
+export type BankStatement = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Bank
+     */
+    bank: string | null;
+    /**
+     * Period Start
+     */
+    period_start: string | null;
+    /**
+     * Period End
+     */
+    period_end: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * BankStatementList
+ */
+export type BankStatementList = {
+    /**
+     * Statements
+     */
+    statements: Array<BankStatement>;
+};
+
+/**
+ * BriefingAction
+ *
+ * What applying the recommendation would set up.
+ */
+export type BriefingAction = {
+    /**
+     * Type
+     */
+    type: 'none' | 'reminder';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Due In Days
+     */
+    due_in_days: number | null;
+};
+
+/**
+ * BriefingDraft
+ */
+export type BriefingDraft = {
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Fire Tier Assessment
+     */
+    fire_tier_assessment: string;
+    /**
+     * Recommendations
+     */
+    recommendations: Array<BriefingRecommendation>;
+};
+
+/**
  * BriefingPrepareRequest
  */
 export type BriefingPrepareRequest = {
@@ -226,6 +756,52 @@ export type BriefingPrepareRequest = {
      * Thread Id
      */
     thread_id?: string | null;
+};
+
+/**
+ * BriefingPrepared
+ *
+ * A draft briefing, held for review under `thread_id`.
+ */
+export type BriefingPrepared = {
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Error
+     */
+    error: string;
+    briefing: BriefingDraft;
+};
+
+/**
+ * BriefingRecommendation
+ *
+ * A recommendation in a draft briefing, before it is stored with an id and a status.
+ */
+export type BriefingRecommendation = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Rationale
+     */
+    rationale: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Priority
+     */
+    priority: number;
+    /**
+     * Bucket Key
+     */
+    bucket_key: string | null;
+    action: BriefingAction;
 };
 
 /**
@@ -243,6 +819,73 @@ export type BriefingResumeRequest = {
 };
 
 /**
+ * BriefingResumed
+ *
+ * The outcome of a review.
+ */
+export type BriefingResumed = {
+    report: AdvisoryReport;
+    /**
+     * Error
+     */
+    error: string;
+};
+
+/**
+ * Budget
+ */
+export type Budget = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Lines
+     */
+    lines: Array<BudgetLine>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * BudgetLine
+ *
+ * A category limit: how much may be spent from one expense account.
+ */
+export type BudgetLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Limit Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    limit_amount: string;
+};
+
+/**
  * BudgetLineRequest
  */
 export type BudgetLineRequest = {
@@ -252,8 +895,20 @@ export type BudgetLineRequest = {
     account_id: string;
     /**
      * Limit Amount
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    limit_amount: number;
+    limit_amount: string;
+};
+
+/**
+ * BudgetList
+ */
+export type BudgetList = {
+    /**
+     * Budgets
+     */
+    budgets: Array<Budget>;
 };
 
 /**
@@ -275,6 +930,84 @@ export type BudgetRequest = {
 };
 
 /**
+ * BudgetSummary
+ */
+export type BudgetSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Total Limit
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_limit: string;
+    /**
+     * Total Actual
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_actual: string;
+    /**
+     * Total Variance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_variance: string;
+    /**
+     * Lines
+     */
+    lines: Array<BudgetSummaryLine>;
+};
+
+/**
+ * BudgetSummaryLine
+ */
+export type BudgetSummaryLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Limit Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    limit_amount: string;
+    /**
+     * Actual Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    actual_amount: string;
+    /**
+     * Variance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    variance: string;
+};
+
+/**
  * BudgetUpdateRequest
  */
 export type BudgetUpdateRequest = {
@@ -290,6 +1023,109 @@ export type BudgetUpdateRequest = {
      * Lines
      */
     lines?: Array<BudgetLineRequest> | null;
+};
+
+/**
+ * CategorizationRule
+ */
+export type CategorizationRule = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Conditions
+     */
+    conditions: Array<RuleCondition>;
+    actions: RuleActions;
+    /**
+     * Priority
+     */
+    priority?: number;
+    /**
+     * Match All
+     */
+    match_all?: boolean;
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Hits
+     */
+    hits: number;
+    /**
+     * Last Hit At
+     */
+    last_hit_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ChatAssistantMessage
+ */
+export type ChatAssistantMessage = {
+    /**
+     * Role
+     */
+    role: 'assistant';
+    /**
+     * Parts
+     */
+    parts: Array<ChatTextPart | ChatToolCall | ChatSubagentSection>;
+};
+
+/**
+ * ChatAttachment
+ *
+ * A file uploaded for a chat message.
+ */
+export type ChatAttachment = {
+    /**
+     * File Ref
+     */
+    file_ref: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Size
+     */
+    size: number;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+};
+
+/**
+ * ChatHistory
+ *
+ * A conversation replayed as it looked while streaming: the user's
+ * messages, and each reply as the text, tool calls and specialist sections
+ * it streamed.
+ */
+export type ChatHistory = {
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Messages
+     */
+    messages: Array<ChatUserMessage | ChatAssistantMessage>;
 };
 
 /**
@@ -315,6 +1151,112 @@ export type ChatRequest = {
 };
 
 /**
+ * ChatSubagentSection
+ *
+ * Consecutive work by one specialist: what it wrote and the tools it called.
+ */
+export type ChatSubagentSection = {
+    /**
+     * Type
+     */
+    type: 'subagent_section';
+    /**
+     * Agent
+     */
+    agent: string;
+    /**
+     * Active
+     */
+    active: boolean;
+    /**
+     * Parts
+     */
+    parts: Array<ChatSubagentToken | ChatToolCall>;
+};
+
+/**
+ * ChatSubagentToken
+ *
+ * Text a specialist wrote, inside its section.
+ */
+export type ChatSubagentToken = {
+    /**
+     * Type
+     */
+    type: 'token';
+    /**
+     * Content
+     */
+    content: string;
+};
+
+/**
+ * ChatTextPart
+ *
+ * Text the agent wrote.
+ */
+export type ChatTextPart = {
+    /**
+     * Type
+     */
+    type: 'text';
+    /**
+     * Content
+     */
+    content: string;
+};
+
+/**
+ * ChatToolCall
+ *
+ * A tool the agent called, and what it called it with.
+ */
+export type ChatToolCall = {
+    /**
+     * Type
+     */
+    type: 'tool_call';
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Input
+     */
+    input: {
+        [key: string]: unknown;
+    };
+    /**
+     * Done
+     */
+    done: boolean;
+};
+
+/**
+ * ChatUserMessage
+ */
+export type ChatUserMessage = {
+    /**
+     * Role
+     */
+    role: 'user';
+    /**
+     * Content
+     */
+    content: string;
+};
+
+/**
+ * ConsentDecision
+ */
+export type ConsentDecision = {
+    /**
+     * Redirect Url
+     */
+    redirect_url: string;
+};
+
+/**
  * ConsentDecisionRequest
  */
 export type ConsentDecisionRequest = {
@@ -326,6 +1268,120 @@ export type ConsentDecisionRequest = {
      * Approve
      */
     approve: boolean;
+};
+
+/**
+ * ConsentInfo
+ *
+ * What the consent page shows the person before they decide.
+ */
+export type ConsentInfo = {
+    /**
+     * Client Name
+     */
+    client_name: string;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Resource
+     */
+    resource: string | null;
+    /**
+     * Audience
+     */
+    audience: 'mcp' | 'api';
+};
+
+/**
+ * CoverageGapLine
+ */
+export type CoverageGapLine = {
+    /**
+     * Policy Type
+     */
+    policy_type: string;
+    /**
+     * Target Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    target_amount: string;
+    /**
+     * Actual Coverage
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    actual_coverage: string;
+    /**
+     * Gap
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    gap: string;
+};
+
+/**
+ * CoverageReport
+ */
+export type CoverageReport = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Lines
+     */
+    lines: Array<CoverageGapLine>;
+    /**
+     * Missing Types
+     */
+    missing_types: Array<string>;
+    /**
+     * Expiring Soon
+     */
+    expiring_soon: Array<ExpiringPolicy>;
+};
+
+/**
+ * CoverageTarget
+ *
+ * The coverage wanted for one policy type.
+ */
+export type CoverageTarget = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Policy Type
+     */
+    policy_type: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Target Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    target_amount: string;
+};
+
+/**
+ * CoverageTargetList
+ */
+export type CoverageTargetList = {
+    /**
+     * Targets
+     */
+    targets: Array<CoverageTarget>;
 };
 
 /**
@@ -343,6 +1399,20 @@ export type CreateReminderRequest = {
 };
 
 /**
+ * CreateTokenRequest
+ */
+export type CreateTokenRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Expires In Days
+     */
+    expires_in_days?: number | null;
+};
+
+/**
  * DailyBriefingRequest
  */
 export type DailyBriefingRequest = {
@@ -350,6 +1420,207 @@ export type DailyBriefingRequest = {
      * Enabled
      */
     enabled: boolean;
+};
+
+/**
+ * DailyBriefingSetting
+ */
+export type DailyBriefingSetting = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+};
+
+/**
+ * DataExport
+ *
+ * Everything Salli has stored about the user, as one document.
+ *
+ * The profile, accounts and journal entries are typed here; each other
+ * section says where its records come from. An enabled extension may add
+ * sections of its own after these.
+ */
+export type DataExport = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    profile: Profile;
+    /**
+     * Accounts
+     *
+     * Every account, closed ones included: entries refer to them.
+     */
+    accounts: Array<ExportedAccount>;
+    /**
+     * Journal Entries
+     */
+    journal_entries: Array<ExportedJournalEntry>;
+    /**
+     * Tax Computation 2025 26
+     *
+     * The latest 2025/26 computation as the tax engine recorded it, or null.
+     * Kept for tools that read it; `tax_computations` has every year.
+     */
+    tax_computation_2025_26: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Tax Computations
+     *
+     * The latest computation for each tax year a pack covers, as recorded.
+     */
+    tax_computations?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Budgets
+     *
+     * Each as in `budgets.list`.
+     */
+    budgets: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Debts
+     *
+     * Each as in `debts.list`, inactive ones included.
+     */
+    debts: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Holdings
+     *
+     * Each as in `holdings.list`, inactive ones included.
+     */
+    holdings: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Recurring Subscriptions
+     *
+     * Each as in `subscriptions.list`, inactive ones included.
+     */
+    recurring_subscriptions: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Insurance Policies
+     *
+     * Each as in `insurance.policies.list`, inactive ones included.
+     */
+    insurance_policies: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Insurance Targets
+     *
+     * Each as in `insurance.targets.list`.
+     */
+    insurance_targets: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Goals
+     *
+     * Each as in `goals.list`: active goals.
+     */
+    goals: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Fi Score History
+     *
+     * Each as in `fi.score.history`.
+     */
+    fi_score_history: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Advisor Reports
+     *
+     * The advisor's reports, as stored.
+     */
+    advisor_reports: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Reminders And Alerts
+     *
+     * Each as in `reminders.list`.
+     */
+    reminders_and_alerts: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Documents
+     *
+     * Each as in `documents.list`: the record, not the file it may point to.
+     */
+    documents: Array<{
+        [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+};
+
+/**
+ * Debt
+ */
+export type Debt = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Principal
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    principal: string;
+    /**
+     * Apr
+     */
+    apr: string;
+    /**
+     * Minimum Payment
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    minimum_payment: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * DebtList
+ */
+export type DebtList = {
+    /**
+     * Debts
+     */
+    debts: Array<Debt>;
 };
 
 /**
@@ -362,16 +1633,20 @@ export type DebtRequest = {
     name: string;
     /**
      * Principal
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    principal: number;
+    principal: string;
     /**
      * Apr
      */
-    apr: number;
+    apr: string;
     /**
      * Minimum Payment
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    minimum_payment: number;
+    minimum_payment: string;
 };
 
 /**
@@ -385,19 +1660,39 @@ export type DebtUpdateRequest = {
     /**
      * Principal
      */
-    principal?: number | null;
+    principal?: string | null;
     /**
      * Apr
      */
-    apr?: number | null;
+    apr?: string | null;
     /**
      * Minimum Payment
      */
-    minimum_payment?: number | null;
+    minimum_payment?: string | null;
     /**
      * Is Active
      */
     is_active?: boolean | null;
+};
+
+/**
+ * DeclaredEntries
+ */
+export type DeclaredEntries = {
+    /**
+     * Entries Created
+     */
+    entries_created: Array<string>;
+};
+
+/**
+ * DeclaredGoals
+ */
+export type DeclaredGoals = {
+    /**
+     * Goal Ids
+     */
+    goal_ids: Array<string>;
 };
 
 /**
@@ -408,6 +1703,742 @@ export type DeleteAccountRequest = {
      * Confirm Email
      */
     confirm_email: string;
+};
+
+/**
+ * DeviceAuthorization
+ *
+ * RFC 8628 §3.2.
+ */
+export type DeviceAuthorization = {
+    /**
+     * Device Code
+     */
+    device_code: string;
+    /**
+     * User Code
+     */
+    user_code: string;
+    /**
+     * Verification Uri
+     */
+    verification_uri: string;
+    /**
+     * Verification Uri Complete
+     */
+    verification_uri_complete: string;
+    /**
+     * Expires In
+     */
+    expires_in: number;
+    /**
+     * Interval
+     */
+    interval: number;
+};
+
+/**
+ * EntryProvenance
+ */
+export type EntryProvenance = {
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Source
+     */
+    source: 'manual' | 'statement' | 'sms' | 'system';
+    /**
+     * External Ref
+     */
+    external_ref: string | null;
+    statement: ProvenanceStatement | null;
+    receipt: ProvenanceReceipt | null;
+    /**
+     * Possible Subscriptions
+     */
+    possible_subscriptions: Array<ProvenanceSubscription>;
+};
+
+/**
+ * ExpiringPolicy
+ */
+export type ExpiringPolicy = {
+    /**
+     * Policy Name
+     */
+    policy_name: string;
+    /**
+     * Policy Type
+     */
+    policy_type: string;
+    /**
+     * Expiry Date
+     */
+    expiry_date: string;
+    /**
+     * Days Until Expiry
+     */
+    days_until_expiry: number;
+};
+
+/**
+ * ExportedAccount
+ */
+export type ExportedAccount = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Type
+     */
+    type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Parent Id
+     */
+    parent_id: string | null;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Tax Role
+     */
+    tax_role?: string | null;
+};
+
+/**
+ * ExportedJournalEntry
+ */
+export type ExportedJournalEntry = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Source
+     */
+    source: 'manual' | 'statement' | 'sms' | 'system';
+    /**
+     * External Ref
+     */
+    external_ref: string | null;
+    /**
+     * Reversed By
+     */
+    reversed_by: string | null;
+    /**
+     * Postings
+     */
+    postings: Array<ExportedPosting>;
+};
+
+/**
+ * ExportedPosting
+ */
+export type ExportedPosting = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Direction
+     */
+    direction: 'DEBIT' | 'CREDIT';
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Fx Rate
+     */
+    fx_rate?: string;
+    /**
+     * Fx Rate Source
+     */
+    fx_rate_source?: string | null;
+    /**
+     * Tags
+     */
+    tags?: {
+        [key: string]: string;
+    };
+};
+
+/**
+ * FiProjectionPoint
+ *
+ * The FI asset base projected to the end of a year, per scenario, in today's money.
+ */
+export type FiProjectionPoint = {
+    /**
+     * Year
+     */
+    year?: number | null;
+    /**
+     * Conservative
+     */
+    conservative?: string | null;
+    /**
+     * Base
+     */
+    base?: string | null;
+    /**
+     * Growth
+     */
+    growth?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * FiProjections
+ *
+ * The FI asset base projected forward under three return scenarios, in today's money.
+ *
+ * A deployment's entitlement policy may withhold parts of this and add fields
+ * of its own, so every field is optional.
+ */
+export type FiProjections = {
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Points
+     */
+    points?: Array<FiProjectionPoint> | null;
+    /**
+     * Fi Number
+     */
+    fi_number?: string | null;
+    /**
+     * Swr
+     */
+    swr?: string | null;
+    /**
+     * Fire Year Conservative
+     */
+    fire_year_conservative?: number | null;
+    /**
+     * Fire Year Base
+     */
+    fire_year_base?: number | null;
+    /**
+     * Fire Year Growth
+     */
+    fire_year_growth?: number | null;
+    /**
+     * Current Portfolio
+     */
+    current_portfolio?: string | null;
+    real_returns?: FiScenarioReturns | null;
+    /**
+     * Expected Inflation
+     */
+    expected_inflation?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * FiScenarioReturns
+ *
+ * Real (after-inflation) yearly returns per scenario, as fractions in decimal strings.
+ */
+export type FiScenarioReturns = {
+    /**
+     * Conservative
+     */
+    conservative?: string | null;
+    /**
+     * Base
+     */
+    base?: string | null;
+    /**
+     * Growth
+     */
+    growth?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * FiScore
+ *
+ * The Freedom Score (0..100) and every figure it was computed from.
+ *
+ * Ratios are fractions in decimal strings ("0.25" is 25%), never percentages.
+ * A score stored by an earlier version may lack the optional fields.
+ */
+export type FiScore = {
+    /**
+     * Pack Version
+     */
+    pack_version: string;
+    /**
+     * Overall Score
+     */
+    overall_score: string;
+    /**
+     * Grade
+     */
+    grade: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Monthly Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_income: string;
+    /**
+     * Monthly Expenses
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_expenses: string;
+    /**
+     * Monthly Surplus
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_surplus: string;
+    /**
+     * Savings Rate
+     */
+    savings_rate: string;
+    /**
+     * Swr
+     */
+    swr?: string | null;
+    /**
+     * Annual Expenses
+     */
+    annual_expenses?: string | null;
+    /**
+     * Fi Number
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    fi_number: string;
+    /**
+     * Net Worth
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net_worth: string;
+    /**
+     * Fi Asset Base
+     */
+    fi_asset_base?: string | null;
+    /**
+     * Progress To Fi
+     */
+    progress_to_fi: string;
+    /**
+     * Emergency Fund Months
+     */
+    emergency_fund_months: string;
+    /**
+     * Debt To Asset
+     */
+    debt_to_asset: string;
+    /**
+     * Projected Fi Years
+     */
+    projected_fi_years?: string | null;
+    /**
+     * Projected Fi Date
+     */
+    projected_fi_date?: string | null;
+    /**
+     * Components
+     */
+    components: Array<FiScoreComponent>;
+    /**
+     * Inputs Hash
+     */
+    inputs_hash?: string | null;
+};
+
+/**
+ * FiScoreComponent
+ *
+ * One of the parts the Freedom Score is a weighted blend of.
+ */
+export type FiScoreComponent = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Score
+     */
+    score: string;
+    /**
+     * Weight
+     */
+    weight: string;
+    /**
+     * Detail
+     */
+    detail: string;
+};
+
+/**
+ * FiScoreHistory
+ */
+export type FiScoreHistory = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * History
+     */
+    history: Array<FiScoreSnapshot>;
+};
+
+/**
+ * FiScoreSnapshot
+ *
+ * A stored Freedom Score, for a trend line.
+ */
+export type FiScoreSnapshot = {
+    /**
+     * Score
+     */
+    score: number;
+    /**
+     * Net Worth
+     */
+    net_worth: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * FileUpload
+ *
+ * A multipart/form-data body carrying one file, as `file`.
+ */
+export type FileUpload = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * FireStrategy
+ *
+ * A version of the user's AI-generated FIRE strategy.
+ *
+ * Rates are fractions (0.04 is 4%), and the returns are nominal and yearly.
+ * Every field is optional: a strategy stored by an earlier version can lack
+ * some, and a deployment's entitlement policy may withhold parts of it and
+ * add fields of its own.
+ */
+export type FireStrategy = {
+    /**
+     * Version
+     */
+    version?: number | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Fire Style
+     */
+    fire_style?: string | null;
+    /**
+     * Swr
+     */
+    swr?: number | null;
+    /**
+     * Return Conservative
+     */
+    return_conservative?: number | null;
+    /**
+     * Return Base
+     */
+    return_base?: number | null;
+    /**
+     * Return Growth
+     */
+    return_growth?: number | null;
+    /**
+     * Target Monthly Expenses
+     */
+    target_monthly_expenses?: number | null;
+    /**
+     * Target Age
+     */
+    target_age?: number | null;
+    /**
+     * Buckets
+     */
+    buckets?: Array<FireStrategyBucket> | null;
+    /**
+     * Ai Rationale
+     */
+    ai_rationale?: string | null;
+    /**
+     * Theories Applied
+     */
+    theories_applied?: Array<string> | null;
+    /**
+     * Is Initial
+     */
+    is_initial?: boolean | null;
+    [key: string]: unknown;
+};
+
+/**
+ * FireStrategyBucket
+ *
+ * One allocation bucket of a FIRE strategy.
+ */
+export type FireStrategyBucket = {
+    /**
+     * Key
+     */
+    key?: string | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Target Pct
+     */
+    target_pct?: number | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Color
+     */
+    color?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * FireStrategyHistory
+ */
+export type FireStrategyHistory = {
+    /**
+     * History
+     */
+    history: Array<FireStrategySummary>;
+};
+
+/**
+ * FireStrategySummary
+ *
+ * A version in the strategy history. Optional throughout, as `FireStrategy` is.
+ */
+export type FireStrategySummary = {
+    /**
+     * Version
+     */
+    version?: number | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Fire Style
+     */
+    fire_style?: string | null;
+    /**
+     * Theories Applied
+     */
+    theories_applied?: Array<string> | null;
+    [key: string]: unknown;
+};
+
+/**
+ * Goal
+ *
+ * A savings goal, its progress measured from what its accounts actually hold.
+ */
+export type Goal = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Target Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    target_amount: string;
+    /**
+     * Current Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    current_amount: string;
+    /**
+     * Allocated Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    allocated_amount: string;
+    /**
+     * Shortfall
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    shortfall: string;
+    /**
+     * Target Date
+     */
+    target_date: string | null;
+    /**
+     * Priority
+     */
+    priority: number;
+    /**
+     * Progress
+     */
+    progress: number;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+};
+
+/**
+ * GoalAllocation
+ *
+ * Part of an account earmarked for a goal.
+ */
+export type GoalAllocation = {
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Allocated Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    allocated_amount: string;
+};
+
+/**
+ * GoalAllocationList
+ */
+export type GoalAllocationList = {
+    /**
+     * Allocations
+     */
+    allocations: Array<GoalAllocation>;
+};
+
+/**
+ * GoalList
+ */
+export type GoalList = {
+    /**
+     * Goals
+     */
+    goals: Array<Goal>;
+};
+
+/**
+ * GoalProgressReport
+ */
+export type GoalProgressReport = {
+    /**
+     * Goals
+     */
+    goals: Array<Goal>;
+    /**
+     * Completed Count
+     */
+    completed_count: number;
+    /**
+     * In Progress Count
+     */
+    in_progress_count: number;
 };
 
 /**
@@ -467,6 +2498,16 @@ export type GoalUpdateRequest = {
 };
 
 /**
+ * GoalUpdated
+ */
+export type GoalUpdated = {
+    /**
+     * Updated
+     */
+    updated: boolean;
+};
+
+/**
  * GoalsRequest
  */
 export type GoalsRequest = {
@@ -477,13 +2518,81 @@ export type GoalsRequest = {
 };
 
 /**
- * HTTPValidationError
+ * Health
+ *
+ * `GET /healthz`: the process is up and serving.
  */
-export type HttpValidationError = {
+export type Health = {
     /**
-     * Detail
+     * Status
      */
-    detail?: Array<ValidationError>;
+    status: 'ok';
+    /**
+     * Version
+     */
+    version: string;
+};
+
+/**
+ * Holding
+ */
+export type Holding = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Symbol
+     */
+    symbol: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Asset Class
+     */
+    asset_class: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Cost Basis
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cost_basis: string;
+    /**
+     * Current Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    current_value: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * HoldingList
+ */
+export type HoldingList = {
+    /**
+     * Holdings
+     */
+    holdings: Array<Holding>;
 };
 
 /**
@@ -504,12 +2613,16 @@ export type HoldingRequest = {
     asset_class: string;
     /**
      * Cost Basis
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    cost_basis: number;
+    cost_basis: string;
     /**
      * Current Value
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    current_value: number;
+    current_value: string;
 };
 
 /**
@@ -531,11 +2644,11 @@ export type HoldingUpdateRequest = {
     /**
      * Cost Basis
      */
-    cost_basis?: number | null;
+    cost_basis?: string | null;
     /**
      * Current Value
      */
-    current_value?: number | null;
+    current_value?: string | null;
     /**
      * Is Active
      */
@@ -587,6 +2700,291 @@ export type IncomeItem = {
 };
 
 /**
+ * IncomeStatement
+ */
+export type IncomeStatement = {
+    /**
+     * From Date
+     */
+    from_date: string;
+    /**
+     * To Date
+     */
+    to_date: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Income
+     */
+    income: {
+        [key: string]: string;
+    };
+    /**
+     * Expenses
+     */
+    expenses: {
+        [key: string]: string;
+    };
+    /**
+     * Total Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_income: string;
+    /**
+     * Total Expenses
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_expenses: string;
+    /**
+     * Net Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net_income: string;
+    /**
+     * Lines
+     */
+    lines: Array<IncomeStatementLine>;
+};
+
+/**
+ * IncomeStatementLine
+ */
+export type IncomeStatementLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Type
+     */
+    type: 'income' | 'expense';
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+};
+
+/**
+ * InsurancePolicy
+ */
+export type InsurancePolicy = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Policy Type
+     */
+    policy_type: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Coverage Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    coverage_amount: string;
+    /**
+     * Premium Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    premium_amount: string;
+    /**
+     * Premium Frequency
+     */
+    premium_frequency: string;
+    /**
+     * Expiry Date
+     */
+    expiry_date: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * InsurancePolicyList
+ */
+export type InsurancePolicyList = {
+    /**
+     * Policies
+     */
+    policies: Array<InsurancePolicy>;
+};
+
+/**
+ * JournalEntry
+ */
+export type JournalEntry = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Source
+     */
+    source: 'manual' | 'statement' | 'sms' | 'system';
+    /**
+     * External Ref
+     */
+    external_ref: string | null;
+    /**
+     * Reversed By
+     */
+    reversed_by: string | null;
+    /**
+     * Postings
+     */
+    postings: Array<Posting>;
+};
+
+/**
+ * LatestTaxComputation
+ */
+export type LatestTaxComputation = {
+    result: TaxComputation | null;
+};
+
+/**
+ * LlmKeyStatus
+ *
+ * A stored key, described without revealing it.
+ */
+export type LlmKeyStatus = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Last4
+     */
+    last4: string;
+    /**
+     * Validated At
+     */
+    validated_at: string | null;
+    /**
+     * Readable
+     */
+    readable: boolean;
+};
+
+/**
+ * LlmKeys
+ *
+ * The user's own keys, as far as they are ever shown: the key itself is write-only.
+ */
+export type LlmKeys = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Keys
+     */
+    keys: Array<LlmKeyStatus>;
+};
+
+/**
+ * McpConnection
+ *
+ * An AI client connected over MCP: one live access token.
+ */
+export type McpConnection = {
+    /**
+     * Token Id
+     */
+    token_id: string;
+    /**
+     * Client Id
+     */
+    client_id: string;
+    /**
+     * Client Name
+     */
+    client_name: string;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Connected At
+     */
+    connected_at: string;
+};
+
+/**
+ * McpConnections
+ */
+export type McpConnections = {
+    /**
+     * Connections
+     */
+    connections: Array<McpConnection>;
+};
+
+/**
+ * McpEnabled
+ */
+export type McpEnabled = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+};
+
+/**
  * McpEnabledRequest
  */
 export type McpEnabledRequest = {
@@ -626,6 +3024,98 @@ export type Meta = {
 };
 
 /**
+ * NetWorthPoint
+ */
+export type NetWorthPoint = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Net Worth
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net_worth: string;
+};
+
+/**
+ * NetWorthStatement
+ *
+ * Net worth now, and its trend across stored FI scores.
+ */
+export type NetWorthStatement = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Current Net Worth
+     */
+    current_net_worth: string | null;
+    /**
+     * As Of
+     */
+    as_of: string | null;
+    /**
+     * Trend
+     */
+    trend: Array<NetWorthPoint>;
+};
+
+/**
+ * NewPersonalAccessToken
+ */
+export type NewPersonalAccessToken = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Token
+     */
+    token: string;
+};
+
+/**
+ * OAuthErrorBody
+ *
+ * RFC 6749 §5.2.
+ */
+export type OAuthErrorBody = {
+    /**
+     * Error
+     */
+    error: string;
+    /**
+     * Error Description
+     */
+    error_description: string;
+};
+
+/**
  * OAuthInfo
  */
 export type OAuthInfo = {
@@ -649,6 +3139,18 @@ export type OAuthInfo = {
      * Revocation Endpoint
      */
     revocation_endpoint: string;
+    /**
+     * Device Authorization Endpoint
+     */
+    device_authorization_endpoint: string;
+    /**
+     * Api Resource
+     */
+    api_resource: string;
+    /**
+     * Device Verification Uri
+     */
+    device_verification_uri: string;
 };
 
 /**
@@ -733,6 +3235,27 @@ export type OnboardingRequest = {
      * Motivation
      */
     motivation?: string;
+};
+
+/**
+ * OnboardingResult
+ *
+ * What the all-in-one onboarding saved and opened. Running it again skips
+ * what already exists rather than duplicating it.
+ */
+export type OnboardingResult = {
+    /**
+     * Memories Saved
+     */
+    memories_saved: Array<string>;
+    /**
+     * Accounts Created
+     */
+    accounts_created: Array<string>;
+    /**
+     * Accounts Skipped
+     */
+    accounts_skipped: Array<string>;
 };
 
 /**
@@ -822,6 +3345,120 @@ export type ParsedEntryDraft = {
 };
 
 /**
+ * PayoffPlan
+ */
+export type PayoffPlan = {
+    /**
+     * Strategy
+     */
+    strategy: 'avalanche' | 'snowball';
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Months To Payoff
+     */
+    months_to_payoff: number | null;
+    /**
+     * Total Interest Paid
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_interest_paid: string;
+    /**
+     * Schedule
+     */
+    schedule: Array<PayoffScheduleEntry>;
+};
+
+/**
+ * PayoffScheduleEntry
+ *
+ * What one debt is paid in one month of the plan.
+ */
+export type PayoffScheduleEntry = {
+    /**
+     * Month
+     */
+    month: number;
+    /**
+     * Debt Name
+     */
+    debt_name: string;
+    /**
+     * Payment
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    payment: string;
+    /**
+     * Principal Paid
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    principal_paid: string;
+    /**
+     * Interest Paid
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    interest_paid: string;
+    /**
+     * Remaining Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    remaining_balance: string;
+};
+
+/**
+ * PendingStatementTransactions
+ */
+export type PendingStatementTransactions = {
+    /**
+     * Statement Id
+     */
+    statement_id: string;
+    /**
+     * Transactions
+     */
+    transactions: Array<StatementTransaction>;
+};
+
+/**
+ * PersonalAccessToken
+ */
+export type PersonalAccessToken = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+};
+
+/**
  * PolicyRequest
  */
 export type PolicyRequest = {
@@ -839,12 +3476,16 @@ export type PolicyRequest = {
     provider: string;
     /**
      * Coverage Amount
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    coverage_amount: number;
+    coverage_amount: string;
     /**
      * Premium Amount
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    premium_amount: number;
+    premium_amount: string;
     /**
      * Premium Frequency
      */
@@ -874,11 +3515,11 @@ export type PolicyUpdateRequest = {
     /**
      * Coverage Amount
      */
-    coverage_amount?: number | null;
+    coverage_amount?: string | null;
     /**
      * Premium Amount
      */
-    premium_amount?: number | null;
+    premium_amount?: string | null;
     /**
      * Premium Frequency
      */
@@ -894,6 +3535,48 @@ export type PolicyUpdateRequest = {
 };
 
 /**
+ * PortfolioSummary
+ */
+export type PortfolioSummary = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Total Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_value: string;
+    /**
+     * Total Cost Basis
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_cost_basis: string;
+    /**
+     * Total Gain
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_gain: string;
+    /**
+     * Total Gain Pct
+     */
+    total_gain_pct: string;
+    /**
+     * Allocation
+     */
+    allocation: Array<AllocationSlice>;
+    /**
+     * Alerts
+     */
+    alerts: Array<RebalancingAlert>;
+};
+
+/**
  * PostRequest
  */
 export type PostRequest = {
@@ -901,6 +3584,60 @@ export type PostRequest = {
      * Approved Ids
      */
     approved_ids: Array<string>;
+};
+
+/**
+ * PostedStatementTransactions
+ */
+export type PostedStatementTransactions = {
+    /**
+     * Posted
+     */
+    posted: number;
+    /**
+     * Entry Ids
+     */
+    entry_ids: Array<string>;
+};
+
+/**
+ * Posting
+ */
+export type Posting = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Tags
+     */
+    tags: {
+        [key: string]: string;
+    };
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Direction
+     */
+    direction: 1 | -1;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Fx Rate
+     */
+    fx_rate: string;
 };
 
 /**
@@ -937,6 +3674,86 @@ export type PostingRequest = {
     tags?: {
         [key: string]: string;
     };
+};
+
+/**
+ * Profile
+ *
+ * The structured fact-find profile: identity, risk profile, life stage.
+ *
+ * A fact the user has not given yet is null.
+ */
+export type Profile = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Display Name
+     */
+    display_name: string | null;
+    /**
+     * Base Currency
+     *
+     * ISO 4217 currency code
+     */
+    base_currency: string;
+    /**
+     * Date Of Birth
+     */
+    date_of_birth: string | null;
+    /**
+     * Dependents Count
+     */
+    dependents_count: number | null;
+    /**
+     * Employment Status
+     */
+    employment_status: string | null;
+    /**
+     * Residency Status
+     */
+    residency_status: string | null;
+    /**
+     * Employer
+     */
+    employer: string | null;
+    /**
+     * Employment Type
+     */
+    employment_type: string | null;
+    /**
+     * Ird Number
+     */
+    ird_number: string | null;
+    /**
+     * Risk Score
+     */
+    risk_score: number | null;
+    /**
+     * Risk Category
+     */
+    risk_category: string | null;
+    /**
+     * Life Stage
+     */
+    life_stage: string | null;
+    /**
+     * Mcp Enabled
+     */
+    mcp_enabled: boolean;
+    /**
+     * Daily Briefing Enabled
+     */
+    daily_briefing_enabled: boolean;
+    /**
+     * Preferred Model
+     */
+    preferred_model: string | null;
 };
 
 /**
@@ -982,6 +3799,279 @@ export type ProfileIdentityRequest = {
 };
 
 /**
+ * ProfileUpdated
+ */
+export type ProfileUpdated = {
+    /**
+     * Updated
+     */
+    updated: boolean;
+};
+
+/**
+ * ProtectedResourceMetadata
+ *
+ * RFC 9728 §2.
+ */
+export type ProtectedResourceMetadata = {
+    /**
+     * Resource
+     */
+    resource: string;
+    /**
+     * Authorization Servers
+     */
+    authorization_servers: Array<string>;
+};
+
+/**
+ * ProvenanceReceipt
+ *
+ * The uploaded document attached to a manual entry.
+ */
+export type ProvenanceReceipt = {
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Storage Key
+     */
+    storage_key: string | null;
+};
+
+/**
+ * ProvenanceStatement
+ *
+ * The bank-statement transaction an entry was posted from.
+ */
+export type ProvenanceStatement = {
+    /**
+     * Parsed Transaction Id
+     */
+    parsed_transaction_id: string;
+    /**
+     * Raw Description
+     */
+    raw_description: string;
+    /**
+     * Raw Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    raw_amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Raw Date
+     */
+    raw_date: string;
+    /**
+     * Bank Ref
+     */
+    bank_ref: string;
+    statement: ProvenanceStatementFile | null;
+};
+
+/**
+ * ProvenanceStatementFile
+ *
+ * The uploaded bank statement a transaction was read from.
+ */
+export type ProvenanceStatementFile = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Bank
+     */
+    bank: string | null;
+    /**
+     * Period Start
+     */
+    period_start: string | null;
+    /**
+     * Period End
+     */
+    period_end: string | null;
+    /**
+     * Storage Key
+     */
+    storage_key: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * ProvenanceSubscription
+ *
+ * A recurring subscription this entry looks like a payment of.
+ */
+export type ProvenanceSubscription = {
+    /**
+     * Subscription Id
+     */
+    subscription_id: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * PurchaseImpact
+ *
+ * What a purchase does to the balance sheet and the FI date. Every figure is the engine's.
+ */
+export type PurchaseImpact = {
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Fi Number
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    fi_number: string;
+    /**
+     * Fi Asset Base Before
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    fi_asset_base_before: string;
+    /**
+     * Monthly Surplus
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_surplus: string;
+    /**
+     * Baseline Months To Fi
+     */
+    baseline_months_to_fi: number | null;
+    /**
+     * Payable From Liquid
+     */
+    payable_from_liquid: boolean;
+    /**
+     * Emergency Months Before
+     */
+    emergency_months_before: string;
+    /**
+     * Emergency Months After Cash
+     */
+    emergency_months_after_cash: string;
+    /**
+     * Emergency Fund Target Months
+     */
+    emergency_fund_target_months: number;
+    /**
+     * Options
+     */
+    options: Array<PurchaseOption>;
+    /**
+     * Cheapest Option Key
+     */
+    cheapest_option_key: 'cash' | 'installments' | null;
+    /**
+     * Data As Of
+     */
+    data_as_of: string | null;
+    /**
+     * Is Stale
+     */
+    is_stale: boolean;
+    /**
+     * Stale After Days
+     */
+    stale_after_days: number;
+    /**
+     * Real Return Used
+     */
+    real_return_used: string;
+    /**
+     * Swr
+     */
+    swr: string;
+};
+
+/**
+ * PurchaseOption
+ *
+ * One way of paying, costed in months of freedom.
+ */
+export type PurchaseOption = {
+    /**
+     * Key
+     */
+    key: 'cash' | 'installments';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Total Cost
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_cost: string;
+    /**
+     * Interest Cost
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    interest_cost: string;
+    /**
+     * Monthly Payment
+     */
+    monthly_payment: string | null;
+    /**
+     * Term Months
+     */
+    term_months: number | null;
+    /**
+     * Months To Fi
+     */
+    months_to_fi: number | null;
+    /**
+     * Months Delay
+     */
+    months_delay: number | null;
+    /**
+     * Exceeds Monthly Surplus
+     */
+    exceeds_monthly_surplus: boolean;
+};
+
+/**
  * PurchaseRequest
  *
  * Money arrives as a STRING and is parsed to Decimal, never float — a float in
@@ -992,8 +4082,10 @@ export type ProfileIdentityRequest = {
 export type PurchaseRequest = {
     /**
      * Amount
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    amount: number | string;
+    amount: string;
     /**
      * Term Months
      */
@@ -1002,6 +4094,44 @@ export type PurchaseRequest = {
      * Annual Interest Rate
      */
     annual_interest_rate?: number | string;
+};
+
+/**
+ * RebalancingAlert
+ *
+ * An asset class whose share has drifted from its target by the threshold or more.
+ */
+export type RebalancingAlert = {
+    /**
+     * Asset Class
+     */
+    asset_class: string;
+    /**
+     * Current Pct
+     */
+    current_pct: string;
+    /**
+     * Target Pct
+     */
+    target_pct: string;
+    /**
+     * Drift Pct
+     */
+    drift_pct: string;
+};
+
+/**
+ * RecommendationStatus
+ */
+export type RecommendationStatus = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Status
+     */
+    status: 'applied' | 'dismissed';
 };
 
 /**
@@ -1028,6 +4158,92 @@ export type RegisterClientRequest = {
      * Redirect Uris
      */
     redirect_uris: Array<string>;
+};
+
+/**
+ * RegisteredClient
+ *
+ * RFC 7591 §3.2.1: a public client, which proves itself with PKCE.
+ */
+export type RegisteredClient = {
+    /**
+     * Client Id
+     */
+    client_id: string;
+    /**
+     * Client Name
+     */
+    client_name: string | null;
+    /**
+     * Redirect Uris
+     */
+    redirect_uris: Array<string>;
+    /**
+     * Token Endpoint Auth Method
+     */
+    token_endpoint_auth_method: string;
+    /**
+     * Grant Types
+     */
+    grant_types: Array<string>;
+    /**
+     * Response Types
+     */
+    response_types: Array<string>;
+};
+
+/**
+ * Reminder
+ *
+ * Something due: a filing deadline, one the user set, or a detected alert.
+ */
+export type Reminder = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Due Date
+     */
+    due_date: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Alert Type
+     */
+    alert_type: string | null;
+    /**
+     * Source Domain
+     */
+    source_domain: string | null;
+    /**
+     * Source Id
+     */
+    source_id: string | null;
+    /**
+     * Severity
+     */
+    severity: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * ReminderList
+ */
+export type ReminderList = {
+    /**
+     * Reminders
+     */
+    reminders: Array<Reminder>;
 };
 
 /**
@@ -1059,13 +4275,48 @@ export type ResumeRequest = {
 };
 
 /**
- * RevokeRequest
+ * RiskBreakdown
+ *
+ * The points each answer contributed to the score.
  */
-export type RevokeRequest = {
+export type RiskBreakdown = {
     /**
-     * Token
+     * Time Horizon
      */
-    token: string;
+    time_horizon: number;
+    /**
+     * Drawdown Reaction
+     */
+    drawdown_reaction: number;
+    /**
+     * Income Stability
+     */
+    income_stability: number;
+    /**
+     * Investment Experience
+     */
+    investment_experience: number;
+    /**
+     * Dependents
+     */
+    dependents: number;
+};
+
+/**
+ * RiskProfile
+ *
+ * The scored questionnaire, as saved to the profile.
+ */
+export type RiskProfile = {
+    /**
+     * Score
+     */
+    score: number;
+    /**
+     * Category
+     */
+    category: 'conservative' | 'balanced' | 'aggressive';
+    breakdown: RiskBreakdown;
 };
 
 /**
@@ -1095,6 +4346,199 @@ export type RiskQuestionnaireRequest = {
 };
 
 /**
+ * RuleActions
+ */
+export type RuleActions = {
+    /**
+     * Account Id
+     */
+    account_id?: string | null;
+    /**
+     * Category
+     */
+    category?: string | null;
+    /**
+     * Need
+     */
+    need?: 'essential' | 'discretionary' | 'savings' | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+};
+
+/**
+ * RuleCondition
+ */
+export type RuleCondition = {
+    /**
+     * Field
+     */
+    field: 'description' | 'amount' | 'direction' | 'currency';
+    /**
+     * Operator
+     */
+    operator: 'contains' | 'not_contains' | 'equals' | 'starts_with' | 'ends_with' | 'matches' | 'gt' | 'gte' | 'lt' | 'lte' | 'between';
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Value2
+     */
+    value2?: string | null;
+};
+
+/**
+ * RuleDraft
+ */
+export type RuleDraft = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Conditions
+     */
+    conditions: Array<RuleCondition>;
+    actions: RuleActions;
+    /**
+     * Priority
+     */
+    priority?: number;
+    /**
+     * Match All
+     */
+    match_all?: boolean;
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+};
+
+/**
+ * RuleMatch
+ */
+export type RuleMatch = {
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Direction
+     */
+    direction: 'in' | 'out';
+    /**
+     * Account Id
+     */
+    account_id: string;
+};
+
+/**
+ * RuleSuggestion
+ */
+export type RuleSuggestion = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Conditions
+     */
+    conditions: Array<RuleCondition>;
+    actions: RuleActions;
+    /**
+     * Priority
+     */
+    priority?: number;
+    /**
+     * Match All
+     */
+    match_all?: boolean;
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Support
+     */
+    support: number;
+    /**
+     * Agreement
+     */
+    agreement: number;
+    /**
+     * Examples
+     */
+    examples: Array<string>;
+};
+
+/**
+ * RuleTestResult
+ */
+export type RuleTestResult = {
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Agreeing
+     */
+    agreeing: number;
+    /**
+     * Matches
+     */
+    matches: Array<RuleMatch>;
+};
+
+/**
+ * RuleUpdate
+ */
+export type RuleUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Conditions
+     */
+    conditions?: Array<RuleCondition> | null;
+    actions?: RuleActions | null;
+    /**
+     * Priority
+     */
+    priority?: number | null;
+    /**
+     * Match All
+     */
+    match_all?: boolean | null;
+    /**
+     * Enabled
+     */
+    enabled?: boolean | null;
+};
+
+/**
  * SaveKeyRequest
  */
 export type SaveKeyRequest = {
@@ -1102,6 +4546,36 @@ export type SaveKeyRequest = {
      * Key
      */
     key: string;
+};
+
+/**
+ * ScheduledAdvisorRuns
+ *
+ * The daily run, accepted: the advisor runs for each due user after this response.
+ */
+export type ScheduledAdvisorRuns = {
+    /**
+     * Due
+     */
+    due: number;
+    /**
+     * Scheduled
+     */
+    scheduled: boolean;
+};
+
+/**
+ * SeededReminders
+ */
+export type SeededReminders = {
+    /**
+     * Created
+     */
+    created: number;
+    /**
+     * Ids
+     */
+    ids: Array<string>;
 };
 
 /**
@@ -1117,6 +4591,254 @@ export type SetPostingTagsRequest = {
 };
 
 /**
+ * StatementTransaction
+ *
+ * A transaction read from a statement and classified, awaiting review.
+ */
+export type StatementTransaction = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Credit Flag
+     */
+    credit_flag: boolean;
+    /**
+     * Bank Ref
+     */
+    bank_ref: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Debit Account Id
+     */
+    debit_account_id: string | null;
+    /**
+     * Credit Account Id
+     */
+    credit_account_id: string | null;
+    /**
+     * Category
+     */
+    category: string | null;
+    /**
+     * Confidence
+     */
+    confidence: number;
+    /**
+     * Dedup Status
+     */
+    dedup_status: string;
+};
+
+/**
+ * StatementUpload
+ */
+export type StatementUpload = {
+    /**
+     * Statement Id
+     */
+    statement_id: string;
+    /**
+     * Bank
+     */
+    bank: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Total Rows
+     */
+    total_rows: number;
+    /**
+     * Parsed
+     */
+    parsed: number;
+    /**
+     * Errors
+     */
+    errors: Array<string>;
+    /**
+     * Transactions
+     */
+    transactions: Array<StatementTransaction>;
+};
+
+/**
+ * Subscription
+ */
+export type Subscription = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Frequency
+     */
+    frequency: string;
+    /**
+     * Next Due Date
+     */
+    next_due_date: string;
+    /**
+     * Account Id
+     */
+    account_id: string | null;
+    /**
+     * Grace Days
+     */
+    grace_days: number;
+    /**
+     * Amount Tolerance Pct
+     */
+    amount_tolerance_pct: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * SubscriptionAlert
+ */
+export type SubscriptionAlert = {
+    /**
+     * Kind
+     */
+    kind: 'missed_charge' | 'price_change';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Expected Amount
+     */
+    expected_amount: string | null;
+    /**
+     * Actual Amount
+     */
+    actual_amount: string | null;
+};
+
+/**
+ * SubscriptionList
+ */
+export type SubscriptionList = {
+    /**
+     * Subscriptions
+     */
+    subscriptions: Array<Subscription>;
+};
+
+/**
+ * SubscriptionMatch
+ *
+ * A posted charge taken to be this subscription's.
+ */
+export type SubscriptionMatch = {
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+};
+
+/**
+ * SubscriptionReport
+ */
+export type SubscriptionReport = {
+    /**
+     * Subscription Id
+     */
+    subscription_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Matches
+     */
+    matches: Array<SubscriptionMatch>;
+    /**
+     * Alerts
+     */
+    alerts: Array<SubscriptionAlert>;
+};
+
+/**
+ * SubscriptionReportList
+ */
+export type SubscriptionReportList = {
+    /**
+     * Reports
+     */
+    reports: Array<SubscriptionReport>;
+};
+
+/**
  * SubscriptionRequest
  */
 export type SubscriptionRequest = {
@@ -1126,12 +4848,14 @@ export type SubscriptionRequest = {
     name: string;
     /**
      * Amount
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    amount: number;
+    amount: string;
     /**
      * Frequency
      */
-    frequency: string;
+    frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
     /**
      * Next Due Date
      */
@@ -1147,7 +4871,7 @@ export type SubscriptionRequest = {
     /**
      * Amount Tolerance Pct
      */
-    amount_tolerance_pct?: number;
+    amount_tolerance_pct?: string;
 };
 
 /**
@@ -1161,11 +4885,11 @@ export type SubscriptionUpdateRequest = {
     /**
      * Amount
      */
-    amount?: number | null;
+    amount?: string | null;
     /**
      * Frequency
      */
-    frequency?: string | null;
+    frequency?: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null;
     /**
      * Next Due Date
      */
@@ -1181,11 +4905,121 @@ export type SubscriptionUpdateRequest = {
     /**
      * Amount Tolerance Pct
      */
-    amount_tolerance_pct?: number | null;
+    amount_tolerance_pct?: string | null;
     /**
      * Is Active
      */
     is_active?: boolean | null;
+};
+
+/**
+ * SurplusBreakdown
+ *
+ * Monthly averages over the trailing 12 months.
+ */
+export type SurplusBreakdown = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Income By Source
+     */
+    income_by_source: {
+        [key: string]: string;
+    };
+    /**
+     * Expense By Category
+     */
+    expense_by_category: {
+        [key: string]: string;
+    };
+    /**
+     * Expense By Need
+     */
+    expense_by_need: {
+        [key: string]: string;
+    };
+    /**
+     * Gross Monthly Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    gross_monthly_income: string;
+    /**
+     * Gross Monthly Expenses
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    gross_monthly_expenses: string;
+    /**
+     * Monthly Surplus
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_surplus: string;
+    /**
+     * Savings Rate
+     */
+    savings_rate: string;
+};
+
+/**
+ * SyncedAlerts
+ */
+export type SyncedAlerts = {
+    /**
+     * Counts
+     */
+    counts: {
+        [key: string]: number;
+    };
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Tag
+ */
+export type Tag = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Kind
+     */
+    kind: 'category' | 'need';
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Is System
+     */
+    is_system: boolean;
+};
+
+/**
+ * TagList
+ */
+export type TagList = {
+    /**
+     * Tags
+     */
+    tags: Array<Tag>;
 };
 
 /**
@@ -1198,8 +5032,220 @@ export type TargetRequest = {
     policy_type: string;
     /**
      * Target Amount
+     *
+     * Decimal string, read exactly; a JSON number goes through a float.
      */
-    target_amount: number;
+    target_amount: string;
+};
+
+/**
+ * TaxBandWorking
+ */
+export type TaxBandWorking = {
+    /**
+     * Band
+     */
+    band: string;
+    /**
+     * Rate
+     */
+    rate: string;
+    /**
+     * From Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    from_amount: string;
+    /**
+     * To Amount
+     */
+    to_amount: string | null;
+    /**
+     * Rate Fraction
+     */
+    rate_fraction: string;
+    /**
+     * Taxable In Band
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    taxable_in_band: string;
+    /**
+     * Tax
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    tax: string;
+};
+
+/**
+ * TaxComputation
+ */
+export type TaxComputation = {
+    /**
+     * Pack Country
+     */
+    pack_country: string;
+    /**
+     * Pack Year
+     */
+    pack_year: string;
+    /**
+     * Pack Version
+     */
+    pack_version: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Gross Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    gross_income: string;
+    /**
+     * Foreign Service Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    foreign_service_income: string;
+    /**
+     * Regular Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    regular_income: string;
+    /**
+     * Personal Relief Applied
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    personal_relief_applied: string;
+    /**
+     * Qp Deduction
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    qp_deduction: string;
+    /**
+     * Taxable Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    taxable_income: string;
+    /**
+     * Fsi Tax
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    fsi_tax: string;
+    /**
+     * Tax Before Credits
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    tax_before_credits: string;
+    /**
+     * Apit Credit
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    apit_credit: string;
+    /**
+     * Ait Credit
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    ait_credit: string;
+    /**
+     * Foreign Tax Credit
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    foreign_tax_credit: string;
+    /**
+     * Total Credits
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_credits: string;
+    /**
+     * Tax Payable
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    tax_payable: string;
+    /**
+     * Refund Due
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    refund_due: string;
+    /**
+     * Rounding
+     */
+    rounding: 'nearest_rupee' | 'truncate_rupee';
+    /**
+     * Band Workings
+     */
+    band_workings: Array<TaxBandWorking>;
+};
+
+/**
+ * TaxPack
+ */
+export type TaxPack = {
+    /**
+     * Country
+     */
+    country: string;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Personal Relief
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    personal_relief: string;
+    /**
+     * Return Due
+     */
+    return_due: string;
+    /**
+     * Set Due
+     */
+    set_due: string;
+    /**
+     * Installments
+     */
+    installments: Array<string>;
+    /**
+     * Final Installment Due
+     */
+    final_installment_due: string;
 };
 
 /**
@@ -1235,6 +5281,58 @@ export type TaxPackInfo = {
 };
 
 /**
+ * TokenGrant
+ *
+ * RFC 6749 §5.1.
+ */
+export type TokenGrant = {
+    /**
+     * Access Token
+     */
+    access_token: string;
+    /**
+     * Token Type
+     */
+    token_type: 'Bearer';
+    /**
+     * Expires In
+     */
+    expires_in: number;
+    /**
+     * Refresh Token
+     */
+    refresh_token: string;
+    /**
+     * Scope
+     */
+    scope: string;
+};
+
+/**
+ * TrialBalance
+ */
+export type TrialBalance = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Balances
+     */
+    balances: {
+        [key: string]: string;
+    };
+    /**
+     * Net
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net: string;
+};
+
+/**
  * UpdateAccountRequest
  */
 export type UpdateAccountRequest = {
@@ -1261,51 +5359,33 @@ export type UpdateAccountRequest = {
 };
 
 /**
- * ValidationError
+ * Updated
+ *
+ * What the updates that predate `Ref` return instead of an id.
  */
-export type ValidationError = {
+export type Updated = {
     /**
-     * Location
+     * Updated
      */
-    loc: Array<string | number>;
-    /**
-     * Message
-     */
-    msg: string;
-    /**
-     * Error Type
-     */
-    type: string;
-    /**
-     * Input
-     */
-    input?: unknown;
-    /**
-     * Context
-     */
-    ctx?: {
-        [key: string]: unknown;
-    };
+    updated: boolean;
 };
 
 /**
- * Body_agent.files.upload
+ * Body_oauth.deviceAuthorization
  */
-export type FastapiCompatV2BodyAgentFilesUpload = {
+export type DeviceAuthorization2 = {
     /**
-     * File
+     * Client Id
      */
-    file: Blob | File;
-};
-
-/**
- * Body_statements.upload
- */
-export type FastapiCompatV2BodyStatementsUpload = {
+    client_id: string;
     /**
-     * File
+     * Scope
      */
-    file: Blob | File;
+    scope?: string;
+    /**
+     * Resource
+     */
+    resource?: string | null;
 };
 
 /**
@@ -1336,6 +5416,43 @@ export type Token = {
      * Refresh Token
      */
     refresh_token?: string | null;
+    /**
+     * Device Code
+     */
+    device_code?: string | null;
+};
+
+/**
+ * Problem
+ *
+ * An error, as RFC 9457 problem details (`application/problem+json`).
+ *
+ * `type` names the kind of problem as a path under `/problems/`, or is
+ * `about:blank` for a plain HTTP error. `detail` is what clients written
+ * before this shape existed already read: a sentence for most errors, the
+ * field-by-field list for a request that failed validation.
+ */
+export type Problem = {
+    /**
+     * Type
+     */
+    type: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Status
+     */
+    status: number;
+    /**
+     * Detail
+     */
+    detail?: unknown;
+    /**
+     * Request Id
+     */
+    request_id?: string | null;
 };
 
 export type AuthMeData = {
@@ -1345,12 +5462,23 @@ export type AuthMeData = {
     url: '/v1/auth/me';
 };
 
+export type AuthMeErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthMeError = AuthMeErrors[keyof AuthMeErrors];
+
 export type AuthMeResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AuthIdentity;
 };
+
+export type AuthMeResponse = AuthMeResponses[keyof AuthMeResponses];
 
 export type AccountsListData = {
     body?: never;
@@ -1358,6 +5486,15 @@ export type AccountsListData = {
     query?: never;
     url: '/v1/accounts/';
 };
+
+export type AccountsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccountsListError = AccountsListErrors[keyof AccountsListErrors];
 
 export type AccountsListResponses = {
     /**
@@ -1379,9 +5516,13 @@ export type AccountsCreateData = {
 
 export type AccountsCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AccountsCreateError = AccountsCreateErrors[keyof AccountsCreateErrors];
@@ -1409,9 +5550,13 @@ export type AccountsDeactivateData = {
 
 export type AccountsDeactivateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AccountsDeactivateError = AccountsDeactivateErrors[keyof AccountsDeactivateErrors];
@@ -1439,9 +5584,13 @@ export type AccountsGetData = {
 
 export type AccountsGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AccountsGetError = AccountsGetErrors[keyof AccountsGetErrors];
@@ -1469,9 +5618,13 @@ export type AccountsUpdateData = {
 
 export type AccountsUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AccountsUpdateError = AccountsUpdateErrors[keyof AccountsUpdateErrors];
@@ -1508,9 +5661,13 @@ export type AccountsOverviewData = {
 
 export type AccountsOverviewErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AccountsOverviewError = AccountsOverviewErrors[keyof AccountsOverviewErrors];
@@ -1538,9 +5695,13 @@ export type AccountsReactivateData = {
 
 export type AccountsReactivateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AccountsReactivateError = AccountsReactivateErrors[keyof AccountsReactivateErrors];
@@ -1563,9 +5724,13 @@ export type EntriesParseData = {
 
 export type EntriesParseErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type EntriesParseError = EntriesParseErrors[keyof EntriesParseErrors];
@@ -1597,19 +5762,27 @@ export type EntriesListData = {
 
 export type EntriesListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type EntriesListError = EntriesListErrors[keyof EntriesListErrors];
 
 export type EntriesListResponses = {
     /**
+     * Response Entries.List
+     *
      * Successful Response
      */
-    200: unknown;
+    200: Array<JournalEntry>;
 };
+
+export type EntriesListResponse = EntriesListResponses[keyof EntriesListResponses];
 
 export type EntriesCreateData = {
     body: AddEntryRequest;
@@ -1620,9 +5793,13 @@ export type EntriesCreateData = {
 
 export type EntriesCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type EntriesCreateError = EntriesCreateErrors[keyof EntriesCreateErrors];
@@ -1631,8 +5808,10 @@ export type EntriesCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type EntriesCreateResponse = EntriesCreateResponses[keyof EntriesCreateResponses];
 
 export type EntriesGetData = {
     body?: never;
@@ -1648,9 +5827,13 @@ export type EntriesGetData = {
 
 export type EntriesGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type EntriesGetError = EntriesGetErrors[keyof EntriesGetErrors];
@@ -1659,8 +5842,10 @@ export type EntriesGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: JournalEntry;
 };
+
+export type EntriesGetResponse = EntriesGetResponses[keyof EntriesGetResponses];
 
 export type EntriesProvenanceData = {
     body?: never;
@@ -1676,9 +5861,13 @@ export type EntriesProvenanceData = {
 
 export type EntriesProvenanceErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type EntriesProvenanceError = EntriesProvenanceErrors[keyof EntriesProvenanceErrors];
@@ -1687,8 +5876,10 @@ export type EntriesProvenanceResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: EntryProvenance;
 };
+
+export type EntriesProvenanceResponse = EntriesProvenanceResponses[keyof EntriesProvenanceResponses];
 
 export type EntriesReverseData = {
     body?: never;
@@ -1704,9 +5895,13 @@ export type EntriesReverseData = {
 
 export type EntriesReverseErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type EntriesReverseError = EntriesReverseErrors[keyof EntriesReverseErrors];
@@ -1715,8 +5910,10 @@ export type EntriesReverseResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type EntriesReverseResponse = EntriesReverseResponses[keyof EntriesReverseResponses];
 
 export type EntriesPostingsSetTagsData = {
     body: SetPostingTagsRequest;
@@ -1732,9 +5929,13 @@ export type EntriesPostingsSetTagsData = {
 
 export type EntriesPostingsSetTagsErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type EntriesPostingsSetTagsError = EntriesPostingsSetTagsErrors[keyof EntriesPostingsSetTagsErrors];
@@ -1766,9 +5967,13 @@ export type LedgerTrialBalanceData = {
 
 export type LedgerTrialBalanceErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type LedgerTrialBalanceError = LedgerTrialBalanceErrors[keyof LedgerTrialBalanceErrors];
@@ -1777,8 +5982,10 @@ export type LedgerTrialBalanceResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: TrialBalance;
 };
+
+export type LedgerTrialBalanceResponse = LedgerTrialBalanceResponses[keyof LedgerTrialBalanceResponses];
 
 export type LedgerIncomeStatementData = {
     body?: never;
@@ -1798,9 +6005,13 @@ export type LedgerIncomeStatementData = {
 
 export type LedgerIncomeStatementErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type LedgerIncomeStatementError = LedgerIncomeStatementErrors[keyof LedgerIncomeStatementErrors];
@@ -1809,8 +6020,10 @@ export type LedgerIncomeStatementResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: IncomeStatement;
 };
+
+export type LedgerIncomeStatementResponse = LedgerIncomeStatementResponses[keyof LedgerIncomeStatementResponses];
 
 export type TagsListData = {
     body?: never;
@@ -1826,9 +6039,13 @@ export type TagsListData = {
 
 export type TagsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type TagsListError = TagsListErrors[keyof TagsListErrors];
@@ -1837,8 +6054,10 @@ export type TagsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: TagList;
 };
+
+export type TagsListResponse = TagsListResponses[keyof TagsListResponses];
 
 export type TaxPacksData = {
     body?: never;
@@ -1847,12 +6066,25 @@ export type TaxPacksData = {
     url: '/v1/tax/packs';
 };
 
+export type TaxPacksErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxPacksError = TaxPacksErrors[keyof TaxPacksErrors];
+
 export type TaxPacksResponses = {
     /**
+     * Response Tax.Packs
+     *
      * Successful Response
      */
-    200: unknown;
+    200: Array<TaxPack>;
 };
+
+export type TaxPacksResponse = TaxPacksResponses[keyof TaxPacksResponses];
 
 export type TaxComputeData = {
     body?: never;
@@ -1868,9 +6100,13 @@ export type TaxComputeData = {
 
 export type TaxComputeErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type TaxComputeError = TaxComputeErrors[keyof TaxComputeErrors];
@@ -1879,8 +6115,10 @@ export type TaxComputeResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: TaxComputation;
 };
+
+export type TaxComputeResponse = TaxComputeResponses[keyof TaxComputeResponses];
 
 export type TaxLatestData = {
     body?: never;
@@ -1896,9 +6134,13 @@ export type TaxLatestData = {
 
 export type TaxLatestErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type TaxLatestError = TaxLatestErrors[keyof TaxLatestErrors];
@@ -1907,8 +6149,10 @@ export type TaxLatestResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: LatestTaxComputation;
 };
+
+export type TaxLatestResponse = TaxLatestResponses[keyof TaxLatestResponses];
 
 export type AgentChatData = {
     body: ChatRequest;
@@ -1919,22 +6163,36 @@ export type AgentChatData = {
 
 export type AgentChatErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AgentChatError = AgentChatErrors[keyof AgentChatErrors];
 
 export type AgentChatResponses = {
     /**
-     * Successful Response
+     * Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:
+     *
+     * - `token` `{content}`: text from the agent.
+     * - `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.
+     * - `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.
+     * - `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: "chat"`, `decision: "approved"` or `"denied"`).
+     * - `interrupt` `{data}`: any other pause.
+     * - `error` `{message}`: the turn failed; `message` is a sentence to show.
+     * - `done`: the last event, always sent.
+     *
+     * A refusal from the deployment's usage meter comes before the stream opens, as an error response rather than an event.
      */
     200: unknown;
 };
 
 export type AgentFilesUploadData = {
-    body: FastapiCompatV2BodyAgentFilesUpload;
+    body: FileUpload;
     path?: never;
     query?: never;
     url: '/v1/agent/files';
@@ -1942,9 +6200,13 @@ export type AgentFilesUploadData = {
 
 export type AgentFilesUploadErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AgentFilesUploadError = AgentFilesUploadErrors[keyof AgentFilesUploadErrors];
@@ -1953,8 +6215,10 @@ export type AgentFilesUploadResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ChatAttachment;
 };
+
+export type AgentFilesUploadResponse = AgentFilesUploadResponses[keyof AgentFilesUploadResponses];
 
 export type AgentResumeData = {
     body: ResumeRequest;
@@ -1965,16 +6229,30 @@ export type AgentResumeData = {
 
 export type AgentResumeErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AgentResumeError = AgentResumeErrors[keyof AgentResumeErrors];
 
 export type AgentResumeResponses = {
     /**
-     * Successful Response
+     * Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:
+     *
+     * - `token` `{content}`: text from the agent.
+     * - `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.
+     * - `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.
+     * - `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: "chat"`, `decision: "approved"` or `"denied"`).
+     * - `interrupt` `{data}`: any other pause.
+     * - `error` `{message}`: the turn failed; `message` is a sentence to show.
+     * - `done`: the last event, always sent.
+     *
+     * With `workflow: "return"` the stream is instead a single `token` whose `content` is the JSON-encoded result of the return workflow (`{worksheet, error}`), then `done`.
      */
     200: unknown;
 };
@@ -1998,9 +6276,13 @@ export type AgentHistoryData = {
 
 export type AgentHistoryErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AgentHistoryError = AgentHistoryErrors[keyof AgentHistoryErrors];
@@ -2009,8 +6291,10 @@ export type AgentHistoryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ChatHistory;
 };
+
+export type AgentHistoryResponse = AgentHistoryResponses[keyof AgentHistoryResponses];
 
 export type AgentSessionsListData = {
     body?: never;
@@ -2030,9 +6314,13 @@ export type AgentSessionsListData = {
 
 export type AgentSessionsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AgentSessionsListError = AgentSessionsListErrors[keyof AgentSessionsListErrors];
@@ -2041,8 +6329,10 @@ export type AgentSessionsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AgentSessions;
 };
+
+export type AgentSessionsListResponse = AgentSessionsListResponses[keyof AgentSessionsListResponses];
 
 export type AgentAuditLogData = {
     body?: never;
@@ -2058,9 +6348,13 @@ export type AgentAuditLogData = {
 
 export type AgentAuditLogErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AgentAuditLogError = AgentAuditLogErrors[keyof AgentAuditLogErrors];
@@ -2069,8 +6363,10 @@ export type AgentAuditLogResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AuditLog;
 };
+
+export type AgentAuditLogResponse = AgentAuditLogResponses[keyof AgentAuditLogResponses];
 
 export type AgentSessionsDeleteData = {
     body?: never;
@@ -2086,9 +6382,13 @@ export type AgentSessionsDeleteData = {
 
 export type AgentSessionsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AgentSessionsDeleteError = AgentSessionsDeleteErrors[keyof AgentSessionsDeleteErrors];
@@ -2130,9 +6430,13 @@ export type DocumentsListData = {
 
 export type DocumentsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DocumentsListError = DocumentsListErrors[keyof DocumentsListErrors];
@@ -2141,8 +6445,10 @@ export type DocumentsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AgentDocumentList;
 };
+
+export type DocumentsListResponse = DocumentsListResponses[keyof DocumentsListResponses];
 
 export type DocumentsDeleteData = {
     body?: never;
@@ -2158,9 +6464,13 @@ export type DocumentsDeleteData = {
 
 export type DocumentsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DocumentsDeleteError = DocumentsDeleteErrors[keyof DocumentsDeleteErrors];
@@ -2188,9 +6498,13 @@ export type DocumentsGetData = {
 
 export type DocumentsGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DocumentsGetError = DocumentsGetErrors[keyof DocumentsGetErrors];
@@ -2199,8 +6513,10 @@ export type DocumentsGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AgentDocument;
 };
+
+export type DocumentsGetResponse = DocumentsGetResponses[keyof DocumentsGetResponses];
 
 export type OnboardingStatusData = {
     body?: never;
@@ -2208,6 +6524,15 @@ export type OnboardingStatusData = {
     query?: never;
     url: '/v1/onboarding/status';
 };
+
+export type OnboardingStatusErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type OnboardingStatusError = OnboardingStatusErrors[keyof OnboardingStatusErrors];
 
 export type OnboardingStatusResponses = {
     /**
@@ -2227,9 +6552,13 @@ export type OnboardingCompleteData = {
 
 export type OnboardingCompleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OnboardingCompleteError = OnboardingCompleteErrors[keyof OnboardingCompleteErrors];
@@ -2238,8 +6567,10 @@ export type OnboardingCompleteResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: OnboardingResult;
 };
+
+export type OnboardingCompleteResponse = OnboardingCompleteResponses[keyof OnboardingCompleteResponses];
 
 export type ProfileGetData = {
     body?: never;
@@ -2248,12 +6579,23 @@ export type ProfileGetData = {
     url: '/v1/onboarding/profile';
 };
 
+export type ProfileGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ProfileGetError = ProfileGetErrors[keyof ProfileGetErrors];
+
 export type ProfileGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Profile;
 };
+
+export type ProfileGetResponse = ProfileGetResponses[keyof ProfileGetResponses];
 
 export type ProfileUpdateData = {
     body: ProfileIdentityRequest;
@@ -2264,9 +6606,13 @@ export type ProfileUpdateData = {
 
 export type ProfileUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type ProfileUpdateError = ProfileUpdateErrors[keyof ProfileUpdateErrors];
@@ -2275,8 +6621,10 @@ export type ProfileUpdateResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ProfileUpdated;
 };
+
+export type ProfileUpdateResponse = ProfileUpdateResponses[keyof ProfileUpdateResponses];
 
 export type OnboardingBalanceSheetData = {
     body: BalanceSheetRequest;
@@ -2287,9 +6635,13 @@ export type OnboardingBalanceSheetData = {
 
 export type OnboardingBalanceSheetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OnboardingBalanceSheetError = OnboardingBalanceSheetErrors[keyof OnboardingBalanceSheetErrors];
@@ -2298,8 +6650,10 @@ export type OnboardingBalanceSheetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: DeclaredEntries;
 };
+
+export type OnboardingBalanceSheetResponse = OnboardingBalanceSheetResponses[keyof OnboardingBalanceSheetResponses];
 
 export type OnboardingIncomeData = {
     body: IncomeDeclarationRequest;
@@ -2310,9 +6664,13 @@ export type OnboardingIncomeData = {
 
 export type OnboardingIncomeErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OnboardingIncomeError = OnboardingIncomeErrors[keyof OnboardingIncomeErrors];
@@ -2321,8 +6679,10 @@ export type OnboardingIncomeResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: DeclaredEntries;
 };
+
+export type OnboardingIncomeResponse = OnboardingIncomeResponses[keyof OnboardingIncomeResponses];
 
 export type OnboardingRiskQuestionnaireData = {
     body: RiskQuestionnaireRequest;
@@ -2333,9 +6693,13 @@ export type OnboardingRiskQuestionnaireData = {
 
 export type OnboardingRiskQuestionnaireErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OnboardingRiskQuestionnaireError = OnboardingRiskQuestionnaireErrors[keyof OnboardingRiskQuestionnaireErrors];
@@ -2344,8 +6708,10 @@ export type OnboardingRiskQuestionnaireResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: RiskProfile;
 };
+
+export type OnboardingRiskQuestionnaireResponse = OnboardingRiskQuestionnaireResponses[keyof OnboardingRiskQuestionnaireResponses];
 
 export type OnboardingGoalsData = {
     body: GoalsRequest;
@@ -2356,9 +6722,13 @@ export type OnboardingGoalsData = {
 
 export type OnboardingGoalsErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OnboardingGoalsError = OnboardingGoalsErrors[keyof OnboardingGoalsErrors];
@@ -2367,8 +6737,10 @@ export type OnboardingGoalsResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: DeclaredGoals;
 };
+
+export type OnboardingGoalsResponse = OnboardingGoalsResponses[keyof OnboardingGoalsResponses];
 
 export type AccountExportData = {
     body?: never;
@@ -2377,12 +6749,23 @@ export type AccountExportData = {
     url: '/v1/onboarding/export';
 };
 
+export type AccountExportErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AccountExportError = AccountExportErrors[keyof AccountExportErrors];
+
 export type AccountExportResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: DataExport;
 };
+
+export type AccountExportResponse = AccountExportResponses[keyof AccountExportResponses];
 
 export type AccountDeleteData = {
     body: DeleteAccountRequest;
@@ -2393,9 +6776,13 @@ export type AccountDeleteData = {
 
 export type AccountDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AccountDeleteError = AccountDeleteErrors[keyof AccountDeleteErrors];
@@ -2404,11 +6791,13 @@ export type AccountDeleteResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AccountDeletion;
 };
 
+export type AccountDeleteResponse = AccountDeleteResponses[keyof AccountDeleteResponses];
+
 export type StatementsUploadData = {
-    body: FastapiCompatV2BodyStatementsUpload;
+    body: FileUpload;
     path?: never;
     query?: {
         /**
@@ -2425,9 +6814,13 @@ export type StatementsUploadData = {
 
 export type StatementsUploadErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type StatementsUploadError = StatementsUploadErrors[keyof StatementsUploadErrors];
@@ -2436,8 +6829,10 @@ export type StatementsUploadResponses = {
     /**
      * Successful Response
      */
-    202: unknown;
+    202: StatementUpload;
 };
+
+export type StatementsUploadResponse = StatementsUploadResponses[keyof StatementsUploadResponses];
 
 export type StatementsListData = {
     body?: never;
@@ -2453,9 +6848,13 @@ export type StatementsListData = {
 
 export type StatementsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type StatementsListError = StatementsListErrors[keyof StatementsListErrors];
@@ -2464,8 +6863,10 @@ export type StatementsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: BankStatementList;
 };
+
+export type StatementsListResponse = StatementsListResponses[keyof StatementsListResponses];
 
 export type StatementsPendingData = {
     body?: never;
@@ -2481,9 +6882,13 @@ export type StatementsPendingData = {
 
 export type StatementsPendingErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type StatementsPendingError = StatementsPendingErrors[keyof StatementsPendingErrors];
@@ -2492,8 +6897,10 @@ export type StatementsPendingResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: PendingStatementTransactions;
 };
+
+export type StatementsPendingResponse = StatementsPendingResponses[keyof StatementsPendingResponses];
 
 export type StatementsPostData = {
     body: PostRequest;
@@ -2509,9 +6916,13 @@ export type StatementsPostData = {
 
 export type StatementsPostErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type StatementsPostError = StatementsPostErrors[keyof StatementsPostErrors];
@@ -2520,8 +6931,10 @@ export type StatementsPostResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: PostedStatementTransactions;
 };
+
+export type StatementsPostResponse = StatementsPostResponses[keyof StatementsPostResponses];
 
 export type RemindersListData = {
     body?: never;
@@ -2541,9 +6954,13 @@ export type RemindersListData = {
 
 export type RemindersListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type RemindersListError = RemindersListErrors[keyof RemindersListErrors];
@@ -2552,8 +6969,10 @@ export type RemindersListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ReminderList;
 };
+
+export type RemindersListResponse = RemindersListResponses[keyof RemindersListResponses];
 
 export type RemindersCreateData = {
     body: CreateReminderRequest;
@@ -2564,9 +6983,13 @@ export type RemindersCreateData = {
 
 export type RemindersCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type RemindersCreateError = RemindersCreateErrors[keyof RemindersCreateErrors];
@@ -2575,8 +6998,10 @@ export type RemindersCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type RemindersCreateResponse = RemindersCreateResponses[keyof RemindersCreateResponses];
 
 export type RemindersSeedFilingCalendarData = {
     body?: never;
@@ -2592,9 +7017,13 @@ export type RemindersSeedFilingCalendarData = {
 
 export type RemindersSeedFilingCalendarErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type RemindersSeedFilingCalendarError = RemindersSeedFilingCalendarErrors[keyof RemindersSeedFilingCalendarErrors];
@@ -2603,8 +7032,10 @@ export type RemindersSeedFilingCalendarResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: SeededReminders;
 };
+
+export type RemindersSeedFilingCalendarResponse = RemindersSeedFilingCalendarResponses[keyof RemindersSeedFilingCalendarResponses];
 
 export type RemindersSyncAlertsData = {
     body?: never;
@@ -2613,12 +7044,23 @@ export type RemindersSyncAlertsData = {
     url: '/v1/reminders/sync-alerts';
 };
 
+export type RemindersSyncAlertsErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RemindersSyncAlertsError = RemindersSyncAlertsErrors[keyof RemindersSyncAlertsErrors];
+
 export type RemindersSyncAlertsResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: SyncedAlerts;
 };
+
+export type RemindersSyncAlertsResponse = RemindersSyncAlertsResponses[keyof RemindersSyncAlertsResponses];
 
 export type RemindersMarkDoneData = {
     body?: never;
@@ -2634,9 +7076,13 @@ export type RemindersMarkDoneData = {
 
 export type RemindersMarkDoneErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type RemindersMarkDoneError = RemindersMarkDoneErrors[keyof RemindersMarkDoneErrors];
@@ -2664,9 +7110,13 @@ export type RemindersDeleteData = {
 
 export type RemindersDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type RemindersDeleteError = RemindersDeleteErrors[keyof RemindersDeleteErrors];
@@ -2687,12 +7137,23 @@ export type FiScoreGetData = {
     url: '/v1/fi/score';
 };
 
+export type FiScoreGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiScoreGetError = FiScoreGetErrors[keyof FiScoreGetErrors];
+
 export type FiScoreGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: FiScore;
 };
+
+export type FiScoreGetResponse = FiScoreGetResponses[keyof FiScoreGetResponses];
 
 export type FiScoreRecomputeData = {
     body?: never;
@@ -2701,12 +7162,23 @@ export type FiScoreRecomputeData = {
     url: '/v1/fi/score/recompute';
 };
 
+export type FiScoreRecomputeErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiScoreRecomputeError = FiScoreRecomputeErrors[keyof FiScoreRecomputeErrors];
+
 export type FiScoreRecomputeResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: FiScore;
 };
+
+export type FiScoreRecomputeResponse = FiScoreRecomputeResponses[keyof FiScoreRecomputeResponses];
 
 export type FiScoreHistoryData = {
     body?: never;
@@ -2715,12 +7187,23 @@ export type FiScoreHistoryData = {
     url: '/v1/fi/score/history';
 };
 
+export type FiScoreHistoryErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiScoreHistoryError = FiScoreHistoryErrors[keyof FiScoreHistoryErrors];
+
 export type FiScoreHistoryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: FiScoreHistory;
 };
+
+export type FiScoreHistoryResponse = FiScoreHistoryResponses[keyof FiScoreHistoryResponses];
 
 export type GoalsListData = {
     body?: never;
@@ -2729,12 +7212,23 @@ export type GoalsListData = {
     url: '/v1/fi/goals';
 };
 
+export type GoalsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type GoalsListError = GoalsListErrors[keyof GoalsListErrors];
+
 export type GoalsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: GoalList;
 };
+
+export type GoalsListResponse = GoalsListResponses[keyof GoalsListResponses];
 
 export type GoalsCreateData = {
     body: GoalRequest;
@@ -2745,9 +7239,13 @@ export type GoalsCreateData = {
 
 export type GoalsCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type GoalsCreateError = GoalsCreateErrors[keyof GoalsCreateErrors];
@@ -2756,8 +7254,10 @@ export type GoalsCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type GoalsCreateResponse = GoalsCreateResponses[keyof GoalsCreateResponses];
 
 export type GoalsDeleteData = {
     body?: never;
@@ -2773,9 +7273,13 @@ export type GoalsDeleteData = {
 
 export type GoalsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type GoalsDeleteError = GoalsDeleteErrors[keyof GoalsDeleteErrors];
@@ -2803,9 +7307,13 @@ export type GoalsUpdateData = {
 
 export type GoalsUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type GoalsUpdateError = GoalsUpdateErrors[keyof GoalsUpdateErrors];
@@ -2814,8 +7322,10 @@ export type GoalsUpdateResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: GoalUpdated;
 };
+
+export type GoalsUpdateResponse = GoalsUpdateResponses[keyof GoalsUpdateResponses];
 
 export type FiStrategyGetData = {
     body?: never;
@@ -2824,12 +7334,23 @@ export type FiStrategyGetData = {
     url: '/v1/fi/strategy';
 };
 
+export type FiStrategyGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiStrategyGetError = FiStrategyGetErrors[keyof FiStrategyGetErrors];
+
 export type FiStrategyGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: FireStrategy;
 };
+
+export type FiStrategyGetResponse = FiStrategyGetResponses[keyof FiStrategyGetResponses];
 
 export type FiStrategyHistoryData = {
     body?: never;
@@ -2838,12 +7359,23 @@ export type FiStrategyHistoryData = {
     url: '/v1/fi/strategy/history';
 };
 
+export type FiStrategyHistoryErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiStrategyHistoryError = FiStrategyHistoryErrors[keyof FiStrategyHistoryErrors];
+
 export type FiStrategyHistoryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: FireStrategyHistory;
 };
+
+export type FiStrategyHistoryResponse = FiStrategyHistoryResponses[keyof FiStrategyHistoryResponses];
 
 export type FiStrategyGenerateData = {
     body?: never;
@@ -2852,9 +7384,18 @@ export type FiStrategyGenerateData = {
     url: '/v1/fi/strategy/generate';
 };
 
+export type FiStrategyGenerateErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiStrategyGenerateError = FiStrategyGenerateErrors[keyof FiStrategyGenerateErrors];
+
 export type FiStrategyGenerateResponses = {
     /**
-     * Successful Response
+     * Server-sent events: `status` messages while it works, then `done` with the new strategy (a `FireStrategy`), or `error`.
      */
     200: unknown;
 };
@@ -2866,12 +7407,23 @@ export type FiProjectionsData = {
     url: '/v1/fi/projections';
 };
 
+export type FiProjectionsErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiProjectionsError = FiProjectionsErrors[keyof FiProjectionsErrors];
+
 export type FiProjectionsResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: FiProjections;
 };
+
+export type FiProjectionsResponse = FiProjectionsResponses[keyof FiProjectionsResponses];
 
 export type FiSurplusData = {
     body?: never;
@@ -2880,12 +7432,23 @@ export type FiSurplusData = {
     url: '/v1/fi/surplus';
 };
 
+export type FiSurplusErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiSurplusError = FiSurplusErrors[keyof FiSurplusErrors];
+
 export type FiSurplusResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SurplusBreakdown;
 };
+
+export type FiSurplusResponse = FiSurplusResponses[keyof FiSurplusResponses];
 
 export type FiSimulatePurchaseData = {
     body: PurchaseRequest;
@@ -2896,9 +7459,13 @@ export type FiSimulatePurchaseData = {
 
 export type FiSimulatePurchaseErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type FiSimulatePurchaseError = FiSimulatePurchaseErrors[keyof FiSimulatePurchaseErrors];
@@ -2907,8 +7474,10 @@ export type FiSimulatePurchaseResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: PurchaseImpact;
 };
+
+export type FiSimulatePurchaseResponse = FiSimulatePurchaseResponses[keyof FiSimulatePurchaseResponses];
 
 export type GoalsAllocationsListData = {
     body?: never;
@@ -2924,9 +7493,13 @@ export type GoalsAllocationsListData = {
 
 export type GoalsAllocationsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type GoalsAllocationsListError = GoalsAllocationsListErrors[keyof GoalsAllocationsListErrors];
@@ -2935,8 +7508,10 @@ export type GoalsAllocationsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: GoalAllocationList;
 };
+
+export type GoalsAllocationsListResponse = GoalsAllocationsListResponses[keyof GoalsAllocationsListResponses];
 
 export type GoalsAllocationsSetData = {
     body: AllocationRequest;
@@ -2952,9 +7527,13 @@ export type GoalsAllocationsSetData = {
 
 export type GoalsAllocationsSetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type GoalsAllocationsSetError = GoalsAllocationsSetErrors[keyof GoalsAllocationsSetErrors];
@@ -2963,8 +7542,10 @@ export type GoalsAllocationsSetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: GoalUpdated;
 };
+
+export type GoalsAllocationsSetResponse = GoalsAllocationsSetResponses[keyof GoalsAllocationsSetResponses];
 
 export type AdvisorDailyBriefingGetData = {
     body?: never;
@@ -2973,12 +7554,23 @@ export type AdvisorDailyBriefingGetData = {
     url: '/v1/advisor/daily-briefing';
 };
 
+export type AdvisorDailyBriefingGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AdvisorDailyBriefingGetError = AdvisorDailyBriefingGetErrors[keyof AdvisorDailyBriefingGetErrors];
+
 export type AdvisorDailyBriefingGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: DailyBriefingSetting;
 };
+
+export type AdvisorDailyBriefingGetResponse = AdvisorDailyBriefingGetResponses[keyof AdvisorDailyBriefingGetResponses];
 
 export type AdvisorDailyBriefingSetData = {
     body: DailyBriefingRequest;
@@ -2989,9 +7581,13 @@ export type AdvisorDailyBriefingSetData = {
 
 export type AdvisorDailyBriefingSetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AdvisorDailyBriefingSetError = AdvisorDailyBriefingSetErrors[keyof AdvisorDailyBriefingSetErrors];
@@ -3012,12 +7608,23 @@ export type AdvisorRunData = {
     url: '/v1/advisor/run';
 };
 
+export type AdvisorRunErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AdvisorRunError = AdvisorRunErrors[keyof AdvisorRunErrors];
+
 export type AdvisorRunResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AdvisoryReport;
 };
+
+export type AdvisorRunResponse = AdvisorRunResponses[keyof AdvisorRunResponses];
 
 export type AdvisorReportsListData = {
     body?: never;
@@ -3026,12 +7633,23 @@ export type AdvisorReportsListData = {
     url: '/v1/advisor/reports';
 };
 
+export type AdvisorReportsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AdvisorReportsListError = AdvisorReportsListErrors[keyof AdvisorReportsListErrors];
+
 export type AdvisorReportsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AdvisoryReportList;
 };
+
+export type AdvisorReportsListResponse = AdvisorReportsListResponses[keyof AdvisorReportsListResponses];
 
 export type AdvisorReportsLatestData = {
     body?: never;
@@ -3040,12 +7658,23 @@ export type AdvisorReportsLatestData = {
     url: '/v1/advisor/reports/latest';
 };
 
+export type AdvisorReportsLatestErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AdvisorReportsLatestError = AdvisorReportsLatestErrors[keyof AdvisorReportsLatestErrors];
+
 export type AdvisorReportsLatestResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AdvisoryReport;
 };
+
+export type AdvisorReportsLatestResponse = AdvisorReportsLatestResponses[keyof AdvisorReportsLatestResponses];
 
 export type AdvisorRecommendationsApplyData = {
     body?: never;
@@ -3065,9 +7694,13 @@ export type AdvisorRecommendationsApplyData = {
 
 export type AdvisorRecommendationsApplyErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AdvisorRecommendationsApplyError = AdvisorRecommendationsApplyErrors[keyof AdvisorRecommendationsApplyErrors];
@@ -3076,8 +7709,10 @@ export type AdvisorRecommendationsApplyResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: RecommendationStatus;
 };
+
+export type AdvisorRecommendationsApplyResponse = AdvisorRecommendationsApplyResponses[keyof AdvisorRecommendationsApplyResponses];
 
 export type AdvisorRecommendationsDismissData = {
     body?: never;
@@ -3097,9 +7732,13 @@ export type AdvisorRecommendationsDismissData = {
 
 export type AdvisorRecommendationsDismissErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AdvisorRecommendationsDismissError = AdvisorRecommendationsDismissErrors[keyof AdvisorRecommendationsDismissErrors];
@@ -3108,8 +7747,10 @@ export type AdvisorRecommendationsDismissResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: RecommendationStatus;
 };
+
+export type AdvisorRecommendationsDismissResponse = AdvisorRecommendationsDismissResponses[keyof AdvisorRecommendationsDismissResponses];
 
 export type AdvisorBriefingPrepareData = {
     body: BriefingPrepareRequest;
@@ -3120,9 +7761,13 @@ export type AdvisorBriefingPrepareData = {
 
 export type AdvisorBriefingPrepareErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AdvisorBriefingPrepareError = AdvisorBriefingPrepareErrors[keyof AdvisorBriefingPrepareErrors];
@@ -3131,8 +7776,10 @@ export type AdvisorBriefingPrepareResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: BriefingPrepared;
 };
+
+export type AdvisorBriefingPrepareResponse = AdvisorBriefingPrepareResponses[keyof AdvisorBriefingPrepareResponses];
 
 export type AdvisorBriefingResumeData = {
     body: BriefingResumeRequest;
@@ -3143,9 +7790,13 @@ export type AdvisorBriefingResumeData = {
 
 export type AdvisorBriefingResumeErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AdvisorBriefingResumeError = AdvisorBriefingResumeErrors[keyof AdvisorBriefingResumeErrors];
@@ -3154,8 +7805,10 @@ export type AdvisorBriefingResumeResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: BriefingResumed;
 };
+
+export type AdvisorBriefingResumeResponse = AdvisorBriefingResumeResponses[keyof AdvisorBriefingResumeResponses];
 
 export type AdvisorCronRunDueData = {
     body?: never;
@@ -3172,9 +7825,13 @@ export type AdvisorCronRunDueData = {
 
 export type AdvisorCronRunDueErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type AdvisorCronRunDueError = AdvisorCronRunDueErrors[keyof AdvisorCronRunDueErrors];
@@ -3183,8 +7840,10 @@ export type AdvisorCronRunDueResponses = {
     /**
      * Successful Response
      */
-    202: unknown;
+    202: ScheduledAdvisorRuns;
 };
+
+export type AdvisorCronRunDueResponse = AdvisorCronRunDueResponses[keyof AdvisorCronRunDueResponses];
 
 export type BudgetsListData = {
     body?: never;
@@ -3193,12 +7852,23 @@ export type BudgetsListData = {
     url: '/v1/budget/';
 };
 
+export type BudgetsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type BudgetsListError = BudgetsListErrors[keyof BudgetsListErrors];
+
 export type BudgetsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: BudgetList;
 };
+
+export type BudgetsListResponse = BudgetsListResponses[keyof BudgetsListResponses];
 
 export type BudgetsCreateData = {
     body: BudgetRequest;
@@ -3209,9 +7879,13 @@ export type BudgetsCreateData = {
 
 export type BudgetsCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type BudgetsCreateError = BudgetsCreateErrors[keyof BudgetsCreateErrors];
@@ -3220,8 +7894,10 @@ export type BudgetsCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type BudgetsCreateResponse = BudgetsCreateResponses[keyof BudgetsCreateResponses];
 
 export type BudgetsDeleteData = {
     body?: never;
@@ -3237,9 +7913,13 @@ export type BudgetsDeleteData = {
 
 export type BudgetsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type BudgetsDeleteError = BudgetsDeleteErrors[keyof BudgetsDeleteErrors];
@@ -3267,9 +7947,13 @@ export type BudgetsGetData = {
 
 export type BudgetsGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type BudgetsGetError = BudgetsGetErrors[keyof BudgetsGetErrors];
@@ -3278,8 +7962,10 @@ export type BudgetsGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Budget;
 };
+
+export type BudgetsGetResponse = BudgetsGetResponses[keyof BudgetsGetResponses];
 
 export type BudgetsUpdateData = {
     body: BudgetUpdateRequest;
@@ -3295,9 +7981,13 @@ export type BudgetsUpdateData = {
 
 export type BudgetsUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type BudgetsUpdateError = BudgetsUpdateErrors[keyof BudgetsUpdateErrors];
@@ -3306,8 +7996,10 @@ export type BudgetsUpdateResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Updated;
 };
+
+export type BudgetsUpdateResponse = BudgetsUpdateResponses[keyof BudgetsUpdateResponses];
 
 export type BudgetsSummaryData = {
     body?: never;
@@ -3323,9 +8015,13 @@ export type BudgetsSummaryData = {
 
 export type BudgetsSummaryErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type BudgetsSummaryError = BudgetsSummaryErrors[keyof BudgetsSummaryErrors];
@@ -3334,8 +8030,10 @@ export type BudgetsSummaryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: BudgetSummary;
 };
+
+export type BudgetsSummaryResponse = BudgetsSummaryResponses[keyof BudgetsSummaryResponses];
 
 export type DebtsListData = {
     body?: never;
@@ -3351,9 +8049,13 @@ export type DebtsListData = {
 
 export type DebtsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DebtsListError = DebtsListErrors[keyof DebtsListErrors];
@@ -3362,8 +8064,10 @@ export type DebtsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: DebtList;
 };
+
+export type DebtsListResponse = DebtsListResponses[keyof DebtsListResponses];
 
 export type DebtsCreateData = {
     body: DebtRequest;
@@ -3374,9 +8078,13 @@ export type DebtsCreateData = {
 
 export type DebtsCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DebtsCreateError = DebtsCreateErrors[keyof DebtsCreateErrors];
@@ -3385,8 +8093,10 @@ export type DebtsCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type DebtsCreateResponse = DebtsCreateResponses[keyof DebtsCreateResponses];
 
 export type DebtsPayoffPlanData = {
     body?: never;
@@ -3395,7 +8105,7 @@ export type DebtsPayoffPlanData = {
         /**
          * Extra Monthly Payment
          */
-        extra_monthly_payment?: number;
+        extra_monthly_payment?: number | string;
         /**
          * Strategy
          */
@@ -3406,9 +8116,13 @@ export type DebtsPayoffPlanData = {
 
 export type DebtsPayoffPlanErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DebtsPayoffPlanError = DebtsPayoffPlanErrors[keyof DebtsPayoffPlanErrors];
@@ -3417,8 +8131,10 @@ export type DebtsPayoffPlanResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: PayoffPlan;
 };
+
+export type DebtsPayoffPlanResponse = DebtsPayoffPlanResponses[keyof DebtsPayoffPlanResponses];
 
 export type DebtsDeleteData = {
     body?: never;
@@ -3434,9 +8150,13 @@ export type DebtsDeleteData = {
 
 export type DebtsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DebtsDeleteError = DebtsDeleteErrors[keyof DebtsDeleteErrors];
@@ -3464,9 +8184,13 @@ export type DebtsGetData = {
 
 export type DebtsGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DebtsGetError = DebtsGetErrors[keyof DebtsGetErrors];
@@ -3475,8 +8199,10 @@ export type DebtsGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Debt;
 };
+
+export type DebtsGetResponse = DebtsGetResponses[keyof DebtsGetResponses];
 
 export type DebtsUpdateData = {
     body: DebtUpdateRequest;
@@ -3492,9 +8218,13 @@ export type DebtsUpdateData = {
 
 export type DebtsUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type DebtsUpdateError = DebtsUpdateErrors[keyof DebtsUpdateErrors];
@@ -3503,8 +8233,10 @@ export type DebtsUpdateResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Updated;
 };
+
+export type DebtsUpdateResponse = DebtsUpdateResponses[keyof DebtsUpdateResponses];
 
 export type HoldingsListData = {
     body?: never;
@@ -3520,9 +8252,13 @@ export type HoldingsListData = {
 
 export type HoldingsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type HoldingsListError = HoldingsListErrors[keyof HoldingsListErrors];
@@ -3531,8 +8267,10 @@ export type HoldingsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: HoldingList;
 };
+
+export type HoldingsListResponse = HoldingsListResponses[keyof HoldingsListResponses];
 
 export type HoldingsCreateData = {
     body: HoldingRequest;
@@ -3543,9 +8281,13 @@ export type HoldingsCreateData = {
 
 export type HoldingsCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type HoldingsCreateError = HoldingsCreateErrors[keyof HoldingsCreateErrors];
@@ -3554,8 +8296,10 @@ export type HoldingsCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type HoldingsCreateResponse = HoldingsCreateResponses[keyof HoldingsCreateResponses];
 
 export type PortfolioSummaryData = {
     body?: never;
@@ -3573,9 +8317,13 @@ export type PortfolioSummaryData = {
 
 export type PortfolioSummaryErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type PortfolioSummaryError = PortfolioSummaryErrors[keyof PortfolioSummaryErrors];
@@ -3584,8 +8332,10 @@ export type PortfolioSummaryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: PortfolioSummary;
 };
+
+export type PortfolioSummaryResponse = PortfolioSummaryResponses[keyof PortfolioSummaryResponses];
 
 export type HoldingsDeleteData = {
     body?: never;
@@ -3601,9 +8351,13 @@ export type HoldingsDeleteData = {
 
 export type HoldingsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type HoldingsDeleteError = HoldingsDeleteErrors[keyof HoldingsDeleteErrors];
@@ -3631,9 +8385,13 @@ export type HoldingsGetData = {
 
 export type HoldingsGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type HoldingsGetError = HoldingsGetErrors[keyof HoldingsGetErrors];
@@ -3642,8 +8400,10 @@ export type HoldingsGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Holding;
 };
+
+export type HoldingsGetResponse = HoldingsGetResponses[keyof HoldingsGetResponses];
 
 export type HoldingsUpdateData = {
     body: HoldingUpdateRequest;
@@ -3659,9 +8419,13 @@ export type HoldingsUpdateData = {
 
 export type HoldingsUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type HoldingsUpdateError = HoldingsUpdateErrors[keyof HoldingsUpdateErrors];
@@ -3670,8 +8434,10 @@ export type HoldingsUpdateResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Updated;
 };
+
+export type HoldingsUpdateResponse = HoldingsUpdateResponses[keyof HoldingsUpdateResponses];
 
 export type SubscriptionsListData = {
     body?: never;
@@ -3687,9 +8453,13 @@ export type SubscriptionsListData = {
 
 export type SubscriptionsListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type SubscriptionsListError = SubscriptionsListErrors[keyof SubscriptionsListErrors];
@@ -3698,8 +8468,10 @@ export type SubscriptionsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SubscriptionList;
 };
+
+export type SubscriptionsListResponse = SubscriptionsListResponses[keyof SubscriptionsListResponses];
 
 export type SubscriptionsCreateData = {
     body: SubscriptionRequest;
@@ -3710,9 +8482,13 @@ export type SubscriptionsCreateData = {
 
 export type SubscriptionsCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type SubscriptionsCreateError = SubscriptionsCreateErrors[keyof SubscriptionsCreateErrors];
@@ -3721,8 +8497,10 @@ export type SubscriptionsCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type SubscriptionsCreateResponse = SubscriptionsCreateResponses[keyof SubscriptionsCreateResponses];
 
 export type SubscriptionsReportsData = {
     body?: never;
@@ -3731,12 +8509,23 @@ export type SubscriptionsReportsData = {
     url: '/v1/subscriptions/reports';
 };
 
+export type SubscriptionsReportsErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type SubscriptionsReportsError = SubscriptionsReportsErrors[keyof SubscriptionsReportsErrors];
+
 export type SubscriptionsReportsResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SubscriptionReportList;
 };
+
+export type SubscriptionsReportsResponse = SubscriptionsReportsResponses[keyof SubscriptionsReportsResponses];
 
 export type SubscriptionsDeleteData = {
     body?: never;
@@ -3752,9 +8541,13 @@ export type SubscriptionsDeleteData = {
 
 export type SubscriptionsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type SubscriptionsDeleteError = SubscriptionsDeleteErrors[keyof SubscriptionsDeleteErrors];
@@ -3782,9 +8575,13 @@ export type SubscriptionsGetData = {
 
 export type SubscriptionsGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type SubscriptionsGetError = SubscriptionsGetErrors[keyof SubscriptionsGetErrors];
@@ -3793,8 +8590,10 @@ export type SubscriptionsGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Subscription;
 };
+
+export type SubscriptionsGetResponse = SubscriptionsGetResponses[keyof SubscriptionsGetResponses];
 
 export type SubscriptionsUpdateData = {
     body: SubscriptionUpdateRequest;
@@ -3810,9 +8609,13 @@ export type SubscriptionsUpdateData = {
 
 export type SubscriptionsUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type SubscriptionsUpdateError = SubscriptionsUpdateErrors[keyof SubscriptionsUpdateErrors];
@@ -3821,8 +8624,10 @@ export type SubscriptionsUpdateResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Updated;
 };
+
+export type SubscriptionsUpdateResponse = SubscriptionsUpdateResponses[keyof SubscriptionsUpdateResponses];
 
 export type SubscriptionsReportData = {
     body?: never;
@@ -3838,9 +8643,13 @@ export type SubscriptionsReportData = {
 
 export type SubscriptionsReportErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type SubscriptionsReportError = SubscriptionsReportErrors[keyof SubscriptionsReportErrors];
@@ -3849,8 +8658,10 @@ export type SubscriptionsReportResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: SubscriptionReport;
 };
+
+export type SubscriptionsReportResponse = SubscriptionsReportResponses[keyof SubscriptionsReportResponses];
 
 export type InsurancePoliciesListData = {
     body?: never;
@@ -3866,9 +8677,13 @@ export type InsurancePoliciesListData = {
 
 export type InsurancePoliciesListErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type InsurancePoliciesListError = InsurancePoliciesListErrors[keyof InsurancePoliciesListErrors];
@@ -3877,8 +8692,10 @@ export type InsurancePoliciesListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: InsurancePolicyList;
 };
+
+export type InsurancePoliciesListResponse = InsurancePoliciesListResponses[keyof InsurancePoliciesListResponses];
 
 export type InsurancePoliciesCreateData = {
     body: PolicyRequest;
@@ -3889,9 +8706,13 @@ export type InsurancePoliciesCreateData = {
 
 export type InsurancePoliciesCreateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type InsurancePoliciesCreateError = InsurancePoliciesCreateErrors[keyof InsurancePoliciesCreateErrors];
@@ -3900,8 +8721,10 @@ export type InsurancePoliciesCreateResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: Ref;
 };
+
+export type InsurancePoliciesCreateResponse = InsurancePoliciesCreateResponses[keyof InsurancePoliciesCreateResponses];
 
 export type InsuranceReportData = {
     body?: never;
@@ -3910,12 +8733,23 @@ export type InsuranceReportData = {
     url: '/v1/insurance/report';
 };
 
+export type InsuranceReportErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type InsuranceReportError = InsuranceReportErrors[keyof InsuranceReportErrors];
+
 export type InsuranceReportResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: CoverageReport;
 };
+
+export type InsuranceReportResponse = InsuranceReportResponses[keyof InsuranceReportResponses];
 
 export type InsuranceTargetsListData = {
     body?: never;
@@ -3924,12 +8758,23 @@ export type InsuranceTargetsListData = {
     url: '/v1/insurance/targets';
 };
 
+export type InsuranceTargetsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type InsuranceTargetsListError = InsuranceTargetsListErrors[keyof InsuranceTargetsListErrors];
+
 export type InsuranceTargetsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: CoverageTargetList;
 };
+
+export type InsuranceTargetsListResponse = InsuranceTargetsListResponses[keyof InsuranceTargetsListResponses];
 
 export type InsuranceTargetsSetData = {
     body: TargetRequest;
@@ -3940,9 +8785,13 @@ export type InsuranceTargetsSetData = {
 
 export type InsuranceTargetsSetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type InsuranceTargetsSetError = InsuranceTargetsSetErrors[keyof InsuranceTargetsSetErrors];
@@ -3951,8 +8800,10 @@ export type InsuranceTargetsSetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Ref;
 };
+
+export type InsuranceTargetsSetResponse = InsuranceTargetsSetResponses[keyof InsuranceTargetsSetResponses];
 
 export type InsuranceTargetsDeleteData = {
     body?: never;
@@ -3968,9 +8819,13 @@ export type InsuranceTargetsDeleteData = {
 
 export type InsuranceTargetsDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type InsuranceTargetsDeleteError = InsuranceTargetsDeleteErrors[keyof InsuranceTargetsDeleteErrors];
@@ -3998,9 +8853,13 @@ export type InsurancePoliciesDeleteData = {
 
 export type InsurancePoliciesDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type InsurancePoliciesDeleteError = InsurancePoliciesDeleteErrors[keyof InsurancePoliciesDeleteErrors];
@@ -4028,9 +8887,13 @@ export type InsurancePoliciesGetData = {
 
 export type InsurancePoliciesGetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type InsurancePoliciesGetError = InsurancePoliciesGetErrors[keyof InsurancePoliciesGetErrors];
@@ -4039,8 +8902,10 @@ export type InsurancePoliciesGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: InsurancePolicy;
 };
+
+export type InsurancePoliciesGetResponse = InsurancePoliciesGetResponses[keyof InsurancePoliciesGetResponses];
 
 export type InsurancePoliciesUpdateData = {
     body: PolicyUpdateRequest;
@@ -4056,9 +8921,13 @@ export type InsurancePoliciesUpdateData = {
 
 export type InsurancePoliciesUpdateErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type InsurancePoliciesUpdateError = InsurancePoliciesUpdateErrors[keyof InsurancePoliciesUpdateErrors];
@@ -4067,8 +8936,10 @@ export type InsurancePoliciesUpdateResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Updated;
 };
+
+export type InsurancePoliciesUpdateResponse = InsurancePoliciesUpdateResponses[keyof InsurancePoliciesUpdateResponses];
 
 export type ReportsBalanceSheetData = {
     body?: never;
@@ -4077,12 +8948,23 @@ export type ReportsBalanceSheetData = {
     url: '/v1/reports/balance-sheet';
 };
 
+export type ReportsBalanceSheetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReportsBalanceSheetError = ReportsBalanceSheetErrors[keyof ReportsBalanceSheetErrors];
+
 export type ReportsBalanceSheetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: BalanceSheet;
 };
+
+export type ReportsBalanceSheetResponse = ReportsBalanceSheetResponses[keyof ReportsBalanceSheetResponses];
 
 export type ReportsNetWorthData = {
     body?: never;
@@ -4091,12 +8973,23 @@ export type ReportsNetWorthData = {
     url: '/v1/reports/net-worth';
 };
 
+export type ReportsNetWorthErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReportsNetWorthError = ReportsNetWorthErrors[keyof ReportsNetWorthErrors];
+
 export type ReportsNetWorthResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: NetWorthStatement;
 };
+
+export type ReportsNetWorthResponse = ReportsNetWorthResponses[keyof ReportsNetWorthResponses];
 
 export type ReportsGoalProgressData = {
     body?: never;
@@ -4105,12 +8998,23 @@ export type ReportsGoalProgressData = {
     url: '/v1/reports/goal-progress';
 };
 
+export type ReportsGoalProgressErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReportsGoalProgressError = ReportsGoalProgressErrors[keyof ReportsGoalProgressErrors];
+
 export type ReportsGoalProgressResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: GoalProgressReport;
 };
+
+export type ReportsGoalProgressResponse = ReportsGoalProgressResponses[keyof ReportsGoalProgressResponses];
 
 export type ReportsExportCsvData = {
     body?: never;
@@ -4126,16 +9030,20 @@ export type ReportsExportCsvData = {
 
 export type ReportsExportCsvErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type ReportsExportCsvError = ReportsExportCsvErrors[keyof ReportsExportCsvErrors];
 
 export type ReportsExportCsvResponses = {
     /**
-     * Successful Response
+     * The report as a CSV file.
      */
     200: unknown;
 };
@@ -4147,12 +9055,23 @@ export type LlmKeysListData = {
     url: '/v1/llm-keys';
 };
 
+export type LlmKeysListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LlmKeysListError = LlmKeysListErrors[keyof LlmKeysListErrors];
+
 export type LlmKeysListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: LlmKeys;
 };
+
+export type LlmKeysListResponse = LlmKeysListResponses[keyof LlmKeysListResponses];
 
 export type LlmKeysDeleteData = {
     body?: never;
@@ -4168,9 +9087,13 @@ export type LlmKeysDeleteData = {
 
 export type LlmKeysDeleteErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type LlmKeysDeleteError = LlmKeysDeleteErrors[keyof LlmKeysDeleteErrors];
@@ -4198,9 +9121,13 @@ export type LlmKeysSetData = {
 
 export type LlmKeysSetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type LlmKeysSetError = LlmKeysSetErrors[keyof LlmKeysSetErrors];
@@ -4221,12 +9148,23 @@ export type McpConnectionsListData = {
     url: '/v1/mcp/connections/';
 };
 
+export type McpConnectionsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type McpConnectionsListError = McpConnectionsListErrors[keyof McpConnectionsListErrors];
+
 export type McpConnectionsListResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: McpConnections;
 };
+
+export type McpConnectionsListResponse = McpConnectionsListResponses[keyof McpConnectionsListResponses];
 
 export type McpConnectionsRevokeData = {
     body?: never;
@@ -4242,9 +9180,13 @@ export type McpConnectionsRevokeData = {
 
 export type McpConnectionsRevokeErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type McpConnectionsRevokeError = McpConnectionsRevokeErrors[keyof McpConnectionsRevokeErrors];
@@ -4265,12 +9207,23 @@ export type McpEnabledGetData = {
     url: '/v1/mcp/connections/enabled';
 };
 
+export type McpEnabledGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type McpEnabledGetError = McpEnabledGetErrors[keyof McpEnabledGetErrors];
+
 export type McpEnabledGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: McpEnabled;
 };
+
+export type McpEnabledGetResponse = McpEnabledGetResponses[keyof McpEnabledGetResponses];
 
 export type McpEnabledSetData = {
     body: McpEnabledRequest;
@@ -4281,9 +9234,13 @@ export type McpEnabledSetData = {
 
 export type McpEnabledSetErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type McpEnabledSetError = McpEnabledSetErrors[keyof McpEnabledSetErrors];
@@ -4297,12 +9254,375 @@ export type McpEnabledSetResponses = {
 
 export type McpEnabledSetResponse = McpEnabledSetResponses[keyof McpEnabledSetResponses];
 
+export type TokensListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/tokens';
+};
+
+export type TokensListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TokensListError = TokensListErrors[keyof TokensListErrors];
+
+export type TokensListResponses = {
+    /**
+     * Response Tokens.List
+     *
+     * Successful Response
+     */
+    200: Array<PersonalAccessToken>;
+};
+
+export type TokensListResponse = TokensListResponses[keyof TokensListResponses];
+
+export type TokensCreateData = {
+    body: CreateTokenRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/tokens';
+};
+
+export type TokensCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TokensCreateError = TokensCreateErrors[keyof TokensCreateErrors];
+
+export type TokensCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: NewPersonalAccessToken;
+};
+
+export type TokensCreateResponse = TokensCreateResponses[keyof TokensCreateResponses];
+
+export type TokensRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Token Id
+         */
+        token_id: string;
+    };
+    query?: never;
+    url: '/v1/tokens/{token_id}';
+};
+
+export type TokensRevokeErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TokensRevokeError = TokensRevokeErrors[keyof TokensRevokeErrors];
+
+export type TokensRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type TokensRevokeResponse = TokensRevokeResponses[keyof TokensRevokeResponses];
+
+export type RulesListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/rules';
+};
+
+export type RulesListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RulesListError = RulesListErrors[keyof RulesListErrors];
+
+export type RulesListResponses = {
+    /**
+     * Response Rules.List
+     *
+     * Successful Response
+     */
+    200: Array<CategorizationRule>;
+};
+
+export type RulesListResponse = RulesListResponses[keyof RulesListResponses];
+
+export type RulesCreateData = {
+    body: RuleDraft;
+    path?: never;
+    query?: never;
+    url: '/v1/rules';
+};
+
+export type RulesCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RulesCreateError = RulesCreateErrors[keyof RulesCreateErrors];
+
+export type RulesCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: Ref;
+};
+
+export type RulesCreateResponse = RulesCreateResponses[keyof RulesCreateResponses];
+
+export type RulesTestData = {
+    body: RuleDraft;
+    path?: never;
+    query?: never;
+    url: '/v1/rules/test';
+};
+
+export type RulesTestErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RulesTestError = RulesTestErrors[keyof RulesTestErrors];
+
+export type RulesTestResponses = {
+    /**
+     * Successful Response
+     */
+    200: RuleTestResult;
+};
+
+export type RulesTestResponse = RulesTestResponses[keyof RulesTestResponses];
+
+export type RulesSuggestionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/rules/suggestions';
+};
+
+export type RulesSuggestionsErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RulesSuggestionsError = RulesSuggestionsErrors[keyof RulesSuggestionsErrors];
+
+export type RulesSuggestionsResponses = {
+    /**
+     * Response Rules.Suggestions
+     *
+     * Successful Response
+     */
+    200: Array<RuleSuggestion>;
+};
+
+export type RulesSuggestionsResponse = RulesSuggestionsResponses[keyof RulesSuggestionsResponses];
+
+export type RulesDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Id
+         */
+        rule_id: string;
+    };
+    query?: never;
+    url: '/v1/rules/{rule_id}';
+};
+
+export type RulesDeleteErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RulesDeleteError = RulesDeleteErrors[keyof RulesDeleteErrors];
+
+export type RulesDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RulesDeleteResponse = RulesDeleteResponses[keyof RulesDeleteResponses];
+
+export type RulesGetData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Id
+         */
+        rule_id: string;
+    };
+    query?: never;
+    url: '/v1/rules/{rule_id}';
+};
+
+export type RulesGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RulesGetError = RulesGetErrors[keyof RulesGetErrors];
+
+export type RulesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CategorizationRule;
+};
+
+export type RulesGetResponse = RulesGetResponses[keyof RulesGetResponses];
+
+export type RulesUpdateData = {
+    body: RuleUpdate;
+    path: {
+        /**
+         * Rule Id
+         */
+        rule_id: string;
+    };
+    query?: never;
+    url: '/v1/rules/{rule_id}';
+};
+
+export type RulesUpdateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type RulesUpdateError = RulesUpdateErrors[keyof RulesUpdateErrors];
+
+export type RulesUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Ref;
+};
+
+export type RulesUpdateResponse = RulesUpdateResponses[keyof RulesUpdateResponses];
+
+export type ExportsBeancountData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/export/beancount';
+};
+
+export type ExportsBeancountErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ExportsBeancountError = ExportsBeancountErrors[keyof ExportsBeancountErrors];
+
+export type ExportsBeancountResponses = {
+    /**
+     * The journal, as a file.
+     */
+    200: string;
+};
+
+export type ExportsBeancountResponse = ExportsBeancountResponses[keyof ExportsBeancountResponses];
+
+export type ExportsHledgerData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/export/hledger';
+};
+
+export type ExportsHledgerErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ExportsHledgerError = ExportsHledgerErrors[keyof ExportsHledgerErrors];
+
+export type ExportsHledgerResponses = {
+    /**
+     * The journal, as a file.
+     */
+    200: string;
+};
+
+export type ExportsHledgerResponse = ExportsHledgerResponses[keyof ExportsHledgerResponses];
+
 export type MetaGetData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/v1/meta';
 };
+
+export type MetaGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type MetaGetError = MetaGetErrors[keyof MetaGetErrors];
 
 export type MetaGetResponses = {
     /**
@@ -4320,12 +9640,23 @@ export type OauthAuthorizationServerMetadataData = {
     url: '/.well-known/oauth-authorization-server';
 };
 
+export type OauthAuthorizationServerMetadataErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type OauthAuthorizationServerMetadataError = OauthAuthorizationServerMetadataErrors[keyof OauthAuthorizationServerMetadataErrors];
+
 export type OauthAuthorizationServerMetadataResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AuthorizationServerMetadata;
 };
+
+export type OauthAuthorizationServerMetadataResponse = OauthAuthorizationServerMetadataResponses[keyof OauthAuthorizationServerMetadataResponses];
 
 export type OauthProtectedResourceMetadataData = {
     body?: never;
@@ -4334,12 +9665,23 @@ export type OauthProtectedResourceMetadataData = {
     url: '/.well-known/oauth-protected-resource';
 };
 
+export type OauthProtectedResourceMetadataErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type OauthProtectedResourceMetadataError = OauthProtectedResourceMetadataErrors[keyof OauthProtectedResourceMetadataErrors];
+
 export type OauthProtectedResourceMetadataResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ProtectedResourceMetadata;
 };
+
+export type OauthProtectedResourceMetadataResponse = OauthProtectedResourceMetadataResponses[keyof OauthProtectedResourceMetadataResponses];
 
 export type OauthRegisterData = {
     body: RegisterClientRequest;
@@ -4350,9 +9692,13 @@ export type OauthRegisterData = {
 
 export type OauthRegisterErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OauthRegisterError = OauthRegisterErrors[keyof OauthRegisterErrors];
@@ -4361,8 +9707,10 @@ export type OauthRegisterResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: RegisteredClient;
 };
+
+export type OauthRegisterResponse = OauthRegisterResponses[keyof OauthRegisterResponses];
 
 export type OauthAuthorizeData = {
     body?: never;
@@ -4406,19 +9754,25 @@ export type OauthAuthorizeData = {
 
 export type OauthAuthorizeErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OauthAuthorizeError = OauthAuthorizeErrors[keyof OauthAuthorizeErrors];
 
 export type OauthAuthorizeResponses = {
     /**
-     * Successful Response
+     * An error, as RFC 9457 problem details
      */
-    200: unknown;
+    default: Problem;
 };
+
+export type OauthAuthorizeResponse = OauthAuthorizeResponses[keyof OauthAuthorizeResponses];
 
 export type OauthConsentInfoData = {
     body?: never;
@@ -4434,9 +9788,13 @@ export type OauthConsentInfoData = {
 
 export type OauthConsentInfoErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OauthConsentInfoError = OauthConsentInfoErrors[keyof OauthConsentInfoErrors];
@@ -4445,8 +9803,10 @@ export type OauthConsentInfoResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ConsentInfo;
 };
+
+export type OauthConsentInfoResponse = OauthConsentInfoResponses[keyof OauthConsentInfoResponses];
 
 export type OauthConsentData = {
     body: ConsentDecisionRequest;
@@ -4457,9 +9817,13 @@ export type OauthConsentData = {
 
 export type OauthConsentErrors = {
     /**
-     * Validation Error
+     * The request failed validation; `detail` lists each field
      */
-    422: HttpValidationError;
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OauthConsentError = OauthConsentErrors[keyof OauthConsentErrors];
@@ -4468,8 +9832,43 @@ export type OauthConsentResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ConsentDecision;
 };
+
+export type OauthConsentResponse = OauthConsentResponses[keyof OauthConsentResponses];
+
+export type OauthDeviceAuthorizationData = {
+    body: DeviceAuthorization2;
+    path?: never;
+    query?: never;
+    url: '/mcp/oauth/device_authorization';
+};
+
+export type OauthDeviceAuthorizationErrors = {
+    /**
+     * `invalid_client`
+     */
+    400: OAuthErrorBody;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type OauthDeviceAuthorizationError = OauthDeviceAuthorizationErrors[keyof OauthDeviceAuthorizationErrors];
+
+export type OauthDeviceAuthorizationResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeviceAuthorization;
+};
+
+export type OauthDeviceAuthorizationResponse = OauthDeviceAuthorizationResponses[keyof OauthDeviceAuthorizationResponses];
 
 export type OauthTokenData = {
     body: Token;
@@ -4480,9 +9879,17 @@ export type OauthTokenData = {
 
 export type OauthTokenErrors = {
     /**
-     * Validation Error
+     * An OAuth error; for the device grant, `authorization_pending` and `slow_down` mean keep polling (RFC 8628 §3.5)
      */
-    422: HttpValidationError;
+    400: OAuthErrorBody;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
 };
 
 export type OauthTokenError = OauthTokenErrors[keyof OauthTokenErrors];
@@ -4491,11 +9898,13 @@ export type OauthTokenResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: TokenGrant;
 };
 
+export type OauthTokenResponse = OauthTokenResponses[keyof OauthTokenResponses];
+
 export type OauthRevokeData = {
-    body: RevokeRequest;
+    body?: never;
     path?: never;
     query?: never;
     url: '/mcp/oauth/revoke';
@@ -4503,9 +9912,9 @@ export type OauthRevokeData = {
 
 export type OauthRevokeErrors = {
     /**
-     * Validation Error
+     * An error, as RFC 9457 problem details
      */
-    422: HttpValidationError;
+    default: Problem;
 };
 
 export type OauthRevokeError = OauthRevokeErrors[keyof OauthRevokeErrors];
@@ -4530,9 +9939,20 @@ export type MetaHealthData = {
     url: '/healthz';
 };
 
+export type MetaHealthErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type MetaHealthError = MetaHealthErrors[keyof MetaHealthErrors];
+
 export type MetaHealthResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: Health;
 };
+
+export type MetaHealthResponse = MetaHealthResponses[keyof MetaHealthResponses];

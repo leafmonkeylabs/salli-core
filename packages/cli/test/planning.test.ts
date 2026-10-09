@@ -261,11 +261,14 @@ describe('reminders, reports and tax', () => {
 describe('your data and settings', () => {
   it('shows and changes the profile; a locked base currency is a refusal (exit 5)', async () => {
     expect((await run(['profile', 'get'])).stdout).toMatchInlineSnapshot(`
-      "Display name      Ada
-      Base currency     USD
-      Date of birth     1990-04-01
-      Dependents count  0
-      Residency status  resident
+      "ID                      user-123
+      Display name            Ada
+      Base currency           USD
+      Date of birth           1990-04-01
+      Dependents count        0
+      Residency status        resident
+      MCP enabled             yes
+      Daily briefing enabled  no
       "
     `);
     expect((await run(['profile', 'set', '--name', 'Ada L', '--dependents', '2'])).code).toBe(0);

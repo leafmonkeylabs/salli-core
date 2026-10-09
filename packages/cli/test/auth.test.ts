@@ -86,7 +86,12 @@ describe('salli login (browser, PKCE, loopback)', () => {
     await startMock();
     const result = await run(['login', '--server', mock.url, '--context', 'home', '--json']);
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ context: 'home', server: mock.url, method: 'browser', user: { user_id: 'user-123' } });
+    expect(JSON.parse(result.stdout)).toEqual({
+      context: 'home',
+      server: mock.url,
+      method: 'browser',
+      user: { user_id: 'user-123', email: null, method: 'oauth' },
+    });
   });
 
   it('only prints the link with --no-browser', async () => {
@@ -158,7 +163,7 @@ describe('salli login --device', () => {
     const result = await run(['login', '--device', '--server', mock.url]);
     expect(result.code).toBe(0);
     expect(result.stderr).toContain('WDJB-MJHT');
-    expect(result.stderr).toContain(`${mock.url}/device?user_code=WDJB-MJHT`);
+    expect(result.stderr).toContain(`${mock.url}/mcp/oauth/device?user_code=WDJB-MJHT`);
     expect(result.opened).toEqual([]);
     const polls = mock.requestsTo('POST', '/mcp/oauth/token');
     expect(polls).toHaveLength(3);
@@ -221,10 +226,13 @@ describe('using the stored sign-in', () => {
     await run(['login', '--server', mock.url, '--token', 'pat-valid']);
     const result = await run(['whoami', '--json']);
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe('{\n  "user_id": "user-123"\n}\n');
+    expect(result.stdout).toBe('{\n  "user_id": "user-123",\n  "email": null,\n  "method": "pat"\n}\n');
+    mock.user.email = 'ada@example.com';
     const human = await run(['whoami']);
+    expect(human.stdout).toContain('ada@example.com');
     expect(human.stdout).toContain('user-123');
     expect(human.stdout).toContain('access token');
+    expect(human.stdout).toContain('a personal access token');
   });
 
   it('refreshes an expired access token once and retries', async () => {
@@ -296,13 +304,6 @@ describe('salli logout', () => {
     expect(mock.requestsTo('POST', '/mcp/oauth/revoke')[0]?.form).toMatchObject({ token_type_hint: 'refresh_token', client_id: 'client-1' });
     expect((await credentials()).default).toBeUndefined();
     expect((await run(['whoami'])).code).toBe(3);
-  });
-
-  it('falls back to a JSON body for a server that only reads JSON', async () => {
-    await startMock({ revokeJsonOnly: true });
-    await run(['login', '--server', mock.url]);
-    expect((await run(['logout'])).code).toBe(0);
-    expect(mock.revoked).toHaveLength(2);
   });
 
   it('is fine when already signed out', async () => {

@@ -13,11 +13,12 @@ import {
   entriesProvenance,
   entriesReverse,
   type AddEntryRequest,
+  type JournalEntry,
+  type Posting,
   type PostingRequest,
   type SalliClient,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import type { Entry, EntryList, Posting, Provenance } from '../api-types';
 import { UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates';
@@ -27,14 +28,13 @@ import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, curre
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** An entry by id or unique id prefix. */
-export async function findEntry(api: SalliClient, query: string): Promise<Entry> {
-  if (UUID.test(query.trim())) return (await api.call(entriesGet, { path: { entry_id: query.trim() } })) as Entry;
-  const all = (await api.call(entriesList)) as EntryList;
-  return resolveById(all, query, 'entry') as Entry;
+export async function findEntry(api: SalliClient, query: string): Promise<JournalEntry> {
+  if (UUID.test(query.trim())) return await api.call(entriesGet, { path: { entry_id: query.trim() } });
+  return resolveById(await api.call(entriesList), query, 'entry');
 }
 
 /** One line about an entry's money: the amount, and from where to where. */
-export function describeEntry(app: App, entry: Entry, book: AccountBook): { amount: string; debit: string; credit: string } {
+export function describeEntry(app: App, entry: JournalEntry, book: AccountBook): { amount: string; debit: string; credit: string } {
   const debits = entry.postings.filter((p) => p.direction > 0);
   const credits = entry.postings.filter((p) => p.direction < 0);
   const side = (postings: Posting[]): string =>
@@ -88,7 +88,7 @@ Examples:
       const [all, book] = await Promise.all([
         api.call(entriesList, {
           query: { ...(range.from ? { from_date: range.from } : {}), ...(range.to ? { to_date: range.to } : {}) },
-        }) as Promise<EntryList>,
+        }),
         AccountBook.load(api),
       ]);
       let list = all;
@@ -138,7 +138,7 @@ Examples:
       const api = await app.api();
       const entry = await findEntry(api, query);
       const [provenance, book] = await Promise.all([
-        api.call(entriesProvenance, { path: { entry_id: entry.id } }) as Promise<Provenance>,
+        api.call(entriesProvenance, { path: { entry_id: entry.id } }),
         AccountBook.load(api),
       ]);
       app.out.emit(
@@ -174,7 +174,7 @@ Examples:
               const s = statement.statement;
               out.line();
               out.line(
-                `${c.dim('From a bank statement:')} “${singleLine(statement.raw_description)}” ${out.amount(statement.raw_amount, entry.postings[0]?.currency)} on ${displayDate(statement.raw_date, out.locale)}` +
+                `${c.dim('From a bank statement:')} “${singleLine(statement.raw_description)}” ${out.amount(statement.raw_amount, statement.currency)} on ${displayDate(statement.raw_date, out.locale)}` +
                   (s?.bank ? ` · ${singleLine(s.bank)}` : '') +
                   (s?.period_start ? ` · statement for ${displayRange(s.period_start, s.period_end, out.locale)}` : ''),
               );
@@ -223,7 +223,7 @@ Examples:
         postings: [...opts.debit.map((d) => posting(d, 1, '--debit')), ...opts.credit.map((c) => posting(c, -1, '--credit'))],
         ...(opts.receipt ? { external_ref: opts.receipt } : {}),
       };
-      const created = (await api.call(entriesCreate, { body })) as { id: string };
+      const created = await api.call(entriesCreate, { body });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
       else app.out.success(`Posted “${body.description}” on ${displayDate(body.entry_date, app.out.locale)} ${app.out.errColors.dim(created.id)}`);
     });
@@ -248,7 +248,7 @@ Examples:
         app.out.note('Nothing changed.');
         return;
       }
-      const reversal = (await api.call(entriesReverse, { path: { entry_id: entry.id } })) as { id: string };
+      const reversal = await api.call(entriesReverse, { path: { entry_id: entry.id } });
       if (app.out.machine) app.out.emit(reversal, { human: () => undefined });
       else app.out.success(`Reversed “${singleLine(entry.description)}” with entry ${reversal.id.slice(0, 8)}.`);
     });
@@ -262,7 +262,7 @@ Examples:
     .action(async (query, pairs, opts) => {
       if (!opts.clear && pairs.length === 0) throw new UsageError('Give tags as AXIS=SLUG, or --clear to remove them.');
       const api = await app.api();
-      const all = (await api.call(entriesList)) as EntryList;
+      const all = await api.call(entriesList);
       const postings = all.flatMap((e) => e.postings.map((p) => ({ ...p, entry: e })));
       const posting = resolveById(postings, query, 'posting');
       const tags = opts.clear ? {} : tagArgs(pairs);

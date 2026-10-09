@@ -14,7 +14,6 @@ import {
   type UpdateAccountRequest,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import type { TrialBalance } from '../api-types';
 import { UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { displayDate, parseDate } from '../util/dates';
@@ -63,7 +62,7 @@ Examples:
       if (opts.type) list = list.filter((a) => a.type === opts.type);
       if (opts.active) list = list.filter((a) => a.is_active);
       const filtered = opts.type !== undefined || opts.active === true;
-      const trial = opts.balances ? ((await api.call(ledgerTrialBalance)) as TrialBalance) : undefined;
+      const trial = opts.balances ? await api.call(ledgerTrialBalance) : undefined;
       const data = trial ? { accounts: filtered ? list : book.accounts, trial_balance: trial } : filtered ? list : book.accounts;
 
       app.out.emit(data, {

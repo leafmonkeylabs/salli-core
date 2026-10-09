@@ -13,7 +13,6 @@ import {
   SalliNetworkError,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import type { BalanceSheet, FiScore, IncomeStatement, ReminderList } from '../api-types';
 import { problemFor } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine, truncate } from '../output/text';
 import { displayDate, displayRange, isoDate, monthPeriod, monthToDate } from '../util/dates';
@@ -52,18 +51,16 @@ export function registerStatus(program: Command, app: App): void {
       const failure = settled.find((s): s is PromiseRejectedResult => s.status === 'rejected' && fatal(s.reason));
       if (failure) throw failure.reason;
 
-      const names = ['balance_sheet', 'income_statement', 'fi_score', 'reminders'] as const;
       const unavailable: Record<string, unknown> = {};
-      const value = <T>(i: number): T | null => {
-        const s = settled[i];
-        if (s?.status === 'fulfilled') return s.value as T;
-        unavailable[names[i] ?? String(i)] = problemFor(s?.reason);
+      const value = <T>(settledResult: PromiseSettledResult<T>, name: string): T | null => {
+        if (settledResult.status === 'fulfilled') return settledResult.value;
+        unavailable[name] = problemFor(settledResult.reason);
         return null;
       };
-      const balanceSheet = value<BalanceSheet>(0);
-      const income = value<IncomeStatement>(1);
-      const fi = value<FiScore>(2);
-      const reminders = value<ReminderList>(3);
+      const balanceSheet = value(settled[0], 'balance_sheet');
+      const income = value(settled[1], 'income_statement');
+      const fi = value(settled[2], 'fi_score');
+      const reminders = value(settled[3], 'reminders');
 
       const result = {
         context: ctx.name,
@@ -107,20 +104,22 @@ export function registerStatus(program: Command, app: App): void {
 
           const toDate = period.to === isoDate(now);
           lines.push(c.bold(`${period.label}${toDate ? ' so far' : ''}`) + c.dim(` (${displayRange(period.from, period.to, out.locale)})`));
-          if (income) {
+          if (income && income.lines.length) {
             const cur = income.currency;
-            block(cur, [['Net income', income.net_income, 2]]);
-            const top = (items: Record<string, string>): string => {
-              const sorted = Object.entries(items).sort(([, a], [, b]) => compareAmounts(b, a));
-              const shown = sorted.slice(0, 3).map(([name, amount]) => `${singleLine(name)} ${out.money(amount, cur)}`);
-              return shown.join(' · ') + (sorted.length > 3 ? c.dim(` · +${sorted.length - 3} more`) : '');
-            };
-            const room = Number.isFinite(out.width) ? out.width - 16 : Number.POSITIVE_INFINITY;
-            if (Object.keys(income.income).length) lines.push(`${label('Income', 2)}${truncate(top(income.income), room)}`);
-            if (Object.keys(income.expenses).length) lines.push(`${label('Spending', 2)}${truncate(top(income.expenses), room)}`);
-            if (!Object.keys(income.income).length && !Object.keys(income.expenses).length) {
-              lines.push(`  ${c.dim('Nothing recorded yet this month.')}`);
+            block(cur, [
+              ['Income', income.total_income, 2],
+              ['Spending', income.total_expenses, 2],
+              ['Net income', income.net_income, 2, true],
+            ]);
+            const spending = income.lines.filter((l) => l.type === 'expense').sort((a, b) => compareAmounts(b.amount, a.amount));
+            if (spending.length) {
+              const room = Number.isFinite(out.width) ? out.width - 16 : Number.POSITIVE_INFINITY;
+              const top = spending.slice(0, 3).map((l) => `${singleLine(l.name)} ${out.amount(l.amount, cur)}`);
+              const text = top.join(' · ') + (spending.length > 3 ? ` · +${spending.length - 3} more` : '');
+              lines.push(`${label('Most on', 2)}${truncate(text, room)}`);
             }
+          } else if (income) {
+            lines.push(`  ${c.dim('Nothing recorded yet this month.')}`);
           } else {
             lines.push(`  ${c.dim('unavailable')}`);
           }
@@ -128,7 +127,7 @@ export function registerStatus(program: Command, app: App): void {
 
           if (fi) {
             const progress = out.percent(fi.progress_to_fi);
-            lines.push(`${label(c.bold('FI score'))}${fi.overall_score} (${fi.grade}) · ${progress} of the way to financial independence`);
+            lines.push(`${label(c.bold('FI score'))}${singleLine(fi.overall_score)} (${singleLine(fi.grade)}) · ${progress} of the way to financial independence`);
             lines.push(`${label('Savings rate', 2)}${out.percent(fi.savings_rate)} of income`);
             if (fi.projected_fi_date) lines.push(`${label('FI by', 2)}${displayDate(fi.projected_fi_date, out.locale)}`);
             lines.push('');

@@ -72,9 +72,14 @@ export function monthToDate(now: Date, locale?: string): Period {
   return { ...period, to: isoDate(now) };
 }
 
-/** "9 Oct 2026" for display; the input as given when it is not a date. */
+/** "9 Oct 2026" for display ("30 Nov" for a yearly MM-DD); the input as given when it is not a date. */
 export function displayDate(value: unknown, locale?: string): string {
   if (typeof value !== 'string' || !value) return '';
+  const yearly = /^(\d{2})-(\d{2})$/.exec(value);
+  if (yearly) {
+    const date = new Date(2000, digits(yearly[1]) - 1, digits(yearly[2]));
+    return plainSpaces(new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date));
+  }
   const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (!day) return value;
   const date = new Date(digits(day[1]), digits(day[2]) - 1, digits(day[3]));

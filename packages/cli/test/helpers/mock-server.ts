@@ -1,13 +1,23 @@
 /**
  * An in-process stand-in for a Salli server: the REST routes the CLI uses
- * (fixtures shaped like the Python handlers' responses), problem+json
+ * (fixtures typed with the SDK's generated response types), problem+json
  * errors, the OAuth endpoints (registration, PKCE authorization with a
- * loopback redirect, device codes, refresh with rotation, revocation), and
- * the agent's SSE stream.
+ * loopback redirect on any port, device codes, refresh with rotation,
+ * revocation), and the agent's SSE stream.
  */
 import { createHash, randomBytes } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type {
+  Account,
+  AgentDocument,
+  EntryProvenance,
+  McpConnection,
+  Meta,
+  Profile,
+  PurchaseImpact,
+  TaxPack,
+} from '@leafmonkeylabs/salli-sdk';
 import {
   ACCOUNTS,
   BALANCE_SHEET,
@@ -43,16 +53,18 @@ export interface MockOptions {
   accessTokenTtl?: number;
   /** What successive device-code polls answer. Default: pending, then approve. */
   deviceSteps?: DeviceStep[];
-  /** Revocation only reads a JSON body (like the server today). */
-  revokeJsonOnly?: boolean;
   /** Whether the user approves in the "browser". Default true. */
   consent?: boolean;
+  /** The resource indicator for the REST API. Default: `<url>/v1`. */
+  apiResource?: string;
 }
 
 type Reply = { status: number; body?: unknown; headers?: Record<string, string>; raw?: string };
 type Handler = (req: RecordedRequest, params: Record<string, string>, res: http.ServerResponse) => Reply | undefined | Promise<Reply | undefined>;
 
 const clone = <T>(value: T): T => structuredClone(value);
+/** When a stored record was made and last changed. */
+const STAMPS = { created_at: '2026-09-01T09:00:00+00:00', updated_at: '2026-09-01T09:00:00+00:00' };
 const b64url = (buf: Buffer): string => buf.toString('base64url');
 
 function problem(status: number, title: string, detail?: unknown, type = 'about:blank'): Reply {
@@ -73,7 +85,7 @@ export class MockSalli {
   readonly refreshTokens = new Map<string, { client_id: string }>();
   readonly revoked: string[] = [];
   readonly pats = new Set<string>(['pat-valid']);
-  user: Record<string, unknown> = { user_id: 'user-123' };
+  user: { user_id: string; email: string | null } = { user_id: 'user-123', email: null };
   data = {
     accounts: clone(ACCOUNTS),
     entries: clone(ENTRIES),
@@ -93,30 +105,47 @@ export class MockSalli {
             { account_id: uid(6), limit_amount: '400.00' },
             { account_id: uid(7), limit_amount: '1800.00' },
           ],
+          ...STAMPS,
         },
       ],
       '/v1/debt/': [
-        { id: uid(411), name: 'Credit card', currency: 'USD', principal: '1200.00', apr: '0.2399', minimum_payment: '35.00', is_active: true },
-        { id: uid(412), name: 'Car loan', currency: 'USD', principal: '8400.00', apr: '0.069', minimum_payment: '310.00', is_active: true },
+        { id: uid(411), name: 'Credit card', currency: 'USD', principal: '1200.00', apr: '0.2399', minimum_payment: '35.00', is_active: true, ...STAMPS },
+        { id: uid(412), name: 'Car loan', currency: 'USD', principal: '8400.00', apr: '0.069', minimum_payment: '310.00', is_active: true, ...STAMPS },
       ],
       '/v1/portfolio/': [
-        { id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', is_active: true },
-        { id: uid(422), symbol: 'BND', name: 'Total Bond Market', asset_class: 'bond', currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', is_active: true },
+        { id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', is_active: true, ...STAMPS },
+        { id: uid(422), symbol: 'BND', name: 'Total Bond Market', asset_class: 'bond', currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', is_active: true, ...STAMPS },
       ],
       '/v1/subscriptions/': [
-        { id: uid(431), name: 'Streaming', amount: '15.99', currency: 'USD', frequency: 'monthly', next_due_date: '2026-10-20', account_id: null, grace_days: 5, amount_tolerance_pct: '0.05', is_active: true },
+        { id: uid(431), name: 'Streaming', amount: '15.99', currency: 'USD', frequency: 'monthly', next_due_date: '2026-10-20', account_id: null, grace_days: 5, amount_tolerance_pct: '0.05', is_active: true, ...STAMPS },
       ],
       '/v1/insurance/policies': [
-        { id: uid(441), name: 'Term life', policy_type: 'life', provider: 'Acme Life', currency: 'USD', coverage_amount: '500000.00', premium_amount: '42.00', premium_frequency: 'monthly', expiry_date: '2046-01-01', is_active: true },
+        { id: uid(441), name: 'Term life', policy_type: 'life', provider: 'Acme Life', currency: 'USD', coverage_amount: '500000.00', premium_amount: '42.00', premium_frequency: 'monthly', expiry_date: '2046-01-01', is_active: true, ...STAMPS },
       ],
       '/v1/fi/goals': [
         { id: uid(451), name: 'Emergency fund', kind: 'emergency_fund', currency: 'USD', target_amount: '15000.00', current_amount: '9000.00', allocated_amount: '9000.00', shortfall: '0.00', target_date: '2027-06-30', priority: 1, progress: 0.6, created_at: '2026-01-01T00:00:00+00:00' },
       ],
       '/v1/documents/': [
-        { id: uid(461), title: 'Receipt.pdf', namespace: 'documents', mime_type: 'application/pdf', created_at: '2026-10-02T00:00:00+00:00', content: 'Thank you for shopping' },
+        {
+          id: uid(461),
+          user_id: 'user-123',
+          title: 'Receipt.pdf',
+          content: 'Thank you for shopping',
+          storage_key: 'user-123/receipt.pdf',
+          mime_type: 'application/pdf',
+          tags: ['receipt'],
+          source: 'upload',
+          namespace: 'documents',
+          slug: null,
+          description: null,
+          created_at: '2026-10-02T00:00:00+00:00',
+          updated_at: '2026-10-02T00:00:00+00:00',
+        } satisfies AgentDocument,
       ],
-      '/v1/mcp/connections/': [{ id: uid(471), client_name: 'Claude', scope: '', expires_at: '2026-11-01T00:00:00+00:00' }],
     } as Record<string, Array<Record<string, unknown> & { id: string }>>,
+    connections: [
+      { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
+    ] as McpConnection[],
     bodies: [] as Array<{ method: string; path: string; body: unknown }>,
   };
   /** SSE frames for the next chat turn (each a JSON event). */
@@ -193,9 +222,9 @@ export class MockSalli {
     return this.requests.filter((r) => r.method === method && r.path.startsWith(pathPrefix));
   }
 
-  get meta(): Record<string, unknown> {
+  get meta(): Meta {
     const base = this.url;
-    return {
+    const meta: Meta = {
       api_version: this.options.apiVersion ?? '1',
       server_version: '0.1.0',
       extensions: [],
@@ -206,15 +235,28 @@ export class MockSalli {
         token_endpoint: `${base}/mcp/oauth/token`,
         registration_endpoint: `${base}/mcp/oauth/register`,
         revocation_endpoint: `${base}/mcp/oauth/revoke`,
-        ...(this.options.device === false ? {} : { device_authorization_endpoint: `${base}/mcp/oauth/device` }),
+        device_authorization_endpoint: `${base}/mcp/oauth/device_authorization`,
+        api_resource: this.options.apiResource ?? `${base}/v1`,
+        device_verification_uri: `${base}/mcp/oauth/device`,
       },
       default_currency: 'USD',
     };
+    if (this.options.device === false) {
+      // A server from before device sign-in.
+      const { device_authorization_endpoint: _endpoint, device_verification_uri: _page, ...oauth } = meta.oauth;
+      return { ...meta, oauth: oauth as Meta['oauth'] };
+    }
+    return meta;
+  }
+
+  /** The bearer token of a request. */
+  private tokenOf(req: RecordedRequest): string {
+    const header = req.headers.authorization ?? '';
+    return header.startsWith('Bearer ') ? header.slice(7) : '';
   }
 
   private authorized(req: RecordedRequest): boolean {
-    const header = req.headers.authorization ?? '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const token = this.tokenOf(req);
     if (this.pats.has(token)) return true;
     const record = this.accessTokens.get(token);
     return !!record && record.expires_at > Date.now() / 1000;
@@ -263,7 +305,9 @@ export class MockSalli {
     const p = (pattern: string): Record<string, string> | undefined => match(pattern, path);
     let params: Record<string, string> | undefined;
 
-    if (method === 'GET' && path === '/v1/auth/me') return { status: 200, body: this.user };
+    if (method === 'GET' && path === '/v1/auth/me') {
+      return { status: 200, body: { ...this.user, method: this.pats.has(this.tokenOf(req)) ? 'pat' : 'oauth' } };
+    }
 
     // accounts
     if (method === 'GET' && path === '/v1/accounts/') return { status: 200, body: this.data.accounts };
@@ -277,11 +321,11 @@ export class MockSalli {
         id,
         code: String(input.code),
         name: String(input.name),
-        type: String(input.type),
+        type: String(input.type) as Account['type'],
         currency: String(input.currency ?? 'USD'),
         parent_id: (input.parent_id as string | null) ?? null,
         is_active: true,
-        tax_role: (input.tax_role as string | null) ?? null,
+        tax_role: (input.tax_role as Account['tax_role']) ?? null,
       });
       return { status: 201, body: { id } };
     }
@@ -348,28 +392,36 @@ export class MockSalli {
     if ((params = p('/v1/entries/{id}/provenance')) && method === 'GET') {
       const entry = this.data.entries.find((e) => e.id === params?.id);
       if (!entry) return problem(404, 'Not Found', 'Entry not found');
-      return {
-        status: 200,
-        body: {
-          entry_id: entry.id,
-          entry_date: entry.entry_date,
-          description: entry.description,
-          source: entry.source,
-          external_ref: entry.external_ref,
-          statement:
-            entry.source === 'statement'
-              ? {
-                  parsed_transaction_id: uid(901),
-                  raw_description: 'SUPERMARKET 123',
-                  raw_amount: '412.35',
-                  raw_date: '2026-10-05',
-                  bank_ref: 'REF9',
-                  statement: { id: uid(801), bank: 'Acme Bank', period_start: '2026-10-01', period_end: '2026-10-31' },
-                }
-              : null,
-          receipt: null,
-        },
+      const provenance: EntryProvenance = {
+        entry_id: entry.id,
+        entry_date: entry.entry_date,
+        description: entry.description,
+        source: entry.source,
+        external_ref: entry.external_ref,
+        statement:
+          entry.source === 'statement'
+            ? {
+                parsed_transaction_id: uid(901),
+                raw_description: 'SUPERMARKET 123',
+                raw_amount: '412.35',
+                currency: 'USD',
+                raw_date: '2026-10-05',
+                bank_ref: 'REF9',
+                statement: {
+                  id: uid(801),
+                  bank: 'Acme Bank',
+                  period_start: '2026-10-01',
+                  period_end: '2026-10-31',
+                  storage_key: 'user-123/statement.pdf',
+                  status: 'posted',
+                  created_at: '2026-10-06T09:00:00+00:00',
+                },
+              }
+            : null,
+        receipt: null,
+        possible_subscriptions: [],
       };
+      return { status: 200, body: provenance };
     }
     if ((params = p('/v1/entries/{id}/reverse')) && method === 'POST') {
       const entry = this.data.entries.find((e) => e.id === params?.id);
@@ -446,23 +498,29 @@ export class MockSalli {
     }
     if (method === 'POST' && path === '/v1/fi/simulate-purchase') {
       this.data.bodies.push({ method, path, body: req.json });
-      return {
-        status: 200,
-        body: {
-          amount: (req.json as { amount: string }).amount,
-          currency: 'USD',
-          baseline_months_to_fi: 168,
-          payable_from_liquid: true,
-          options: [
-            { key: 'cash', label: 'Pay cash', total_cost: '2400.00', interest_cost: '0.00', monthly_payment: null, term_months: null, months_to_fi: 169, months_delay: 1, exceeds_monthly_surplus: false },
-            { key: 'instalments', label: 'Pay over 12 months', total_cost: '2616.00', interest_cost: '216.00', monthly_payment: '218.00', term_months: 12, months_to_fi: 170, months_delay: 2, exceeds_monthly_surplus: false },
-          ],
-          cheapest_option_key: 'cash',
-          data_as_of: '2026-10-06',
-          is_stale: false,
-          stale_after_days: 30,
-        },
+      const impact: PurchaseImpact = {
+        amount: (req.json as { amount: string }).amount,
+        currency: 'USD',
+        fi_number: '663705.00',
+        fi_asset_base_before: '12834.50',
+        monthly_surplus: '2787.65',
+        baseline_months_to_fi: 168,
+        payable_from_liquid: true,
+        emergency_months_before: '5.8',
+        emergency_months_after_cash: '4.7',
+        emergency_fund_target_months: 6,
+        options: [
+          { key: 'cash', label: 'Pay cash', total_cost: '2400.00', interest_cost: '0.00', monthly_payment: null, term_months: null, months_to_fi: 169, months_delay: 1, exceeds_monthly_surplus: false },
+          { key: 'installments', label: 'Pay over 12 months', total_cost: '2616.00', interest_cost: '216.00', monthly_payment: '218.00', term_months: 12, months_to_fi: 170, months_delay: 2, exceeds_monthly_surplus: false },
+        ],
+        cheapest_option_key: 'cash',
+        data_as_of: '2026-10-06',
+        is_stale: false,
+        stale_after_days: 30,
+        real_return_used: '0.035',
+        swr: '0.04',
       };
+      return { status: 200, body: impact };
     }
     if (method === 'GET' && path === '/v1/debt/payoff-plan') {
       return {
@@ -515,7 +573,26 @@ export class MockSalli {
       return { status: 200, body: { goals: this.data.collections['/v1/fi/goals'], completed_count: 0, in_progress_count: 1 } };
     }
     if (method === 'GET' && path === '/v1/onboarding/profile') {
-      return { status: 200, body: { display_name: 'Ada', base_currency: 'USD', date_of_birth: '1990-04-01', dependents_count: 0, residency_status: 'resident' } };
+      const profile: Profile = {
+        id: 'user-123',
+        email: null,
+        display_name: 'Ada',
+        base_currency: 'USD',
+        date_of_birth: '1990-04-01',
+        dependents_count: 0,
+        employment_status: null,
+        residency_status: 'resident',
+        employer: null,
+        employment_type: null,
+        ird_number: null,
+        risk_score: null,
+        risk_category: null,
+        life_stage: null,
+        mcp_enabled: true,
+        daily_briefing_enabled: false,
+        preferred_model: null,
+      };
+      return { status: 200, body: profile };
     }
     if (method === 'PATCH' && path === '/v1/onboarding/profile') {
       this.data.bodies.push({ method, path, body: req.json });
@@ -526,7 +603,20 @@ export class MockSalli {
     }
     if (method === 'GET' && path === '/v1/onboarding/export') return { status: 200, raw: '{"profile": {"display_name": "Ada"}, "progress": 0.0}', headers: { 'Content-Type': 'application/json' } };
     if (method === 'GET' && path === '/v1/tax/packs') {
-      return { status: 200, body: [{ country: 'LK', year: '2025/26', version: '1', period_start: '2025-04-01', period_end: '2026-03-31', personal_relief: '1800000', return_due: '11-30' }] };
+      const pack: TaxPack = {
+        country: 'LK',
+        year: '2025/26',
+        version: '1',
+        currency: 'LKR',
+        period_start: '2025-04-01',
+        period_end: '2026-03-31',
+        personal_relief: '1800000.00',
+        return_due: '11-30',
+        set_due: '09-30',
+        installments: ['08-15', '11-15', '02-15'],
+        final_installment_due: '05-15',
+      };
+      return { status: 200, body: [pack] };
     }
     if (method === 'POST' && path === '/v1/tax/compute') {
       return {
@@ -550,6 +640,13 @@ export class MockSalli {
       return { status: 204 };
     }
     if (method === 'GET' && path === '/v1/mcp/connections/enabled') return { status: 200, body: { enabled: true } };
+    if (method === 'GET' && path === '/v1/mcp/connections/') return { status: 200, body: { connections: this.data.connections } };
+    if ((params = p('/v1/mcp/connections/{id}')) && method === 'DELETE') {
+      const index = this.data.connections.findIndex((c) => c.token_id === params?.id);
+      if (index < 0) return problem(404, 'Not Found', 'connection not found', '/problems/not-found');
+      this.data.connections.splice(index, 1);
+      return { status: 204 };
+    }
     if (method === 'PUT' && path === '/v1/mcp/connections/enabled') {
       this.data.bodies.push({ method, path, body: req.json });
       return { status: 204 };
@@ -605,7 +702,7 @@ export class MockSalli {
       if (req.path === base || req.path === root) {
         if (req.method === 'GET') {
           const key = base.split('/').filter(Boolean).pop() ?? 'items';
-          const name = { budget: 'budgets', debt: 'debts', portfolio: 'holdings', policies: 'policies', goals: 'goals', connections: 'connections' }[key] ?? key;
+          const name = { budget: 'budgets', debt: 'debts', portfolio: 'holdings', policies: 'policies', goals: 'goals' }[key] ?? key;
           const activeOnly = req.query.get('active_only') !== 'false';
           return { status: 200, body: { [name]: items.filter((i) => !activeOnly || i.is_active !== false), ...(key === 'documents' ? { count: items.length } : {}) } };
         }
@@ -692,17 +789,18 @@ export class MockSalli {
       if (q.get('state')) target.searchParams.set('state', q.get('state') ?? '');
       return { status: 302, headers: { Location: target.toString() } };
     }
-    if (method === 'POST' && path === '/mcp/oauth/device') {
+    if (method === 'POST' && path === '/mcp/oauth/device_authorization') {
       const clientId = req.form?.client_id ?? '';
-      if (!this.clients.has(clientId)) return { status: 401, body: { error: 'invalid_client' } };
+      if (!this.clients.has(clientId)) return { status: 400, body: { error: 'invalid_client', error_description: 'unknown client_id' } };
       return {
         status: 200,
         body: {
           device_code: 'dev-code-1',
           user_code: 'WDJB-MJHT',
-          verification_uri: `${this.url}/device`,
-          verification_uri_complete: `${this.url}/device?user_code=WDJB-MJHT`,
+          verification_uri: `${this.url}/mcp/oauth/device`,
+          verification_uri_complete: `${this.url}/mcp/oauth/device?user_code=WDJB-MJHT`,
           expires_in: 600,
+          // Seconds in the real thing (5); a hundredth here, so tests do not wait.
           interval: 0.01,
         },
       };
@@ -736,9 +834,6 @@ export class MockSalli {
     }
     if (method === 'POST' && path === '/mcp/oauth/revoke') {
       const isJson = (req.headers['content-type'] ?? '').includes('application/json');
-      if (this.options.revokeJsonOnly && !isJson) {
-        return problem(422, 'Request validation failed', [{ loc: ['body'], msg: 'Input should be a valid dictionary', type: 'model_attributes_type' }], '/problems/validation');
-      }
       const token = isJson ? (req.json as { token?: string }).token : req.form?.token;
       if (token) {
         this.revoked.push(token);

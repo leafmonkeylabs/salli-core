@@ -211,16 +211,6 @@ describe('revokeToken', () => {
     await revokeToken({ revocationEndpoint: `${server.url}/revoke`, token: 'rt', tokenTypeHint: 'refresh_token', clientId: 'c' });
     expect(form(server.requests[0]?.body ?? '')).toEqual({ token: 'rt', token_type_hint: 'refresh_token', client_id: 'c' });
   });
-
-  it('retries as JSON for a server that only reads JSON', async () => {
-    server = await startServer((req, res) => {
-      if (req.headers['content-type'] === 'application/json') sendJson(res, 200, {});
-      else sendJson(res, 422, { type: '/problems/validation', title: 'Request validation failed', status: 422, detail: [] });
-    });
-    await revokeToken({ revocationEndpoint: `${server.url}/revoke`, token: 'rt' });
-    expect(server.requests).toHaveLength(2);
-    expect(JSON.parse(server.requests[1]?.body ?? '{}')).toEqual({ token: 'rt' });
-  });
 });
 
 describe('createOAuthTokenProvider', () => {

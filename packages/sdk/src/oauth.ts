@@ -7,24 +7,20 @@
  * (RFC 8707), the device authorization grant (RFC 8628), refresh, and
  * revocation (RFC 7009). The endpoints come from `GET /v1/meta`.
  */
-import type { Meta } from './generated/types.gen';
+import type { Meta, OAuthInfo } from './generated/types.gen';
 import { SalliApiError, SalliNetworkError, SalliOAuthError } from './errors';
 import type { TokenProvider } from './client';
 
-/** The sign-in endpoints a server advertises in `/v1/meta`. */
-export interface OAuthEndpoints {
-  issuer?: string;
-  authorization_endpoint: string;
-  token_endpoint: string;
-  registration_endpoint?: string;
-  revocation_endpoint?: string;
-  /** RFC 8628. Optional: not every server offers device sign-in. */
-  device_authorization_endpoint?: string;
-}
+/**
+ * The sign-in endpoints a server advertises in `/v1/meta`, and the resource
+ * indicator (RFC 8707) to ask for: `api_resource` for the REST API. A token
+ * issued for MCP is refused by the API, and the other way round.
+ */
+export type OAuthEndpoints = OAuthInfo;
 
 /** The OAuth endpoints in a `/v1/meta` response. */
 export function oauthEndpointsOf(meta: Meta): OAuthEndpoints {
-  return meta.oauth as OAuthEndpoints;
+  return meta.oauth;
 }
 
 /** A token endpoint's successful answer (RFC 6749 §5.1). */
@@ -405,16 +401,12 @@ export interface RevokeParams extends FetchOption {
   clientId?: string;
 }
 
-/**
- * Revokes a token. Sent form-encoded as RFC 7009 says; a server that only
- * reads a JSON body answers that with 422, so it is retried once as JSON.
- */
+/** Revokes a token (RFC 7009: form-encoded). */
 export async function revokeToken(params: RevokeParams): Promise<void> {
   const fields: Record<string, string> = { token: params.token };
   if (params.tokenTypeHint) fields.token_type_hint = params.tokenTypeHint;
   if (params.clientId) fields.client_id = params.clientId;
-
-  let response = await send(
+  const response = await send(
     params.revocationEndpoint,
     {
       method: 'POST',
@@ -423,18 +415,6 @@ export async function revokeToken(params: RevokeParams): Promise<void> {
     },
     params,
   );
-  if (response.status === 422 || response.status === 415) {
-    await response.body?.cancel().catch(() => undefined);
-    response = await send(
-      params.revocationEndpoint,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(fields),
-      },
-      params,
-    );
-  }
   const body = await readBody(response);
   if (!response.ok) throw oauthError(response, body, params.revocationEndpoint);
 }

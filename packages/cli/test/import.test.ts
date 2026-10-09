@@ -137,7 +137,7 @@ describe('salli statements', () => {
       00000321  Acme Bank  Sep 1 – 30, 2026  parsed  Oct 2, 2026
       "
     `);
-    const pending = await run(['statements', 'pending', '-o', 'ndjson']);
+    const pending = await run(['statements', 'pending', '--output', 'ndjson']);
     expect(pending.stdout.trim().split('\n')).toHaveLength(3);
   });
 

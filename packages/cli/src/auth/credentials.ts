@@ -3,7 +3,7 @@
  * them), or a personal access token. Always bound to the server it was
  * issued by, so a token is never sent anywhere else.
  */
-import type { StoredTokens } from '@leafmonkeylabs/salli-sdk';
+import type { AuthIdentity, StoredTokens } from '@leafmonkeylabs/salli-sdk';
 
 export interface OAuthCredentials {
   kind: 'oauth';
@@ -56,4 +56,9 @@ export function parseCredentials(secret: string | undefined): StoredCredentials 
 
 export function serializeCredentials(credentials: StoredCredentials): string {
   return JSON.stringify(credentials);
+}
+
+/** Who `/v1/auth/me` says you are: your email (when the server knows it) and your user id. */
+export function identityOf(me: AuthIdentity): { email: string | undefined; userId: string } {
+  return { email: me.email || undefined, userId: me.user_id };
 }

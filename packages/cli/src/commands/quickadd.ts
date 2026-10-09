@@ -190,7 +190,7 @@ Examples:
         }
       }
 
-      const created = (await api.call(entriesCreate, {
+      const created = await api.call(entriesCreate, {
         body: {
           entry_date: draft.date,
           description: draft.description,
@@ -199,7 +199,7 @@ Examples:
             { account_id: draft.creditId as string, direction: -1, amount: draft.amount, currency: draft.currency },
           ],
         },
-      })) as { id: string };
+      });
       if (app.out.machine) {
         app.out.emit({ draft: parsed, entry: created }, { human: () => undefined });
       } else {

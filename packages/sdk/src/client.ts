@@ -73,6 +73,16 @@ type CallArgs<F extends SdkFunction> = undefined extends Parameters<F>[0]
   ? [options?: CallOptions<F>]
   : [options: CallOptions<F>];
 
+/** A request to an operation that answers with server-sent events. */
+export interface StreamRequest {
+  /** The operation's path, e.g. `/v1/agent/chat`. */
+  url: string;
+  method?: 'GET' | 'POST';
+  /** Sent as JSON. */
+  body?: unknown;
+  signal?: AbortSignal;
+}
+
 /** What a generated function's successful response parses to. */
 export type DataOf<F extends SdkFunction> =
   Awaited<ReturnType<F>> extends infer R ? (R extends { data: infer D } ? Exclude<D, undefined> : never) : never;
@@ -87,8 +97,14 @@ export interface SalliClient {
    * `SalliApiError` (an error response) or `SalliNetworkError` (no response).
    */
   call<F extends SdkFunction>(fn: F, ...args: CallArgs<F>): Promise<DataOf<F>>;
-  /** Calls an operation that streams server-sent events, yielding each one. */
-  events<F extends SdkFunction>(fn: F, ...args: CallArgs<F>): AsyncGenerator<EventSourceMessage, void, undefined>;
+  /**
+   * Calls an operation that streams server-sent events and yields each one.
+   * Unlike the generated stream functions, it never retries: these are POSTs
+   * that act (a chat message is metered and remembered), so a dropped stream
+   * must not send the request again. An error response is thrown as
+   * `SalliApiError` before any event.
+   */
+  events(request: StreamRequest): AsyncGenerator<EventSourceMessage, void, undefined>;
   /** `GET /v1/meta`: what the server is and how to sign in to it. */
   meta(options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<Meta>;
 }
@@ -268,14 +284,19 @@ export function createClient(options: SalliClientOptions): SalliClient {
       return withRawJson(result.data, raw) as never;
     },
 
-    async *events(fn, ...args) {
+    async *events(request) {
+      const { url, method = 'POST', body, signal } = request;
+      const send: SdkFunction = ({ client: _client, ...rest }: Record<string, unknown>) =>
+        client.request({ ...rest, method, url } as never);
       // A stream runs as long as the conversation does: no timeout.
-      const result = await invoke(fn, args, { parseAs: 'stream', timeoutMs: 0, headers: { Accept: 'text/event-stream' } });
+      const result = await invoke(send, [{ ...(body !== undefined ? { body } : {}), ...(signal ? { signal } : {}) }], {
+        parseAs: 'stream',
+        timeoutMs: 0,
+        headers: { Accept: 'text/event-stream', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      });
       const stream = result.data as ReadableStream<Uint8Array> | null | undefined;
       if (!stream || typeof (stream as { getReader?: unknown }).getReader !== 'function') return;
-      const signals = [options.signal, (args[0] as { signal?: AbortSignal } | undefined)?.signal].filter(
-        (s): s is AbortSignal => s !== undefined,
-      );
+      const signals = [options.signal, signal].filter((s): s is AbortSignal => s !== undefined);
       yield* readServerSentEvents(stream, signals.length > 1 ? AbortSignal.any(signals) : signals[0]);
     },
 

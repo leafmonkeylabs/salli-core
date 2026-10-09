@@ -35,9 +35,10 @@ describe('salli status', () => {
         Liabilities   USD  1,200.00
 
       October 2026 so far (Oct 1 – 9, 2026)
+        Income        USD 5,000.00
+        Spending      USD 2,212.35
         Net income    USD 2,787.65
-        Income        Salary USD 5,000.00
-        Spending      Rent USD 1,800.00 · Groceries USD 412.35
+        Most on       Rent 1,800.00 · Groceries 412.35
 
       FI score        72.5 (B) · 1.9% of the way to financial independence
         Savings rate  55.8% of income
@@ -110,7 +111,35 @@ describe('salli status', () => {
             "Groceries": "412.35",
             "Rent": "1800.00"
           },
-          "net_income": "2787.65"
+          "total_income": "5000.00",
+          "total_expenses": "2212.35",
+          "net_income": "2787.65",
+          "lines": [
+            {
+              "account_id": "00000005-5a11-4000-8000-000000000005",
+              "code": "4000",
+              "name": "Salary",
+              "type": "income",
+              "amount": "5000.00",
+              "is_active": true
+            },
+            {
+              "account_id": "00000006-5a11-4000-8000-000000000006",
+              "code": "5000",
+              "name": "Groceries",
+              "type": "expense",
+              "amount": "412.35",
+              "is_active": true
+            },
+            {
+              "account_id": "00000007-5a11-4000-8000-000000000007",
+              "code": "5100",
+              "name": "Rent",
+              "type": "expense",
+              "amount": "1800.00",
+              "is_active": true
+            }
+          ]
         },
         "fi_score": {
           "pack_version": "1",
@@ -250,9 +279,9 @@ describe('salli accounts', () => {
   });
 
   it('filters, and streams records as NDJSON and CSV', async () => {
-    const ndjson = await run(['accounts', 'list', '--type', 'expense', '--active', '-o', 'ndjson']);
+    const ndjson = await run(['accounts', 'list', '--type', 'expense', '--active', '--output', 'ndjson']);
     expect(ndjson.stdout.trim().split('\n').map((l) => JSON.parse(l).code)).toEqual(['5000', '5100']);
-    const csv = await run(['accounts', 'list', '--type', 'asset', '-o', 'csv']);
+    const csv = await run(['accounts', 'list', '--type', 'asset', '--output', 'csv']);
     expect(csv.stdout).toMatchInlineSnapshot(`
       "id,code,name,type,currency,parent_id,is_active,tax_role
       00000001-5a11-4000-8000-000000000001,1000,Cash,asset,USD,,true,
@@ -410,16 +439,21 @@ describe('salli entries', () => {
             "parsed_transaction_id": "00000385-5a11-4000-8000-000000000901",
             "raw_description": "SUPERMARKET 123",
             "raw_amount": "412.35",
+            "currency": "USD",
             "raw_date": "2026-10-05",
             "bank_ref": "REF9",
             "statement": {
               "id": "00000321-5a11-4000-8000-000000000801",
               "bank": "Acme Bank",
               "period_start": "2026-10-01",
-              "period_end": "2026-10-31"
+              "period_end": "2026-10-31",
+              "storage_key": "user-123/statement.pdf",
+              "status": "posted",
+              "created_at": "2026-10-06T09:00:00+00:00"
             }
           },
-          "receipt": null
+          "receipt": null,
+          "possible_subscriptions": []
         }
       }
       "
@@ -577,12 +611,15 @@ describe('salli ledger and tags', () => {
     expect(result.stdout).toMatchInlineSnapshot(`
       "Income statement · Sep 1 – 30, 2026 · USD
       Income
-        Salary      5,000.00
-      Expenses
-        Rent        1,800.00
-        Groceries     412.35
+        4000 Salary     5,000.00
+        Total income    5,000.00
 
-      Net income    2,787.65
+      Expenses
+        5100 Rent       1,800.00
+        5000 Groceries    412.35
+        Total expenses  2,212.35
+
+      Net income        2,787.65
       "
     `);
     expect(mock.requestsTo('GET', '/v1/ledger/income-statement')[0]?.query.toString()).toBe('from_date=2026-09-01&to_date=2026-09-30');
@@ -595,9 +632,9 @@ describe('salli ledger and tags', () => {
       need      essential  Essential  built-in
       "
     `);
-    expect((await run(['tags', 'list', '--kind', 'need', '-o', 'csv'])).stdout).toMatchInlineSnapshot(`
+    expect((await run(['tags', 'list', '--kind', 'need', '--output', 'csv'])).stdout).toMatchInlineSnapshot(`
       "id,slug,name,kind,color,is_system
-      000001f6-5a11-4000-8000-000000000502,essential,Essential,need,,true
+      000001f6-5a11-4000-8000-000000000502,essential,Essential,need,#9e9e9e,true
       "
     `);
   });
