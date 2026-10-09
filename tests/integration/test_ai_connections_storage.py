@@ -114,3 +114,14 @@ async def test_one_connection_per_user_and_provider(service, db):
     await service.save_record(USER, _record(dt.timedelta(hours=1)))
     await service.save_record(USER, _record(dt.timedelta(hours=2)))
     assert scalar(db, "select count(*) from ai_connections") == 1
+
+
+async def test_the_host_id_is_made_once_and_kept(service, db):
+    """Two first requests racing to make it agree on one, and it survives
+    everything a user can delete."""
+    first, second = await asyncio.gather(service.host_id(), service.host_id())
+
+    assert first == second
+    assert first.startswith("urn:uuid:")
+    assert await service.host_id() == first
+    assert scalar(db, "select count(*) from instance_settings") == 1

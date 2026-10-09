@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from salli.adapters.crypto.keyring import KeyRing
+from salli.adapters.llm.chatgpt_oauth import SignInError
 from salli.application.services.chatgpt_connection_service import (
     ChatGPTConnectionService,
     ChatGPTRecord,
@@ -64,9 +65,21 @@ class FakeConnections:
         return self.rows.pop((user_id, provider), None) is not None
 
 
+class FakeInstanceSettings:
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+
+    async def get_or_create(self, key: str, value: str) -> str:
+        return self.values.setdefault(key, value)
+
+
+_SETTINGS = FakeInstanceSettings()
+
+
 class FakeUoW:
-    def __init__(self, repo: FakeConnections) -> None:
+    def __init__(self, repo: FakeConnections, settings: FakeInstanceSettings = _SETTINGS) -> None:
         self.ai_connections = repo
+        self.instance_settings = settings
 
     async def __aenter__(self) -> FakeUoW:
         return self
@@ -360,3 +373,192 @@ async def test_an_unconfirmed_revocation_still_clears_and_says_so(world):
 async def test_disconnecting_nothing(world):
     service, _, _, _ = world
     assert (await service.disconnect(USER))["disconnected"] is False
+
+
+# ── The host id ───────────────────────────────────────────────────────────────
+
+
+async def test_the_instance_has_one_stable_uuid_host_id():
+    import uuid
+
+    settings = FakeInstanceSettings()
+    service = ChatGPTConnectionService(
+        lambda: FakeUoW(FakeConnections(), settings), KeyRing(KEYS), FakeAuthServer().oauth()
+    )
+
+    host = await service.host_id()
+
+    assert host.startswith("urn:uuid:")
+    assert uuid.UUID(host.removeprefix("urn:uuid:")).version == 4
+    assert await service.host_id() == host
+
+
+# ── Signing in ────────────────────────────────────────────────────────────────
+
+
+async def _sign_in(service: ChatGPTConnectionService, auth: FakeAuthServer, **connect: Any):
+    from salli.adapters.llm.chatgpt_oauth import authorization_url, begin_sign_in, read_callback
+
+    context = await service.sign_in_context(USER)
+    pending = begin_sign_in(
+        host_id=context.host_id,
+        redirect_uri="http://127.0.0.1:1455/auth/callback",
+        client_id=context.client_id,
+    )
+    callback = read_callback(pending, auth.authorize(authorization_url(pending)))
+    tokens = await service.oauth.exchange_code(pending, callback)
+    return await service.connect(
+        USER, tokens, client_id=callback.client_id, nonce=pending.nonce, **connect
+    )
+
+
+async def test_a_sign_in_is_checked_then_kept(world):
+    service, repo, auth, _ = world
+
+    status = await _sign_in(service, auth)
+
+    assert status["status"] == "active" and status["connected"] is True
+    assert status["first_time"] is True
+    assert status["email"] == "me@example.com"
+    assert status["client_id"] == "oaiapp_test"
+    # It was tried for what it is for before it was kept.
+    (models,) = auth.model_requests
+    assert models.headers["authorization"] == "Bearer access-1"
+    record = await service.record(USER)
+    assert (record.sub, record.refresh_token) == ("user-sub-1", "refresh-1")
+    assert "chatgpt.tokens.use.direct" in record.scopes
+
+
+async def test_signing_in_again_reuses_the_registration_and_ends_the_old_session(world):
+    service, _, auth, _ = world
+    await _sign_in(service, auth)
+    context = await service.sign_in_context(USER)
+    assert (context.client_id, context.login_hint, context.id_token_hint) == (
+        "oaiapp_test",
+        "me@example.com",
+        (await service.record(USER)).id_token,
+    )
+    auth.valid_refresh = "refresh-9"
+
+    status = await _sign_in(service, auth, expected_sub=context.expected_sub)
+
+    assert status["first_time"] is False
+    assert (await service.record(USER)).refresh_token == "refresh-9"
+    assert [r["token"] for r in auth.revoked] == ["refresh-1"]
+
+
+async def test_signing_in_again_as_another_account_is_refused(world):
+    service, _, auth, _ = world
+    await _sign_in(service, auth)
+    auth.id_claims = {"sub": "someone-else"}
+
+    with pytest.raises(SignInError, match="different ChatGPT account"):
+        await _sign_in(service, auth, expected_sub="user-sub-1")
+    assert (await service.record(USER)).sub == "user-sub-1"
+
+
+async def test_without_plan_use_the_sign_in_is_kept_with_plan_use_off(world):
+    service, repo, auth, _ = world
+    auth.grant_plan = False
+
+    with pytest.raises(SignInError, match="plan use wasn't allowed"):
+        await _sign_in(service, auth)
+
+    assert repo.rows[(USER, "chatgpt")]["status"] == "needs_consent"
+    record = await service.record(USER)
+    assert record.access_token is None and record.refresh_token is None
+    assert auth.model_requests == []
+    # The next sign-in reuses the registration and asks for consent again.
+    context = await service.sign_in_context(USER)
+    assert context.client_id == "oaiapp_test" and context.ask_consent is True
+    auth.grant_plan = True
+    assert (await _sign_in(service, auth))["first_time"] is True
+
+
+async def test_a_sign_in_whose_token_cannot_list_models_is_not_kept(world):
+    from salli.domain.llm import LLMKeyRejected
+
+    service, repo, auth, _ = world
+    auth.models_status = 401
+
+    with pytest.raises(LLMKeyRejected):
+        await _sign_in(service, auth)
+    assert repo.rows == {}
+
+
+async def test_dynamic_agent_client_is_never_kept_as_the_client_id(world):
+    from salli.adapters.llm.chatgpt_oauth import token_set
+
+    service, repo, auth, _ = world
+    tokens = token_set(
+        {
+            "access_token": "a",
+            "refresh_token": "r",
+            "id_token": auth.signer.id_token(),
+            "scope": "chatgpt.tokens.use.direct",
+            "expires_in": 3600,
+        }
+    )
+    with pytest.raises(SignInError, match="dynamic_agent_client"):
+        await service.connect(USER, tokens, client_id="dynamic_agent_client")
+    assert repo.rows == {}
+
+
+async def test_tokens_from_another_registration_are_refused(world):
+    import base64
+    import json as _json
+
+    from salli.adapters.llm.chatgpt_oauth import token_set
+
+    service, repo, auth, _ = world
+    claims = base64.urlsafe_b64encode(_json.dumps({"client_id": "oaiapp_other"}).encode())
+    access = f"e30.{claims.decode().rstrip('=')}.sig"
+    tokens = token_set(
+        {
+            "access_token": access,
+            "refresh_token": "r",
+            "id_token": auth.signer.id_token(),
+            "scope": "chatgpt.tokens.use.direct",
+            "expires_in": 3600,
+        }
+    )
+    with pytest.raises(SignInError, match="different registration"):
+        await service.connect(USER, tokens, client_id="oaiapp_test")
+    assert repo.rows == {}
+
+
+async def test_a_credential_from_another_computer_is_checked_and_kept(world):
+    """OpenAI's example credential record, as a laptop would write it: its
+    `scopes` list and `saved_at` are read, its host id is not."""
+    service, _, auth, _ = world
+    host = await service.host_id()
+    saved_at = "2026-10-09T11:50:00+00:00"
+
+    status = await service.import_credential(
+        USER,
+        {
+            "email": "me@example.com",
+            "issuer": "https://auth.openai.com",
+            "subject": "user-sub-1",
+            "client_id": "oaiapp_test",
+            "ext_agent_host_id": "urn:uuid:the-laptops-own",
+            "id_token": auth.signer.id_token(),
+            "access_token": "access-1",
+            "refresh_token": "refresh-1",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "scopes": ["chatgpt.tokens.use.direct", "email", "offline_access", "openid"],
+            "saved_at": saved_at,
+        },
+    )
+
+    assert status["status"] == "active"
+    assert status["expires_at"] == "2026-10-09T12:50:00+00:00"
+    assert await service.host_id() == host  # never the laptop's
+
+
+async def test_a_new_account_registers_afresh(world):
+    service, _, auth, _ = world
+    await _sign_in(service, auth)
+    context = await service.sign_in_context(USER, new_account=True)
+    assert context.client_id is None and context.expected_sub is None

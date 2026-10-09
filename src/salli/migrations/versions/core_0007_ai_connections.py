@@ -1,6 +1,8 @@
 """AI connections: a user's sign-in with a provider that pays from their own plan (ChatGPT).
 
-One new, empty table; nothing existing changes.
+Two new tables, and nothing existing changes: `ai_connections`, one sealed
+sign-in per user and provider; and `instance_settings`, facts about the
+instance itself (its ChatGPT host id, generated on first use).
 
 Revision ID: core_0007_ai_connections
 Revises: core_0006_bank_connections
@@ -36,8 +38,16 @@ def upgrade() -> None:
         sa.UniqueConstraint("user_id", "provider", name="uq_ai_connections_user_provider"),
     )
     op.create_index("ix_ai_connections_user_id", "ai_connections", ["user_id"], unique=False)
+    op.create_table(
+        "instance_settings",
+        sa.Column("key", sa.String(length=64), nullable=False),
+        sa.Column("value", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("key"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_table("instance_settings")
     op.drop_index("ix_ai_connections_user_id", table_name="ai_connections")
     op.drop_table("ai_connections")

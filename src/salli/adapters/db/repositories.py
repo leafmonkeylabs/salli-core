@@ -37,6 +37,7 @@ from salli.adapters.db.models import (
     GoalAllocationORM,
     GoalORM,
     HoldingORM,
+    InstanceSettingORM,
     InsuranceTargetORM,
     JournalEntryORM,
     OAuthAccessTokenORM,
@@ -71,6 +72,7 @@ from salli.application.ports import (
     FireStrategyRepository,
     FiScoreRepository,
     GoalRepository,
+    InstanceSettingsRepository,
     InsuranceTargetRepository,
     LedgerRepository,
     LlmCredentialRepository,
@@ -1451,6 +1453,28 @@ class SQLAiConnectionRepository(AiConnectionRepository):
             )
         )
         return bool(result.rowcount)  # type: ignore[attr-defined]
+
+
+class SQLInstanceSettingsRepository(InstanceSettingsRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def get_or_create(self, key: str, value: str) -> str:
+        from sqlalchemy.dialects.postgresql import insert
+
+        # Insert-if-absent, then read back whatever won: two first requests
+        # racing to create the value end up agreeing on one.
+        await self._s.execute(
+            insert(InstanceSettingORM)
+            .values(key=key, value=value, created_at=datetime.now(UTC))
+            .on_conflict_do_nothing(index_elements=["key"])
+        )
+        stored = (
+            await self._s.execute(
+                select(InstanceSettingORM.value).where(InstanceSettingORM.key == key)
+            )
+        ).scalar_one()
+        return str(stored)
 
 
 # ── Financial Independence repositories ──────────────────────────────────────

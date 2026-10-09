@@ -6524,6 +6524,170 @@
         }
       }
     },
+    "/v1/ai/host": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Host",
+        "description": "This instance's `ext_agent_host_id`, for a sign-in done on another\ncomputer on behalf of this server.",
+        "operationId": "ai.host.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiHost"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ai/connections/chatgpt": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Chatgpt",
+        "description": "The user's ChatGPT plan connection: which account, what was granted,\nand whether it needs them. Never a token.",
+        "operationId": "ai.chatgpt.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTConnection"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Connect Chatgpt",
+        "description": "Keep a ChatGPT sign-in completed on the user's own computer.\n\nChecked before it is kept: the issued client id, the ID token (signature\nagainst OpenAI's keys, issuer, audience, expiry), that the scopes include\n`chatgpt.tokens.use.direct`, and that `GET /v1/models` works with the\naccess token. From then on this server renews it, with its own host id.",
+        "operationId": "ai.chatgpt.connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatGPTCredential"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTConnection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Disconnect Chatgpt",
+        "description": "Sign out: end the sign-in with OpenAI, then clear its tokens here. The\naccount and its issued client id are kept for the next sign-in.",
+        "operationId": "ai.chatgpt.disconnect",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTDisconnected"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/mcp/connections/": {
       "get": {
         "tags": [
@@ -9384,6 +9548,20 @@
         ],
         "title": "AgentSessions"
       },
+      "AiHost": {
+        "properties": {
+          "ext_agent_host_id": {
+            "type": "string",
+            "title": "Ext Agent Host Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ext_agent_host_id"
+        ],
+        "title": "AiHost",
+        "description": "This instance's host id for Sign in with ChatGPT."
+      },
       "AllocationRequest": {
         "properties": {
           "account_id": {
@@ -10888,6 +11066,265 @@
         ],
         "title": "ChatAttachment",
         "description": "A file uploaded for a chat message."
+      },
+      "ChatGPTConnection": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_connected",
+              "active",
+              "needs_sign_in",
+              "needs_consent",
+              "signed_out"
+            ],
+            "title": "Status"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "paused_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Until"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "readable": {
+            "type": "boolean",
+            "title": "Readable"
+          },
+          "manage_usage_url": {
+            "type": "string",
+            "title": "Manage Usage Url",
+            "default": "https://chatgpt.com/settings/usage"
+          },
+          "first_time": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "status",
+          "connected",
+          "email",
+          "client_id",
+          "scopes",
+          "expires_at",
+          "paused_until",
+          "detail",
+          "readable"
+        ],
+        "title": "ChatGPTConnection",
+        "description": "A user's ChatGPT plan connection, described without any token."
+      },
+      "ChatGPTCredential": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Client Id"
+          },
+          "access_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Refresh Token"
+          },
+          "id_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id Token"
+          },
+          "token_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Type"
+          },
+          "expires_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scopes"
+          },
+          "earliest_refresh_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Refresh At"
+          },
+          "saved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved At"
+          },
+          "ext_agent_host_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ext Agent Host Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "access_token",
+          "refresh_token",
+          "id_token"
+        ],
+        "title": "ChatGPTCredential",
+        "description": "A ChatGPT sign-in completed on another computer, for this server to keep.\n\nThe token endpoint's answer to the authorization-code exchange, as it\ncame, plus the issued `client_id`. OpenAI's example credential record is\naccepted too (`scopes` as a list, and `saved_at`)."
+      },
+      "ChatGPTDisconnected": {
+        "properties": {
+          "disconnected": {
+            "type": "boolean",
+            "title": "Disconnected"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "disconnected",
+          "revoked",
+          "message"
+        ],
+        "title": "ChatGPTDisconnected"
       },
       "ChatHistory": {
         "properties": {

@@ -533,6 +533,24 @@ class AiConnectionORM(Base):
     )
 
 
+class InstanceSettingORM(Base):
+    """A fact about this Salli instance as a whole, not about any user.
+
+    Today one: `ext_agent_host_id`, the stable, opaque id OpenAI asks each
+    host of an app to send when signing in to use a ChatGPT plan. Generated
+    once (`urn:uuid:` and a UUIDv4) and kept for the instance's lifetime. It is
+    an identifier, not a credential, and identifies no one.
+    """
+
+    __tablename__ = "instance_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+
 # ── Financial Independence: goals, score snapshots, advisory reports ──────────
 
 

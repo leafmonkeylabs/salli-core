@@ -191,31 +191,162 @@ def api_key_client(fake: FakeOpenAI, key: str = "sk-test-key") -> OpenAIResponse
     return fake.client(API_KEY_ROUTE, session=ApiKeySession(Secret(key)))
 
 
+class Signer:
+    """An RSA key made for the test run (never committed), and ID tokens
+    signed with it the way OpenAI signs them (RS256, with a `kid`)."""
+
+    def __init__(self, kid: str = "test-key-1") -> None:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        self.kid = kid
+        self._key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self._pem = self._key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ).decode()
+
+    @property
+    def jwk(self) -> dict[str, Any]:
+        import base64
+
+        numbers = self._key.public_key().public_numbers()
+
+        def b64(value: int) -> str:
+            raw = value.to_bytes((value.bit_length() + 7) // 8, "big")
+            return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+        return {
+            "kty": "RSA",
+            "kid": self.kid,
+            "use": "sig",
+            "alg": "RS256",
+            "n": b64(numbers.n),
+            "e": b64(numbers.e),
+        }
+
+    def id_token(self, **claims: Any) -> str:
+        import time
+
+        from jose import jwt
+
+        now = int(time.time())
+        body: dict[str, Any] = {
+            "iss": "https://auth.openai.com",
+            "aud": "oaiapp_test",
+            "sub": "user-sub-1",
+            "email": "me@example.com",
+            "iat": now,
+            "exp": now + 3600,
+        }
+        body.update(claims)
+        body = {k: v for k, v in body.items() if v is not None}
+        return jwt.encode(body, self._pem, algorithm="RS256", headers={"kid": self.kid})
+
+
+_SIGNER: Signer | None = None
+
+
+def default_signer() -> Signer:
+    """One key for the whole run: making an RSA key is slow."""
+    global _SIGNER
+    if _SIGNER is None:
+        _SIGNER = Signer()
+    return _SIGNER
+
+
 class FakeAuthServer:
-    """auth.openai.com, enough of it: the token endpoint (rotating refresh
-    tokens, as OpenAI's are: each one works once) and revocation."""
+    """OpenAI's accounts service, enough of it: the authorization-code
+    exchange (checking PKCE), rotating refresh tokens (each one works once, as
+    OpenAI's do), revocation, the published signing keys, and `GET /v1/models`."""
 
     def __init__(self, *, refresh_token: str = "refresh-1", delay: float = 0.0) -> None:
+        self.signer = default_signer()
         self.valid_refresh = refresh_token
         self.delay = delay
         self.refreshes: list[dict[str, str]] = []
+        self.exchanges: list[dict[str, str]] = []
         self.revoked: list[dict[str, str]] = []
+        self.model_requests: list[httpx.Request] = []
+        self.jwks_fetches = 0
         self.revoke_status = 200
+        self.models_status = 200
         #: Set to an OAuth error code to refuse every refresh with it.
         self.refuse_with: str | None = None
         self.fail_status: int | None = None
         self.grant_plan = True
         self.counter = 1
+        #: code -> (code_challenge, redirect_uri, nonce, client_id): what an
+        #: authorization request registered, for the exchange to check.
+        self.codes: dict[str, tuple[str, str, str, str]] = {}
+        self.id_claims: dict[str, Any] = {}
+
+    def authorize(
+        self, url: str, *, code: str = "code-1", client_id: str = "oaiapp_test"
+    ) -> dict[str, str]:
+        """What the browser comes back with, for an authorization URL: the
+        query of the redirect to the loopback callback."""
+        from urllib.parse import parse_qs, urlsplit
+
+        params = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
+        self.codes[code] = (
+            params["code_challenge"],
+            params["redirect_uri"],
+            params["nonce"],
+            client_id,
+        )
+        query = {"code": code, "state": params["state"], "scope": params["scope"]}
+        if params["client_id"] == "dynamic_agent_client":
+            query["client_id"] = client_id
+        return query
+
+    def _scope(self) -> str:
+        scope = "openid profile email offline_access resource.invoke"
+        return scope + (" chatgpt.tokens.use.direct" if self.grant_plan else "")
 
     async def handler(self, request: httpx.Request) -> httpx.Response:
         import asyncio
         from urllib.parse import parse_qsl
 
+        from salli.adapters.llm.chatgpt_oauth import pkce_challenge
+
+        path = request.url.path
+        if path.endswith("/.well-known/jwks.json"):
+            self.jwks_fetches += 1
+            return httpx.Response(200, json={"keys": [self.signer.jwk]})
+        if path.endswith("/v1/models"):
+            self.model_requests.append(request)
+            if self.models_status != 200:
+                return httpx.Response(self.models_status, json={"detail": "no"})
+            return httpx.Response(200, json=CATALOGUE)
         form = dict(parse_qsl(request.content.decode()))
-        if request.url.path.endswith("/oauth/revoke"):
+        if path.endswith("/oauth/revoke"):
             self.revoked.append(form)
             return httpx.Response(self.revoke_status)
-        assert request.url.path.endswith("/oauth/token"), request.url
+        assert path.endswith("/oauth/token"), request.url
+        if form.get("grant_type") == "authorization_code":
+            self.exchanges.append(form)
+            known = self.codes.pop(form.get("code", ""), None)
+            if known is None:
+                return httpx.Response(400, json={"error": "invalid_grant"})
+            challenge, redirect_uri, nonce, client_id = known
+            assert pkce_challenge(form["code_verifier"]) == challenge
+            assert form["redirect_uri"] == redirect_uri
+            assert form["client_id"] == client_id
+            assert form["resource"] == "https://api.openai.com/v1"
+            claims = {"aud": client_id, "nonce": nonce, **self.id_claims}
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "access-1",
+                    "refresh_token": self.valid_refresh,
+                    "id_token": self.signer.id_token(**claims),
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": self._scope(),
+                },
+            )
         if form.get("grant_type") != "refresh_token":
             raise AssertionError(f"unexpected grant {form.get('grant_type')}")
         self.refreshes.append(form)
@@ -229,9 +360,6 @@ class FakeAuthServer:
             return httpx.Response(400, json={"error": "refresh_token_reused"})
         self.counter += 1
         self.valid_refresh = f"refresh-{self.counter}"
-        scope = "openid profile email offline_access resource.invoke"
-        if self.grant_plan:
-            scope += " chatgpt.tokens.use.direct"
         return httpx.Response(
             200,
             json={
@@ -239,7 +367,7 @@ class FakeAuthServer:
                 "refresh_token": self.valid_refresh,
                 "token_type": "Bearer",
                 "expires_in": 3600,
-                "scope": scope,
+                "scope": self._scope(),
             },
         )
 

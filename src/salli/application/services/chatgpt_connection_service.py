@@ -35,10 +35,14 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from salli.adapters.llm.chatgpt_oauth import (
+    DYNAMIC_CLIENT_ID,
     ChatGPTOAuth,
     OAuthUnavailable,
     RefreshRefused,
+    SignInError,
     TokenSet,
+    token_set,
+    unverified_claims,
 )
 from salli.domain.llm import (
     LLMError,
@@ -60,14 +64,54 @@ _PAUSE = dt.timedelta(minutes=10)
 
 _SIGN_IN = "Run `salli ai connect chatgpt`, or connect ChatGPT again in Settings."
 
+#: The instance's host id, under this key in instance_settings.
+HOST_ID_KEY = "ext_agent_host_id"
+
+_PLAN_NOT_ALLOWED = (
+    "Signed in, but ChatGPT plan use wasn't allowed, so Salli can't use your plan. To "
+    "allow it, run `salli ai connect chatgpt` again and allow plan use. Or add your own "
+    "API key instead: `salli llm-keys set openai` (or anthropic)."
+)
+
 
 class ChatGPTUnavailable(RuntimeError):
     """This deployment cannot hold a ChatGPT connection: no encryption key,
     or authentication is the development fallback (anyone could act as anyone)."""
 
 
+@dataclass(frozen=True)
+class SignInContext:
+    """What a new sign-in on this host starts from: the instance's host id,
+    and, for an account that registered before, its issued client id and hints."""
+
+    host_id: str
+    client_id: str | None = None
+    login_hint: str | None = None
+    id_token_hint: str | None = None
+    #: Plan use was declined last time: ask for consent again.
+    ask_consent: bool = False
+    #: The account this sign-in must turn out to be (a sign-in again with a
+    #: saved client id), or None when any account may register.
+    expected_sub: str | None = None
+
+
 def _iso(value: dt.datetime | None) -> str | None:
     return value.isoformat() if value else None
+
+
+def _parse_instant(value: str) -> dt.datetime | None:
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
+
+
+def _token_expiry(access_token: str) -> dt.datetime | None:
+    """The access token's own `exp`, when the token response gave no
+    `expires_in` (read, not trusted: it only decides when to renew)."""
+    exp = unverified_claims(access_token).get("exp")
+    return dt.datetime.fromtimestamp(exp, dt.UTC) if isinstance(exp, int) else None
 
 
 def _instant(value: Any) -> dt.datetime | None:
@@ -198,6 +242,23 @@ class ChatGPTConnectionService:
     def available(self) -> bool:
         """Whether this deployment may hold a ChatGPT connection at all."""
         return bool(self._feature_enabled and self._keyring.available)
+
+    @property
+    def oauth(self) -> ChatGPTOAuth:
+        return self._oauth
+
+    async def host_id(self) -> str:
+        """This instance's `ext_agent_host_id`: generated once, as `urn:uuid:`
+        and a UUIDv4 (an accepted format), and kept for good. Every sign-in for
+        a user of this instance sends it, whichever computer the browser is on,
+        so a credential brought from elsewhere never brings another host's id.
+        Opaque, not a credential, identifying no one."""
+        import uuid
+
+        async with self._uow_factory() as uow:
+            return await uow.instance_settings.get_or_create(
+                HOST_ID_KEY, f"urn:uuid:{uuid.uuid4()}"
+            )
 
     def _require_available(self) -> None:
         if not self._feature_enabled:
@@ -451,18 +512,167 @@ class ChatGPTConnectionService:
                 user_id, PROVIDER, {"paused_until": self._clock() + _PAUSE}
             )
 
+    # ── Signing in ────────────────────────────────────────────────────────────
+
+    async def sign_in_context(self, user_id: str, *, new_account: bool = False) -> SignInContext:
+        """Where a sign-in for this user starts. An account that registered
+        before signs in again with its issued client id and the retained hints
+        ("Later sign-ins reuse the saved client ID"); `new_account` registers
+        afresh, for a different ChatGPT account."""
+        self._require_available()
+        host_id = await self.host_id()
+        if new_account:
+            return SignInContext(host_id=host_id)
+        async with self._uow_factory() as uow:
+            row = await uow.ai_connections.get(user_id, PROVIDER)
+        record = None
+        if row is not None:
+            try:
+                record = self._open(user_id, row)
+            except Exception:
+                record = None
+        if record is None or not record.client_id:
+            return SignInContext(host_id=host_id)
+        return SignInContext(
+            host_id=host_id,
+            client_id=record.client_id,
+            login_hint=record.email,
+            id_token_hint=record.id_token,
+            ask_consent=row is not None and row["status"] == "needs_consent",
+            expected_sub=record.sub,
+        )
+
+    async def connect(
+        self,
+        user_id: str,
+        tokens: TokenSet,
+        *,
+        client_id: str,
+        nonce: str | None = None,
+        received_at: dt.datetime | None = None,
+        expected_sub: str | None = None,
+    ) -> dict[str, Any]:
+        """Validate a completed sign-in, then keep it as the user's connection.
+
+        Checked before anything is stored: an issued client id (never
+        `dynamic_agent_client`); the ID token, verified against OpenAI's JWKS
+        (and the nonce, when this server sent it); the account, when it must be
+        a known one; the access token's own client id, when it names one, so
+        one registration's tokens are never kept under another's id; the
+        `chatgpt.tokens.use.direct` scope; and `GET /v1/models` with the access
+        token. A sign-in without plan use is kept as signed in with plan use
+        off, as OpenAI's errors guide asks, and refused with a choice.
+        """
+        self._require_available()
+        if not client_id or client_id == DYNAMIC_CLIENT_ID:
+            raise SignInError(
+                "The sign-in has no issued client id: `dynamic_agent_client` starts a "
+                "registration and is never the id to keep."
+            )
+        if not tokens.id_token:
+            raise SignInError("The sign-in has no ID token, so it can't be verified.")
+        claims = await self._oauth.verify_id_token(
+            tokens.id_token, client_id=client_id, nonce=nonce, access_token=tokens.access_token
+        )
+        sub = str(claims["sub"])
+        if expected_sub is not None and sub != expected_sub:
+            raise SignInError(
+                "You signed in as a different ChatGPT account from the one connected. To "
+                "switch accounts, run `salli ai connect chatgpt --new-account`."
+            )
+        token_client = unverified_claims(tokens.access_token).get("client_id")
+        if token_client is not None and token_client != client_id:
+            raise SignInError("The access token belongs to a different registration of Salli.")
+
+        now = received_at or self._clock()
+        email = claims.get("email")
+        record = ChatGPTRecord(
+            sub=sub,
+            client_id=client_id,
+            email=email if isinstance(email, str) else None,
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            id_token=tokens.id_token,
+            scopes=tokens.scopes,
+            expires_at=tokens.expires_at(now) or _token_expiry(tokens.access_token),
+            earliest_refresh_at=tokens.earliest_refresh_at,
+            saved_at=now,
+        )
+        async with self._uow_factory() as uow:
+            previous_row = await uow.ai_connections.get(user_id, PROVIDER)
+        previous = None
+        if previous_row is not None:
+            try:
+                previous = self._open(user_id, previous_row)
+            except Exception:
+                previous = None
+
+        if not tokens.plan_granted:
+            await self._keep(user_id, record.without_tokens(), "needs_consent", _PLAN_NOT_ALLOWED)
+            raise SignInError(_PLAN_NOT_ALLOWED)
+        if not tokens.refresh_token:
+            raise SignInError(
+                "ChatGPT didn't allow Salli to stay signed in (no offline access), so the "
+                "connection would stop within the hour. Please sign in again and allow it."
+            )
+        # It has to work for what it is for, before it replaces anything.
+        await self._oauth.list_models(tokens.access_token)
+
+        await self._keep(user_id, record, "active")
+        if (
+            previous is not None
+            and previous.refresh_token
+            and previous.client_id
+            and previous.refresh_token != record.refresh_token
+        ):
+            # The sign-in this one replaces is ended at OpenAI, not left renewable.
+            await self._oauth.revoke(
+                client_id=previous.client_id, refresh_token=previous.refresh_token
+            )
+        status = await self.status(user_id)
+        # OpenAI's guidelines: confirm plan use once, the first time.
+        status["first_time"] = previous_row is None or previous_row["status"] == "needs_consent"
+        return status
+
+    async def import_credential(self, user_id: str, credential: dict[str, Any]) -> dict[str, Any]:
+        """Keep a sign-in completed on another computer (OpenAI's guide for
+        self-hosted VMs: sign in where the browser is, then move the credential
+        to the server, which keeps its own host id and renews it from then on).
+
+        `credential` is the token endpoint's answer plus the issued
+        `client_id`, or OpenAI's example credential record (`scopes` as a list,
+        `saved_at`). An `ext_agent_host_id` in it is ignored: this instance
+        keeps its own. Validated exactly as a sign-in here is, except for the
+        nonce, which only the computer that signed in knew.
+        """
+        body = dict(credential)
+        if "scope" not in body and isinstance(body.get("scopes"), list):
+            body["scope"] = " ".join(str(s) for s in body["scopes"])
+        try:
+            tokens = token_set(body)
+        except ValueError as exc:
+            raise SignInError("The credential has no access token.") from exc
+        saved = body.get("saved_at")
+        received_at = _parse_instant(saved) if isinstance(saved, str) else None
+        return await self.connect(
+            user_id, tokens, client_id=str(body.get("client_id") or ""), received_at=received_at
+        )
+
     # ── Keeping and ending it ─────────────────────────────────────────────────
 
-    async def save_record(self, user_id: str, record: ChatGPTRecord) -> bool:
-        """Store a validated sign-in as the user's active connection, sealed.
-        True when it is their first. (Validation is `connect`'s job.)"""
-        self._require_available()
+    async def _keep(
+        self, user_id: str, record: ChatGPTRecord, status: str, detail: str | None = None
+    ) -> bool:
         async with self._uow_factory() as uow:
-            existing = await uow.ai_connections.get(user_id, PROVIDER)
-            fields = self._fields(user_id, record, "active")
+            fields = self._fields(user_id, record, status, detail)
             fields["paused_until"] = None
-            await uow.ai_connections.save(user_id, PROVIDER, fields)
-        return existing is None
+            return await uow.ai_connections.save(user_id, PROVIDER, fields)
+
+    async def save_record(self, user_id: str, record: ChatGPTRecord) -> bool:
+        """Store a sign-in already validated (by `connect`) as the user's
+        active connection, sealed. True when it is their first row."""
+        self._require_available()
+        return await self._keep(user_id, record, "active")
 
     async def disconnect(self, user_id: str) -> dict[str, Any]:
         """Sign out: end the renewable session with OpenAI, then clear the

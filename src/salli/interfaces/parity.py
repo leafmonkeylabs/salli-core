@@ -151,6 +151,11 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/llm-keys"): "llm-keys list",
     ("PUT", "/llm-keys/{provider}"): "llm-keys set",
     ("DELETE", "/llm-keys/{provider}"): "llm-keys delete",
+    # AI providers
+    ("GET", "/ai/host"): "ai host",
+    ("GET", "/ai/connections/chatgpt"): "ai status",
+    ("PUT", "/ai/connections/chatgpt"): "ai connect",
+    ("DELETE", "/ai/connections/chatgpt"): "ai disconnect",
     ("GET", "/export/beancount"): "export beancount",
     ("GET", "/export/hledger"): "export hledger",
     ("GET", "/rules"): "rules list",

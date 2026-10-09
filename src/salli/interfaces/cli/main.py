@@ -18,6 +18,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from salli.domain.reports.insights import SPENDING_AXES, SpendingAxis
+from salli.interfaces.cli.ai import ai_app
 from salli.interfaces.cli.setup import members_app, serve, setup
 from salli.interfaces.cli.skills import skills_app
 from salli.interfaces.cli.support import amount as _amount
@@ -90,6 +91,7 @@ app.add_typer(reports_app, name="reports")
 app.add_typer(db_app, name="db")
 app.add_typer(onboarding_app, name="onboarding")
 app.add_typer(llm_keys_app, name="llm-keys")
+app.add_typer(ai_app, name="ai")
 app.add_typer(tokens_app, name="tokens")
 app.add_typer(rules_app, name="rules")
 app.add_typer(export_app, name="export")

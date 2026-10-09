@@ -594,6 +594,16 @@ class AiConnectionRepository(ABC):
     async def delete(self, user_id: str, provider: str) -> bool: ...
 
 
+class InstanceSettingsRepository(ABC):
+    """Facts about the instance as a whole (not any user's), by key."""
+
+    @abstractmethod
+    async def get_or_create(self, key: str, value: str) -> str:
+        """The stored value for `key`, storing `value` first if there is none.
+        Safe when two processes race: both get the one value that was kept."""
+        ...
+
+
 # ── Financial Independence ───────────────────────────────────────────────────
 
 
