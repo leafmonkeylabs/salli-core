@@ -2385,7 +2385,7 @@
           "statements"
         ],
         "summary": "Upload Statement",
-        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`currency` is the statement's ISO 4217 code (default: the user's base\ncurrency). Posting a statement in another currency converts each\ntransaction at the published rate for its date.",
+        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`currency` is the statement's ISO 4217 code (default: the user's base\ncurrency), for files that do not name their own: OFX, camt.053 and MT940\nalways do, and a CSV may. Posting a statement in another currency converts\neach transaction at the published rate for its date. `date_order` settles\ndates a CSV or QIF file leaves ambiguous (01/02/2026). Rows that could not\nbe read, and any guess the importer made, come back in `errors`.",
         "operationId": "statements.upload",
         "security": [
           {
@@ -2417,6 +2417,27 @@
                 }
               ],
               "title": "Currency"
+            }
+          },
+          {
+            "name": "date_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "DMY",
+                    "MDY",
+                    "YMD"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date Order"
             }
           }
         ],
