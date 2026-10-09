@@ -148,7 +148,9 @@ none — nothing is metered and every feature is on. See
 ## Contributing
 
 Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
-Security issues: [SECURITY.md](SECURITY.md).
+Contributors accept the [Contributor License Agreement](CLA.md) once, by
+commenting on their first pull request. Security issues:
+[SECURITY.md](SECURITY.md).
 
 ## License
 
