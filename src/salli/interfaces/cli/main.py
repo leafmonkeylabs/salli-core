@@ -55,6 +55,7 @@ db_app = typer.Typer(help="Database migrations")
 onboarding_app = typer.Typer(help="First-run setup of your profile and starter accounts")
 llm_keys_app = typer.Typer(help="Your own LLM API keys, stored encrypted")
 tokens_app = typer.Typer(help="Personal access tokens, for scripts and remote clients")
+rules_app = typer.Typer(help="Rules that book transactions that look a certain way")
 mcp_app = typer.Typer(help="AI clients (Claude, ChatGPT) connected over MCP")
 
 app.add_typer(accounts_app, name="accounts")
@@ -83,6 +84,7 @@ app.add_typer(db_app, name="db")
 app.add_typer(onboarding_app, name="onboarding")
 app.add_typer(llm_keys_app, name="llm-keys")
 app.add_typer(tokens_app, name="tokens")
+app.add_typer(rules_app, name="rules")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(members_app, name="members")
 app.add_typer(skills_app, name="skills")
@@ -3319,6 +3321,220 @@ def tokens_revoke(token_id: str = typer.Argument(..., help="Token id (or a uniqu
         raise typer.Exit(1)
     emit({"id": full_id, "revoked": True})
     console.print(f"[green]Revoked[/green] {full_id}")
+
+
+# ── rules ─────────────────────────────────────────────────────────────────────
+
+_IF_HELP = (
+    "A condition: FIELD OPERATOR VALUE [VALUE2], e.g. 'description contains uber', "
+    "'amount between 10 50', 'direction equals out', 'currency equals USD'. Repeatable."
+)
+
+
+def _parse_conditions(conditions: list[str]) -> list[dict]:
+    import shlex
+
+    parsed = []
+    for text in conditions:
+        parts = shlex.split(text)
+        if len(parts) < 3:
+            console.print(f"[red]Not a condition:[/red] {text!r}. {_IF_HELP}")
+            raise typer.Exit(2)
+        field, operator, value, *rest = parts
+        parsed.append(
+            {
+                "field": field,
+                "operator": operator,
+                "value": value,
+                "value2": rest[0] if rest else None,
+            }
+        )
+    return parsed
+
+
+def _rule_actions(account: str | None, category: str | None, need: str | None, rename: str | None):
+    return {"account_id": account, "category": category, "need": need, "description": rename}
+
+
+def _describe_rule(rule: dict) -> str:
+    joiner = " and " if rule.get("match_all", True) else " or "
+    when = joiner.join(
+        f"{c['field']} {c['operator']} {c['value']}"
+        + (f"..{c['value2']}" if c.get("value2") else "")
+        for c in rule["conditions"]
+    )
+    then = ", ".join(f"{k}={v}" for k, v in (rule.get("actions") or {}).items() if v)
+    return f"when {when} → {then}"
+
+
+@rules_app.command("list")
+def rules_list():
+    """Your rules, in the order they are tried."""
+    user_id = _require_user()
+    rows = asyncio.run(_services().rules.list(user_id))
+    if emit(rows):
+        return
+    table = Table(title="Rules (first match wins)")
+    for column in ("ID", "Priority", "Name", "Rule", "On", "Hits"):
+        table.add_column(column)
+    for r in rows:
+        table.add_row(
+            r["id"][:8],
+            str(r["priority"]),
+            r["name"],
+            _describe_rule(r),
+            "yes" if r["enabled"] else "no",
+            str(r["hits"]),
+        )
+    console.print(table)
+
+
+@rules_app.command("add")
+def rules_add(
+    name: str = typer.Argument(..., help="What the rule is, e.g. 'Uber rides'"),
+    condition: list[str] = typer.Option(..., "--if", help=_IF_HELP),
+    account: str = typer.Option(None, "--account", help="Book the other side to this account id"),
+    category: str = typer.Option(None, "--category", help="Category tag slug"),
+    need: str = typer.Option(None, "--need", help="essential | discretionary | savings"),
+    rename: str = typer.Option(None, "--rename", help="Replace the bank's description"),
+    priority: int = typer.Option(100, "--priority", help="Lower runs first"),
+    any_condition: bool = typer.Option(False, "--any", help="Match if any condition holds"),
+):
+    """Add a rule. Check it first with `salli rules test`."""
+    user_id = _require_user()
+    rule_id = asyncio.run(
+        _services().rules.create(
+            user_id,
+            {
+                "name": name,
+                "priority": priority,
+                "match_all": not any_condition,
+                "conditions": _parse_conditions(condition),
+                "actions": _rule_actions(account, category, need, rename),
+            },
+        )
+    )
+    emit({"id": rule_id})
+    console.print(f"[green]Rule added:[/green] {name} ({rule_id})")
+
+
+@rules_app.command("show")
+def rules_show(rule_id: str = typer.Argument(...)):
+    """One rule in full."""
+    user_id = _require_user()
+    svc = _services()
+    full_id = _resolve_id(asyncio.run(svc.rules.list(user_id)), rule_id, "rule")
+    rule = asyncio.run(svc.rules.get(user_id, full_id))
+    if emit(rule):
+        return
+    console.print(
+        f"[bold]{rule['name']}[/bold]  (priority {rule['priority']}, {rule['hits']} hits)"
+    )
+    console.print(f"  {_describe_rule(rule)}")
+
+
+@rules_app.command("update")
+def rules_update(
+    rule_id: str = typer.Argument(...),
+    name: str = typer.Option(None, "--name"),
+    condition: list[str] = typer.Option(None, "--if", help=_IF_HELP + " Replaces them all."),
+    account: str = typer.Option(None, "--account"),
+    category: str = typer.Option(None, "--category"),
+    need: str = typer.Option(None, "--need"),
+    rename: str = typer.Option(None, "--rename"),
+    priority: int = typer.Option(None, "--priority"),
+    enabled: bool = typer.Option(None, "--enabled/--disabled"),
+):
+    """Change a rule."""
+    user_id = _require_user()
+    svc = _services()
+    full_id = _resolve_id(asyncio.run(svc.rules.list(user_id)), rule_id, "rule")
+    changes: dict = {"name": name, "priority": priority, "enabled": enabled}
+    if condition:
+        changes["conditions"] = _parse_conditions(condition)
+    if any(v is not None for v in (account, category, need, rename)):
+        current = asyncio.run(svc.rules.get(user_id, full_id)) or {}
+        actions = dict(current.get("actions") or {})
+        actions.update(
+            {
+                k: v
+                for k, v in _rule_actions(account, category, need, rename).items()
+                if v is not None
+            }
+        )
+        changes["actions"] = actions
+    asyncio.run(svc.rules.update(user_id, full_id, changes))
+    emit({"id": full_id})
+    console.print(f"[green]Rule updated:[/green] {full_id}")
+
+
+@rules_app.command("delete")
+def rules_delete(rule_id: str = typer.Argument(...)):
+    """Delete a rule. What it already booked stays booked."""
+    user_id = _require_user()
+    svc = _services()
+    full_id = _resolve_id(asyncio.run(svc.rules.list(user_id)), rule_id, "rule")
+    asyncio.run(svc.rules.delete(user_id, full_id))
+    emit({"id": full_id, "deleted": True})
+    console.print(f"[green]Deleted[/green] {full_id}")
+
+
+@rules_app.command("test")
+def rules_test(
+    condition: list[str] = typer.Option(..., "--if", help=_IF_HELP),
+    account: str = typer.Option(None, "--account"),
+    any_condition: bool = typer.Option(False, "--any"),
+):
+    """What a rule would decide among what you have already booked."""
+    user_id = _require_user()
+    result = asyncio.run(
+        _services().rules.test(
+            user_id,
+            {
+                "name": "test",
+                "match_all": not any_condition,
+                "conditions": _parse_conditions(condition),
+                "actions": _rule_actions(account, None, None, None)
+                if account
+                else {"description": "(test)"},
+            },
+        )
+    )
+    if emit(result):
+        return
+    console.print(
+        f"Matches {result['total']} booked transactions"
+        + (f"; {result['agreeing']} already went to that account" if account else "")
+    )
+    table = Table()
+    for column in ("Date", "Description", "Amount", "Booked to"):
+        table.add_column(column)
+    for m in result["matches"]:
+        sign = "+" if m["direction"] == "in" else "-"
+        table.add_row(
+            m["entry_date"],
+            m["description"],
+            f"{sign}{_amount(m['amount'], m['currency'])} {m['currency']}",
+            m["account_id"][:8],
+        )
+    console.print(table)
+
+
+@rules_app.command("suggest")
+def rules_suggest():
+    """Rules your own bookkeeping implies (add one with `salli rules add`)."""
+    user_id = _require_user()
+    found = asyncio.run(_services().rules.suggestions(user_id))
+    if emit(found):
+        return
+    if not found:
+        console.print("[dim]Nothing to suggest yet: book a few more transactions by hand.[/dim]")
+        return
+    for s in found:
+        console.print(
+            f"[bold]{s['name']}[/bold]  {_describe_rule(s)}  "
+            f"[dim]({s['agreement']}/{s['support']}, e.g. {s['examples'][0]!r})[/dim]"
+        )
 
 
 # ── mcp ───────────────────────────────────────────────────────────────────────

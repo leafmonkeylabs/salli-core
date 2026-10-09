@@ -48,6 +48,7 @@ from salli.interfaces.api.routers import (
     portfolio,
     reminders,
     reports,
+    rules,
     statements,
     subscriptions,
     tags,
@@ -208,6 +209,7 @@ def create_app() -> FastAPI:
         llm_keys.router,
         mcp_oauth.connections_router,
         tokens.router,
+        rules.router,
     ]
     # Routers contributed by enabled extensions (salli/extensions.py), after
     # Salli's own, so an extension adds paths but cannot shadow one of Salli's.

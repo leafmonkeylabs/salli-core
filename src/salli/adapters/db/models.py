@@ -930,3 +930,29 @@ class PersonalAccessTokenORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+
+
+class CategorizationRuleORM(Base):
+    """A user's rule for booking transactions that look a certain way (see
+    domain/rules/engine.py). Conditions and actions are small JSON documents
+    validated by the domain before they are stored."""
+
+    __tablename__ = "categorization_rules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    match_all: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    conditions: Mapped[list] = mapped_column(JSONB, nullable=False)
+    actions: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # How often it has decided a transaction, for "which rules earn their keep".
+    hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_hit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )

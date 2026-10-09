@@ -179,6 +179,14 @@ OPERATION_IDS: dict[Route, str] = {
     ("DELETE", "/mcp/connections/{token_id}"): "mcp.connections.revoke",
     ("GET", "/mcp/connections/enabled"): "mcp.enabled.get",
     ("PUT", "/mcp/connections/enabled"): "mcp.enabled.set",
+    # categorisation rules
+    ("GET", "/rules"): "rules.list",
+    ("POST", "/rules"): "rules.create",
+    ("POST", "/rules/test"): "rules.test",
+    ("GET", "/rules/suggestions"): "rules.suggestions",
+    ("GET", "/rules/{rule_id}"): "rules.get",
+    ("PATCH", "/rules/{rule_id}"): "rules.update",
+    ("DELETE", "/rules/{rule_id}"): "rules.delete",
     # personal access tokens
     ("GET", "/tokens"): "tokens.list",
     ("POST", "/tokens"): "tokens.create",

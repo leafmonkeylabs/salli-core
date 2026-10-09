@@ -30,6 +30,7 @@ from salli.application.services.personal_access_token_service import PersonalAcc
 from salli.application.services.portfolio_service import PortfolioService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
+from salli.application.services.rules_service import RulesService
 from salli.application.services.subscription_service import SubscriptionService
 from salli.application.services.tax_service import TaxService
 from salli.application.services.user_profile_service import UserProfileService
@@ -69,6 +70,7 @@ class Services:
     mcp_oauth: McpOAuthService
     llm_credentials: LlmCredentialService
     tokens: PersonalAccessTokenService
+    rules: RulesService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
     # The extension seams. Salli's own defaults unless an enabled extension
@@ -174,10 +176,12 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
     # key was configured, which 503'd exactly the users BYOK is for.
     from salli.adapters.llm.anthropic_adapter import AnthropicLLMAdapter
 
+    rules = RulesService(uow_factory)
     entry_parse = EntryParseService(
         ledger,
         lambda key: AnthropicLLMAdapter(key, settings.langsmith_project),
         credentials=llm_credentials,
+        rules=rules,
     )
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
@@ -237,6 +241,7 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
         mcp_oauth=mcp_oauth,
         llm_credentials=llm_credentials,
         tokens=PersonalAccessTokenService(uow_factory),
+        rules=rules,
         entry_parse=entry_parse,
         usage=extensions.usage_meter,
         entitlements=extensions.entitlements,
