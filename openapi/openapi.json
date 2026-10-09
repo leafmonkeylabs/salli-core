@@ -15759,6 +15759,17 @@
               "USD"
             ]
           },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "debit_account_id": {
             "anyOf": [
               {
@@ -15792,6 +15803,39 @@
             ],
             "title": "Category"
           },
+          "need": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "description_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Override"
+          },
           "confidence": {
             "type": "number",
             "title": "Confidence"
@@ -15799,6 +15843,17 @@
           "dedup_status": {
             "type": "string",
             "title": "Dedup Status"
+          },
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of"
           }
         },
         "type": "object",
@@ -15810,11 +15865,16 @@
           "credit_flag",
           "bank_ref",
           "currency",
+          "account_id",
           "debit_account_id",
           "credit_account_id",
           "category",
+          "need",
+          "rule_id",
+          "description_override",
           "confidence",
-          "dedup_status"
+          "dedup_status",
+          "duplicate_of"
         ],
         "title": "StatementTransaction",
         "description": "A transaction read from a statement and classified, awaiting review."

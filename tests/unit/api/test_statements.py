@@ -78,14 +78,41 @@ async def test_an_upload_returns_its_transactions_for_review(client, mock_servic
                 "credit_flag": False,
                 "bank_ref": "REF1",
                 "currency": "LKR",
+                "account_id": None,
                 "debit_account_id": "acc-food",
                 "credit_account_id": "acc-bank",
                 "category": "groceries",
+                "need": None,
+                "rule_id": None,
+                "description_override": None,
                 "confidence": 0.92,
                 "dedup_status": "pending",
+                "duplicate_of": None,
             }
         ],
     }
+
+
+async def test_what_rules_and_dedup_decided_comes_back_for_review(client, mock_services):
+    decided = _transaction(id="txn-2")
+    decided.account_id = "acc-bank"
+    decided.rule_id, decided.need, decided.description = "rule-1", "essential", "Keells"
+    repeated = _transaction(id="txn-3")
+    repeated.dedup_status, repeated.duplicate_of = "exact_duplicate", "txn-0"
+    mock_services.parsing.get_statement.return_value = {"id": "st-1"}
+    mock_services.parsing.get_pending.return_value = [decided, repeated]
+
+    r = await client.get("/v1/statements/st-1", headers=AUTH)
+
+    first, second = r.json()["transactions"]
+    assert {k: first[k] for k in ("account_id", "rule_id", "need", "description_override")} == {
+        "account_id": "acc-bank",
+        "rule_id": "rule-1",
+        "need": "essential",
+        "description_override": "Keells",
+    }
+    assert first["description"] == "KEELLS SUPER"  # the bank's, as it was
+    assert (second["dedup_status"], second["duplicate_of"]) == ("exact_duplicate", "txn-0")
 
 
 async def test_an_upload_names_the_account_the_statement_is_for(client, mock_services):

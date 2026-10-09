@@ -39,15 +39,33 @@ class StatementTransaction(BaseModel):
     bank_ref: str
     #: The statement's currency.
     currency: CurrencyCode
-    #: The accounts the classifier chose; empty or null when it could not.
+    #: The account the statement is for: the money side, debited for money in
+    #: and credited for money out. Null when the statement does not say.
+    account_id: str | None
+    #: The accounts to post to, from the statement's account, a rule or the
+    #: classifier; empty or null while one is still to be chosen.
     debit_account_id: str | None
     credit_account_id: str | None
-    #: The classifier's label ("salary", "bank_charge"); posting tags it.
+    #: The category ("salary", "groceries") from a rule or the classifier;
+    #: posting tags the other side with it.
     category: str | None
-    #: The classifier's confidence, from 0 to 1.
+    #: essential, discretionary or savings, from a rule; posting tags it too.
+    need: str | None
+    #: The rule that decided it, if one did.
+    rule_id: str | None
+    #: What the entry is booked as when that is not `description` (a rule's
+    #: tidy name for the bank's text). Null: `description`.
+    description_override: str | None
+    #: 1 when the statement's account and a rule decided it, the classifier's
+    #: confidence when it did, 0 while an account is still to be chosen.
     confidence: float
-    #: "pending" until posted; "exact_duplicate" ones are never posted.
+    #: "pending" until posted; "fuzzy_match" looks like an entry already
+    #: booked, so check it; "exact_duplicate" repeats an earlier import and is
+    #: never posted; "posted"; "discarded".
     dedup_status: str
+    #: What it repeats: the earlier import's transaction (exact_duplicate) or
+    #: the journal entry (fuzzy_match).
+    duplicate_of: str | None
 
 
 class StatementUpload(BaseModel):
@@ -233,9 +251,14 @@ def _transaction(t: ParsedTransaction) -> StatementTransaction:
         credit_flag=raw.credit_flag,
         bank_ref=raw.bank_ref,
         currency=raw.currency,
+        account_id=t.account_id or None,
         debit_account_id=t.debit_account_id,
         credit_account_id=t.credit_account_id,
         category=t.category,
+        need=t.need or None,
+        rule_id=t.rule_id or None,
+        description_override=t.description or None,
         confidence=t.confidence,
         dedup_status=t.dedup_status,
+        duplicate_of=t.duplicate_of or None,
     )
