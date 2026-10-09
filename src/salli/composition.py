@@ -167,7 +167,10 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
         checkpointer=checkpointer,
         uow_factory=uow_factory,
     )
-    parsing = ParsingService(uow_factory, storage, llm_credentials, fx=fx)
+    # The user's categorisation rules: statement import and quick add both
+    # try them before any model.
+    rules = RulesService(uow_factory)
+    parsing = ParsingService(uow_factory, storage, llm_credentials, fx=fx, rules=rules)
 
     # Free-text → draft journal entry (voice/text quick-add) and Voice Mode
     # speech-to-text. Both are now always constructed: which key they run on is
@@ -176,7 +179,6 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
     # key was configured, which 503'd exactly the users BYOK is for.
     from salli.adapters.llm.anthropic_adapter import AnthropicLLMAdapter
 
-    rules = RulesService(uow_factory)
     entry_parse = EntryParseService(
         ledger,
         lambda key: AnthropicLLMAdapter(key, settings.langsmith_project),

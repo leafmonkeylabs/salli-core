@@ -37,6 +37,7 @@ from salli.domain.dedup.matcher import (
     find_duplicates,
 )
 from salli.domain.parsing.models import ParsedTransaction, ParseResult, RawRow
+from salli.domain.rules.engine import Facts, Rule
 from salli.domain.rules.history import booked_transactions
 
 if TYPE_CHECKING:
@@ -68,15 +69,20 @@ class ParsingService:
         storage: StoragePort | None = None,
         credentials: Any = None,
         fx: Any = None,
+        rules: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._storage = storage
         self._credentials = credentials
         # Rates for statements in a currency other than the owner's base one.
         self._fx = fx
+        # The user's categorisation rules (RulesService), tried before the model.
+        self._rules = rules
 
     async def _key_for(self, user_id: str, api_key: Any) -> Any:
-        """Use the caller's already-resolved key, else resolve for this user.
+        """Use the caller's already-resolved key, else resolve for this user;
+        None when there is no key to use (no credential source, or neither a
+        key of the user's own nor a platform key).
 
         The HTTP routes resolve once at the boundary and pass it down, so the hot
         path does one lookup. The MCP server, the agent's own tools, and the CLI
@@ -85,10 +91,27 @@ class ParsingService:
         them on the platform's.
         """
         if api_key is not None:
-            return api_key
+            return api_key or None
         if self._credentials is None:
-            raise RuntimeError("No LLM credential source configured")
-        return (await self._credentials.resolve(user_id)).anthropic
+            return None
+        return (await self._credentials.resolve(user_id)).anthropic or None
+
+    async def _decide(self, user_id: str, rows: list[RawRow]) -> list[Rule | None]:
+        """The rule that decides each row, or None; each hit is counted."""
+        if self._rules is None or not rows:
+            return [None] * len(rows)
+        return await self._rules.decide(
+            user_id,
+            [
+                Facts(
+                    description=r.description,
+                    amount=r.amount,
+                    direction="in" if r.credit_flag else "out",
+                    currency=r.currency,
+                )
+                for r in rows
+            ],
+        )
 
     async def _money_account(self, user_id: str, account_id: str) -> Account:
         """The account a statement is for: one of the user's active asset or
@@ -245,36 +268,62 @@ class ParsingService:
             money_accounts={a.id for a in every_account if a.type in _MONEY_TYPES},
         )
 
-        # An exact duplicate is booked already: it stays for review, but needs
-        # no accounts and costs no model call.
-        undecided = [
-            r
-            for r, v in zip(kept, verdicts, strict=True)
-            if v.status is not DedupStatus.EXACT_DUPLICATE
-        ]
-        classified = iter(
-            await classify_transactions(
-                undecided, accounts, api_key=await self._key_for(user_id, api_key)
+        # The statement's account is the money side of every row; an exact
+        # duplicate gets nothing more. It is booked already: it stays for
+        # review, but needs no other account, no rule and no model call.
+        money_id = account.id if account is not None else ""
+        parsed = [
+            ParsedTransaction(
+                raw=row, debit_account_id="", credit_account_id="", account_id=money_id
             )
-            if undecided
-            else []
-        )
-        parsed: list[ParsedTransaction] = []
-        for row, candidate, verdict in zip(kept, candidates, verdicts, strict=True):
-            if verdict.status is DedupStatus.EXACT_DUPLICATE:
-                txn = ParsedTransaction(
-                    raw=row, debit_account_id="", credit_account_id="", confidence=0.0
-                )
-            else:
-                txn = next(classified)
+            for row in kept
+        ]
+        if money_id:
+            for txn in parsed:
+                _place(txn, money_id, money=True)
+        live = [i for i, v in enumerate(verdicts) if v.status is not DedupStatus.EXACT_DUPLICATE]
+        valid = {a.id for a in accounts}
+
+        # The user's rules first: what one decides is booked the same way every
+        # time, and costs no model call.
+        for i, rule in zip(live, await self._decide(user_id, [kept[i] for i in live]), strict=True):
+            if rule is not None:
+                _apply(rule, parsed[i], valid)
+
+        # The model, for the rows still missing an account, when there is a
+        # key to ask it with. Without one the import still goes ahead.
+        undecided = [i for i in live if not _booked(parsed[i])]
+        key = await self._key_for(user_id, api_key) if undecided else None
+        if key is not None:
+            guesses = await classify_transactions(
+                [kept[i] for i in undecided], accounts, api_key=key, money_account=account
+            )
+            for i, guess in zip(undecided, guesses, strict=True):
+                _take(guess, parsed[i], valid)
+        missing = sum(1 for i in live if not _booked(parsed[i]))
+        if missing and key is None:
+            errors.append(
+                f"{missing} transaction(s) need an account: with no AI key set up, only your "
+                "rules sorted this statement"
+            )
+        elif missing:
+            errors.append(f"{missing} transaction(s) still need an account; choose one to post")
+
+        modelled = set(undecided) if key is not None else set()
+        for i, (txn, candidate, verdict) in enumerate(
+            zip(parsed, candidates, verdicts, strict=True)
+        ):
             txn.dedup_key = dedup_key(candidate)
             txn.dedup_status = (
                 "pending" if verdict.status is DedupStatus.UNIQUE else verdict.status.value
             )
             txn.duplicate_of = verdict.duplicate_of
-            if account is not None:
-                _book_money_side(txn, account.id)
-            parsed.append(txn)
+            # Sure when the statement and a rule decided it, the model's
+            # confidence when the model did, and nothing while a side is open.
+            if verdict.status is DedupStatus.EXACT_DUPLICATE or not _booked(txn):
+                txn.confidence = 0.0
+            elif i not in modelled:
+                txn.confidence = 1.0
 
         statement_id = str(uuid.uuid4())
         storage_key = ""
@@ -437,22 +486,44 @@ def _in_currency_of(account: Account, rows: list[RawRow]) -> tuple[list[RawRow],
     ]
 
 
-def _book_money_side(txn: ParsedTransaction, account_id: str) -> None:
-    """Put the statement's account on the money side of `txn`: debited for
-    money in, credited for money out. Of the accounts already chosen, the one
-    that is not the statement's account becomes the other side, preferring
-    the side it would normally be on."""
-    first, second = (
-        (txn.credit_account_id, txn.debit_account_id)
-        if txn.raw.credit_flag
-        else (txn.debit_account_id, txn.credit_account_id)
-    )
-    counter = next((a for a in (first, second) if a and a != account_id), "")
-    if txn.raw.credit_flag:
-        txn.debit_account_id, txn.credit_account_id = account_id, counter
+def _place(txn: ParsedTransaction, account_id: str, *, money: bool) -> None:
+    """Put `account_id` on `txn`'s money side — debited for money in, credited
+    for money out — or, with money=False, on its other side."""
+    if txn.raw.credit_flag == money:
+        txn.debit_account_id = account_id
     else:
-        txn.debit_account_id, txn.credit_account_id = counter, account_id
-    txn.account_id = account_id
+        txn.credit_account_id = account_id
+
+
+def _booked(txn: ParsedTransaction) -> bool:
+    return bool(txn.debit_account_id and txn.credit_account_id)
+
+
+def _apply(rule: Rule, txn: ParsedTransaction, valid: set[str]) -> None:
+    """What a rule decides about a row: its other side's account (while that
+    is still in the chart and is not the row's own account), its tags, and
+    the description to book it with."""
+    txn.rule_id = rule.id
+    txn.category = rule.actions.category or ""
+    txn.need = rule.actions.need or ""
+    txn.description = rule.actions.description or ""
+    target = rule.actions.account_id
+    if target in valid and target != txn.account_id:
+        _place(txn, target, money=False)
+
+
+def _take(guess: ParsedTransaction, txn: ParsedTransaction, valid: set[str]) -> None:
+    """The model's answer, for the sides still open. An id that is not in the
+    chart is dropped — the model only ever proposes — and so is one already on
+    the other side. A rule's category stands over the model's label."""
+    debit = guess.debit_account_id if guess.debit_account_id in valid else ""
+    credit = guess.credit_account_id if guess.credit_account_id in valid else ""
+    if not txn.debit_account_id and debit != txn.credit_account_id:
+        txn.debit_account_id = debit
+    if not txn.credit_account_id and credit != txn.debit_account_id:
+        txn.credit_account_id = credit
+    txn.category = txn.category or guess.category
+    txn.confidence = guess.confidence
 
 
 # ── Format detection ───────────────────────────────────────────────────────────

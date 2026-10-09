@@ -15,10 +15,14 @@ from typing import Any
 import pytest
 
 import salli.adapters.parsing.llm_classifier as llm_classifier
+from salli.application.services.llm_credential_service import ResolvedCredentials
 from salli.application.services.parsing_service import ParsingService
+from salli.application.services.rules_service import RulesService
 from salli.domain.accounting.models import Account, StoredJournalEntry
 from salli.domain.parsing.models import ParsedTransaction, RawRow
+from salli.domain.secrets import Secret
 from tests.fakes import FakeProfiles
+from tests.unit.application.test_rules_service import Rules
 
 USER = "u1"
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "statements"
@@ -42,6 +46,8 @@ ACCOUNTS = [
     _account("euros", "asset", currency="EUR"),
     _account("closed", "asset", active=False),
     _account("food", "expense"),
+    _account("transport", "expense"),
+    _account("retired", "expense", active=False),
     _account("salary", "income"),
 ]
 
@@ -125,13 +131,14 @@ class World:
         self.ledger = Ledger(ACCOUNTS)
         self.statements = Statements()
         self.user_profiles = FakeProfiles(base_currency)
+        self.rules = Rules()
 
     @asynccontextmanager
     async def uow(self):
         yield self
 
     def service(self, **kwargs: Any) -> ParsingService:
-        return ParsingService(self.uow, **kwargs)
+        return ParsingService(self.uow, rules=RulesService(self.uow), **kwargs)
 
 
 @pytest.fixture
@@ -139,19 +146,30 @@ def world() -> World:
     return World()
 
 
+class ModelCalls(list[list[RawRow]]):
+    """The rows the model was asked about, one list per call, and how."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.asked: list[dict[str, Any]] = []
+
+
 @pytest.fixture(autouse=True)
 def model(monkeypatch):
-    """A stand-in for the model: groceries to food, everything else to salary,
-    and the money side on a bank account the statement may not be for."""
-    calls: list[list[RawRow]] = []
+    """A stand-in for the model: money out to food, money in from salary, the
+    bank side on checking. It records what it was asked about, and how."""
+    calls = ModelCalls()
 
-    async def classify(rows: list[RawRow], accounts: Any, **_: Any) -> list[ParsedTransaction]:
+    async def classify(rows: list[RawRow], accounts: Any, **kwargs: Any) -> list[ParsedTransaction]:
         calls.append(list(rows))
+        calls.asked.append(kwargs)
+        money = kwargs.get("money_account")
+        bank = money.id if money is not None else "checking"
         return [
             ParsedTransaction(
                 raw=row,
-                debit_account_id="savings" if row.credit_flag else "food",
-                credit_account_id="salary" if row.credit_flag else "savings",
+                debit_account_id=bank if row.credit_flag else "food",
+                credit_account_id="salary" if row.credit_flag else bank,
                 category="groceries",
                 confidence=0.9,
             )
@@ -234,7 +252,7 @@ async def test_without_an_account_rows_are_in_the_base_currency(world):
     first = result.transactions[0]
     assert first.raw.amount == Decimal("84.17")
     # Nothing forces a side: both are as the model chose them.
-    assert (first.debit_account_id, first.credit_account_id) == ("food", "savings")
+    assert (first.debit_account_id, first.credit_account_id) == ("food", "checking")
 
 
 # ── Rows from anywhere: import_rows ───────────────────────────────────────────
@@ -481,3 +499,123 @@ async def test_rows_on_another_account_are_not_duplicates(world):
     )
 
     assert [t.dedup_status for t in on_card.transactions] == ["pending"]
+
+
+# ── Rules before the model ────────────────────────────────────────────────────
+
+
+def _rule(world: World, contains: str, **actions: str) -> str:
+    rule_id = f"r{len(world.rules.rows) + 1}"
+    world.rules.rows[rule_id] = {
+        "id": rule_id,
+        "name": contains.title(),
+        "priority": 10,
+        "match_all": True,
+        "enabled": True,
+        "conditions": [{"field": "description", "operator": "contains", "value": contains}],
+        "actions": actions,
+    }
+    return rule_id
+
+
+async def test_a_rule_decides_its_rows_and_the_model_sees_only_the_rest(world, model):
+    uber = _rule(
+        world,
+        "uber",
+        account_id="transport",
+        category="rides",
+        need="essential",
+        description="Uber",
+    )
+    rows = [_row("UBER *TRIP 8H3K2", "23.40"), _row("WHOLE FOODS", "84.17")]
+
+    result = await world.service().import_rows(
+        USER, rows, bank="", account_id="checking", api_key="k"
+    )
+
+    ride, groceries = result.transactions
+    assert (ride.debit_account_id, ride.credit_account_id) == ("transport", "checking")
+    assert (ride.rule_id, ride.category, ride.need, ride.description) == (
+        uber,
+        "rides",
+        "essential",
+        "Uber",
+    )
+    assert ride.confidence == 1.0
+    assert (groceries.debit_account_id, groceries.rule_id) == ("food", "")
+    # The model was asked about the groceries only, and told whose statement it is.
+    assert [[r.description for r in call] for call in model] == [["WHOLE FOODS"]]
+    assert model.asked[0]["money_account"].id == "checking"
+    assert world.rules.hits == {uber: 1}
+
+
+async def test_a_rule_that_only_tags_leaves_the_account_to_the_model(world, model):
+    _rule(world, "foods", category="groceries", need="essential")
+
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id="checking", api_key="k"
+    )
+
+    (txn,) = result.transactions
+    assert (txn.debit_account_id, txn.need) == ("food", "essential")
+    assert len(model) == 1
+
+
+async def test_a_rules_retired_account_is_not_booked_to(world, model):
+    _rule(world, "foods", account_id="retired", category="groceries")
+
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id="checking", api_key="k"
+    )
+
+    # The rule's tag stands; the account is the model's to choose.
+    assert (result.transactions[0].debit_account_id, result.transactions[0].category) == (
+        "food",
+        "groceries",
+    )
+
+
+async def test_an_account_the_model_invents_is_dropped(world, monkeypatch):
+    async def classify(rows: list[RawRow], accounts: Any, **_: Any) -> list[ParsedTransaction]:
+        return [
+            ParsedTransaction(raw=r, debit_account_id="made-up", credit_account_id="checking")
+            for r in rows
+        ]
+
+    monkeypatch.setattr(llm_classifier, "classify_transactions", classify)
+
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id="checking", api_key="k"
+    )
+
+    (txn,) = result.transactions
+    assert (txn.debit_account_id, txn.credit_account_id, txn.confidence) == ("", "checking", 0.0)
+    assert result.errors == ["1 transaction(s) still need an account; choose one to post"]
+
+
+class NoKey:
+    """A deployment with no platform key, and a user who has not added one."""
+
+    async def resolve(self, user_id: str) -> ResolvedCredentials:
+        return ResolvedCredentials(anthropic=Secret(""), anthropic_is_user_key=False)
+
+
+@pytest.mark.parametrize("credentials", [NoKey(), None])
+async def test_without_an_ai_key_the_rules_sort_what_they_can(world, model, credentials):
+    _rule(world, "uber", account_id="transport")
+    rows = [_row("UBER *TRIP 8H3K2", "23.40"), _row("WHOLE FOODS", "84.17")]
+
+    result = await world.service(credentials=credentials).import_rows(
+        USER, rows, bank="", account_id="checking"
+    )
+
+    ride, groceries = result.transactions
+    assert (ride.debit_account_id, ride.confidence) == ("transport", 1.0)
+    assert (groceries.debit_account_id, groceries.credit_account_id) == ("", "checking")
+    assert groceries.confidence == 0.0
+    assert model == []
+    assert result.errors == [
+        "1 transaction(s) need an account: with no AI key set up, only your rules sorted "
+        "this statement"
+    ]
+    assert len(world.statements.rows) == 2  # imported all the same, for review

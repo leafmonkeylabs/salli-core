@@ -169,7 +169,10 @@ class _Uow:
         self._saved = saved
 
     async def get_accounts(self, user_id: str, **_: Any) -> list[Any]:
-        return [SimpleNamespace(id="a", type="asset", is_active=True)]
+        return [
+            SimpleNamespace(id="bank", type="asset", is_active=True),
+            SimpleNamespace(id="food", type="expense", is_active=True),
+        ]
 
     async def get_entries(self, user_id: str, **_: Any) -> list[Any]:
         return []
@@ -184,7 +187,8 @@ class _Uow:
 async def test_what_the_importer_could_not_read_reaches_the_result(monkeypatch):
     async def classify(rows: list[RawRow], accounts: Any, **_: Any) -> list[ParsedTransaction]:
         return [
-            ParsedTransaction(raw=row, debit_account_id="d", credit_account_id="c") for row in rows
+            ParsedTransaction(raw=row, debit_account_id="food", credit_account_id="bank")
+            for row in rows
         ]
 
     monkeypatch.setattr(llm_classifier, "classify_transactions", classify)
