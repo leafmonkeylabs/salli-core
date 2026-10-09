@@ -553,7 +553,7 @@ def _take(guess: ParsedTransaction, txn: ParsedTransaction, valid: set[str]) -> 
 _FORMAT_BY_EXTENSION = {
     "pdf": "pdf",
     "xlsx": "xlsx",
-    "xls": "xlsx",
+    "xls": "xls",
     "ofx": "ofx",
     "qfx": "ofx",
     "qif": "qif",
@@ -581,6 +581,8 @@ def _statement_format(filename: str, data: bytes) -> str | None:
         return "pdf"
     if data.startswith(b"PK"):  # a ZIP archive, which is what an .xlsx is
         return "xlsx"
+    if data.startswith(b"\xd0\xcf\x11\xe0"):  # an OLE2 file: an old .xls, or a locked .xlsx
+        return "xls"
     head = decode_text(data[:8192])
     if re.search(r"OFXHEADER\s*:|<OFX[\s>]", head, re.I):
         return "ofx"
@@ -609,31 +611,20 @@ def _extract(
 
     Numbers come from deterministic importers only, never the LLM.
     """
-    from salli.adapters.parsing.support import Extraction, StatementLine
-
     kind = _statement_format(filename, data)
-    if kind in ("pdf", "xlsx"):
-        if kind == "pdf":
-            from salli.adapters.parsing.pdf_extractor import extract_from_pdf
+    if kind == "pdf":
+        from salli.adapters.parsing.pdf_extractor import extract_from_pdf
 
-            raw = extract_from_pdf(data)
-        else:
-            from salli.adapters.parsing.excel_extractor import extract_from_excel
+        extraction = extract_from_pdf(data, date_order=date_order)
+    elif kind == "xlsx":
+        from salli.adapters.parsing.excel_extractor import extract_from_excel
 
-            raw = extract_from_excel(data)
-        extraction = Extraction(
-            lines=[
-                StatementLine(
-                    date=r["date"],
-                    description=r["description"],
-                    amount=r["amount"],
-                    credit_flag=r["credit_flag"],
-                    bank_ref=r.get("bank_ref", ""),
-                    source_page=r.get("page", 0),
-                )
-                for r in raw
-            ]
-        )
+        extraction = extract_from_excel(data, date_order=date_order)
+    elif kind == "xls":
+        return [], [
+            "This is an old-style (.xls) or password-protected Excel workbook, which Salli "
+            "can't read. Save it as an unprotected .xlsx, or as CSV, and import that"
+        ]
     elif kind == "ofx":
         from salli.adapters.parsing.ofx import extract_from_ofx
 

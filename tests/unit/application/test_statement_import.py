@@ -69,7 +69,20 @@ def test_pdf_and_excel_are_found_as_before():
     assert _statement_format("statement", b"%PDF-1.7\n...") == "pdf"
     assert _statement_format("statement.pdf", b"not really a pdf") == "pdf"
     assert _statement_format("statement", _xlsx([["Date"]])) == "xlsx"
-    assert _statement_format("statement.xls", b"\xd0\xcf\x11\xe0\x00\x00") == "xlsx"
+
+
+def test_an_old_excel_workbook_is_refused_with_a_way_forward():
+    for filename, data in (
+        ("statement.xls", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x00"),
+        ("statement", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x00"),
+    ):
+        assert _extract(filename, data, "LKR") == (
+            [],
+            [
+                "This is an old-style (.xls) or password-protected Excel workbook, which Salli "
+                "can't read. Save it as an unprotected .xlsx, or as CSV, and import that"
+            ],
+        )
 
 
 def test_a_file_nothing_can_read():
