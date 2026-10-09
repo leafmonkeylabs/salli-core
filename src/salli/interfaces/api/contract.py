@@ -249,3 +249,9 @@ class Ref(BaseModel):
     """What a create or update returns: the id of the thing it touched."""
 
     id: str
+
+
+class Updated(BaseModel):
+    """What the updates that predate `Ref` return instead of an id."""
+
+    updated: bool

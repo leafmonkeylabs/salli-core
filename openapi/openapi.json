@@ -3332,7 +3332,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetList"
+                }
               }
             }
           }
@@ -3364,7 +3366,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -3414,7 +3418,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Budget"
+                }
               }
             }
           },
@@ -3467,7 +3473,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Updated"
+                }
               }
             }
           },
@@ -3551,7 +3559,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetSummary"
+                }
               }
             }
           },
@@ -6212,6 +6222,81 @@
         ],
         "title": "BriefingResumeRequest"
       },
+      "Budget": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "period_start",
+          "period_end",
+          "currency",
+          "lines",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Budget"
+      },
+      "BudgetLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "limit_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "limit_amount"
+        ],
+        "title": "BudgetLine",
+        "description": "A category limit: how much may be spent from one expense account."
+      },
       "BudgetLineRequest": {
         "properties": {
           "account_id": {
@@ -6229,6 +6314,22 @@
           "limit_amount"
         ],
         "title": "BudgetLineRequest"
+      },
+      "BudgetList": {
+        "properties": {
+          "budgets": {
+            "items": {
+              "$ref": "#/components/schemas/Budget"
+            },
+            "type": "array",
+            "title": "Budgets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "budgets"
+        ],
+        "title": "BudgetList"
       },
       "BudgetRequest": {
         "properties": {
@@ -6255,6 +6356,125 @@
           "lines"
         ],
         "title": "BudgetRequest"
+      },
+      "BudgetSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "total_limit": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Limit",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_actual": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Actual",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_variance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Variance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetSummaryLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "period_start",
+          "period_end",
+          "currency",
+          "total_limit",
+          "total_actual",
+          "total_variance",
+          "lines"
+        ],
+        "title": "BudgetSummary"
+      },
+      "BudgetSummaryLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "limit_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "actual_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Actual Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "variance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Variance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "category",
+          "limit_amount",
+          "actual_amount",
+          "variance"
+        ],
+        "title": "BudgetSummaryLine"
       },
       "BudgetUpdateRequest": {
         "properties": {
@@ -9287,6 +9507,20 @@
           "type"
         ],
         "title": "UpdateAccountRequest"
+      },
+      "Updated": {
+        "properties": {
+          "updated": {
+            "type": "boolean",
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "Updated",
+        "description": "What the updates that predate `Ref` return instead of an id."
       },
       "ValidationError": {
         "properties": {

@@ -92,11 +92,6 @@ UNTYPED = {
     "reports.goalProgress",
     "reports.netWorth",
     # Budgets, debts, holdings, subscriptions, insurance
-    "budgets.create",
-    "budgets.get",
-    "budgets.list",
-    "budgets.summary",
-    "budgets.update",
     "debts.create",
     "debts.get",
     "debts.list",
