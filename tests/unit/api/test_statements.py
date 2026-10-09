@@ -88,6 +88,25 @@ async def test_an_upload_returns_its_transactions_for_review(client, mock_servic
     }
 
 
+async def test_an_upload_names_the_account_the_statement_is_for(client, mock_services):
+    mock_services.parsing.parse_statement.return_value = ParseResult(
+        statement_id="st-1",
+        bank="",
+        period_start="2025-04-05",
+        period_end="2025-04-05",
+        transactions=[_transaction()],
+        raw_rows=[_transaction().raw],
+    )
+    r = await client.post(
+        "/v1/statements/upload",
+        files={"file": ("april.csv", b"date,description,amount\n", "text/csv")},
+        params={"account_id": "acc-bank"},
+        headers=AUTH,
+    )
+    assert r.status_code == 202
+    assert mock_services.parsing.parse_statement.await_args.kwargs["account_id"] == "acc-bank"
+
+
 async def test_pending_transactions_may_be_unclassified(client, mock_services):
     """The classifier's output is the model's JSON: an account or a category
     it could not decide can come back null, and still has to be reviewable."""
@@ -108,6 +127,7 @@ async def test_statements_list(client, mock_services):
         {
             "id": "st-2",
             "bank": None,
+            "account_id": "acc-bank",
             "period_start": None,
             "period_end": None,
             "status": "pending",
@@ -116,6 +136,7 @@ async def test_statements_list(client, mock_services):
         {
             "id": "st-1",
             "bank": "sampath",
+            "account_id": None,
             "period_start": "2025-04-01",
             "period_end": "2025-04-30",
             "status": "pending",

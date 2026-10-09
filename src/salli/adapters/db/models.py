@@ -207,6 +207,11 @@ class StatementORM(Base):
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
     bank: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # The bank or card account the statement is for: the money side of every
+    # row in it. None for statements imported without one.
+    account_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("accounts.id"), nullable=True
+    )
     period_start: Mapped[str | None] = mapped_column(String(10), nullable=True)
     period_end: Mapped[str | None] = mapped_column(String(10), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")

@@ -40,6 +40,11 @@ if TYPE_CHECKING:
     from salli.adapters.parsing.csv_import import CsvMapping
     from salli.adapters.parsing.dates import DateOrder
     from salli.adapters.parsing.support import Extraction
+    from salli.domain.accounting.models import Account
+
+# What a statement can be for: where money is held (a bank or cash account)
+# or owed (a card, a loan).
+_MONEY_TYPES = ("asset", "liability")
 
 
 def _slugify(label: str) -> str:
@@ -77,6 +82,20 @@ class ParsingService:
             raise RuntimeError("No LLM credential source configured")
         return (await self._credentials.resolve(user_id)).anthropic
 
+    async def _money_account(self, user_id: str, account_id: str) -> Account:
+        """The account a statement is for: one of the user's active asset or
+        liability accounts (a bank, cash or card account). ValueError otherwise."""
+        async with self._uow_factory() as uow:
+            account = await uow.ledger.get_account(user_id, account_id)
+        if account is None or not account.is_active:
+            raise ValueError(f"No active account {account_id!r}")
+        if account.type not in _MONEY_TYPES:
+            raise ValueError(
+                f"{account.name} is an {account.type} account. A statement is for an asset "
+                "or liability account: a bank, cash or card account."
+            )
+        return account
+
     async def parse_statement(
         self,
         user_id: str,
@@ -85,6 +104,7 @@ class ParsingService:
         bank: str = "",
         *,
         currency: str | None = None,
+        account_id: str | None = None,
         date_order: DateOrder | None = None,
         csv_mapping: CsvMapping | None = None,
         api_key: Any = None,
@@ -93,17 +113,29 @@ class ParsingService:
         Parse a bank statement file and store the extracted transactions.
         Returns a ParseResult — caller should display pending transactions for review.
 
+        `account_id` is the account the statement is for, one of the user's
+        active asset or liability accounts; it is the money side of every row.
         `currency` is the statement's, for the rows of a file that does not
         name its own (OFX, camt.053 and MT940 always do; a CSV may); it
-        defaults to the user's base currency. `date_order` ("DMY", "MDY" or
-        "YMD") settles dates a QIF or CSV file leaves ambiguous, and
-        `csv_mapping` states a CSV's layout instead of detecting it. Rows the
-        importer could not read are listed in `errors`, and so are its guesses.
+        defaults to the account's currency, else the user's base currency. A
+        row in another currency than the account's is skipped. `date_order`
+        ("DMY", "MDY" or "YMD") settles dates a QIF or CSV file leaves
+        ambiguous, and `csv_mapping` states a CSV's layout instead of
+        detecting it. Rows the importer could not read are listed in
+        `errors`, and so are its guesses.
         """
         from salli.adapters.parsing.llm_classifier import classify_transactions
 
+        account = await self._money_account(user_id, account_id) if account_id else None
         if currency:
             currency = normalize_currency(currency)
+            if account is not None and currency != account.currency:
+                raise ValueError(
+                    f"{account.name} is kept in {account.currency}, not {currency}: "
+                    "a statement is in its account's currency"
+                )
+        elif account is not None:
+            currency = account.currency
         else:
             async with self._uow_factory() as uow:
                 currency = await uow.user_profiles.base_currency(user_id)
@@ -112,6 +144,9 @@ class ParsingService:
         raw_rows, errors = _extract(
             filename, file_bytes, currency, date_order=date_order, csv_mapping=csv_mapping
         )
+        if account is not None:
+            raw_rows, skipped = _in_currency_of(account, raw_rows)
+            errors += skipped
         if not raw_rows:
             return ParseResult(
                 statement_id="",
@@ -167,6 +202,9 @@ class ParsingService:
         parsed = await classify_transactions(
             unique_rows, accounts, api_key=await self._key_for(user_id, api_key)
         )
+        if account is not None:
+            for txn in parsed:
+                _book_money_side(txn, account.id)
 
         # 5. Stamp dedup keys and check against existing ledger entries
         async with self._uow_factory() as uow:
@@ -216,6 +254,7 @@ class ParsingService:
                 period_end=period_end,
                 transactions=parsed,
                 storage_key=storage_key,
+                account_id=account.id if account is not None else None,
             )
 
         return ParseResult(
@@ -303,6 +342,38 @@ class ParsingService:
                 entry_ids.append(entry_id)
 
         return entry_ids
+
+
+def _in_currency_of(account: Account, rows: list[RawRow]) -> tuple[list[RawRow], list[str]]:
+    """The rows in the account's own currency, and a word about the rest.
+
+    An account is held in one currency, so a row in another (a file that
+    names its own) cannot be on it as written; it is skipped rather than
+    booked at a number that is wrong by the exchange rate.
+    """
+    other = Counter(row.currency for row in rows if row.currency != account.currency)
+    return [row for row in rows if row.currency == account.currency], [
+        f"Skipped {count} transaction(s) in {code}: {account.name} is kept in {account.currency}"
+        for code, count in other.items()
+    ]
+
+
+def _book_money_side(txn: ParsedTransaction, account_id: str) -> None:
+    """Put the statement's account on the money side of `txn`: debited for
+    money in, credited for money out. Of the accounts already chosen, the one
+    that is not the statement's account becomes the other side, preferring
+    the side it would normally be on."""
+    first, second = (
+        (txn.credit_account_id, txn.debit_account_id)
+        if txn.raw.credit_flag
+        else (txn.debit_account_id, txn.credit_account_id)
+    )
+    counter = next((a for a in (first, second) if a and a != account_id), "")
+    if txn.raw.credit_flag:
+        txn.debit_account_id, txn.credit_account_id = account_id, counter
+    else:
+        txn.debit_account_id, txn.credit_account_id = counter, account_id
+    txn.account_id = account_id
 
 
 # ── Format detection ───────────────────────────────────────────────────────────

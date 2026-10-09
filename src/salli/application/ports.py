@@ -149,6 +149,9 @@ class ReminderRepository(ABC):
 
 
 class StatementRepository(ABC):
+    """Imported statements and their parsed transactions. A parsed transaction
+    read back carries its statement's `account_id` ("" when it has none)."""
+
     @abstractmethod
     async def save_statement(
         self,
@@ -159,6 +162,7 @@ class StatementRepository(ABC):
         period_end: str,
         transactions: list[Any],
         storage_key: str = "",
+        account_id: str | None = None,
     ) -> None: ...
 
     @abstractmethod

@@ -505,6 +505,7 @@ class SQLStatementRepository(StatementRepository):
             {
                 "id": r.id,
                 "bank": r.bank,
+                "account_id": r.account_id,
                 "period_start": r.period_start,
                 "period_end": r.period_end,
                 "status": r.status,
@@ -522,6 +523,7 @@ class SQLStatementRepository(StatementRepository):
         period_end: str,
         transactions: list[Any],
         storage_key: str = "",
+        account_id: str | None = None,
     ) -> None:
         import uuid as _uuid
 
@@ -530,6 +532,7 @@ class SQLStatementRepository(StatementRepository):
             user_id=user_id,
             storage_key=storage_key,
             bank=bank,
+            account_id=account_id,
             period_start=period_start,
             period_end=period_end,
             status="pending",
@@ -559,45 +562,35 @@ class SQLStatementRepository(StatementRepository):
             )
             self._session.add(pt)
 
-    async def get_all_pending(self, user_id: str) -> list[Any]:
-        stmt = (
-            select(ParsedTransactionORM)
+    def _parsed(self, user_id: str) -> Any:
+        """This user's parsed transactions, each with its statement's account."""
+        return (
+            select(ParsedTransactionORM, StatementORM.account_id)
             .join(StatementORM)
-            .where(
-                StatementORM.user_id == user_id,
-                ParsedTransactionORM.posted_entry_id.is_(None),
-            )
+            .where(StatementORM.user_id == user_id)
+        )
+
+    async def _read(self, stmt: Any) -> list[Any]:
+        result = await self._session.execute(stmt)
+        return [_orm_to_parsed(row, account_id) for row, account_id in result.all()]
+
+    async def get_all_pending(self, user_id: str) -> list[Any]:
+        return await self._read(
+            self._parsed(user_id)
+            .where(ParsedTransactionORM.posted_entry_id.is_(None))
             .order_by(ParsedTransactionORM.statement_id)
         )
-        result = await self._session.execute(stmt)
-        return [_orm_to_parsed(r) for r in result.scalars().all()]
 
     async def get_pending(self, user_id: str, statement_id: str) -> list[Any]:
-
-        stmt = (
-            select(ParsedTransactionORM)
-            .join(StatementORM)
-            .where(
-                StatementORM.user_id == user_id,
+        return await self._read(
+            self._parsed(user_id).where(
                 ParsedTransactionORM.statement_id == statement_id,
                 ParsedTransactionORM.posted_entry_id.is_(None),
             )
         )
-        result = await self._session.execute(stmt)
-        rows = result.scalars().all()
-        return [_orm_to_parsed(r) for r in rows]
 
     async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]:
-        stmt = (
-            select(ParsedTransactionORM)
-            .join(StatementORM)
-            .where(
-                StatementORM.user_id == user_id,
-                ParsedTransactionORM.id.in_(ids),
-            )
-        )
-        result = await self._session.execute(stmt)
-        return [_orm_to_parsed(r) for r in result.scalars().all()]
+        return await self._read(self._parsed(user_id).where(ParsedTransactionORM.id.in_(ids)))
 
     async def mark_posted(self, transaction_id: str, entry_id: str) -> None:
         stmt = select(ParsedTransactionORM).where(ParsedTransactionORM.id == transaction_id)
@@ -618,6 +611,7 @@ class SQLStatementRepository(StatementRepository):
         return {
             "id": row.id,
             "bank": row.bank,
+            "account_id": row.account_id,
             "period_start": row.period_start,
             "period_end": row.period_end,
             "storage_key": row.storage_key,
@@ -626,7 +620,7 @@ class SQLStatementRepository(StatementRepository):
         }
 
 
-def _orm_to_parsed(row: ParsedTransactionORM) -> Any:
+def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> Any:
     from decimal import Decimal
 
     from salli.domain.parsing.models import ParsedTransaction, RawRow
@@ -646,11 +640,13 @@ def _orm_to_parsed(row: ParsedTransactionORM) -> Any:
         debit_account_id=j.get("debit_account_id", ""),
         credit_account_id=j.get("credit_account_id", ""),
         category=j.get("category", ""),
-        confidence=float(row.confidence or 0.5),
+        # Zero is a real confidence (nothing decided the row), not a missing one.
+        confidence=float(row.confidence) if row.confidence is not None else 0.5,
         dedup_key=row.dedup_key or "",
         dedup_status=row.dedup_status,
         id=row.id,
         statement_id=row.statement_id,
+        account_id=account_id or "",
     )
 
 

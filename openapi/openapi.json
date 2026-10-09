@@ -2385,7 +2385,7 @@
           "statements"
         ],
         "summary": "Upload Statement",
-        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`currency` is the statement's ISO 4217 code (default: the user's base\ncurrency), for files that do not name their own: OFX, camt.053 and MT940\nalways do, and a CSV may. Posting a statement in another currency converts\neach transaction at the published rate for its date. `date_order` settles\ndates a CSV or QIF file leaves ambiguous (01/02/2026). Rows that could not\nbe read, and any guess the importer made, come back in `errors`.",
+        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`account_id` is the account the statement is for (an active asset or\nliability account): the money side of every transaction in it. `currency`\nis the statement's ISO 4217 code, for files that do not name their own\n(OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the\naccount's currency, else the user's base currency, and a transaction in\nanother currency than the account's is skipped. Posting a statement in\nanother currency than the base converts each transaction at the published\nrate for its date. `date_order` settles dates a CSV or QIF file leaves\nambiguous (01/02/2026). Rows that could not be read, and any guess the\nimporter made, come back in `errors`.",
         "operationId": "statements.upload",
         "security": [
           {
@@ -2417,6 +2417,22 @@
                 }
               ],
               "title": "Currency"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Id"
             }
           },
           {
@@ -8867,6 +8883,17 @@
               }
             ],
             "title": "Bank"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
           },
           "period_start": {
             "anyOf": [

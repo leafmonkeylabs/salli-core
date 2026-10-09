@@ -783,7 +783,13 @@ def parse_upload(
     currency: str = typer.Option(
         None,
         "--currency",
-        help="ISO 4217 code of the statement, if the file names none (default: your base currency)",
+        help="ISO 4217 code of the statement, if the file names none "
+        "(default: the account's, else your base currency)",
+    ),
+    account: str = typer.Option(
+        None,
+        "--account",
+        help="The bank, cash or card account the statement is for (its code or id)",
     ),
     date_order: str = typer.Option(
         None,
@@ -795,7 +801,8 @@ def parse_upload(
     Parse a bank statement and queue transactions for review.
 
     Reads PDF, XLSX, CSV, OFX/QFX, QIF, camt.053 and MT940 statements, then runs
-    deduplication and LLM classification.
+    deduplication and LLM classification. With --account, that account is the
+    money side of every transaction.
     Prints a summary and prompts for immediate inline review.
     """
     import pathlib
@@ -813,11 +820,18 @@ def parse_upload(
     data = path.read_bytes()
     filename = path.name
     svc = _services()
+    account_id = _account_by_code_or_id(svc, user_id, account) if account else None
 
     console.print(f"[dim]Parsing {filename} …[/dim]")
     result = asyncio.run(
         svc.parsing.parse_statement(
-            user_id, filename, data, bank, currency=currency, date_order=order
+            user_id,
+            filename,
+            data,
+            bank,
+            currency=currency,
+            account_id=account_id,
+            date_order=order,
         )
     )
     if emit(result):
@@ -837,6 +851,15 @@ def parse_upload(
         return
 
     _interactive_review(user_id, svc, result)
+
+
+def _account_by_code_or_id(svc: Any, user_id: str, ref: str) -> str:
+    """The id of the account whose code is `ref`, or whose id it is (or begins)."""
+    accounts = asyncio.run(svc.ledger.list_accounts(user_id))
+    by_code = [a.id for a in accounts if a.code == ref]
+    if len(by_code) == 1:
+        return by_code[0]
+    return _resolve_id([{"id": a.id} for a in accounts], ref, "account")
 
 
 def _interactive_review(user_id, svc, result) -> None:

@@ -53,6 +53,9 @@ class ParsedTransaction:
     dedup_status: str = "pending"  # UNIQUE | EXACT_DUPLICATE | FUZZY_MATCH
     id: str = ""  # DB primary key, populated after persistence
     statement_id: str = ""  # parent Statement's ID, populated after persistence
+    # The statement's account, when it has one: the money side of this row
+    # (debited for money in, credited for money out).
+    account_id: str = ""
 
 
 @dataclass

@@ -65,6 +65,8 @@ class StatementUpload(BaseModel):
 class BankStatement(BaseModel):
     id: str
     bank: str | None
+    #: The account the statement is for: the money side of its transactions.
+    account_id: str | None = None
     period_start: str | None
     period_end: str | None
     status: str
@@ -94,6 +96,7 @@ async def upload_statement(
     svc: AppServices,
     bank: str = "",
     currency: str | None = None,
+    account_id: str | None = None,
     date_order: Literal["DMY", "MDY", "YMD"] | None = None,
 ) -> StatementUpload:
     """
@@ -101,12 +104,16 @@ async def upload_statement(
     Transactions have LLM-assigned accounts and dedup status; review before posting.
     Passes the deployment's usage meter before any parsing starts.
 
-    `currency` is the statement's ISO 4217 code (default: the user's base
-    currency), for files that do not name their own: OFX, camt.053 and MT940
-    always do, and a CSV may. Posting a statement in another currency converts
-    each transaction at the published rate for its date. `date_order` settles
-    dates a CSV or QIF file leaves ambiguous (01/02/2026). Rows that could not
-    be read, and any guess the importer made, come back in `errors`.
+    `account_id` is the account the statement is for (an active asset or
+    liability account): the money side of every transaction in it. `currency`
+    is the statement's ISO 4217 code, for files that do not name their own
+    (OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the
+    account's currency, else the user's base currency, and a transaction in
+    another currency than the account's is skipped. Posting a statement in
+    another currency than the base converts each transaction at the published
+    rate for its date. `date_order` settles dates a CSV or QIF file leaves
+    ambiguous (01/02/2026). Rows that could not be read, and any guess the
+    importer made, come back in `errors`.
     """
     file = form.file
     if file.filename is None:
@@ -124,6 +131,7 @@ async def upload_statement(
         file_bytes=data,
         bank=bank,
         currency=currency,
+        account_id=account_id,
         date_order=date_order,
     )
 
