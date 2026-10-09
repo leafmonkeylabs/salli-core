@@ -1,6 +1,6 @@
 ---
 name: salli-import-statement
-description: Import a bank or card statement (PDF, XLSX or CSV) into the user's Salli ledger, review the extracted transactions with them, and post the approved ones. Use when the user shares a statement file or says "add this month's statement".
+description: Import a bank or card statement (OFX/QFX, QIF, camt.053, MT940, CSV, PDF or XLSX) into the user's Salli ledger, review the extracted transactions with them, and post the approved ones. Use when the user shares a statement file or says "add this month's statement".
 ---
 
 # Importing a statement
@@ -14,6 +14,15 @@ Read the `salli-cli` skill first.
 Salli extracts the rows, flags likely duplicates of entries already in the
 ledger, and suggests an account for each (an AI step; needs an API key).
 Nothing is posted yet.
+
+Salli tells the format from the file itself. Rows are in the currency the file
+names; a file that names none (QIF, most CSVs) is in the user's base currency
+unless you pass `--currency <ISO code>`. Tell the user about anything in
+`errors`: rows Salli skipped, and guesses such as reading 01/02/2026 as day
+first. If a date order was guessed wrong, parse again with
+`--date-order DMY`, `MDY` or `YMD`, and from then on work only with the new
+statement's transactions (its `statement_id`): the first parse's rows stay
+pending, and must not be posted.
 
 ## 2. Review with the user
 

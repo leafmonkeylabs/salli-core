@@ -2,7 +2,7 @@
 Domain models for statement parsing.
 
 Flow:
-  raw bytes (PDF/XLSX)
+  raw bytes (OFX/QFX, QIF, camt.053, MT940, CSV, PDF, XLSX)
   → list[RawRow]          (extracted by format-specific adapter — no LLM)
   → list[ParsedTransaction] (classified by LLM — account debit/credit, category)
   → dedup check
@@ -31,7 +31,7 @@ class RawRow:
     description: str  # raw description text from the statement
     amount: Decimal  # always positive
     credit_flag: bool  # True = credit (money in), False = debit (money out)
-    currency: str  # ISO 4217 — the statement's, which the importer is told
+    currency: str  # ISO 4217 — the file's own where it names one, else the caller's
     bank_ref: str = ""  # reference / transaction ID from the bank
     source_page: int = 0
 

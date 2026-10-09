@@ -3,8 +3,10 @@ ParsingService — orchestrates statement ingestion.
 
 Flow:
   upload file bytes
-  → detect format (PDF / XLSX / CSV)
-  → extract RawRows (deterministic, no LLM)
+  → detect format (OFX/QFX, QIF, camt.053, MT940, CSV, PDF, XLSX) from the
+    content, else the extension
+  → extract RawRows (deterministic, no LLM), each in the file's own currency
+    where it names one, else the caller's
   → run dedup check against existing entries
   → LLM classifies non-duplicate rows
   → persist to parsed_transactions table (status=pending)
