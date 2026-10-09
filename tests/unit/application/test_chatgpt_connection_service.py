@@ -216,7 +216,10 @@ async def test_a_rejected_token_is_renewed_once(world):
 
     session = service.session(USER)
     assert await session.bearer() == "access-1"
-    assert await session.bearer(force_refresh=True) == "access-2"
+    assert await session.bearer(rejected="access-1") == "access-2"
+    assert len(auth.refreshes) == 1
+    # A request still holding the old token's 401 takes the renewed one.
+    assert await session.bearer(rejected="access-1") == "access-2"
     assert len(auth.refreshes) == 1
 
 
@@ -287,8 +290,8 @@ async def test_an_invalid_client_is_forgotten_so_the_next_sign_in_registers_anew
 
 
 async def test_an_unreachable_auth_server_keeps_the_credentials(world):
-    """ "Do not erase credentials solely because of a temporary network or
-    infrastructure failure.\""""
+    """A temporary network or infrastructure failure is no reason to erase
+    credentials (errors-and-recovery)."""
     service, repo, auth, clock = world
     await service.save_record(USER, _record())
     auth.fail_status = 503
@@ -562,3 +565,96 @@ async def test_a_new_account_registers_afresh(world):
     await _sign_in(service, auth)
     context = await service.sign_in_context(USER, new_account=True)
     assert context.client_id is None and context.expected_sub is None
+
+
+# ── Deleting the account ──────────────────────────────────────────────────────
+
+
+async def test_deleting_the_account_ends_the_chatgpt_session_first(world):
+    from salli.application.services.data_portability_service import DataPortabilityService
+
+    service, repo, auth, _ = world
+    await service.save_record(USER, _record())
+    order: list[str] = []
+
+    class Purge:
+        async def delete_all(self, user_id: str) -> dict[str, int]:
+            order.append("purge")
+            removed = repo.rows.pop((user_id, "chatgpt"), None) is not None
+            return {"ai_connections": int(removed)}
+
+    class UoW:
+        data_portability = Purge()
+
+        async def __aenter__(self) -> Any:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+    class Profiles:
+        def forget(self, user_id: str) -> None:
+            order.append("forget")
+
+    portability = DataPortabilityService(
+        UoW,
+        Profiles(),
+        *([None] * 11),
+        chatgpt=service,  # type: ignore[arg-type]
+    )
+
+    counts = await portability.delete_account(USER)
+
+    assert [r["token"] for r in auth.revoked] == ["refresh-1"]
+    assert order == ["purge", "forget"]
+    assert counts == {"ai_connections": 1}
+    assert repo.rows == {}
+
+
+async def test_a_renewal_that_does_not_restate_the_scope_keeps_the_grant(world):
+    """RFC 6749 lets a refresh leave `scope` out when it is unchanged."""
+    service, repo, auth, clock = world
+    await service.save_record(USER, _record())
+    original = auth.handler
+
+    async def no_scope(request):
+        response = await original(request)
+        body = response.json()
+        body.pop("scope", None)
+        import httpx
+
+        return httpx.Response(response.status_code, json=body)
+
+    auth.handler = no_scope  # type: ignore[method-assign]
+    clock.now = NOW + dt.timedelta(minutes=59)
+
+    assert await service.access_token(USER) == "access-2"
+    assert repo.rows[(USER, "chatgpt")]["status"] == "active"
+
+
+async def test_a_sign_in_without_plan_use_ends_the_one_it_replaces(world):
+    service, _, auth, _ = world
+    await _sign_in(service, auth)
+    auth.grant_plan = False
+    auth.valid_refresh = "refresh-new"
+
+    with pytest.raises(SignInError):
+        await _sign_in(service, auth)
+
+    assert [r["token"] for r in auth.revoked] == ["refresh-1"]
+
+
+async def test_salli_s_own_pause_does_not_extend_itself(world):
+    from tests.openai_fakes import FakeOpenAI
+
+    service, repo, _, clock = world
+    await service.save_record(USER, _record())
+    await service.pause(USER)
+    paused_until = repo.rows[(USER, "chatgpt")]["paused_until"]
+    clock.now = NOW + dt.timedelta(minutes=5)
+
+    with pytest.raises(LLMUsageLimit):
+        await (
+            FakeOpenAI().client(session=service.session(USER)).generate(instructions="", input="hi")
+        )
+    assert repo.rows[(USER, "chatgpt")]["paused_until"] == paused_until

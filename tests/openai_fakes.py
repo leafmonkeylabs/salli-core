@@ -175,11 +175,13 @@ class StaticSession:
     def __init__(self, token: str = "test-access-token") -> None:
         self.token = token
         self.renewals = 0
+        self.rejected: list[str] = []
         self.limited = 0
 
-    async def bearer(self, force_refresh: bool = False) -> str:
-        if force_refresh:
+    async def bearer(self, rejected: str | None = None) -> str:
+        if rejected is not None:
             self.renewals += 1
+            self.rejected.append(rejected)
             return f"{self.token}-renewed-{self.renewals}"
         return self.token
 

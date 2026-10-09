@@ -42,7 +42,7 @@ class ApiKeySession:
     def __init__(self, key: Secret) -> None:
         self._key = key
 
-    async def bearer(self, force_refresh: bool = False) -> str:
+    async def bearer(self, rejected: str | None = None) -> str:
         return self._key.reveal()
 
     async def usage_limited(self) -> None:

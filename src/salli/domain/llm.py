@@ -102,6 +102,9 @@ class LLMUsageLimit(LLMError):
 
     code = "chatgpt_usage_limit"
     status = 429
+    #: True when Salli raised it because it is still pausing after a limit,
+    #: rather than OpenAI reporting one now.
+    paused = False
 
 
 class LLMUsageUnavailable(LLMError):
@@ -178,7 +181,9 @@ def chatgpt_usage_limit(*, paused: bool = False) -> LLMUsageLimit:
         " Salli won't switch to another way of paying on its own; you can choose a "
         "different AI provider in Salli's settings."
     )
-    return LLMUsageLimit(message, provider="chatgpt", link=CHATGPT_USAGE_URL)
+    error = LLMUsageLimit(message, provider="chatgpt", link=CHATGPT_USAGE_URL)
+    error.paused = paused
+    return error
 
 
 def parse_json_answer(text: str) -> Any:

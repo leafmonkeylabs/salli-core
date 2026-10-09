@@ -54,3 +54,19 @@ async def test_it_listens_on_the_loopback_address_only():
         assert listener._server is not None
         hosts = {sock.getsockname()[0] for sock in listener._server.sockets}
         assert hosts == {"127.0.0.1"}
+
+
+async def test_a_callback_for_another_attempt_is_turned_away():
+    """Another process on this machine reaching the port first cannot end the
+    sign-in: only this attempt's state is accepted."""
+    async with LoopbackCallback(port=0) as listener:
+        listener.expect("this-attempt")
+        waiting = asyncio.create_task(listener.wait(5))
+
+        status, _ = await browser_get(listener.port, "/auth/callback?code=x&state=forged")
+        assert status == 400
+        assert not waiting.done()
+
+        status, _ = await browser_get(listener.port, "/auth/callback?code=c&state=this-attempt")
+        assert status == 200
+        assert (await waiting)["code"] == "c"

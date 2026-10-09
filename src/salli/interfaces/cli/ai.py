@@ -93,6 +93,7 @@ async def _browser_sign_in(
         pending = begin_sign_in(
             host_id=host_id, redirect_uri=listener.redirect_uri, client_id=client_id
         )
+        listener.expect(pending.state)
         console.print(
             "[bold]Continue with ChatGPT[/bold] in your browser to connect your ChatGPT plan "
             "to Salli.\nSalli's AI requests will then use your ChatGPT plan and count toward "
@@ -324,6 +325,12 @@ def ai_connect(
         if from_file is not None:
             credential = json.loads(from_file.expanduser().read_text())
             status = asyncio.run(services().chatgpt.import_credential(user_id, credential))
+            # The server holds it sealed now and renews it; the file's copy is
+            # a live refresh token in the clear.
+            console.print(
+                f"[yellow]Delete {from_file}[/yellow]: Salli keeps the sign-in sealed now, "
+                "and the file still holds a working refresh token."
+            )
         else:
             status = asyncio.run(_sign_in_here(user_id, new_account, port, timeout, no_browser))
     except (SignInError, ChatGPTUnavailable) as exc:

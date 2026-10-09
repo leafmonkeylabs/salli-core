@@ -108,9 +108,10 @@ FORBIDDEN_FIELDS = frozenset(
 class BearerSession(Protocol):
     """What a request is authorised with, and who hears about a usage limit."""
 
-    async def bearer(self, force_refresh: bool = False) -> str:
-        """The bearer token to send. `force_refresh` renews it first, once,
-        after the provider answered 401 to the one it had."""
+    async def bearer(self, rejected: str | None = None) -> str:
+        """The bearer token to send. `rejected` is the one the provider just
+        answered 401 to: renew it first (unless another request already did).
+        Passed by the caller, which alone knows which token it sent."""
         ...
 
     async def usage_limited(self) -> None:
@@ -135,8 +136,8 @@ def request_body(
     body: dict[str, Any] = {
         "model": model,
         "input": list(items),
-        # models-and-inference: "Set store to false and stream to true on
-        # each HTTP inference request in this flow."
+        # models-and-inference: store off and streaming on, for every
+        # inference request on the plan route.
         "store": False,
         "stream": True,
     }
@@ -212,8 +213,8 @@ def _data_url(mime: str, data: str) -> str:
 
 def _user_part(block: Any) -> dict[str, Any] | None:
     """One block of a user message as a Responses input part. Images and files
-    go as data URLs ("Text, images, and files are supported when the selected
-    model accepts them"); anything else is left out rather than guessed at."""
+    go as data URLs (the preview page allows text, images and files where the
+    model takes them); anything else is left out rather than guessed at."""
     if isinstance(block, str):
         return {"type": "input_text", "text": block}
     if not isinstance(block, dict):
@@ -416,11 +417,13 @@ class ResponseState:
                 provider=self.provider,
             )
         elif kind == "error":
+            nested = event.get("error")
+            detail = cast(dict[str, Any], nested) if isinstance(nested, dict) else event
             raise error_for(
                 self.provider,
                 status=None,
-                code=_str_or_none(event.get("code")),
-                param=_str_or_none(event.get("param")),
+                code=_str_or_none(detail.get("code")),
+                param=_str_or_none(detail.get("param")),
             )
         return None
 
@@ -484,6 +487,12 @@ def _str_or_none(value: Any) -> str | None:
 
 
 # ── Errors ────────────────────────────────────────────────────────────────────
+
+
+#: Failures of the request itself: sending it again will not help.
+_REQUEST_CODES = frozenset(
+    {"context_length_exceeded", "invalid_prompt", "invalid_request_error", "invalid_value"}
+)
 
 
 def error_for(
@@ -562,7 +571,7 @@ def error_for(
             provider=provider,
             retry_after=30,
         )
-    if status is not None and 400 <= status < 500:
+    if (status is not None and 400 <= status < 500) or code in _REQUEST_CODES:
         return LLMRequestRejected(f"{name} refused the request.", provider=provider)
     if status is None and code not in (None, "server_error"):
         return LLMIncomplete(
@@ -621,10 +630,10 @@ async def _events(
     sleep: Callable[[float], Awaitable[None]],
 ) -> AsyncGenerator[dict[str, Any], None]:
     url = f"{route.base_url}/responses"
-    renewed = False
+    rejected: str | None = None
     retries = 0
     while True:
-        token = await session.bearer(renewed)
+        token = await session.bearer(rejected)
         request = http.build_request(
             "POST",
             url,
@@ -653,10 +662,10 @@ async def _events(
                     or response.headers.get("openai-request-id")
                     or "-",
                 )
-                if response.status_code == 401 and route.provider == "chatgpt" and not renewed:
+                if response.status_code == 401 and route.provider == "chatgpt" and not rejected:
                     # A token can lapse early; renew it once and try again
                     # before telling anyone to sign in.
-                    renewed = True
+                    rejected = token
                     continue
                 if (
                     response.status_code in (502, 503, 504)
@@ -691,8 +700,8 @@ async def stream_response(
     """Run one request: ("delta", text) while it streams, then ("final",
     FinalResponse) once OpenAI says it is complete. Raises a typed LLMError
     otherwise, and tells the session first when the plan's limit was reached,
-    so it pauses new requests ("Pause new requests that use the user's ChatGPT
-    plan", errors-and-recovery)."""
+    so it pauses new requests on the plan (errors-and-recovery's advice for
+    a usage limit)."""
     state = ResponseState(route.provider, route.tool_namespace)
     try:
         async with (
@@ -706,8 +715,11 @@ async def stream_response(
                 if state.completed:
                     break
         yield ("final", state.finish())
-    except LLMUsageLimit:
-        await session.usage_limited()
+    except LLMUsageLimit as limit:
+        # Only a limit OpenAI reported starts a pause; Salli's own "still
+        # paused" must not keep extending it.
+        if not limit.paused:
+            await session.usage_limited()
         raise
 
 
@@ -734,9 +746,9 @@ async def fetch_catalogue(
     """`GET /v1/models` with the route's own bearer, as the JSON it returned:
     a plan's catalogue (`{"models": [...]}`) or a key's (`{"data": [...]}`).
     On the plan route a 401 renews the token once, as a Responses request does."""
-    renewed = False
+    rejected: str | None = None
     while True:
-        token = await session.bearer(renewed)
+        token = await session.bearer(rejected)
         try:
             async with _client(http_factory) as http:
                 response = await http.get(
@@ -748,8 +760,8 @@ async def fetch_catalogue(
                 "try again in a moment.",
                 provider=route.provider,
             ) from None
-        if response.status_code == 401 and route.provider == "chatgpt" and not renewed:
-            renewed = True
+        if response.status_code == 401 and route.provider == "chatgpt" and not rejected:
+            rejected = token
             continue
         if response.status_code != 200:
             raise _error_from_body(route.provider, response.status_code, response.content)

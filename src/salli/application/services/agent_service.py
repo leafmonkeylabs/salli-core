@@ -599,7 +599,14 @@ class AgentService:
         set_current_user(user_id)  # tools read this, never the LLM-supplied id
         await self._ensure_session(user_id, thread_id, persona=persona)
 
-        api_key = await self._credential_for(user_id, api_key)
+        try:
+            api_key = await self._credential_for(user_id, api_key)
+        except LLMError as exc:
+            # Resolved here only without an HTTP boundary (the CLI): say it as
+            # the stream would, rather than end in a traceback.
+            yield ("error", _error_event(exc))
+            yield ("done", None)
+            return
         agent = self._get_agent(persona, api_key, model)
         config = {
             "configurable": {"thread_id": f"{user_id}:{thread_id}", "user_id": user_id},

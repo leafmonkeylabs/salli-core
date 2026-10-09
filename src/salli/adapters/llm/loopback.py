@@ -39,7 +39,14 @@ class LoopbackCallback:
         self._wanted = port
         self._server: asyncio.Server | None = None
         self._result: asyncio.Future[dict[str, str]] | None = None
+        self._state: str | None = None
         self.port = 0
+
+    def expect(self, state: str) -> None:
+        """Only a callback carrying this attempt's `state` ends the wait;
+        anything else that reaches the port is turned away, so another
+        process on this machine cannot cut a sign-in short."""
+        self._state = state
 
     async def __aenter__(self) -> LoopbackCallback:
         self._result = asyncio.get_running_loop().create_future()
@@ -83,10 +90,14 @@ class LoopbackCallback:
             method, _, rest = request_line.decode("latin-1").partition(" ")
             target = rest.split(" ", 1)[0]
             parts = urlsplit(target)
+            query = dict(parse_qsl(parts.query))
             if method == "GET" and parts.path == CALLBACK_PATH:
-                body, status = _PAGE.encode(), "200 OK"
-                if self._result is not None and not self._result.done():
-                    self._result.set_result(dict(parse_qsl(parts.query)))
+                if self._state is not None and query.get("state") != self._state:
+                    body, status = b"This sign-in belongs to another attempt.", "400 Bad Request"
+                else:
+                    body, status = _PAGE.encode(), "200 OK"
+                    if self._result is not None and not self._result.done():
+                        self._result.set_result(query)
             else:
                 body, status = b"Not found", "404 Not Found"
             writer.write(

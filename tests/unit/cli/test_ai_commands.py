@@ -118,9 +118,11 @@ def test_a_forged_callback_is_refused(world, monkeypatch):
         return original(url, answer=lambda p: {"code": "x", "state": "forged"})
 
     monkeypatch.setattr(ai_cli, "open_browser", forge)
-    result = _run("connect", "chatgpt", "--port", "0")
+    result = _run("connect", "chatgpt", "--port", "0", "--timeout", "1")
 
+    # Turned away at the door, so the real browser could still have come back.
     assert result.exit_code == 1
+    assert "didn't come back" in " ".join(result.output.split())
     assert world.repo.rows == {}
 
 

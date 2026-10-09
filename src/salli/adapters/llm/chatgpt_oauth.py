@@ -396,15 +396,20 @@ class ChatGPTOAuth:
             },
         )
         if response.status_code == 200:
-            return token_set(response.json())
+            try:
+                return token_set(response.json())
+            except ValueError:
+                # The old refresh token is spent either way; say so plainly
+                # rather than as a bad request of the user's.
+                raise OAuthUnavailable("OpenAI's renewal answer could not be read") from None
         code = _error_code(response)
         if code == "invalid_client":
             raise RefreshRefused(code, invalid_client=True)
         if code in _UNUSABLE_REFRESH:
             raise RefreshRefused(code)
         # Anything else says nothing certain about the token, and credentials
-        # are never cleared on a guess ("Do not erase credentials solely
-        # because of a temporary network or infrastructure failure").
+        # are never cleared on a guess: errors-and-recovery keeps them through
+        # a temporary network or infrastructure failure.
         _log.warning(
             "ChatGPT token renewal failed with HTTP %s (%s)", response.status_code, code or "-"
         )

@@ -216,3 +216,15 @@ async def test_naming_a_model_is_for_openai_providers_only(client, credentials):
     assert (
         await client.put("/v1/ai/models/anthropic", json={"best": "x"}, headers=AUTH)
     ).status_code == 422
+
+
+async def test_a_credential_refused_by_validation_is_never_echoed(client, chatgpt):
+    """A 422 says where and why, never what was sent: pydantic would put the
+    whole body (the tokens) in a missing field's error."""
+    body = {k: v for k, v in CREDENTIAL.items() if k != "client_id"}
+    r = await client.put(
+        "/v1/ai/connections/chatgpt", json={**body, "expires_in": "soon"}, headers=AUTH
+    )
+    assert r.status_code == 422
+    assert "SECRET" not in r.text and "soon" not in r.text
+    assert {tuple(e["loc"]) for e in r.json()["detail"]} >= {("body", "client_id")}

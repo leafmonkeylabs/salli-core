@@ -14,8 +14,8 @@ keeps what that sign-in produced and keeps it working:
 - Renewed before it expires, one request at a time: the renewal holds the
   row (SELECT ... FOR UPDATE) while it spends the refresh token, so a second
   request waits and then uses the new pair. OpenAI's refresh tokens rotate,
-  and one spent twice is refused ("serialize refreshes for the same session
-  so two processes do not race a rotating token").
+  and one spent twice is refused, which is why OpenAI asks for refreshes of
+  one session to be serialized (accounts-and-sessions, "Refreshing tokens").
 - When OpenAI refuses a renewal for good, the connection is marked as needing
   the user to sign in again, and every request says so. Nothing ever falls
   back to the platform's key: who pays never changes behind the user's back.
@@ -36,6 +36,7 @@ from typing import Any
 
 from salli.adapters.llm.chatgpt_oauth import (
     DYNAMIC_CLIENT_ID,
+    PLAN_SCOPE,
     ChatGPTOAuth,
     OAuthUnavailable,
     RefreshRefused,
@@ -59,8 +60,8 @@ PROVIDER = "chatgpt"
 #: Renew this long before the access token expires (they last an hour).
 _RENEW_BEFORE = dt.timedelta(minutes=5)
 #: How long new requests wait after the plan's usage limit was reached
-#: ("Pause new requests that use the user's ChatGPT plan"). Not a guess at
-#: when the limit resets, which OpenAI says not to infer.
+#: (errors-and-recovery asks to pause them). Not a guess at when the limit
+#: resets, which OpenAI says not to infer.
 _PAUSE = dt.timedelta(minutes=10)
 
 _SIGN_IN = "Run `salli ai connect chatgpt`, or connect ChatGPT again in Settings."
@@ -177,8 +178,8 @@ class ChatGPTRecord:
 
     def renewed(self, tokens: TokenSet, now: dt.datetime) -> ChatGPTRecord:
         """After a refresh: the access token, expiry, scopes and rotated
-        refresh token replaced together ("Replace the access token, expiry,
-        granted scopes, and rotating refresh token together")."""
+        refresh token replaced together, in one write, as the sign-in guide's
+        "Store credentials" step asks."""
         return replace(
             self,
             access_token=tokens.access_token,
@@ -210,14 +211,12 @@ class ChatGPTSession:
     def __init__(self, service: ChatGPTConnectionService, user_id: str) -> None:
         self._service = service
         self._user_id = user_id
-        self._last: str | None = None
 
-    async def bearer(self, force_refresh: bool = False) -> str:
-        token = await self._service.access_token(
-            self._user_id, rejected=self._last if force_refresh else None
-        )
-        self._last = token
-        return token
+    async def bearer(self, rejected: str | None = None) -> str:
+        # The rejected token comes from the request that sent it, not from
+        # this session: one session serves every request of a cached agent,
+        # and another may already have renewed.
+        return await self._service.access_token(self._user_id, rejected=rejected)
 
     async def usage_limited(self) -> None:
         await self._service.pause(self._user_id)
@@ -485,9 +484,9 @@ class ChatGPTConnectionService:
                         client_id=record.client_id, refresh_token=record.refresh_token
                     )
                 except RefreshRefused as refused:
-                    # "Clear unusable tokens and repeat OAuth with the saved
-                    # issued client ID": the client id is kept for that, unless
-                    # it is the client itself OpenAI refused.
+                    # errors-and-recovery: clear the unusable tokens, then sign
+                    # in again with the saved issued client id, which is kept
+                    # for that, unless it is the client itself OpenAI refused.
                     failure = LLMSignInRequired(
                         f"ChatGPT ended Salli's sign-in (it may have been disconnected in "
                         f"ChatGPT's settings). {_SIGN_IN}",
@@ -510,7 +509,8 @@ class ChatGPTConnectionService:
                     )
                 else:
                     renewed = record.renewed(tokens, self._clock())
-                    if not tokens.plan_granted:
+                    # An answer without `scope` keeps the grant as it was.
+                    if PLAN_SCOPE not in renewed.scopes:
                         failure = LLMSignInRequired(
                             "ChatGPT no longer allows Salli to use your plan. Sign in with "
                             "ChatGPT again and allow plan use.",
@@ -635,7 +635,13 @@ class ChatGPTConnectionService:
                 previous = None
 
         if not tokens.plan_granted:
+            # Kept signed in with plan use off; the sign-in it replaces is
+            # ended at OpenAI rather than left renewable with no one holding it.
             await self._keep(user_id, record.without_tokens(), "needs_consent", _PLAN_NOT_ALLOWED)
+            if previous is not None and previous.refresh_token and previous.client_id:
+                await self._oauth.revoke(
+                    client_id=previous.client_id, refresh_token=previous.refresh_token
+                )
             raise SignInError(_PLAN_NOT_ALLOWED)
         if not tokens.refresh_token:
             raise SignInError(

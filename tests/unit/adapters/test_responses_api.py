@@ -375,7 +375,7 @@ async def test_a_401_on_the_plan_route_renews_the_token_once_and_retries():
 
     assert await fake.client(session=session).generate(instructions="", input="hi") == "hi"
 
-    assert session.renewals == 1
+    assert session.rejected == ["old-token"]  # the token that was refused, by name
     assert fake.requests[1].headers["authorization"] == "Bearer old-token-renewed-1"
 
 
@@ -438,3 +438,19 @@ async def test_events_are_read_whatever_the_line_layout():
         {"type": "response.output_text.delta", "delta": "hi"},
         {"type": "response.completed", "response": {}},
     ]
+
+
+async def test_a_usage_limit_inside_an_error_events_error_object_is_read():
+    session = StaticSession()
+    fake = FakeOpenAI(
+        sse({"type": "error", "error": {"code": "subscription_sharing_usage_limit_exceeded"}})
+    )
+    with pytest.raises(LLMUsageLimit):
+        await fake.client(session=session).generate(instructions="", input="hi")
+    assert session.limited == 1
+
+
+async def test_a_request_too_long_is_not_called_retryable():
+    fake = FakeOpenAI(failed_after("x", "context_length_exceeded"))
+    with pytest.raises(LLMRequestRejected):
+        await fake.client().generate(instructions="", input="hi")

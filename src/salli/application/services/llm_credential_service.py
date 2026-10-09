@@ -55,6 +55,7 @@ from salli.domain.llm import (
     LLMError,
     LLMNotConfigured,
     LLMNotEligible,
+    LLMProviderUnavailable,
     Tier,
 )
 from salli.domain.model_choice import CatalogModel, api_catalogue, choose, plan_catalogue
@@ -203,14 +204,25 @@ class LlmCredentialService:
                     await uow.llm_credentials.list_for_user(user_id) if self.available else []
                 )
         except Exception:
+            # Never guessed at: reading nothing would turn an explicit choice
+            # into "auto" and could quietly put the user on the platform's key.
             _log.exception("Could not read a user's AI settings or stored keys")
-            return {"provider": None, "models": {}}, []
+            raise LLMProviderUnavailable(
+                "Salli couldn't read your AI settings just now. Please try again."
+            ) from None
         return settings, rows
 
     async def _plan_present(self, user_id: str) -> str | None:
+        """The ChatGPT connection's status, as choosing a provider sees it. A
+        plan this deployment does not allow is not there for "auto" (which
+        goes on to the user's keys); chosen outright, it says it is switched off."""
         if self._chatgpt is None:
             return None
-        return await self._chatgpt.presence(user_id)
+        status = await self._chatgpt.presence(user_id)
+        if status is not None and self._plan_allowed is not None:
+            if not await self._plan_allowed(user_id):
+                return None
+        return status
 
     def _route_from(
         self, settings: dict[str, Any], rows: list[dict[str, Any]], plan: str | None

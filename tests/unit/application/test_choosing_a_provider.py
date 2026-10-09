@@ -208,12 +208,18 @@ async def test_choosing_anthropic_with_a_plan_connected_uses_anthropic(world):
     assert (creds.provider, creds.source) == ("anthropic", "platform")
 
 
-async def test_a_deployment_that_switched_plan_use_off_says_so(world):
+async def test_a_deployment_that_switched_plan_use_off_is_skipped_by_auto(world):
+    """Auto goes on to what else the user brought; choosing the plan outright
+    says it is switched off. Neither runs the plan."""
     await world.connect_plan()
+    await world.service.save(USER, "openai", "sk-test-openai-user")
     world.allowed = False
+
+    assert (await world.service.resolve(USER)).provider == "openai"
+    assert (await world.service.settings(USER))["chatgpt_available"] is False
+    await world.service.set_provider(USER, "chatgpt")
     with pytest.raises(LLMNotEligible, match="switched off on this Salli server"):
         await world.service.resolve(USER)
-    assert (await world.service.settings(USER))["chatgpt_available"] is False
 
 
 async def test_an_unknown_choice_is_refused(world):
@@ -273,3 +279,15 @@ async def test_claudes_models_are_not_chosen(world):
         await world.service.set_models(USER, "anthropic", fast="x", best=None)
     listed = await world.service.models(USER, "anthropic")
     assert listed["best"] and listed["fast"]
+
+
+async def test_settings_that_cannot_be_read_are_an_error_not_a_guess(world):
+    from salli.domain.llm import LLMProviderUnavailable
+
+    async def broken(user_id: str) -> Any:
+        raise ConnectionError("database down")
+
+    await world.service.set_provider(USER, "openai")
+    world.profiles.get_ai_settings = broken  # type: ignore[method-assign]
+    with pytest.raises(LLMProviderUnavailable):
+        await world.service.resolve(USER)

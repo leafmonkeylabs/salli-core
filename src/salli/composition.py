@@ -245,6 +245,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         documents,
         reminders,
         exporters=extensions.user_data_exporters,
+        chatgpt=chatgpt,
     )
 
     return Services(

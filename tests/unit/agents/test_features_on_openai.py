@@ -351,3 +351,23 @@ async def test_the_agents_advisor_tool_reports_the_plans_limit_to_the_model():
     result = await tools["run_wealth_advisor"].ainvoke({})
 
     assert "ChatGPT settings" in result["error"]
+
+
+async def test_without_a_request_boundary_a_plan_that_cannot_run_is_an_error_event():
+    """The CLI's chat resolves for itself; a plan needing a new sign-in is
+    said on the stream, not raised as a traceback."""
+    from salli.domain.llm import LLMSignInRequired
+
+    class Creds:
+        async def resolve(self, user_id: str) -> Any:
+            raise LLMSignInRequired("Sign in with ChatGPT again.", provider="chatgpt")
+
+    service = AgentService(ledger_svc=None, tax_svc=None, credentials=Creds())
+
+    events = [e async for e in service.stream_chat("u1", "hi", thread_id="t1")]
+
+    assert events[0] == (
+        "error",
+        {"message": "Sign in with ChatGPT again.", "code": "ai_sign_in_required"},
+    )
+    assert events[-1] == ("done", None)

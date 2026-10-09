@@ -327,11 +327,18 @@ def create_app() -> FastAPI:
     async def validation_error_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        # Where and why, never what was sent: pydantic puts the offending
+        # input (for a missing field, the whole body) in each error, and a
+        # body can hold a credential (an API key, a ChatGPT sign-in's tokens).
+        errors = [
+            {k: v for k, v in error.items() if k not in ("input", "ctx", "url")}
+            for error in exc.errors()
+        ]
         return problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "validation",
             "Request validation failed",
-            jsonable_encoder(exc.errors()),
+            jsonable_encoder(errors),
         )
 
     # ── Health ────────────────────────────────────────────────────────────────

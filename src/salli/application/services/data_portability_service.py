@@ -8,6 +8,7 @@ ordering (see adapters/db/repositories.py's SQLDataPortabilityRepository).
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,8 @@ from salli.domain.tax.packs.registry import list_packs
 
 if TYPE_CHECKING:
     from salli.extensions import UserDataExporter
+
+_log = logging.getLogger(__name__)
 
 
 class DataPortabilityService:
@@ -35,6 +38,7 @@ class DataPortabilityService:
         documents_svc: Any,
         reminders_svc: Any,
         exporters: Sequence[UserDataExporter] = (),
+        chatgpt: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._profile = profile_svc
@@ -51,6 +55,9 @@ class DataPortabilityService:
         self._reminders = reminders_svc
         # Extensions' own per-user data (salli/extensions.py), appended last.
         self._exporters = exporters
+        # ChatGPTConnectionService: a connected plan's session is ended with
+        # OpenAI before its tokens are deleted.
+        self._chatgpt = chatgpt
 
     async def export_plaintext(self, user_id: str, fmt: str) -> str:
         """The whole ledger as a Beancount file or an hledger journal.
@@ -196,7 +203,16 @@ class DataPortabilityService:
         return json.loads(json.dumps(computation, default=str))
 
     async def delete_account(self, user_id: str) -> dict[str, int]:
-        """Permanently delete every row belonging to this user. Irreversible."""
+        """Permanently delete every row belonging to this user. Irreversible.
+
+        A connected ChatGPT plan is signed out first, so its renewable session
+        ends with OpenAI rather than outliving the account; best effort, since
+        the deletion must go ahead regardless."""
+        if self._chatgpt is not None:
+            try:
+                await self._chatgpt.disconnect(user_id)
+            except Exception:
+                _log.warning("Could not end a ChatGPT session before deleting an account")
         async with self._uow_factory() as uow:
             counts = await uow.data_portability.delete_all(user_id)
         self._profile.forget(user_id)
