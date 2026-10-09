@@ -70,7 +70,7 @@ class OpenAIResponsesClient(LLMClient):
         route: ResponsesRoute,
         session: BearerSession,
         *,
-        models: Mapping[str, str],
+        models: Mapping[Tier, str],
         fingerprint: str,
         source: str = "user",
         http_factory: HttpFactory | None = None,

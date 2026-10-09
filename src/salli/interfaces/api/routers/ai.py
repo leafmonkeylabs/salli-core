@@ -33,6 +33,75 @@ from salli.interfaces.api.deps import AppServices, CurrentUser
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
+ProviderChoice = Literal["auto", "anthropic", "openai", "chatgpt"]
+ProviderName = Literal["anthropic", "openai", "chatgpt"]
+
+
+class AiActive(BaseModel):
+    """What the setting resolves to now."""
+
+    provider: ProviderName
+    #: Who pays: `user` (their own key or ChatGPT plan), `platform` (this
+    #: deployment's key), or `none` (nothing to run on).
+    source: Literal["user", "platform", "none"]
+
+
+class AiModelChoice(BaseModel):
+    """Models the user named themselves; null lets Salli pick."""
+
+    fast: str | None = None
+    best: str | None = None
+
+
+class AiSettings(BaseModel):
+    """Which provider powers the user's AI, and what they can choose from."""
+
+    #: The user's setting. `auto` prefers their ChatGPT plan, then their own
+    #: Anthropic key, then their own OpenAI key, then this deployment's key.
+    provider: ProviderChoice
+    active: AiActive
+    #: Providers the user has stored an API key for.
+    keys: list[str]
+    #: Their ChatGPT plan connection's status, when there is one.
+    chatgpt: str | None
+    #: Whether this server lets a ChatGPT plan be used at all.
+    chatgpt_available: bool
+    #: Whether this deployment has an Anthropic key of its own.
+    platform_key: bool
+    #: Models chosen per provider (only OpenAI and ChatGPT take a choice).
+    models: dict[str, AiModelChoice]
+
+
+class SetAiProvider(BaseModel):
+    provider: ProviderChoice
+
+
+class AiModel(BaseModel):
+    #: What the API takes as `model`.
+    id: str
+    name: str
+
+
+class AiModels(BaseModel):
+    """The models a provider offers this user, and the one each task runs on."""
+
+    provider: ProviderName
+    #: For an OpenAI provider, the account's own (`GET /v1/models`).
+    models: list[AiModel]
+    #: Sorting statement rows, quick add, naming a conversation.
+    fast: str
+    #: The chat agent, the FIRE strategy, advice.
+    best: str
+    chosen: AiModelChoice
+
+
+class SetAiModels(BaseModel):
+    """Name a model per task, or null to let Salli pick from the account's models."""
+
+    fast: str | None = None
+    best: str | None = None
+
+
 class AiHost(BaseModel):
     """This instance's host id for Sign in with ChatGPT."""
 
@@ -140,6 +209,49 @@ def _problem(exc: Exception) -> HTTPException:
     if isinstance(exc, LLMError):
         return HTTPException(exc.status, detail=exc.detail())
     raise exc
+
+
+@router.get("/settings")
+async def get_settings(user_id: CurrentUser, svc: AppServices) -> AiSettings:
+    """Which provider powers this user's AI, what that resolves to now, and
+    what they can choose from. Never a key."""
+    return AiSettings.model_validate(await svc.llm_credentials.settings(user_id))
+
+
+@router.put("/settings")
+async def set_settings(body: SetAiProvider, user_id: CurrentUser, svc: AppServices) -> AiSettings:
+    """Choose the provider: `auto`, `anthropic`, `openai` or `chatgpt`. A
+    chosen provider that cannot run says so on each AI request; it never
+    falls back to another way of paying."""
+    return AiSettings.model_validate(await svc.llm_credentials.set_provider(user_id, body.provider))
+
+
+@router.get("/models/{provider}")
+async def list_models(provider: ProviderName, user_id: CurrentUser, svc: AppServices) -> AiModels:
+    """The models a provider offers this user, and which one each task runs
+    on. For OpenAI and ChatGPT that is the account's own list."""
+    try:
+        return AiModels.model_validate(await svc.llm_credentials.models(user_id, provider))
+    except LLMError as exc:
+        raise _problem(exc) from None
+
+
+@router.put("/models/{provider}")
+async def set_models(
+    provider: Literal["openai", "chatgpt"],
+    body: SetAiModels,
+    user_id: CurrentUser,
+    svc: AppServices,
+) -> AiModels:
+    """Name the model each task runs on, for an OpenAI provider (Claude's
+    are fixed). Checked against the account's models when they can be listed."""
+    try:
+        result = await svc.llm_credentials.set_models(
+            user_id, provider, fast=body.fast, best=body.best
+        )
+    except LLMError as exc:
+        raise _problem(exc) from None
+    return AiModels.model_validate(result)
 
 
 @router.get("/host")

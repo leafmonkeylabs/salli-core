@@ -1277,6 +1277,28 @@ class SQLUserProfileRepository(UserProfileRepository):
         setattr(row, field, value)
         await self._s.flush()
 
+    async def get_ai_settings(self, user_id: str) -> dict[str, Any]:
+        result = await self._s.execute(
+            select(UserProfileORM.ai_provider, UserProfileORM.ai_models).where(
+                UserProfileORM.id == user_id
+            )
+        )
+        row = result.first()
+        if row is None:
+            return {"provider": None, "models": {}}
+        return {"provider": row[0], "models": dict(row[1] or {})}
+
+    async def set_ai_settings(
+        self, user_id: str, *, provider: str | None, models: dict[str, Any]
+    ) -> None:
+        result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise LookupError(f"User {user_id} has no profile")
+        row.ai_provider = provider
+        row.ai_models = models or None
+        await self._s.flush()
+
     async def list_daily_briefing_optins(self) -> list[dict[str, Any]]:
         """Users who asked for the scheduled daily advisor run.
 

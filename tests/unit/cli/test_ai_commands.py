@@ -5,9 +5,7 @@ the redirect to the real loopback listener."""
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
-import os
 import stat
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -16,28 +14,22 @@ import pytest
 from click.testing import CliRunner as ClickRunner
 from typer.testing import CliRunner
 
-from salli.adapters.crypto.keyring import KeyRing
-from salli.application.services.chatgpt_connection_service import ChatGPTConnectionService
 from salli.interfaces.cli import ai as ai_cli
 from salli.interfaces.cli import main, support
-from tests.openai_fakes import FakeAuthServer
 from tests.unit.adapters.test_loopback import browser_get
-from tests.unit.application.test_chatgpt_connection_service import (
-    FakeConnections,
-    FakeInstanceSettings,
-    FakeUoW,
-)
-
-KEYS = "1:" + base64.b64encode(os.urandom(32)).decode()
+from tests.unit.application.test_choosing_a_provider import World
 
 
 @pytest.fixture
 def world(monkeypatch):
-    auth = FakeAuthServer()
-    repo = FakeConnections()
-    settings = FakeInstanceSettings()
-    chatgpt = ChatGPTConnectionService(lambda: FakeUoW(repo, settings), KeyRing(KEYS), auth.oauth())
-    monkeypatch.setattr(ai_cli, "services", lambda: SimpleNamespace(chatgpt=chatgpt))
+    stand_in = World()
+    auth, repo, settings = stand_in.auth, stand_in.connections, stand_in.instance
+    chatgpt = stand_in.chatgpt
+    monkeypatch.setattr(
+        ai_cli,
+        "services",
+        lambda: SimpleNamespace(chatgpt=chatgpt, llm_credentials=stand_in.service),
+    )
     monkeypatch.setattr(ai_cli, "require_user", lambda: "u1")
     # Every ChatGPTOAuth the CLI makes for itself talks to the stand-in too.
     import salli.adapters.llm.chatgpt_oauth as oauth_module
@@ -58,7 +50,9 @@ def world(monkeypatch):
         return True
 
     monkeypatch.setattr(ai_cli, "open_browser", browser)
-    return SimpleNamespace(auth=auth, repo=repo, chatgpt=chatgpt, opened=opened, settings=settings)
+    return SimpleNamespace(
+        auth=auth, repo=repo, chatgpt=chatgpt, opened=opened, settings=settings, stand_in=stand_in
+    )
 
 
 def _run(*args: str):
@@ -196,8 +190,30 @@ def test_status_in_json_never_carries_a_token(world, monkeypatch):
     result = ClickRunner().invoke(main.cli(), ["ai", "status", "--json"])
 
     assert result.exit_code == 0, result.output
-    status = json.loads(result.stdout)["chatgpt"]
+    shown = json.loads(result.stdout)
+    status = shown["chatgpt"]
     assert status["status"] == "active"
+    assert shown["settings"]["active"] == {"provider": "chatgpt", "source": "user"}
     assert status["email"] == "me@example.com"
     for secret in ("access-1", "refresh-1"):
         assert secret not in result.output
+
+
+def test_use_chooses_the_provider(world):
+    result = _run("use", "anthropic")
+    assert result.exit_code == 0, result.output
+    assert "runs on anthropic" in " ".join(result.output.split())
+    assert _run("use", "gemini").exit_code == 1
+
+
+def test_models_lists_the_accounts_own_and_set_models_names_one(world):
+    _run("connect", "chatgpt", "--port", "0")
+
+    listed = _run("models", "chatgpt")
+    assert listed.exit_code == 0, listed.output
+    assert "best = gpt-test-best" in listed.output and "gpt-test-mini" in listed.output
+
+    chosen = _run("set-models", "chatgpt", "--fast", "gpt-test-best")
+    assert chosen.exit_code == 0, chosen.output
+    assert "chosen by you: fast = gpt-test-best" in chosen.output
+    assert _run("set-models", "chatgpt", "--best", "gpt-nope").exit_code == 1

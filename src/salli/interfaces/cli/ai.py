@@ -142,13 +142,32 @@ def ai_host() -> None:
     console.print(host)
 
 
+_SOURCE = {
+    "user": "yours",
+    "platform": "this server's key",
+    "none": "nothing set up yet",
+}
+
+
 @ai_app.command("status")
 def ai_status() -> None:
-    """Your ChatGPT plan connection: which account, and whether it needs you."""
+    """Which provider powers your AI, and your ChatGPT plan connection."""
     user_id = require_user()
-    status = asyncio.run(services().chatgpt.status(user_id))
-    if emit({"chatgpt": status}):
+    svc = services()
+
+    async def _run() -> tuple[dict[str, Any], dict[str, Any]]:
+        return await svc.llm_credentials.settings(user_id), await svc.chatgpt.status(user_id)
+
+    settings, status = asyncio.run(_run())
+    if emit({"settings": settings, "chatgpt": status}):
         return
+    active = settings["active"]
+    console.print(
+        f"AI provider: [bold]{settings['provider']}[/bold] → {active['provider']} "
+        f"({_SOURCE[active['source']]})"
+    )
+    if settings["keys"]:
+        console.print(f"  Your API keys: {', '.join(settings['keys'])}")
     if not status["available"]:
         console.print(
             "ChatGPT: [yellow]off on this server[/yellow] (needs BYOK_ENCRYPTION_KEYS and real sign-in)."
@@ -168,6 +187,89 @@ def ai_status() -> None:
         console.print(f"  Paused at the plan's usage limit until {status['paused_until']}.")
     if status["status"] != "not_connected":
         console.print(f"  Manage usage: {_MANAGE}")
+
+
+@ai_app.command("use")
+def ai_use(
+    provider: str = typer.Argument(..., help="auto, anthropic, openai or chatgpt"),
+) -> None:
+    """Choose what powers your AI. `auto` prefers your ChatGPT plan, then your
+    own Anthropic key, then your own OpenAI key, then this server's key."""
+    user_id = require_user()
+    try:
+        settings = asyncio.run(services().llm_credentials.set_provider(user_id, provider))
+    except ValueError as exc:
+        raise _fail(str(exc)) from None
+    if emit(settings):
+        return
+    active = settings["active"]
+    console.print(
+        f"[green]AI provider set to {settings['provider']}[/green]: runs on "
+        f"{active['provider']} ({_SOURCE[active['source']]})."
+    )
+
+
+def _print_models(result: dict[str, Any]) -> None:
+    console.print(
+        f"{result['provider']}: best = [bold]{result['best']}[/bold], fast = [bold]{result['fast']}[/bold]"
+    )
+    chosen = {k: v for k, v in result["chosen"].items() if v}
+    if chosen:
+        console.print("  chosen by you: " + ", ".join(f"{k} = {v}" for k, v in chosen.items()))
+    for model in result["models"]:
+        console.print(
+            f"  {model['id']}" + (f"  ({model['name']})" if model["name"] != model["id"] else "")
+        )
+
+
+@ai_app.command("models")
+def ai_models(
+    provider: str = typer.Argument(
+        None, help="anthropic, openai or chatgpt (default: the one in use)"
+    ),
+) -> None:
+    """The models a provider offers you, and which one each task runs on."""
+    from salli.domain.llm import LLMError
+
+    user_id = require_user()
+    svc = services()
+
+    async def _run() -> dict[str, Any]:
+        name = provider or (await svc.llm_credentials.settings(user_id))["active"]["provider"]
+        return await svc.llm_credentials.models(user_id, name)
+
+    try:
+        result = asyncio.run(_run())
+    except LLMError as exc:
+        raise _fail(exc.message) from None
+    except ValueError as exc:
+        raise _fail(str(exc)) from None
+    if emit(result):
+        return
+    _print_models(result)
+
+
+@ai_app.command("set-models")
+def ai_set_models(
+    provider: str = typer.Argument(..., help="openai or chatgpt"),
+    fast: str | None = typer.Option(None, "--fast", help="For sorting statements, quick add"),
+    best: str | None = typer.Option(None, "--best", help="For chat, the FIRE strategy, advice"),
+) -> None:
+    """Name the model each task runs on (neither: let Salli pick again)."""
+    from salli.domain.llm import LLMError
+
+    user_id = require_user()
+    try:
+        result = asyncio.run(
+            services().llm_credentials.set_models(user_id, provider, fast=fast, best=best)
+        )
+    except LLMError as exc:
+        raise _fail(exc.message) from None
+    except ValueError as exc:
+        raise _fail(str(exc)) from None
+    if emit(result):
+        return
+    _print_models(result)
 
 
 @ai_app.command("connect")

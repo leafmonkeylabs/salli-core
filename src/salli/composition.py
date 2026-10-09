@@ -117,7 +117,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
 
     storage = _build_storage(settings)
     chatgpt = _build_chatgpt(settings, uow_factory)
-    llm_credentials = _build_llm_credentials(settings, uow_factory)
+    llm_credentials = _build_llm_credentials(settings, uow_factory, chatgpt)
 
     # Extensions are built before Salli's own services so their meter and policy
     # can be injected into them. Raises if an enabled extension is unavailable.
@@ -314,7 +314,9 @@ def _build_chatgpt(settings: Settings, uow_factory) -> ChatGPTConnectionService:
     )
 
 
-def _build_llm_credentials(settings: Settings, uow_factory) -> LlmCredentialService:
+def _build_llm_credentials(
+    settings: Settings, uow_factory, chatgpt: ChatGPTConnectionService | None = None
+) -> LlmCredentialService:
     """Always constructed; `available` decides whether users may supply keys.
 
     Two gates, both of which must hold, and both of which fail *closed*:
@@ -344,6 +346,7 @@ def _build_llm_credentials(settings: Settings, uow_factory) -> LlmCredentialServ
         platform_anthropic_key=settings.anthropic_api_key,
         validator=validate_provider_key,
         feature_enabled=auth_is_real,
+        chatgpt=chatgpt,
     )
 
 

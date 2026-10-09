@@ -23,7 +23,7 @@ import pytest
 from salli.application.ports import EntitlementPolicy, PayloadView, Surface
 from salli.domain.ai_models import DEFAULT_MODEL
 from salli.domain.usage import AIAction, UsageLimitReached
-from tests.unit.api.conftest import AUTH
+from tests.unit.api.conftest import AUTH, platform_credentials
 
 pytestmark = pytest.mark.asyncio
 
@@ -102,6 +102,7 @@ def _metered_requests(svc: MagicMock):
     """(action, model the meter should hear about, request) for every HTTP
     route that meters before doing AI work."""
     svc.llm_credentials = AsyncMock()
+    svc.llm_credentials.resolve.return_value = platform_credentials()
     svc.entry_parse = AsyncMock()
     svc.entry_parse.parse_draft.return_value = {"description": "x", "postings": []}
     svc.parsing = AsyncMock()
@@ -287,3 +288,30 @@ async def test_nothing_is_looked_up_when_there_is_nothing_to_shape(client, mock_
     assert (await client.get("/fi/strategy", headers=AUTH)).status_code == 404
     assert (await client.get("/advisor/reports/latest", headers=AUTH)).json() == {}
     assert policy.lookups == []
+
+
+async def test_on_a_users_own_plan_the_meter_hears_the_plans_model(client, mock_services):
+    """The model told to the meter is the one that runs, whichever provider:
+    on a ChatGPT plan, the plan's own model, not the pinned Claude one."""
+    from salli.application.services.llm_credential_service import ResolvedCredentials
+    from salli.domain.secrets import Secret
+    from tests.openai_fakes import FakeOpenAI
+
+    client_for_plan = FakeOpenAI().client()
+    mock_services.llm_credentials.resolve.return_value = ResolvedCredentials(
+        anthropic=Secret(""),
+        anthropic_is_user_key=False,
+        llm=client_for_plan,
+        provider="chatgpt",
+        source="user",
+    )
+    mock_services.agent.stream_chat = MagicMock(side_effect=lambda **kw: _no_events())
+
+    await client.post("/agent/chat", json={"thread_id": "t1", "message": "hi"}, headers=AUTH)
+
+    mock_services.usage.charge.assert_awaited_once_with(
+        "test-user-1", AIAction.CHAT_MESSAGE, model_id="gpt-test-best", email=None
+    )
+    kwargs = mock_services.agent.stream_chat.call_args.kwargs
+    assert kwargs["model"] == "gpt-test-best"
+    assert kwargs["api_key"] is client_for_plan

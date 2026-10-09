@@ -1,8 +1,10 @@
 """AI connections: a user's sign-in with a provider that pays from their own plan (ChatGPT).
 
-Two new tables, and nothing existing changes: `ai_connections`, one sealed
-sign-in per user and provider; and `instance_settings`, facts about the
-instance itself (its ChatGPT host id, generated on first use).
+Two new tables: `ai_connections`, one sealed sign-in per user and provider;
+and `instance_settings`, facts about the instance itself (its ChatGPT host
+id, generated on first use). And two nullable columns on `user_profiles`:
+which provider powers a user's AI (NULL is "auto"), and their own choice of
+model per provider. Nothing existing changes.
 
 Revision ID: core_0007_ai_connections
 Revises: core_0006_bank_connections
@@ -13,6 +15,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "core_0007_ai_connections"
 down_revision: str | None = "core_0006_bank_connections"
@@ -45,9 +48,16 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("key"),
     )
+    op.add_column("user_profiles", sa.Column("ai_provider", sa.String(length=16), nullable=True))
+    op.add_column(
+        "user_profiles",
+        sa.Column("ai_models", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("user_profiles", "ai_models")
+    op.drop_column("user_profiles", "ai_provider")
     op.drop_table("instance_settings")
     op.drop_index("ix_ai_connections_user_id", table_name="ai_connections")
     op.drop_table("ai_connections")

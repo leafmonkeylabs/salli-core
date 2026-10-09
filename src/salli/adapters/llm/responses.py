@@ -726,3 +726,31 @@ async def complete(
             if kind == "final":
                 return cast(FinalResponse, value)
     raise LLMIncomplete("The AI's answer never completed. Please try again.")
+
+
+async def fetch_catalogue(
+    route: ResponsesRoute, session: BearerSession, *, http_factory: HttpFactory | None = None
+) -> Any:
+    """`GET /v1/models` with the route's own bearer, as the JSON it returned:
+    a plan's catalogue (`{"models": [...]}`) or a key's (`{"data": [...]}`).
+    On the plan route a 401 renews the token once, as a Responses request does."""
+    renewed = False
+    while True:
+        token = await session.bearer(renewed)
+        try:
+            async with _client(http_factory) as http:
+                response = await http.get(
+                    f"{route.base_url}/models", headers={"Authorization": f"Bearer {token}"}
+                )
+        except httpx.HTTPError:
+            raise LLMProviderUnavailable(
+                f"Couldn't reach {PROVIDER_NAMES[route.provider]} to list your models. Please "
+                "try again in a moment.",
+                provider=route.provider,
+            ) from None
+        if response.status_code == 401 and route.provider == "chatgpt" and not renewed:
+            renewed = True
+            continue
+        if response.status_code != 200:
+            raise _error_from_body(route.provider, response.status_code, response.content)
+        return response.json()

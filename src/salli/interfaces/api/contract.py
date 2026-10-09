@@ -180,7 +180,11 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/llm-keys"): "llmKeys.list",
     ("PUT", "/llm-keys/{provider}"): "llmKeys.set",
     ("DELETE", "/llm-keys/{provider}"): "llmKeys.delete",
-    # AI providers: the host id and a ChatGPT plan connection
+    # AI providers: the choice, the models, the host id and a ChatGPT plan
+    ("GET", "/ai/settings"): "ai.settings.get",
+    ("PUT", "/ai/settings"): "ai.settings.set",
+    ("GET", "/ai/models/{provider}"): "ai.models.list",
+    ("PUT", "/ai/models/{provider}"): "ai.models.set",
     ("GET", "/ai/host"): "ai.host.get",
     ("GET", "/ai/connections/chatgpt"): "ai.chatgpt.get",
     ("PUT", "/ai/connections/chatgpt"): "ai.chatgpt.connect",

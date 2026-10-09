@@ -427,6 +427,14 @@ class UserProfileORM(Base):
     # which exists because upsert() cannot write NULL.
     preferred_model: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
+    # Which provider powers this user's AI: "anthropic", "openai" or
+    # "chatgpt"; NULL is "auto" (LlmCredentialService documents its order).
+    ai_provider: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # The user's own choice of model on the OpenAI routes, per provider and
+    # tier: {"chatgpt": {"best": "...", "fast": "..."}, "openai": {...}}. NULL
+    # or a missing tier means "let Salli pick from the account's models".
+    ai_models: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

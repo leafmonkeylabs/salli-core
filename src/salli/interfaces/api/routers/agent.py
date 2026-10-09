@@ -155,7 +155,14 @@ async def chat(
     before streaming; after the stream completes a background task generates a
     session title via Haiku.
     """
-    model_id = await svc.profile.get_preferred_model(user_id)
+    # The model this conversation runs on: the pinned Claude model on
+    # Anthropic, else the one picked from the user's own OpenAI or ChatGPT
+    # models. The meter is told exactly that one.
+    model_id = (
+        await svc.profile.get_preferred_model(user_id)
+        if creds.provider == "anthropic"
+        else creds.model_for("best")
+    )
     await svc.usage.charge(user_id, AIAction.CHAT_MESSAGE, model_id=model_id, email=email)
 
     ai_acc: list[str] = []
@@ -266,7 +273,12 @@ async def resume(body: ResumeRequest, user_id: CurrentUser, svc: AppServices, cr
                 decision=body.decision,
                 persona=body.persona,
                 api_key=creds.llm or creds.anthropic,
-                model=await svc.profile.get_preferred_model(user_id),
+                # The same model the conversation ran on (see `chat`).
+                model=(
+                    await svc.profile.get_preferred_model(user_id)
+                    if creds.provider == "anthropic"
+                    else creds.model_for("best")
+                ),
             )
         ),
         media_type="text/event-stream",

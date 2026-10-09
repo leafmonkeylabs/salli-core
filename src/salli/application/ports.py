@@ -517,6 +517,18 @@ class UserProfileRepository(ABC):
         """Whether anything is stored in the user's base currency yet."""
         raise NotImplementedError
 
+    async def get_ai_settings(self, user_id: str) -> dict[str, Any]:
+        """`{"provider": str | None, "models": {provider: {tier: model}}}`:
+        which provider powers this user's AI (None is "auto"), and the models
+        they chose themselves. The defaults when there is no profile."""
+        raise NotImplementedError
+
+    async def set_ai_settings(
+        self, user_id: str, *, provider: str | None, models: dict[str, Any]
+    ) -> None:
+        """Replace both, `provider` None meaning "auto"."""
+        raise NotImplementedError
+
 
 class LlmCredentialRepository(ABC):
     """Per-user provider API keys (BYOK), stored encrypted.

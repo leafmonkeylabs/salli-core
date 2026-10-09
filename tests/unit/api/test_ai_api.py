@@ -143,3 +143,76 @@ async def test_disconnecting_what_is_not_connected_is_a_404(client, chatgpt):
     chatgpt.disconnect.return_value = {"disconnected": False, "revoked": False, "message": "x"}
     r = await client.delete("/v1/ai/connections/chatgpt", headers=AUTH)
     assert r.status_code == 404
+
+
+# ── The provider and its models ───────────────────────────────────────────────
+
+SETTINGS = {
+    "provider": "auto",
+    "active": {"provider": "chatgpt", "source": "user"},
+    "keys": ["anthropic"],
+    "chatgpt": "active",
+    "chatgpt_available": True,
+    "platform_key": True,
+    "models": {"chatgpt": {"best": "gpt-test-best"}},
+}
+
+
+@pytest.fixture
+def credentials(mock_services):
+    svc = mock_services.llm_credentials
+    svc.settings.return_value = SETTINGS
+    svc.set_provider.return_value = {**SETTINGS, "provider": "chatgpt"}
+    svc.models.return_value = {
+        "provider": "chatgpt",
+        "models": [
+            {"id": "gpt-test-best", "name": "Best"},
+            {"id": "gpt-test-mini", "name": "Mini"},
+        ],
+        "fast": "gpt-test-mini",
+        "best": "gpt-test-best",
+        "chosen": {},
+    }
+    svc.set_models.return_value = svc.models.return_value
+    return svc
+
+
+async def test_the_setting_and_what_it_resolves_to(client, credentials):
+    r = await client.get("/v1/ai/settings", headers=AUTH)
+    assert r.status_code == 200
+    assert r.json()["active"] == {"provider": "chatgpt", "source": "user"}
+
+
+async def test_choosing_a_provider(client, credentials):
+    r = await client.put("/v1/ai/settings", json={"provider": "chatgpt"}, headers=AUTH)
+    assert r.status_code == 200
+    credentials.set_provider.assert_awaited_once_with("test-user-1", "chatgpt")
+    bad = await client.put("/v1/ai/settings", json={"provider": "gemini"}, headers=AUTH)
+    assert bad.status_code == 422
+
+
+async def test_listing_a_providers_models(client, credentials):
+    r = await client.get("/v1/ai/models/chatgpt", headers=AUTH)
+    assert r.status_code == 200
+    assert r.json()["best"] == "gpt-test-best"
+    credentials.models.assert_awaited_once_with("test-user-1", "chatgpt")
+
+
+async def test_listing_models_of_a_plan_that_needs_signing_in(client, credentials):
+    from salli.domain.llm import LLMSignInRequired
+
+    credentials.models.side_effect = LLMSignInRequired("Sign in again.", provider="chatgpt")
+    r = await client.get("/v1/ai/models/chatgpt", headers=AUTH)
+    assert r.status_code == 409
+    assert r.json()["detail"]["error"] == "ai_sign_in_required"
+
+
+async def test_naming_a_model_is_for_openai_providers_only(client, credentials):
+    r = await client.put("/v1/ai/models/openai", json={"best": "gpt-x"}, headers=AUTH)
+    assert r.status_code == 200
+    credentials.set_models.assert_awaited_once_with(
+        "test-user-1", "openai", fast=None, best="gpt-x"
+    )
+    assert (
+        await client.put("/v1/ai/models/anthropic", json={"best": "x"}, headers=AUTH)
+    ).status_code == 422

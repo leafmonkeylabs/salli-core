@@ -6524,6 +6524,231 @@
         }
       }
     },
+    "/v1/ai/settings": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Settings",
+        "description": "Which provider powers this user's AI, what that resolves to now, and\nwhat they can choose from. Never a key.",
+        "operationId": "ai.settings.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Set Settings",
+        "description": "Choose the provider: `auto`, `anthropic`, `openai` or `chatgpt`. A\nchosen provider that cannot run says so on each AI request; it never\nfalls back to another way of paying.",
+        "operationId": "ai.settings.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAiProvider"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ai/models/{provider}": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "List Models",
+        "description": "The models a provider offers this user, and which one each task runs\non. For OpenAI and ChatGPT that is the account's own list.",
+        "operationId": "ai.models.list",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "anthropic",
+                "openai",
+                "chatgpt"
+              ],
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModels"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Set Models",
+        "description": "Name the model each task runs on, for an OpenAI provider (Claude's\nare fixed). Checked against the account's models when they can be listed.",
+        "operationId": "ai.models.set",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "openai",
+                "chatgpt"
+              ],
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAiModels"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModels"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/ai/host": {
       "get": {
         "tags": [
@@ -9548,6 +9773,35 @@
         ],
         "title": "AgentSessions"
       },
+      "AiActive": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "platform",
+              "none"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "source"
+        ],
+        "title": "AiActive",
+        "description": "What the setting resolves to now."
+      },
       "AiHost": {
         "properties": {
           "ext_agent_host_id": {
@@ -9561,6 +9815,156 @@
         ],
         "title": "AiHost",
         "description": "This instance's host id for Sign in with ChatGPT."
+      },
+      "AiModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "AiModel"
+      },
+      "AiModelChoice": {
+        "properties": {
+          "fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fast"
+          },
+          "best": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          }
+        },
+        "type": "object",
+        "title": "AiModelChoice",
+        "description": "Models the user named themselves; null lets Salli pick."
+      },
+      "AiModels": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/AiModel"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "fast": {
+            "type": "string",
+            "title": "Fast"
+          },
+          "best": {
+            "type": "string",
+            "title": "Best"
+          },
+          "chosen": {
+            "$ref": "#/components/schemas/AiModelChoice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "models",
+          "fast",
+          "best",
+          "chosen"
+        ],
+        "title": "AiModels",
+        "description": "The models a provider offers this user, and the one each task runs on."
+      },
+      "AiSettings": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "active": {
+            "$ref": "#/components/schemas/AiActive"
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys"
+          },
+          "chatgpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chatgpt"
+          },
+          "chatgpt_available": {
+            "type": "boolean",
+            "title": "Chatgpt Available"
+          },
+          "platform_key": {
+            "type": "boolean",
+            "title": "Platform Key"
+          },
+          "models": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AiModelChoice"
+            },
+            "type": "object",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "active",
+          "keys",
+          "chatgpt",
+          "chatgpt_available",
+          "platform_key",
+          "models"
+        ],
+        "title": "AiSettings",
+        "description": "Which provider powers the user's AI, and what they can choose from."
       },
       "AllocationRequest": {
         "properties": {
@@ -17792,6 +18196,54 @@
           "ids"
         ],
         "title": "SeededReminders"
+      },
+      "SetAiModels": {
+        "properties": {
+          "fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fast"
+          },
+          "best": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          }
+        },
+        "type": "object",
+        "title": "SetAiModels",
+        "description": "Name a model per task, or null to let Salli pick from the account's models."
+      },
+      "SetAiProvider": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "SetAiProvider"
       },
       "SetPostingTagsRequest": {
         "properties": {
