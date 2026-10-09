@@ -9,7 +9,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from salli.domain.currency import quantum
+from salli.domain.currency import quantize, quantum
 from salli.domain.debt import engine
 from salli.domain.debt.models import Debt, PayoffStrategy
 from salli.domain.money import from_minor, to_minor
@@ -105,7 +105,8 @@ class DebtService:
             "strategy": plan.strategy,
             "currency": currency,
             "months_to_payoff": plan.months_to_payoff,
-            "total_interest_paid": str(plan.total_interest_paid),
+            # Quantized here because with no debts the engine's total is a bare 0.
+            "total_interest_paid": str(quantize(plan.total_interest_paid, currency)),
             "schedule": [
                 {
                     "month": e.month,

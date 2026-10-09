@@ -94,7 +94,8 @@ def test_stored_rows_without_numeric_bounds_still_format():
         ],
     }
     bands = _fmt_computation(legacy)["band_workings"]
-    assert bands[0]["from_amount"] == "0"
+    # An amount, so in the currency's precision (LKR's two decimals).
+    assert bands[0]["from_amount"] == "0.00"
     assert bands[1]["to_amount"] is None
     # The display label is still produced for both.
     assert "LKR" in bands[0]["band"] and "balance" in bands[1]["band"]

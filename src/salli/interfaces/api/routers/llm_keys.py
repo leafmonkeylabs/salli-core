@@ -34,18 +34,41 @@ class SaveKeyRequest(BaseModel):
     key: str = Field(min_length=1)
 
 
+class LlmKeyStatus(BaseModel):
+    """A stored key, described without revealing it."""
+
+    #: Not narrowed to `Provider`: a key stored for a provider since dropped is
+    #: still listed, and must not turn this whole response into an error.
+    provider: str
+    #: The key's last four characters, all of it that is ever returned.
+    last4: str
+    #: When the provider last accepted it (ISO 8601); null if it was not checked.
+    validated_at: str | None
+    #: False when the stored key can no longer be decrypted here: ask for it again.
+    readable: bool
+
+
+class LlmKeys(BaseModel):
+    """The user's own keys, as far as they are ever shown: the key itself is write-only."""
+
+    available: bool
+    keys: list[LlmKeyStatus]
+
+
 @router.get("")
-async def get_llm_keys(user_id: CurrentUser, svc: AppServices):
+async def get_llm_keys(user_id: CurrentUser, svc: AppServices) -> LlmKeys:
     """Which keys this user has stored, and whether BYOK is usable at all here.
 
     `available: false` means the deployment can't accept keys (no encryption key
     configured, or authentication isn't real enough to trust a user id) — the UI
     should hide the section rather than offer a control that will 503.
     """
-    return {
-        "available": svc.llm_credentials.available,
-        "keys": await svc.llm_credentials.status(user_id),
-    }
+    return LlmKeys.model_validate(
+        {
+            "available": svc.llm_credentials.available,
+            "keys": await svc.llm_credentials.status(user_id),
+        }
+    )
 
 
 @router.put("/{provider}", status_code=status.HTTP_204_NO_CONTENT)
