@@ -20,6 +20,7 @@ from salli.application.services.debt_service import DebtService
 from salli.application.services.document_service import DocumentService
 from salli.application.services.entry_parse_service import EntryParseService
 from salli.application.services.fi_service import FiService
+from salli.application.services.insights_service import InsightsService
 from salli.application.services.insurance_service import InsuranceService
 from salli.application.services.ledger_service import LedgerService
 from salli.application.services.llm_credential_service import LlmCredentialService
@@ -71,6 +72,7 @@ class Services:
     llm_credentials: LlmCredentialService
     tokens: PersonalAccessTokenService
     rules: RulesService
+    insights: InsightsService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
     # The extension seams. Salli's own defaults unless an enabled extension
@@ -246,6 +248,7 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
         llm_credentials=llm_credentials,
         tokens=PersonalAccessTokenService(uow_factory),
         rules=rules,
+        insights=InsightsService(uow_factory),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,
         entitlements=extensions.entitlements,

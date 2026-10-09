@@ -194,6 +194,11 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/rules/{rule_id}"): "rules.get",
     ("PATCH", "/rules/{rule_id}"): "rules.update",
     ("DELETE", "/rules/{rule_id}"): "rules.delete",
+    # insights
+    ("GET", "/insights/cash-flow"): "insights.cashFlow",
+    ("GET", "/insights/spending"): "insights.spending",
+    ("GET", "/insights/net-worth"): "insights.netWorth",
+    ("GET", "/insights/recurring"): "insights.recurring",
     # personal access tokens
     ("GET", "/tokens"): "tokens.list",
     ("POST", "/tokens"): "tokens.create",

@@ -32,6 +32,7 @@ _SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,48}$")
 
 
 def rule_from_row(row: dict[str, Any]) -> Rule:
+    actions: dict[str, Any] = row.get("actions") or {}
     return Rule(
         id=row.get("id", ""),
         name=row["name"],
@@ -47,7 +48,7 @@ def rule_from_row(row: dict[str, Any]) -> Rule:
             )
             for c in row["conditions"]
         ),
-        actions=Actions(**{k: v for k, v in (row.get("actions") or {}).items() if v is not None}),
+        actions=Actions(**{k: v for k, v in actions.items() if v is not None}),
     )
 
 

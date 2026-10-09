@@ -7177,6 +7177,203 @@
         ]
       }
     },
+    "/v1/insights/cash-flow": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Cash Flow",
+        "operationId": "insights.cashFlow",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 120,
+              "minimum": 1,
+              "description": "How many months, ending this one",
+              "default": 12,
+              "title": "Months"
+            },
+            "description": "How many months, ending this one"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashFlow"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/spending": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Spending",
+        "operationId": "insights.spending",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 120,
+              "minimum": 1,
+              "description": "How many months, ending this one",
+              "default": 3,
+              "title": "Months"
+            },
+            "description": "How many months, ending this one"
+          },
+          {
+            "name": "by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "category",
+                "account",
+                "need"
+              ],
+              "type": "string",
+              "default": "category",
+              "title": "By"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spending"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/net-worth": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Net Worth",
+        "operationId": "insights.netWorth",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 600,
+              "minimum": 1,
+              "description": "How many month ends, ending this one",
+              "default": 24,
+              "title": "Months"
+            },
+            "description": "How many month ends, ending this one"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetWorthByMonth"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/recurring": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Recurring",
+        "operationId": "insights.recurring",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringPayments"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/meta": {
       "get": {
         "tags": [
@@ -9510,6 +9707,32 @@
         },
         "type": "object",
         "title": "BudgetUpdateRequest"
+      },
+      "CashFlow": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/MonthCashFlow"
+            },
+            "type": "array",
+            "title": "Months"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "months"
+        ],
+        "title": "CashFlow"
       },
       "CategorizationRule": {
         "properties": {
@@ -12968,6 +13191,130 @@
         ],
         "title": "Meta"
       },
+      "MonthCashFlow": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "income",
+          "expenses",
+          "net",
+          "savings_rate"
+        ],
+        "title": "MonthCashFlow"
+      },
+      "MonthEndNetWorth": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "assets",
+          "liabilities",
+          "net_worth"
+        ],
+        "title": "MonthEndNetWorth"
+      },
+      "NetWorthByMonth": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/MonthEndNetWorth"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "points"
+        ],
+        "title": "NetWorthByMonth"
+      },
       "NetWorthPoint": {
         "properties": {
           "date": {
@@ -14955,6 +15302,116 @@
         ],
         "title": "RecommendationStatus"
       },
+      "RecurringPayment": {
+        "properties": {
+          "payee": {
+            "type": "string",
+            "title": "Payee"
+          },
+          "cadence": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "title": "Cadence"
+          },
+          "typical_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Typical Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "varies": {
+            "type": "boolean",
+            "title": "Varies"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "occurrences": {
+            "type": "integer",
+            "title": "Occurrences"
+          },
+          "last_date": {
+            "type": "string",
+            "title": "Last Date"
+          },
+          "next_expected": {
+            "type": "string",
+            "title": "Next Expected"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Examples"
+          },
+          "tracked": {
+            "type": "boolean",
+            "title": "Tracked"
+          },
+          "subscription_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "payee",
+          "cadence",
+          "typical_amount",
+          "varies",
+          "currency",
+          "account_id",
+          "occurrences",
+          "last_date",
+          "next_expected",
+          "examples",
+          "tracked",
+          "subscription_id"
+        ],
+        "title": "RecurringPayment"
+      },
+      "RecurringPayments": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringPayment"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "RecurringPayments"
+      },
       "Ref": {
         "properties": {
           "id": {
@@ -15728,6 +16185,91 @@
           "tags"
         ],
         "title": "SetPostingTagsRequest"
+      },
+      "Spending": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "by": {
+            "type": "string",
+            "enum": [
+              "category",
+              "account",
+              "need"
+            ],
+            "title": "By"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/SpendingLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "by",
+          "months",
+          "lines"
+        ],
+        "title": "Spending"
+      },
+      "SpendingLine": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "share": {
+            "type": "string",
+            "title": "Share"
+          },
+          "by_month": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string in the currency's own precision; never a float.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "object",
+            "title": "By Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "total",
+          "share",
+          "by_month"
+        ],
+        "title": "SpendingLine"
       },
       "StatementTransaction": {
         "properties": {

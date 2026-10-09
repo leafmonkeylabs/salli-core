@@ -59,6 +59,7 @@ llm_keys_app = typer.Typer(help="Your own LLM API keys, stored encrypted")
 tokens_app = typer.Typer(help="Personal access tokens, for scripts and remote clients")
 rules_app = typer.Typer(help="Rules that book transactions that look a certain way")
 export_app = typer.Typer(help="Your whole ledger as plain-text accounting")
+insights_app = typer.Typer(help="Cash flow, spending, net worth over time, and recurring payments")
 mcp_app = typer.Typer(help="AI clients (Claude, ChatGPT) connected over MCP")
 
 app.add_typer(accounts_app, name="accounts")
@@ -89,6 +90,7 @@ app.add_typer(llm_keys_app, name="llm-keys")
 app.add_typer(tokens_app, name="tokens")
 app.add_typer(rules_app, name="rules")
 app.add_typer(export_app, name="export")
+app.add_typer(insights_app, name="insights")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(members_app, name="members")
 app.add_typer(skills_app, name="skills")
@@ -3671,6 +3673,129 @@ def rules_suggest():
         console.print(
             f"[bold]{s['name']}[/bold]  {_describe_rule(s)}  "
             f"[dim]({s['agreement']}/{s['support']}, e.g. {s['examples'][0]!r})[/dim]"
+        )
+
+
+# ── insights ──────────────────────────────────────────────────────────────────
+
+
+def _rate(value: str | None) -> str:
+    from decimal import Decimal
+
+    return "—" if value is None else f"{Decimal(value) * 100:.1f}%"
+
+
+@insights_app.command("cash-flow")
+def insights_cash_flow(
+    months: int = typer.Option(
+        12, "--months", "-m", min=1, max=120, help="Months, ending this one"
+    ),
+):
+    """Income, spending, what was left, and the savings rate, month by month."""
+    user_id = _require_user()
+    data = asyncio.run(_services().insights.cash_flow(user_id, months))
+    if emit(data):
+        return
+    currency = data["currency"]
+    table = Table(title=f"Cash flow ({currency})")
+    for column in ("Month", "Income", "Spending", "Left over", "Saved"):
+        table.add_column(column, justify="left" if column == "Month" else "right")
+    for m in data["months"]:
+        table.add_row(
+            m["month"],
+            _amount(m["income"], currency),
+            _amount(m["expenses"], currency),
+            _amount(m["net"], currency),
+            _rate(m["savings_rate"]),
+        )
+    console.print(table)
+
+
+@insights_app.command("spending")
+def insights_spending(
+    months: int = typer.Option(3, "--months", "-m", min=1, max=120, help="Months, ending this one"),
+    by: str = typer.Option("category", "--by", help="category, account, or need"),
+):
+    """Where the money went: by category (or account, or need), largest first."""
+    if by not in ("category", "account", "need"):
+        console.print("[red]--by must be category, account, or need[/red]")
+        raise typer.Exit(2)
+    user_id = _require_user()
+    data = asyncio.run(_services().insights.spending(user_id, months, by))  # type: ignore[arg-type]
+    if emit(data):
+        return
+    if not data["lines"]:
+        console.print("[dim]No spending in that period.[/dim]")
+        return
+    currency = data["currency"]
+    first, last = data["months"][0], data["months"][-1]
+    table = Table(title=f"Spending by {by}, {first} to {last} ({currency})")
+    table.add_column(by.title())
+    table.add_column("Total", justify="right")
+    table.add_column("Share", justify="right")
+    for line in data["lines"]:
+        table.add_row(line["key"], _amount(line["total"], currency), _rate(line["share"]))
+    console.print(table)
+
+
+@insights_app.command("net-worth")
+def insights_net_worth(
+    months: int = typer.Option(12, "--months", "-m", min=1, max=600, help="Month ends to show"),
+):
+    """What you own less what you owe, at the end of each month."""
+    user_id = _require_user()
+    data = asyncio.run(_services().insights.net_worth(user_id, months))
+    if emit(data):
+        return
+    currency = data["currency"]
+    table = Table(title=f"Net worth ({currency})")
+    for column in ("Month", "Assets", "Liabilities", "Net worth"):
+        table.add_column(column, justify="left" if column == "Month" else "right")
+    for p in data["points"]:
+        table.add_row(
+            p["month"],
+            _amount(p["assets"], currency),
+            _amount(p["liabilities"], currency),
+            _amount(p["net_worth"], currency),
+        )
+    console.print(table)
+
+
+@insights_app.command("recurring")
+def insights_recurring():
+    """Payments that keep coming back, and whether you track them as subscriptions."""
+    from decimal import Decimal
+
+    from salli.domain.currency import format_amount
+
+    user_id = _require_user()
+    data = asyncio.run(_services().insights.recurring(user_id))
+    if emit(data):
+        return
+    if not data["items"]:
+        console.print("[dim]No recurring payments found yet.[/dim]")
+        return
+    table = Table(title="Recurring payments")
+    table.add_column("Payee")
+    table.add_column("Every")
+    table.add_column("Typical", justify="right")
+    table.add_column("Next")
+    table.add_column("Tracked")
+    for r in data["items"]:
+        typical = format_amount(Decimal(r["typical_amount"]), r["currency"], strict=False)
+        table.add_row(
+            r["payee"],
+            r["cadence"].removesuffix("ly"),
+            f"~{typical}" if r["varies"] else typical,
+            r["next_expected"],
+            "yes" if r["tracked"] else "[yellow]no[/yellow]",
+        )
+    console.print(table)
+    untracked = sum(1 for r in data["items"] if not r["tracked"])
+    if untracked:
+        console.print(
+            f"[dim]{untracked} not tracked: add one with `salli subscription add` "
+            "to be told when it is missed or its price changes.[/dim]"
         )
 
 

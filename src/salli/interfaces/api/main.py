@@ -40,6 +40,7 @@ from salli.interfaces.api.routers import (
     entries,
     exports,
     fi,
+    insights,
     insurance,
     ledger,
     llm_keys,
@@ -221,6 +222,7 @@ def create_app() -> FastAPI:
         tokens.router,
         rules.router,
         exports.router,
+        insights.router,
     ]
     # Routers contributed by enabled extensions (salli/extensions.py), after
     # Salli's own, so an extension adds paths but cannot shadow one of Salli's.
