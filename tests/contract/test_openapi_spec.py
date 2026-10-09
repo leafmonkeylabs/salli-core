@@ -49,6 +49,17 @@ def test_operation_ids_are_unique():
     assert [oid for oid, n in counts.items() if n > 1] == []
 
 
+def test_no_two_models_share_a_name():
+    """Two different models with one name are both published under their
+    module paths (`salli__interfaces__api__contract__Updated`), and those
+    become type names in every generated client. Rename one, or reuse one of
+    the shared shapes in interfaces/api/contract.py. FastAPI's own body models
+    for multipart forms come out as `fastapi___compat__v2__Body_...`: declare
+    the form as a model instead (contract.FileUpload)."""
+    names = create_app().openapi()["components"]["schemas"]
+    assert [name for name in names if name.startswith(("salli__", "fastapi__"))] == []
+
+
 def test_the_table_lists_no_route_that_is_gone():
     served = {(method, unversioned(path)) for method, path, _ in _operations()}
     assert sorted(set(OPERATION_IDS) - served) == []
@@ -63,106 +74,6 @@ def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
 #: get `unknown` for them. Typing one means deleting its line; nothing may be
 #: added. Grouped so work on different areas does not collide.
 UNTYPED = {
-    # Ledger, tax, statements, documents, reminders
-    "auth.me",
-    "documents.get",
-    "documents.list",
-    "entries.create",
-    "entries.get",
-    "entries.list",
-    "entries.provenance",
-    "entries.reverse",
-    "ledger.incomeStatement",
-    "ledger.trialBalance",
-    "meta.health",
-    "reminders.create",
-    "reminders.list",
-    "reminders.seedFilingCalendar",
-    "reminders.syncAlerts",
-    "statements.list",
-    "statements.pending",
-    "statements.post",
-    "statements.upload",
-    "tags.list",
-    "tax.compute",
-    "tax.latest",
-    "tax.packs",
-    # Planning: financial independence, goals, the advisor, reports
-    "advisor.briefing.prepare",
-    "advisor.briefing.resume",
-    "advisor.cron.runDue",
-    "advisor.dailyBriefing.get",
-    "advisor.recommendations.apply",
-    "advisor.recommendations.dismiss",
-    "advisor.reports.latest",
-    "advisor.reports.list",
-    "advisor.run",
-    "fi.projections",
-    "fi.score.get",
-    "fi.score.history",
-    "fi.score.recompute",
-    "fi.simulatePurchase",
-    "fi.strategy.generate",
-    "fi.strategy.get",
-    "fi.strategy.history",
-    "fi.surplus",
-    "goals.allocations.list",
-    "goals.allocations.set",
-    "goals.create",
-    "goals.list",
-    "goals.update",
-    "reports.balanceSheet",
-    "reports.exportCsv",
-    "reports.goalProgress",
-    "reports.netWorth",
-    # Budgets, debts, holdings, subscriptions, insurance
-    "budgets.create",
-    "budgets.get",
-    "budgets.list",
-    "budgets.summary",
-    "budgets.update",
-    "debts.create",
-    "debts.get",
-    "debts.list",
-    "debts.payoffPlan",
-    "debts.update",
-    "holdings.create",
-    "holdings.get",
-    "holdings.list",
-    "holdings.update",
-    "insurance.policies.create",
-    "insurance.policies.get",
-    "insurance.policies.list",
-    "insurance.policies.update",
-    "insurance.report",
-    "insurance.targets.list",
-    "insurance.targets.set",
-    "portfolio.summary",
-    "subscriptions.create",
-    "subscriptions.get",
-    "subscriptions.list",
-    "subscriptions.report",
-    "subscriptions.reports",
-    "subscriptions.update",
-    # Profile, onboarding, the agent, LLM keys, MCP connections
-    "account.delete",
-    "account.export",
-    "agent.auditLog",
-    "agent.chat",
-    "agent.files.upload",
-    "agent.history",
-    "agent.resume",
-    "agent.sessions.list",
-    "llmKeys.list",
-    "mcp.connections.list",
-    "mcp.enabled.get",
-    "onboarding.balanceSheet",
-    "onboarding.complete",
-    "onboarding.goals",
-    "onboarding.income",
-    "onboarding.riskQuestionnaire",
-    "profile.get",
-    "profile.update",
     # OAuth
     "oauth.authorizationServerMetadata",
     "oauth.authorize",

@@ -245,9 +245,35 @@ async def revoke(request: Request, svc: AppServices) -> dict[str, Any]:
 connections_router = APIRouter(prefix="/mcp/connections", tags=["mcp-oauth"])
 
 
+class McpConnection(BaseModel):
+    """An AI client connected over MCP: one live access token."""
+
+    #: What revoking the connection takes.
+    token_id: str
+    client_id: str
+    #: As the client registered itself; "Unnamed app" when it gave no name.
+    client_name: str
+    scope: str
+    #: When it connected (ISO 8601).
+    connected_at: str
+
+
+class McpConnections(BaseModel):
+    #: Most recently connected first.
+    connections: list[McpConnection]
+
+
 @connections_router.get("/")
-async def list_connections(user_id: CurrentUser, svc: AppServices):
-    return {"connections": await svc.mcp_oauth.list_connections(user_id)}
+async def list_connections(user_id: CurrentUser, svc: AppServices) -> McpConnections:
+    connections = await svc.mcp_oauth.list_connections(user_id)
+    # `connected_at` comes back as a datetime. isoformat() is the string clients
+    # have always been sent ("...+00:00", where pydantic would write "...Z").
+    return McpConnections(
+        connections=[
+            McpConnection.model_validate({**c, "connected_at": c["connected_at"].isoformat()})
+            for c in connections
+        ]
+    )
 
 
 @connections_router.delete("/{token_id}", status_code=204)
@@ -267,6 +293,10 @@ async def set_mcp_enabled(body: McpEnabledRequest, user_id: CurrentUser, svc: Ap
     await svc.mcp_oauth.set_mcp_enabled(user_id, body.enabled)
 
 
+class McpEnabled(BaseModel):
+    enabled: bool
+
+
 @connections_router.get("/enabled")
-async def get_mcp_enabled(user_id: CurrentUser, svc: AppServices):
-    return {"enabled": await svc.mcp_oauth.is_mcp_enabled(user_id)}
+async def get_mcp_enabled(user_id: CurrentUser, svc: AppServices) -> McpEnabled:
+    return McpEnabled(enabled=await svc.mcp_oauth.is_mcp_enabled(user_id))
