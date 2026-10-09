@@ -11,11 +11,17 @@ import type { AddressInfo } from 'node:net';
 import type {
   Account,
   AgentDocument,
+  CategorizationRule,
   EntryProvenance,
   McpConnection,
   Meta,
+  PersonalAccessToken,
   Profile,
   PurchaseImpact,
+  RuleDraft,
+  RuleSuggestion,
+  RuleTestResult,
+  RuleUpdate,
   TaxPack,
 } from '@leafmonkeylabs/salli-sdk';
 import {
@@ -146,6 +152,24 @@ export class MockSalli {
     connections: [
       { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
     ] as McpConnection[],
+    rules: [
+      {
+        id: uid(601),
+        name: 'Groceries',
+        conditions: [{ field: 'description', operator: 'contains', value: 'groceries' }],
+        actions: { account_id: uid(6), category: 'groceries' },
+        priority: 100,
+        match_all: true,
+        enabled: true,
+        hits: 3,
+        last_hit_at: '2026-10-05T09:00:00Z',
+        created_at: '2026-09-01T09:00:00Z',
+        updated_at: '2026-09-01T09:00:00Z',
+      },
+    ] as CategorizationRule[],
+    tokens: [
+      { id: uid(701), name: 'backup job', prefix: 'salli_pat_bk7Q', created_at: '2026-09-01T09:00:00Z', expires_at: null, last_used_at: '2026-10-08T03:00:00Z' },
+    ] as PersonalAccessToken[],
     bodies: [] as Array<{ method: string; path: string; body: unknown }>,
   };
   /** SSE frames for the next chat turn (each a JSON event). */
@@ -653,6 +677,18 @@ export class MockSalli {
     }
     if (method === 'GET' && path === '/v1/advisor/reports/latest') return { status: 200, body: {} };
 
+    // rules, tokens, plain-text exports
+    const rules = this.rulesRoute(req);
+    if (rules) return rules;
+    const tokens = this.tokensRoute(req);
+    if (tokens) return tokens;
+    if (method === 'GET' && (path === '/v1/export/beancount' || path === '/v1/export/hledger')) {
+      const text = path.endsWith('beancount')
+        ? '2026-01-01 open Assets:Cash USD\n\n2026-10-01 * "October salary"\n  Assets:Checking  5000.00 USD\n  Income:Salary  -5000.00 USD\n'
+        : '2026-10-01 October salary\n    assets:checking    5000.00 USD\n    income:salary    -5000.00 USD\n';
+      return { status: 200, raw: text, headers: { 'Content-Type': 'text/plain; charset=utf-8' } };
+    }
+
     // reminders
     if (method === 'GET' && path === '/v1/reminders/') {
       const status = req.query.get('status');
@@ -693,6 +729,104 @@ export class MockSalli {
     }
 
     return problem(404, 'Not Found', 'Not Found');
+  }
+
+  /** The categorization rules: CRUD, a test against booked entries, and suggestions. */
+  private rulesRoute(req: RecordedRequest): Reply | undefined {
+    const { method, path } = req;
+    const rules = this.data.rules;
+    const invalid = (detail: string): Reply => problem(422, 'Unprocessable Entity', detail, '/problems/unprocessable');
+    const hasAction = (actions: RuleDraft['actions'] | null | undefined): boolean =>
+      !!actions && Object.values(actions).some((v) => v !== null && v !== undefined && v !== '');
+    if (path === '/v1/rules' && method === 'GET') return { status: 200, body: rules };
+    if (path === '/v1/rules' && method === 'POST') {
+      const draft = req.json as RuleDraft;
+      this.data.bodies.push({ method, path, body: draft });
+      if (!hasAction(draft.actions)) return invalid('A rule needs to do something: set an account, a tag, or a description');
+      const id = uid(600 + rules.length + 10);
+      rules.push({ priority: 100, match_all: true, enabled: true, ...draft, id, hits: 0, last_hit_at: null, created_at: '2026-10-09T10:00:00Z', updated_at: '2026-10-09T10:00:00Z' });
+      return { status: 201, body: { id } };
+    }
+    if (path === '/v1/rules/test' && method === 'POST') {
+      const draft = req.json as RuleDraft;
+      this.data.bodies.push({ method, path, body: draft });
+      if (!hasAction(draft.actions)) return invalid('A rule needs to do something: set an account, a tag, or a description');
+      const needles = draft.conditions.filter((c) => c.field === 'description').map((c) => c.value.toLowerCase());
+      const matches = this.data.entries
+        .filter((e) => needles.some((n) => e.description.toLowerCase().includes(n)))
+        .map((e) => {
+          const debit = e.postings.find((x) => x.direction > 0);
+          return { entry_id: e.id, entry_date: e.entry_date, description: e.description, amount: debit?.amount ?? '0', currency: debit?.currency ?? 'USD', direction: 'out' as const, account_id: debit?.account_id ?? '' };
+        });
+      const result: RuleTestResult = {
+        total: matches.length,
+        agreeing: matches.filter((m) => m.account_id === draft.actions.account_id).length,
+        matches,
+      };
+      return { status: 200, body: result };
+    }
+    if (path === '/v1/rules/suggestions' && method === 'GET') {
+      const suggestion: RuleSuggestion = {
+        name: 'Rent',
+        conditions: [{ field: 'description', operator: 'contains', value: "landlord's rent" }],
+        actions: { account_id: uid(7) },
+        priority: 100,
+        match_all: true,
+        enabled: true,
+        support: 4,
+        agreement: 4,
+        examples: ['Rent for October'],
+      };
+      return { status: 200, body: [suggestion] };
+    }
+    const params = match('/v1/rules/{id}', path);
+    if (!params) return undefined;
+    const rule = rules.find((r) => r.id === params.id);
+    if (!rule) return problem(404, 'Not Found', 'No such rule', '/problems/not-found');
+    if (method === 'GET') return { status: 200, body: rule };
+    if (method === 'PATCH') {
+      const update = req.json as RuleUpdate;
+      this.data.bodies.push({ method, path, body: update });
+      const changes = Object.fromEntries(Object.entries(update).filter(([, v]) => v !== null && v !== undefined));
+      Object.assign(rule, changes);
+      return { status: 200, body: { id: rule.id } };
+    }
+    if (method === 'DELETE') {
+      rules.splice(rules.indexOf(rule), 1);
+      return { status: 204 };
+    }
+    return undefined;
+  }
+
+  /** Personal access tokens: a new one works at once, a revoked one never again. */
+  private tokensRoute(req: RecordedRequest): Reply | undefined {
+    const { method, path } = req;
+    if (path === '/v1/tokens' && method === 'GET') return { status: 200, body: this.data.tokens };
+    if (path === '/v1/tokens' && method === 'POST') {
+      const input = req.json as { name?: string; expires_in_days?: number | null };
+      if (!input?.name) return problem(422, 'Request validation failed', [{ loc: ['body', 'name'], msg: 'Field required', type: 'missing' }], '/problems/validation');
+      const token = `salli_pat_${b64url(randomBytes(18))}`;
+      const created: PersonalAccessToken = {
+        id: uid(700 + this.data.tokens.length + 10),
+        name: input.name,
+        prefix: token.slice(0, 14),
+        created_at: '2026-10-09T10:00:00Z',
+        expires_at: input.expires_in_days ? '2027-01-07T10:00:00Z' : null,
+        last_used_at: null,
+      };
+      this.data.tokens.push(created);
+      this.pats.add(token);
+      return { status: 201, body: { ...created, token } };
+    }
+    const params = match('/v1/tokens/{id}', path);
+    if (params && method === 'DELETE') {
+      const index = this.data.tokens.findIndex((t) => t.id === params.id);
+      if (index < 0) return problem(404, 'Not Found', 'No such token', '/problems/not-found');
+      const [removed] = this.data.tokens.splice(index, 1);
+      for (const pat of [...this.pats]) if (removed && pat.startsWith(removed.prefix)) this.pats.delete(pat);
+      return { status: 204 };
+    }
+    return undefined;
   }
 
   /** Generic CRUD over `data.collections` (POST, GET, PATCH, DELETE). */

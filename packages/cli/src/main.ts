@@ -15,8 +15,7 @@ function wantsJson(argv: readonly string[]): boolean {
       arg === '--json' ||
       arg === '--output=json' ||
       arg === '--output=ndjson' ||
-      arg === '-ojson' ||
-      ((arg === '-o' || arg === '--output') && (argv[i + 1] === 'json' || argv[i + 1] === 'ndjson')),
+      (arg === '--output' && (argv[i + 1] === 'json' || argv[i + 1] === 'ndjson')),
   );
 }
 

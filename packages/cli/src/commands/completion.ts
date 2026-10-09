@@ -11,7 +11,8 @@ interface Node {
   path: string;
   description: string;
   children: Array<{ name: string; description: string }>;
-  options: Array<{ flag: string; description: string; takesValue: boolean }>;
+  /** `file`: its value is a path, so the shell completes file names. */
+  options: Array<{ flag: string; description: string; takesValue: boolean; file: boolean }>;
 }
 
 // Commander's own command type is generic; only these members are read here.
@@ -20,7 +21,15 @@ interface CommandLike {
   aliases(): string[];
   description(): string;
   commands: readonly CommandLike[];
-  options: ReadonlyArray<{ long?: string; short?: string; description: string; required: boolean; optional: boolean; hidden?: boolean }>;
+  options: ReadonlyArray<{
+    flags: string;
+    long?: string;
+    short?: string;
+    description: string;
+    required: boolean;
+    optional: boolean;
+    hidden?: boolean;
+  }>;
 }
 
 function walk(root: CommandLike): Node[] {
@@ -28,11 +37,16 @@ function walk(root: CommandLike): Node[] {
   const globals = root.options.filter((o) => !o.hidden && o.long !== '--version');
   const visit = (cmd: CommandLike, path: string): void => {
     const own = cmd === root ? root.options.filter((o) => o.long === '--version') : cmd.options.filter((o) => !o.hidden);
-    const options = [...own, ...globals, { long: '--help', description: 'Show help', required: false, optional: false }]
+    const options = [...own, ...globals, { flags: '--help', long: '--help', description: 'Show help', required: false, optional: false }]
       .flatMap((o) =>
         [o.long, o.short]
           .filter((f): f is string => !!f)
-          .map((flag) => ({ flag, description: o.description, takesValue: o.required || o.optional })),
+          .map((flag) => ({
+            flag,
+            description: o.description,
+            takesValue: o.required || o.optional,
+            file: /<(file|path)>/.test(o.flags),
+          })),
       );
     const visible = cmd.commands.filter((c) => c.name() !== 'help');
     nodes.push({
@@ -95,7 +109,9 @@ function bash(root: CommandLike): string {
   const top = nodes.find((n) => n.path === '');
   const words = (node: Node | undefined): string =>
     node ? [...node.children.map((c) => c.name), ...node.options.map((o) => o.flag)].join(' ') : '';
-  const valueFlags = [...new Set(nodes.flatMap((n) => n.options.filter((o) => o.takesValue).map((o) => o.flag)))];
+  const valueOptions = nodes.flatMap((n) => n.options.filter((o) => o.takesValue && o.flag !== '--output'));
+  const fileFlags = [...new Set(valueOptions.filter((o) => o.file).map((o) => o.flag))];
+  const valueFlags = [...new Set(valueOptions.filter((o) => !o.file).map((o) => o.flag))].filter((f) => !fileFlags.includes(f));
   return `# bash completion for salli. Install:
 #   salli completion bash > ~/.local/share/bash-completion/completions/salli
 # or add to ~/.bashrc:  source <(salli completion bash)
@@ -104,8 +120,9 @@ _salli() {
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
   case "$prev" in
-    -o|--output) COMPREPLY=($(compgen -W ${shQuote(OUTPUT_FORMATS.join(' '))} -- "$cur")); return ;;
-    ${valueFlags.filter((f) => f !== '-o' && f !== '--output').join('|') || '--none'}) COMPREPLY=(); return ;;
+    --output) COMPREPLY=($(compgen -W ${shQuote(OUTPUT_FORMATS.join(' '))} -- "$cur")); return ;;
+    ${fileFlags.join('|') || '--none'}) compopt -o filenames 2>/dev/null; COMPREPLY=($(compgen -f -- "$cur")); return ;;
+    ${valueFlags.join('|') || '--none'}) COMPREPLY=(); return ;;
   esac
   for ((i = 1; i < COMP_CWORD; i++)); do
     w="\${COMP_WORDS[i]}"
@@ -136,6 +153,7 @@ function zsh(root: CommandLike): string {
     opts: (node?.options ?? []).map((o) => `'${zshEscape(o.flag)}:${zshEscape(o.description)}'`).join(' '),
   });
   const top = entries(nodes.find((n) => n.path === ''));
+  const fileFlags = [...new Set(nodes.flatMap((n) => n.options.filter((o) => o.file).map((o) => o.flag)))];
   return `#compdef salli
 # zsh completion for salli. Install:
 #   salli completion zsh > "\${fpath[1]}/_salli"   (then restart zsh)
@@ -149,8 +167,12 @@ _salli() {
       (${paths.map((p) => p.replace(/ /g, '\\ ')).join('|')}) salli_path="\${salli_path:+$salli_path }$w" ;;
     esac
   done
-  if [[ \${words[CURRENT-1]} == (-o|--output) ]]; then
+  if [[ \${words[CURRENT-1]} == --output ]]; then
     compadd -- ${OUTPUT_FORMATS.join(' ')}
+    return
+  fi
+  if [[ \${words[CURRENT-1]} == (${fileFlags.join('|') || '--none'}) ]]; then
+    _files
     return
   fi
   case "$salli_path" in
@@ -199,7 +221,7 @@ function fish(root: CommandLike): string {
     '  string join " " $salli_path',
     'end',
     'complete -c salli -f',
-    `complete -c salli -s o -l output -x -a '${OUTPUT_FORMATS.join(' ')}' -d 'Output format'`,
+    `complete -c salli -l output -x -a '${OUTPUT_FORMATS.join(' ')}' -d 'Output format'`,
   ];
   const byPath = new Map<string, Node>(nodes.map((n) => [n.path, n]));
   const conditions = new Map<string, string[]>([['', ['']]]);
@@ -212,9 +234,10 @@ function fish(root: CommandLike): string {
       lines.push(`complete -c salli -n "${condition}" -a '${fishEscape(child.name)}' -d '${fishEscape(child.description)}'`);
     }
     for (const option of node.options) {
-      if (option.flag === '--output' || option.flag === '-o') continue;
+      if (option.flag === '--output') continue;
       const flag = option.flag.startsWith('--') ? `-l ${option.flag.slice(2)}` : `-s ${option.flag.slice(1)}`;
-      lines.push(`complete -c salli -n "${condition}" ${flag}${option.takesValue ? ' -r' : ''} -d '${fishEscape(option.description)}'`);
+      const value = option.takesValue ? (option.file ? ' -r -F' : ' -r') : '';
+      lines.push(`complete -c salli -n "${condition}" ${flag}${value} -d '${fishEscape(option.description)}'`);
     }
   }
   return `${lines.join('\n')}\n`;

@@ -234,7 +234,7 @@ describe('reminders, reports and tax', () => {
   it('exports a report as CSV to stdout or a file', async () => {
     expect((await run(['reports', 'export', 'balance-sheet'])).stdout).toBe('Type,Code,Account,Balance\r\nasset,1000,Cash,250.00\r\n');
     const file = join(dir, 'bs.csv');
-    const saved = await run(['reports', 'export', 'balance-sheet', '--file', file, '--json']);
+    const saved = await run(['reports', 'export', 'balance-sheet', '-o', file, '--json']);
     expect(JSON.parse(saved.stdout)).toEqual({ report: 'balance-sheet', path: file, bytes: 51 });
     expect(await readFile(file, 'utf8')).toBe('Type,Code,Account,Balance\r\nasset,1000,Cash,250.00\r\n');
     expect((await run(['reports', 'export', 'cash-flow'])).code).toBe(2);
@@ -280,8 +280,9 @@ describe('your data and settings', () => {
 
   it('exports your data exactly as sent, readable only by you', async () => {
     const file = join(dir, 'me.json');
-    const result = await run(['export', '--file', file]);
+    const result = await run(['profile', 'export', '-o', file]);
     expect(result.code).toBe(0);
+    expect(result.stderr).toContain('readable only by you');
     expect(await readFile(file, 'utf8')).toBe('{\n  "profile": {\n    "display_name": "Ada"\n  },\n  "progress": 0.0\n}\n');
     expect((await stat(file)).mode & 0o777).toBe(0o600);
   });

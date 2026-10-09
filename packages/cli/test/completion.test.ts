@@ -40,7 +40,10 @@ describe('salli completion', () => {
       expect.arrayContaining(['list', 'show', 'add', 'update', 'delete', '--json']),
     );
     expect(bashCompletions(script, ['salli', '--context', 'home', 'entries', 'list', '--mo'])).toEqual(['--month']);
-    expect(bashCompletions(script, ['salli', 'accounts', 'list', '-o', ''])).toEqual(['table', 'json', 'ndjson', 'csv']);
+    expect(bashCompletions(script, ['salli', 'accounts', 'list', '--output', ''])).toEqual(['table', 'json', 'ndjson', 'csv']);
+    // A file option completes file names.
+    await writeFile(join(dir, 'ledger.beancount'), '');
+    expect(bashCompletions(script, ['salli', 'export', 'beancount', '-o', join(dir, 'ledger.b')])).toEqual([join(dir, 'ledger.beancount')]);
   });
 
   it('prints zsh and fish scripts', async () => {
@@ -51,8 +54,10 @@ describe('salli completion', () => {
       await writeFile(script, zsh.stdout);
       expect(spawnSync('zsh', ['-n', script]).status).toBe(0);
     }
+    expect(zsh.stdout).toContain('== (--attach|--out|-o) ]]');
     const fish = await runCli(['completion', 'fish'], { configDir: dir });
     expect(fish.stdout).toContain("complete -c salli -n \"contains -- (__salli_path) ''\" -a 'accounts'");
+    expect(fish.stdout).toContain("-s o -r -F -d 'Write it to this file (default: stdout)'");
   });
 
   it('refuses a shell it does not know', async () => {

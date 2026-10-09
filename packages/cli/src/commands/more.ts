@@ -2,8 +2,6 @@
  * Reminders, reports, tax, documents, your profile and data, your own LLM
  * keys, and AI clients connected over MCP.
  */
-import { writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
   accountExport,
@@ -45,7 +43,7 @@ import type { App } from '../app';
 import { CliError, UsageError } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
 import { displayDate, displayRange, isoDate, parseDate } from '../util/dates';
-import { readUpload } from '../util/files';
+import { readUpload, textOf, writeOutput } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
 import { renderRecord } from './records';
@@ -253,19 +251,14 @@ function registerReports(program: Command, app: App): void {
     .command('export')
     .argument('<report>', `One of: ${REPORT_TYPES.join(', ')}`)
     .description('A report as CSV, to a file or stdout')
-    .option('--file <path>', 'Write it here (default: stdout)')
+    .option('-o, --out <file>', 'Write it to this file (default: stdout)')
     .action(async (type, opts) => {
       if (!(REPORT_TYPES as readonly string[]).includes(type)) {
         throw new UsageError(`Unknown report "${type}".`, `Reports: ${REPORT_TYPES.join(', ')}`);
       }
       const api = await app.api();
-      const csv = String(await api.call(reportsExportCsv, { path: { report_type: type }, parseAs: 'text' }));
-      if (!opts.file || opts.file === '-') {
-        app.out.write(csv);
-        return;
-      }
-      await writeFile(opts.file, csv, 'utf8');
-      app.out.done({ report: type, path: resolve(opts.file), bytes: Buffer.byteLength(csv) }, `Wrote the ${type} report to ${opts.file}.`);
+      const csv = textOf(await api.call(reportsExportCsv, { path: { report_type: type }, parseAs: 'text' }));
+      await writeOutput(app, csv, opts.out, { report: type }, `the ${type} report`);
     });
 }
 
@@ -480,21 +473,15 @@ function registerProfile(program: Command, app: App): void {
       app.out.done(result, 'Profile updated.');
     });
 
-  program
+  profile
     .command('export')
     .description('Download everything Salli stores about you, as one JSON file')
-    .option('--file <path>', 'Where to write it ("-" for stdout; default: salli-export-<date>.json)')
+    .option('-o, --out <file>', 'Where to write it ("-" for stdout; default: salli-export-<date>.json)')
     .action(async (opts) => {
       const api = await app.api();
       const data = await api.call(accountExport, { timeoutMs: 5 * 60_000 });
       const text = `${toJsonText(data)}\n`;
-      if (opts.file === '-') {
-        app.out.write(text);
-        return;
-      }
-      const path = opts.file ?? `salli-export-${isoDate(app.runtime.now())}.json`;
-      await writeFile(path, text, { encoding: 'utf8', mode: 0o600 });
-      app.out.done({ path: resolve(path), bytes: Buffer.byteLength(text) }, `Saved your data to ${path} (readable only by you).`);
+      await writeOutput(app, text, opts.out ?? `salli-export-${isoDate(app.runtime.now())}.json`, {}, 'your data', { private: true });
     });
 }
 
