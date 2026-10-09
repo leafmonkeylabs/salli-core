@@ -159,6 +159,11 @@ def accounts_add(
     currency: str = typer.Option(
         None, help="ISO 4217 code the account is held in (default: your base currency)"
     ),
+    tax_role: str = typer.Option(
+        None,
+        "--tax-role",
+        help="What your tax pack treats it as, e.g. apit_credit ('salli tax packs' lists them)",
+    ),
 ):
     """Add an account to the chart of accounts."""
     user_id = _require_user()
@@ -172,11 +177,31 @@ def accounts_add(
 
     async def _run() -> tuple[str, str]:
         held_in = currency or await svc.ledger.base_currency(user_id)
-        new_id = await svc.ledger.add_account(user_id, code, name, type, held_in)  # type: ignore[arg-type]
+        new_id = await svc.ledger.add_account(
+            user_id,
+            code,
+            name,
+            type,  # type: ignore[arg-type]
+            held_in,
+            tax_role=tax_role,
+        )
         return new_id, held_in
 
-    account_id, currency = asyncio.run(_run())
-    emit({"id": account_id, "code": code, "name": name, "type": type, "currency": currency})
+    try:
+        account_id, currency = asyncio.run(_run())
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
+    emit(
+        {
+            "id": account_id,
+            "code": code,
+            "name": name,
+            "type": type,
+            "currency": currency,
+            "tax_role": tax_role,
+        }
+    )
     console.print(f"[green]Account created:[/green] {code} — {name} ({account_id})")
 
 
@@ -245,8 +270,13 @@ def accounts_update(
     currency: str = typer.Option(
         None, "--currency", help="ISO 4217 (default: unchanged; only while it has no entries)"
     ),
+    tax_role: str = typer.Option(
+        None,
+        "--tax-role",
+        help="What your tax pack treats it as (default: unchanged; 'none' clears it)",
+    ),
 ):
-    """Update an account's code, name, type, and currency."""
+    """Update an account's code, name, type, currency and tax role."""
     user_id = _require_user()
     valid_types = {"asset", "liability", "equity", "income", "expense"}
     if type not in valid_types:
@@ -254,8 +284,37 @@ def accounts_update(
             f"[red]Invalid type '{type}'. Must be one of: {', '.join(sorted(valid_types))}[/red]"
         )
         raise typer.Exit(1)
-    asyncio.run(_services().ledger.update_account(user_id, account_id, code, name, type, currency))
-    emit({"id": account_id, "code": code, "name": name, "type": type, "currency": currency})
+    svc = _services()
+
+    async def _run() -> str | None:
+        # Omitted keeps the role the account has, as the API does: the
+        # repository writes whatever it is given, a missing role included.
+        role = tax_role
+        if role is None:
+            existing = await svc.ledger.get_account(user_id, account_id)
+            role = existing.tax_role if existing else None
+        elif role.lower() == "none":
+            role = None
+        await svc.ledger.update_account(
+            user_id, account_id, code, name, type, currency, tax_role=role
+        )
+        return role
+
+    try:
+        role = asyncio.run(_run())
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
+    emit(
+        {
+            "id": account_id,
+            "code": code,
+            "name": name,
+            "type": type,
+            "currency": currency,
+            "tax_role": role,
+        }
+    )
     console.print(f"[green]Account updated:[/green] {account_id}")
 
 
@@ -673,13 +732,16 @@ def tax_packs():
     table.add_column("Year")
     table.add_column("Version")
     table.add_column("Period")
+    table.add_column("Account tax roles")
 
     for pack in list_packs():
+        labels = {kind.code: f"{kind.code} ({kind.label})" for kind in pack.withholding_kinds}
         table.add_row(
             pack.country,
             pack.year,
             pack.version,
             f"{pack.period_start} → {pack.period_end}",
+            ", ".join(labels.get(role, role) for role in pack.tax_roles),
         )
 
     console.print(table)

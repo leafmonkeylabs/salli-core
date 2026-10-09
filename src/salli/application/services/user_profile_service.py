@@ -15,7 +15,7 @@ from salli.application.fx import rate_to_base
 from salli.application.ports import ProfileMissing
 from salli.application.services.document_service import DocumentService
 from salli.application.services.fi_service import FiService
-from salli.application.services.ledger_service import LedgerService
+from salli.application.services.ledger_service import LedgerService, tax_residency
 from salli.domain.accounting.models import AccountType, Direction
 from salli.domain.ai_models import DEFAULT_MODEL
 from salli.domain.currency import normalize_currency
@@ -245,6 +245,12 @@ class UserProfileService:
         # Only into a profile that exists: a read never creates one.
         await self._backfill_from_legacy_memories(user_id, profile, persist=stored is not None)
         return tax_identity_view(profile)
+
+    async def get_tax_residency(self, user_id: str) -> str | None:
+        """Where the user is taxed (ISO 3166-1 alpha-2), or None while they
+        have not said."""
+        async with self._uow_factory() as uow:
+            return await tax_residency(uow, user_id)
 
     async def get_preferred_model(self, user_id: str) -> str:
         """

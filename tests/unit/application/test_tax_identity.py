@@ -171,6 +171,7 @@ async def test_the_column_stands_in_for_a_missing_tin():
 def _onboarding() -> tuple[OnboardingService, AsyncMock]:
     documents, fi, ledger, profile = AsyncMock(), AsyncMock(), AsyncMock(), AsyncMock()
     ledger.list_accounts.return_value = []
+    profile.get_tax_residency.return_value = None
     return OnboardingService(documents, fi, ledger, profile), profile
 
 

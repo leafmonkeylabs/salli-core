@@ -314,18 +314,11 @@ def test_list_packs_includes_lk_2025_26():
 
 
 def _seeded_accounts(user_id: str) -> list[Account]:
-    """The accounts `/onboarding/complete` creates for an employed user with
-    interest and foreign income, mirroring _BASE_ACCOUNTS / _SOURCE_ACCOUNTS."""
-    from salli.application.services.onboarding_service import (
-        BASE_ACCOUNTS as _BASE_ACCOUNTS,
-    )
-    from salli.application.services.onboarding_service import (
-        SOURCE_ACCOUNTS as _SOURCE_ACCOUNTS,
-    )
+    """The accounts `/onboarding/complete` creates for a Sri Lankan resident
+    who is employed and has interest and foreign income (`starter_chart`)."""
+    from salli.application.services.onboarding_service import starter_chart
 
-    seeds = list(_BASE_ACCOUNTS)
-    for source in ("employment", "interest", "foreign"):
-        seeds.extend(_SOURCE_ACCOUNTS[source])
+    seeds = starter_chart("LK", ("employment", "interest", "foreign"))
     return [
         _make_account(user_id, code, name, acc_type, role) for code, name, acc_type, role in seeds
     ]

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from salli.domain.currency import quantize
 from salli.domain.tax.models import TaxComputation as DomainTaxComputation
+from salli.domain.tax.models import TaxPack as DomainTaxPack
 from salli.interfaces.api.contract import Amount, CurrencyCode
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
@@ -16,6 +17,23 @@ router = APIRouter(prefix="/tax", tags=["tax"])
 #: How a pack rounds tax to whole units: the modes the engine applies
 #: (domain/tax/engine.py `_round`), which refuses any other.
 Rounding = Literal["nearest_rupee", "truncate_rupee"]
+
+
+class WithholdingKind(BaseModel):
+    """Tax withheld or paid ahead of the return that a pack credits against the bill."""
+
+    #: What an account's `tax_role` holds for it: "apit_credit".
+    code: str
+    #: Its short name: "APIT".
+    label: str
+    description: str
+
+
+def withholding_kinds(pack: DomainTaxPack) -> list[WithholdingKind]:
+    return [
+        WithholdingKind(code=k.code, label=k.label, description=k.description)
+        for k in pack.withholding_kinds
+    ]
 
 
 class TaxPack(BaseModel):
@@ -32,6 +50,12 @@ class TaxPack(BaseModel):
     set_due: str
     installments: list[str]
     final_installment_due: str
+    #: The tax withheld or paid ahead that this pack credits.
+    withholding_kinds: list[WithholdingKind]
+    #: Every `tax_role` an account may carry under this pack: the withholding
+    #: kinds' codes, then "qualifying_payment" and "fsi_income" where the pack
+    #: has those regimes.
+    tax_roles: list[str]
 
 
 class TaxBandWorking(BaseModel):
@@ -99,6 +123,8 @@ async def list_packs(svc: AppServices) -> list[TaxPack]:
             set_due=p.filing.set_due,
             installments=p.filing.installments,
             final_installment_due=p.filing.final_installment_due,
+            withholding_kinds=withholding_kinds(p),
+            tax_roles=list(p.tax_roles),
         )
         for p in packs
     ]

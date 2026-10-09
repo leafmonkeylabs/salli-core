@@ -7,13 +7,21 @@ from typing import Any
 from salli.domain.accounting.models import Account, StoredJournalEntry
 from salli.domain.secrets import error_label
 from salli.domain.tax import engine
-from salli.domain.tax.models import LedgerView, TaxComputation, TaxPack
+from salli.domain.tax.models import (
+    CREDITED_KINDS,
+    FSI_INCOME_ROLE,
+    QUALIFYING_PAYMENT_ROLE,
+    LedgerView,
+    TaxComputation,
+    TaxPack,
+)
 from salli.domain.tax.packs import registry
 
 
 def _build_ledger_view(
     entries: list[StoredJournalEntry],
     accounts: list[Account],
+    pack: TaxPack | None = None,
 ) -> LedgerView:
     """
     Aggregate posting data into the LedgerView the tax engine expects.
@@ -39,14 +47,22 @@ def _build_ledger_view(
     Buckets are clamped at zero: a net-negative income or credit total means the
     ledger is mid-correction or malformed, and a negative figure would silently
     *increase* someone's refund rather than fail visibly.
+
+    **Only the roles `pack` declares count.** A role another country's pack
+    declares means nothing to this one. Without a pack, every role the engine
+    knows counts.
     """
     acc_map = {a.id: a for a in accounts}
+    declared = pack.tax_roles if pack is not None else None
+
+    def role(acc: Account) -> str | None:
+        if acc.tax_role is None or (declared is not None and acc.tax_role not in declared):
+            return None
+        return acc.tax_role
 
     total_income = Decimal(0)
     foreign_service_income = Decimal(0)
-    apit_withheld = Decimal(0)
-    ait_withheld = Decimal(0)
-    foreign_tax_paid = Decimal(0)
+    withheld = dict.fromkeys(CREDITED_KINDS.values(), Decimal(0))
     qualifying_payments = Decimal(0)
 
     for entry in entries:
@@ -59,28 +75,25 @@ def _build_ledger_view(
             # so each is normalised to "positive means more of this bucket".
             credit_positive = -posting.base_signed  # CR increases income
             debit_positive = posting.base_signed  # DR increases a credit/deduction
+            tax_role = role(acc)
 
             if acc.type == "income":
                 total_income += credit_positive
-                if acc.tax_role == "fsi_income":
+                if tax_role == FSI_INCOME_ROLE:
                     foreign_service_income += credit_positive
 
-            if acc.tax_role == "apit_credit":
-                apit_withheld += debit_positive
-            elif acc.tax_role == "ait_credit":
-                ait_withheld += debit_positive
-            elif acc.tax_role == "foreign_tax_credit":
-                foreign_tax_paid += debit_positive
-            elif acc.tax_role == "qualifying_payment":
+            if tax_role in CREDITED_KINDS:
+                withheld[CREDITED_KINDS[tax_role]] += debit_positive
+            elif tax_role == QUALIFYING_PAYMENT_ROLE:
                 qualifying_payments += debit_positive
 
     zero = Decimal(0)
     return LedgerView(
         total_income=max(zero, total_income),
         foreign_service_income=max(zero, foreign_service_income),
-        apit_withheld=max(zero, apit_withheld),
-        ait_withheld=max(zero, ait_withheld),
-        foreign_tax_paid=max(zero, foreign_tax_paid),
+        apit_withheld=max(zero, withheld["apit_withheld"]),
+        ait_withheld=max(zero, withheld["ait_withheld"]),
+        foreign_tax_paid=max(zero, withheld["foreign_tax_paid"]),
         qualifying_payments=max(zero, qualifying_payments),
     )
 
@@ -151,7 +164,7 @@ class TaxService:
                 to_date=pack.period_end,
             )
             accounts = await uow.ledger.get_accounts(user_id)
-            ledger_view = _build_ledger_view(entries, accounts)
+            ledger_view = _build_ledger_view(entries, accounts, pack)
             computation = engine.compute(ledger_view, pack)
             if persist:
                 await uow.tax_computations.save(user_id, computation)

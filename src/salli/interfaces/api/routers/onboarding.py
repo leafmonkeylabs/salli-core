@@ -35,7 +35,10 @@ class OnboardingRequest(BaseModel):
     #: ISO 4217 code the ledger is kept in. Only settable while the ledger is
     #: empty — which it is, the first time onboarding runs. Omitted: unchanged.
     base_currency: str | None = None
-    #: Where the user is taxed, saved on the profile. Omitted: unchanged.
+    #: Where the user is taxed, saved on the profile. Omitted: unchanged. The
+    #: starter accounts follow it: a resident of a country Salli has a tax pack
+    #: for also gets that pack's tax accounts (for LK, the APIT and AIT
+    #: receivables), and with no residency nothing tax-specific is opened.
     tax_residency: CountryCode | None = None
     #: A Sri Lankan NIC: saved as the "LK-NIC" tax id.
     nic: str = ""

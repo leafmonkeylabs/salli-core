@@ -17,6 +17,7 @@ from salli.config import get_settings
 from salli.domain.tax.packs import registry
 from salli.extensions import enabled_specs
 from salli.interfaces.api.contract import API_VERSION, CurrencyCode
+from salli.interfaces.api.routers.tax import WithholdingKind, withholding_kinds
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -35,6 +36,9 @@ class TaxPackInfo(BaseModel):
     currency: CurrencyCode
     period_start: str
     period_end: str
+    #: The tax withheld or paid ahead that the pack credits; an account's
+    #: `tax_role` names one by its code.
+    withholding_kinds: list[WithholdingKind]
 
 
 class OAuthInfo(BaseModel):
@@ -78,6 +82,7 @@ async def get_meta() -> Meta:
                 currency=p.currency,
                 period_start=p.period_start,
                 period_end=p.period_end,
+                withholding_kinds=withholding_kinds(p),
             )
             for p in registry.list_packs()
         ],

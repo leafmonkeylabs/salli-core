@@ -177,3 +177,19 @@ async def test_the_repository_writes_the_tax_identity_and_can_clear_it(db, uow_f
             await uow.user_profiles.set_tax_identity(
                 "nobody", tax_residency=None, tax_ids=[], ird_number=None
             )
+
+
+def _account(role: str | None) -> tuple[str, dict]:
+    return (
+        "insert into accounts (id, user_id, code, name, type, currency, is_active, created_at,"
+        " tax_role) values (:id, 'u', :id, 'x', 'asset', 'LKR', true, now(), :role)",
+        {"id": f"a-{role}", "role": role},
+    )
+
+
+def test_tax_packs_decide_the_roles_and_the_database_their_shape(db):
+    """The check named Sri Lanka's five roles; a pack may declare others now."""
+    _execute(db, _account("apit_credit"), _account("paye_credit"), _account(None))
+    for bad in ("APIT", "apit credit", "1apit"):
+        with pytest.raises(Exception, match="ck_accounts_tax_role"):
+            _execute(db, _account(bad))

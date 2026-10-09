@@ -15,12 +15,18 @@ A user with Sri Lankan data (either number, or a stored Sri Lankan tax
 computation) is tax resident in LK. Everyone else's residency stays NULL:
 nothing is assumed about them.
 
+`accounts.tax_role` was checked against Sri Lanka's five roles. Tax packs now
+declare the roles, so the check becomes one of shape (a lower-case code); every
+existing value passes it.
+
 Additive and safe on a live database: two new columns (the NOT NULL one has a
-constant default, so adding it rewrites no rows), and updates that touch only
-rows with Sri Lankan data. Values that could never have been valid tax ids
-(blank, or longer than 32 characters) are left where they are and not copied.
-Downgrading drops the new columns, and with them any tax id that is not one
-of the two Sri Lankan numbers, which stay in the column and the memory.
+constant default, so adding it rewrites no rows), updates that touch only rows
+with Sri Lankan data, and a looser check. Values that could never have been
+valid tax ids (blank, or longer than 32 characters) are left where they are
+and not copied. Downgrading drops the new columns, and with them any tax id
+that is not one of the two Sri Lankan numbers, which stay in the column and
+the memory; it restores the old role check, so it fails while any account
+carries a role outside Sri Lanka's five.
 
 Revision ID: core_0008_jurisdiction
 Revises: core_0007_ai_connections
@@ -37,6 +43,12 @@ revision: str = "core_0008_jurisdiction"
 down_revision: str | None = "core_0007_ai_connections"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+_LK_TAX_ROLES = (
+    "tax_role IS NULL OR tax_role IN "
+    "('apit_credit','ait_credit','foreign_tax_credit','qualifying_payment','fsi_income')"
+)
 
 
 def _memory(slug: str) -> str:
@@ -113,8 +125,16 @@ def upgrade() -> None:
         "                   AND COALESCE(t.result_json->>'pack_country', 'LK') = 'LK'))"
     )
 
+    # Tax packs declare the roles now; the database checks the shape.
+    op.drop_constraint("ck_accounts_tax_role", "accounts", type_="check")
+    op.create_check_constraint(
+        "ck_accounts_tax_role", "accounts", "tax_role IS NULL OR tax_role ~ '^[a-z][a-z0-9_]*$'"
+    )
+
 
 def downgrade() -> None:
+    op.drop_constraint("ck_accounts_tax_role", "accounts", type_="check")
+    op.create_check_constraint("ck_accounts_tax_role", "accounts", _LK_TAX_ROLES)
     op.drop_constraint("ck_user_profiles_tax_ids", "user_profiles", type_="check")
     op.drop_constraint("ck_user_profiles_tax_residency", "user_profiles", type_="check")
     op.drop_column("user_profiles", "tax_ids")

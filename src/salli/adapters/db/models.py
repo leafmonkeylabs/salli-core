@@ -58,7 +58,8 @@ class AccountORM(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # How the tax engine should treat this account. NULL = no tax significance.
     # See `domain.accounting.models.TaxRole` for why this is explicit rather
-    # than inferred from `name`.
+    # than inferred from `name`. Tax packs declare which roles exist, so the
+    # database checks only the shape of the code.
     tax_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -71,9 +72,7 @@ class AccountORM(Base):
             name="ck_accounts_type",
         ),
         CheckConstraint(
-            "tax_role IS NULL OR tax_role IN "
-            "('apit_credit','ait_credit','foreign_tax_credit',"
-            "'qualifying_payment','fsi_income')",
+            "tax_role IS NULL OR tax_role ~ '^[a-z][a-z0-9_]*$'",
             name="ck_accounts_tax_role",
         ),
     )

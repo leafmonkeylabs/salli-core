@@ -19661,6 +19661,20 @@
           "final_installment_due": {
             "type": "string",
             "title": "Final Installment Due"
+          },
+          "withholding_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/WithholdingKind"
+            },
+            "type": "array",
+            "title": "Withholding Kinds"
+          },
+          "tax_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tax Roles"
           }
         },
         "type": "object",
@@ -19675,7 +19689,9 @@
           "return_due",
           "set_due",
           "installments",
-          "final_installment_due"
+          "final_installment_due",
+          "withholding_kinds",
+          "tax_roles"
         ],
         "title": "TaxPack"
       },
@@ -19709,6 +19725,13 @@
           "period_end": {
             "type": "string",
             "title": "Period End"
+          },
+          "withholding_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/WithholdingKind"
+            },
+            "type": "array",
+            "title": "Withholding Kinds"
           }
         },
         "type": "object",
@@ -19718,7 +19741,8 @@
           "version",
           "currency",
           "period_start",
-          "period_end"
+          "period_end",
+          "withholding_kinds"
         ],
         "title": "TaxPackInfo"
       },
@@ -19915,6 +19939,30 @@
         ],
         "title": "Updated",
         "description": "What the updates that predate `Ref` return instead of an id."
+      },
+      "WithholdingKind": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "label",
+          "description"
+        ],
+        "title": "WithholdingKind",
+        "description": "Tax withheld or paid ahead of the return that a pack credits against the bill."
       },
       "deviceAuthorization": {
         "properties": {
