@@ -44,21 +44,21 @@ def test_a_write_without_a_profile_says_to_onboard(monkeypatch, capsys, argv):
 
 def test_mcp_revoke_says_when_nothing_was_disconnected(monkeypatch, capsys):
     oauth = SimpleNamespace(
-        list_connections=AsyncMock(return_value=[{"token_id": "tok-123456789"}]),
+        list_connections=AsyncMock(return_value=[{"token_id": "connection-1"}]),
         revoke_connection=AsyncMock(return_value=False),
     )
-    code = _run(monkeypatch, SimpleNamespace(mcp_oauth=oauth), "mcp", "revoke", "tok-1234")
+    code = _run(monkeypatch, SimpleNamespace(mcp_oauth=oauth), "mcp", "revoke", "connection")
     assert code == 1
     assert "Disconnected" not in capsys.readouterr().out
-    oauth.revoke_connection.assert_awaited_once_with("u1", "tok-123456789")
+    oauth.revoke_connection.assert_awaited_once_with("u1", "connection-1")
 
 
 def test_mcp_revoke_reports_success(monkeypatch, capsys):
     oauth = SimpleNamespace(
-        list_connections=AsyncMock(return_value=[{"token_id": "tok-123456789"}]),
+        list_connections=AsyncMock(return_value=[{"token_id": "connection-1"}]),
         revoke_connection=AsyncMock(return_value=True),
     )
-    assert _run(monkeypatch, SimpleNamespace(mcp_oauth=oauth), "mcp", "revoke", "tok-1234") == 0
+    assert _run(monkeypatch, SimpleNamespace(mcp_oauth=oauth), "mcp", "revoke", "connection") == 0
     assert "Disconnected" in capsys.readouterr().out
 
 
