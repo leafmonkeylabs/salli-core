@@ -269,6 +269,9 @@ describe('your data and settings', () => {
       Residency status        resident
       MCP enabled             yes
       Daily briefing enabled  no
+      Tax residency           LK
+      Tax ids                 LK-TIN 123456789
+      FI assumptions          safe withdrawal rate 4%
       "
     `);
     expect((await run(['profile', 'set', '--name', 'Ada L', '--dependents', '2'])).code).toBe(0);

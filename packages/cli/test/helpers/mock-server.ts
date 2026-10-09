@@ -10,6 +10,8 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
   Account,
+  FiAssumptionsReport,
+  TaxYearStatus,
   HoldingLots,
   HoldingTransaction,
   HoldingTransactionList,
@@ -179,6 +181,7 @@ export class MockSalli {
     connections: [
       { token_id: uid(471), client_id: 'client-claude', client_name: 'Claude', scope: '', connected_at: '2026-10-01T00:00:00+00:00' },
     ] as McpConnection[],
+    taxYear: { country: 'LK', country_source: 'tax_residency', year: '2026/27', start: '2026-04-01', end: '2027-03-31', has_pack: false, latest_year: '2025/26' } as TaxYearStatus,
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
     prices: [
       { id: uid(1301), symbol: 'VTI', date: '2026-10-08', close: '281.26', currency: 'USD', source: 'user', created_at: '2026-10-08T18:00:00Z', updated_at: '2026-10-08T18:00:00Z' },
@@ -675,6 +678,10 @@ export class MockSalli {
         mcp_enabled: true,
         daily_briefing_enabled: false,
         preferred_model: null,
+        tax_residency: 'LK',
+        tax_ids: [{ scheme: 'LK-TIN', value: '123456789' }],
+        nic: null,
+        fi_assumptions: { safe_withdrawal_rate: '0.04' },
       };
       return { status: 200, body: profile };
     }
@@ -686,6 +693,19 @@ export class MockSalli {
       return { status: 200, body: { updated: true } };
     }
     if (method === 'GET' && path === '/v1/onboarding/export') return { status: 200, raw: '{"profile": {"display_name": "Ada"}, "progress": 0.0}', headers: { 'Content-Type': 'application/json' } };
+    if (method === 'GET' && path === '/v1/tax/current-year') {
+      return { status: 200, body: this.data.taxYear };
+    }
+    if (method === 'GET' && path === '/v1/fi/assumptions') {
+      return {
+        status: 200,
+        body: {
+          applied: FI_ASSUMPTIONS,
+          defaults: { ...FI_ASSUMPTIONS, safe_withdrawal_rate: { value: '0.035', origin: 'default', source: 'US research on 30-year retirements' } },
+          overrides: { safe_withdrawal_rate: '0.04' },
+        } satisfies FiAssumptionsReport,
+      };
+    }
     if (method === 'GET' && path === '/v1/tax/packs') {
       const pack: TaxPack = {
         country: 'LK',

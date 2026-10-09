@@ -27,6 +27,8 @@ export interface RecordFormat {
   dates?: readonly string[];
   /** Fields to leave out. */
   hide?: readonly string[];
+  /** Rows to add at the end, already formatted. */
+  extra?: ReadonlyArray<readonly [string, string | undefined]>;
 }
 
 function scalar(value: unknown): string | undefined {
@@ -49,5 +51,5 @@ export function renderRecord(app: App, record: Record<string, unknown>, format: 
       }
       return [fieldLabel(key), scalar(value)];
     });
-  return app.out.details(rows);
+  return app.out.details([...rows, ...(format.extra ?? [])]);
 }

@@ -30,6 +30,7 @@ import {
   reportsGoalProgress,
   reportsNetWorth,
   taxCompute,
+  taxCurrentYear,
   taxLatest,
   taxPacks,
   toJsonText,
@@ -48,7 +49,7 @@ import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
 import { renderRecord } from './records';
 import { humanize } from './status';
-import { confirmAction, countArg, currencyArg } from './shared';
+import { collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
 
 /** A field from the server, as one line of safe text. */
 const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
@@ -323,6 +324,32 @@ function registerTax(program: Command, app: App): void {
     });
 
   tax
+    .command('year')
+    .description('The tax year you are in today, and the latest one Salli can compute')
+    .action(async () => {
+      const api = await app.api();
+      const data = await api.call(taxCurrentYear);
+      app.out.emit(data, {
+        human: (d) => {
+          const out = app.out;
+          if (!d.country) {
+            out.warn('Salli does not know where you are taxed.');
+            out.note('Set it with `salli profile set --tax-residency <country>`, e.g. LK or GB.');
+            return;
+          }
+          const from = d.country_source === 'tax_residency' ? 'your tax residency' : 'your base currency';
+          out.line(
+            out.details([
+              ['Country', `${d.country} (from ${from})`],
+              ['Tax year', d.year ? `${d.year} (${displayRange(d.start, d.end, out.locale)})` : 'Salli has no tax pack for it yet'],
+              ['Can compute', d.latest_year ? `${d.latest_year}${d.has_pack ? '' : ' (no pack for the current year yet)'}` : 'none yet'],
+            ]),
+          );
+        },
+      });
+    });
+
+  tax
     .command('compute')
     .description('Compute your income tax from the ledger (and store the result)')
     .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
@@ -438,7 +465,21 @@ function registerProfile(program: Command, app: App): void {
     .action(async () => {
       const api = await app.api();
       const data = await api.call(profileGet);
-      app.out.emit(data, { human: (d) => app.out.line(renderRecord(app, d)) });
+      app.out.emit(data, {
+        human: (d) => {
+          const ids = d.tax_ids ?? [];
+          const own = Object.entries(d.fi_assumptions ?? {}).filter(([, v]) => v !== null && v !== undefined);
+          app.out.line(
+            renderRecord(app, d, {
+              hide: ['tax_ids', 'fi_assumptions'],
+              extra: [
+                ['Tax ids', ids.length ? ids.map((t) => `${t.scheme} ${t.value}`).join(', ') : undefined],
+                ['FI assumptions', own.length ? own.map(([k, v]) => `${k.replace(/_/g, ' ')} ${app.out.percent(v, 2)}`).join(', ') : undefined],
+              ],
+            }),
+          );
+        },
+      });
     });
 
   profile
@@ -452,8 +493,32 @@ function registerProfile(program: Command, app: App): void {
     .addOption(new Option('--employment-type <type>', 'Employment type').choices(['permanent', 'contract', 'self_employed', 'other']))
     .addOption(new Option('--residency <status>', 'Tax residency').choices(['resident', 'non_resident']))
     .option('--employer <name>', 'Employer')
-    .option('--tax-id <number>', 'Your taxpayer number')
+    .option('--tax-residency <country>', 'The country you are taxed in, as a code (LK, GB, US…); "none" clears it')
+    .option('--tax-id <scheme=number>', 'A tax id, e.g. LK-TIN=123456789 (repeatable); SCHEME= removes one', collect)
+    .option('--ird-number <number>', 'Your Sri Lankan taxpayer number (LK-TIN)')
+    .option('--nic <number>', 'Your Sri Lankan national identity card number (LK-NIC)')
+    .option('--fi-inflation <rate>', 'Your own yearly inflation for FI plans, e.g. 3%; "none" for the default')
+    .option('--fi-real-return <rate>', 'Your own yearly return after inflation, e.g. 4%; "none" for the default')
+    .option('--fi-swr <rate>', 'Your own safe withdrawal rate, e.g. 3.5%; "none" for the default')
     .action(async (opts) => {
+      const rate = (value: string | undefined, flag: string): string | null | undefined =>
+        value === undefined ? undefined : value.trim().toLowerCase() === 'none' ? null : rateArg(value, flag);
+      const own = Object.fromEntries(
+        Object.entries({
+          inflation: rate(opts.fiInflation, '--fi-inflation'),
+          real_return: rate(opts.fiRealReturn, '--fi-real-return'),
+          safe_withdrawal_rate: rate(opts.fiSwr, '--fi-swr'),
+        }).filter(([, v]) => v !== undefined),
+      );
+      const residency = opts.taxResidency?.trim();
+      if (residency && residency.toLowerCase() !== 'none' && !/^[A-Za-z]{2}$/.test(residency)) {
+        throw new UsageError(`A country is a two-letter code like LK or GB (got "${opts.taxResidency}").`);
+      }
+      const idChanges = (opts.taxId ?? []).map((raw) => {
+        const at = raw.indexOf('=');
+        if (at <= 0) throw new UsageError(`--tax-id takes SCHEME=NUMBER, e.g. LK-TIN=123456789 (got "${raw}").`);
+        return { scheme: raw.slice(0, at).trim().toUpperCase(), value: raw.slice(at + 1).trim() };
+      });
       const body: ProfileIdentityRequest = Object.fromEntries(
         Object.entries({
           display_name: opts.name,
@@ -464,11 +529,25 @@ function registerProfile(program: Command, app: App): void {
           employment_type: opts.employmentType,
           residency_status: opts.residency,
           employer: opts.employer,
-          ird_number: opts.taxId,
+          tax_residency: residency === undefined ? undefined : residency.toLowerCase() === 'none' ? null : residency.toUpperCase(),
+          ird_number: opts.irdNumber,
+          nic: opts.nic,
+          fi_assumptions: Object.keys(own).length ? own : undefined,
         }).filter(([, v]) => v !== undefined),
       );
-      if (!Object.keys(body).length) throw new UsageError('Nothing to change.', 'See `salli profile set --help` for what can be set.');
+      if (!Object.keys(body).length && !idChanges.length) {
+        throw new UsageError('Nothing to change.', 'See `salli profile set --help` for what can be set.');
+      }
       const api = await app.api();
+      if (idChanges.length) {
+        // Each sets or removes one scheme; the others stay as they are.
+        const ids = new Map((await api.call(profileGet)).tax_ids?.map((t) => [t.scheme, t.value]) ?? []);
+        for (const { scheme, value } of idChanges) {
+          if (value) ids.set(scheme, value);
+          else ids.delete(scheme);
+        }
+        body.tax_ids = [...ids].map(([scheme, value]) => ({ scheme, value }));
+      }
       const result = await api.call(profileUpdate, { body });
       app.out.done(result, 'Profile updated.');
     });

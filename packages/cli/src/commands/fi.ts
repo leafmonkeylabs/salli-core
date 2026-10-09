@@ -11,6 +11,7 @@ import {
   advisorReportsLatest,
   advisorReportsList,
   advisorRun,
+  fiAssumptions,
   fiProjections,
   fiScoreGet,
   fiScoreHistory,
@@ -121,6 +122,37 @@ function registerFi(program: Command, app: App): void {
       const api = await app.api();
       const score = await (opts.recompute ? api.call(fiScoreRecompute) : api.call(fiScoreGet));
       app.out.emit(score, { records: (s) => s.components, human: (s) => scoreView(app, s) });
+    });
+
+  fi.command('assumptions')
+    .description('The planning assumptions behind your FI figures, and where each came from')
+    .action(async () => {
+      const api = await app.api();
+      const report = await api.call(fiAssumptions);
+      app.out.emit(report, {
+        human: (r) => {
+          const out = app.out;
+          const names = [
+            ['inflation', 'Inflation'],
+            ['real_return', 'Real return'],
+            ['safe_withdrawal_rate', 'Safe withdrawal rate'],
+          ] as const;
+          out.line(`${out.heading('FI assumptions')} ${out.colors.dim(`defaults for ${singleLine(r.applied.region)}`)}`);
+          out.line(
+            out.table(
+              names.map(([key, label]) => ({ key, label })),
+              [
+                { header: 'ASSUMPTION', get: (n) => n.label },
+                { header: 'APPLIED', get: (n) => out.percent(r.applied[n.key].value, 2), align: 'right' },
+                { header: 'FROM', get: (n) => (r.applied[n.key].origin === 'user' ? 'you' : r.applied[n.key].origin) },
+                { header: 'DEFAULT', get: (n) => out.percent(r.defaults[n.key].value, 2), align: 'right' },
+                { header: 'SOURCE', get: (n) => r.applied[n.key].source, shrink: true },
+              ],
+            ),
+          );
+          out.note('Defaults are starting points, not forecasts. Set your own with `salli profile set --fi-inflation 3%` (and --fi-real-return, --fi-swr).');
+        },
+      });
     });
 
   fi.command('history')
