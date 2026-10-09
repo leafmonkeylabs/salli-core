@@ -30,7 +30,9 @@ pytestmark = pytest.mark.asyncio
 
 def _projections() -> dict[str, Any]:
     return {
-        "points": [{"year": 1, "conservative": "100", "base": "110", "growth": "120"}],
+        # As the service sends them: in a currency, with its decimals.
+        "currency": "LKR",
+        "points": [{"year": 1, "conservative": "100.00", "base": "110.00", "growth": "120.00"}],
         "fire_year_conservative": 14,
         "fire_year_base": 12,
         "fire_year_growth": 10,

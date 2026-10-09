@@ -2476,7 +2476,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FiScore"
+                }
               }
             }
           }
@@ -2501,7 +2503,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FiScore"
+                }
               }
             }
           }
@@ -2525,7 +2529,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FiScoreHistory"
+                }
               }
             }
           }
@@ -2549,7 +2555,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/GoalList"
+                }
               }
             }
           }
@@ -2581,7 +2589,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -2641,7 +2651,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/GoalUpdated"
+                }
               }
             }
           },
@@ -2709,7 +2721,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FireStrategy"
+                }
               }
             }
           }
@@ -2734,7 +2748,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FireStrategyHistory"
+                }
               }
             }
           }
@@ -2756,11 +2772,9 @@
         "operationId": "fi.strategy.generate",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Server-sent events: `status` messages while it works, then `done` with the new strategy (a `FireStrategy`), or `error`.",
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "text/event-stream": {}
             }
           }
         },
@@ -2784,7 +2798,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FiProjections"
+                }
               }
             }
           }
@@ -2809,7 +2825,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SurplusBreakdown"
+                }
               }
             }
           }
@@ -2844,7 +2862,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseImpact"
+                }
               }
             }
           },
@@ -2894,7 +2914,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/GoalAllocationList"
+                }
               }
             }
           },
@@ -2948,7 +2970,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/GoalUpdated"
+                }
               }
             }
           },
@@ -7886,6 +7910,1003 @@
         ],
         "title": "ExportedPosting"
       },
+      "FiProjectionPoint": {
+        "properties": {
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "conservative": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conservative"
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "growth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FiProjectionPoint",
+        "description": "The FI asset base projected to the end of a year, per scenario, in today's money."
+      },
+      "FiProjections": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "ISO 4217 currency code",
+                "examples": [
+                  "USD"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FiProjectionPoint"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "fi_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fi Number"
+          },
+          "swr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swr"
+          },
+          "fire_year_conservative": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire Year Conservative"
+          },
+          "fire_year_base": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire Year Base"
+          },
+          "fire_year_growth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire Year Growth"
+          },
+          "current_portfolio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Portfolio"
+          },
+          "real_returns": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiScenarioReturns"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expected_inflation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Inflation"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FiProjections",
+        "description": "The FI asset base projected forward under three return scenarios, in today's money.\n\nA deployment's entitlement policy may withhold parts of this and add fields\nof its own, so every field is optional."
+      },
+      "FiScenarioReturns": {
+        "properties": {
+          "conservative": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conservative"
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "growth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FiScenarioReturns",
+        "description": "Real (after-inflation) yearly returns per scenario, as fractions in decimal strings."
+      },
+      "FiScore": {
+        "properties": {
+          "pack_version": {
+            "type": "string",
+            "title": "Pack Version"
+          },
+          "overall_score": {
+            "type": "string",
+            "title": "Overall Score"
+          },
+          "grade": {
+            "type": "string",
+            "title": "Grade"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "monthly_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_surplus": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Surplus",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "type": "string",
+            "title": "Savings Rate"
+          },
+          "swr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swr"
+          },
+          "annual_expenses": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annual Expenses"
+          },
+          "fi_number": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Fi Number",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "fi_asset_base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fi Asset Base"
+          },
+          "progress_to_fi": {
+            "type": "string",
+            "title": "Progress To Fi"
+          },
+          "emergency_fund_months": {
+            "type": "string",
+            "title": "Emergency Fund Months"
+          },
+          "debt_to_asset": {
+            "type": "string",
+            "title": "Debt To Asset"
+          },
+          "projected_fi_years": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected Fi Years"
+          },
+          "projected_fi_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected Fi Date"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/FiScoreComponent"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "inputs_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputs Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pack_version",
+          "overall_score",
+          "grade",
+          "currency",
+          "monthly_income",
+          "monthly_expenses",
+          "monthly_surplus",
+          "savings_rate",
+          "fi_number",
+          "net_worth",
+          "progress_to_fi",
+          "emergency_fund_months",
+          "debt_to_asset",
+          "components"
+        ],
+        "title": "FiScore",
+        "description": "The Freedom Score (0..100) and every figure it was computed from.\n\nRatios are fractions in decimal strings (\"0.25\" is 25%), never percentages.\nA score stored by an earlier version may lack the optional fields."
+      },
+      "FiScoreComponent": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "score": {
+            "type": "string",
+            "title": "Score"
+          },
+          "weight": {
+            "type": "string",
+            "title": "Weight"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "score",
+          "weight",
+          "detail"
+        ],
+        "title": "FiScoreComponent",
+        "description": "One of the parts the Freedom Score is a weighted blend of."
+      },
+      "FiScoreHistory": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/FiScoreSnapshot"
+            },
+            "type": "array",
+            "title": "History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "history"
+        ],
+        "title": "FiScoreHistory"
+      },
+      "FiScoreSnapshot": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "net_worth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Worth"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "net_worth",
+          "created_at"
+        ],
+        "title": "FiScoreSnapshot",
+        "description": "A stored Freedom Score, for a trend line."
+      },
+      "FireStrategy": {
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "fire_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire Style"
+          },
+          "swr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swr"
+          },
+          "return_conservative": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Conservative"
+          },
+          "return_base": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Base"
+          },
+          "return_growth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Growth"
+          },
+          "target_monthly_expenses": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Monthly Expenses"
+          },
+          "target_age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Age"
+          },
+          "buckets": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FireStrategyBucket"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buckets"
+          },
+          "ai_rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Rationale"
+          },
+          "theories_applied": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theories Applied"
+          },
+          "is_initial": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Initial"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FireStrategy",
+        "description": "A version of the user's AI-generated FIRE strategy.\n\nRates are fractions (0.04 is 4%), and the returns are nominal and yearly.\nEvery field is optional: a strategy stored by an earlier version can lack\nsome, and a deployment's entitlement policy may withhold parts of it and\nadd fields of its own."
+      },
+      "FireStrategyBucket": {
+        "properties": {
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "target_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Pct"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FireStrategyBucket",
+        "description": "One allocation bucket of a FIRE strategy."
+      },
+      "FireStrategyHistory": {
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/FireStrategySummary"
+            },
+            "type": "array",
+            "title": "History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "history"
+        ],
+        "title": "FireStrategyHistory"
+      },
+      "FireStrategySummary": {
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "fire_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire Style"
+          },
+          "theories_applied": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theories Applied"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FireStrategySummary",
+        "description": "A version in the strategy history. Optional throughout, as `FireStrategy` is."
+      },
+      "Goal": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "target_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "current_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "allocated_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Allocated Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "shortfall": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Shortfall",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "currency",
+          "target_amount",
+          "current_amount",
+          "allocated_amount",
+          "shortfall",
+          "target_date",
+          "priority",
+          "progress",
+          "created_at"
+        ],
+        "title": "Goal",
+        "description": "A savings goal, its progress measured from what its accounts actually hold."
+      },
+      "GoalAllocation": {
+        "properties": {
+          "goal_id": {
+            "type": "string",
+            "title": "Goal Id"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "allocated_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Allocated Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "goal_id",
+          "account_id",
+          "currency",
+          "allocated_amount"
+        ],
+        "title": "GoalAllocation",
+        "description": "Part of an account earmarked for a goal."
+      },
+      "GoalAllocationList": {
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/GoalAllocation"
+            },
+            "type": "array",
+            "title": "Allocations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "allocations"
+        ],
+        "title": "GoalAllocationList"
+      },
+      "GoalList": {
+        "properties": {
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/Goal"
+            },
+            "type": "array",
+            "title": "Goals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "goals"
+        ],
+        "title": "GoalList"
+      },
       "GoalRequest": {
         "properties": {
           "name": {
@@ -8008,6 +9029,19 @@
         },
         "type": "object",
         "title": "GoalUpdateRequest"
+      },
+      "GoalUpdated": {
+        "properties": {
+          "updated": {
+            "type": "boolean",
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "GoalUpdated"
       },
       "GoalsRequest": {
         "properties": {
@@ -10140,6 +11174,254 @@
         "title": "ProvenanceSubscription",
         "description": "A recurring subscription this entry looks like a payment of."
       },
+      "PurchaseImpact": {
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "fi_number": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Fi Number",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "fi_asset_base_before": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Fi Asset Base Before",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_surplus": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Surplus",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "baseline_months_to_fi": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Months To Fi"
+          },
+          "payable_from_liquid": {
+            "type": "boolean",
+            "title": "Payable From Liquid"
+          },
+          "emergency_months_before": {
+            "type": "string",
+            "title": "Emergency Months Before"
+          },
+          "emergency_months_after_cash": {
+            "type": "string",
+            "title": "Emergency Months After Cash"
+          },
+          "emergency_fund_target_months": {
+            "type": "integer",
+            "title": "Emergency Fund Target Months"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "cheapest_option_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "installments"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cheapest Option Key"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "is_stale": {
+            "type": "boolean",
+            "title": "Is Stale"
+          },
+          "stale_after_days": {
+            "type": "integer",
+            "title": "Stale After Days"
+          },
+          "real_return_used": {
+            "type": "string",
+            "title": "Real Return Used"
+          },
+          "swr": {
+            "type": "string",
+            "title": "Swr"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount",
+          "currency",
+          "fi_number",
+          "fi_asset_base_before",
+          "monthly_surplus",
+          "baseline_months_to_fi",
+          "payable_from_liquid",
+          "emergency_months_before",
+          "emergency_months_after_cash",
+          "emergency_fund_target_months",
+          "options",
+          "cheapest_option_key",
+          "data_as_of",
+          "is_stale",
+          "stale_after_days",
+          "real_return_used",
+          "swr"
+        ],
+        "title": "PurchaseImpact",
+        "description": "What a purchase does to the balance sheet and the FI date. Every figure is the engine's."
+      },
+      "PurchaseOption": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "installments"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "total_cost": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Cost",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "interest_cost": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Interest Cost",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_payment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Payment"
+          },
+          "term_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Months"
+          },
+          "months_to_fi": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months To Fi"
+          },
+          "months_delay": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months Delay"
+          },
+          "exceeds_monthly_surplus": {
+            "type": "boolean",
+            "title": "Exceeds Monthly Surplus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "total_cost",
+          "interest_cost",
+          "monthly_payment",
+          "term_months",
+          "months_to_fi",
+          "months_delay",
+          "exceeds_monthly_surplus"
+        ],
+        "title": "PurchaseOption",
+        "description": "One way of paying, costed in months of freedom."
+      },
       "PurchaseRequest": {
         "properties": {
           "amount": {
@@ -11104,6 +12386,99 @@
         },
         "type": "object",
         "title": "SubscriptionUpdateRequest"
+      },
+      "SurplusBreakdown": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "income_by_source": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string in the currency's own precision; never a float.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "object",
+            "title": "Income By Source"
+          },
+          "expense_by_category": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string in the currency's own precision; never a float.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "object",
+            "title": "Expense By Category"
+          },
+          "expense_by_need": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string in the currency's own precision; never a float.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "object",
+            "title": "Expense By Need"
+          },
+          "gross_monthly_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Gross Monthly Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "gross_monthly_expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Gross Monthly Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_surplus": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Surplus",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "type": "string",
+            "title": "Savings Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "income_by_source",
+          "expense_by_category",
+          "expense_by_need",
+          "gross_monthly_income",
+          "gross_monthly_expenses",
+          "monthly_surplus",
+          "savings_rate"
+        ],
+        "title": "SurplusBreakdown",
+        "description": "Monthly averages over the trailing 12 months."
       },
       "SyncedAlerts": {
         "properties": {
