@@ -162,6 +162,7 @@ CLI_FOR_ROUTE: dict[Route, str] = {
 #: or an OAuth client calls, not something a person does.
 NO_CLI: dict[Route, str] = {
     ("GET", "/healthz"): "liveness probe for the host",
+    ("GET", "/meta"): "describes the HTTP server to remote clients; the in-process CLI has none",
     ("GET", "/.well-known/oauth-authorization-server"): "OAuth discovery (RFC 8414)",
     ("GET", "/.well-known/oauth-protected-resource"): "OAuth discovery (RFC 9728)",
     ("POST", "/mcp/oauth/register"): "dynamic client registration by an MCP client",
@@ -170,6 +171,4 @@ NO_CLI: dict[Route, str] = {
     ("POST", "/mcp/oauth/revoke"): "token revocation by an MCP client (RFC 7009)",
     ("GET", "/mcp/oauth/consent-info"): "read by a web app's consent screen",
     ("POST", "/mcp/oauth/consent"): "submitted by a web app's consent screen",
-    ("GET", "/mcp/oauth/consent-page"): "Salli's own consent page, in the browser",
-    ("POST", "/mcp/oauth/consent-page"): "Salli's own consent page, in the browser",
 }

@@ -158,9 +158,9 @@ async def test_the_schema_documents_the_route_without_exposing_a_key_field(clien
     """The generated clients are built from this schema, so a `key` in a
     *response* model would propagate a readback path into both apps."""
     schema = (await client.get("/openapi.json")).json()
-    assert "/llm-keys" in schema["paths"]
+    assert "/v1/llm-keys" in schema["paths"]
 
-    get_response = schema["paths"]["/llm-keys"]["get"]["responses"]["200"]
+    get_response = schema["paths"]["/v1/llm-keys"]["get"]["responses"]["200"]
     assert "key" not in str(get_response).lower().replace("llm-keys", "")
 
 

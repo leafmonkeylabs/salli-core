@@ -9,6 +9,7 @@ entry may outlive its route.
 
 from __future__ import annotations
 
+from salli.interfaces.api.contract import unversioned
 from salli.interfaces.api.main import create_app
 from salli.interfaces.cli.main import cli
 from salli.interfaces.cli.support import leaf_commands
@@ -17,7 +18,8 @@ from salli.interfaces.parity import CLI_FOR_ROUTE, NO_CLI
 
 def _routes() -> set[tuple[str, str]]:
     paths = create_app().openapi()["paths"]
-    return {(method.upper(), path) for path, ops in paths.items() for method in ops}
+    # The table is keyed by path without the /v1 prefix, as contract.py is.
+    return {(method.upper(), unversioned(path)) for path, ops in paths.items() for method in ops}
 
 
 def _commands() -> set[str]:
