@@ -163,6 +163,24 @@ class LLMUnreadableAnswer(LLMError):
     status = 502
 
 
+def chatgpt_usage_limit(*, paused: bool = False) -> LLMUsageLimit:
+    """The plan's usage limit for Salli was reached (OpenAI's guidelines: send
+    the user to ChatGPT's usage settings, and do not guess when it resets).
+    `paused`: Salli is holding new requests for a few minutes because of it."""
+    message = (
+        "You've reached the usage limit for Salli on your ChatGPT plan. It may be your "
+        "plan's own limit, or the one set for Salli in ChatGPT. Review or change it in "
+        f"ChatGPT settings, under Usage: {CHATGPT_USAGE_URL}."
+    )
+    if paused:
+        message += " Salli is holding new requests on your plan for a few minutes."
+    message += (
+        " Salli won't switch to another way of paying on its own; you can choose a "
+        "different AI provider in Salli's settings."
+    )
+    return LLMUsageLimit(message, provider="chatgpt", link=CHATGPT_USAGE_URL)
+
+
 def parse_json_answer(text: str) -> Any:
     """The JSON value a model was asked for, read leniently: a model may still
     wrap it in a code fence or a sentence despite being told not to.

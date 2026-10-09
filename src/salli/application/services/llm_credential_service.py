@@ -24,7 +24,9 @@ from salli.domain.secrets import Secret
 
 _log = logging.getLogger(__name__)
 
-PROVIDERS = ("anthropic",)
+#: The providers a user may store an API key for. (A ChatGPT plan is signed
+#: in to instead: ChatGPTConnectionService.)
+PROVIDERS = ("anthropic", "openai")
 
 
 @dataclass(frozen=True)

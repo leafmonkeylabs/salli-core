@@ -189,3 +189,67 @@ class StaticSession:
 
 def api_key_client(fake: FakeOpenAI, key: str = "sk-test-key") -> OpenAIResponsesClient:
     return fake.client(API_KEY_ROUTE, session=ApiKeySession(Secret(key)))
+
+
+class FakeAuthServer:
+    """auth.openai.com, enough of it: the token endpoint (rotating refresh
+    tokens, as OpenAI's are: each one works once) and revocation."""
+
+    def __init__(self, *, refresh_token: str = "refresh-1", delay: float = 0.0) -> None:
+        self.valid_refresh = refresh_token
+        self.delay = delay
+        self.refreshes: list[dict[str, str]] = []
+        self.revoked: list[dict[str, str]] = []
+        self.revoke_status = 200
+        #: Set to an OAuth error code to refuse every refresh with it.
+        self.refuse_with: str | None = None
+        self.fail_status: int | None = None
+        self.grant_plan = True
+        self.counter = 1
+
+    async def handler(self, request: httpx.Request) -> httpx.Response:
+        import asyncio
+        from urllib.parse import parse_qsl
+
+        form = dict(parse_qsl(request.content.decode()))
+        if request.url.path.endswith("/oauth/revoke"):
+            self.revoked.append(form)
+            return httpx.Response(self.revoke_status)
+        assert request.url.path.endswith("/oauth/token"), request.url
+        if form.get("grant_type") != "refresh_token":
+            raise AssertionError(f"unexpected grant {form.get('grant_type')}")
+        self.refreshes.append(form)
+        if self.delay:
+            await asyncio.sleep(self.delay)
+        if self.fail_status:
+            return httpx.Response(self.fail_status, json={"detail": "down"})
+        if self.refuse_with:
+            return httpx.Response(400, json={"error": self.refuse_with})
+        if form.get("refresh_token") != self.valid_refresh:
+            return httpx.Response(400, json={"error": "refresh_token_reused"})
+        self.counter += 1
+        self.valid_refresh = f"refresh-{self.counter}"
+        scope = "openid profile email offline_access resource.invoke"
+        if self.grant_plan:
+            scope += " chatgpt.tokens.use.direct"
+        return httpx.Response(
+            200,
+            json={
+                "access_token": f"access-{self.counter}",
+                "refresh_token": self.valid_refresh,
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "scope": scope,
+            },
+        )
+
+    def http(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(self.handler))
+
+    def oauth(self) -> Any:
+        from salli.adapters.llm.chatgpt_oauth import ChatGPTOAuth
+
+        async def no_sleep(_: float) -> None:
+            return None
+
+        return ChatGPTOAuth(self.http, sleep=no_sleep)

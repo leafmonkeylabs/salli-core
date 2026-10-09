@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import Select, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,7 @@ from salli.adapters.db.models import (
     AdvisoryReportORM,
     AgentDocumentORM,
     AgentSessionORM,
+    AiConnectionORM,
     AuditLogORM,
     BankConnectionAccountORM,
     BankConnectionORM,
@@ -61,6 +62,7 @@ from salli.application.ports import (
     AdvisoryRepository,
     AgentDocumentRepository,
     AgentSessionRepository,
+    AiConnectionRepository,
     AuditLogRepository,
     BankConnectionRepository,
     BudgetRepository,
@@ -1371,6 +1373,86 @@ class SQLLlmCredentialRepository(LlmCredentialRepository):
         return bool(result.rowcount)
 
 
+_AI_CONNECTION_FIELDS = frozenset(
+    {"sealed", "key_version", "status", "status_detail", "expires_at", "paused_until"}
+)
+
+
+def _ai_connection_to_dict(row: AiConnectionORM) -> dict[str, Any]:
+    return {
+        "provider": row.provider,
+        "sealed": row.sealed,
+        "key_version": row.key_version,
+        "status": row.status,
+        "status_detail": row.status_detail,
+        "expires_at": row.expires_at,
+        "paused_until": row.paused_until,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
+
+
+class SQLAiConnectionRepository(AiConnectionRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    def _query(self, user_id: str, provider: str) -> Select[tuple[AiConnectionORM]]:
+        return select(AiConnectionORM).where(
+            AiConnectionORM.user_id == user_id, AiConnectionORM.provider == provider
+        )
+
+    async def get(self, user_id: str, provider: str) -> dict[str, Any] | None:
+        row = (await self._s.execute(self._query(user_id, provider))).scalar_one_or_none()
+        return _ai_connection_to_dict(row) if row else None
+
+    async def get_for_update(self, user_id: str, provider: str) -> dict[str, Any] | None:
+        # populate_existing: what the lock returns is the row as committed now,
+        # never a copy this session read before it had to wait.
+        query = (
+            self._query(user_id, provider)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        row = (await self._s.execute(query)).scalar_one_or_none()
+        return _ai_connection_to_dict(row) if row else None
+
+    async def save(self, user_id: str, provider: str, fields: dict[str, Any]) -> bool:
+        row = (
+            await self._s.execute(self._query(user_id, provider).with_for_update())
+        ).scalar_one_or_none()
+        created = row is None
+        if row is None:
+            row = AiConnectionORM(user_id=user_id, provider=provider)
+            self._s.add(row)
+        for key, value in fields.items():
+            if key not in _AI_CONNECTION_FIELDS:
+                raise ValueError(f"'{key}' is not a field of an AI connection")
+            setattr(row, key, value)
+        await self._s.flush()
+        return created
+
+    async def update(self, user_id: str, provider: str, fields: dict[str, Any]) -> bool:
+        row = (
+            await self._s.execute(self._query(user_id, provider).with_for_update())
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        for key, value in fields.items():
+            if key not in _AI_CONNECTION_FIELDS:
+                raise ValueError(f"'{key}' is not a field of an AI connection")
+            setattr(row, key, value)
+        await self._s.flush()
+        return True
+
+    async def delete(self, user_id: str, provider: str) -> bool:
+        result = await self._s.execute(
+            delete(AiConnectionORM).where(
+                AiConnectionORM.user_id == user_id, AiConnectionORM.provider == provider
+            )
+        )
+        return bool(result.rowcount)  # type: ignore[attr-defined]
+
+
 # ── Financial Independence repositories ──────────────────────────────────────
 
 
@@ -2320,6 +2402,8 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(AgentSessionORM, AgentSessionORM.user_id)
         await _delete(ReminderORM, ReminderORM.user_id)
         await _delete(UserLlmCredentialORM, UserLlmCredentialORM.user_id)
+        # Sealed ChatGPT tokens, the second place a user's AI credential lives.
+        await _delete(AiConnectionORM, AiConnectionORM.user_id)
         # Allocations cascade from both fi_goals and accounts, but both of
         # those are deleted in this same sweep and a cascade only fires if the
         # parent row is still there to cascade from — so delete them explicitly

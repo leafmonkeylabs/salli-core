@@ -137,7 +137,7 @@ async def test_saving_requires_auth(client, creds):
     creds.save.assert_not_awaited()
 
 
-@pytest.mark.parametrize("provider", ["anthropic"])
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
 async def test_both_providers_are_accepted(client, creds, provider):
     assert (
         await client.put(f"/llm-keys/{provider}", json={"key": KEY}, headers=AUTH)
@@ -240,3 +240,11 @@ def test_every_provider_has_a_label():
     from salli.interfaces.api.routers.llm_keys import _PROVIDER_LABEL, Provider
 
     assert set(_PROVIDER_LABEL) == set(Provider.__args__)
+
+
+async def test_a_rejected_openai_key_names_openai(client, creds):
+    creds.save.side_effect = InvalidProviderKey("openai")
+    r = await client.put("/llm-keys/openai", json={"key": "sk-test-openai"}, headers=AUTH)
+
+    assert r.status_code == 400
+    assert "OpenAI rejected this key" in r.json()["detail"]["message"]

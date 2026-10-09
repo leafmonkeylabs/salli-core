@@ -16,6 +16,7 @@ from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
 from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
 from salli.application.services.budget_service import BudgetService
+from salli.application.services.chatgpt_connection_service import ChatGPTConnectionService
 from salli.application.services.data_portability_service import DataPortabilityService
 from salli.application.services.debt_service import DebtService
 from salli.application.services.document_service import DocumentService
@@ -71,6 +72,8 @@ class Services:
     data_portability: DataPortabilityService
     mcp_oauth: McpOAuthService
     llm_credentials: LlmCredentialService
+    # A user's ChatGPT plan, signed in to and kept renewed.
+    chatgpt: ChatGPTConnectionService
     tokens: PersonalAccessTokenService
     rules: RulesService
     insights: InsightsService
@@ -113,6 +116,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         return UnitOfWork(session_factory, purgers)
 
     storage = _build_storage(settings)
+    chatgpt = _build_chatgpt(settings, uow_factory)
     llm_credentials = _build_llm_credentials(settings, uow_factory)
 
     # Extensions are built before Salli's own services so their meter and policy
@@ -243,6 +247,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         data_portability=data_portability,
         mcp_oauth=mcp_oauth,
         llm_credentials=llm_credentials,
+        chatgpt=chatgpt,
         tokens=PersonalAccessTokenService(uow_factory),
         rules=rules,
         insights=InsightsService(uow_factory),
@@ -294,6 +299,18 @@ def _build_bank_connections(
         importer,
         # The one gate on holding a user's secrets, shared with stored LLM keys.
         auth_is_real=auth_can_hold_secrets(settings),
+    )
+
+
+def _build_chatgpt(settings: Settings, uow_factory) -> ChatGPTConnectionService:
+    """A user's ChatGPT plan: behind the same two gates as stored API keys
+    (see _build_llm_credentials), sealed with the same key ring."""
+    from salli.adapters.crypto.keyring import KeyRing
+
+    return ChatGPTConnectionService(
+        uow_factory,
+        KeyRing(settings.byok_encryption_keys),
+        feature_enabled=auth_can_hold_secrets(settings),
     )
 
 

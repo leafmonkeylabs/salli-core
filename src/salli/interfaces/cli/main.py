@@ -3445,7 +3445,7 @@ def llm_keys_list():
 
 
 @llm_keys_app.command("set")
-def llm_keys_set(provider: str = typer.Argument("anthropic", help="anthropic")):
+def llm_keys_set(provider: str = typer.Argument("anthropic", help="anthropic or openai")):
     """Store your key for a provider (checked with the provider first)."""
     user_id = _require_user()
     key = typer.prompt(f"{provider} API key", hide_input=True)
@@ -3460,7 +3460,7 @@ def llm_keys_set(provider: str = typer.Argument("anthropic", help="anthropic")):
 
 
 @llm_keys_app.command("delete")
-def llm_keys_delete(provider: str = typer.Argument("anthropic", help="anthropic")):
+def llm_keys_delete(provider: str = typer.Argument("anthropic", help="anthropic or openai")):
     """Remove your stored key for a provider."""
     user_id = _require_user()
     removed = asyncio.run(_services().llm_credentials.delete(user_id, provider))

@@ -40,7 +40,6 @@ from typing import Any, Literal, Protocol, cast
 import httpx
 
 from salli.domain.llm import (
-    CHATGPT_USAGE_URL,
     PROVIDER_NAMES,
     LLMError,
     LLMIncomplete,
@@ -52,6 +51,7 @@ from salli.domain.llm import (
     LLMSignInRequired,
     LLMUsageLimit,
     LLMUsageUnavailable,
+    chatgpt_usage_limit,
 )
 
 _log = logging.getLogger(__name__)
@@ -485,14 +485,6 @@ def _str_or_none(value: Any) -> str | None:
 
 # ── Errors ────────────────────────────────────────────────────────────────────
 
-USAGE_LIMIT_MESSAGE = (
-    "You've reached the usage limit for Salli on your ChatGPT plan. It may be your "
-    "plan's own limit, or the one set for Salli in ChatGPT. Review or change it in "
-    f"ChatGPT settings, under Usage: {CHATGPT_USAGE_URL}. Salli won't switch to "
-    "another way of paying on its own; you can choose a different AI provider in "
-    "Salli's settings."
-)
-
 
 def error_for(
     provider: str, *, status: int | None, code: str | None, param: str | None = None
@@ -504,7 +496,7 @@ def error_for(
     name = PROVIDER_NAMES.get(provider, provider)
     plan = provider == "chatgpt"
     if code == "subscription_sharing_usage_limit_exceeded":
-        return LLMUsageLimit(USAGE_LIMIT_MESSAGE, provider=provider, link=CHATGPT_USAGE_URL)
+        return chatgpt_usage_limit()
     if code in ("subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable"):
         return LLMUsageUnavailable(
             "ChatGPT couldn't check your plan's usage just now. Please try again in a few minutes.",

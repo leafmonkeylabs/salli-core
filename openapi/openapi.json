@@ -6425,7 +6425,10 @@
             "in": "path",
             "required": true,
             "schema": {
-              "const": "anthropic",
+              "enum": [
+                "anthropic",
+                "openai"
+              ],
               "type": "string",
               "title": "Provider"
             }
@@ -6485,7 +6488,10 @@
             "in": "path",
             "required": true,
             "schema": {
-              "const": "anthropic",
+              "enum": [
+                "anthropic",
+                "openai"
+              ],
               "type": "string",
               "title": "Provider"
             }

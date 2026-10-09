@@ -71,3 +71,10 @@ def test_byok_credentials_are_deleted_with_the_account() -> None:
     the one table where surviving deletion is worst."""
     source = inspect.getsource(SQLDataPortabilityRepository.delete_all)
     assert "UserLlmCredentialORM" in source
+
+
+def test_chatgpt_connections_are_deleted_with_the_account() -> None:
+    """The other table that holds a decryptable credential: a ChatGPT plan's
+    sealed tokens."""
+    source = inspect.getsource(SQLDataPortabilityRepository.delete_all)
+    assert "AiConnectionORM" in source

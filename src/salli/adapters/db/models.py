@@ -487,6 +487,52 @@ class UserLlmCredentialORM(Base):
     __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_llm_cred_user_provider"),)
 
 
+class AiConnectionORM(Base):
+    """A user's sign-in with an AI provider that pays from their own plan:
+    today, ChatGPT (Sign in with ChatGPT plan usage).
+
+    Everything a connection holds is sealed with the instance's key ring
+    (AES-GCM, with `f"{user_id}|{provider}"` as associated data, exactly as a
+    stored API key): the issued client id, the access token, the rotating
+    refresh token, the ID token kept for the next sign-in's hint, the granted
+    scopes, and the account's `sub` and email. The columns beside it are only
+    what deciding needs without opening the seal.
+
+    One per user and provider. A refresh replaces the sealed tokens under a
+    row lock (SELECT ... FOR UPDATE), so two requests never spend one rotating
+    refresh token twice.
+    """
+
+    __tablename__ = "ai_connections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)  # chatgpt
+    sealed: Mapped[str] = mapped_column(Text, nullable=False)
+    key_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # active: usable. needs_sign_in: its renewal was refused, sign in again.
+    # needs_consent: signed in, but plan use was not allowed. signed_out:
+    # disconnected; only the account and its issued client id are kept, for
+    # the next sign-in.
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    # Our own words for why it needs the user, never the provider's.
+    status_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # When the access token expires: whether to renew it, without opening the seal.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when the plan's usage limit for Salli was reached: new requests wait.
+    paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="uq_ai_connections_user_provider"),
+    )
+
+
 # ── Financial Independence: goals, score snapshots, advisory reports ──────────
 
 

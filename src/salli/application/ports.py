@@ -561,6 +561,39 @@ class LlmCredentialRepository(ABC):
         ...
 
 
+class AiConnectionRepository(ABC):
+    """Per-user sign-ins with an AI provider's plan (ChatGPT), stored sealed.
+
+    As dumb as LlmCredentialRepository, for the same reason: it moves the
+    sealed blob and the few columns beside it, and never encrypts or decrypts.
+    A row is a dict of `sealed`, `key_version`, `status`, `status_detail`,
+    `expires_at`, `paused_until`, `created_at` and `updated_at`.
+    """
+
+    @abstractmethod
+    async def get(self, user_id: str, provider: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def get_for_update(self, user_id: str, provider: str) -> dict[str, Any] | None:
+        """The row, locked until this unit of work ends (SELECT ... FOR
+        UPDATE): a renewal holds it while it spends the refresh token, so a
+        second renewal waits and then sees the new one."""
+        ...
+
+    @abstractmethod
+    async def save(self, user_id: str, provider: str, fields: dict[str, Any]) -> bool:
+        """Create the row or replace these fields. True when it was created."""
+        ...
+
+    @abstractmethod
+    async def update(self, user_id: str, provider: str, fields: dict[str, Any]) -> bool:
+        """Change these fields of an existing row. False when there is none."""
+        ...
+
+    @abstractmethod
+    async def delete(self, user_id: str, provider: str) -> bool: ...
+
+
 # ── Financial Independence ───────────────────────────────────────────────────
 
 

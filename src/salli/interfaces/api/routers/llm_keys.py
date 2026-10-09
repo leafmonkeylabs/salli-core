@@ -1,9 +1,10 @@
 """
-LLM keys router — a user's own Anthropic credentials (BYOK).
+LLM keys router — a user's own Anthropic or OpenAI API key (BYOK).
 
 Supplying a key lifts AI usage metering: the user pays for their own inference,
 so there is nothing left for Salli to ration. The key powers every AI surface —
-the agent, statement parsing and advisor runs.
+the agent, statement parsing and advisor runs. (A ChatGPT plan is not a key:
+it is signed in to, under /ai/connections/chatgpt.)
 
 The key is write-only over HTTP. Nothing here ever returns it — the only
 readback is the last four characters, enough for the UI to show which key is
@@ -22,9 +23,9 @@ from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/llm-keys", tags=["llm-keys"])
 
-Provider = Literal["anthropic"]
+Provider = Literal["anthropic", "openai"]
 
-_PROVIDER_LABEL = {"anthropic": "Anthropic"}
+_PROVIDER_LABEL = {"anthropic": "Anthropic", "openai": "OpenAI"}
 
 
 class SaveKeyRequest(BaseModel):
