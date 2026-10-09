@@ -99,10 +99,13 @@ def detect_date_order(values: Iterable[str]) -> tuple[DateOrder, str | None]:
 
     The order is the one in which every date is real. When more than one
     fits, the one that keeps the dates closest together wins: a statement
-    covers a few weeks, and reading it the wrong way round scatters them
-    across the year (10/01 to 10/09 are nine days in October, or the 10th
-    of nine different months). A tie goes to day-first. Either way the
-    guess is said, so the user can import again with the order set.
+    covers weeks or months, and reading it the wrong way round scatters its
+    dates (10/01 to 10/09 are nine days in October, or the 10th of nine
+    different months). A reading that spreads them over more than a year is
+    no real alternative to one that does not — 01.10.26 to 30.10.26 are not
+    the 26th of October in 2001 to 2030 — so it is dropped without comment.
+    Otherwise the choice is a guess, and is said, so the user can import
+    again with the order set. A tie goes to day-first.
     """
     dated: list[tuple[str, frozenset[DateOrder]]] = []
     for value in values:
@@ -115,13 +118,16 @@ def detect_date_order(values: Iterable[str]) -> tuple[DateOrder, str | None]:
         # rest are reported as their rows are read.
         most: DateOrder = max(DATE_ORDERS, key=lambda o: sum(o in orders for _, orders in dated))
         return most, None
-    if len(fits) == 1:
-        return fits[0], None
 
     def spread(order: DateOrder) -> int:
         days = [d for d in (_date(value, order) for value, _ in dated) if d is not None]
         return (max(days) - min(days)).days if days else 0
 
+    within_a_year: list[DateOrder] = [o for o in fits if spread(o) <= 366]
+    if within_a_year:
+        fits = within_a_year
+    if len(fits) == 1:
+        return fits[0], None
     best: DateOrder = min(fits, key=spread)
     # Only a date that reads differently in the orders still in play is
     # evidence of a guess; 05/05/2026 is the same day either way.

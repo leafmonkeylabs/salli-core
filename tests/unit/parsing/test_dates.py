@@ -79,6 +79,12 @@ def test_ambiguous_dates_are_read_the_way_that_keeps_them_together_and_said_so()
     assert notice is not None and "MDY" in notice
 
 
+def test_a_reading_that_spans_decades_is_no_alternative():
+    # Day-first, these are October 2026. Year-first they would be the 26th of
+    # October in 2001, 2014 and 2030: no statement looks like that.
+    assert detect_date_order(["01.10.26", "14.10.26", "30.10.26"]) == ("DMY", None)
+
+
 def test_a_lone_ambiguous_date_is_read_day_first():
     order, notice = detect_date_order(["01/02/2026"])
     assert order == "DMY"
