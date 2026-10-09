@@ -4186,7 +4186,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionList"
+                }
               }
             }
           },
@@ -4228,7 +4230,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -4258,7 +4262,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionReportList"
+                }
               }
             }
           }
@@ -4298,7 +4304,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
               }
             }
           },
@@ -4351,7 +4359,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Updated"
+                }
               }
             }
           },
@@ -4435,7 +4445,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionReport"
+                }
               }
             }
           },
@@ -9223,6 +9235,252 @@
           "transactions"
         ],
         "title": "StatementUpload"
+      },
+      "Subscription": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "frequency": {
+            "type": "string",
+            "title": "Frequency"
+          },
+          "next_due_date": {
+            "type": "string",
+            "title": "Next Due Date"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "grace_days": {
+            "type": "integer",
+            "title": "Grace Days"
+          },
+          "amount_tolerance_pct": {
+            "type": "string",
+            "title": "Amount Tolerance Pct"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "amount",
+          "currency",
+          "frequency",
+          "next_due_date",
+          "account_id",
+          "grace_days",
+          "amount_tolerance_pct",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Subscription"
+      },
+      "SubscriptionAlert": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "missed_charge",
+              "price_change"
+            ],
+            "title": "Kind"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "expected_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Amount"
+          },
+          "actual_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "message",
+          "expected_amount",
+          "actual_amount"
+        ],
+        "title": "SubscriptionAlert"
+      },
+      "SubscriptionList": {
+        "properties": {
+          "subscriptions": {
+            "items": {
+              "$ref": "#/components/schemas/Subscription"
+            },
+            "type": "array",
+            "title": "Subscriptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscriptions"
+        ],
+        "title": "SubscriptionList"
+      },
+      "SubscriptionMatch": {
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "title": "Entry Id"
+          },
+          "entry_date": {
+            "type": "string",
+            "title": "Entry Date"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry_id",
+          "entry_date",
+          "amount"
+        ],
+        "title": "SubscriptionMatch",
+        "description": "A posted charge taken to be this subscription's."
+      },
+      "SubscriptionReport": {
+        "properties": {
+          "subscription_id": {
+            "type": "string",
+            "title": "Subscription Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionMatch"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionAlert"
+            },
+            "type": "array",
+            "title": "Alerts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscription_id",
+          "name",
+          "currency",
+          "matches",
+          "alerts"
+        ],
+        "title": "SubscriptionReport"
+      },
+      "SubscriptionReportList": {
+        "properties": {
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionReport"
+            },
+            "type": "array",
+            "title": "Reports"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reports"
+        ],
+        "title": "SubscriptionReportList"
       },
       "SubscriptionRequest": {
         "properties": {

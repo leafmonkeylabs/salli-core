@@ -99,12 +99,6 @@ UNTYPED = {
     "insurance.report",
     "insurance.targets.list",
     "insurance.targets.set",
-    "subscriptions.create",
-    "subscriptions.get",
-    "subscriptions.list",
-    "subscriptions.report",
-    "subscriptions.reports",
-    "subscriptions.update",
     # Profile, onboarding, the agent, LLM keys, MCP connections
     "account.delete",
     "account.export",

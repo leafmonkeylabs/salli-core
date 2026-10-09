@@ -105,6 +105,7 @@ class FakeRecordsUoW:
         self.budgets = FakeRecords()
         self.debts = FakeRecords(is_active=True)
         self.holdings = FakeRecords(is_active=True)
+        self.recurring_subscriptions = FakeRecords(is_active=True)
 
     async def __aenter__(self) -> FakeRecordsUoW:
         return self
