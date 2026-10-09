@@ -102,7 +102,6 @@ UNTYPED = {
     "reports.netWorth",
     # Budgets, debts, holdings, subscriptions, insurance
     # Profile, onboarding, the agent, LLM keys, MCP connections
-    "llmKeys.list",
     "mcp.connections.list",
     "mcp.enabled.get",
     # OAuth

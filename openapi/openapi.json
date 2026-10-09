@@ -4986,7 +4986,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LlmKeys"
+                }
               }
             }
           }
@@ -8588,6 +8590,64 @@
           "result"
         ],
         "title": "LatestTaxComputation"
+      },
+      "LlmKeyStatus": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "last4": {
+            "type": "string",
+            "title": "Last4"
+          },
+          "validated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validated At"
+          },
+          "readable": {
+            "type": "boolean",
+            "title": "Readable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "last4",
+          "validated_at",
+          "readable"
+        ],
+        "title": "LlmKeyStatus",
+        "description": "A stored key, described without revealing it."
+      },
+      "LlmKeys": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/LlmKeyStatus"
+            },
+            "type": "array",
+            "title": "Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "keys"
+        ],
+        "title": "LlmKeys",
+        "description": "The user's own keys, as far as they are ever shown: the key itself is write-only."
       },
       "McpEnabledRequest": {
         "properties": {
