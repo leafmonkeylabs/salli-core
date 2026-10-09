@@ -74,9 +74,6 @@ UNTYPED = {
     "statements.pending",
     "statements.post",
     "statements.upload",
-    "tax.compute",
-    "tax.latest",
-    "tax.packs",
     # Planning: financial independence, goals, the advisor, reports
     "advisor.briefing.prepare",
     "advisor.briefing.resume",

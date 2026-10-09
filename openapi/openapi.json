@@ -928,7 +928,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaxPack"
+                  },
+                  "type": "array",
+                  "title": "Response Tax.Packs"
+                }
               }
             }
           }
@@ -964,7 +970,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaxComputation"
+                }
               }
             }
           },
@@ -1010,7 +1018,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LatestTaxComputation"
+                }
               }
             }
           },
@@ -6832,6 +6842,25 @@
         ],
         "title": "JournalEntry"
       },
+      "LatestTaxComputation": {
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxComputation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "title": "LatestTaxComputation"
+      },
       "McpEnabledRequest": {
         "properties": {
           "enabled": {
@@ -8223,6 +8252,342 @@
           "target_amount"
         ],
         "title": "TargetRequest"
+      },
+      "TaxBandWorking": {
+        "properties": {
+          "band": {
+            "type": "string",
+            "title": "Band"
+          },
+          "rate": {
+            "type": "string",
+            "title": "Rate"
+          },
+          "from_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "From Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "to_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Amount"
+          },
+          "rate_fraction": {
+            "type": "string",
+            "title": "Rate Fraction"
+          },
+          "taxable_in_band": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Taxable In Band",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "tax": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Tax",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "band",
+          "rate",
+          "from_amount",
+          "to_amount",
+          "rate_fraction",
+          "taxable_in_band",
+          "tax"
+        ],
+        "title": "TaxBandWorking"
+      },
+      "TaxComputation": {
+        "properties": {
+          "pack_country": {
+            "type": "string",
+            "title": "Pack Country"
+          },
+          "pack_year": {
+            "type": "string",
+            "title": "Pack Year"
+          },
+          "pack_version": {
+            "type": "string",
+            "title": "Pack Version"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "gross_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Gross Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "foreign_service_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Foreign Service Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "regular_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Regular Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "personal_relief_applied": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Personal Relief Applied",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "qp_deduction": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Qp Deduction",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "taxable_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Taxable Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "fsi_tax": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Fsi Tax",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "tax_before_credits": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Tax Before Credits",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "apit_credit": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Apit Credit",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "ait_credit": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Ait Credit",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "foreign_tax_credit": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Foreign Tax Credit",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_credits": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Credits",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "tax_payable": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Tax Payable",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "refund_due": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Refund Due",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "rounding": {
+            "type": "string",
+            "enum": [
+              "nearest_rupee",
+              "truncate_rupee"
+            ],
+            "title": "Rounding"
+          },
+          "band_workings": {
+            "items": {
+              "$ref": "#/components/schemas/TaxBandWorking"
+            },
+            "type": "array",
+            "title": "Band Workings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pack_country",
+          "pack_year",
+          "pack_version",
+          "currency",
+          "gross_income",
+          "foreign_service_income",
+          "regular_income",
+          "personal_relief_applied",
+          "qp_deduction",
+          "taxable_income",
+          "fsi_tax",
+          "tax_before_credits",
+          "apit_credit",
+          "ait_credit",
+          "foreign_tax_credit",
+          "total_credits",
+          "tax_payable",
+          "refund_due",
+          "rounding",
+          "band_workings"
+        ],
+        "title": "TaxComputation"
+      },
+      "TaxPack": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "personal_relief": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Personal Relief",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "return_due": {
+            "type": "string",
+            "title": "Return Due"
+          },
+          "set_due": {
+            "type": "string",
+            "title": "Set Due"
+          },
+          "installments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Installments"
+          },
+          "final_installment_due": {
+            "type": "string",
+            "title": "Final Installment Due"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "year",
+          "version",
+          "currency",
+          "period_start",
+          "period_end",
+          "personal_relief",
+          "return_due",
+          "set_due",
+          "installments",
+          "final_installment_due"
+        ],
+        "title": "TaxPack"
       },
       "TaxPackInfo": {
         "properties": {

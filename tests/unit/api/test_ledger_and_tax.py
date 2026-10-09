@@ -1,10 +1,17 @@
+import dataclasses
+import json
+import re
 from decimal import Decimal
-from unittest.mock import MagicMock
+from typing import get_args
 
 import pytest
 
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
-from salli.domain.tax.models import TaxComputation
+from salli.domain.tax.engine import compute
+from salli.domain.tax.models import LedgerView, TaxComputation
+from salli.domain.tax.packs import registry
+from salli.domain.tax.packs.lk_2025_26 import LK_2025_26
+from salli.interfaces.api.routers.tax import Rounding
 from tests.unit.api.conftest import AUTH
 
 
@@ -147,22 +154,18 @@ async def test_tags_list(client, mock_services):
 
 @pytest.mark.asyncio
 async def test_list_tax_packs(client, mock_services):
-    pack = MagicMock()
-    pack.country = "LK"
-    pack.year = "2025/26"
-    pack.version = "1.0.0"
-    pack.period_start = "2025-04-01"
-    pack.period_end = "2026-03-31"
-    pack.personal_relief = Decimal("1800000")
-    pack.filing.return_due = "2026-11-30"
-    mock_services.tax.list_packs.return_value = [pack]
+    # The pack itself rather than a mock of it: a mock left the currency and
+    # most of the filing calendar as MagicMock attributes.
+    mock_services.tax.list_packs.return_value = [LK_2025_26]
 
     r = await client.get("/tax/packs", headers=AUTH)
     assert r.status_code == 200
     data = r.json()
     assert len(data) == 1
     assert data[0]["year"] == "2025/26"
-    assert data[0]["personal_relief"] == "1800000"
+    # An amount, with its currency and that currency's decimals.
+    assert (data[0]["personal_relief"], data[0]["currency"]) == ("1800000.00", "LKR")
+    assert data[0]["installments"] == ["08-15", "11-15", "02-15", "05-15"]
 
 
 @pytest.mark.asyncio
@@ -187,14 +190,15 @@ async def test_compute_tax(client, mock_services):
         total_credits=Decimal("0"),
         tax_payable=Decimal("114000"),
         refund_due=Decimal("0"),
-        rounding="none",
+        # A mode the engine applies; it refuses any other.
+        rounding="nearest_rupee",
     )
     mock_services.tax.compute_tax.return_value = result
 
     r = await client.post("/tax/compute", headers=AUTH)
     assert r.status_code == 200
     body = r.json()
-    assert body["tax_payable"] == "114000"
+    assert body["tax_payable"] == "114000.00"
     assert body["pack_year"] == "2025/26"
 
 
@@ -204,6 +208,101 @@ async def test_latest_tax_none(client, mock_services):
     r = await client.get("/tax/latest", headers=AUTH)
     assert r.status_code == 200
     assert r.json() == {"result": None}
+
+
+_AMOUNTS = (
+    "gross_income",
+    "foreign_service_income",
+    "regular_income",
+    "personal_relief_applied",
+    "qp_deduction",
+    "taxable_income",
+    "fsi_tax",
+    "tax_before_credits",
+    "apit_credit",
+    "ait_credit",
+    "foreign_tax_credit",
+    "total_credits",
+    "tax_payable",
+    "refund_due",
+)
+_BAND_AMOUNTS = ("from_amount", "to_amount", "taxable_in_band", "tax")
+_LKR = re.compile(r"^-?\d+\.\d{2}$")
+
+
+def _amounts(computation: dict) -> list[str]:
+    return [computation[k] for k in _AMOUNTS] + [
+        band[k]
+        for band in computation["band_workings"]
+        for k in _BAND_AMOUNTS
+        if band[k] is not None
+    ]
+
+
+def _view(**figures: str) -> LedgerView:
+    fields = (
+        "total_income",
+        "foreign_service_income",
+        "apit_withheld",
+        "ait_withheld",
+        "foreign_tax_paid",
+        "qualifying_payments",
+    )
+    return LedgerView(**{f: Decimal(figures.get(f, "0")) for f in fields})
+
+
+async def test_computed_amounts_have_the_currencys_decimals(client, mock_services):
+    """The qualifying-payment cap is a third of taxable income, so the engine's
+    figures carry repeating decimals; the API quotes them at LKR's two."""
+    mock_services.tax.compute_tax.return_value = compute(
+        _view(total_income="1900000", qualifying_payments="50000"), LK_2025_26
+    )
+    r = await client.post("/v1/tax/compute", headers=AUTH)
+    assert r.status_code == 200
+    body = r.json()
+    assert (body["qp_deduction"], body["taxable_income"]) == ("33333.33", "66666.67")
+    assert all(_LKR.match(a) for a in _amounts(body)), _amounts(body)
+
+
+async def test_a_stored_computation_reads_back_at_the_currencys_precision(client, mock_services):
+    """A stored row keeps the scale the engine's sums had (the exchange rate's
+    eight decimals on top of the amount's two), written as the repository
+    writes it."""
+    computation = compute(
+        _view(total_income="3000000.0000000000", apit_withheld="250000.0000000000"),
+        LK_2025_26,
+    )
+    stored = json.loads(json.dumps(dataclasses.asdict(computation), default=str))
+    assert stored["gross_income"] == "3000000.0000000000"
+    mock_services.tax.get_latest_computation.return_value = stored
+
+    r = await client.get("/v1/tax/latest", headers=AUTH)
+    assert r.status_code == 200
+    result = r.json()["result"]
+    assert (result["gross_income"], result["apit_credit"]) == ("3000000.00", "250000.00")
+    assert all(_LKR.match(a) for a in _amounts(result)), _amounts(result)
+
+
+async def test_a_row_from_before_currency_and_refunds_were_recorded(client, mock_services):
+    mock_services.tax.get_latest_computation.return_value = {
+        "pack_country": "LK",
+        "pack_year": "2025/26",
+        "pack_version": "1.0.0",
+        "gross_income": "3000000",
+        "tax_payable": "114000",
+        "band_workings": [],
+    }
+    r = await client.get("/v1/tax/latest", headers=AUTH)
+    assert r.status_code == 200
+    result = r.json()["result"]
+    assert (result["currency"], result["rounding"]) == ("LKR", "nearest_rupee")
+    assert (result["tax_payable"], result["refund_due"]) == ("114000.00", "0.00")
+
+
+def test_every_pack_rounds_in_a_mode_the_api_describes():
+    """`rounding` is a closed set in the contract. A pack with a new mode has to
+    extend it, or every computation made with that pack would fail its type."""
+    assert {p.rounding for p in registry.list_packs()} <= set(get_args(Rounding))
 
 
 @pytest.mark.asyncio
