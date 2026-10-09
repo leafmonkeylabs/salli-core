@@ -878,3 +878,20 @@ async def test_a_file_is_read_off_the_event_loop(world, monkeypatch):
     monkeypatch.setattr(parsing_service.asyncio, "to_thread", to_thread)
     await world.service().parse_statement(USER, "q.qif", _fixture("quicken_us.qif"))
     assert ran == ["_extract"]
+
+
+async def test_a_placeholder_date_is_skipped_not_a_server_error(world):
+    # 9999-12-31 from a feed overflowed the history window's date arithmetic.
+    rows = [_row("PLACEHOLDER", "1.00", date="9999-12-31"), _row("COFFEE", "4.50")]
+    result = await world.service().import_rows(
+        USER, rows, bank="", account_id="checking", api_key="k"
+    )
+    assert [t.raw.description for t in result.transactions] == ["COFFEE"]
+    assert "Skipped 1 transaction(s) without a real date" in result.errors
+
+
+def test_shifting_a_date_past_the_calendar_stays_within_it():
+    from salli.application.services.parsing_service import _shift
+
+    assert _shift("9999-12-31", 10) == "9999-12-31"
+    assert _shift("0001-01-01", -10) == "0001-01-01"

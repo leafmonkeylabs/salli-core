@@ -289,9 +289,14 @@ class ParsingService:
         from salli.adapters.parsing import llm_classifier
 
         errors = list(errors or [])
-        kept = rows
+        kept, undated = _real_dates(rows)
+        if undated:
+            # A feed (or any caller) can hand over a placeholder such as
+            # 9999-12-31: no transaction's date, and past what date
+            # arithmetic can reach.
+            errors.append(f"Skipped {undated} transaction(s) without a real date")
         if account is not None:
-            kept, skipped = _in_currency_of(account, rows)
+            kept, skipped = _in_currency_of(account, kept)
             errors += skipped
         if not kept:
             return ParseResult(
@@ -688,7 +693,28 @@ def _on_account(
 
 
 def _shift(day: str, days: int) -> str:
-    return (date.fromisoformat(day) + timedelta(days=days)).isoformat()
+    """`day` moved by `days`, kept within the calendar (date.min..date.max)."""
+    try:
+        return (date.fromisoformat(day) + timedelta(days=days)).isoformat()
+    except OverflowError:
+        return (date.max if days > 0 else date.min).isoformat()
+
+
+# The years a statement's transactions can be in (as the importers read them).
+_FIRST_YEAR, _LAST_YEAR = 1900, 2100
+
+
+def _real_dates(rows: list[RawRow]) -> tuple[list[RawRow], int]:
+    """The rows with a real date in 1900-2100, and how many had none."""
+    kept: list[RawRow] = []
+    for row in rows:
+        try:
+            year = date.fromisoformat(row.date).year
+        except ValueError:
+            continue
+        if _FIRST_YEAR <= year <= _LAST_YEAR:
+            kept.append(row)
+    return kept, len(rows) - len(kept)
 
 
 def _counter_is_debit(txn: ParsedTransaction, kinds: dict[str, str]) -> bool:
