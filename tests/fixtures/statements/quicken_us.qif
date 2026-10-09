@@ -1,0 +1,75 @@
+!Option:AutoSwitch
+!Account
+NEveryday Checking
+TBank
+^
+NRewards Visa
+TCCard
+^
+!Clear:AutoSwitch
+!Account
+NEveryday Checking
+TBank
+^
+!Type:Bank
+D10/ 1'26
+T-1,250.00
+CX
+N1043
+PGreenway Property Management
+MOctober rent
+LHousing:Rent
+^
+D10/ 2'26
+U-4.50
+T-4.50
+PBlue Bottle Coffee
+LDining
+^
+D10/ 5'26
+T2,400.00
+PNorthwind Payroll
+MDirect deposit
+NDEP
+LSalary
+^
+D10/ 7'26
+T-82.35
+PSafeway #1123
+NATM
+SGroceries
+$-60.00
+SHousehold
+$-22.35
+^
+D10/ 9'26
+T-60.00
+PATM Withdrawal
+NATM
+^
+D10/12'26
+T-89.99
+PPacific Gas & Electric
+MAutopay
+^
+!Account
+NRewards Visa
+TCCard
+^
+!Type:CCard
+D10/ 3'26
+T-45.20
+PShell Oil 57442
+^
+D10/10'26
+T300.00
+PPayment - Thank You
+^
+!Type:Invst
+D10/ 1'26
+NBuy
+YVTI
+I250.00
+Q2
+T500.00
+^
