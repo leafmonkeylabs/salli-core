@@ -73,15 +73,6 @@ def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
 #: added. Grouped so work on different areas does not collide.
 UNTYPED = {
     # Planning: financial independence, goals, the advisor, reports
-    "advisor.briefing.prepare",
-    "advisor.briefing.resume",
-    "advisor.cron.runDue",
-    "advisor.dailyBriefing.get",
-    "advisor.recommendations.apply",
-    "advisor.recommendations.dismiss",
-    "advisor.reports.latest",
-    "advisor.reports.list",
-    "advisor.run",
     "reports.balanceSheet",
     "reports.exportCsv",
     "reports.goalProgress",
