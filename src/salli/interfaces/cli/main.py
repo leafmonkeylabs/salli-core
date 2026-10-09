@@ -117,7 +117,7 @@ async def _agent_services():
 
     async with AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer:
         await checkpointer.setup()
-        yield build_services(settings, checkpointer=checkpointer)
+        yield build_services(settings, checkpointer=checkpointer, pooled=False)
 
 
 # ── accounts ──────────────────────────────────────────────────────────────────

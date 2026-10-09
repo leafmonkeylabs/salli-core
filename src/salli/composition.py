@@ -82,7 +82,7 @@ class Services:
     extensions: Contributions
 
 
-def build_services(settings: Settings, checkpointer: Any = None) -> Services:
+def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = True) -> Services:
     import os
 
     # ANTHROPIC_API_KEY is deliberately NOT seeded into os.environ. Every model
@@ -97,7 +97,8 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
     if settings.tavily_api_key:
         os.environ.setdefault("TAVILY_API_KEY", settings.tavily_api_key)
 
-    session_factory = make_session_factory(settings)
+    # Unpooled for the CLI: a command may run several event loops in turn.
+    session_factory = make_session_factory(settings, pooled=pooled)
 
     # Filled in once extensions are built (they need uow_factory first). Read
     # at call time, so every unit of work — including any opened by an
