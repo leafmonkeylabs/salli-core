@@ -3713,14 +3713,14 @@ def mcp_connections():
     if emit(connections):
         return
     table = Table(title="MCP connections")
-    for column in ("ID", "Client", "Scope", "Expires"):
+    for column in ("ID", "Client", "Scope", "Connected"):
         table.add_column(column)
     for c in connections:
         table.add_row(
-            str(c.get("id", ""))[:8],
+            str(c.get("token_id", ""))[:8],
             str(c.get("client_name", "")),
             str(c.get("scope", "")),
-            str(c.get("expires_at", "")),
+            str(c.get("connected_at", ""))[:16],
         )
     console.print(table)
 
@@ -3730,7 +3730,8 @@ def mcp_revoke(token_id: str = typer.Argument(..., help="Connection id")):
     """Disconnect one AI client."""
     user_id = _require_user()
     connections = asyncio.run(_services().mcp_oauth.list_connections(user_id))
-    token_id = _resolve_id(connections, token_id, "connection")
+    # A connection is named by its token id; resolve_id matches on "id".
+    token_id = _resolve_id([{"id": c["token_id"]} for c in connections], token_id, "connection")
     asyncio.run(_services().mcp_oauth.revoke_connection(user_id, token_id))
     emit({"id": token_id, "revoked": True})
     console.print(f"[green]Disconnected:[/green] {token_id}")
