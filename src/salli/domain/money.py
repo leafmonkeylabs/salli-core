@@ -3,20 +3,29 @@ from __future__ import annotations
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Self
 
+from salli.domain.currency import exponent, format_amount, minor_factor, normalize_currency
 
-def to_minor(amount: Decimal, minor_factor: int = 100) -> int:
+
+def to_minor(amount: Decimal, currency: str) -> int:
     """
-    Decimal amount → integer minor units, rounded HALF-UP.
+    Decimal amount → integer minor units of `currency`, rounded HALF-UP.
 
     Use this instead of `int(amount * 100)`, which *truncates*: `int(Decimal("1234.565")
-    * 100)` silently loses a cent. The single rounding rule for the money path.
+    * 100)` silently loses a cent. And never assume 100: a yen has no minor unit and
+    a Kuwaiti dinar has a thousand, so the factor comes from the currency.
+    The single rounding rule for the money path.
     """
-    return int((amount * Decimal(minor_factor)).to_integral_value(ROUND_HALF_UP))
+    return int((amount * minor_factor(currency)).to_integral_value(ROUND_HALF_UP))
 
 
-def from_minor(minor_units: int, minor_factor: int = 100) -> Decimal:
-    """Integer minor units → Decimal amount."""
-    return Decimal(minor_units) / Decimal(minor_factor)
+def from_minor(minor_units: int, currency: str, *, strict: bool = True) -> Decimal:
+    """Integer minor units → a Decimal with exactly `currency`'s decimals.
+
+    `from_minor(123450, "USD")` is `Decimal("1234.50")`, not `1234.5`, so an amount
+    always reads with the precision it is kept at. `strict=False` reads rows
+    written before currency codes were validated (see `currency.exponent`).
+    """
+    return Decimal(minor_units).scaleb(-exponent(currency, strict=strict))
 
 
 class Money:
@@ -28,17 +37,19 @@ class Money:
     __slots__ = ("_minor", "_currency")
 
     def __init__(self, minor_units: int, currency: str) -> None:
-        if not isinstance(minor_units, int):
+        # A runtime guard for callers the type checker never sees: a float that
+        # got this far must fail here, not become money.
+        if not isinstance(minor_units, int):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"minor_units must be int, got {type(minor_units).__name__}")
         self._minor = minor_units
-        self._currency = currency.upper()
+        self._currency = normalize_currency(currency)
 
     # ── constructors ──────────────────────────────────────────────────────────
 
     @classmethod
-    def of(cls, amount: Decimal, currency: str, minor_factor: int = 100) -> Self:
-        """Convert a Decimal amount to minor units using pack-defined rounding."""
-        return cls(to_minor(amount, minor_factor), currency)
+    def of(cls, amount: Decimal, currency: str) -> Self:
+        """Convert a Decimal amount to `currency`'s minor units, rounding HALF-UP."""
+        return cls(to_minor(amount, currency), currency)
 
     @classmethod
     def zero(cls, currency: str) -> Self:
@@ -54,8 +65,8 @@ class Money:
     def currency(self) -> str:
         return self._currency
 
-    def to_decimal(self, minor_factor: int = 100) -> Decimal:
-        return Decimal(self._minor) / Decimal(minor_factor)
+    def to_decimal(self) -> Decimal:
+        return from_minor(self._minor, self._currency)
 
     # ── arithmetic ────────────────────────────────────────────────────────────
 
@@ -102,7 +113,7 @@ class Money:
         return f"Money({self._minor}, {self._currency!r})"
 
     def __str__(self) -> str:
-        return f"{self.to_decimal():,.2f} {self._currency}"
+        return format_amount(self.to_decimal(), self._currency)
 
     # ── helpers ───────────────────────────────────────────────────────────────
 

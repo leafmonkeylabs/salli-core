@@ -49,6 +49,7 @@ def _account(code: str, name: str, type_: str, tax_role: str | None = None) -> A
         name=name,
         type=type_,
         tax_role=tax_role,
+        currency="LKR",
     )
 
 

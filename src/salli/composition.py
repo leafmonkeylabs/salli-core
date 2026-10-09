@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from salli.adapters.db.session import make_session_factory
-from salli.adapters.fx.cbsl import CBSLFxRateAdapter
-from salli.application.ports import EntitlementPolicy, StoragePort, UsageMeter
+from salli.adapters.fx.chain import default_fx_rates
+from salli.application.ports import EntitlementPolicy, FxRatePort, StoragePort, UsageMeter
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
 from salli.application.services.budget_service import BudgetService
@@ -51,7 +51,7 @@ class Services:
     agent: AgentService
     parsing: ParsingService
     reminders: ReminderService
-    fx: CBSLFxRateAdapter
+    fx: FxRatePort
     storage: StoragePort
     documents: DocumentService
     fi: FiService
@@ -123,7 +123,8 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
     )
     purgers.extend(extensions.user_data_purgers)
 
-    ledger = LedgerService(uow_factory)
+    fx = default_fx_rates()
+    ledger = LedgerService(uow_factory, fx=fx)
     tax = TaxService(uow_factory)
     documents = DocumentService(uow_factory, storage)
     fi = FiService(uow_factory, llm_credentials)
@@ -132,8 +133,14 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
     portfolio = PortfolioService(uow_factory)
     subscription = SubscriptionService(uow_factory)
     insurance = InsuranceService(uow_factory)
-    fx = CBSLFxRateAdapter()
-    profile = UserProfileService(uow_factory, ledger, fi, documents, fx_service=fx)
+    profile = UserProfileService(
+        uow_factory,
+        ledger,
+        fi,
+        documents,
+        fx_service=fx,
+        default_currency=settings.salli_default_currency,
+    )
     advisor = AdvisorService(
         uow_factory,
         fi,
@@ -156,7 +163,7 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
         checkpointer=checkpointer,
         uow_factory=uow_factory,
     )
-    parsing = ParsingService(uow_factory, storage, llm_credentials)
+    parsing = ParsingService(uow_factory, storage, llm_credentials, fx=fx)
 
     # Free-text → draft journal entry (voice/text quick-add) and Voice Mode
     # speech-to-text. Both are now always constructed: which key they run on is

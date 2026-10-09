@@ -28,7 +28,8 @@ class AddAccountRequest(BaseModel):
     code: str
     name: str
     type: AccountTypeStr
-    currency: str = "LKR"
+    #: ISO 4217 code the account is held in. Omitted: the user's base currency.
+    currency: str | None = None
     parent_id: str | None = None
     tax_role: TaxRoleStr | None = None
 
@@ -37,7 +38,8 @@ class UpdateAccountRequest(BaseModel):
     code: str
     name: str
     type: AccountTypeStr
-    currency: str = "LKR"
+    #: Omitted: unchanged. Only changes while the account has no entries.
+    currency: str | None = None
     tax_role: TaxRoleStr | None = None
 
 

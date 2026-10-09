@@ -15,7 +15,7 @@ the following month onward (the classic avalanche/snowball method).
   • snowball  — prioritizes the smallest-balance debt (maximizes early "wins")
 
 "Avalanche minimizes total interest" is a proven result for continuous/unrounded
-payment allocation. Under monthly cent-rounding it holds in every realistic case,
+payment allocation. Under monthly rounding to the currency's smallest unit it holds in every realistic case,
 but pathological minimum-payment-to-balance ratios can (rarely) shift a payoff
 across a month boundary and flip the comparison by a few cents — this is a known,
 narrow property of discretized amortization, not specific to this implementation.
@@ -29,9 +29,13 @@ from salli.domain.debt.models import Debt, PayoffPlan, PayoffScheduleEntry, Payo
 
 _DEFAULT_MAX_MONTHS = 600  # 50 years — a generous simulation horizon
 
+#: The smallest unit amounts are rounded to each month: a cent by default, the
+#: currency's own (1 for JPY, 0.001 for KWD) when the caller passes it.
+_CENT = Decimal("0.01")
 
-def _q2(value: Decimal) -> Decimal:
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+def _round(value: Decimal, quantum: Decimal) -> Decimal:
+    return value.quantize(quantum, rounding=ROUND_HALF_UP)
 
 
 def _order_debts(debts: list[Debt], strategy: PayoffStrategy) -> list[Debt]:
@@ -45,6 +49,7 @@ def compute_payoff_plan(
     extra_monthly_payment: Decimal,
     strategy: PayoffStrategy,
     max_months: int = _DEFAULT_MAX_MONTHS,
+    money_quantum: Decimal = _CENT,
 ) -> PayoffPlan:
     if not debts:
         return PayoffPlan(
@@ -71,7 +76,7 @@ def compute_payoff_plan(
             bal = balances[d.name]
             if bal <= 0:
                 continue
-            interest = _q2(bal * monthly_rate[d.name])
+            interest = _round(bal * monthly_rate[d.name], money_quantum)
             interest_this_month[d.name] = interest
             total_interest += interest
             balances[d.name] = bal + interest
@@ -108,10 +113,10 @@ def compute_payoff_plan(
                 PayoffScheduleEntry(
                     month=month,
                     debt_name=d.name,
-                    payment=_q2(payment),
-                    principal_paid=_q2(payment - interest),
-                    interest_paid=_q2(interest),
-                    remaining_balance=_q2(balances[d.name]),
+                    payment=_round(payment, money_quantum),
+                    principal_paid=_round(payment - interest, money_quantum),
+                    interest_paid=_round(interest, money_quantum),
+                    remaining_balance=_round(balances[d.name], money_quantum),
                 )
             )
 
@@ -123,6 +128,6 @@ def compute_payoff_plan(
     return PayoffPlan(
         strategy=strategy,
         months_to_payoff=month if paid_off else None,
-        total_interest_paid=_q2(total_interest),
+        total_interest_paid=_round(total_interest, money_quantum),
         schedule=schedule,
     )

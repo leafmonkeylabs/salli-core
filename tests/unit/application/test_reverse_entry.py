@@ -18,6 +18,7 @@ import pytest
 
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.accounting.models import StoredJournalEntry
+from tests.fakes import FakeProfiles
 
 
 class FakeLedgerRepo:
@@ -43,6 +44,7 @@ class FakeLedgerRepo:
 class FakeUoW:
     def __init__(self, ledger):
         self.ledger = ledger
+        self.user_profiles = FakeProfiles()
 
     async def __aenter__(self):
         return self

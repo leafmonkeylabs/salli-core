@@ -21,7 +21,9 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
+from salli.domain.currency import normalize_currency
 from salli.domain.dedup.matcher import (
     CandidateTransaction,
     DedupStatus,
@@ -44,10 +46,13 @@ class ParsingService:
         uow_factory: Callable[[], Any],
         storage: StoragePort | None = None,
         credentials: Any = None,
+        fx: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._storage = storage
         self._credentials = credentials
+        # Rates for statements in a currency other than the owner's base one.
+        self._fx = fx
 
     async def _key_for(self, user_id: str, api_key: Any) -> Any:
         """Use the caller's already-resolved key, else resolve for this user.
@@ -71,16 +76,26 @@ class ParsingService:
         file_bytes: bytes,
         bank: str = "",
         *,
+        currency: str | None = None,
         api_key: Any = None,
     ) -> ParseResult:
         """
         Parse a bank statement file and store the extracted transactions.
         Returns a ParseResult — caller should display pending transactions for review.
+
+        `currency` is the statement's (a statement never mixes currencies); it
+        defaults to the user's base currency.
         """
         from salli.adapters.parsing.llm_classifier import classify_transactions
 
+        if currency:
+            currency = normalize_currency(currency)
+        else:
+            async with self._uow_factory() as uow:
+                currency = await uow.user_profiles.base_currency(user_id)
+
         # 1. Extract raw rows
-        raw_rows = _extract(filename, file_bytes)
+        raw_rows = _extract(filename, file_bytes, currency)
         if not raw_rows:
             return ParseResult(
                 statement_id="",
@@ -99,7 +114,7 @@ class ParsingService:
                 id=str(i),
                 account_id="unknown",  # account not classified yet
                 entry_date=r.date,
-                amount_minor=to_minor(r.amount),
+                amount_minor=to_minor(r.amount, r.currency),
                 currency=r.currency,
                 description=r.description,
                 source="statement",
@@ -151,7 +166,7 @@ class ParsingService:
                 id="0",
                 account_id=txn.debit_account_id or "unknown",
                 entry_date=txn.raw.date,
-                amount_minor=to_minor(txn.raw.amount),
+                amount_minor=to_minor(txn.raw.amount, txn.raw.currency),
                 currency=txn.raw.currency,
                 description=txn.raw.description,
                 source="statement",
@@ -215,6 +230,7 @@ class ParsingService:
         from salli.domain.accounting.models import Direction, JournalEntry, Posting
 
         async with self._uow_factory() as uow:
+            base = await uow.user_profiles.base_currency(user_id)
             txns = await uow.statements.get_by_ids(user_id, list(approved_ids))
             entry_ids = []
 
@@ -231,12 +247,19 @@ class ParsingService:
                 # the moment a statement is imported.
                 category_tags = {"category": _slugify(txn.category)} if txn.category else {}
 
+                # A statement in another currency is converted at the rate for
+                # the transaction's own date (see application/fx.py).
+                fx_rate, fx_source = await rate_to_base(
+                    self._fx, txn.raw.currency, base, txn.raw.date
+                )
                 postings = [
                     Posting(
                         account_id=txn.debit_account_id,
                         direction=Direction.DEBIT,
                         amount=txn.raw.amount,
                         currency=txn.raw.currency,
+                        fx_rate=fx_rate,
+                        fx_rate_source=fx_source,
                         tags=category_tags,
                     ),
                     Posting(
@@ -244,6 +267,8 @@ class ParsingService:
                         direction=Direction.CREDIT,
                         amount=txn.raw.amount,
                         currency=txn.raw.currency,
+                        fx_rate=fx_rate,
+                        fx_rate_source=fx_source,
                     ),
                 ]
                 entry = JournalEntry(
@@ -263,7 +288,7 @@ class ParsingService:
 # ── Format detection ───────────────────────────────────────────────────────────
 
 
-def _extract(filename: str, data: bytes) -> list[RawRow]:
+def _extract(filename: str, data: bytes, currency: str) -> list[RawRow]:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if ext == "pdf":
@@ -297,6 +322,7 @@ def _extract(filename: str, data: bytes) -> list[RawRow]:
             description=r["description"],
             amount=r["amount"],
             credit_flag=r["credit_flag"],
+            currency=currency,
             bank_ref=r.get("bank_ref", ""),
             source_page=r.get("page", 0),
         )

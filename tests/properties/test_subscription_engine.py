@@ -12,8 +12,10 @@ from salli.domain.accounting.models import Account, Direction, Posting, StoredJo
 from salli.domain.subscription.engine import compute_report, find_matches
 from salli.domain.subscription.models import Frequency, Subscription
 
-_CASH = Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset")
-_SUB_ACCOUNT = Account(id="sub_acc", user_id="u1", code="5200", name="Subscription", type="expense")
+_CASH = Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset", currency="LKR")
+_SUB_ACCOUNT = Account(
+    id="sub_acc", user_id="u1", code="5200", name="Subscription", type="expense", currency="LKR"
+)
 _ACCOUNTS = [_CASH, _SUB_ACCOUNT]
 
 lkr_amount = st.decimals(

@@ -5,6 +5,7 @@ from decimal import Decimal
 from fastapi import APIRouter
 
 from salli.domain.accounting import ledger as ledger_ops
+from salli.domain.currency import quantize
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/ledger", tags=["ledger"])
@@ -18,9 +19,11 @@ async def trial_balance(
     to_date: str | None = None,
 ):
     balances = await svc.ledger.get_trial_balance(user_id, from_date, to_date)
+    currency = await svc.ledger.base_currency(user_id)
     return {
-        "balances": {k: str(v) for k, v in balances.items()},
-        "net": str(sum(balances.values())),
+        "currency": currency,
+        "balances": {k: str(quantize(v, currency)) for k, v in balances.items()},
+        "net": str(quantize(sum(balances.values(), Decimal(0)), currency)),
     }
 
 
@@ -39,6 +42,7 @@ async def income_statement(
 
     entries = await svc.ledger.get_entries(user_id, from_date, to_date)
     balances = ledger_ops.trial_balance(entries)
+    currency = await svc.ledger.base_currency(user_id)
 
     income_breakdown: dict[str, str] = {}
     expense_breakdown: dict[str, str] = {}
@@ -48,9 +52,11 @@ async def income_statement(
             continue
         name = account_names.get(acct_id, acct_id)
         if acct_id in income_ids:
-            income_breakdown[name] = str(-balance)  # income is credit-normal → negate
+            # income is credit-normal → negate
+            income_breakdown[name] = str(quantize(-balance, currency))
         elif acct_id in expense_ids:
-            expense_breakdown[name] = str(balance)  # expenses are debit-normal → positive
+            # expenses are debit-normal → positive
+            expense_breakdown[name] = str(quantize(balance, currency))
 
     net = sum(Decimal(v) for v in income_breakdown.values()) - sum(
         Decimal(v) for v in expense_breakdown.values()
@@ -59,6 +65,7 @@ async def income_statement(
     return {
         "from_date": from_date,
         "to_date": to_date,
+        "currency": currency,
         "income": income_breakdown,
         "expenses": expense_breakdown,
         "net_income": str(net),

@@ -84,7 +84,7 @@ class AdvisorService:
         surplus = await self._fi.get_surplus_breakdown(user_id)
 
         context = {
-            "currency": score.get("currency", "LKR"),
+            "currency": score["currency"],
             "fi_score": {
                 "overall": score.get("overall_score"),
                 "grade": score.get("grade"),

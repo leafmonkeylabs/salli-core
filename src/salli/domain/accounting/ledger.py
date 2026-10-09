@@ -18,7 +18,7 @@ from salli.domain.accounting.models import (
 
 
 def account_balance(postings: list[Posting]) -> Decimal:
-    """Signed sum of postings (LKR base amounts)."""
+    """Signed sum of postings, in the base currency."""
     return sum((p.base_signed for p in postings), Decimal(0))
 
 
@@ -119,6 +119,59 @@ def account_running_balance(
             continue
         running += contribution
         results.append((entry, running))
+    return results
+
+
+def native_signed(posting: Posting, account_currency: str, base_currency: str) -> Decimal | None:
+    """A posting's signed amount in its account's own currency, if that is knowable.
+
+    A posting in the account's currency is that amount. A posting in another
+    currency to an account kept in the base currency is its base equivalent
+    (amount × fx_rate). Anything else — euros posted to a dollar account in a
+    rupee ledger — has no rate into the account's currency, so None.
+    """
+    if posting.currency == account_currency:
+        amount = posting.amount
+    elif account_currency == base_currency:
+        amount = posting.amount * posting.fx_rate
+    else:
+        return None
+    return Decimal(posting.direction.value) * amount
+
+
+def account_history(
+    entries: list[StoredJournalEntry],
+    account_id: str,
+    account_currency: str,
+    base_currency: str,
+) -> list[tuple[StoredJournalEntry, Decimal, Decimal | None]]:
+    """`account_running_balance`, with the running balance in the account's own
+    currency alongside the base one: (entry, base balance, native balance).
+
+    The native balance becomes None from the first posting it cannot be known
+    for (see `native_signed`) and stays None, because a running total that has
+    silently skipped a posting is worse than none.
+    """
+    base_running = Decimal(0)
+    native_running: Decimal | None = Decimal(0)
+    results: list[tuple[StoredJournalEntry, Decimal, Decimal | None]] = []
+    for entry in entries:
+        touching = [p for p in entry.postings if p.account_id == account_id]
+        if not touching:
+            continue
+        base_contribution = sum((p.base_signed for p in touching), Decimal(0))
+        if base_contribution == 0:
+            # Same rule as account_running_balance: an entry that nets to
+            # nothing on this account is not part of its history.
+            continue
+        base_running += base_contribution
+        if native_running is not None:
+            natives = [native_signed(p, account_currency, base_currency) for p in touching]
+            if any(n is None for n in natives):
+                native_running = None
+            else:
+                native_running += sum((n for n in natives if n is not None), Decimal(0))
+        results.append((entry, base_running, native_running))
     return results
 
 

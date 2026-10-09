@@ -16,7 +16,7 @@ from salli.domain.fi.engine import compute_surplus_breakdown
 
 
 def _account(acc_id: str, name: str, acc_type: str) -> Account:
-    return Account(id=acc_id, user_id="u1", code=acc_id, name=name, type=acc_type)  # type: ignore[arg-type]
+    return Account(id=acc_id, user_id="u1", code=acc_id, name=name, type=acc_type, currency="LKR")  # type: ignore[arg-type]
 
 
 def _entry(postings: list[Posting], date: str = "2025-06-01") -> StoredJournalEntry:

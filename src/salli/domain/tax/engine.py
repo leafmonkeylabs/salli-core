@@ -113,6 +113,7 @@ def compute(ledger: LedgerView, pack: TaxPack) -> TaxComputation:
         pack_country=pack.country,
         pack_year=pack.year,
         pack_version=pack.version,
+        currency=pack.currency,
         gross_income=gross,
         foreign_service_income=fsi,
         regular_income=regular_income,

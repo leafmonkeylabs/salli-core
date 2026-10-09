@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any
 
+from salli.application.fx import rate_to_base
 from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.accounting.models import (
     Account,
@@ -17,17 +18,23 @@ from salli.domain.accounting.models import (
     Tag,
     TaxRole,
 )
+from salli.domain.currency import normalize_currency, quantize
+from salli.domain.money import from_minor
 from salli.domain.subscription import engine as subscription_engine
 from salli.domain.subscription.models import Subscription
 
 
-def _q2(value: Decimal) -> Decimal:
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-
 class LedgerService:
-    def __init__(self, uow_factory: Callable[[], Any]) -> None:
+    def __init__(self, uow_factory: Callable[[], Any], fx: Any = None) -> None:
         self._uow_factory = uow_factory
+        # Rates for postings in a currency other than the owner's base one
+        # that arrive without their own (see application/fx.py).
+        self._fx = fx
+
+    async def base_currency(self, user_id: str) -> str:
+        """The ISO code this user's ledger is measured in."""
+        async with self._uow_factory() as uow:
+            return await uow.user_profiles.base_currency(user_id)
 
     async def add_account(
         self,
@@ -35,21 +42,28 @@ class LedgerService:
         code: str,
         name: str,
         type: AccountType,
-        currency: str = "LKR",
+        currency: str | None = None,
         parent_id: str | None = None,
         tax_role: TaxRole | None = None,
     ) -> str:
-        account = Account(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            code=code,
-            name=name,
-            type=type,
-            currency=currency,
-            parent_id=parent_id,
-            tax_role=tax_role,
-        )
+        """Open an account, held in `currency` — the user's base currency unless
+        another is named (a USD savings account in a rupee ledger)."""
         async with self._uow_factory() as uow:
+            held_in = (
+                normalize_currency(currency)
+                if currency
+                else await uow.user_profiles.base_currency(user_id)
+            )
+            account = Account(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                code=code,
+                name=name,
+                type=type,
+                currency=held_in,
+                parent_id=parent_id,
+                tax_role=tax_role,
+            )
             return await uow.ledger.save_account(user_id, account)
 
     async def list_accounts(self, user_id: str) -> list[Account]:
@@ -69,7 +83,25 @@ class LedgerService:
         postings_data: list[dict[str, Any]],
         external_ref: str | None = None,
     ) -> str:
-        postings = [Posting(**p) for p in postings_data]
+        base = await self.base_currency(user_id)
+        postings: list[Posting] = []
+        for p in postings_data:
+            # Strict here, where postings enter Salli: an unknown code is
+            # refused rather than stored with a guessed number of decimals.
+            currency = normalize_currency(p.get("currency") or base)
+            rate, rate_source = await rate_to_base(
+                self._fx, currency, base, entry_date, p.get("fx_rate")
+            )
+            postings.append(
+                Posting(
+                    **{
+                        **p,
+                        "currency": currency,
+                        "fx_rate": rate,
+                        "fx_rate_source": p.get("fx_rate_source") or rate_source,
+                    }
+                )
+            )
         # JournalEntry.__init__ runs must_balance validator — raises ValueError if unbalanced
         entry = JournalEntry(
             entry_date=entry_date,
@@ -142,12 +174,13 @@ class LedgerService:
             # Subscription association is always derived at query time — never
             # stored on the entry — per the immutable-journal-entry invariant.
             accounts = await uow.ledger.get_accounts(user_id)
+            base = await uow.user_profiles.base_currency(user_id)
             subscriptions = await uow.recurring_subscriptions.list(user_id, active_only=True)
             possible_subscriptions: list[dict[str, Any]] = []
             for s in subscriptions:
                 sub = Subscription(
                     name=s["name"],
-                    amount=Decimal(s["amount_minor"]) / 100,
+                    amount=from_minor(s["amount_minor"], base),
                     frequency=s["frequency"],
                     next_due_date=s["next_due_date"],
                     account_id=s["account_id"],
@@ -202,17 +235,32 @@ class LedgerService:
         code: str,
         name: str,
         type: str,
-        currency: str,
+        currency: str | None = None,
         tax_role: str | None = None,
     ) -> None:
+        """Edit an account. `currency` None leaves it as it is; it can only
+        change while the account has no entries, because its postings are
+        amounts in that currency."""
         async with self._uow_factory() as uow:
+            account = await uow.ledger.get_account(user_id, account_id)
+            if account is None:
+                raise KeyError(account_id)
+            held_in = normalize_currency(currency) if currency else account.currency
+            if held_in != account.currency and any(
+                p.account_id == account_id
+                for entry in await uow.ledger.get_entries(user_id)
+                for p in entry.postings
+            ):
+                raise ValueError(
+                    f"This account has entries in {account.currency}, so its currency can't change"
+                )
             await uow.ledger.update_account(
                 user_id,
                 account_id,
                 code=code,
                 name=name,
                 type=type,
-                currency=currency,
+                currency=held_in,
                 tax_role=tax_role,
             )
 
@@ -247,15 +295,26 @@ class LedgerService:
     ) -> dict[str, Any] | None:
         """Account detail + full-history running balance, sliced to [from_date, to_date]
         for display — the running balance itself is always computed over the account's
-        entire history so figures stay historically accurate even under a date filter."""
+        entire history so figures stay historically accurate even under a date filter.
+
+        Two balances: `current_balance` in the user's base currency (what the
+        account is worth in their ledger), and `balance` in the account's own
+        currency (what the bank shows) — the same number unless the account is
+        held in another currency. `balance` is None when it cannot be known
+        (see `ledger.native_signed`)."""
         async with self._uow_factory() as uow:
             account = await uow.ledger.get_account(user_id, account_id)
             if account is None:
                 return None
             all_entries = await uow.ledger.get_entries(user_id)
+            base = await uow.user_profiles.base_currency(user_id)
 
-        history = ledger_ops.account_running_balance(all_entries, account_id)
+        history = ledger_ops.account_history(all_entries, account_id, account.currency, base)
         current_balance = history[-1][1] if history else Decimal(0)
+        native_balance = history[-1][2] if history else Decimal(0)
+
+        def native(amount: Decimal | None) -> str | None:
+            return None if amount is None else str(quantize(amount, account.currency))
 
         transactions = [
             {
@@ -264,9 +323,10 @@ class LedgerService:
                 "description": entry.description,
                 "source": entry.source,
                 "external_ref": entry.external_ref,
-                "running_balance": str(_q2(balance)),
+                "running_balance": str(quantize(base_balance, base)),
+                "running_balance_native": native(native_running),
             }
-            for entry, balance in history
+            for entry, base_balance, native_running in history
             if (from_date is None or entry.entry_date >= from_date)
             and (to_date is None or entry.entry_date <= to_date)
         ]
@@ -281,7 +341,9 @@ class LedgerService:
                 "parent_id": account.parent_id,
                 "is_active": account.is_active,
             },
-            "current_balance": str(_q2(current_balance)),
+            "base_currency": base,
+            "current_balance": str(quantize(current_balance, base)),
+            "balance": native(native_balance),
             "transactions": transactions,
         }
 

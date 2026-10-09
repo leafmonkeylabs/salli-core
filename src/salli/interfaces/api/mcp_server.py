@@ -442,11 +442,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         code: str,
         name: str,
         account_type: str,
-        currency: str = "LKR",
+        currency: str = "",
     ) -> dict[str, Any]:
         """Create a new account in the chart of accounts. account_type is one of:
-        asset, liability, equity, income, expense."""
+        asset, liability, equity, income, expense. currency is the ISO 4217 code
+        the account is held in; leave it empty for the user's base currency."""
         user_id = _current_user_id()
+        currency = currency or await ledger_svc.base_currency(user_id)
         params = {"code": code, "name": name, "type": account_type, "currency": currency}
         account_id = await ledger_svc.add_account(user_id, code, name, account_type, currency)
         await _log_audit(ledger_svc, user_id, "create_account", params)
@@ -468,13 +470,19 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         debit_account_id: str,
         credit_account_id: str,
         amount: str,
-        currency: str = "LKR",
+        currency: str = "",
+        fx_rate: str = "",
     ) -> dict[str, Any]:
         """Post a double-entry journal entry to the ledger. amount is a decimal
-        string, e.g. '10000.00'."""
+        string, e.g. '10000.00'. currency is an ISO 4217 code; leave it empty
+        for the user's base currency. For another currency, fx_rate is units of
+        the base currency per unit (the rate the bank used); leave it empty to
+        use the published rate for entry_date."""
         from salli.domain.accounting.models import Direction
 
         user_id = _current_user_id()
+        currency = currency or await ledger_svc.base_currency(user_id)
+        rate = Decimal(fx_rate) if fx_rate else None
         params = {
             "entry_date": entry_date,
             "description": description,
@@ -489,19 +497,23 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
                 "direction": Direction.DEBIT,
                 "amount": Decimal(amount),
                 "currency": currency,
+                "fx_rate": rate,
             },
             {
                 "account_id": credit_account_id,
                 "direction": Direction.CREDIT,
                 "amount": Decimal(amount),
                 "currency": currency,
+                "fx_rate": rate,
             },
         ]
         try:
             entry_id = await ledger_svc.add_entry(
                 user_id, entry_date, description, "manual", postings_data
             )
-        except ValueError as exc:
+        except (ValueError, LookupError) as exc:
+            # LookupError covers FxUnavailableError: no published rate, so the
+            # caller has to send fx_rate.
             return {"error": f"Could not post entry: {exc}"}
         await _log_audit(ledger_svc, user_id, "post_journal_entry", params)
         return {"entry_id": entry_id, "posted": True}

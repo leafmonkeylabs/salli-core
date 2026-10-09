@@ -18,11 +18,12 @@ from typing import Any
 
 from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.accounting.models import Account, Direction, StoredJournalEntry
+from salli.domain.currency import quantize
 from salli.domain.fi import engine
 from salli.domain.fi.allocation import Claim, GoalFunding, compute_goal_funding
 from salli.domain.fi.models import AllocationBucket, FinancialSnapshot, FireStrategy, FiScore
 from salli.domain.fi.packs import registry
-from salli.domain.money import to_minor
+from salli.domain.money import from_minor, to_minor
 
 # Account-name patterns that mark an asset account as an *investment* rather than
 # emergency-fund-eligible liquid savings.
@@ -151,13 +152,13 @@ def _score_to_dict(score: FiScore, projected_fi_date: str | None) -> dict[str, A
     return d
 
 
-def _money(value: Decimal) -> str:
-    """Money as a fixed 2-decimal string.
+def _money(value: Decimal, currency: str) -> str:
+    """Money as a string with exactly the currency's decimals.
 
-    Apportioned amounts are quantized to cents while exact ones are not, so
-    without this a goal could report "500000.00" alongside a bare "0".
+    Apportioned amounts are rounded while exact ones are not, so without this a
+    goal could report "500000.00" alongside a bare "0".
     """
-    return str(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    return str(quantize(value, currency))
 
 
 class FiService:
@@ -184,13 +185,14 @@ class FiService:
 
     async def build_snapshot(self, user_id: str) -> FinancialSnapshot:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             accounts: list[Account] = await uow.ledger.get_accounts(user_id)
             all_entries: list[StoredJournalEntry] = await uow.ledger.get_entries(user_id)
             recent: list[StoredJournalEntry] = await uow.ledger.get_entries(
                 user_id, from_date=_months_ago_iso(12)
             )
             goals = await uow.goals.list(user_id, active_only=True)
-            funding = await self._goal_funding(uow, user_id)
+            funding = await self._goal_funding(uow, user_id, currency)
 
         acc_map = {a.id: a for a in accounts}
         balances = ledger_ops.trial_balance(all_entries)  # {account_id: signed}
@@ -256,7 +258,9 @@ class FiService:
         # no allocations scores exactly as having no goals at all.
         goal_progress: Decimal | None = None
         prog = [
-            min(Decimal(1), funding[g["id"]].funded / (Decimal(g["target_amount_minor"]) / 100))
+            min(
+                Decimal(1), funding[g["id"]].funded / from_minor(g["target_amount_minor"], currency)
+            )
             for g in goals
             if g.get("target_amount_minor", 0) > 0
             and g["id"] in funding
@@ -275,6 +279,7 @@ class FiService:
             total_assets=total_assets,
             total_liabilities=total_liabilities,
             goal_progress=goal_progress,
+            currency=currency,
         )
 
     # ── Resolved strategy ──────────────────────────────────────────────────────
@@ -410,7 +415,7 @@ class FiService:
     # ── Goals ───────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _goal_view(g: dict[str, Any], funding: GoalFunding | None) -> dict[str, Any]:
+    def _goal_view(g: dict[str, Any], funding: GoalFunding | None, currency: str) -> dict[str, Any]:
         """One goal, with progress derived from what its accounts actually hold.
 
         `current_amount` is no longer the stored number. It is the sum of the
@@ -422,25 +427,28 @@ class FiService:
         claimed = funding.claimed if funding else Decimal(0)
         # Computed in Decimal (the score path already did); float only at the
         # JSON boundary, where this is a display ratio and not money.
-        progress = min(Decimal(1), current / (Decimal(target) / 100)) if target > 0 else Decimal(0)
+        progress = (
+            min(Decimal(1), current / from_minor(target, currency)) if target > 0 else Decimal(0)
+        )
         return {
             "id": g["id"],
             "name": g["name"],
             "kind": g["kind"],
-            "target_amount": _money(Decimal(g["target_amount_minor"]) / 100),
-            "current_amount": _money(current),
+            "currency": currency,
+            "target_amount": _money(from_minor(g["target_amount_minor"], currency), currency),
+            "current_amount": _money(current, currency),
             # What the user earmarked, vs what is actually behind it. A gap
             # means the accounts backing this goal do not hold what was claimed
             # — a normal unfunded plan, and something to show rather than hide.
-            "allocated_amount": _money(claimed),
-            "shortfall": _money(funding.shortfall if funding else Decimal(0)),
+            "allocated_amount": _money(claimed, currency),
+            "shortfall": _money(funding.shortfall if funding else Decimal(0), currency),
             "target_date": g.get("target_date"),
             "priority": g["priority"],
             "progress": float(progress.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)),
             "created_at": g.get("created_at"),
         }
 
-    async def _goal_funding(self, uow: Any, user_id: str) -> dict[str, GoalFunding]:
+    async def _goal_funding(self, uow: Any, user_id: str, currency: str) -> dict[str, GoalFunding]:
         """Apportion live account balances across the claims made on them."""
         goals = await uow.goals.list(user_id, active_only=True)
         allocations = await uow.goals.list_allocations(user_id)
@@ -451,7 +459,7 @@ class FiService:
         balances = ledger_ops.trial_balance(entries)
         priority = {g["id"]: int(g.get("priority", 2)) for g in goals}
         targets = {
-            g["id"]: Decimal(g.get("target_amount_minor", 0)) / 100
+            g["id"]: from_minor(g.get("target_amount_minor", 0), currency)
             for g in goals
             if g.get("target_amount_minor", 0) > 0
         }
@@ -459,7 +467,7 @@ class FiService:
             Claim(
                 goal_id=a["goal_id"],
                 account_id=a["account_id"],
-                allocated=Decimal(a["allocated_minor"]) / 100,
+                allocated=from_minor(a["allocated_minor"], currency),
                 priority=priority.get(a["goal_id"], 2),
             )
             for a in allocations
@@ -471,20 +479,23 @@ class FiService:
 
     async def list_goals(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             goals = await uow.goals.list(user_id, active_only=True)
-            funding = await self._goal_funding(uow, user_id)
-        return [self._goal_view(g, funding.get(g["id"])) for g in goals]
+            funding = await self._goal_funding(uow, user_id, currency)
+        return [self._goal_view(g, funding.get(g["id"]), currency) for g in goals]
 
     async def list_allocations(
         self, user_id: str, goal_id: str | None = None
     ) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             rows = await uow.goals.list_allocations(user_id, goal_id)
         return [
             {
                 "goal_id": r["goal_id"],
                 "account_id": r["account_id"],
-                "allocated_amount": _money(Decimal(r["allocated_minor"]) / 100),
+                "currency": currency,
+                "allocated_amount": _money(from_minor(r["allocated_minor"], currency), currency),
             }
             for r in rows
         ]
@@ -494,20 +505,26 @@ class FiService:
     ) -> None:
         """Earmark part of an account for a goal. Zero clears the claim."""
         async with self._uow_factory() as uow:
-            await uow.goals.set_allocation(user_id, goal_id, account_id, to_minor(allocated_amount))
+            currency = await uow.user_profiles.base_currency(user_id)
+            await uow.goals.set_allocation(
+                user_id, goal_id, account_id, to_minor(allocated_amount, currency)
+            )
 
     async def create_goal(self, user_id: str, data: dict[str, Any]) -> str:
-        goal = {
-            "name": data["name"],
-            "kind": data.get("kind", "custom"),
-            "target_amount_minor": to_minor(Decimal(str(data.get("target_amount", 0)))),
-            # Progress is derived from allocations against real accounts, never
-            # typed in. The column stays at zero and is no longer read.
-            "current_amount_minor": 0,
-            "target_date": data.get("target_date"),
-            "priority": int(data.get("priority", 2)),
-        }
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
+            goal = {
+                "name": data["name"],
+                "kind": data.get("kind", "custom"),
+                "target_amount_minor": to_minor(
+                    Decimal(str(data.get("target_amount", 0))), currency
+                ),
+                # Progress is derived from allocations against real accounts, never
+                # typed in. The column stays at zero and is no longer read.
+                "current_amount_minor": 0,
+                "target_date": data.get("target_date"),
+                "priority": int(data.get("priority", 2)),
+            }
             return await uow.goals.save(user_id, goal)
 
     async def update_goal(self, user_id: str, goal_id: str, data: dict[str, Any]) -> None:
@@ -515,9 +532,12 @@ class FiService:
         for k in ("name", "kind", "target_date", "priority", "is_active"):
             if k in data:
                 updates[k] = data[k]
-        if "target_amount" in data:
-            updates["target_amount_minor"] = to_minor(Decimal(str(data["target_amount"])))
         async with self._uow_factory() as uow:
+            if "target_amount" in data:
+                currency = await uow.user_profiles.base_currency(user_id)
+                updates["target_amount_minor"] = to_minor(
+                    Decimal(str(data["target_amount"])), currency
+                )
             await uow.goals.update(user_id, goal_id, updates)
 
     async def delete_goal(self, user_id: str, goal_id: str) -> None:
@@ -653,6 +673,7 @@ class FiService:
         points = engine.project_portfolio(snapshot, strategy, pack, horizon_years=horizon)
 
         return {
+            "currency": snapshot.currency,
             "points": [
                 {
                     "year": p.year,
@@ -759,11 +780,13 @@ class FiService:
 
     async def get_surplus_breakdown(self, user_id: str) -> dict[str, Any]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             accounts = await uow.ledger.get_accounts(user_id)
             entries = await uow.ledger.get_entries(user_id, from_date=_months_ago_iso(12))
 
         breakdown = engine.compute_surplus_breakdown(entries, accounts, months=12)
         return {
+            "currency": currency,
             "income_by_source": {k: str(v) for k, v in breakdown.income_by_source.items()},
             "expense_by_category": {k: str(v) for k, v in breakdown.expense_by_category.items()},
             # The needs/wants/savings split. Empty until spending carries `need`

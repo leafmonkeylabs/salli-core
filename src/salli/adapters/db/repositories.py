@@ -81,7 +81,7 @@ from salli.domain.accounting.models import (
     StoredJournalEntry,
     Tag,
 )
-from salli.domain.money import to_minor
+from salli.domain.money import from_minor, to_minor
 from salli.domain.tax.models import TaxComputation
 
 if TYPE_CHECKING:
@@ -89,10 +89,8 @@ if TYPE_CHECKING:
 
 # ── Mappers ───────────────────────────────────────────────────────────────────
 
-_MINOR_FACTOR = 100  # LKR has 2 decimal places
 
-
-def _posting_to_orm(p: Posting, entry_id: str) -> PostingORM:
+def _posting_to_orm(p: Posting, entry_id: str, base_currency: str) -> PostingORM:
     # base_amount_minor is the unsigned FX-converted amount in minor units.
     # The trigger multiplies by `direction` to get the signed contribution, so
     # storing p.base_signed here would double-sign credits and break the check.
@@ -100,15 +98,17 @@ def _posting_to_orm(p: Posting, entry_id: str) -> PostingORM:
         entry_id=entry_id,
         account_id=p.account_id,
         direction=p.direction.value,
-        # to_minor rounds HALF-UP; int() truncated, silently dropping a cent on
-        # amounts like 1234.565. This is the ledger write path, so that loss was
-        # permanent and would surface later as a trial balance that would not tie.
-        amount_minor=to_minor(p.amount, _MINOR_FACTOR),
+        # In the posting's own currency's minor units: cents for USD, yen for
+        # JPY, fils for KWD. to_minor rounds HALF-UP (int() truncated, silently
+        # dropping a cent on amounts like 1234.565).
+        amount_minor=to_minor(p.amount, p.currency),
         currency=p.currency,
         # Decimal straight into the Numeric(20,8) column — no float round-trip.
         fx_rate=p.fx_rate,
         fx_rate_source=p.fx_rate_source,
-        base_amount_minor=to_minor(p.amount * p.fx_rate, _MINOR_FACTOR),
+        # In the base currency's minor units, the same scale for every posting
+        # of the entry, which is all the balance trigger needs.
+        base_amount_minor=to_minor(p.amount * p.fx_rate, base_currency),
     )
 
 
@@ -117,7 +117,8 @@ def _posting_from_orm(row: PostingORM) -> Posting:
         id=row.id,
         account_id=row.account_id,
         direction=Direction(row.direction),
-        amount=Decimal(row.amount_minor) / _MINOR_FACTOR,
+        # Lenient: a row written before codes were validated still reads.
+        amount=from_minor(row.amount_minor, row.currency, strict=False),
         currency=row.currency,
         fx_rate=Decimal(str(row.fx_rate)),
         fx_rate_source=row.fx_rate_source,
@@ -262,8 +263,18 @@ class SQLLedgerRepository(LedgerRepository):
                 PostingTagORM(posting_id=posting_id, kind=kind, tag_id=resolved[(kind, slug)].id)
             )
 
+    async def _base_currency(self, user_id: str) -> str:
+        result = await self._session.execute(
+            select(UserProfileORM.base_currency).where(UserProfileORM.id == user_id)
+        )
+        base = result.scalar_one_or_none()
+        if base is None:
+            raise ValueError(f"User {user_id} has no profile, so their base currency is unknown")
+        return base
+
     async def save_entry(self, user_id: str, entry: JournalEntry) -> str:
         entry_id = str(uuid.uuid4())
+        base_currency = await self._base_currency(user_id)
         orm_entry = JournalEntryORM(
             id=entry_id,
             user_id=user_id,
@@ -278,7 +289,7 @@ class SQLLedgerRepository(LedgerRepository):
 
         orm_postings: list[PostingORM] = []
         for p in entry.postings:
-            orm_p = _posting_to_orm(p, entry_id)
+            orm_p = _posting_to_orm(p, entry_id, base_currency)
             # `posting_id` is left to the relationship: the posting's own id
             # comes from a column default and is still None until flush.
             orm_p.tag_links = [
@@ -624,6 +635,7 @@ def _orm_to_parsed(row: ParsedTransactionORM) -> Any:
         amount=Decimal(str(j["amount"])),
         credit_flag=j["credit_flag"],
         bank_ref=j.get("bank_ref", ""),
+        # Rows saved before the currency was recorded were all rupees.
         currency=j.get("currency", "LKR"),
     )
     return ParsedTransaction(
@@ -962,6 +974,7 @@ class SQLUserProfileRepository(UserProfileRepository):
             "id": row.id,
             "email": row.email,
             "display_name": row.display_name,
+            "base_currency": row.base_currency,
             "date_of_birth": row.date_of_birth.isoformat() if row.date_of_birth else None,
             "dependents_count": row.dependents_count,
             "employment_status": row.employment_status,
@@ -981,12 +994,47 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
+            if not fields.get("base_currency"):
+                raise ValueError("A new profile needs a base_currency")
             row = UserProfileORM(id=user_id)
             self._s.add(row)
         for k, v in fields.items():
             if hasattr(row, k) and v is not None:
                 setattr(row, k, v)
         await self._s.flush()
+
+    async def base_currency(self, user_id: str) -> str:
+        result = await self._s.execute(
+            select(UserProfileORM.base_currency).where(UserProfileORM.id == user_id)
+        )
+        base = result.scalar_one_or_none()
+        if base is None:
+            raise LookupError(f"User {user_id} has no profile")
+        return base
+
+    async def has_financial_data(self, user_id: str) -> bool:
+        """Whether anything is stored in the user's base currency yet.
+
+        True as soon as there is a single account, entry, or money-bearing
+        record. Changing the base currency after that would reinterpret every
+        stored amount, so it is only allowed while this is False.
+        """
+        for orm in (
+            AccountORM,
+            JournalEntryORM,
+            BudgetORM,
+            DebtORM,
+            HoldingORM,
+            RecurringSubscriptionORM,
+            PolicyORM,
+            InsuranceTargetORM,
+            GoalORM,
+            StatementORM,
+        ):
+            found = await self._s.execute(select(orm.id).where(orm.user_id == user_id).limit(1))
+            if found.first() is not None:
+                return True
+        return False
 
     async def set_flag(self, user_id: str, field: str, value: bool) -> None:
         """Set a boolean profile flag, including to False.
@@ -1001,8 +1049,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            row = UserProfileORM(id=user_id)
-            self._s.add(row)
+            raise LookupError(f"User {user_id} has no profile")
         setattr(row, field, value)
         await self._s.flush()
 
@@ -1020,8 +1067,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            row = UserProfileORM(id=user_id)
-            self._s.add(row)
+            raise LookupError(f"User {user_id} has no profile")
         setattr(row, field, value)
         await self._s.flush()
 

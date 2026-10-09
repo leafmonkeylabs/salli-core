@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from salli.domain.currency import quantize
+
 
 class Direction(int, Enum):
     DEBIT = 1
@@ -39,16 +41,33 @@ TaxRole = Literal[
 ]
 
 
+def _currency_code(value: object) -> str:
+    """Shape check only — three letters, upper-cased. Whether the code is a real
+    ISO 4217 currency is checked where a currency enters Salli
+    (`currency.normalize_currency`), so a row stored before that check existed
+    still loads."""
+    if not isinstance(value, str) or len(value.strip()) != 3 or not value.strip().isalpha():
+        raise ValueError(f"{value!r} is not a currency code")
+    return value.strip().upper()
+
+
 class Account(BaseModel):
     id: str
     user_id: str
     code: str
     name: str
     type: AccountType
-    currency: str = "LKR"
+    # The currency the account is held in: a USD bank account's balance is in
+    # dollars, whatever the owner's base currency is.
+    currency: str
     parent_id: str | None = None
     is_active: bool = True
     tax_role: TaxRole | None = None
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _code(cls, v: object) -> str:
+        return _currency_code(v)
 
 
 # The axis a tag belongs to. One tag per axis per posting, so a spending
@@ -108,9 +127,30 @@ class Posting(BaseModel):
             raise ValueError("Use Decimal, never float for monetary amounts")
         return v
 
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _code(cls, v: object) -> str:
+        return _currency_code(v)
+
+    @model_validator(mode="after")
+    def _to_currency_precision(self) -> Posting:
+        """Round the amount to the decimals its currency has (HALF-UP).
+
+        What is stored is the amount in the currency's minor units, so this is
+        the amount the ledger will hold. Rounding here rather than at storage
+        means the entry's balance check sees exactly that: an entry that only
+        balanced on a fraction of a cent fails now, with a clear error, instead
+        of at commit in the database trigger.
+        """
+        rounded = quantize(self.amount, self.currency, strict=False)
+        if rounded == 0:
+            raise ValueError(f"{self.amount} {self.currency} is less than the smallest unit")
+        self.amount = rounded
+        return self
+
     @property
     def base_signed(self) -> Decimal:
-        """Signed LKR equivalent — positive for debit, negative for credit."""
+        """Signed base-currency equivalent — positive for debit, negative for credit."""
         return Decimal(self.direction.value) * (self.amount * self.fx_rate)
 
 

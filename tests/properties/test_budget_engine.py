@@ -17,9 +17,11 @@ from salli.domain.budget.models import BudgetLineDef
 
 _EXPENSE_ACCOUNT_IDS = ["groceries", "transport", "utilities"]
 _ACCOUNTS = [
-    Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset"),
+    Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset", currency="LKR"),
     *[
-        Account(id=aid, user_id="u1", code=f"5{i}00", name=aid.title(), type="expense")
+        Account(
+            id=aid, user_id="u1", code=f"5{i}00", name=aid.title(), type="expense", currency="LKR"
+        )
         for i, aid in enumerate(_EXPENSE_ACCOUNT_IDS)
     ],
 ]

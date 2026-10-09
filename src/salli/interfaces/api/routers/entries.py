@@ -16,8 +16,12 @@ class PostingRequest(BaseModel):
     account_id: str
     direction: int  # 1 = DEBIT, -1 = CREDIT
     amount: str  # Decimal as string to avoid float
-    currency: str = "LKR"
-    fx_rate: str = "1"
+    #: ISO 4217. Omitted: the user's base currency.
+    currency: str | None = None
+    #: Units of base currency per unit of `currency` — the rate the bank used.
+    #: Omitted: 1 for the base currency, else the published rate for the
+    #: entry's date (422 if there is none: give it then).
+    fx_rate: str | None = None
     fx_rate_source: str | None = None
     # Axis → tag slug, e.g. {"category": "groceries", "need": "essential"}.
     # Tags that do not exist yet are created on the axis named here, so a client
@@ -53,7 +57,7 @@ class ParsedEntryDraft(BaseModel):
     credit_account_id: str | None = None
     debit_account_hint: AccountHint | None = None
     credit_account_hint: AccountHint | None = None
-    currency: str = "LKR"
+    currency: str
     confidence: float = 0.0
 
 
@@ -85,7 +89,7 @@ async def add_entry(body: AddEntryRequest, user_id: CurrentUser, svc: AppService
             "direction": p.direction,
             "amount": Decimal(p.amount),
             "currency": p.currency,
-            "fx_rate": Decimal(p.fx_rate),
+            "fx_rate": Decimal(p.fx_rate) if p.fx_rate is not None else None,
             "fx_rate_source": p.fx_rate_source,
             "tags": p.tags,
         }

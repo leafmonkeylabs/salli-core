@@ -17,15 +17,18 @@ async def test_trial_balance(client, mock_services):
     r = await client.get("/ledger/trial-balance", headers=AUTH)
     assert r.status_code == 200
     body = r.json()
-    assert body["net"] == "0"
-    assert body["balances"]["acc-1"] == "500000"
+    assert body["currency"] == "LKR"
+    assert body["net"] == "0.00"
+    assert body["balances"]["acc-1"] == "500000.00"
 
 
 @pytest.mark.asyncio
 async def test_income_statement(client, mock_services):
-    bank = Account(id="bank", user_id="u", code="1200", name="Bank", type="asset")
-    salary = Account(id="salary", user_id="u", code="4100", name="Salary", type="income")
-    rent = Account(id="rent", user_id="u", code="5100", name="Rent", type="expense")
+    bank = Account(id="bank", user_id="u", code="1200", name="Bank", type="asset", currency="LKR")
+    salary = Account(
+        id="salary", user_id="u", code="4100", name="Salary", type="income", currency="LKR"
+    )
+    rent = Account(id="rent", user_id="u", code="5100", name="Rent", type="expense", currency="LKR")
     mock_services.ledger.list_accounts.return_value = [bank, salary, rent]
     mock_services.ledger.get_entries.return_value = [
         StoredJournalEntry(
@@ -78,9 +81,10 @@ async def test_income_statement(client, mock_services):
     )
     assert r.status_code == 200
     body = r.json()
-    assert body["income"]["Salary"] == "150000"
-    assert body["expenses"]["Rent"] == "30000"
-    assert body["net_income"] == "120000"
+    assert body["currency"] == "LKR"
+    assert body["income"]["Salary"] == "150000.00"
+    assert body["expenses"]["Rent"] == "30000.00"
+    assert body["net_income"] == "120000.00"
 
 
 @pytest.mark.asyncio
@@ -109,6 +113,7 @@ async def test_compute_tax(client, mock_services):
         pack_country="LK",
         pack_year="2025/26",
         pack_version="1.0.0",
+        currency="LKR",
         gross_income=Decimal("3000000"),
         foreign_service_income=Decimal("0"),
         regular_income=Decimal("3000000"),
