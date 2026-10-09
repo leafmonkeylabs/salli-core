@@ -31,6 +31,9 @@ LK_2025_26 = TaxPack(
     # Sri Lanka's year of assessment runs from 1 April to 31 March.
     year_start="04-01",
     year_end="03-31",
+    year_name="Year of Assessment",
+    authority="Inland Revenue Department (IRD)",
+    law="the Inland Revenue Act No. 24 of 2017, as amended",
     #
     # LKR 1,800,000 personal relief (effective 1 April 2025).
     personal_relief=Decimal("1_800_000"),

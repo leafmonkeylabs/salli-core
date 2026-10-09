@@ -579,6 +579,7 @@ class FiService:
         async with self._uow_factory() as uow:
             accounts = await uow.ledger.get_accounts(user_id)
             recent_entries = await uow.ledger.get_entries(user_id, from_date=_months_ago_iso(12))
+            profile = await uow.user_profiles.get(user_id) or {}
 
         account_summary = [
             {"name": a.name, "type": a.type, "currency": a.currency} for a in accounts
@@ -603,6 +604,9 @@ class FiService:
             "total_liabilities": str(snapshot.total_liabilities),
             "net_worth": str(snapshot.total_assets - snapshot.total_liabilities),
             "currency": snapshot.currency,
+            # Where the user is taxed, or None: the strategy suggests what is
+            # available there, and assumes no country when it is not known.
+            "tax_residency": profile.get("tax_residency"),
             "income_by_source": {k: str(v) for k, v in surplus_data.income_by_source.items()},
             "expense_by_category": {k: str(v) for k, v in surplus_data.expense_by_category.items()},
             "accounts": account_summary,

@@ -19,7 +19,7 @@ from salli.domain.accounting.models import (
     TaxRole,
 )
 from salli.domain.currency import normalize_currency, quantize
-from salli.domain.jurisdiction import country_name
+from salli.domain.jurisdiction import country_phrase
 from salli.domain.subscription import engine as subscription_engine
 from salli.domain.subscription.models import Subscription
 from salli.domain.tax.packs import registry
@@ -40,11 +40,11 @@ async def tax_residency(uow: Any, user_id: str) -> str | None:
 def _role_refusal(role: str, residency: str | None, allowed: tuple[str, ...]) -> str:
     if residency and not allowed:
         return (
-            f"Salli has no tax pack for {country_name(residency)} yet, so an account "
+            f"Salli has no tax pack for {country_phrase(residency)} yet, so an account "
             "there has no tax role to carry."
         )
-    whose = f"the {country_name(residency)} tax packs" if residency else "any tax pack"
-    return f"{role!r} is not a tax role {whose} use: {', '.join(sorted(allowed))}"
+    whose = f"the tax packs for {country_phrase(residency)}" if residency else "any tax pack"
+    return f"{role!r} is not a tax role {whose} use: {', '.join(allowed)}"
 
 
 class LedgerService:

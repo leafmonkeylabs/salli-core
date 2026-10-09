@@ -104,7 +104,7 @@ async def test_a_named_year_salli_has_no_pack_for_is_not_found():
 
 async def test_a_country_without_a_pack_says_so():
     svc, *_ = _service(residency="US")
-    with pytest.raises(NoTaxPackError, match="no tax pack for United States"):
+    with pytest.raises(NoTaxPackError, match="no tax pack for the United States"):
         await svc.compute_tax(USER)
 
 
@@ -190,4 +190,4 @@ async def test_the_return_is_prepared_for_the_latest_year_by_default():
 async def test_no_worksheet_without_a_mapped_return_form():
     svc, *_ = _service(residency="US")
     state = await _gather(ReturnState(user_id=USER), _LedgerService(), svc)
-    assert "no tax pack for United States" in state["error"]
+    assert "no tax pack for the United States" in state["error"]

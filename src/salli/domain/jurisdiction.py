@@ -305,6 +305,21 @@ def country_name(code: str) -> str:
     return COUNTRIES.get(code.upper(), code.upper())
 
 
+#: Names said with "the" in a sentence ("in the United Kingdom").
+_WITH_ARTICLE = ("Islands", "Republic", "United", "Territor", "Netherlands")
+_ALSO_WITH_ARTICLE = frozenset({"BS", "GM", "IM", "MV", "PH", "KM", "SC"})
+
+
+def country_phrase(code: str) -> str:
+    """The country's name as it reads in a sentence: "Sri Lanka", "the United
+    States", "the Philippines"."""
+    name = country_name(code)
+    upper = code.upper()
+    if upper in _ALSO_WITH_ARTICLE or any(word in name for word in _WITH_ARTICLE):
+        return f"the {name}"
+    return name
+
+
 # ── Tax ids ──────────────────────────────────────────────────────────────────
 
 #: "<country>-<kind>": two capital letters, a hyphen, then capitals and digits.

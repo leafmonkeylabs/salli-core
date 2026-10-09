@@ -78,12 +78,12 @@ async def test_a_sri_lankan_resident_may_use_sri_lankan_roles():
 
 async def test_a_role_another_country_or_no_pack_declares_is_refused():
     svc, ledger, _ = _service("GB")
-    with pytest.raises(UnknownTaxRoleError, match="no tax pack for United Kingdom"):
+    with pytest.raises(UnknownTaxRoleError, match="no tax pack for the United Kingdom"):
         await svc.add_account(USER, "4110", "APIT Receivable", "asset", tax_role="apit_credit")
     assert ledger.accounts == {}
 
     svc, _, _ = _service("LK")
-    with pytest.raises(UnknownTaxRoleError, match="Sri Lanka tax packs"):
+    with pytest.raises(UnknownTaxRoleError, match="tax packs for Sri Lanka"):
         await svc.add_account(USER, "1", "x", "asset", tax_role="paye_credit")
 
 

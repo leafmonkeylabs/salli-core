@@ -107,6 +107,11 @@ class TaxPack:
     withholding_kinds: tuple[WithholdingKind, ...] = ()
     # What a resident's starter chart of accounts gets from this pack.
     starter_accounts: tuple[StarterAccount, ...] = ()
+    # How the agents talk about it: the authority that administers the tax,
+    # the law it comes from, and what the country calls its tax year.
+    authority: str = ""
+    law: str = ""
+    year_name: str = "tax year"
 
     @property
     def has_qualifying_payment_relief(self) -> bool:

@@ -251,7 +251,7 @@ def make_manager_tools(
             max_results=5,
             description=(
                 "Search the internet for current tax laws and revenue-authority guidance "
-                "(such as Sri Lanka's IRD circulars), "
+                "(such as the circulars of the user's tax authority), "
                 "exchange rates, financial news, or any other real-time information. "
                 "Always cite the source URL in your response."
             ),

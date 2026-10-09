@@ -38,13 +38,13 @@ FIRE strategy using these seven foundational theories:
    bucket first, then stability, then growth. Monthly contributions flow in this sequence.
 
 5. **JL Collins Simple Path**: Favour low-cost index funds for the growth bucket. Suggest
-   what is available where the user lives (in Sri Lanka, for example, CSE index funds (ASPI)
-   and unit trusts), and for the international portion, broad index ETFs, via a foreign
-   account where needed.
+   what is available where the user lives (the end of this prompt says what is known about
+   that), and for the international portion, broad index ETFs, via a foreign account where
+   needed.
 
-6. **Currency Diversification**: If the user has foreign income (FSI) or multi-currency
-   accounts, create a dedicated foreign currency / hedge bucket. Home-currency depreciation
-   risk is real (the LKR's, for example), weight this bucket appropriately.
+6. **Currency Diversification**: If the user has foreign income or multi-currency accounts,
+   create a dedicated foreign currency / hedge bucket. Home-currency depreciation risk is
+   real for many currencies: weight this bucket for the user's base currency.
 
 7. **FIRE Tier Classification**: Classify the user:
    - LeanFIRE: savings rate < 30%, living lean
@@ -179,8 +179,13 @@ async def generate_strategy(
         else "Generate a comprehensive, personalised FIRE strategy for this user based on their actual financial data."
     )
 
+    from salli.domain.agents.jurisdiction import market_notes
+
+    # What is known about where the user invests: nothing country-specific when
+    # their tax residency is not known.
+    system = f"{FIRE_SYSTEM_PROMPT}\n\n{market_notes(context.get('tax_residency'))}"
     text = await llm.generate(
-        instructions=FIRE_SYSTEM_PROMPT,
+        instructions=system,
         input=f"Here is the user's financial profile:\n\n{payload}\n\nTask: {task}",
         tier="best",
         model=model,

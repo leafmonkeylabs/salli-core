@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from salli.domain.accounting.models import Account, StoredJournalEntry
-from salli.domain.jurisdiction import country_name
+from salli.domain.jurisdiction import country_phrase
 from salli.domain.secrets import error_label
 from salli.domain.tax import engine
 from salli.domain.tax.models import (
@@ -174,15 +174,15 @@ def jurisdiction_of(profile: dict[str, Any] | None) -> TaxJurisdiction:
 
 def _no_pack(where: TaxJurisdiction) -> NoTaxPackError:
     if where.country is None:
-        countries = sorted({country_name(p.country) for p in registry.list_packs()})
+        countries = sorted({country_phrase(p.country) for p in registry.list_packs()})
         return NoTaxPackError(
             "Salli doesn't know where you are taxed. Set your tax residency on your "
             f"profile; it has tax packs for {', '.join(countries)}."
         )
     if not registry.packs_for(where.country):
-        return NoTaxPackError(f"Salli has no tax pack for {country_name(where.country)} yet.")
+        return NoTaxPackError(f"Salli has no tax pack for {country_phrase(where.country)} yet.")
     return NoTaxPackError(
-        f"Salli's tax packs for {country_name(where.country)} are for years that have not begun."
+        f"Salli's tax packs for {country_phrase(where.country)} are for years that have not begun."
     )
 
 

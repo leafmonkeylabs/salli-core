@@ -60,6 +60,7 @@ jobs:
           src/salli/application/services/chatgpt_connection_service.py
           src/salli/interfaces/api/routers/ai.py src/salli/interfaces/cli/ai.py
           src/salli/domain/jurisdiction.py src/salli/domain/tax
+          src/salli/domain/agents/jurisdiction.py src/salli/domain/agents/prompting.py
       - name: Tests
         # Includes the contract tests: every API route has a CLI command, and
         # salli-core carries no billing vocabulary.

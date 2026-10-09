@@ -11,6 +11,7 @@ from salli.domain.jurisdiction import (
     TaxId,
     UnknownCountryError,
     country_name,
+    country_phrase,
     is_country,
     make_tax_id,
     normalize_country,
@@ -115,3 +116,12 @@ def test_setting_and_removing_one_scheme_leaves_the_others():
     assert with_tax_id(ids, "LK-TIN", None) == [TaxId("GB-UTR", "2")]
     assert tax_id_value(ids, "GB-UTR") == "2"
     assert tax_id_value(ids, "LK-NIC") is None
+
+
+def test_a_country_reads_naturally_in_a_sentence():
+    assert country_phrase("LK") == "Sri Lanka"
+    assert country_phrase("US") == "the United States"
+    assert country_phrase("GB") == "the United Kingdom"
+    assert country_phrase("PH") == "the Philippines"
+    assert country_phrase("KY") == "the Cayman Islands"
+    assert country_phrase("DE") == "Germany"
