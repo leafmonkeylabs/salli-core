@@ -10,7 +10,8 @@
  *                    there is no keychain (a headless server, a container)
  *
  * Every backend stores one secret per context: service "salli", account =
- * the context name. SALLI_CREDENTIAL_STORE=file|keyring picks one.
+ * the context name. SALLI_CREDENTIAL_STORE picks one: keyring, command
+ * (security / secret-tool), or file.
  */
 import { spawn } from 'node:child_process';
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -238,6 +239,11 @@ export async function openSecretStore(options: {
   const wanted = options.env.SALLI_CREDENTIAL_STORE?.trim().toLowerCase();
   const file = new FileStore(options.configDir);
   if (wanted === 'file') return { store: file };
+  if (wanted === 'command') {
+    if (options.platform === 'darwin') return { store: new MacKeychainStore() };
+    if (options.platform === 'linux') return { store: new SecretToolStore() };
+    throw new CliError('SALLI_CREDENTIAL_STORE=command needs macOS (security) or Linux (secret-tool).');
+  }
 
   const keyring = await loadKeyring();
   if (keyring) {

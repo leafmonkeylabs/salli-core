@@ -216,14 +216,15 @@ export class SalliNetworkError extends Error {
     } catch {
       // keep the url as given
     }
+    // Node (undici) and Bun name the same failures differently.
     const reason =
-      code === 'ECONNREFUSED'
+      code === 'ECONNREFUSED' || code === 'ConnectionRefused'
         ? 'connection refused'
-        : code === 'ENOTFOUND' || code === 'EAI_AGAIN'
+        : code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'DNSError' || code === 'ERR_DNS'
           ? 'host not found'
-          : code === 'ECONNRESET'
+          : code === 'ECONNRESET' || code === 'ConnectionClosed'
             ? 'connection reset'
-            : code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT'
+            : code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'Timeout'
               ? 'connection timed out'
               : code === 'CERT_HAS_EXPIRED' || code?.startsWith('ERR_TLS') || code?.includes('CERT')
                 ? 'TLS certificate problem'

@@ -86,7 +86,8 @@ export class App {
   }
 
   get userAgent(): string {
-    return `salli-cli/${VERSION} (${this.runtime.platform}; ${this.runtime.standalone ? 'bun' : 'node'} ${process.version})`;
+    const bun = (globalThis as { Bun?: { version?: string } }).Bun?.version;
+    return `salli-cli/${VERSION} (${this.runtime.platform}; ${bun ? `bun ${bun}` : `node ${process.version}`})`;
   }
 
   /** Applies the global options; runs before every command. */
