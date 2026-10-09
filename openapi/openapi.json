@@ -43,7 +43,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Account"
+                  },
+                  "type": "array",
+                  "title": "Response Accounts.List"
+                }
               }
             }
           }
@@ -75,7 +81,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -125,7 +133,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
               }
             }
           },
@@ -178,7 +188,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -294,7 +306,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AccountOverview"
+                }
               }
             }
           },
@@ -339,7 +353,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AccountActive"
+                }
               }
             }
           },
@@ -5480,6 +5496,177 @@
   },
   "components": {
     "schemas": {
+      "Account": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "income",
+              "expense"
+            ],
+            "title": "Type"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "apit_credit",
+                  "ait_credit",
+                  "foreign_tax_credit",
+                  "qualifying_payment",
+                  "fsi_income"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "type",
+          "currency",
+          "parent_id",
+          "is_active"
+        ],
+        "title": "Account"
+      },
+      "AccountActive": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "is_active"
+        ],
+        "title": "AccountActive"
+      },
+      "AccountActivity": {
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "title": "Entry Id"
+          },
+          "entry_date": {
+            "type": "string",
+            "title": "Entry Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "statement",
+              "sms",
+              "system"
+            ],
+            "title": "Source"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "running_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Running Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "running_balance_native": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Running Balance Native"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry_id",
+          "entry_date",
+          "description",
+          "source",
+          "external_ref",
+          "running_balance",
+          "running_balance_native"
+        ],
+        "title": "AccountActivity"
+      },
       "AccountHint": {
         "properties": {
           "name": {
@@ -5505,6 +5692,63 @@
         ],
         "title": "AccountHint",
         "description": "A suggested NEW account (name + type) when the parser couldn't match an\nexisting one but can infer what kind of account the transaction implies."
+      },
+      "AccountOverview": {
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/Account"
+          },
+          "base_currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Base Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "current_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/AccountActivity"
+            },
+            "type": "array",
+            "title": "Transactions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account",
+          "base_currency",
+          "current_balance",
+          "balance",
+          "transactions"
+        ],
+        "title": "AccountOverview"
       },
       "AddAccountRequest": {
         "properties": {
@@ -7096,6 +7340,20 @@
         ],
         "title": "PurchaseRequest",
         "description": "Money arrives as a STRING and is parsed to Decimal, never float — a float in\nthe money path is a bug (CLAUDE.md). `annual_interest_rate` is a fraction\n(0.18 = 18%), bounded so a caller passing 18 is rejected rather than\nsilently costing the plan ~100x too dearly."
+      },
+      "Ref": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Ref",
+        "description": "What a create or update returns: the id of the thing it touched."
       },
       "RegisterClientRequest": {
         "properties": {

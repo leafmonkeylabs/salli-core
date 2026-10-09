@@ -243,3 +243,9 @@ class Problem(BaseModel):
     title: str
     status: int
     detail: Any = None
+
+
+class Ref(BaseModel):
+    """What a create or update returns: the id of the thing it touched."""
+
+    id: str

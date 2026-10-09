@@ -5,6 +5,8 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
+from salli.domain.accounting.models import Account as DomainAccount
+from salli.interfaces.api.contract import Amount, CurrencyCode, Ref
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -43,26 +45,65 @@ class UpdateAccountRequest(BaseModel):
     tax_role: TaxRoleStr | None = None
 
 
+class Account(BaseModel):
+    id: str
+    code: str
+    name: str
+    type: AccountTypeStr
+    #: The currency the account is held in.
+    currency: CurrencyCode
+    parent_id: str | None
+    is_active: bool
+    tax_role: TaxRoleStr | None = None
+
+
+class AccountActivity(BaseModel):
+    entry_id: str
+    entry_date: str
+    description: str
+    source: Literal["manual", "statement", "sms", "system"]
+    external_ref: str | None
+    #: The account's value after this entry, in the base currency.
+    running_balance: Amount
+    #: The same in the account's own currency; null when it cannot be known.
+    running_balance_native: Amount | None
+
+
+class AccountOverview(BaseModel):
+    account: Account
+    base_currency: CurrencyCode
+    #: The account's value in the base currency, at the rates its entries recorded.
+    current_balance: Amount
+    #: Its balance in its own currency (what the bank shows); null when unknowable.
+    balance: Amount | None
+    transactions: list[AccountActivity]
+
+
+class AccountActive(BaseModel):
+    id: str
+    is_active: bool
+
+
+def _account(a: DomainAccount) -> Account:
+    return Account(
+        id=a.id,
+        code=a.code,
+        name=a.name,
+        type=a.type,
+        currency=a.currency,
+        parent_id=a.parent_id,
+        is_active=a.is_active,
+        tax_role=a.tax_role,
+    )
+
+
 @router.get("/")
-async def list_accounts(user_id: CurrentUser, svc: AppServices):
-    accounts = await svc.ledger.list_accounts(user_id)
-    return [
-        {
-            "id": a.id,
-            "code": a.code,
-            "name": a.name,
-            "type": a.type,
-            "currency": a.currency,
-            "parent_id": a.parent_id,
-            "is_active": a.is_active,
-            "tax_role": a.tax_role,
-        }
-        for a in accounts
-    ]
+async def list_accounts(user_id: CurrentUser, svc: AppServices) -> list[Account]:
+    return [_account(a) for a in await svc.ledger.list_accounts(user_id)]
 
 
 @router.post("/", status_code=201)
-async def add_account(body: AddAccountRequest, user_id: CurrentUser, svc: AppServices):
+async def add_account(body: AddAccountRequest, user_id: CurrentUser, svc: AppServices) -> Ref:
     account_id = await svc.ledger.add_account(
         user_id=user_id,
         code=body.code,
@@ -72,24 +113,15 @@ async def add_account(body: AddAccountRequest, user_id: CurrentUser, svc: AppSer
         parent_id=body.parent_id,
         tax_role=body.tax_role,
     )
-    return {"id": account_id}
+    return Ref(id=account_id)
 
 
 @router.get("/{account_id}")
-async def get_account(account_id: str, user_id: CurrentUser, svc: AppServices):
+async def get_account(account_id: str, user_id: CurrentUser, svc: AppServices) -> Account:
     account = await svc.ledger.get_account(user_id, account_id)
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    return {
-        "id": account.id,
-        "code": account.code,
-        "name": account.name,
-        "type": account.type,
-        "currency": account.currency,
-        "parent_id": account.parent_id,
-        "is_active": account.is_active,
-        "tax_role": account.tax_role,
-    }
+    return _account(account)
 
 
 @router.get("/{account_id}/overview")
@@ -99,24 +131,26 @@ async def get_account_overview(
     svc: AppServices,
     from_date: str | None = None,
     to_date: str | None = None,
-):
+) -> AccountOverview:
     """Account detail, current balance, and running-balance transaction history."""
     overview = await svc.ledger.get_account_overview(user_id, account_id, from_date, to_date)
     if overview is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    return overview
+    return AccountOverview.model_validate(overview)
 
 
 @router.post("/{account_id}/reactivate")
-async def reactivate_account(account_id: str, user_id: CurrentUser, svc: AppServices):
+async def reactivate_account(
+    account_id: str, user_id: CurrentUser, svc: AppServices
+) -> AccountActive:
     await svc.ledger.reactivate_account(user_id, account_id)
-    return {"id": account_id, "is_active": True}
+    return AccountActive(id=account_id, is_active=True)
 
 
 @router.patch("/{account_id}", status_code=200)
 async def update_account(
     account_id: str, body: UpdateAccountRequest, user_id: CurrentUser, svc: AppServices
-):
+) -> Ref:
     # The repository assigns `row.tax_role = tax_role` unconditionally, and the
     # mobile client does not send the field — so passing body.tax_role straight
     # through would clear the role on every rename and silently inflate that
@@ -134,9 +168,9 @@ async def update_account(
         currency=body.currency,
         tax_role=tax_role,
     )
-    return {"id": account_id}
+    return Ref(id=account_id)
 
 
 @router.delete("/{account_id}", status_code=204)
-async def deactivate_account(account_id: str, user_id: CurrentUser, svc: AppServices):
+async def deactivate_account(account_id: str, user_id: CurrentUser, svc: AppServices) -> None:
     await svc.ledger.deactivate_account(user_id=user_id, account_id=account_id)

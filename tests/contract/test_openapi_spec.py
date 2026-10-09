@@ -57,3 +57,140 @@ def test_the_table_lists_no_route_that_is_gone():
 def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
     for _, path, _ in _operations():
         assert path.startswith(API_PREFIX + "/") or path.startswith(PROTOCOL_PATHS), path
+
+
+#: Operations whose success response has no schema yet, so generated clients
+#: get `unknown` for them. Typing one means deleting its line; nothing may be
+#: added. Grouped so work on different areas does not collide.
+UNTYPED = {
+    # Ledger, tax, statements, documents, reminders
+    "auth.me",
+    "documents.get",
+    "documents.list",
+    "entries.create",
+    "entries.get",
+    "entries.list",
+    "entries.provenance",
+    "entries.reverse",
+    "ledger.incomeStatement",
+    "ledger.trialBalance",
+    "meta.health",
+    "reminders.create",
+    "reminders.list",
+    "reminders.seedFilingCalendar",
+    "reminders.syncAlerts",
+    "statements.list",
+    "statements.pending",
+    "statements.post",
+    "statements.upload",
+    "tags.list",
+    "tax.compute",
+    "tax.latest",
+    "tax.packs",
+    # Planning: financial independence, goals, the advisor, reports
+    "advisor.briefing.prepare",
+    "advisor.briefing.resume",
+    "advisor.cron.runDue",
+    "advisor.dailyBriefing.get",
+    "advisor.recommendations.apply",
+    "advisor.recommendations.dismiss",
+    "advisor.reports.latest",
+    "advisor.reports.list",
+    "advisor.run",
+    "fi.projections",
+    "fi.score.get",
+    "fi.score.history",
+    "fi.score.recompute",
+    "fi.simulatePurchase",
+    "fi.strategy.generate",
+    "fi.strategy.get",
+    "fi.strategy.history",
+    "fi.surplus",
+    "goals.allocations.list",
+    "goals.allocations.set",
+    "goals.create",
+    "goals.list",
+    "goals.update",
+    "reports.balanceSheet",
+    "reports.exportCsv",
+    "reports.goalProgress",
+    "reports.netWorth",
+    # Budgets, debts, holdings, subscriptions, insurance
+    "budgets.create",
+    "budgets.get",
+    "budgets.list",
+    "budgets.summary",
+    "budgets.update",
+    "debts.create",
+    "debts.get",
+    "debts.list",
+    "debts.payoffPlan",
+    "debts.update",
+    "holdings.create",
+    "holdings.get",
+    "holdings.list",
+    "holdings.update",
+    "insurance.policies.create",
+    "insurance.policies.get",
+    "insurance.policies.list",
+    "insurance.policies.update",
+    "insurance.report",
+    "insurance.targets.list",
+    "insurance.targets.set",
+    "portfolio.summary",
+    "subscriptions.create",
+    "subscriptions.get",
+    "subscriptions.list",
+    "subscriptions.report",
+    "subscriptions.reports",
+    "subscriptions.update",
+    # Profile, onboarding, the agent, LLM keys, MCP connections
+    "account.delete",
+    "account.export",
+    "agent.auditLog",
+    "agent.chat",
+    "agent.files.upload",
+    "agent.history",
+    "agent.resume",
+    "agent.sessions.list",
+    "llmKeys.list",
+    "mcp.connections.list",
+    "mcp.enabled.get",
+    "onboarding.balanceSheet",
+    "onboarding.complete",
+    "onboarding.goals",
+    "onboarding.income",
+    "onboarding.riskQuestionnaire",
+    "profile.get",
+    "profile.update",
+    # OAuth
+    "oauth.authorizationServerMetadata",
+    "oauth.authorize",
+    "oauth.consent",
+    "oauth.consentInfo",
+    "oauth.protectedResourceMetadata",
+    "oauth.register",
+    "oauth.token",
+}
+
+
+def _is_typed(op: dict) -> bool:
+    for code, response in op.get("responses", {}).items():
+        if not code.startswith("2"):
+            continue
+        content = response.get("content")
+        if not content:  # 204 No Content
+            return True
+        for media_type, body in content.items():
+            # A stream or a file is described by its media type, not a schema.
+            if media_type != "application/json" or body.get("schema"):
+                return True
+    return False
+
+
+def test_untyped_operations_only_shrink():
+    untyped = {op["operationId"] for _, _, op in _operations() if not _is_typed(op)}
+    added = sorted(untyped - UNTYPED)
+    assert not added, f"Give these a response model (a return type): {added}"
+    fixed = sorted(UNTYPED - untyped)
+    assert not fixed, f"These are typed now; delete them from UNTYPED: {fixed}"
