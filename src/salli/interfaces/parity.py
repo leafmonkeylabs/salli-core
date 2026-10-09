@@ -45,6 +45,7 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/statements/{statement_id}"): "parse pending",
     ("POST", "/statements/{statement_id}/post"): "parse post",
     ("POST", "/statements/{statement_id}/discard"): "parse discard",
+    ("POST", "/statements/categorize"): "parse categorize",
     # agent
     ("POST", "/agent/chat"): "agent chat",
     ("POST", "/agent/resume"): "agent resume",

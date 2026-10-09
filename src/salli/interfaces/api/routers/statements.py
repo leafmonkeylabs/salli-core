@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Form, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from salli.domain.currency import quantize
 from salli.domain.parsing.models import ParsedTransaction
@@ -237,6 +237,38 @@ async def discard(
     if count is None:
         raise HTTPException(status_code=404, detail="Statement not found")
     return DiscardedStatementTransactions(discarded=count)
+
+
+class TransactionChoice(BaseModel):
+    transaction_id: str
+    #: Where the money came from (money in) or went (money out). The
+    #: statement's own account stays the other side.
+    account_id: str
+    category: str | None = None
+    need: Literal["essential", "discretionary", "savings"] | None = None
+
+
+class CategorizeRequest(BaseModel):
+    choices: list[TransactionChoice] = Field(min_length=1, max_length=500)
+
+
+class CategorizedTransactions(BaseModel):
+    #: The transactions changed, in the order given.
+    updated: list[str]
+
+
+@router.post("/categorize")
+async def categorize(
+    body: CategorizeRequest, user_id: CurrentUser, svc: AppServices
+) -> CategorizedTransactions:
+    """Choose the other side of pending transactions before posting them:
+    what the user decided, or an AI client of theirs (over MCP) proposed and
+    they accepted. Replaces what a rule or the model chose. Only transactions
+    waiting for review change (422 otherwise); one that is not yours is a 404."""
+    updated = await svc.parsing.categorize(
+        user_id, [c.model_dump(exclude_none=True) for c in body.choices]
+    )
+    return CategorizedTransactions(updated=updated)
 
 
 def _transaction(t: ParsedTransaction) -> StatementTransaction:

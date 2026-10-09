@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 import uuid
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -61,6 +61,10 @@ def _slugify(label: str) -> str:
     """LLM category label → tag slug ("Bank Charge" → "bank-charge")."""
     cleaned = re.sub(r"[^a-z0-9]+", "-", label.strip().lower())
     return cleaned.strip("-")[:60]
+
+
+#: The need tags a transaction can carry (as rules set them).
+_NEEDS = ("essential", "discretionary", "savings")
 
 
 class ParsingService:
@@ -444,6 +448,62 @@ class ParsingService:
             if await uow.statements.get_statement(user_id, statement_id) is None:
                 return None
             return await uow.statements.discard(user_id, statement_id, ids)
+
+    async def categorize(self, user_id: str, choices: Sequence[Mapping[str, Any]]) -> list[str]:
+        """Choose the other side of pending transactions: what the user, or an
+        AI client working for them over MCP, decided before posting.
+
+        Each choice names a `transaction_id` and an `account_id`, and may set
+        a `category` and a `need`. The statement's own account stays the money
+        side. A choice replaces whatever a rule or the model chose, so the row
+        no longer says a rule decided it. Refused (ValueError) for a row that
+        is not waiting for review, an account that is not one of the user's
+        active ones, or the statement's own account; KeyError for a row that
+        is not theirs. Returns the ids changed, in order.
+        """
+        if not choices:
+            return []
+        async with self._uow_factory() as uow:
+            accounts = {a.id: a for a in await uow.ledger.get_accounts(user_id)}
+            ids = [str(c["transaction_id"]) for c in choices]
+            rows = {t.id: t for t in await uow.statements.get_by_ids(user_id, ids)}
+            for choice in choices:
+                txn = rows.get(str(choice["transaction_id"]))
+                if txn is None:
+                    raise KeyError(choice["transaction_id"])
+                if txn.dedup_status in ("posted", "discarded", "exact_duplicate"):
+                    raise ValueError(
+                        f"Transaction {txn.id} is {txn.dedup_status.replace('_', ' ')}: "
+                        "only transactions waiting for review can change"
+                    )
+                account = accounts.get(str(choice["account_id"]))
+                if account is None:
+                    raise ValueError(f"No active account {choice['account_id']!r}")
+                if account.id == txn.account_id:
+                    raise ValueError(
+                        f"{account.name} is the statement's own account: choose where the "
+                        "money came from or went"
+                    )
+                need = choice.get("need") or ""
+                if need and need not in _NEEDS:
+                    raise ValueError(f"need must be one of {', '.join(_NEEDS)}")
+                # Money in is credited to where it came from; money out is
+                # debited to where it went. The statement's account is the other.
+                money_in = txn.raw.credit_flag
+                money_side = txn.account_id or (
+                    txn.debit_account_id if money_in else txn.credit_account_id
+                )
+                fields: dict[str, Any] = {
+                    "debit_account_id": money_side if money_in else account.id,
+                    "credit_account_id": account.id if money_in else money_side,
+                    "rule_id": "",
+                }
+                if choice.get("category") is not None:
+                    fields["category"] = str(choice["category"])
+                if need:
+                    fields["need"] = need
+                await uow.statements.set_choice(user_id, txn.id, fields)
+        return ids
 
     async def post_approved(
         self,

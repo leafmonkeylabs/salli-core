@@ -68,6 +68,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/statements/{statement_id}"): "statements.pending",
     ("POST", "/statements/{statement_id}/post"): "statements.post",
     ("POST", "/statements/{statement_id}/discard"): "statements.discard",
+    ("POST", "/statements/categorize"): "statements.categorize",
     # agent
     ("POST", "/agent/chat"): "agent.chat",
     ("POST", "/agent/resume"): "agent.resume",
