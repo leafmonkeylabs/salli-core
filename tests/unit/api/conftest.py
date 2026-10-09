@@ -104,7 +104,10 @@ def make_entry():
     e.description = "Salary"
     e.source = "manual"
     e.external_ref = None
+    e.reversed_by = None
     p = MagicMock()
+    p.id = "posting-1"
+    p.tags = {}
     p.account_id = "acc-1"
     p.direction = Direction.DEBIT
     p.amount = Decimal("100000")

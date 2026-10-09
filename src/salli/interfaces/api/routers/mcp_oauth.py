@@ -20,7 +20,7 @@ The actual MCP protocol endpoint (/mcp) lives in mcp_server.py.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -44,14 +44,40 @@ def _issuer() -> str:
 # ── Discovery metadata ───────────────────────────────────────────────────────
 
 
+class AuthorizationServerMetadata(BaseModel):
+    """RFC 8414 §2."""
+
+    issuer: str
+    authorization_endpoint: str
+    token_endpoint: str
+    registration_endpoint: str
+    revocation_endpoint: str
+    device_authorization_endpoint: str
+    response_types_supported: list[str]
+    grant_types_supported: list[str]
+    code_challenge_methods_supported: list[str]
+    token_endpoint_auth_methods_supported: list[str]
+
+
+class ProtectedResourceMetadata(BaseModel):
+    """RFC 9728 §2."""
+
+    resource: str
+    authorization_servers: list[str]
+
+
 @router.get("/.well-known/oauth-authorization-server")
-async def authorization_server_metadata(svc: AppServices):
-    return svc.mcp_oauth.authorization_server_metadata(_issuer())
+async def authorization_server_metadata(svc: AppServices) -> AuthorizationServerMetadata:
+    return AuthorizationServerMetadata.model_validate(
+        svc.mcp_oauth.authorization_server_metadata(_issuer())
+    )
 
 
 @router.get("/.well-known/oauth-protected-resource")
-async def protected_resource_metadata(svc: AppServices):
-    return svc.mcp_oauth.protected_resource_metadata(_issuer())
+async def protected_resource_metadata(svc: AppServices) -> ProtectedResourceMetadata:
+    return ProtectedResourceMetadata.model_validate(
+        svc.mcp_oauth.protected_resource_metadata(_issuer())
+    )
 
 
 # ── Dynamic Client Registration ──────────────────────────────────────────────
@@ -81,11 +107,26 @@ class RegisterClientRequest(BaseModel):
     redirect_uris: list[str]
 
 
+class RegisteredClient(BaseModel):
+    """RFC 7591 §3.2.1: a public client, which proves itself with PKCE."""
+
+    client_id: str
+    client_name: str | None
+    redirect_uris: list[str]
+    token_endpoint_auth_method: str
+    grant_types: list[str]
+    response_types: list[str]
+
+
 @router.post("/mcp/oauth/register", status_code=201)
-async def register_client(body: RegisterClientRequest, request: Request, svc: AppServices):
+async def register_client(
+    body: RegisterClientRequest, request: Request, svc: AppServices
+) -> RegisteredClient:
     _check_register_rate_limit(request.client.host if request.client else "unknown")
     try:
-        return await svc.mcp_oauth.register_client(body.client_name, body.redirect_uris)
+        return RegisteredClient.model_validate(
+            await svc.mcp_oauth.register_client(body.client_name, body.redirect_uris)
+        )
     except OAuthError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -93,7 +134,12 @@ async def register_client(body: RegisterClientRequest, request: Request, svc: Ap
 # ── Authorize → consent handoff ──────────────────────────────────────────────
 
 
-@router.get("/mcp/oauth/authorize")
+@router.get(
+    "/mcp/oauth/authorize",
+    response_class=RedirectResponse,
+    status_code=status.HTTP_302_FOUND,
+    responses={302: {"description": "To the consent page, which asks the person"}},
+)
 async def authorize(
     svc: AppServices,
     response_type: str,
@@ -126,10 +172,20 @@ async def authorize(
     return RedirectResponse(consent_url, status_code=status.HTTP_302_FOUND)
 
 
+class ConsentInfo(BaseModel):
+    """What the consent page shows the person before they decide."""
+
+    client_name: str
+    scope: str
+    resource: str | None
+    #: What the client is asking for: the MCP server, or the REST API.
+    audience: Literal["mcp", "api"]
+
+
 @router.get("/mcp/oauth/consent-info")
-async def consent_info(rt: str, user_id: CurrentUser, svc: AppServices):
+async def consent_info(rt: str, user_id: CurrentUser, svc: AppServices) -> ConsentInfo:
     try:
-        return await svc.mcp_oauth.get_consent_info(rt, user_id)
+        return ConsentInfo.model_validate(await svc.mcp_oauth.get_consent_info(rt, user_id))
     except ConsentError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -139,13 +195,20 @@ class ConsentDecisionRequest(BaseModel):
     approve: bool
 
 
+class ConsentDecision(BaseModel):
+    #: Back to the client, with `code` (approved) or `error=access_denied`.
+    redirect_url: str
+
+
 @router.post("/mcp/oauth/consent")
-async def consent(body: ConsentDecisionRequest, user_id: CurrentUser, svc: AppServices):
+async def consent(
+    body: ConsentDecisionRequest, user_id: CurrentUser, svc: AppServices
+) -> ConsentDecision:
     try:
         redirect_url = await svc.mcp_oauth.complete_consent(body.rt, user_id, body.approve)
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    return {"redirect_url": redirect_url}
+    return ConsentDecision(redirect_url=redirect_url)
 
 
 # ── Token endpoint ────────────────────────────────────────────────────────
@@ -155,6 +218,24 @@ def _oauth_error_response(error: str, description: str, http_status: int = 400) 
     return JSONResponse(
         status_code=http_status, content={"error": error, "error_description": description}
     )
+
+
+class OAuthErrorBody(BaseModel):
+    """RFC 6749 §5.2."""
+
+    error: str
+    error_description: str
+
+
+class TokenGrant(BaseModel):
+    """RFC 6749 §5.1."""
+
+    access_token: str
+    token_type: Literal["Bearer"]
+    #: Seconds the access token lasts.
+    expires_in: int
+    refresh_token: str
+    scope: str
 
 
 class DeviceAuthorization(BaseModel):
@@ -171,7 +252,7 @@ class DeviceAuthorization(BaseModel):
 @router.post(
     "/mcp/oauth/device_authorization",
     response_model=DeviceAuthorization,
-    responses={400: {"description": "OAuth error (`invalid_client`)"}},
+    responses={400: {"model": OAuthErrorBody, "description": "`invalid_client`"}},
 )
 async def device_authorization(
     svc: AppServices,
@@ -188,7 +269,17 @@ async def device_authorization(
     return DeviceAuthorization.model_validate(started)
 
 
-@router.post("/mcp/oauth/token")
+@router.post(
+    "/mcp/oauth/token",
+    response_model=TokenGrant,
+    responses={
+        400: {
+            "model": OAuthErrorBody,
+            "description": "An OAuth error; for the device grant, `authorization_pending` "
+            "and `slow_down` mean keep polling (RFC 8628 §3.5)",
+        }
+    },
+)
 async def token(
     svc: AppServices,
     grant_type: str = Form(...),
@@ -223,7 +314,7 @@ async def token(
             return _oauth_error_response("unsupported_grant_type", grant_type)
     except OAuthError as exc:
         return _oauth_error_response(exc.error, str(exc))
-    return result
+    return TokenGrant.model_validate(result)
 
 
 @router.post("/mcp/oauth/revoke")
@@ -245,9 +336,35 @@ async def revoke(request: Request, svc: AppServices) -> dict[str, Any]:
 connections_router = APIRouter(prefix="/mcp/connections", tags=["mcp-oauth"])
 
 
+class McpConnection(BaseModel):
+    """An AI client connected over MCP: one live access token."""
+
+    #: What revoking the connection takes.
+    token_id: str
+    client_id: str
+    #: As the client registered itself; "Unnamed app" when it gave no name.
+    client_name: str
+    scope: str
+    #: When it connected (ISO 8601).
+    connected_at: str
+
+
+class McpConnections(BaseModel):
+    #: Most recently connected first.
+    connections: list[McpConnection]
+
+
 @connections_router.get("/")
-async def list_connections(user_id: CurrentUser, svc: AppServices):
-    return {"connections": await svc.mcp_oauth.list_connections(user_id)}
+async def list_connections(user_id: CurrentUser, svc: AppServices) -> McpConnections:
+    connections = await svc.mcp_oauth.list_connections(user_id)
+    # `connected_at` comes back as a datetime. isoformat() is the string clients
+    # have always been sent ("...+00:00", where pydantic would write "...Z").
+    return McpConnections(
+        connections=[
+            McpConnection.model_validate({**c, "connected_at": c["connected_at"].isoformat()})
+            for c in connections
+        ]
+    )
 
 
 @connections_router.delete("/{token_id}", status_code=204)
@@ -267,6 +384,10 @@ async def set_mcp_enabled(body: McpEnabledRequest, user_id: CurrentUser, svc: Ap
     await svc.mcp_oauth.set_mcp_enabled(user_id, body.enabled)
 
 
+class McpEnabled(BaseModel):
+    enabled: bool
+
+
 @connections_router.get("/enabled")
-async def get_mcp_enabled(user_id: CurrentUser, svc: AppServices):
-    return {"enabled": await svc.mcp_oauth.is_mcp_enabled(user_id)}
+async def get_mcp_enabled(user_id: CurrentUser, svc: AppServices) -> McpEnabled:
+    return McpEnabled(enabled=await svc.mcp_oauth.is_mcp_enabled(user_id))

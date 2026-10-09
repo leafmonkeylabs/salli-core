@@ -6,7 +6,11 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
+from salli.domain.accounting.models import Posting as DomainPosting
+from salli.domain.accounting.models import Source, StoredJournalEntry
+from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
+from salli.interfaces.api.contract import Amount, CurrencyCode, Ref
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/entries", tags=["entries"])
@@ -61,6 +65,111 @@ class ParsedEntryDraft(BaseModel):
     confidence: float = 0.0
 
 
+class Posting(BaseModel):
+    #: Needed to retag: tags are edited per posting.
+    id: str
+    #: Axis → tag slug, e.g. {"category": "groceries", "need": "essential"}.
+    tags: dict[str, str]
+    account_id: str
+    #: 1 = debit, -1 = credit.
+    direction: Literal[1, -1]
+    #: In the posting's own `currency`.
+    amount: Amount
+    currency: CurrencyCode
+    #: Units of base currency per unit of `currency`, as a decimal string.
+    fx_rate: str
+
+
+class JournalEntry(BaseModel):
+    id: str
+    entry_date: str
+    description: str
+    source: Source
+    external_ref: str | None
+    #: The entry that reversed this one; null while it stands.
+    reversed_by: str | None
+    postings: list[Posting]
+
+
+class ProvenanceStatementFile(BaseModel):
+    """The uploaded bank statement a transaction was read from."""
+
+    id: str
+    bank: str | None
+    period_start: str | None
+    period_end: str | None
+    storage_key: str
+    status: str
+    created_at: str
+
+
+class ProvenanceStatement(BaseModel):
+    """The bank-statement transaction an entry was posted from."""
+
+    parsed_transaction_id: str
+    raw_description: str
+    #: The amount as the statement showed it, in `currency`.
+    raw_amount: Amount
+    currency: CurrencyCode
+    raw_date: str
+    bank_ref: str
+    statement: ProvenanceStatementFile | None
+
+
+class ProvenanceReceipt(BaseModel):
+    """The uploaded document attached to a manual entry."""
+
+    document_id: str
+    title: str
+    mime_type: str
+    storage_key: str | None
+
+
+class ProvenanceSubscription(BaseModel):
+    """A recurring subscription this entry looks like a payment of."""
+
+    subscription_id: str
+    name: str
+
+
+class EntryProvenance(BaseModel):
+    entry_id: str
+    entry_date: str
+    description: str
+    source: Source
+    external_ref: str | None
+    #: Set when the entry was posted from a bank statement.
+    statement: ProvenanceStatement | None
+    #: Set when a manual entry has a receipt attached.
+    receipt: ProvenanceReceipt | None
+    possible_subscriptions: list[ProvenanceSubscription]
+
+
+def _posting(p: DomainPosting) -> Posting:
+    assert p.id is not None  # read back from storage, so it has one
+    return Posting(
+        id=p.id,
+        tags=p.tags,
+        account_id=p.account_id,
+        direction=p.direction.value,
+        amount=str(quantize(p.amount, p.currency, strict=False)),
+        currency=p.currency,
+        fx_rate=str(p.fx_rate),
+    )
+
+
+def _entry(e: StoredJournalEntry) -> JournalEntry:
+    return JournalEntry(
+        id=e.id,
+        entry_date=e.entry_date,
+        description=e.description,
+        source=e.source,
+        external_ref=e.external_ref,
+        reversed_by=e.reversed_by,
+        postings=[_posting(p) for p in e.postings],
+    )
+
+
 @router.post("/parse")
 async def parse_entry(
     body: ParseEntryRequest, user_id: CurrentUser, email: CurrentEmail, svc: AppServices
@@ -82,7 +191,7 @@ async def parse_entry(
 
 
 @router.post("/", status_code=201)
-async def add_entry(body: AddEntryRequest, user_id: CurrentUser, svc: AppServices):
+async def add_entry(body: AddEntryRequest, user_id: CurrentUser, svc: AppServices) -> Ref:
     postings_data = [
         {
             "account_id": p.account_id,
@@ -103,7 +212,7 @@ async def add_entry(body: AddEntryRequest, user_id: CurrentUser, svc: AppService
         postings_data=postings_data,
         external_ref=body.external_ref,
     )
-    return {"id": entry_id}
+    return Ref(id=entry_id)
 
 
 @router.get("/")
@@ -112,78 +221,37 @@ async def list_entries(
     svc: AppServices,
     from_date: str | None = None,
     to_date: str | None = None,
-):
+) -> list[JournalEntry]:
     entries = await svc.ledger.get_entries(user_id, from_date, to_date)
-    return [
-        {
-            "id": e.id,
-            "entry_date": e.entry_date,
-            "description": e.description,
-            "source": e.source,
-            "external_ref": e.external_ref,
-            "reversed_by": e.reversed_by,
-            "postings": [
-                {
-                    # Needed to retag: tags are edited per posting.
-                    "id": p.id,
-                    "tags": p.tags,
-                    "account_id": p.account_id,
-                    "direction": p.direction.value,
-                    "amount": str(p.amount),
-                    "currency": p.currency,
-                    "fx_rate": str(p.fx_rate),
-                }
-                for p in e.postings
-            ],
-        }
-        for e in entries
-    ]
+    return [_entry(e) for e in entries]
 
 
 @router.get("/{entry_id}")
-async def get_entry(entry_id: str, user_id: CurrentUser, svc: AppServices):
+async def get_entry(entry_id: str, user_id: CurrentUser, svc: AppServices) -> JournalEntry:
     entry = await svc.ledger.get_entry(user_id, entry_id)
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
-    return {
-        "id": entry.id,
-        "entry_date": entry.entry_date,
-        "description": entry.description,
-        "source": entry.source,
-        "external_ref": entry.external_ref,
-        "reversed_by": entry.reversed_by,
-        "postings": [
-            {
-                # Needed to retag: tags are edited per posting.
-                "id": p.id,
-                "tags": p.tags,
-                "account_id": p.account_id,
-                "direction": p.direction.value,
-                "amount": str(p.amount),
-                "currency": p.currency,
-                "fx_rate": str(p.fx_rate),
-            }
-            for p in entry.postings
-        ],
-    }
+    return _entry(entry)
 
 
 @router.get("/{entry_id}/provenance")
-async def get_entry_provenance(entry_id: str, user_id: CurrentUser, svc: AppServices):
+async def get_entry_provenance(
+    entry_id: str, user_id: CurrentUser, svc: AppServices
+) -> EntryProvenance:
     """Where this entry came from: a bank-statement transaction, or an attached receipt."""
     provenance = await svc.ledger.get_entry_provenance(user_id, entry_id)
     if provenance is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
-    return provenance
+    return EntryProvenance.model_validate(provenance)
 
 
 @router.post("/{entry_id}/reverse", status_code=201)
-async def reverse_entry(entry_id: str, user_id: CurrentUser, svc: AppServices):
+async def reverse_entry(entry_id: str, user_id: CurrentUser, svc: AppServices) -> Ref:
     try:
         reversing_id = await svc.ledger.reverse_entry(user_id=user_id, entry_id=entry_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return {"id": reversing_id}
+    return Ref(id=reversing_id)
 
 
 # ── tags ──────────────────────────────────────────────────────────────────────

@@ -188,7 +188,8 @@ class McpOAuthService:
             "client_name": client["client_name"],
             "redirect_uris": client["redirect_uris"],
             "token_endpoint_auth_method": "none",  # public client, PKCE-only
-            "grant_types": ["authorization_code", "refresh_token"],
+            # Every client may use any grant this server supports.
+            "grant_types": ["authorization_code", "refresh_token", DEVICE_GRANT_TYPE],
             "response_types": ["code"],
         }
 

@@ -20,10 +20,27 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 
+from salli.domain.accounting.models import TagKind
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/tags", tags=["tags"])
+
+
+class Tag(BaseModel):
+    id: str
+    slug: str
+    name: str
+    kind: TagKind
+    #: A display colour; empty when none was chosen.
+    color: str
+    #: Seeded by Salli (the `need` axis): can be renamed, not deleted.
+    is_system: bool
+
+
+class TagList(BaseModel):
+    tags: list[Tag]
 
 
 @router.get("/")
@@ -31,18 +48,18 @@ async def list_tags(
     user_id: CurrentUser,
     svc: AppServices,
     kind: Literal["category", "need"] | None = Query(default=None),
-):
+) -> TagList:
     tags = await svc.ledger.list_tags(user_id, kind)
-    return {
-        "tags": [
-            {
-                "id": t.id,
-                "slug": t.slug,
-                "name": t.name,
-                "kind": t.kind,
-                "color": t.color,
-                "is_system": t.is_system,
-            }
+    return TagList(
+        tags=[
+            Tag(
+                id=t.id,
+                slug=t.slug,
+                name=t.name,
+                kind=t.kind,
+                color=t.color,
+                is_system=t.is_system,
+            )
             for t in tags
         ]
-    }
+    )

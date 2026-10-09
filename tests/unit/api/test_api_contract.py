@@ -31,6 +31,16 @@ async def test_meta_is_public_and_describes_the_server(client):
     assert len(body["default_currency"]) == 3
 
 
+async def test_health_and_identity_keep_their_shapes(client):
+    health = await client.get("/healthz")
+    assert health.status_code == 200
+    assert set(health.json()) == {"status", "version"}
+
+    me = await client.get("/v1/auth/me", headers=AUTH)
+    assert me.status_code == 200
+    assert me.json() == {"user_id": "test-user-1"}
+
+
 async def test_errors_are_problem_details_that_keep_their_detail(client):
     r = await client.get("/v1/ledger/trial-balance")  # no credentials
     assert r.status_code == 401
