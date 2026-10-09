@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
+from salli.domain.export import plaintext
+
 if TYPE_CHECKING:
     from salli.extensions import UserDataExporter
 
@@ -48,6 +50,20 @@ class DataPortabilityService:
         self._reminders = reminders_svc
         # Extensions' own per-user data (salli/extensions.py), appended last.
         self._exporters = exporters
+
+    async def export_plaintext(self, user_id: str, fmt: str) -> str:
+        """The whole ledger as a Beancount file or an hledger journal.
+
+        Every account, inactive ones included — an entry posted to an account
+        that has since been closed still has to name it — and every entry."""
+        if fmt not in ("beancount", "hledger"):
+            raise ValueError(f"Unknown format {fmt!r}: beancount or hledger")
+        async with self._uow_factory() as uow:
+            accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+            entries = await uow.ledger.get_entries(user_id)
+            base = await uow.user_profiles.base_currency(user_id)
+        render = plaintext.beancount if fmt == "beancount" else plaintext.hledger
+        return render(accounts, entries, base)
 
     async def export_all(self, user_id: str) -> dict[str, Any]:
         """

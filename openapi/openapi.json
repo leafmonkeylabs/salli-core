@@ -5490,6 +5490,60 @@
         }
       }
     },
+    "/v1/export/beancount": {
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Export Beancount",
+        "description": "A Beancount file (`bean-check` clean).",
+        "operationId": "exports.beancount",
+        "responses": {
+          "200": {
+            "description": "The journal, as a file.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/export/hledger": {
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Export Hledger",
+        "description": "An hledger journal (Ledger reads it too).",
+        "operationId": "exports.hledger",
+        "responses": {
+          "200": {
+            "description": "The journal, as a file.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/meta": {
       "get": {
         "tags": [

@@ -327,12 +327,10 @@ class SQLLedgerRepository(LedgerRepository):
         result = await self._session.execute(stmt)
         return [_entry_from_orm(row) for row in result.scalars().all()]
 
-    async def get_accounts(self, user_id: str) -> list[Account]:
-        stmt = (
-            select(AccountORM)
-            .where(AccountORM.user_id == user_id, AccountORM.is_active == True)  # noqa: E712
-            .order_by(AccountORM.code)
-        )
+    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
+        stmt = select(AccountORM).where(AccountORM.user_id == user_id).order_by(AccountORM.code)
+        if not include_inactive:
+            stmt = stmt.where(AccountORM.is_active == True)  # noqa: E712
         result = await self._session.execute(stmt)
         return [_account_from_orm(row) for row in result.scalars().all()]
 

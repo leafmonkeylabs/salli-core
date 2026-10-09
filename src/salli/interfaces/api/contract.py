@@ -179,6 +179,9 @@ OPERATION_IDS: dict[Route, str] = {
     ("DELETE", "/mcp/connections/{token_id}"): "mcp.connections.revoke",
     ("GET", "/mcp/connections/enabled"): "mcp.enabled.get",
     ("PUT", "/mcp/connections/enabled"): "mcp.enabled.set",
+    # plain-text accounting
+    ("GET", "/export/beancount"): "exports.beancount",
+    ("GET", "/export/hledger"): "exports.hledger",
     # categorisation rules
     ("GET", "/rules"): "rules.list",
     ("POST", "/rules"): "rules.create",
