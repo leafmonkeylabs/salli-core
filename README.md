@@ -126,10 +126,13 @@ or for MCP, and each accepts only its own. For scripts and CI, make a personal
 access token (`salli tokens create`, or `POST /v1/tokens`) and send it as a
 bearer token.
 
-To connect Claude (or any MCP client), add `http://localhost:8000/mcp` as a
-custom connector. You'll approve it on Salli's own consent page with your
-email and password. `salli mcp connections` lists what's connected;
-`salli mcp disable` cuts everything off.
+To use Salli from Claude, Claude Code or ChatGPT, on the subscription you
+already have, add `https://<your-salli>/mcp` as a connector. You'll approve it
+on Salli's own consent page. Claude's apps connect from Anthropic's cloud, so
+they need a Salli reachable over the internet; Claude Code also works with
+`http://localhost:8000/mcp`. Step by step, with what each client can do:
+[docs/ai-clients.md](docs/ai-clients.md). `salli mcp connections` lists what's
+connected; `salli mcp disable` cuts everything off.
 
 ### Your agent, driving the CLI
 
