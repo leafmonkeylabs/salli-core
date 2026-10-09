@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MockSalli } from './helpers/mock-server';
@@ -70,6 +72,15 @@ describe('salli ask', () => {
     expect(result.stderr).toContain('The agent could not answer: Anthropic rejected the API key');
   });
 
+  it('sends attached files with the question', async () => {
+    const receipt = join(dir, 'receipt.pdf');
+    await writeFile(receipt, '%PDF-1.4 a receipt');
+    const result = await run(['ask', 'what is this?', '--attach', receipt]);
+    expect(result.code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/agent/files')[0]?.body).toContain('filename="receipt.pdf"');
+    expect(mock.requestsTo('POST', '/v1/agent/chat')[0]?.json).toMatchObject({ file_refs: ['ref-receipt.pdf'] });
+  });
+
   it('passes a usage limit through as a refusal (exit 5)', async () => {
     mock.on('POST', '/v1/agent/chat', () => ({
       status: 429,
@@ -105,5 +116,17 @@ describe('salli chat', () => {
     // /thread prints the conversation id; leaving names it too.
     expect(result.stderr).toContain(chat.thread_id);
     expect(result.stderr).toContain(`salli chat --thread ${chat.thread_id.slice(0, 8)}`);
+  });
+
+  it('attaches a file to the next message with /attach', async () => {
+    const photo = join(dir, 'bill.png');
+    await writeFile(photo, 'png bytes');
+    const stdin = new PassThrough();
+    stdin.end(`/attach ${photo}\nwhat is this bill?\nand this?\n`);
+    const result = await run(['chat'], { stdin });
+    expect(result.code).toBe(0);
+    const [first, second] = mock.requestsTo('POST', '/v1/agent/chat').map((r) => r.json as { file_refs?: string[] });
+    expect(first?.file_refs).toEqual(['ref-bill.png']);
+    expect(second?.file_refs).toBeUndefined();
   });
 });

@@ -2,8 +2,8 @@
  * Reminders, reports, tax, documents, your profile and data, your own LLM
  * keys, and AI clients connected over MCP.
  */
-import { readFile, stat, writeFile } from 'node:fs/promises';
-import { basename, extname, resolve } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
   accountExport,
@@ -43,6 +43,7 @@ import type { BalanceSheet, ReminderList, TodayReminder } from '../api-types';
 import { CliError, UsageError } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
 import { displayDate, displayRange, isoDate, parseDate } from '../util/dates';
+import { readUpload } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
 import { renderRecord } from './records';
@@ -361,16 +362,6 @@ function registerTax(program: Command, app: App): void {
 
 // ── Documents ────────────────────────────────────────────────────────────────
 
-const DOC_MIME: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.csv': 'text/csv',
-  '.txt': 'text/plain',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-};
-
 function registerDocuments(program: Command, app: App): void {
   const documents = program.command('documents').alias('docs').description('Files and notes the AI keeps for you (receipts, memories)');
   const resolveDoc = async (api: SalliClient, query: string): Promise<Row> =>
@@ -428,19 +419,9 @@ function registerDocuments(program: Command, app: App): void {
     .argument('<file>', 'A file: PDF, image, CSV, text, Excel')
     .description('Store a file (e.g. a receipt to attach: salli entries add --receipt <id>)')
     .action(async (file) => {
-      let info;
-      try {
-        info = await stat(file);
-      } catch {
-        throw new UsageError(`No such file: ${file}`);
-      }
-      if (!info.isFile()) throw new UsageError(`Not a file: ${file}`);
+      const upload = await readUpload(file);
       const api = await app.api();
-      const name = basename(file);
-      const result = (await api.call(agentFilesUpload, {
-        body: { file: new File([await readFile(file)], name, { type: DOC_MIME[extname(name).toLowerCase()] ?? 'application/octet-stream' }) },
-        timeoutMs: 120_000,
-      })) as { file_ref: string; name: string };
+      const result = (await api.call(agentFilesUpload, { body: { file: upload }, timeoutMs: 120_000 })) as { file_ref: string; name: string };
       if (app.out.machine) app.out.emit(result, { human: () => undefined });
       else app.out.success(`Stored ${singleLine(result.name)} ${app.out.errColors.dim(result.file_ref)}`);
     });

@@ -5,8 +5,6 @@
  * gets suggested accounts and a duplicate check, and nothing reaches the
  * ledger until it is approved.
  */
-import { readFile, stat } from 'node:fs/promises';
-import { basename, extname } from 'node:path';
 import type { Command } from '@commander-js/extra-typings';
 import {
   entriesCreate,
@@ -30,20 +28,13 @@ import type {
 import { CliError, UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { displayDate, displayRange } from '../util/dates';
+import { readUpload } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { AccountBook, confirmAction, currencyArg, limitArg } from './shared';
 
 type Transaction = TodayStatementTransaction & { id: string };
 
 const MAX_BYTES = 10 * 1024 * 1024;
-
-const MIME: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.csv': 'text/csv',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.xls': 'application/vnd.ms-excel',
-  '.txt': 'text/plain',
-};
 
 const isDuplicate = (t: TodayStatementTransaction): boolean =>
   t.dedup_status === 'exact_duplicate' || t.dedup_status === 'confirmed_duplicate';
@@ -233,23 +224,15 @@ Examples:
   $ salli import statement.csv --currency EUR --yes`,
     )
     .action(async (file, opts) => {
-      let info;
-      try {
-        info = await stat(file);
-      } catch {
-        throw new UsageError(`No such file: ${file}`);
-      }
-      if (!info.isFile()) throw new UsageError(`Not a file: ${file}`);
-      if (info.size > MAX_BYTES) throw new UsageError(`${basename(file)} is larger than the server accepts (10 MB).`);
+      const upload = await readUpload(file, MAX_BYTES);
+      const name = upload.name;
       const api = await app.api();
-      const bytes = await readFile(file);
-      const name = basename(file);
       const spinner = app.prompter.spinner();
       spinner.start(`Reading ${name}`);
-      let upload: StatementUpload;
+      let parsed: StatementUpload;
       try {
-        upload = (await api.call(statementsUpload, {
-          body: { file: new File([bytes], name, { type: MIME[extname(name).toLowerCase()] ?? 'application/octet-stream' }) },
+        parsed = (await api.call(statementsUpload, {
+          body: { file: upload },
           query: { ...(opts.bank ? { bank: opts.bank } : {}), ...(opts.currency ? { currency: currencyArg(opts.currency) } : {}) },
           timeoutMs: 5 * 60_000,
         })) as StatementUpload;
@@ -258,10 +241,10 @@ Examples:
       }
       const book = await AccountBook.load(api);
       const out = app.out;
-      const transactions = upload.transactions.filter((t): t is Transaction => !!t.id);
-      const period = upload.period_start ? ` for ${displayRange(upload.period_start, upload.period_end, out.locale)}` : '';
-      out.info(`Read ${transactions.length} transaction${transactions.length === 1 ? '' : 's'} from ${singleLine(upload.bank || name)}${period}.`);
-      for (const problem of upload.errors) out.warn(singleLine(String(problem)));
+      const transactions = parsed.transactions.filter((t): t is Transaction => !!t.id);
+      const period = parsed.period_start ? ` for ${displayRange(parsed.period_start, parsed.period_end, out.locale)}` : '';
+      out.info(`Read ${transactions.length} transaction${transactions.length === 1 ? '' : 's'} from ${singleLine(parsed.bank || name)}${period}.`);
+      for (const problem of parsed.errors) out.warn(singleLine(String(problem)));
 
       let decision: { approved: Transaction[]; changed: Map<string, { debit: string; credit: string }>; skipped: Transaction[] };
       if (opts.yes) {
@@ -270,22 +253,22 @@ Examples:
         decision = await review(app, book, transactions);
       } else {
         // No one to ask: leave everything pending, say how to finish.
-        out.emit(upload, {
+        out.emit(parsed, {
           records: (u) => u.transactions,
           human: (u) => out.line(transactionTable(app, book, u.transactions)),
         });
         out.note(
-          `Nothing posted. Review in a terminal with \`salli statements pending\`, or post with \`salli statements post ${upload.statement_id.slice(0, 8)} --all --yes\`.`,
+          `Nothing posted. Review in a terminal with \`salli statements pending\`, or post with \`salli statements post ${parsed.statement_id.slice(0, 8)} --all --yes\`.`,
         );
         return;
       }
 
       const posted = decision.approved.length
-        ? await postApproved(app, api, upload.statement_id, decision.approved, decision.changed)
+        ? await postApproved(app, api, parsed.statement_id, decision.approved, decision.changed)
         : { result: { posted: 0, entry_ids: [] } as StatementPost, corrections: [] };
       const skipped = decision.skipped.map((t) => t.id);
       out.emit(
-        { upload, posted: posted.result, corrections: posted.corrections, skipped },
+        { upload: parsed, posted: posted.result, corrections: posted.corrections, skipped },
         {
           human: () => {
             const duplicates = decision.skipped.filter(isDuplicate).length;

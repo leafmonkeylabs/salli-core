@@ -11,6 +11,7 @@ import { createInterface, type Interface } from 'node:readline';
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
   agentAuditLog,
+  agentFilesUpload,
   agentHistory,
   agentSessionsDelete,
   agentSessionsList,
@@ -26,7 +27,8 @@ import { CliError, InterruptedError, UsageError } from '../errors';
 import { sanitize, singleLine, truncate } from '../output/text';
 import { displayDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
-import { confirmAction, limitArg } from './shared';
+import { readUpload } from '../util/files';
+import { collect, confirmAction, limitArg } from './shared';
 
 type Persona = 'scrooge' | 'buddy';
 const PERSONAS = ['scrooge', 'buddy'] as const;
@@ -132,6 +134,14 @@ function describeApproval(app: App, approval: AgentApprovalRequest): string {
   return `${c.yellow('?')} The agent wants to ${what.charAt(0).toLowerCase()}${what.slice(1)}${params}`;
 }
 
+/** Uploads a file for the agent to read; returns its reference. */
+async function attach(app: App, api: SalliClient, path: string): Promise<string> {
+  const file = await readUpload(path);
+  const result = (await api.call(agentFilesUpload, { body: { file }, timeoutMs: 120_000 })) as { file_ref: string; name?: string };
+  app.out.note(`Attached ${singleLine(result.name ?? file.name)}.`);
+  return result.file_ref;
+}
+
 async function resolveThread(api: SalliClient, query: string): Promise<string> {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query)) return query;
   const { sessions } = (await api.call(agentSessionsList, { query: { limit: 200 } })) as { sessions: Session[] };
@@ -150,9 +160,10 @@ async function converse(
   persona: Persona,
   message: string,
   decide: (approval: AgentApprovalRequest) => Promise<boolean>,
-  options: { json: boolean; progress: boolean; signal: AbortSignal; prefix?: string },
+  options: { json: boolean; progress: boolean; signal: AbortSignal; prefix?: string; fileRefs?: string[] },
 ): Promise<TurnEnd> {
-  let end = await renderTurn(app, streamAgentChat(api, { thread_id: thread, message, persona }, { signal: options.signal }), options);
+  const body = { thread_id: thread, message, persona, ...(options.fileRefs?.length ? { file_refs: options.fileRefs } : {}) };
+  let end = await renderTurn(app, streamAgentChat(api, body, { signal: options.signal }), options);
   while (end.approval && !end.error) {
     const approved = await decide(end.approval);
     end = await renderTurn(
@@ -165,9 +176,10 @@ async function converse(
 }
 
 const HELP = `Commands:
-  /new      start a new conversation
-  /thread   show this conversation's id
-  /exit     leave (or press Ctrl-D)`;
+  /attach <file>  send a file (receipt, statement, photo) with your next message
+  /new            start a new conversation
+  /thread         show this conversation's id
+  /exit           leave (or press Ctrl-D)`;
 
 export function registerChat(program: Command, app: App): void {
   const personaOption = () =>
@@ -206,6 +218,7 @@ export function registerChat(program: Command, app: App): void {
       };
 
       let turn: AbortController | undefined;
+      const pending: string[] = [];
       const stop = (): void => {
         // Ctrl-C stops the reply in progress; at the prompt, it leaves.
         if (turn) turn.abort(new InterruptedError('Stopped.'));
@@ -242,13 +255,27 @@ export function registerChat(program: Command, app: App): void {
             app.out.errLine(c.dim(`New conversation ${thread.slice(0, 8)}.`));
             continue;
           }
+          if (message.startsWith('/attach')) {
+            const path = message.slice('/attach'.length).trim().replace(/^["']|["']$/g, '');
+            if (!path) app.out.errLine('Usage: /attach <file>');
+            else {
+              try {
+                pending.push(await attach(app, api, path));
+              } catch (error) {
+                app.out.errLine(`${c.red('✗')} ${singleLine((error as Error).message)}`);
+              }
+            }
+            continue;
+          }
           turn = new AbortController();
+          const fileRefs = pending.splice(0);
           try {
             const end = await converse(app, api, thread, persona, message, decide, {
               json: false,
               progress: true,
               signal: turn.signal,
               prefix: `${app.out.colors.green('salli')} › `,
+              fileRefs,
             });
             if (end.error) app.out.errLine(`${c.red('✗')} ${singleLine(end.error)}`);
           } catch (error) {
@@ -270,6 +297,7 @@ export function registerChat(program: Command, app: App): void {
     .argument('<question...>', 'Your question')
     .description('Ask one question and print the answer (--json streams the events as NDJSON)')
     .option('--thread <id>', 'Ask within an earlier conversation')
+    .option('--attach <file>', 'Send a file with the question (repeatable)', collect)
     .addOption(personaOption())
     .addHelpText(
       'after',
@@ -279,6 +307,7 @@ without one, the change is declined.
 
 Examples:
   $ salli ask "how much did I spend on groceries last month?"
+  $ salli ask "what is this charge?" --attach receipt.pdf
   $ salli ask "what is my FI number?" --json | jq -r 'select(.type=="token") | .content'`,
     )
     .action(async (words, opts) => {
@@ -286,6 +315,8 @@ Examples:
       if (!message) throw new UsageError('Ask a question, e.g. salli ask "what is my net worth?"');
       const api = await app.api();
       const thread = opts.thread ? await resolveThread(api, opts.thread) : randomUUID();
+      const fileRefs: string[] = [];
+      for (const path of opts.attach ?? []) fileRefs.push(await attach(app, api, path));
       const json = app.out.json;
       const decide = async (approval: AgentApprovalRequest): Promise<boolean> => {
         app.out.errLine(describeApproval(app, approval));
@@ -299,6 +330,7 @@ Examples:
         json,
         progress: !json && (app.runtime.stderr.isTTY === true || app.globals.verbose === true),
         signal: app.runtime.signal,
+        fileRefs,
       });
       if (end.error) throw new CliError(`The agent could not answer: ${end.error}`);
     });

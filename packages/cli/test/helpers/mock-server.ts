@@ -583,6 +583,10 @@ export class MockSalli {
     }
 
     // agent
+    if (method === 'POST' && path === '/v1/agent/files') {
+      const name = /filename="([^"]+)"/.exec(req.body)?.[1] ?? 'attachment';
+      return { status: 200, body: { file_ref: `ref-${name}`, name, size: req.body.length, mime_type: 'application/pdf' } };
+    }
     if (method === 'POST' && (path === '/v1/agent/chat' || path === '/v1/agent/resume')) {
       const events = path === '/v1/agent/chat' ? this.chatEvents : this.resumeEvents(String((req.json as { decision?: string }).decision));
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
