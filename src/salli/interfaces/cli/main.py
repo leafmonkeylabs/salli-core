@@ -3118,10 +3118,11 @@ def _portfolio_error(exc: Exception) -> NoReturn:
 
 
 def _in_one_loop[T](work: Callable[[Any], Coroutine[Any, Any, T]]) -> T:
-    """Run `work` with services built for it, in a single event loop: their
-    database connections belong to the loop they were opened in, so a second
-    asyncio.run must not reuse them. A refusal from the service (a sale of
-    units not held, a missing rate) is printed, and the command exits 1."""
+    """Run `work` with services built for it, in one event loop. (The CLI's
+    services are unpooled, so a second asyncio.run would also work; one
+    coroutine keeps a command's lookups and its change together.) A refusal
+    from the service (a sale of units not held, a missing rate) is printed,
+    and the command exits 1."""
     try:
         return asyncio.run(work(_services()))
     except (ValueError, LookupError) as e:
