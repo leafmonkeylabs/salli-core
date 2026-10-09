@@ -13883,7 +13883,11 @@
           },
           "amount": {
             "type": "string",
-            "title": "Amount"
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "examples": [
+              "1234.50"
+            ]
           },
           "currency": {
             "anyOf": [
@@ -13899,7 +13903,11 @@
           "fx_rate": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"

@@ -6,7 +6,7 @@ as the user's last update.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -96,12 +96,18 @@ def _parse_target(target: list[str]) -> dict[str, Decimal] | None:
     parsed: dict[str, Decimal] = {}
     for pair in target:
         asset_class, _, pct = pair.partition(":")
-        if not asset_class or not pct:
+        try:
+            share = Decimal(pct)
+        except InvalidOperation:
+            share = None
+        # A share is a fraction, 0 to 1. "abc" used to escape as a 500, and
+        # "NaN" or "Infinity" read as numbers.
+        if not asset_class or share is None or not share.is_finite() or not 0 <= share <= 1:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Invalid target entry '{pair}'. Use asset_class:pct.",
+                detail=f"Invalid target entry '{pair}'. Use asset_class:share, e.g. equity:0.6.",
             )
-        parsed[asset_class] = Decimal(pct)
+        parsed[asset_class] = share
     return parsed
 
 

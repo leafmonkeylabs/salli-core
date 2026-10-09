@@ -10,7 +10,7 @@ from salli.domain.accounting.models import Posting as DomainPosting
 from salli.domain.accounting.models import Source, StoredJournalEntry
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref
+from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalString, Ref
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/entries", tags=["entries"])
@@ -19,13 +19,14 @@ router = APIRouter(prefix="/entries", tags=["entries"])
 class PostingRequest(BaseModel):
     account_id: str
     direction: int  # 1 = DEBIT, -1 = CREDIT
-    amount: str  # Decimal as string to avoid float
+    #: A decimal string, never a JSON number (which a client holds as a float).
+    amount: DecimalString
     #: ISO 4217. Omitted: the user's base currency.
     currency: str | None = None
     #: Units of base currency per unit of `currency` — the rate the bank used.
     #: Omitted: 1 for the base currency, else the published rate for the
     #: entry's date (422 if there is none: give it then).
-    fx_rate: str | None = None
+    fx_rate: DecimalString | None = None
     fx_rate_source: str | None = None
     # Axis → tag slug, e.g. {"category": "groceries", "need": "essential"}.
     # Tags that do not exist yet are created on the axis named here, so a client

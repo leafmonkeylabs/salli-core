@@ -250,6 +250,10 @@ AmountIn = Annotated[
     ),
 ]
 
+#: A decimal string in a request where only a string will do (the ledger's
+#: own amounts and rates): anything that is not one is a 422, not a 500.
+DecimalString = Annotated[str, Field(pattern=_DECIMAL, examples=["1234.50"])]
+
 #: A rate or fraction in a request ("0.0725" is 7.25%), read exactly, likewise.
 DecimalIn = Annotated[
     Decimal,
