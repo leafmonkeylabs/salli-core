@@ -205,6 +205,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("PUT", "/bank-connections/{connection_id}/accounts/{remote_id}"): "bankConnections.mapAccount",
     ("POST", "/bank-connections/{connection_id}/sync"): "bankConnections.sync",
     ("DELETE", "/bank-connections/{connection_id}"): "bankConnections.disconnect",
+    ("POST", "/bank-connections/cron/sync-due"): "bankConnections.cron.syncDue",
     # personal access tokens
     ("GET", "/tokens"): "tokens.list",
     ("POST", "/tokens"): "tokens.create",

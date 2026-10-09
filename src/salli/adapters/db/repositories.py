@@ -2693,6 +2693,19 @@ class SQLBankConnectionRepository(BankConnectionRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
+    async def list_due(self, synced_before: datetime) -> list[tuple[str, str]]:
+        rows = await self._s.execute(
+            select(BankConnectionORM.user_id, BankConnectionORM.id)
+            .where(
+                or_(
+                    BankConnectionORM.last_synced_at.is_(None),
+                    BankConnectionORM.last_synced_at < synced_before,
+                )
+            )
+            .order_by(BankConnectionORM.last_synced_at.asc().nulls_first())
+        )
+        return [(user_id, connection_id) for user_id, connection_id in rows.all()]
+
     async def _one(self, user_id: str, connection_id: str) -> BankConnectionORM | None:
         return (
             await self._s.execute(

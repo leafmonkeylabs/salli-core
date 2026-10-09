@@ -168,6 +168,7 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("PUT", "/bank-connections/{connection_id}/accounts/{remote_id}"): "banks map",
     ("POST", "/bank-connections/{connection_id}/sync"): "banks sync",
     ("DELETE", "/bank-connections/{connection_id}"): "banks disconnect",
+    ("POST", "/bank-connections/cron/sync-due"): "banks sync-due",
     ("GET", "/tokens"): "tokens list",
     ("POST", "/tokens"): "tokens create",
     ("DELETE", "/tokens/{token_id}"): "tokens revoke",

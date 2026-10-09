@@ -51,7 +51,7 @@ def banks(mock_services):
     service = MagicMock()
     service.available = True
     service.providers = ["simplefin"]
-    for method in ("list", "connect", "map_account", "sync", "disconnect"):
+    for method in ("list", "connect", "map_account", "sync", "disconnect", "due", "sync_due"):
         setattr(service, method, AsyncMock())
     mock_services.bank_connections = service
     return service
@@ -135,3 +135,16 @@ async def test_disconnecting_what_is_not_there_is_not_found(client, banks):
     banks.disconnect.return_value = False
     r = await client.delete("/v1/bank-connections/nope", headers=AUTH)
     assert r.status_code == 404
+
+
+async def test_the_scheduler_needs_the_cron_secret(client, app, banks):
+    from types import SimpleNamespace
+
+    from salli.config import get_settings
+
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cron_secret="s3cret")
+    banks.due.return_value = [("u1", "c1"), ("u2", "c2")]
+    assert (await client.post("/v1/bank-connections/cron/sync-due")).status_code == 401
+    r = await client.post("/v1/bank-connections/cron/sync-due", headers={"X-Cron-Secret": "s3cret"})
+    assert (r.status_code, r.json()) == (202, {"due": 2, "scheduled": True})
+    banks.sync_due.assert_awaited_once()

@@ -873,6 +873,12 @@ class BankConnectionRepository(ABC):
     @abstractmethod
     async def delete(self, user_id: str, connection_id: str) -> bool: ...
 
+    @abstractmethod
+    async def list_due(self, synced_before: datetime) -> list[tuple[str, str]]:
+        """(user id, connection id) of every connection, anyone's, never
+        synced or last synced before `synced_before`. For the scheduler."""
+        ...
+
 
 class RuleRepository(ABC):
     """A user's categorisation rules, as plain dicts (see domain/rules)."""

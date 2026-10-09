@@ -166,3 +166,25 @@ async def test_development_sign_in_means_no_bank_connection(uow_factory):
         await service.connect("u1", "fake", "good-token")
     with pytest.raises(BankConnectionsUnavailable):
         await service.sync("u1", "any")
+
+
+async def test_the_scheduler_syncs_what_is_due_and_a_failure_stops_nothing(uow_factory):
+    async with uow_factory() as uow:
+        await uow.user_profiles.upsert("u2", {"base_currency": "USD"})
+    good, bad, importer = FakeBank(), FakeBank(), Importer()
+    service = BankConnectionService(
+        uow_factory, KeyRing(KEYS), {"good": good, "bad": bad}, importer
+    )
+    async with uow_factory() as uow:
+        await uow.user_profiles.upsert("u1", {"base_currency": "USD"})
+    await service.connect("u1", "bad", "good-token")
+    fine = (await service.connect("u2", "good", "good-token"))["id"]
+    bad.fail = True  # its access is revoked after connecting
+
+    counts = await service.sync_due()
+    assert counts == {"due": 2, "synced": 1, "failed": 1}
+    assert len(good.starts) == 2  # connecting, then the sync
+
+    # Just synced: not due again for 12 hours. The failed one stays due.
+    assert [user_id for user_id, _ in await service.due()] == ["u1"]
+    assert fine not in {connection_id for _, connection_id in await service.due()}

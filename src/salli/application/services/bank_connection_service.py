@@ -15,6 +15,7 @@ against it.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
@@ -23,6 +24,8 @@ from typing import Any, Protocol
 from salli.application.ports import BankConnector, BankLinkError, RemoteTransaction
 from salli.domain.currency import is_currency, normalize_currency
 from salli.domain.parsing.models import RawRow
+
+_log = logging.getLogger(__name__)
 
 #: How far back the first sync reaches, and how much each later one overlaps
 #: the last (banks post late; duplicates are dropped by the bank's own id).
@@ -250,6 +253,29 @@ class BankConnectionService:
             )
         unmapped = [a.name for a in snapshot.accounts if a.remote_id not in mapped]
         return {"accounts": results, "unmapped": unmapped, "warnings": snapshot.warnings}
+
+    async def due(self, max_age: dt.timedelta = dt.timedelta(hours=12)) -> list[tuple[str, str]]:
+        """(user id, connection id) of every connection not synced within `max_age`."""
+        async with self._uow_factory() as uow:
+            return await uow.bank_connections.list_due(dt.datetime.now(dt.UTC) - max_age)
+
+    async def sync_due(self, max_age: dt.timedelta = dt.timedelta(hours=12)) -> dict[str, int]:
+        """Sync every connection, anyone's, not synced within `max_age`: what
+        a scheduler calls. One that fails is recorded on its connection (as
+        any failed sync is) and the rest carry on."""
+        self._require_available()
+        due = await self.due(max_age)
+        synced = failed = 0
+        for user_id, connection_id in due:
+            try:
+                await self.sync(user_id, connection_id)
+                synced += 1
+            except BankLinkError:
+                failed += 1  # recorded on the connection by sync()
+            except Exception:
+                failed += 1
+                _log.exception("bank_sync_failed connection=%s", connection_id)
+        return {"due": len(due), "synced": synced, "failed": failed}
 
     async def disconnect(self, user_id: str, connection_id: str) -> bool:
         """Forget the connection and its credential. Booked entries stay."""

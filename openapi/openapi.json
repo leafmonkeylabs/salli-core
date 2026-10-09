@@ -7557,6 +7557,56 @@
         }
       }
     },
+    "/v1/bank-connections/cron/sync-due": {
+      "post": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Cron Sync Due",
+        "description": "Sync every connection that is due, for a scheduler (the hosted\nproduct's pg_cron, or a self-hoster's cron). Auth: X-Cron-Secret header.",
+        "operationId": "bankConnections.cron.syncDue",
+        "parameters": [
+          {
+            "name": "x-cron-secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Cron-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledBankSyncs"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/bank-connections/{connection_id}": {
       "delete": {
         "tags": [
@@ -16673,6 +16723,25 @@
         ],
         "title": "ScheduledAdvisorRuns",
         "description": "The daily run, accepted: the advisor runs for each due user after this response."
+      },
+      "ScheduledBankSyncs": {
+        "properties": {
+          "due": {
+            "type": "integer",
+            "title": "Due"
+          },
+          "scheduled": {
+            "type": "boolean",
+            "title": "Scheduled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "due",
+          "scheduled"
+        ],
+        "title": "ScheduledBankSyncs",
+        "description": "Accepted: each due connection syncs after this response."
       },
       "SeededReminders": {
         "properties": {

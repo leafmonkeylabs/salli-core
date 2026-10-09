@@ -3970,6 +3970,29 @@ def banks_sync(
         raise typer.Exit(1)
 
 
+@banks_app.command("sync-due")
+def banks_sync_due(
+    max_age_hours: int = typer.Option(12, "--max-age-hours", min=1, help="Sync what is older"),
+):
+    """Sync every user's connections not synced lately: for this server's cron."""
+    import datetime as _dt
+
+    from salli.application.services.bank_connection_service import BankConnectionsUnavailable
+
+    try:
+        counts = asyncio.run(
+            _services().bank_connections.sync_due(_dt.timedelta(hours=max_age_hours))
+        )
+    except BankConnectionsUnavailable as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    if emit(counts):
+        raise typer.Exit(1 if counts["failed"] else 0)
+    console.print(f"{counts['synced']} of {counts['due']} synced, {counts['failed']} failed.")
+    if counts["failed"]:
+        raise typer.Exit(1)
+
+
 @banks_app.command("disconnect")
 def banks_disconnect(
     connection: str = typer.Argument(..., help="Connection id (the first characters will do)"),

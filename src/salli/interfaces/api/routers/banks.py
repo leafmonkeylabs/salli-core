@@ -11,14 +11,16 @@ approves it.
 
 from __future__ import annotations
 
+import hmac
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from salli.application.ports import BankLinkError
 from salli.application.services.bank_connection_service import BankConnectionsUnavailable
+from salli.config import Settings, get_settings
 from salli.domain.currency import is_currency, quantize
 from salli.interfaces.api.contract import Amount
 from salli.interfaces.api.deps import AppServices, CurrentUser
@@ -192,6 +194,34 @@ async def sync(connection_id: str, user_id: CurrentUser, svc: AppServices) -> Ba
         # The provider refused: the connection is marked, and the user has to act.
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return BankSync.model_validate(result)
+
+
+class ScheduledBankSyncs(BaseModel):
+    """Accepted: each due connection syncs after this response."""
+
+    #: Connections, anyone's, not synced in the last 12 hours.
+    due: int
+    scheduled: bool
+
+
+@router.post("/cron/sync-due", status_code=status.HTTP_202_ACCEPTED)
+async def cron_sync_due(
+    svc: AppServices,
+    settings: Annotated[Settings, Depends(get_settings)],
+    background: BackgroundTasks,
+    x_cron_secret: Annotated[str | None, Header()] = None,
+) -> ScheduledBankSyncs:
+    """Sync every connection that is due, for a scheduler (the hosted
+    product's pg_cron, or a self-hoster's cron). Auth: X-Cron-Secret header."""
+    secret = settings.cron_secret
+    if not secret or not x_cron_secret or not hmac.compare_digest(x_cron_secret, secret):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid cron secret")
+    banks = svc.bank_connections
+    if not banks.available:
+        return ScheduledBankSyncs(due=0, scheduled=False)
+    due = await banks.due()
+    background.add_task(banks.sync_due)
+    return ScheduledBankSyncs(due=len(due), scheduled=True)
 
 
 @router.delete("/{connection_id}", status_code=204)
