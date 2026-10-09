@@ -92,10 +92,6 @@ UNTYPED = {
     "reports.goalProgress",
     "reports.netWorth",
     # Budgets, debts, holdings, subscriptions, insurance
-    "holdings.create",
-    "holdings.get",
-    "holdings.list",
-    "holdings.update",
     "insurance.policies.create",
     "insurance.policies.get",
     "insurance.policies.list",
@@ -103,7 +99,6 @@ UNTYPED = {
     "insurance.report",
     "insurance.targets.list",
     "insurance.targets.set",
-    "portfolio.summary",
     "subscriptions.create",
     "subscriptions.get",
     "subscriptions.list",

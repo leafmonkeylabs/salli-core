@@ -3900,7 +3900,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HoldingList"
+                }
               }
             }
           },
@@ -3942,7 +3944,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -3994,7 +3998,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioSummary"
+                }
               }
             }
           },
@@ -4039,7 +4045,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Holding"
+                }
               }
             }
           },
@@ -4092,7 +4100,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Updated"
+                }
               }
             }
           },
@@ -6093,6 +6103,34 @@
         ],
         "title": "AllocationRequest"
       },
+      "AllocationSlice": {
+        "properties": {
+          "asset_class": {
+            "type": "string",
+            "title": "Asset Class"
+          },
+          "current_value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "pct_of_portfolio": {
+            "type": "string",
+            "title": "Pct Of Portfolio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "current_value",
+          "pct_of_portfolio"
+        ],
+        "title": "AllocationSlice"
+      },
       "AuthIdentity": {
         "properties": {
           "user_id": {
@@ -7045,6 +7083,95 @@
         ],
         "title": "Health",
         "description": "`GET /healthz`: the process is up and serving."
+      },
+      "Holding": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "asset_class": {
+            "type": "string",
+            "title": "Asset Class"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "cost_basis": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost Basis",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "current_value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "symbol",
+          "name",
+          "asset_class",
+          "currency",
+          "cost_basis",
+          "current_value",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Holding"
+      },
+      "HoldingList": {
+        "properties": {
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/Holding"
+            },
+            "type": "array",
+            "title": "Holdings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "holdings"
+        ],
+        "title": "HoldingList"
       },
       "HoldingRequest": {
         "properties": {
@@ -8068,6 +8195,75 @@
         "type": "object",
         "title": "PolicyUpdateRequest"
       },
+      "PortfolioSummary": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "total_value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_cost_basis": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Cost Basis",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_gain": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Gain",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_gain_pct": {
+            "type": "string",
+            "title": "Total Gain Pct"
+          },
+          "allocation": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationSlice"
+            },
+            "type": "array",
+            "title": "Allocation"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/RebalancingAlert"
+            },
+            "type": "array",
+            "title": "Alerts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "total_value",
+          "total_cost_basis",
+          "total_gain",
+          "total_gain_pct",
+          "allocation",
+          "alerts"
+        ],
+        "title": "PortfolioSummary"
+      },
       "PostRequest": {
         "properties": {
           "approved_ids": {
@@ -8564,6 +8760,35 @@
         ],
         "title": "PurchaseRequest",
         "description": "Money arrives as a STRING and is parsed to Decimal, never float — a float in\nthe money path is a bug (CLAUDE.md). `annual_interest_rate` is a fraction\n(0.18 = 18%), bounded so a caller passing 18 is rejected rather than\nsilently costing the plan ~100x too dearly."
+      },
+      "RebalancingAlert": {
+        "properties": {
+          "asset_class": {
+            "type": "string",
+            "title": "Asset Class"
+          },
+          "current_pct": {
+            "type": "string",
+            "title": "Current Pct"
+          },
+          "target_pct": {
+            "type": "string",
+            "title": "Target Pct"
+          },
+          "drift_pct": {
+            "type": "string",
+            "title": "Drift Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "current_pct",
+          "target_pct",
+          "drift_pct"
+        ],
+        "title": "RebalancingAlert",
+        "description": "An asset class whose share has drifted from its target by the threshold or more."
       },
       "Ref": {
         "properties": {
