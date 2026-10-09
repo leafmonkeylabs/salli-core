@@ -11,9 +11,9 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -66,6 +66,7 @@ from salli.application.ports import (
     InsuranceTargetRepository,
     LedgerRepository,
     LlmCredentialRepository,
+    McpConnectionRow,
     OAuthClientRepository,
     OAuthTokenRepository,
     PersonalAccessTokenRepository,
@@ -2312,12 +2313,27 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         }
 
     async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
-        row = (
+        found = (
             await self._s.execute(
-                select(OAuthRefreshTokenORM).where(OAuthRefreshTokenORM.token_hash == token_hash)
+                select(OAuthRefreshTokenORM, OAuthAccessTokenORM.revoked_at)
+                .join(
+                    OAuthAccessTokenORM,
+                    OAuthAccessTokenORM.id == OAuthRefreshTokenORM.access_token_id,
+                )
+                .where(OAuthRefreshTokenORM.token_hash == token_hash)
             )
-        ).scalar_one_or_none()
-        if row is None or row.revoked_at is not None or row.expires_at < datetime.now(UTC):
+        ).one_or_none()
+        if found is None:
+            return None
+        row, access_revoked_at = found
+        # A refresh token dies with the access token it was issued with: a
+        # revoked pair (a disconnected client, a revoked access token) must
+        # not be able to mint a new one.
+        if (
+            row.revoked_at is not None
+            or access_revoked_at is not None
+            or row.expires_at < datetime.now(UTC)
+        ):
             return None
         return {
             "id": row.id,
@@ -2353,35 +2369,116 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             row.revoked_at = datetime.now(UTC)
             await self._s.flush()
 
+    async def token_exists(self, token_hash: str) -> bool:
+        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+            found = (
+                await self._s.execute(select(model.id).where(model.token_hash == token_hash))
+            ).first()
+            if found is not None:
+                return True
+        return False
+
+    async def get_access_token_by_id(self, token_id: str, user_id: str) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                select(OAuthAccessTokenORM).where(
+                    OAuthAccessTokenORM.id == token_id, OAuthAccessTokenORM.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "client_id": row.client_id,
+            "user_id": row.user_id,
+            "scope": row.scope,
+            "resource": row.resource,
+            "expires_at": row.expires_at,
+            "revoked_at": row.revoked_at,
+        }
+
+    async def revoke_client_grant(self, user_id: str, client_id: str, resource: str | None) -> int:
+        now = datetime.now(UTC)
+        revoked = 0
+        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+            same_resource = (
+                model.resource.is_(None) if resource is None else model.resource == resource
+            )
+            result = await self._s.execute(
+                update(model)
+                .where(
+                    model.user_id == user_id,
+                    model.client_id == client_id,
+                    same_resource,
+                    model.revoked_at.is_(None),
+                )
+                .values(revoked_at=now)
+            )
+            revoked += cast(Any, result).rowcount or 0
+        await self._s.flush()
+        return revoked
+
     async def list_active_connections(
         self, user_id: str, resource: str | None = None
-    ) -> list[dict[str, Any]]:
-        stmt = (
+    ) -> list[McpConnectionRow]:
+        now = datetime.now(UTC)
+        access_stmt = (
             select(OAuthAccessTokenORM, OAuthClientORM)
             .join(OAuthClientORM, OAuthClientORM.client_id == OAuthAccessTokenORM.client_id)
             .where(
                 OAuthAccessTokenORM.user_id == user_id,
                 OAuthAccessTokenORM.revoked_at.is_(None),
-                OAuthAccessTokenORM.expires_at > datetime.now(UTC),
+                OAuthAccessTokenORM.expires_at > now,
             )
-            .order_by(OAuthAccessTokenORM.created_at.desc())
+        )
+        # A client whose access token has run out is still connected while its
+        # refresh token lives: it will be back with it.
+        refresh_stmt = (
+            select(OAuthRefreshTokenORM, OAuthAccessTokenORM, OAuthClientORM)
+            .join(
+                OAuthAccessTokenORM,
+                OAuthAccessTokenORM.id == OAuthRefreshTokenORM.access_token_id,
+            )
+            .join(OAuthClientORM, OAuthClientORM.client_id == OAuthRefreshTokenORM.client_id)
+            .where(
+                OAuthRefreshTokenORM.user_id == user_id,
+                OAuthRefreshTokenORM.revoked_at.is_(None),
+                OAuthRefreshTokenORM.expires_at > now,
+                OAuthAccessTokenORM.revoked_at.is_(None),
+            )
         )
         if resource is not None:
-            stmt = stmt.where(OAuthAccessTokenORM.resource == resource)
-        rows = (await self._s.execute(stmt)).all()
-        return [
-            {
-                "token_id": token.id,
-                "client_id": client.client_id,
-                "client_name": client.client_name or "Unnamed app",
-                "scope": token.scope,
-                # Which audience it was issued for: an AI client (MCP) or the
-                # user's own CLI (the API). Without it every token read as MCP.
-                "resource": token.resource,
-                "connected_at": token.created_at,
-            }
-            for token, client in rows
+            access_stmt = access_stmt.where(OAuthAccessTokenORM.resource == resource)
+            refresh_stmt = refresh_stmt.where(OAuthRefreshTokenORM.resource == resource)
+        live: list[tuple[OAuthAccessTokenORM, OAuthClientORM]] = [
+            (token, client) for token, client in (await self._s.execute(access_stmt)).all()
         ]
+        live += [
+            (access, client) for _, access, client in (await self._s.execute(refresh_stmt)).all()
+        ]
+
+        # One connection per client grant (client, audience): rotation leaves
+        # several live tokens for one client, and they are one connection.
+        grants: dict[tuple[str, str | None], McpConnectionRow] = {}
+        for token, client in sorted(live, key=lambda pair: pair[0].created_at, reverse=True):
+            key = (token.client_id, token.resource)
+            grant = grants.get(key)
+            if grant is None:
+                grants[key] = {
+                    # The newest token's id: what revoking the connection takes.
+                    "token_id": token.id,
+                    "client_id": client.client_id,
+                    "client_name": client.client_name or "Unnamed app",
+                    "scope": token.scope,
+                    # Which audience it was issued for: an AI client (MCP) or
+                    # the user's own CLI (the API).
+                    "resource": token.resource,
+                    "connected_at": token.created_at,
+                }
+            else:
+                grant["connected_at"] = min(grant["connected_at"], token.created_at)
+        return list(grants.values())
 
     async def save_device_code(
         self,

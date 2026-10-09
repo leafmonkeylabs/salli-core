@@ -111,6 +111,31 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
 
+def insecure_dev_auth(settings: Settings) -> bool:
+    """Whether "the bearer token is the user id" is switched on. Needs both the
+    explicit flag and a development environment, so neither a stray env var on
+    a server nor a forgotten ENVIRONMENT alone can switch authentication off."""
+    return settings.salli_insecure_dev_auth and settings.environment == "development"
+
+
+def dev_auth_fallback_live(settings: Settings) -> bool:
+    """Whether the API takes an unrecognised bearer token as the user id: no
+    Supabase at all, and the development fallback switched on. Exactly the
+    condition `deps.get_principal` falls back on."""
+    return (
+        not settings.supabase_url
+        and not settings.supabase_jwt_secret
+        and insecure_dev_auth(settings)
+    )
+
+
+def auth_can_hold_secrets(settings: Settings) -> bool:
+    """Whether authentication is real enough to keep a user's secrets (stored
+    LLM keys, bank credentials): yes unless any caller can claim to be anyone
+    by naming a user id. The one predicate every such feature gates on."""
+    return not dev_auth_fallback_live(settings)
+
+
 _settings: Settings | None = None
 
 

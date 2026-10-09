@@ -153,6 +153,26 @@ async def test_the_daily_run_needs_its_secret(app, client, mock_services):
     mock_services.advisor.due_users.assert_not_called()
 
 
+async def test_a_non_ascii_cron_secret_is_refused_not_a_500(app, client, mock_services):
+    # hmac.compare_digest raises TypeError on non-ASCII str.
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cron_secret="s3cret")
+
+    r = await client.post("/v1/advisor/cron/run-due", headers={"X-Cron-Secret": "sécret".encode()})
+
+    assert r.status_code == 401
+    mock_services.advisor.due_users.assert_not_called()
+
+
+async def test_the_daily_run_lists_the_due_users_once(app, client, mock_services):
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cron_secret="s3cret")
+    mock_services.advisor.due_users.return_value = [{"user_id": "a"}]
+
+    r = await client.post("/v1/advisor/cron/run-due", headers={"X-Cron-Secret": "s3cret"})
+
+    assert r.json() == {"due": 1, "scheduled": True}
+    assert mock_services.advisor.due_users.await_count == 1
+
+
 async def test_the_daily_run_still_answers_at_the_path_pg_cron_was_given(
     app, client, mock_services
 ):

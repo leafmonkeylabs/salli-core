@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import typer
+from rich.markup import escape
 from rich.table import Table
 
 from salli.interfaces.cli.setup import members_app, serve, setup
@@ -3629,14 +3630,14 @@ def mcp_connections():
     if emit(connections):
         return
     table = Table(title="MCP connections")
-    for column in ("ID", "Client", "Scope", "Expires"):
+    for column in ("ID", "Client", "Scope", "Connected"):
         table.add_column(column)
     for c in connections:
         table.add_row(
-            str(c.get("id", ""))[:8],
-            str(c.get("client_name", "")),
-            str(c.get("scope", "")),
-            str(c.get("expires_at", "")),
+            str(c.get("token_id", ""))[:8],
+            escape(str(c.get("client_name", ""))),
+            escape(str(c.get("scope", ""))),
+            str(c.get("connected_at", "")),
         )
     console.print(table)
 
@@ -3645,11 +3646,23 @@ def mcp_connections():
 def mcp_revoke(token_id: str = typer.Argument(..., help="Connection id")):
     """Disconnect one AI client."""
     user_id = _require_user()
-    connections = asyncio.run(_services().mcp_oauth.list_connections(user_id))
-    token_id = _resolve_id(connections, token_id, "connection")
-    asyncio.run(_services().mcp_oauth.revoke_connection(user_id, token_id))
-    emit({"id": token_id, "revoked": True})
-    console.print(f"[green]Disconnected:[/green] {token_id}")
+
+    async def _revoke() -> tuple[str, bool]:
+        svc = _services()
+        connections = await svc.mcp_oauth.list_connections(user_id)
+        ids = [{"id": c["token_id"]} for c in connections]
+        full_id = _resolve_id(ids, token_id, "connection")
+        return full_id, await svc.mcp_oauth.revoke_connection(user_id, full_id)
+
+    full_id, revoked = asyncio.run(_revoke())
+    if emit({"id": full_id, "revoked": revoked}):
+        if not revoked:
+            raise typer.Exit(1)
+        return
+    if not revoked:
+        console.print(f"[red]Nothing to disconnect:[/red] {full_id} is no longer connected.")
+        raise typer.Exit(1)
+    console.print(f"[green]Disconnected:[/green] {full_id}")
 
 
 # ── whoami ────────────────────────────────────────────────────────────────────
