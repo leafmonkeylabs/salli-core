@@ -549,6 +549,13 @@ class PortfolioService:
         valuations = await self._value_now(base, tracked)
         return [_holding_view(t, v, base) for t, v in zip(tracked, valuations, strict=True)]
 
+    async def holding_refs(self, user_id: str) -> list[dict[str, Any]]:
+        """Every holding's id, symbol and name, active or not, without valuing
+        any: enough to find one by a short id."""
+        async with self._uow_factory() as uow:
+            holdings = await uow.holdings.list(user_id, active_only=False)
+        return [{"id": h["id"], "symbol": h["symbol"], "name": h["name"]} for h in holdings]
+
     async def get_holding(self, user_id: str, holding_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
             holding = await uow.holdings.get(user_id, holding_id)

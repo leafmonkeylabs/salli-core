@@ -43,7 +43,8 @@ Ids in list output can be shortened to any unique prefix.
 | `parse` | bank statements: `upload <file>`, `pending`, `post <ids...>` |
 | `ledger` | `trial-balance`, `income-statement` |
 | `tax` | `compute`, `latest`, `packs` |
-| `budget`, `debt`, `portfolio`, `insurance`, `subscription` | each domain's records and reports |
+| `budget`, `debt`, `insurance`, `subscription` | each domain's records and reports |
+| `portfolio` | holdings: `list`, `add`, `summary`; `transactions add <holding> buy\|sell\|dividend\|interest\|split\|transfer_in`, `lots <holding>`, `prices set <symbol> <close>`, `performance --from --to` (a tax year's gains, income, TWR and XIRR) |
 | `fi` | `score`, `history`, `projections`, `surplus`, `goals …`, `strategy …` |
 | `reports` | `balance-sheet`, `net-worth`, `goal-progress`, `export` |
 | `reminders` | `list`, `add`, `sync-alerts` |
