@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import delete, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -220,25 +221,31 @@ class SQLLedgerRepository(LedgerRepository):
         """Create the closed `need` axis for a user if it is not already there.
 
         Idempotent: existing slugs are left untouched, including their names, so
-        a user who renamed "Wants" keeps that name across re-onboarding.
+        a user who renamed "Wants" keeps that name across re-onboarding. Safe
+        to run twice at once: a slug inserted meanwhile is skipped by the
+        database (ON CONFLICT DO NOTHING), not a failed commit.
         """
-        stmt = select(TagORM.slug).where(TagORM.user_id == user_id, TagORM.kind == "need")
-        result = await self._session.execute(stmt)
-        existing = set(result.scalars().all())
-        for slug, name, color in tags:
-            if slug in existing:
-                continue
-            self._session.add(
-                TagORM(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    slug=slug,
-                    name=name,
-                    kind="need",
-                    color=color,
-                    is_system=True,
-                )
+        if not tags:
+            return
+        await self._session.execute(
+            pg_insert(TagORM)
+            .values(
+                [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "user_id": user_id,
+                        "slug": slug,
+                        "name": name,
+                        "kind": "need",
+                        "color": color,
+                        "is_system": True,
+                        "created_at": datetime.now(UTC),
+                    }
+                    for slug, name, color in tags
+                ]
             )
+            .on_conflict_do_nothing(constraint="uq_tags_user_kind_slug")
+        )
 
     async def list_tags(self, user_id: str, kind: str | None = None) -> list[Tag]:
         stmt = select(TagORM).where(TagORM.user_id == user_id)
