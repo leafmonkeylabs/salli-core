@@ -279,8 +279,12 @@ def accounts_reactivate(
 def entry_add(
     date: str = typer.Option(..., "--date", help="YYYY-MM-DD"),
     desc: str = typer.Option(..., "--desc", help="Description"),
-    debit: list[str] = typer.Option(..., "--debit", help="ACCOUNT_ID:AMOUNT (repeat for splits)"),
-    credit: list[str] = typer.Option(..., "--credit", help="ACCOUNT_ID:AMOUNT (repeat for splits)"),
+    debit: list[str] = typer.Option(
+        ..., "--debit", help="ACCOUNT:AMOUNT, the account by code or id (repeat for splits)"
+    ),
+    credit: list[str] = typer.Option(
+        ..., "--credit", help="ACCOUNT:AMOUNT, the account by code or id (repeat for splits)"
+    ),
     receipt: str = typer.Option(
         None, "--receipt", help="Document ID of an attached receipt/file (source stays 'manual')"
     ),
@@ -293,30 +297,41 @@ def entry_add(
         help="Units of your base currency per unit of --currency (default: the published rate)",
     ),
 ):
-    """Add a balanced journal entry (ACCOUNT_ID:AMOUNT pairs)."""
-    from decimal import Decimal
+    """Add a balanced journal entry (ACCOUNT:AMOUNT pairs, by account code or id)."""
+    from decimal import Decimal, InvalidOperation
 
     from salli.domain.accounting.models import Direction
 
     user_id = _require_user()
+    accounts = asyncio.run(_services().ledger.list_accounts(user_id))
+    by_key = {a.code: a.id for a in accounts} | {a.id: a.id for a in accounts}
 
     def parse_side(pairs: list[str], direction: Direction) -> list[dict]:
         postings = []
         for pair in pairs:
-            try:
-                account_id, amount_str = pair.rsplit(":", 1)
-                postings.append(
-                    {
-                        "account_id": account_id.strip(),
-                        "direction": direction,
-                        "amount": Decimal(amount_str.strip()),
-                        "currency": currency,
-                        "fx_rate": Decimal(fx_rate) if fx_rate else None,
-                    }
+            account, _, amount_str = pair.rpartition(":")
+            account_id = by_key.get(account.strip())
+            if account_id is None:
+                console.print(
+                    f"[red]No active account {account.strip()!r}[/red] in {pair!r}: "
+                    "give its code or id (salli accounts list)."
                 )
-            except ValueError:
-                console.print(f"[red]Invalid format '{pair}'. Use ACCOUNT_ID:AMOUNT[/red]")
                 raise typer.Exit(1)
+            try:
+                amount = Decimal(amount_str.strip())
+                rate = Decimal(fx_rate) if fx_rate else None
+            except InvalidOperation:
+                console.print(f"[red]Not an amount in '{pair}'. Use ACCOUNT:AMOUNT[/red]")
+                raise typer.Exit(1) from None
+            postings.append(
+                {
+                    "account_id": account_id,
+                    "direction": direction,
+                    "amount": amount,
+                    "currency": currency,
+                    "fx_rate": rate,
+                }
+            )
         return postings
 
     postings_data = parse_side(debit, Direction.DEBIT) + parse_side(credit, Direction.CREDIT)
@@ -3205,6 +3220,10 @@ def onboarding_complete(
     svc = _services()
 
     async def _run() -> dict:
+        # The CLI acts as the instance's owner, who may be new here (only
+        # SALLI_USER_ID set): their profile starts in the currency asked for,
+        # or the instance's default.
+        await svc.profile.ensure_user(user_id, None, may_create=True, base_currency=base_currency)
         # Before any account exists: accounts open in the base currency.
         if base_currency:
             await svc.profile.set_base_currency(user_id, base_currency)
@@ -3715,7 +3734,18 @@ def cli() -> Any:
 
 
 def main():
-    cli()()
+    try:
+        cli()()
+    except LookupError as exc:
+        # The acting user (SALLI_USER_ID) has no profile yet: say what to do
+        # rather than end in a traceback.
+        if "has no profile" not in str(exc):
+            raise
+        console.print(
+            f"[red]{exc}.[/red] Start with [bold]salli onboarding complete[/bold] "
+            "(or [bold]salli setup[/bold] for a new instance)."
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -182,17 +182,16 @@ class OnboardingService:
                 skipped.append(code)
                 continue
             seen_codes.add(code)
-            try:
-                await self._ledger.add_account(
-                    user_id,
-                    code=code,
-                    name=name,
-                    type=acct_type,  # type: ignore[arg-type]
-                    tax_role=tax_role,  # type: ignore[arg-type]
-                )
-                created.append(f"{code} {name}")
-            except Exception:
-                skipped.append(code)
+            # Existing codes were skipped above; anything that fails now is a
+            # real failure, and reporting "0 accounts created" instead hid it.
+            await self._ledger.add_account(
+                user_id,
+                code=code,
+                name=name,
+                type=acct_type,  # type: ignore[arg-type]
+                tax_role=tax_role,  # type: ignore[arg-type]
+            )
+            created.append(f"{code} {name}")
 
         # Seed the need axis. Idempotent — `ensure_system_tags` is a no-op when the
         # rows already exist, so re-running onboarding does not duplicate them.
