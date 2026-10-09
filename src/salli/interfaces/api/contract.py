@@ -301,6 +301,18 @@ Amount = Annotated[
     ),
 ]
 
+#: A decimal that is not money — a quantity, a unit price, an exchange rate,
+#: a rate of return — as an exact decimal string without trailing zeros
+#: ("10", "0.5", "2512.000000000000000001"). Never a JSON number.
+DecimalOut = Annotated[
+    str,
+    Field(
+        pattern=r"^-?\d+(\.\d+)?$",
+        examples=["10.5"],
+        description="Decimal string, exact; never a float.",
+    ),
+]
+
 #: An ISO 4217 currency code.
 CurrencyCode = Annotated[
     str, Field(pattern=r"^[A-Z]{3}$", examples=["USD"], description="ISO 4217 currency code")

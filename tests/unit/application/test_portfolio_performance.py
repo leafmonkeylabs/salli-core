@@ -113,7 +113,7 @@ async def test_a_missing_rate_is_carried_at_cost_and_said():
     [holding] = report["holdings"]
     assert holding["base"]["total_return"] == "0.00"
     assert holding["notes"] == [
-        "No USD→LKR rate for 2026-09-30: its value in LKR is carried at what it cost"
+        "No USD→LKR rate for 2026-09-30: VOO's value in LKR is carried at what it cost"
     ]
 
 

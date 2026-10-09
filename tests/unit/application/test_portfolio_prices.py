@@ -168,7 +168,7 @@ async def test_without_a_rate_for_the_prices_day_the_base_value_is_carried_at_co
     )
     assert (valuation["priced"], valuation["converted"]) == (True, False)
     assert valuation["notes"] == [
-        "No USD→LKR rate for 2026-09-30: its value in LKR is carried at what it cost"
+        "No USD→LKR rate for 2026-09-30: VOO's value in LKR is carried at what it cost"
     ]
 
 

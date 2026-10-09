@@ -1,9 +1,10 @@
 """
 Investment portfolio domain models — pure, frozen dataclasses, Decimal money. No I/O.
 
-Mirrors the tax/fi/budget/debt domains. Holdings are manually declared (cost basis
-and current value), not fetched from a live market-data feed — the domain has no
-concept of price history or ticker lookups, only what the user has told it.
+Mirrors the tax/fi/budget/debt domains. A `Holding` here is what the summary
+needs — its cost basis and current value in the base currency — whether those
+come from its transactions and recorded prices (lots.py, valuation.py) or were
+declared by the user. Nothing is fetched from a live market-data feed.
 """
 
 from __future__ import annotations

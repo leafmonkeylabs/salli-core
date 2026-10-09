@@ -306,21 +306,6 @@ def _transaction_view(row: dict[str, Any], currency: str) -> dict[str, Any]:
     }
 
 
-def _holding_view(h: dict[str, Any], currency: str) -> dict[str, Any]:
-    return {
-        "id": h["id"],
-        "symbol": h["symbol"],
-        "name": h["name"],
-        "asset_class": h["asset_class"],
-        "currency": currency,
-        "cost_basis": str(from_minor(h["cost_basis_minor"], currency)),
-        "current_value": str(from_minor(h["current_value_minor"], currency)),
-        "is_active": h["is_active"],
-        "created_at": h.get("created_at"),
-        "updated_at": h.get("updated_at"),
-    }
-
-
 def _price_view(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row["id"],
@@ -377,13 +362,12 @@ def _valuation_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, An
         # Declared figures are in the base currency; one in another currency
         # cannot have any (see _check_declared).
         cost, value = (cost_base, value_base) if currency == base else (ZERO, ZERO)
-        notes.append("Declared by value: it has no transactions")
         figures: dict[str, Any] = {
             "quantity": None,
             "price": None,
             "fx_rate": None,
-            "priced": False,
-            "converted": False,
+            "priced": None,
+            "converted": None,
         }
     else:
         cost, cost_base, value, value_base = v.cost, v.cost_base, v.value, v.value_base
@@ -392,7 +376,7 @@ def _valuation_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, An
         if v.quote is not None and v.fx_rate is None:
             notes.append(
                 f"No {currency}→{base} rate for {v.quote.on.isoformat()}: "
-                f"its value in {base} is carried at what it cost"
+                f"{symbol}'s value in {base} is carried at what it cost"
             )
         figures = {
             "quantity": plain(v.quantity),
@@ -483,9 +467,44 @@ def _at_cost_notes(
     ):
         notes.append(
             f"No {currency}→{base} rate for {price_on.isoformat()}: "
-            f"its value in {base} is carried at what it cost"
+            f"{symbol}'s value in {base} is carried at what it cost"
         )
     return notes
+
+
+def _holding_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, Any]:
+    """A holding as `holdings.list` has always returned it, its figures in the
+    base currency — from its transactions and prices when it has
+    transactions, else as declared — and, alongside, the same in its own
+    currency and what they rest on."""
+    holding = t.holding
+    valued = _valuation_view(t, v, base)
+    return {
+        "id": holding["id"],
+        "symbol": holding["symbol"],
+        "name": holding["name"],
+        "asset_class": holding["asset_class"],
+        "currency": base,
+        "cost_basis": valued["cost_base"],
+        "current_value": valued["value_base"],
+        "is_active": holding["is_active"],
+        "created_at": holding.get("created_at"),
+        "updated_at": holding.get("updated_at"),
+        "tracking": valued["tracking"],
+        "unrealised_gain": valued["unrealised_gain_base"],
+        "native": {
+            "currency": t.currency,
+            "cost_basis": valued["cost"],
+            "current_value": valued["value"],
+            "unrealised_gain": valued["unrealised_gain"],
+        },
+        "quantity": valued["quantity"],
+        "price": valued["price"],
+        "fx_rate": valued["fx_rate"],
+        "priced": valued["priced"],
+        "converted": valued["converted"],
+        "notes": valued["notes"],
+    }
 
 
 class PortfolioService:
@@ -524,15 +543,21 @@ class PortfolioService:
 
     async def list_holdings(self, user_id: str, active_only: bool = True) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
+            base = await uow.user_profiles.base_currency(user_id)
             holdings = await uow.holdings.list(user_id, active_only)
-        return [_holding_view(h, currency) for h in holdings]
+            tracked = await self._tracked(uow, user_id, holdings)
+        valuations = await self._value_now(base, tracked)
+        return [_holding_view(t, v, base) for t, v in zip(tracked, valuations, strict=True)]
 
     async def get_holding(self, user_id: str, holding_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
-            h = await uow.holdings.get(user_id, holding_id)
-        return _holding_view(h, currency) if h else None
+            holding = await uow.holdings.get(user_id, holding_id)
+            if holding is None:
+                return None
+            base = await uow.user_profiles.base_currency(user_id)
+            tracked = await self._tracked(uow, user_id, [holding])
+        [valuation] = await self._value_now(base, tracked)
+        return _holding_view(tracked[0], valuation, base)
 
     async def update_holding(self, user_id: str, holding_id: str, data: dict[str, Any]) -> None:
         updates: dict[str, Any] = {}
@@ -549,6 +574,13 @@ class PortfolioService:
             if holding is None:
                 return
             base = await uow.user_profiles.base_currency(user_id)
+            if ("cost_basis" in data or "current_value" in data) and (
+                await uow.holding_transactions.list(user_id, holding_id)
+            ):
+                raise ValueError(
+                    "This holding's cost basis and value come from its transactions and "
+                    "prices: record a transaction or a price instead"
+                )
             if "cost_basis" in data:
                 updates["cost_basis_minor"] = to_minor(Decimal(str(data["cost_basis"])), base)
             if "current_value" in data:
@@ -1011,20 +1043,38 @@ class PortfolioService:
         async with self._uow_factory() as uow:
             currency = await uow.user_profiles.base_currency(user_id)
             holdings_data = await uow.holdings.list(user_id, active_only=True)
+            tracked = await self._tracked(uow, user_id, holdings_data)
+        valuations = await self._value_now(currency, tracked)
 
+        # In the base currency: from transactions and prices where a holding
+        # has transactions, else as declared.
         holdings = [
             Holding(
-                symbol=h["symbol"],
-                name=h["name"],
-                asset_class=h["asset_class"],
-                cost_basis=from_minor(h["cost_basis_minor"], currency),
-                current_value=from_minor(h["current_value_minor"], currency),
+                symbol=t.holding["symbol"],
+                name=t.holding["name"],
+                asset_class=t.holding["asset_class"],
+                cost_basis=(
+                    v.cost_base
+                    if v is not None
+                    else from_minor(t.holding["cost_basis_minor"], currency)
+                ),
+                current_value=(
+                    v.value_base
+                    if v is not None
+                    else from_minor(t.holding["current_value_minor"], currency)
+                ),
             )
-            for h in holdings_data
+            for t, v in zip(tracked, valuations, strict=True)
         ]
-        summary = engine.compute_summary(
-            holdings, target_allocation, money_quantum=quantum(currency)
-        )
+        with localcontext(EXACT):
+            summary = engine.compute_summary(
+                holdings, target_allocation, money_quantum=quantum(currency)
+            )
+        notes = [
+            note
+            for t, v in zip(tracked, valuations, strict=True)
+            for note in _valuation_view(t, v, currency)["notes"]
+        ]
 
         return {
             "currency": currency,
@@ -1049,6 +1099,7 @@ class PortfolioService:
                 }
                 for alert in summary.alerts
             ],
+            "notes": notes,
         }
 
 

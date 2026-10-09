@@ -1,17 +1,28 @@
 """
-Portfolio router — manually-declared investment holdings, allocation, and
-rebalancing/ROI summaries. No live market-data feed; values are only as fresh
-as the user's last update.
+Portfolio router — investment holdings, their transactions, lots and prices,
+allocation and rebalancing, and gains, income and returns.
+
+A holding's figures come from its transactions, valued at the latest price the
+user recorded; a holding without transactions keeps the figures the user
+declared. Nothing here fetches a price: Salli has no market feed.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
-from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref, Updated
+from salli.interfaces.api.contract import (
+    Amount,
+    AmountIn,
+    CurrencyCode,
+    DecimalOut,
+    Ref,
+    Updated,
+)
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -21,17 +32,49 @@ class HoldingRequest(BaseModel):
     symbol: str
     name: str
     asset_class: str
-    cost_basis: AmountIn
-    current_value: AmountIn
+    #: ISO 4217 code the holding trades in. Omitted: the base currency.
+    currency: str | None = None
+    #: Declared figures, in the base currency, for a holding tracked without
+    #: transactions; one in another currency is tracked by its transactions.
+    #: Omitted: 0 (record its transactions instead).
+    cost_basis: AmountIn = Decimal(0)
+    current_value: AmountIn = Decimal(0)
 
 
 class HoldingUpdateRequest(BaseModel):
     symbol: str | None = None
     name: str | None = None
     asset_class: str | None = None
+    #: Only while the holding has no transactions.
+    currency: str | None = None
+    #: Only for a holding without transactions (422 otherwise: its figures
+    #: come from its transactions and prices).
     cost_basis: AmountIn | None = None
     current_value: AmountIn | None = None
     is_active: bool | None = None
+
+
+class QuotedPrice(BaseModel):
+    """The price a holding is valued at."""
+
+    #: The day it was quoted.
+    date: str
+    #: As quoted that day.
+    close: DecimalOut
+    #: Per unit held now: the close adjusted for any split since.
+    per_unit: DecimalOut
+    #: "user" for a price the user recorded; "trade" for the price of the
+    #: holding's own latest buy or sale.
+    source: str
+
+
+class NativeFigures(BaseModel):
+    """A holding's figures in its own currency."""
+
+    currency: CurrencyCode
+    cost_basis: Amount
+    current_value: Amount
+    unrealised_gain: Amount
 
 
 class Holding(BaseModel):
@@ -40,15 +83,38 @@ class Holding(BaseModel):
     name: str
     #: As the user named it: "equity", "bond", "cash", "real_estate", "crypto", …
     asset_class: str
-    #: Holdings are valued in the base currency.
+    #: The base currency: `cost_basis`, `current_value` and `unrealised_gain`
+    #: are in it. The holding's own currency is `native.currency`.
     currency: CurrencyCode
-    #: The total invested.
+    #: What the units still held cost, each lot at the rate of the day it was
+    #: bought; as declared, for a holding without transactions.
     cost_basis: Amount
-    #: What the holding is worth as the user last declared it; there is no market feed.
+    #: Quantity × the latest recorded price, at the rate of that price's day;
+    #: as declared, for a holding without transactions. There is no market feed.
     current_value: Amount
     is_active: bool
     created_at: str
     updated_at: str
+    #: "transactions" when the figures come from the holding's transactions,
+    #: "declared" when they are the ones the user declared.
+    tracking: Literal["declared", "transactions"]
+    #: current_value − cost_basis.
+    unrealised_gain: Amount
+    native: NativeFigures
+    #: Units held; null for a declared holding.
+    quantity: DecimalOut | None
+    #: Null for a declared holding, or one with no price yet.
+    price: QuotedPrice | None
+    #: Base currency per unit of the holding's, on the price's day.
+    fx_rate: DecimalOut | None
+    #: False when there is no price, so the holding is valued at what it cost.
+    #: Null for a declared holding.
+    priced: bool | None
+    #: False when there is no rate for the price's day, so the base value is
+    #: carried at cost. Null for a declared holding.
+    converted: bool | None
+    #: Anything carried at cost, and why.
+    notes: list[str]
 
 
 class HoldingList(BaseModel):
@@ -78,6 +144,8 @@ class RebalancingAlert(BaseModel):
 
 
 class PortfolioSummary(BaseModel):
+    """The active holdings, each valued as `holdings.list` values it."""
+
     currency: CurrencyCode
     total_value: Amount
     total_cost_basis: Amount
@@ -88,6 +156,8 @@ class PortfolioSummary(BaseModel):
     allocation: list[AllocationSlice]
     #: Empty unless a target allocation was given.
     alerts: list[RebalancingAlert]
+    #: Any holding carried at cost, and why.
+    notes: list[str]
 
 
 def _parse_target(target: list[str]) -> dict[str, Decimal] | None:

@@ -190,3 +190,57 @@ async def test_another_users_prices_are_theirs(uow_factory):
     assert await svc.list_prices("neighbour") == []
     assert await svc.delete_price("neighbour", price) is False
     assert await svc.delete_price(USER, price) is True
+
+
+@pytest.fixture
+def upgraded_with_a_holding(monkeypatch):
+    """A database with a holding declared before investments existed, then
+    upgraded: synchronous, because migrations run their own event loop."""
+    with scratch_database() as url:
+        monkeypatch.setenv("DATABASE_URL", url)
+        upgrade(CORE_SCRIPT_LOCATION, "core_0004_categorization_rules")
+        engine = create_engine(_sync(url))
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "insert into user_profiles (id, base_currency, mcp_enabled,"
+                    " daily_briefing_enabled, created_at, updated_at)"
+                    " values (:u, 'EUR', false, false, now(), now())"
+                ),
+                {"u": USER},
+            )
+            conn.execute(
+                text(
+                    "insert into holdings (id, user_id, symbol, name, asset_class,"
+                    " cost_basis_minor, current_value_minor, is_active, created_at,"
+                    " updated_at) values ('h1', :u, 'VWCE', 'All-World', 'equity',"
+                    " 100000, 125050, true, now(), now())"
+                ),
+                {"u": USER},
+            )
+        engine.dispose()
+        upgrade(CORE_SCRIPT_LOCATION)
+        yield url
+
+
+async def test_a_holding_from_before_reads_as_it_did(upgraded_with_a_holding):
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    from salli.application.unit_of_work import UnitOfWork
+
+    engine = create_async_engine(upgraded_with_a_holding, connect_args={"statement_cache_size": 0})
+    sessions = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    svc = PortfolioService(lambda: UnitOfWork(sessions))
+    try:
+        holding = await svc.get_holding(USER, "h1")
+        summary = await svc.get_summary(USER)
+    finally:
+        await engine.dispose()
+    assert holding is not None
+    assert (holding["currency"], holding["cost_basis"], holding["current_value"]) == (
+        "EUR",
+        "1000.00",
+        "1250.50",
+    )
+    assert (holding["tracking"], holding["native"]["currency"]) == ("declared", "EUR")
+    assert (summary["total_value"], summary["total_gain"]) == ("1250.50", "250.50")

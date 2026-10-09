@@ -14724,6 +14724,97 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "tracking": {
+            "type": "string",
+            "enum": [
+              "declared",
+              "transactions"
+            ],
+            "title": "Tracking"
+          },
+          "unrealised_gain": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Unrealised Gain",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "native": {
+            "$ref": "#/components/schemas/NativeFigures"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuotedPrice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fx_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Rate"
+          },
+          "priced": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priced"
+          },
+          "converted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -14737,7 +14828,16 @@
           "current_value",
           "is_active",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "tracking",
+          "unrealised_gain",
+          "native",
+          "quantity",
+          "price",
+          "fx_rate",
+          "priced",
+          "converted",
+          "notes"
         ],
         "title": "Holding"
       },
@@ -14771,11 +14871,23 @@
             "type": "string",
             "title": "Asset Class"
           },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "cost_basis": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Cost Basis",
             "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "default": "0",
             "examples": [
               "1234.50"
             ]
@@ -14785,6 +14897,7 @@
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Current Value",
             "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "default": "0",
             "examples": [
               "1234.50"
             ]
@@ -14794,9 +14907,7 @@
         "required": [
           "symbol",
           "name",
-          "asset_class",
-          "cost_basis",
-          "current_value"
+          "asset_class"
         ],
         "title": "HoldingRequest"
       },
@@ -14834,6 +14945,17 @@
               }
             ],
             "title": "Asset Class"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "cost_basis": {
             "anyOf": [
@@ -15602,6 +15724,55 @@
           "net_worth"
         ],
         "title": "MonthEndNetWorth"
+      },
+      "NativeFigures": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "cost_basis": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost Basis",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "current_value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "unrealised_gain": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Unrealised Gain",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "cost_basis",
+          "current_value",
+          "unrealised_gain"
+        ],
+        "title": "NativeFigures",
+        "description": "A holding's figures in its own currency."
       },
       "NetWorthByMonth": {
         "properties": {
@@ -16593,6 +16764,13 @@
             },
             "type": "array",
             "title": "Alerts"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -16603,9 +16781,11 @@
           "total_gain",
           "total_gain_pct",
           "allocation",
-          "alerts"
+          "alerts",
+          "notes"
         ],
-        "title": "PortfolioSummary"
+        "title": "PortfolioSummary",
+        "description": "The active holdings, each valued as `holdings.list` values it."
       },
       "PostRequest": {
         "properties": {
@@ -17672,6 +17852,45 @@
         ],
         "title": "PurchaseRequest",
         "description": "Money arrives as a STRING and is parsed to Decimal, never float — a float in\nthe money path is a bug (CLAUDE.md). `annual_interest_rate` is a fraction\n(0.18 = 18%), bounded so a caller passing 18 is rejected rather than\nsilently costing the plan ~100x too dearly."
+      },
+      "QuotedPrice": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "close": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Close",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "per_unit": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Per Unit",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "close",
+          "per_unit",
+          "source"
+        ],
+        "title": "QuotedPrice",
+        "description": "The price a holding is valued at."
       },
       "RebalancingAlert": {
         "properties": {

@@ -565,9 +565,11 @@ def make_manager_tools(
     ) -> dict[str, Any]:
         """
         Return the user's investment allocation by asset class, total gain/ROI,
-        and (if a target allocation is given) rebalancing drift alerts. Holdings
-        are manually declared, not live-priced — numbers are only as fresh as the
-        user's last update. Numbers here are authoritative — do NOT recompute them.
+        and (if a target allocation is given) rebalancing drift alerts. Values
+        come from each holding's transactions at the latest price the user
+        recorded (or as the user declared them), never a live feed — they are
+        only as fresh as those prices; `notes` says what is carried at cost.
+        Numbers here are authoritative — do NOT recompute them.
         """
         if portfolio_svc is None:
             return {"error": "Portfolio service unavailable"}

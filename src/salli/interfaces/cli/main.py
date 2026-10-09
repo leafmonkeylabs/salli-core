@@ -2928,7 +2928,7 @@ def portfolio_add(
     cost_basis: str = typer.Option(..., "--cost-basis", help="Total amount invested"),
     current_value: str = typer.Option(..., "--current-value", help="Total current worth"),
 ):
-    """Add an investment holding (manually declared, no live pricing)."""
+    """Add an investment holding: declared by value, or tracked by its transactions."""
     user_id = _require_user()
     holding_id = asyncio.run(
         _services().portfolio.add_holding(
