@@ -1,0 +1,77 @@
+/**
+ * @leafmonkeylabs/salli-sdk — a TypeScript client for the Salli API.
+ *
+ * The operations are generated from the API's OpenAPI document (one function
+ * per operation id: `accounts.list` is `accountsList`); the rest of this
+ * package is what every client of them needs:
+ *
+ * - `createClient` — a server, a bearer token that refreshes itself, and
+ *   errors as `SalliApiError` (problem details) or `SalliNetworkError`;
+ * - the agent's event stream (`streamAgentChat`, `streamAgentResume`);
+ * - signing in (`oauth`): PKCE, device codes, refresh, revocation;
+ * - money for display (`formatAmount`): exact, from the decimal strings
+ *   the API sends, never through a float.
+ */
+export * from './generated/sdk.gen';
+export type * from './generated/types.gen';
+export type { Client as FetchClient } from './generated/client';
+
+export {
+  createClient,
+  normalizeServerUrl,
+  type CallOptions,
+  type DataOf,
+  type RequestLog,
+  type SalliClient,
+  type SalliClientOptions,
+  type TokenProvider,
+} from './client';
+export {
+  describeDetail,
+  isAbortError,
+  isProblemDetails,
+  SalliApiError,
+  SalliNetworkError,
+  SalliOAuthError,
+  type ProblemDetails,
+  type SalliApiErrorInit,
+  type ValidationIssue,
+} from './errors';
+export {
+  amountSign,
+  currencyDigits,
+  formatAmount,
+  formatRatio,
+  isAmount,
+  isNegativeAmount,
+  isZeroAmount,
+  negateAmount,
+  normalizeAmountInput,
+  type DecimalString,
+  type FormatAmountOptions,
+  type FormatRatioOptions,
+} from './money';
+export { parseEventData, readServerSentEvents, type EventSourceMessage } from './sse';
+export {
+  parseAgentEvent,
+  streamAgentChat,
+  streamAgentResume,
+  type AgentApprovalRequest,
+  type AgentEvent,
+  type AgentStreamOptions,
+} from './agent';
+export { RAW_JSON, rawJsonOf, reindentJson, toJsonText, withRawJson } from './json';
+export * as oauth from './oauth';
+export type {
+  ClientMetadata,
+  DeviceAuthorization,
+  OAuthEndpoints,
+  OAuthTokenProvider,
+  PkcePair,
+  RegisteredClient,
+  StoredTokens,
+  TokenResponse,
+} from './oauth';
+
+/** The API versions this SDK speaks (`api_version` in `/v1/meta`). */
+export const SUPPORTED_API_VERSIONS: readonly string[] = ['1'];
