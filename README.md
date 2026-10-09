@@ -103,6 +103,14 @@ Ids can be shortened to any unique prefix.
 uv run salli serve        # http://localhost:8000 — API docs at /docs
 ```
 
+The REST API lives under `/v1`; its OpenAPI document is committed in
+[`openapi/openapi.json`](openapi/openapi.json), so you can generate a client
+from it. Amounts are decimal strings in their currency's own precision (never
+JSON numbers), with the currency alongside, and errors are
+[RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details.
+`GET /v1/meta` describes the server: its version, tax packs and sign-in
+endpoints.
+
 To connect Claude (or any MCP client), add `http://localhost:8000/mcp` as a
 custom connector. You'll approve it on Salli's own consent page with your
 email and password. `salli mcp connections` lists what's connected;
