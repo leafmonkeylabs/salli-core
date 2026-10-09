@@ -138,10 +138,13 @@ def require_user() -> str:
 
 
 def services() -> Any:
+    """The services for a command. Unpooled: a command may call asyncio.run
+    more than once with them, and a pooled asyncpg connection from an earlier
+    (closed) loop fails in the next one ("attached to a different loop")."""
     from salli.composition import build_services
     from salli.config import get_settings
 
-    return build_services(get_settings())
+    return build_services(get_settings(), pooled=False)
 
 
 def resolve_id(items: list[dict[str, Any]], prefix: str, label: str = "item") -> str:
@@ -169,16 +172,15 @@ def resolve_id(items: list[dict[str, Any]], prefix: str, label: str = "item") ->
 
 def money(amount: Decimal | str | None, currency: str, width: int = 16) -> str:
     """`EUR         1,234.50`: the ISO code, then the amount right-aligned in
-    `width` with exactly the currency's decimals (none for JPY, three for KWD).
-    For display only — the amount is never parsed back."""
+    `width` with exactly the currency's decimals (none for JPY, three for KWD),
+    for columns. Inline, in a sentence, amounts are `currency.format_amount`'s
+    "1,234.50 EUR". For display only — the amount is never parsed back."""
     from salli.domain.currency import exponent, quantize
 
     places = exponent(currency, strict=False)
     if amount is None or amount == "":
-        return f"{currency} {'—':>{width}}" if width > 0 else f"{currency} —"
+        return f"{currency} {'—':>{width}}"
     value = quantize(Decimal(str(amount)), currency, strict=False)
-    if width <= 0:  # inline, in a sentence: no padding (">0" is not a format)
-        return f"{currency} {value:,.{places}f}"
     return f"{currency} {value:>{width},.{places}f}"
 
 

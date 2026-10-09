@@ -8,12 +8,14 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -55,6 +57,7 @@ from salli.adapters.db.models import (
     UserProfileORM,
 )
 from salli.application.ports import (
+    AccountCodeTaken,
     AdvisoryRepository,
     AgentDocumentRepository,
     AgentSessionRepository,
@@ -69,11 +72,13 @@ from salli.application.ports import (
     InsuranceTargetRepository,
     LedgerRepository,
     LlmCredentialRepository,
+    McpConnectionRow,
     OAuthClientRepository,
     OAuthTokenRepository,
     PersonalAccessTokenRepository,
     PolicyRepository,
     PortfolioRepository,
+    ProfileMissing,
     RecurringSubscriptionRepository,
     ReminderRepository,
     RemoteAccount,
@@ -90,7 +95,7 @@ from salli.domain.accounting.models import (
     StoredJournalEntry,
     Tag,
 )
-from salli.domain.currency import is_currency
+from salli.domain.currency import exponent, is_currency
 from salli.domain.money import from_minor, to_minor
 from salli.domain.tax.models import TaxComputation
 
@@ -221,25 +226,31 @@ class SQLLedgerRepository(LedgerRepository):
         """Create the closed `need` axis for a user if it is not already there.
 
         Idempotent: existing slugs are left untouched, including their names, so
-        a user who renamed "Wants" keeps that name across re-onboarding.
+        a user who renamed "Wants" keeps that name across re-onboarding. Safe
+        to run twice at once: a slug inserted meanwhile is skipped by the
+        database (ON CONFLICT DO NOTHING), not a failed commit.
         """
-        stmt = select(TagORM.slug).where(TagORM.user_id == user_id, TagORM.kind == "need")
-        result = await self._session.execute(stmt)
-        existing = set(result.scalars().all())
-        for slug, name, color in tags:
-            if slug in existing:
-                continue
-            self._session.add(
-                TagORM(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    slug=slug,
-                    name=name,
-                    kind="need",
-                    color=color,
-                    is_system=True,
-                )
+        if not tags:
+            return
+        await self._session.execute(
+            pg_insert(TagORM)
+            .values(
+                [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "user_id": user_id,
+                        "slug": slug,
+                        "name": name,
+                        "kind": "need",
+                        "color": color,
+                        "is_system": True,
+                        "created_at": datetime.now(UTC),
+                    }
+                    for slug, name, color in tags
+                ]
             )
+            .on_conflict_do_nothing(constraint="uq_tags_user_kind_slug")
+        )
 
     async def list_tags(self, user_id: str, kind: str | None = None) -> list[Tag]:
         stmt = select(TagORM).where(TagORM.user_id == user_id)
@@ -279,7 +290,7 @@ class SQLLedgerRepository(LedgerRepository):
         )
         base = result.scalar_one_or_none()
         if base is None:
-            raise ValueError(f"User {user_id} has no profile, so their base currency is unknown")
+            raise ProfileMissing(user_id)
         return base
 
     async def save_entry(self, user_id: str, entry: JournalEntry) -> str:
@@ -332,6 +343,51 @@ class SQLLedgerRepository(LedgerRepository):
         result = await self._session.execute(stmt)
         return [_entry_from_orm(row) for row in result.scalars().all()]
 
+    async def posting_totals(
+        self, user_id: str, account_ids: Collection[str]
+    ) -> list[tuple[str, str, Decimal, Decimal]]:
+        if not account_ids:
+            return []
+        signed = PostingORM.direction * PostingORM.amount_minor
+        rows = await self._session.execute(
+            select(
+                PostingORM.account_id,
+                PostingORM.currency,
+                func.sum(signed),
+                func.sum(signed * PostingORM.fx_rate),
+            )
+            .join(JournalEntryORM, JournalEntryORM.id == PostingORM.entry_id)
+            .where(JournalEntryORM.user_id == user_id, PostingORM.account_id.in_(list(account_ids)))
+            .group_by(PostingORM.account_id, PostingORM.currency)
+        )
+        totals: list[tuple[str, str, Decimal, Decimal]] = []
+        for account_id, currency, amount, base in rows.all():
+            places = -exponent(currency, strict=False)
+            totals.append(
+                (account_id, currency, Decimal(amount).scaleb(places), Decimal(base).scaleb(places))
+            )
+        return totals
+
+    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
+        # Exactly what Posting.base_signed sums, unrounded: direction times
+        # amount (minor units of its currency) times the rate, per currency,
+        # then scaled by that currency's decimals.
+        rows = await self._session.execute(
+            select(
+                PostingORM.account_id,
+                PostingORM.currency,
+                func.sum(PostingORM.direction * PostingORM.amount_minor * PostingORM.fx_rate),
+            )
+            .join(JournalEntryORM, JournalEntryORM.id == PostingORM.entry_id)
+            .where(JournalEntryORM.user_id == user_id, JournalEntryORM.entry_date < before)
+            .group_by(PostingORM.account_id, PostingORM.currency)
+        )
+        balances: dict[str, Decimal] = {}
+        for account_id, currency, total in rows.all():
+            scaled = Decimal(total).scaleb(-exponent(currency, strict=False))
+            balances[account_id] = balances.get(account_id, Decimal(0)) + scaled
+        return balances
+
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
         stmt = select(AccountORM).where(AccountORM.user_id == user_id).order_by(AccountORM.code)
         if not include_inactive:
@@ -354,7 +410,15 @@ class SQLLedgerRepository(LedgerRepository):
             is_active=account.is_active,
             tax_role=account.tax_role,
         )
-        self._session.add(orm)
+        # In a savepoint, so a code taken meanwhile (two onboardings at once)
+        # is a typed error the caller can act on, not a failed commit.
+        try:
+            async with self._session.begin_nested():
+                self._session.add(orm)
+        except IntegrityError as exc:
+            if "uq_accounts_user_code" in str(exc.orig):
+                raise AccountCodeTaken(account.code) from exc
+            raise
         return account_id
 
     async def get_entry_by_id(self, user_id: str, entry_id: str) -> StoredJournalEntry | None:
@@ -532,11 +596,14 @@ class SQLStatementRepository(StatementRepository):
     ) -> None:
         import uuid as _uuid
 
+        # The label fits its column, whoever made it: a bank feed's
+        # "institution · account name" can run past it.
+        width = StatementORM.__table__.c.bank.type.length or 100
         orm = StatementORM(
             id=statement_id,
             user_id=user_id,
             storage_key=storage_key,
-            bank=bank,
+            bank=(bank or "")[:width],
             account_id=account_id,
             period_start=period_start,
             period_end=period_end,
@@ -565,6 +632,9 @@ class SQLStatementRepository(StatementRepository):
                     "booking_description": txn.description,
                     "rule_id": txn.rule_id,
                     "duplicate_of": txn.duplicate_of,
+                    "ref_kind": raw.ref_kind,
+                    "ref_source": raw.ref_source,
+                    "source_account": raw.source_account,
                 },
                 confidence=txn.confidence,
                 dedup_key=txn.dedup_key or None,
@@ -586,17 +656,37 @@ class SQLStatementRepository(StatementRepository):
         result = await self._session.execute(stmt)
         return [_orm_to_parsed(row, account_id) for row, account_id in result.all()]
 
-    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
-        # The date lives in the row's JSON; ISO dates compare as text.
+    async def imported_between(
+        self,
+        user_id: str,
+        from_date: str,
+        to_date: str,
+        *,
+        account_id: str | None = None,
+        excluding_statement: str | None = None,
+    ) -> list[Any]:
+        # The date lives in the row's JSON, indexed as an expression
+        # (ix_parsed_transactions_date); ISO dates compare as text.
         when = ParsedTransactionORM.extracted_json["date"].astext
-        return await self._read(
-            self._parsed(user_id)
-            .where(
-                when >= from_date,
-                when <= to_date,
-                ParsedTransactionORM.dedup_status != "exact_duplicate",
+        stmt = self._parsed(user_id).where(
+            when >= from_date,
+            when <= to_date,
+            ParsedTransactionORM.dedup_status != "exact_duplicate",
+        )
+        if account_id is not None:
+            # Rows of statements with no account may be on any account.
+            stmt = stmt.where(
+                or_(StatementORM.account_id == account_id, StatementORM.account_id.is_(None))
             )
-            .order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
+        if excluding_statement is not None:
+            stmt = stmt.where(
+                or_(
+                    ParsedTransactionORM.statement_id != excluding_statement,
+                    ParsedTransactionORM.posted_entry_id.is_not(None),
+                )
+            )
+        return await self._read(
+            stmt.order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
         )
 
     async def get_all_pending(self, user_id: str) -> list[Any]:
@@ -631,8 +721,46 @@ class SQLStatementRepository(StatementRepository):
         await self._session.flush()
         return len(rows)
 
-    async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]:
-        return await self._read(self._parsed(user_id).where(ParsedTransactionORM.id.in_(ids)))
+    async def get_by_ids(
+        self, user_id: str, ids: list[str], *, for_update: bool = False
+    ) -> list[Any]:
+        stmt = self._parsed(user_id).where(ParsedTransactionORM.id.in_(ids))
+        if for_update:
+            stmt = stmt.with_for_update(of=ParsedTransactionORM)
+        return await self._read(stmt)
+
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        statements = (
+            (
+                await self._session.execute(
+                    select(StatementORM)
+                    .where(StatementORM.user_id == user_id)
+                    .order_by(StatementORM.created_at, StatementORM.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        rows = await self._read(
+            self._parsed(user_id).order_by(ParsedTransactionORM.created_at, ParsedTransactionORM.id)
+        )
+        by_statement: dict[str, list[Any]] = {}
+        for txn in rows:
+            by_statement.setdefault(txn.statement_id, []).append(txn)
+        return [
+            {
+                "id": st.id,
+                "bank": st.bank,
+                "account_id": st.account_id,
+                "period_start": st.period_start,
+                "period_end": st.period_end,
+                "storage_key": st.storage_key,
+                "status": st.status,
+                "created_at": st.created_at.isoformat() if st.created_at else None,
+                "transactions": by_statement.get(st.id, []),
+            }
+            for st in statements
+        ]
 
     async def set_choice(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> None:
         row = (
@@ -700,6 +828,9 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         bank_ref=j.get("bank_ref", ""),
         # Rows saved before the currency was recorded were all rupees.
         currency=j.get("currency", "LKR"),
+        ref_kind=j.get("ref_kind", "id"),
+        ref_source=j.get("ref_source", ""),
+        source_account=j.get("source_account", ""),
     )
     return ParsedTransaction(
         raw=raw,
@@ -1064,7 +1195,9 @@ class SQLUserProfileRepository(UserProfileRepository):
         row = result.scalar_one_or_none()
         if row is None:
             if not fields.get("base_currency"):
-                raise ValueError("A new profile needs a base_currency")
+                # Only ensure_user creates a profile (with its currency); any
+                # other write to a missing one is a missing profile.
+                raise ProfileMissing(user_id)
             row = UserProfileORM(id=user_id)
             self._s.add(row)
         for k, v in fields.items():
@@ -1078,7 +1211,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         )
         base = result.scalar_one_or_none()
         if base is None:
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         return base
 
     async def has_financial_data(self, user_id: str) -> bool:
@@ -1118,7 +1251,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         setattr(row, field, value)
         await self._s.flush()
 
@@ -1136,7 +1269,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         setattr(row, field, value)
         await self._s.flush()
 
@@ -2380,12 +2513,27 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         }
 
     async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
-        row = (
+        found = (
             await self._s.execute(
-                select(OAuthRefreshTokenORM).where(OAuthRefreshTokenORM.token_hash == token_hash)
+                select(OAuthRefreshTokenORM, OAuthAccessTokenORM.revoked_at)
+                .join(
+                    OAuthAccessTokenORM,
+                    OAuthAccessTokenORM.id == OAuthRefreshTokenORM.access_token_id,
+                )
+                .where(OAuthRefreshTokenORM.token_hash == token_hash)
             )
-        ).scalar_one_or_none()
-        if row is None or row.revoked_at is not None or row.expires_at < datetime.now(UTC):
+        ).one_or_none()
+        if found is None:
+            return None
+        row, access_revoked_at = found
+        # A refresh token dies with the access token it was issued with: a
+        # revoked pair (a disconnected client, a revoked access token) must
+        # not be able to mint a new one.
+        if (
+            row.revoked_at is not None
+            or access_revoked_at is not None
+            or row.expires_at < datetime.now(UTC)
+        ):
             return None
         return {
             "id": row.id,
@@ -2421,35 +2569,116 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             row.revoked_at = datetime.now(UTC)
             await self._s.flush()
 
+    async def token_exists(self, token_hash: str) -> bool:
+        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+            found = (
+                await self._s.execute(select(model.id).where(model.token_hash == token_hash))
+            ).first()
+            if found is not None:
+                return True
+        return False
+
+    async def get_access_token_by_id(self, token_id: str, user_id: str) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                select(OAuthAccessTokenORM).where(
+                    OAuthAccessTokenORM.id == token_id, OAuthAccessTokenORM.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "id": row.id,
+            "client_id": row.client_id,
+            "user_id": row.user_id,
+            "scope": row.scope,
+            "resource": row.resource,
+            "expires_at": row.expires_at,
+            "revoked_at": row.revoked_at,
+        }
+
+    async def revoke_client_grant(self, user_id: str, client_id: str, resource: str | None) -> int:
+        now = datetime.now(UTC)
+        revoked = 0
+        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+            same_resource = (
+                model.resource.is_(None) if resource is None else model.resource == resource
+            )
+            result = await self._s.execute(
+                update(model)
+                .where(
+                    model.user_id == user_id,
+                    model.client_id == client_id,
+                    same_resource,
+                    model.revoked_at.is_(None),
+                )
+                .values(revoked_at=now)
+            )
+            revoked += cast(Any, result).rowcount or 0
+        await self._s.flush()
+        return revoked
+
     async def list_active_connections(
         self, user_id: str, resource: str | None = None
-    ) -> list[dict[str, Any]]:
-        stmt = (
+    ) -> list[McpConnectionRow]:
+        now = datetime.now(UTC)
+        access_stmt = (
             select(OAuthAccessTokenORM, OAuthClientORM)
             .join(OAuthClientORM, OAuthClientORM.client_id == OAuthAccessTokenORM.client_id)
             .where(
                 OAuthAccessTokenORM.user_id == user_id,
                 OAuthAccessTokenORM.revoked_at.is_(None),
-                OAuthAccessTokenORM.expires_at > datetime.now(UTC),
+                OAuthAccessTokenORM.expires_at > now,
             )
-            .order_by(OAuthAccessTokenORM.created_at.desc())
+        )
+        # A client whose access token has run out is still connected while its
+        # refresh token lives: it will be back with it.
+        refresh_stmt = (
+            select(OAuthRefreshTokenORM, OAuthAccessTokenORM, OAuthClientORM)
+            .join(
+                OAuthAccessTokenORM,
+                OAuthAccessTokenORM.id == OAuthRefreshTokenORM.access_token_id,
+            )
+            .join(OAuthClientORM, OAuthClientORM.client_id == OAuthRefreshTokenORM.client_id)
+            .where(
+                OAuthRefreshTokenORM.user_id == user_id,
+                OAuthRefreshTokenORM.revoked_at.is_(None),
+                OAuthRefreshTokenORM.expires_at > now,
+                OAuthAccessTokenORM.revoked_at.is_(None),
+            )
         )
         if resource is not None:
-            stmt = stmt.where(OAuthAccessTokenORM.resource == resource)
-        rows = (await self._s.execute(stmt)).all()
-        return [
-            {
-                "token_id": token.id,
-                "client_id": client.client_id,
-                "client_name": client.client_name or "Unnamed app",
-                "scope": token.scope,
-                # Which audience it was issued for: an AI client (MCP) or the
-                # user's own CLI (the API). Without it every token read as MCP.
-                "resource": token.resource,
-                "connected_at": token.created_at,
-            }
-            for token, client in rows
+            access_stmt = access_stmt.where(OAuthAccessTokenORM.resource == resource)
+            refresh_stmt = refresh_stmt.where(OAuthRefreshTokenORM.resource == resource)
+        live: list[tuple[OAuthAccessTokenORM, OAuthClientORM]] = [
+            (token, client) for token, client in (await self._s.execute(access_stmt)).all()
         ]
+        live += [
+            (access, client) for _, access, client in (await self._s.execute(refresh_stmt)).all()
+        ]
+
+        # One connection per client grant (client, audience): rotation leaves
+        # several live tokens for one client, and they are one connection.
+        grants: dict[tuple[str, str | None], McpConnectionRow] = {}
+        for token, client in sorted(live, key=lambda pair: pair[0].created_at, reverse=True):
+            key = (token.client_id, token.resource)
+            grant = grants.get(key)
+            if grant is None:
+                grants[key] = {
+                    # The newest token's id: what revoking the connection takes.
+                    "token_id": token.id,
+                    "client_id": client.client_id,
+                    "client_name": client.client_name or "Unnamed app",
+                    "scope": token.scope,
+                    # Which audience it was issued for: an AI client (MCP) or
+                    # the user's own CLI (the API).
+                    "resource": token.resource,
+                    "connected_at": token.created_at,
+                }
+            else:
+                grant["connected_at"] = min(grant["connected_at"], token.created_at)
+        return list(grants.values())
 
     async def save_device_code(
         self,
@@ -2708,18 +2937,72 @@ class SQLBankConnectionRepository(BankConnectionRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
-    async def list_due(self, synced_before: datetime) -> list[tuple[str, str]]:
+    async def list_due(
+        self, attempted_before: datetime, failed_before: datetime, now: datetime
+    ) -> list[tuple[str, str]]:
         rows = await self._s.execute(
             select(BankConnectionORM.user_id, BankConnectionORM.id)
             .where(
                 or_(
-                    BankConnectionORM.last_synced_at.is_(None),
-                    BankConnectionORM.last_synced_at < synced_before,
-                )
+                    BankConnectionORM.last_attempt_at.is_(None),
+                    BankConnectionORM.last_attempt_at < attempted_before,
+                ),
+                # A connection whose last attempt failed is retried once a day.
+                or_(
+                    BankConnectionORM.status != "error",
+                    BankConnectionORM.last_attempt_at.is_(None),
+                    BankConnectionORM.last_attempt_at < failed_before,
+                ),
+                or_(
+                    BankConnectionORM.sync_claimed_until.is_(None),
+                    BankConnectionORM.sync_claimed_until < now,
+                ),
             )
-            .order_by(BankConnectionORM.last_synced_at.asc().nulls_first())
+            .order_by(BankConnectionORM.last_attempt_at.asc().nulls_first())
         )
         return [(user_id, connection_id) for user_id, connection_id in rows.all()]
+
+    async def claim(self, user_id: str, connection_id: str, now: datetime, until: datetime) -> bool:
+        claimed = await self._s.execute(
+            update(BankConnectionORM)
+            .where(
+                BankConnectionORM.id == connection_id,
+                BankConnectionORM.user_id == user_id,
+                or_(
+                    BankConnectionORM.sync_claimed_until.is_(None),
+                    BankConnectionORM.sync_claimed_until < now,
+                ),
+            )
+            .values(sync_claimed_until=until, last_attempt_at=now)
+            .returning(BankConnectionORM.id)
+        )
+        return claimed.first() is not None
+
+    async def release(self, user_id: str, connection_id: str) -> None:
+        await self._s.execute(
+            update(BankConnectionORM)
+            .where(BankConnectionORM.id == connection_id, BankConnectionORM.user_id == user_id)
+            .values(sync_claimed_until=None)
+        )
+
+    async def update_account(
+        self, user_id: str, connection_id: str, remote_id: str, fields: dict[str, Any]
+    ) -> None:
+        row = (
+            await self._s.execute(
+                select(BankConnectionAccountORM).where(
+                    BankConnectionAccountORM.connection_id == connection_id,
+                    BankConnectionAccountORM.user_id == user_id,
+                    BankConnectionAccountORM.remote_id == remote_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        for key in ("last_imported_at", "notes"):
+            if key in fields:
+                setattr(row, key, fields[key])
+        await self._s.flush()
 
     async def _one(self, user_id: str, connection_id: str) -> BankConnectionORM | None:
         return (
@@ -2743,6 +3026,8 @@ class SQLBankConnectionRepository(BankConnectionRepository):
             "account_id": row.account_id,
             "balance": balance,
             "balance_date": row.balance_date,
+            "last_imported_at": row.last_imported_at,
+            "notes": row.notes,
         }
 
     def _connection(self, row: BankConnectionORM) -> dict[str, Any]:
@@ -2752,7 +3037,9 @@ class SQLBankConnectionRepository(BankConnectionRepository):
             "name": row.name,
             "status": row.status,
             "last_error": row.last_error,
+            "warnings": list(row.warnings or []),
             "last_synced_at": row.last_synced_at,
+            "last_attempt_at": row.last_attempt_at,
             "created_at": row.created_at,
             "accounts": [self._account(a) for a in sorted(row.accounts, key=lambda a: a.name)],
         }
@@ -2766,6 +3053,7 @@ class SQLBankConnectionRepository(BankConnectionRepository):
             credential_sealed=connection["credential_sealed"],
             key_version=connection["key_version"],
             status="active",
+            warnings=[],
             created_at=datetime.now(UTC),
         )
         self._s.add(row)
@@ -2833,6 +3121,11 @@ class SQLBankConnectionRepository(BankConnectionRepository):
         ).scalar_one_or_none()
         if row is None:
             return False
+        if row.account_id != account_id:
+            # Into another account, its history starts again: the first
+            # sync's window, then the overlap.
+            row.last_imported_at = None
+            row.notes = None
         row.account_id = account_id
         await self._s.flush()
         return True
@@ -2841,7 +3134,7 @@ class SQLBankConnectionRepository(BankConnectionRepository):
         row = await self._one(user_id, connection_id)
         if row is None:
             return
-        for key in ("name", "status", "last_error", "last_synced_at"):
+        for key in ("name", "status", "last_error", "last_synced_at", "warnings"):
             if key in fields:
                 setattr(row, key, fields[key])
         await self._s.flush()

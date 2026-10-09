@@ -21,6 +21,7 @@ import unicodedata
 from collections import Counter
 from collections.abc import Iterable
 from decimal import Decimal
+from typing import Literal
 
 from salli.domain.currency import is_currency
 
@@ -32,6 +33,27 @@ _GROUPING = "    '’"
 _NUMBER = re.compile(r"\d(?:[\d.," + _GROUPING + r"]*\d)?")
 
 _CODE = re.compile(r"(?<![A-Za-z])[A-Z]{3}(?![A-Za-z])")
+
+# More integer digits than any real balance has (a quadrillion): a misread
+# (an account number taken for an amount), and beyond what a Decimal of the
+# default precision can round to a currency's minor units.
+MAX_INTEGER_DIGITS = 15
+
+# What an empty cell is printed as: Excel's Accounting format, many PDFs.
+_PLACEHOLDERS = {"-", "–", "—", "--"}
+
+# Marks after an amount saying which way it went: DR/CR everywhere, S/H (Soll,
+# Haben) in German statements, D/C on some others. Single letters only count
+# after the number: before it, "S$" is a Singapore dollar.
+_DEBIT_MARKS = {"DR", "S", "D"}
+_CREDIT_MARKS = {"CR", "H", "C"}
+
+Mark = Literal["CR", "DR"]
+
+
+def is_blank_amount(text: str) -> bool:
+    """Whether a cell holds no amount: empty, or a dash printed in its place."""
+    return text.strip() in _PLACEHOLDERS or not text.strip()
 
 
 def parse_decimal(text: str, decimal_separator: str | None = None) -> Decimal:
@@ -74,8 +96,54 @@ def parse_decimal(text: str, decimal_separator: str | None = None) -> Decimal:
     ):
         raise ValueError(f"{text!r} is not grouped like an amount")
 
+    digits = "".join(groups).lstrip("0")
+    if len(digits) > MAX_INTEGER_DIGITS:
+        raise ValueError(f"{text!r} is too large to be an amount")
     value = Decimal("".join(groups) + ("." + fraction if fraction else ""))
     return -value if negative else value
+
+
+def amount_mark(text: str) -> Mark | None:
+    """The CR/DR mark written with an amount (DR, S or D after it is a debit;
+    CR, H or C a credit), or None when it has none."""
+    s = text.strip()
+    match = _NUMBER.search(s)
+    if match is None:
+        return None
+    prefix, suffix = s[: match.start()], s[match.end() :]
+    words = {w.upper() for w in re.findall(r"[^\W\d_]+", prefix)} & {"CR", "DR"}
+    after = [w.upper() for w in re.findall(r"[^\W\d_]+", suffix)]
+    words |= {w for w in after if w in _DEBIT_MARKS | _CREDIT_MARKS}
+    if len(words) != 1:
+        return None
+    (word,) = words
+    return "DR" if word in _DEBIT_MARKS else "CR"
+
+
+def decimal_mark_for(values: Iterable[str], exponent: int | None, default: str = ".") -> str:
+    """The decimal mark of a column of amounts in a currency with `exponent`
+    decimals (None when unknown).
+
+    As `detect_decimal_separator`, and when no value settles it ("1,250",
+    "1.250"), the currency does: three digits after the only mark are its
+    decimals in a three-decimal currency (KWD 1.250), and grouping in any
+    other (JPY 12,345). Without either, `default`.
+    """
+    values = list(values)
+    found = detect_decimal_separator(values)
+    if found is not None:
+        return found
+    if exponent is None:
+        return default
+    for value in values:
+        match = _NUMBER.search(value)
+        if match is None:
+            continue
+        number = _ungrouped(match.group())
+        mark = "." if "." in number else "," if "," in number else None
+        if mark is not None:
+            return mark if exponent == 3 else ("," if mark == "." else ".")
+    return default
 
 
 def detect_decimal_separator(values: Iterable[str]) -> str | None:
@@ -149,6 +217,12 @@ def _is_negative(prefix: str, suffix: str, text: str) -> bool:
     plus = "+" in before + after
     words = {w.upper() for w in re.findall(r"[^\W\d_]+", prefix + " " + suffix)}
     markers = words & {"CR", "DR"}
+    # A single letter after the number: Soll/Haben (S/H) or D/C.
+    markers |= {
+        "DR" if w in _DEBIT_MARKS else "CR"
+        for w in (w.upper() for w in re.findall(r"[^\W\d_]+", suffix))
+        if len(w) == 1 and w in _DEBIT_MARKS | _CREDIT_MARKS
+    }
     if len(markers) > 1:
         raise ValueError(f"{text!r} is marked both CR and DR")
     if markers:

@@ -14,28 +14,45 @@ against it.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import logging
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
-from decimal import Decimal
 from typing import Any, Protocol
 
 from salli.application.ports import BankConnector, BankLinkError, RemoteTransaction
-from salli.domain.currency import is_currency, normalize_currency
+from salli.domain.accounting.models import money_account_problem
+from salli.domain.currency import is_currency
 from salli.domain.parsing.models import RawRow
 
 _log = logging.getLogger(__name__)
 
-#: How far back the first sync reaches, and how much each later one overlaps
-#: the last (banks post late; duplicates are dropped by the bank's own id).
+#: How far back an account's first import reaches, and how much each later
+#: one overlaps the last (banks post late; duplicates are dropped by the
+#: bank's own id).
 _FIRST_SYNC_DAYS = 90
 _OVERLAP_DAYS = 7
+#: How long a sync holds its connection: longer than any sync takes, short
+#: enough that a crashed one does not hold it for long.
+_CLAIM = dt.timedelta(minutes=15)
+#: Scheduled syncs at once, across every user.
+_CONCURRENCY = 8
+#: A connection whose last attempt failed is retried at most this often.
+_RETRY_FAILED = dt.timedelta(days=1)
 
 
 class BankConnectionsUnavailable(RuntimeError):
     """A bank credential cannot be held safely here: no encryption key is
     configured, or authentication is the development fallback."""
+
+
+class BankConnectionNotFound(LookupError):
+    """No such connection for this user."""
+
+
+class SyncInProgress(RuntimeError):
+    """Another sync of this connection is running."""
 
 
 class RowImporter(Protocol):
@@ -50,7 +67,11 @@ def _aad(user_id: str, connection_id: str) -> str:
     return f"{user_id}|bank:{connection_id}"
 
 
-def to_rows(transactions: list[RemoteTransaction], currency: str) -> list[RawRow]:
+def to_rows(
+    transactions: list[RemoteTransaction], currency: str, provider: str = ""
+) -> list[RawRow]:
+    """A feed's transactions as rows to import: each carries the provider's
+    own id for it, an id from this feed and no other source."""
     return [
         RawRow(
             date=t.posted,
@@ -59,6 +80,8 @@ def to_rows(transactions: list[RemoteTransaction], currency: str) -> list[RawRow
             credit_flag=t.amount > 0,
             currency=currency,
             bank_ref=t.remote_id,
+            ref_kind="id",
+            ref_source=f"feed:{provider}" if provider else "feed",
         )
         for t in transactions
         if t.amount != 0
@@ -74,15 +97,17 @@ class BankConnectionService:
         connectors: Mapping[str, BankConnector],
         importer: RowImporter | None = None,
         *,
-        # False while "the bearer token is the user id" is in force: any
-        # caller could then read anyone's bank (config.insecure_dev_auth).
+        # False while any caller can name any user id (the development
+        # fallback, `config.auth_can_hold_secrets`): they could read anyone's bank.
         auth_is_real: bool = True,
+        clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
     ) -> None:
         self._uow_factory = uow_factory
         self._keyring = keyring
         self._connectors = dict(connectors)
         self._importer = importer
         self._auth_is_real = auth_is_real
+        self._now = clock
 
     @property
     def available(self) -> bool:
@@ -116,27 +141,47 @@ class BankConnectionService:
         self, user_id: str, provider: str, setup: str, name: str | None = None
     ) -> dict[str, Any]:
         """Claim the setup token, store the credential sealed, and record the
-        accounts the provider can see (with their balances)."""
+        accounts the provider can see (with their balances).
+
+        The token works once, so the credential is stored the moment it is
+        claimed. If reading the accounts then fails, the connection is kept,
+        marked with why, so a later sync can finish the job instead of the
+        user needing a new token."""
         self._require_available()
         connector = self._connector(provider)
         credential = await connector.link(setup)
-        snapshot = await connector.fetch(credential, start=None, balances_only=True)
         connection_id = str(uuid.uuid4())
         sealed, version = self._keyring.seal(credential, aad=_aad(user_id, connection_id))
-        institutions = sorted({a.institution for a in snapshot.accounts if a.institution})
         async with self._uow_factory() as uow:
             await uow.bank_connections.create(
                 user_id,
                 {
                     "id": connection_id,
                     "provider": provider,
-                    "name": (name or ", ".join(institutions) or provider)[:200],
+                    "name": (name or provider)[:200],
                     "credential_sealed": sealed,
                     "key_version": version,
                 },
             )
+        try:
+            snapshot = await connector.fetch(credential, start=None, balances_only=True)
+        except BankLinkError as exc:
+            async with self._uow_factory() as uow:
+                await uow.bank_connections.update(
+                    user_id, connection_id, {"status": "error", "last_error": str(exc)}
+                )
+            return {"id": connection_id, "warnings": [], "error": str(exc)}
+        institutions = sorted({a.institution for a in snapshot.accounts if a.institution})
+        async with self._uow_factory() as uow:
+            fields: dict[str, Any] = {
+                "warnings": snapshot.warnings,
+                "status": "attention" if snapshot.warnings else "active",
+            }
+            if not name and institutions:
+                fields["name"] = ", ".join(institutions)[:200]
+            await uow.bank_connections.update(user_id, connection_id, fields)
             await uow.bank_connections.upsert_accounts(user_id, connection_id, snapshot.accounts)
-        return {"id": connection_id, "warnings": snapshot.warnings}
+        return {"id": connection_id, "warnings": snapshot.warnings, "error": None}
 
     async def list(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
@@ -151,9 +196,11 @@ class BankConnectionService:
         *,
         create: bool = False,
     ) -> str | None:
-        """Feed a bank account into a Salli account — an existing one held in
-        the same currency, or (create=True) a new asset account named after it.
-        account_id=None and create=False unmaps it."""
+        """Feed a bank account into a Salli account — an existing bank, cash
+        or card account held in the same currency, or (create=True) a new
+        asset account named after it. account_id=None and create=False
+        unmaps it. KeyError for a bank account that isn't there; ValueError
+        for a Salli account that can't take it."""
         async with self._uow_factory() as uow:
             connections: list[dict[str, Any]] = await uow.bank_connections.list(user_id)
             connection = next((c for c in connections if c["id"] == connection_id), None)
@@ -181,14 +228,17 @@ class BankConnectionService:
                         code=code,
                         name=remote["name"],
                         type="asset",
-                        currency=normalize_currency(remote["currency"]),
+                        currency=remote["currency"],
                     ),
                 )
             elif account_id:
                 account = await uow.ledger.get_account(user_id, account_id)
-                if account is None or not account.is_active:
-                    raise ValueError("That account doesn't exist or isn't active")
-                if account.currency != remote["currency"].upper():
+                # The same rule a statement's account follows: every sync into
+                # an expense account would fail.
+                problem = money_account_problem(account, account_id)
+                if problem is not None or account is None:
+                    raise ValueError(problem)
+                if account.currency != remote["currency"]:
                     raise ValueError(
                         f"{remote['name']} is in {remote['currency']} but that account is held in "
                         f"{account.currency}; map it to an account in the same currency, or let "
@@ -198,27 +248,56 @@ class BankConnectionService:
         return account_id
 
     async def sync(self, user_id: str, connection_id: str) -> dict[str, Any]:
-        """Fetch what was posted since the last sync and queue it for review."""
+        """Fetch what was posted since each mapped account's last import and
+        queue it for review.
+
+        The connection is held while this runs: a second sync of it is
+        refused (SyncInProgress), never a second copy of every transaction.
+        An account whose import fails is noted on it and the rest carry on;
+        an account whose institution reported a problem is imported, but its
+        marker stays where it was, so the next sync covers the same days
+        again rather than leaving a gap."""
         self._require_available()
         if self._importer is None:
             raise RuntimeError("No importer configured for bank transactions")
+        now = self._now()
         async with self._uow_factory() as uow:
             secret = await uow.bank_connections.get_secret(user_id, connection_id)
-        if secret is None:
-            raise KeyError(connection_id)
+            if secret is None:
+                raise BankConnectionNotFound(connection_id)
+            claimed = await uow.bank_connections.claim(user_id, connection_id, now, now + _CLAIM)
+        if not claimed:
+            raise SyncInProgress("This bank is syncing already; try again in a moment")
+        try:
+            return await self._sync(user_id, connection_id, secret, now)
+        finally:
+            async with self._uow_factory() as uow:
+                await uow.bank_connections.release(user_id, connection_id)
+
+    async def _sync(
+        self, user_id: str, connection_id: str, secret: dict[str, Any], now: dt.datetime
+    ) -> dict[str, Any]:
+        assert self._importer is not None
         credential = self._keyring.open(
             secret["credential_sealed"],
             aad=_aad(user_id, connection_id),
             key_version=secret["key_version"],
         )
-        last: dt.datetime | None = secret["last_synced_at"]
-        start = (
-            last - dt.timedelta(days=_OVERLAP_DAYS)
-            if last
-            else dt.datetime.now(dt.UTC) - dt.timedelta(days=_FIRST_SYNC_DAYS)
-        )
+        mapped = {a["remote_id"]: a for a in secret["accounts"] if a["account_id"]}
+        # From the earliest day any mapped account needs: a newly mapped one
+        # gets the first sync's window, the others a week before their last.
+        starts = [
+            a["last_imported_at"] - dt.timedelta(days=_OVERLAP_DAYS)
+            if a.get("last_imported_at")
+            else now - dt.timedelta(days=_FIRST_SYNC_DAYS)
+            for a in mapped.values()
+        ]
+        start = min(starts) if starts else now - dt.timedelta(days=_OVERLAP_DAYS)
+        provider = secret["provider"]
         try:
-            snapshot = await self._connector(secret["provider"]).fetch(credential, start=start)
+            snapshot = await self._connector(provider).fetch(
+                credential, start=start, balances_only=not mapped
+            )
         except BankLinkError as exc:
             async with self._uow_factory() as uow:
                 await uow.bank_connections.update(
@@ -226,65 +305,120 @@ class BankConnectionService:
                 )
             raise
 
-        mapped = {a["remote_id"]: a for a in secret["accounts"] if a["account_id"]}
         results: list[dict[str, Any]] = []
+        failures: list[str] = []
         for remote in snapshot.accounts:
             target = mapped.get(remote.remote_id)
             if target is None or not is_currency(remote.currency):
                 continue
             rows = to_rows(
                 [t for t in snapshot.transactions if t.account_remote_id == remote.remote_id],
-                remote.currency.upper(),
+                remote.currency,
+                provider,
             )
-            imported = await self._importer(
-                user_id,
-                rows,
-                bank=f"{remote.institution or secret['name']} · {remote.name}",
-                account_id=target["account_id"],
+            label = f"{remote.institution or secret['name']} · {remote.name}"
+            try:
+                imported = await self._importer(
+                    user_id, rows, bank=label, account_id=target["account_id"]
+                )
+            except Exception as exc:
+                # One account's failure (its Salli account closed, a model or
+                # database error) is that account's: noted on it, and the
+                # others are imported as usual.
+                note = (
+                    f"Could not import: {exc}"
+                    if isinstance(exc, ValueError)
+                    else (f"Could not import ({type(exc).__name__})")
+                )
+                if not isinstance(exc, ValueError):
+                    _log.exception("bank_import_failed connection=%s", connection_id)
+                failures.append(f"{remote.name}: {note}")
+                async with self._uow_factory() as uow:
+                    await uow.bank_connections.update_account(
+                        user_id, connection_id, remote.remote_id, {"notes": note}
+                    )
+                results.append(
+                    {"remote_id": remote.remote_id, "name": remote.name, "notes": [note]}
+                )
+                continue
+            troubled = remote.remote_id in snapshot.troubled
+            fields: dict[str, Any] = {"notes": None}
+            if not troubled:
+                fields["last_imported_at"] = now
+            async with self._uow_factory() as uow:
+                await uow.bank_connections.update_account(
+                    user_id, connection_id, remote.remote_id, fields
+                )
+            notes = list(imported.get("notes", []))
+            if troubled:
+                notes.append(
+                    "The bank reported a problem with this account; the same days will be "
+                    "fetched again next time"
+                )
+            results.append(
+                {"remote_id": remote.remote_id, "name": remote.name, **imported, "notes": notes}
             )
-            results.append({"remote_id": remote.remote_id, "name": remote.name, **imported})
 
+        attention = bool(snapshot.warnings or failures)
         async with self._uow_factory() as uow:
             await uow.bank_connections.upsert_accounts(user_id, connection_id, snapshot.accounts)
             await uow.bank_connections.update(
                 user_id,
                 connection_id,
-                {"status": "active", "last_error": None, "last_synced_at": dt.datetime.now(dt.UTC)},
+                {
+                    "status": "attention" if attention else "active",
+                    "last_error": "; ".join(failures) or None,
+                    "warnings": snapshot.warnings,
+                    "last_synced_at": now,
+                },
             )
         unmapped = [a.name for a in snapshot.accounts if a.remote_id not in mapped]
         return {"accounts": results, "unmapped": unmapped, "warnings": snapshot.warnings}
 
     async def due(self, max_age: dt.timedelta = dt.timedelta(hours=12)) -> list[tuple[str, str]]:
-        """(user id, connection id) of every connection not synced within `max_age`."""
+        """(user id, connection id) of every connection due a sync: not
+        attempted within `max_age`, not held by a sync running now, and, if
+        its last attempt failed, not attempted in the last day."""
+        now = self._now()
         async with self._uow_factory() as uow:
-            return await uow.bank_connections.list_due(dt.datetime.now(dt.UTC) - max_age)
+            return await uow.bank_connections.list_due(now - max_age, now - _RETRY_FAILED, now)
 
-    async def sync_due(self, max_age: dt.timedelta = dt.timedelta(hours=12)) -> dict[str, int]:
-        """Sync every connection, anyone's, not synced within `max_age`: what
-        a scheduler calls. One that fails is recorded on its connection (as
-        any failed sync is) and the rest carry on."""
+    async def sync_due(
+        self,
+        max_age: dt.timedelta = dt.timedelta(hours=12),
+        due: list[tuple[str, str]] | None = None,
+    ) -> dict[str, int]:
+        """Sync every connection due (`due`, or those `self.due(max_age)`
+        lists), anyone's: what a scheduler calls. Up to eight at once. One
+        that fails is recorded on its connection (as any failed sync is) and
+        the rest carry on; one another sync holds is left to it."""
         self._require_available()
-        due = await self.due(max_age)
-        synced = failed = 0
-        for user_id, connection_id in due:
-            try:
-                await self.sync(user_id, connection_id)
-                synced += 1
-            except BankLinkError:
-                failed += 1  # recorded on the connection by sync()
-            except Exception:
-                failed += 1
-                _log.exception("bank_sync_failed connection=%s", connection_id)
-        return {"due": len(due), "synced": synced, "failed": failed}
+        if due is None:
+            due = await self.due(max_age)
+        gate = asyncio.Semaphore(_CONCURRENCY)
+
+        async def one(user_id: str, connection_id: str) -> str:
+            async with gate:
+                try:
+                    await self.sync(user_id, connection_id)
+                except SyncInProgress:
+                    return "skipped"
+                except BankLinkError:
+                    return "failed"  # recorded on the connection by sync()
+                except Exception:
+                    _log.exception("bank_sync_failed connection=%s", connection_id)
+                    return "failed"
+                return "synced"
+
+        outcomes = await asyncio.gather(*(one(u, c) for u, c in due))
+        return {
+            "due": len(due),
+            "synced": outcomes.count("synced"),
+            "failed": outcomes.count("failed"),
+            "skipped": outcomes.count("skipped"),
+        }
 
     async def disconnect(self, user_id: str, connection_id: str) -> bool:
         """Forget the connection and its credential. Booked entries stay."""
         async with self._uow_factory() as uow:
             return await uow.bank_connections.delete(user_id, connection_id)
-
-
-def balance_drift(bank: Decimal | None, ledger: Decimal | None) -> Decimal | None:
-    """How far the ledger is from the bank's own balance (None if unknown)."""
-    if bank is None or ledger is None:
-        return None
-    return ledger - bank

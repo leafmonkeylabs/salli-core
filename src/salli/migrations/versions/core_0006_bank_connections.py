@@ -11,6 +11,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "core_0006_bank_connections"
 down_revision: str | None = "core_0005_statement_account"
@@ -29,7 +30,15 @@ def upgrade() -> None:
         sa.Column("key_version", sa.Integer(), nullable=False),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("last_error", sa.Text(), nullable=True),
+        sa.Column(
+            "warnings",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'[]'::jsonb"),
+        ),
         sa.Column("last_synced_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_attempt_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("sync_claimed_until", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -46,6 +55,8 @@ def upgrade() -> None:
         sa.Column("account_id", sa.String(length=36), nullable=True),
         sa.Column("balance_minor", sa.BigInteger(), nullable=True),
         sa.Column("balance_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_imported_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["connection_id"], ["bank_connections.id"], ondelete="CASCADE"),

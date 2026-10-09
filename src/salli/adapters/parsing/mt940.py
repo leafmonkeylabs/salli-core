@@ -25,7 +25,13 @@ import re
 from decimal import Decimal
 
 from salli.adapters.parsing.dates import full_year
-from salli.adapters.parsing.support import Extraction, StatementLine, decode_text, join_description
+from salli.adapters.parsing.support import (
+    Extraction,
+    StatementLine,
+    decode_text,
+    join_description,
+    too_large,
+)
 
 _FIELD = re.compile(r"^:(\d{2}[A-Z]?|NS):", re.M)
 _BALANCE = re.compile(r"[CD]\d{6}([A-Z]{3})")
@@ -36,6 +42,9 @@ _TRANSACTION = re.compile(
     r"[A-Z][A-Z0-9]{3}"
     r"(?P<customer>.*?)(?://(?P<bank>.*))?"
 )
+
+# What a reference field holds when there is no reference.
+_NO_REFERENCE = {"", "NONREF", "NOTPROVIDED"}
 
 # German banks structure :86: into ?NN subfields. These are the ones a person
 # reads: the posting text (00), the purpose (20-29, 60-63) and the other
@@ -62,7 +71,8 @@ def extract_from_mt940(data: bytes) -> Extraction:
 
     result = Extraction()
     currency: str | None = None
-    pending: tuple[int, list[str], str | None] | None = None  # a :61: awaiting its :86:
+    account = ""  # the statement's account (:25:)
+    pending: tuple[int, list[str], str | None, str] | None = None  # a :61: awaiting its :86:
     seen = 0
     for tag, lines in fields:
         if tag == "NS":
@@ -76,12 +86,16 @@ def extract_from_mt940(data: bytes) -> Extraction:
             pending = None
         if tag == "20":
             currency = None
+        elif tag == "25":
+            account = " ".join(" ".join(lines).split())
+            if account and account not in result.accounts:
+                result.accounts.append(account)
         elif tag in ("60F", "60M"):
             match = _BALANCE.match(lines[0].strip()) if lines else None
             currency = match.group(1) if match else None
         elif tag == "61":
             seen += 1
-            pending = (seen, lines, currency)
+            pending = (seen, lines, currency, account)
     if pending is not None:
         _add(*pending, "", result)
     return result
@@ -101,7 +115,12 @@ def _content(raw: str) -> list[str]:
 
 
 def _add(
-    number: int, lines: list[str], currency: str | None, information: str, result: Extraction
+    number: int,
+    lines: list[str],
+    currency: str | None,
+    account: str,
+    information: str,
+    result: Extraction,
 ) -> None:
     first = lines[0].strip() if lines else ""
     match = _TRANSACTION.fullmatch(first)
@@ -114,11 +133,18 @@ def _add(
         result.errors.append(f"MT940 transaction {number}: {dates!r} has no real date; skipped")
         return
     amount = Decimal(match.group("amount").replace(",", "."))
+    if too_large(amount):
+        result.errors.append(f"MT940 transaction {number}: the amount is not one; skipped")
+        return
     if amount == 0:
         return
 
+    # The bank's reference (after //) is its id for the booking; the
+    # customer's (before it) is whatever the payer wrote, often reused.
     customer = match.group("customer").strip()
     bank = (match.group("bank") or "").strip()
+    customer = "" if customer.upper() in _NO_REFERENCE else customer
+    bank = "" if bank.upper() in _NO_REFERENCE else bank
     result.lines.append(
         StatementLine(
             date=date,
@@ -127,7 +153,9 @@ def _add(
             amount=amount,
             credit_flag=match.group("mark") in ("C", "RD"),
             currency=currency,
-            bank_ref=bank or ("" if customer.upper() == "NONREF" else customer),
+            bank_ref=bank or customer,
+            ref_kind="text" if customer and not bank else "id",
+            account=account,
         )
     )
 

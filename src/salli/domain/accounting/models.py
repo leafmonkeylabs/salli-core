@@ -70,6 +70,25 @@ class Account(BaseModel):
         return _currency_code(v)
 
 
+#: Accounts that hold money (a bank, cash) or owe it (a card, a loan): what a
+#: statement or a bank feed can be for.
+MONEY_TYPES: tuple[AccountType, ...] = ("asset", "liability")
+
+
+def money_account_problem(account: Account | None, ref: str) -> str | None:
+    """Why `account` (looked up by `ref`) can't take a statement's or a bank
+    feed's transactions, or None when it can: it must be active, and an
+    asset or liability account."""
+    if account is None or not account.is_active:
+        return f"No active account {ref!r}"
+    if account.type not in MONEY_TYPES:
+        return (
+            f"{account.name} is an {account.type} account. A statement is for an asset "
+            "or liability account: a bank, cash or card account."
+        )
+    return None
+
+
 # The axis a tag belongs to. One tag per axis per posting, so a spending
 # breakdown along any single axis sums to the total without double counting.
 #

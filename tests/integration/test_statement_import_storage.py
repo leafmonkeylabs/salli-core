@@ -126,9 +126,22 @@ async def test_discarded_rows_leave_review_and_history(uow_factory, chart):
     assert await parsing.discard("u1", first.statement_id) == 4
     assert await parsing.get_pending("u1") == []
 
-    # Nothing discarded counts as history: the same file again is all new.
-    again = await parsing.parse_statement(
+    # What was discarded stays gone in a statement that overlaps it...
+    overlapping = await parsing.parse_statement(
         "u1", "oct.csv", STATEMENT, account_id=chart["checking"], api_key="k"
+    )
+    assert {t.dedup_status for t in overlapping.transactions} == {"exact_duplicate"}
+
+    # ...unless the statement is imported again on purpose, replacing the
+    # import it was discarded from: then it is all new, and that import's
+    # rows still in review are discarded.
+    again = await parsing.parse_statement(
+        "u1",
+        "oct.csv",
+        STATEMENT,
+        account_id=chart["checking"],
+        api_key="k",
+        replaces=first.statement_id,
     )
     assert {t.dedup_status for t in again.transactions} == {"pending"}
 
@@ -154,3 +167,53 @@ async def test_a_choice_is_stored_and_posted_as_chosen(uow_factory, chart):
     async with uow_factory() as uow:
         [entry] = [e for e in await uow.ledger.get_entries("u1") if e.id == entry_id]
     assert {p.account_id for p in entry.postings} == {transport, chart["checking"]}
+
+
+async def test_two_approvals_at_once_post_each_row_once(uow_factory, chart):
+    import asyncio
+
+    parsing = ParsingService(uow_factory)
+    first = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=chart["checking"], api_key="k"
+    )
+    ids = [t.id for t in first.transactions]
+    posted = await asyncio.gather(
+        parsing.post_approved("u1", ids), parsing.post_approved("u1", ids)
+    )
+    assert sorted(len(p) for p in posted) == [0, 5]
+    entries = await LedgerService(uow_factory).get_entries("u1")
+    assert len(entries) == 5
+
+
+async def test_history_is_read_for_the_statements_account_in_sql(uow_factory, chart):
+    ledger = LedgerService(uow_factory)
+    savings = await ledger.add_account("u1", "1100", "Savings", "asset")
+    parsing = ParsingService(uow_factory)
+    on_savings = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=savings, api_key="k"
+    )
+    unnamed = await parsing.parse_statement("u1", "oct.csv", STATEMENT, api_key="k")
+
+    async with uow_factory() as uow:
+        rows = await uow.statements.imported_between(
+            "u1", "2026-10-01", "2026-10-31", account_id=chart["checking"]
+        )
+        replaced = await uow.statements.imported_between(
+            "u1", "2026-10-01", "2026-10-31", excluding_statement=on_savings.statement_id
+        )
+    # Not savings' rows; the account-less statement's may be on any account.
+    assert {t.statement_id for t in rows} == {unnamed.statement_id}
+    assert on_savings.statement_id not in {t.statement_id for t in replaced}
+
+
+async def test_the_data_export_carries_statements_and_their_rows(uow_factory, chart):
+    parsing = ParsingService(uow_factory)
+    first = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=chart["checking"], api_key="k"
+    )
+    await parsing.discard("u1", first.statement_id)
+    async with uow_factory() as uow:
+        [statement] = await uow.statements.export("u1")
+    assert statement["id"] == first.statement_id
+    assert {t.dedup_status for t in statement["transactions"]} == {"discarded"}
+    assert len(statement["transactions"]) == 5

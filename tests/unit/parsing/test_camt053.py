@@ -186,3 +186,28 @@ def test_other_xml_is_not_a_statement():
     ]
     (error,) = extract_from_camt053(b"<Document><BkToCstmrStmt>").errors
     assert error.startswith("This is not a readable XML file")
+
+
+def test_each_statement_is_on_its_own_account_and_entry_refs_are_text():
+    document = (
+        b'<?xml version="1.0"?><Document><BkToCstmrStmt>'
+        b"<Stmt><Acct><Id><IBAN>CH01</IBAN></Id><Ccy>CHF</Ccy></Acct>"
+        b'<Ntry><Amt Ccy="CHF">10.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts>BOOK</Sts>'
+        b"<BookgDt><Dt>2026-10-01</Dt></BookgDt><NtryRef>1</NtryRef></Ntry></Stmt>"
+        b"<Stmt><Acct><Id><Othr><Id>CARD-9</Id></Othr></Id><Ccy>CHF</Ccy></Acct>"
+        b'<Ntry><Amt Ccy="CHF">10.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts>BOOK</Sts>'
+        b"<BookgDt><Dt>2026-10-01</Dt></BookgDt><AcctSvcrRef>S-77</AcctSvcrRef></Ntry></Stmt>"
+        b"</BkToCstmrStmt></Document>"
+    )
+    result = extract_from_camt053(document)
+    assert result.accounts == ["CH01", "CARD-9"]
+    assert [(line.account, line.bank_ref, line.ref_kind) for line in result.lines] == [
+        ("CH01", "1", "text"),  # a statement's own entry number identifies nothing
+        ("CARD-9", "S-77", "id"),
+    ]
+
+
+def test_a_placeholder_date_is_reported():
+    result = extract_from_camt053(_document(_entry(date="<BookgDt><Dt>9999-12-31</Dt></BookgDt>")))
+    assert result.lines == []
+    assert "no booking or value date" in result.errors[0]

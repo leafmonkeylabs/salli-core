@@ -23,22 +23,50 @@ from salli.adapters.parsing.support import Extraction, StatementLine, decode_tex
 
 _REGISTERS = {"bank", "ccard", "cash"}
 
+# What an "!Account" record's T says the account is.
+_ACCOUNT_KINDS = {
+    "bank": "bank account",
+    "ccard": "credit card",
+    "cash": "cash",
+    "invst": "investment account",
+    "oth a": "other asset",
+    "oth l": "other liability",
+}
+
 # Registers that hold money but are not read. Saying so means a file that
 # imports nothing, or less than expected, is not a mystery.
 _UNREAD_REGISTERS = {"invst": "investment", "oth a": "other asset", "oth l": "other liability"}
 
 
-def extract_from_qif(data: bytes, *, date_order: DateOrder | None = None) -> Extraction:
-    """Every transaction in a QIF file's bank, card and cash registers.
+def extract_from_qif(
+    data: bytes, *, date_order: DateOrder | None = None, prefer_order: DateOrder = "DMY"
+) -> Extraction:
+    """Every transaction in a QIF file's bank, card and cash registers, each
+    with the account its register is for (an "!Account" record names it).
 
-    `date_order` overrides the order detected from the file's dates.
+    `date_order` overrides the order detected from the file's dates;
+    `prefer_order` is taken when they read either way.
     """
     result = Extraction()
-    records: list[tuple[int, dict[str, str]]] = []  # (line it starts on, fields)
+    records: list[tuple[int, dict[str, str], str]] = []  # (line it starts on, fields, account)
     unread: Counter[str] = Counter()
     section: str | None = None
     fields: dict[str, str] = {}
     start = 0
+    account = ""  # the account the registers that follow are for
+
+    def close(fields: dict[str, str]) -> None:
+        nonlocal account
+        if section == "account" and fields.get("N"):
+            # An account record: the registers after it are its.
+            account = fields["N"]
+            kind = _ACCOUNT_KINDS.get(fields.get("T", "").strip().lower(), "")
+            if kind:
+                result.account_kinds[account] = kind
+        elif fields and section in _REGISTERS:
+            records.append((start, fields, account))
+        elif fields and section in _UNREAD_REGISTERS:
+            unread[section] += 1
 
     for number, raw in enumerate(decode_text(data).splitlines(), 1):
         line = raw.strip()
@@ -48,14 +76,13 @@ def extract_from_qif(data: bytes, *, date_order: DateOrder | None = None) -> Ext
             header = line[1:].strip().lower()
             if header.startswith("type:"):
                 section = header[5:].strip()
+            elif header.startswith("account"):
+                section = "account"  # account records: which account follows
             elif not header.startswith(("option:", "clear:")):
-                section = header  # !Account: a list of accounts, not transactions
+                section = header
             fields = {}
         elif line.startswith("^"):
-            if fields and section in _REGISTERS:
-                records.append((start, fields))
-            elif fields and section in _UNREAD_REGISTERS:
-                unread[section] += 1
+            close(fields)
             fields = {}
         else:
             if not fields:
@@ -63,8 +90,11 @@ def extract_from_qif(data: bytes, *, date_order: DateOrder | None = None) -> Ext
             # The first of each field counts. Splits repeat S, E and $, but
             # never the date, amount, payee, memo or number.
             fields.setdefault(line[0], line[1:].strip())
-    if fields and section in _REGISTERS:  # a last record without its "^"
-        records.append((start, fields))
+    close(fields)  # a last record without its "^"
+    # The accounts the file holds transactions for (an AutoSwitch list names
+    # every account Quicken has, used or not).
+    result.accounts = list(dict.fromkeys(a for _, _, a in records if a))
+    result.account_kinds = {a: k for a, k in result.account_kinds.items() if a in result.accounts}
 
     for kind, count in unread.items():
         result.errors.append(
@@ -75,13 +105,15 @@ def extract_from_qif(data: bytes, *, date_order: DateOrder | None = None) -> Ext
     def amount_text(record: dict[str, str]) -> str:
         return record.get("T") or record.get("U") or ""
 
-    mark = detect_decimal_separator(amount_text(f) for _, f in records) or "."
+    mark = detect_decimal_separator(amount_text(f) for _, f, _ in records) or "."
     if date_order is None:
-        date_order, notice = detect_date_order(f.get("D", "") for _, f in records)
+        date_order, notice = detect_date_order(
+            (f.get("D", "") for _, f, _ in records), prefer=prefer_order
+        )
         if notice:
             result.errors.append(notice)
 
-    for first_line, record in records:
+    for first_line, record, on in records:
         label = f"QIF record at line {first_line}"
         date = parse_date(record.get("D", ""), date_order)
         if date is None:
@@ -94,16 +126,18 @@ def extract_from_qif(data: bytes, *, date_order: DateOrder | None = None) -> Ext
             continue
         if amount == 0:
             continue
-        # N is a cheque or reference number, or else a word Quicken uses in
-        # its place (ATM, DEP, EFT, Print). Only the numbers identify anything.
-        reference = record.get("N", "")
         result.lines.append(
             StatementLine(
                 date=date,
                 description=join_description(record.get("P", ""), record.get("M", "")),
                 amount=abs(amount),
                 credit_flag=amount > 0,
-                bank_ref=reference if any(ch.isdigit() for ch in reference) else "",
+                # N is a cheque number, or a word Quicken uses in its place
+                # (ATM, DEP, EFT): something the user wrote, never the bank's
+                # id for the transaction.
+                bank_ref=record.get("N", ""),
+                ref_kind="text",
+                account=on,
             )
         )
     return result

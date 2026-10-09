@@ -128,15 +128,26 @@ class Statements:
         return len(chosen)
 
     async def imported_between(
-        self, user_id: str, from_date: str, to_date: str
+        self,
+        user_id: str,
+        from_date: str,
+        to_date: str,
+        *,
+        account_id: str | None = None,
+        excluding_statement: str | None = None,
     ) -> list[ParsedTransaction]:
         return [
             replace(t)
             for t in self.rows.values()
-            if from_date <= t.raw.date <= to_date and t.dedup_status != "exact_duplicate"
+            if from_date <= t.raw.date <= to_date
+            and t.dedup_status != "exact_duplicate"
+            and (account_id is None or t.account_id in (account_id, ""))
+            and (t.statement_id != excluding_statement or t.dedup_status == "posted")
         ]
 
-    async def get_by_ids(self, user_id: str, ids: list[str]) -> list[ParsedTransaction]:
+    async def get_by_ids(
+        self, user_id: str, ids: list[str], *, for_update: bool = False
+    ) -> list[ParsedTransaction]:
         return [replace(self.rows[i]) for i in ids if i in self.rows]
 
     async def mark_posted(self, transaction_id: str, entry_id: str) -> None:
@@ -667,8 +678,10 @@ async def test_a_discarded_row_never_posts_and_leaves_review(usd_world):
     assert await service.discard(USER, "not-theirs") is None
 
 
-async def test_a_discarded_row_is_no_duplicate_of_a_later_import(world):
-    coffee = _row("BLUE BOTTLE COFFEE", "4.50")
+async def test_a_discarded_row_stays_gone_in_an_overlapping_import(world):
+    # A discarded card hold came back with the next statement export that
+    # overlapped it: discarded rows were no history for a statement.
+    coffee = _row("CARD HOLD", "4.50")
     first = await world.service().import_rows(
         USER, [coffee], bank="", account_id="checking", api_key="k"
     )
@@ -678,7 +691,7 @@ async def test_a_discarded_row_is_no_duplicate_of_a_later_import(world):
         USER, [coffee], bank="", account_id="checking", api_key="k"
     )
 
-    assert [t.dedup_status for t in again.transactions] == ["pending"]
+    assert [t.dedup_status for t in again.transactions] == ["exact_duplicate"]
 
 
 async def test_a_discarded_bank_transaction_does_not_come_back_with_the_next_sync(world):
@@ -844,3 +857,116 @@ async def test_a_choice_needs_to_know_which_of_your_accounts_moved(world):
     [txn] = result.transactions
     with pytest.raises(ValueError, match="no account"):
         await world.service().categorize(USER, [{"transaction_id": txn.id, "account_id": "food"}])
+
+
+# ── What review found ─────────────────────────────────────────────────────────
+
+
+async def test_a_refused_import_counts_no_rule_hits(world, model):
+    from salli.domain.usage import UsageLimitReached
+
+    rule = _rule(world, "uber", account_id="transport")
+    service = world.service(usage=Meter(refuse=True))
+    rows = [_row("UBER *TRIP 8H3K2", "23.40"), _row("WHOLE FOODS", "84.17")]
+    with pytest.raises(UsageLimitReached):
+        await service.import_rows(USER, rows, bank="", account_id="checking", api_key="k")
+    assert world.rules.hits == {}
+
+    await world.service().import_rows(USER, rows, bank="", account_id="checking", api_key="k")
+    assert world.rules.hits == {rule: 1}
+
+
+async def test_a_model_that_fails_leaves_the_rows_undecided(world, monkeypatch):
+    # An authentication error or a 5xx after the meter charged aborted the
+    # whole import, and left a bank feed's sync stuck.
+    async def broken(*_: Any, **__: Any) -> list[ParsedTransaction]:
+        raise RuntimeError("upstream 529 overloaded")
+
+    monkeypatch.setattr(llm_classifier, "classify_transactions", broken)
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id="checking", api_key="k"
+    )
+    [row] = result.transactions
+    assert row.debit_account_id == "" and row.credit_account_id == "checking"
+    assert any(e.startswith("The model could not be reached: RuntimeError") for e in result.errors)
+    assert not any("no AI key" in e for e in result.errors)
+
+
+async def test_with_no_key_the_message_says_so(world):
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id="checking", api_key=""
+    )
+    assert any("with no AI key set up" in e for e in result.errors)
+
+
+async def test_a_feed_row_flags_what_a_file_imported_a_day_before(world, model):
+    # The first sync after connecting a bank re-queued what an OFX file had
+    # brought in, and posting double-booked it.
+    from_file = replace(_row("POS 4821 BLUE BOTTLE SF", "4.50", bank_ref="FIT-1"), ref_source="ofx")
+    await world.service().import_rows(
+        USER, [from_file], bank="", account_id="checking", api_key="k"
+    )
+    feed = replace(
+        _row("Blue Bottle", "4.50", date="2026-10-06", bank_ref="sfin-9"),
+        ref_source="feed:simplefin",
+    )
+    synced = await world.service().import_rows(
+        USER, [feed], bank="", account_id="checking", api_key="k", keep_duplicates=False
+    )
+    [row] = synced.transactions
+    assert row.dedup_status == "fuzzy_match" and row.duplicate_of
+
+
+async def test_a_file_of_several_accounts_is_imported_one_account_at_a_time(world, model):
+    data = _fixture("quicken_us.qif")
+    # Named by the statement's account: the file's account of the same name.
+    checking = await world.service().parse_statement(
+        USER, "q.qif", data, account_id="checking", source_account="Everyday Checking"
+    )
+    assert len(checking.transactions) == 6
+    assert any("also holds others" in e for e in checking.errors)
+
+    # Nothing says which of the file's accounts the card is: refused, listed.
+    refused = await world.service().parse_statement(USER, "q.qif", data, account_id="card")
+    assert refused.statement_id == "" and refused.transactions == []
+    assert any("'Everyday Checking', 'Rewards Visa'" in e for e in refused.errors)
+
+    # No account named: imported together, and the accounts are said.
+    together = await world.service().parse_statement(USER, "q.qif", data)
+    assert len(together.transactions) == 8
+    assert any("holds 2 accounts" in e for e in together.errors)
+
+
+async def test_a_file_is_read_off_the_event_loop(world, monkeypatch):
+    # Parsing ran inside the async route and blocked every other request.
+    import asyncio
+
+    import salli.application.services.parsing_service as parsing_service
+
+    ran: list[str] = []
+    real = asyncio.to_thread
+
+    async def to_thread(func, *args, **kwargs):
+        ran.append(func.__name__)
+        return await real(func, *args, **kwargs)
+
+    monkeypatch.setattr(parsing_service.asyncio, "to_thread", to_thread)
+    await world.service().parse_statement(USER, "q.qif", _fixture("quicken_us.qif"))
+    assert ran == ["_extract"]
+
+
+async def test_a_placeholder_date_is_skipped_not_a_server_error(world):
+    # 9999-12-31 from a feed overflowed the history window's date arithmetic.
+    rows = [_row("PLACEHOLDER", "1.00", date="9999-12-31"), _row("COFFEE", "4.50")]
+    result = await world.service().import_rows(
+        USER, rows, bank="", account_id="checking", api_key="k"
+    )
+    assert [t.raw.description for t in result.transactions] == ["COFFEE"]
+    assert "Skipped 1 transaction(s) without a real date" in result.errors
+
+
+def test_shifting_a_date_past_the_calendar_stays_within_it():
+    from salli.application.services.parsing_service import _shift
+
+    assert _shift("9999-12-31", 10) == "9999-12-31"
+    assert _shift("0001-01-01", -10) == "0001-01-01"

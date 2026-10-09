@@ -17,6 +17,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Literal
+
+#: Where a parsed transaction stands. "pending": waiting for review (nothing
+#: found like it); "unique": the same, as rows saved early on say;
+#: "fuzzy_match": waiting, flagged as maybe booked already; "exact_duplicate":
+#: booked already, never posted; "posted"; "discarded" by the user.
+DedupState = Literal["pending", "unique", "fuzzy_match", "exact_duplicate", "posted", "discarded"]
 
 
 @dataclass(frozen=True)
@@ -34,6 +41,15 @@ class RawRow:
     currency: str  # ISO 4217 — the file's own where it names one, else the caller's
     bank_ref: str = ""  # reference / transaction ID from the bank
     source_page: int = 0
+    #: "id": the bank's (or feed's) own id for the transaction, which may
+    #: identify it alone; "text": a reference someone wrote (a cheque number,
+    #: a customer reference), only ever part of what the row says.
+    ref_kind: str = "id"
+    #: The account in the file the row is on, when the file holds several.
+    source_account: str = ""
+    #: Where the row came from ("ofx", "csv", "feed:simplefin"...). An id is
+    #: only compared with ids from the same kind of source.
+    ref_source: str = ""
 
 
 @dataclass
@@ -55,7 +71,7 @@ class ParsedTransaction:
     confidence: float = 1.0
     rule_id: str = ""  # the rule that decided the row, if one did
     dedup_key: str = ""  # SHA-256 idempotency key (filled by dedup module)
-    dedup_status: str = "pending"  # UNIQUE | EXACT_DUPLICATE | FUZZY_MATCH
+    dedup_status: DedupState = "pending"
     # What it duplicates: an earlier parsed transaction (exact) or a journal
     # entry (fuzzy).
     duplicate_of: str = ""

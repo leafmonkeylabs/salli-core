@@ -146,10 +146,41 @@ class DataPortabilityService:
             "advisor_reports": await self._advisor.list_reports(user_id),
             "reminders_and_alerts": await self._reminders.list_reminders(user_id),
             "documents": await self._documents.list_documents(user_id),
+            "statements": await self._statements(user_id),
+            "bank_connections": await self._bank_connections(user_id),
         }
         for export in self._exporters:
             data.update(await export(user_id))
         return data
+
+    async def _statements(self, user_id: str) -> list[dict[str, Any]]:
+        """Every imported statement with its parsed transactions, in any state
+        (the account deletion removes them too)."""
+        from salli.application.services.parsing_service import transaction_view
+
+        async with self._uow_factory() as uow:
+            statements = await uow.statements.export(user_id)
+        return [
+            {**st, "transactions": [transaction_view(t) for t in st["transactions"]]}
+            for st in statements
+        ]
+
+    async def _bank_connections(self, user_id: str) -> list[dict[str, Any]]:
+        """Each bank connection with its accounts, their mappings and the
+        bank's last balances. Never the credential: the repository's list
+        holds none."""
+        async with self._uow_factory() as uow:
+            connections = await uow.bank_connections.list(user_id)
+        return [
+            {
+                **c,
+                "accounts": [
+                    {**a, "balance": None if a.get("balance") is None else str(a["balance"])}
+                    for a in c.get("accounts", [])
+                ],
+            }
+            for c in connections
+        ]
 
     @staticmethod
     def _computation_to_dict(computation: Any) -> dict[str, Any] | None:

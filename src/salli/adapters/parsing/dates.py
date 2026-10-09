@@ -16,9 +16,10 @@ four-digit year reads the same in any order.
 from __future__ import annotations
 
 import datetime
+import itertools
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Literal
 
 DateOrder = Literal["DMY", "MDY", "YMD"]
@@ -58,14 +59,31 @@ _MONTHS: dict[str, int] = {
     for name in names.split()
 }
 
-_TIME = r"(?:[T\s,]+\d{1,2}[:.]\d{2}.*)?"
-_NUMERIC = re.compile(r"(\d{1,4})\s*[./\-\s']\s*(\d{1,2})\s*([./\-\s'])\s*(\d{1,4})" + _TIME, re.S)
+# Dates are read after every run of whitespace is collapsed to one space (and
+# a cell longer than this is no date), so no pattern below can backtrack over
+# a long run of spaces: each separator is one mark with at most one space on
+# either side, or a single space, and the two never overlap.
+_MAX_DATE_LENGTH = 64
+_TIME = r"(?:[T ,]+\d{1,2}[:.]\d{2}.*)?"
+_SEP = r"(?: ?([./\-']) ?| ())"
+_NUMERIC = re.compile(r"(\d{1,4})" + _SEP + r"(\d{1,2})" + _SEP + r"(\d{1,4})" + _TIME, re.S)
 _COMPACT = re.compile(r"(\d{8})(?:\d{4,6})?" + _TIME, re.S)
 _DAY_MONTH_YEAR = re.compile(
-    r"(\d{1,2})(?:st|nd|rd|th)?[\s./\-]*([^\W\d_]{3,})\.?[\s./\-,]*(\d{4}|\d{2})" + _TIME, re.S
+    r"(\d{1,2})(?:st|nd|rd|th)?[ ./\-]*([^\W\d_]{3,})\.?[ ./\-,]*(\d{4}|\d{2})" + _TIME, re.S
 )
+# The day must stand apart from the year: "October 2026" is a month, not the
+# 20th of October '26.
 _MONTH_DAY_YEAR = re.compile(
-    r"([^\W\d_]{3,})\.?[\s./\-]*(\d{1,2})(?:st|nd|rd|th)?[\s./\-,]*(\d{4}|\d{2})" + _TIME, re.S
+    r"([^\W\d_]{3,})\.?[ ./\-]*(\d{1,2})(?:st|nd|rd|th)?[ ./\-,]+(\d{4}|\d{2})" + _TIME, re.S
+)
+# A date somewhere in a longer cell ("02/10/2026*", "Mon 01/10/2026", two
+# stacked dates): numbers with separators, eight digits, or a named month.
+# Searched at every position (a lookahead), so "Mon 01/10/2026" finds the
+# date after "Mon 01" fails to be one.
+_DATE_TOKEN = re.compile(
+    r"(?=((?<![\d.,])(?:\d{1,4}[./\-]\d{1,2}[./\-]\d{2,4}|\d{8})(?![\d.,])"
+    r"|(?<!\d)\d{1,2}(?:st|nd|rd|th)?[ ./\-]+[^\W\d_]{3,}\.?[ ./\-,]*\d{2,4}(?!\d)"
+    r"|(?<![^\W\d_])[^\W\d_]{3,}\.?[ ./\-]*\d{1,2}(?:st|nd|rd|th)?[ ./\-,]+\d{2,4}(?!\d)))"
 )
 
 
@@ -88,24 +106,70 @@ def candidate_orders(text: str) -> frozenset[DateOrder] | None:
     empty when it looks like one but is not (31/31/2026). A date that names its
     month or starts with a four-digit year fits every order.
     """
-    s = text.strip()
+    s = _squeezed(text)
+    if s is None:
+        return None
     if _named(s) is not None or _numbers(s) is not None:
         return frozenset(o for o in DATE_ORDERS if _date(s, o) is not None)
     return None
 
 
-def detect_date_order(values: Iterable[str]) -> tuple[DateOrder, str | None]:
+def find_date(text: str) -> str | None:
+    """The first date-shaped part of a longer cell ("02/10/2026*",
+    "Mon 01/10/2026", "01/10/2026\n02/10/2026": the first, the transaction
+    date), or None. The cell itself when it is a date already."""
+    if candidate_orders(text) is not None:
+        return text
+    s = " ".join(text.split())[: _MAX_DATE_LENGTH * 4]
+    for match in _DATE_TOKEN.finditer(s):
+        if candidate_orders(match.group(1)) is not None:
+            return match.group(1)
+    return None
+
+
+def default_order(currency: str | None) -> DateOrder:
+    """The order to fall back on when a file's dates read more than one way:
+    month first for dollar statements (the United States writes them so),
+    day first everywhere else."""
+    return "MDY" if (currency or "").upper() == "USD" else "DMY"
+
+
+# A reading whose dates leave a gap this long between two consecutive ones is
+# no statement's, when another reading leaves none: 01/05/2025..02/05/2026
+# day-first is twelve days in May 2025 and two in May 2026.
+_MAX_GAP_DAYS = 183
+# Two-digit years read the wrong way round scatter a file over decades.
+_MAX_SPREAD_DAYS = 5 * 366
+# How far past today a statement's date can be (a card's next posting date).
+_FUTURE_DAYS = 30
+
+
+def detect_date_order(
+    values: Iterable[str],
+    *,
+    prefer: DateOrder = "DMY",
+    today: datetime.date | None = None,
+) -> tuple[DateOrder, str | None]:
     """The order a file's dates are written in, and a notice if it was a guess.
 
-    The order is the one in which every date is real. When more than one
-    fits, the one that keeps the dates closest together wins: a statement
-    covers weeks or months, and reading it the wrong way round scatters its
-    dates (10/01 to 10/09 are nine days in October, or the 10th of nine
-    different months). A reading that spreads them over more than a year is
-    no real alternative to one that does not — 01.10.26 to 30.10.26 are not
-    the 26th of October in 2001 to 2030 — so it is dropped without comment.
-    Otherwise the choice is a guess, and is said, so the user can import
-    again with the order set. A tie goes to day-first.
+    `values` are the file's dates in the order its rows give them. The order
+    is one in which every date is real; when several are, the readings are
+    weighed in turn, each test only ever narrowing them:
+
+    1. plausibility: no date more than a month in the future, and not spread
+       over decades (01.10.26 to 30.10.26 are not the 26th of October in
+       2001 to 2030);
+    2. agreement with the rows' order: a statement lists its transactions in
+       date order, oldest or newest first, so a reading that keeps them
+       sorted wins over one that does not ('15.01.25'..'15.02.26' read
+       year-first goes back in time at each new year);
+    3. no gap of half a year between consecutive dates when another reading
+       has none.
+
+    What is left after that is genuinely ambiguous (05/07, 05/08, 05/09 are
+    three days in May or the 5th of three months), and is read in `prefer`,
+    the order the statement's country writes (`default_order`). That is a
+    guess, and is said, so the user can import again with the order set.
     """
     dated: list[tuple[str, frozenset[DateOrder]]] = []
     for value in values:
@@ -119,16 +183,39 @@ def detect_date_order(values: Iterable[str]) -> tuple[DateOrder, str | None]:
         most: DateOrder = max(DATE_ORDERS, key=lambda o: sum(o in orders for _, orders in dated))
         return most, None
 
-    def spread(order: DateOrder) -> int:
-        days = [d for d in (_date(value, order) for value, _ in dated) if d is not None]
+    readings: dict[DateOrder, list[datetime.date]] = {
+        o: [d for d in (_date(value, o) for value, _ in dated) if d is not None] for o in fits
+    }
+    latest = (today or datetime.date.today()) + datetime.timedelta(days=_FUTURE_DAYS)
+
+    def narrowed(keep: Callable[[DateOrder], bool]) -> None:
+        nonlocal fits
+        kept: list[DateOrder] = [o for o in fits if keep(o)]
+        if kept:
+            fits = kept
+
+    def spread(o: DateOrder) -> int:
+        days = readings[o]
         return (max(days) - min(days)).days if days else 0
 
-    within_a_year: list[DateOrder] = [o for o in fits if spread(o) <= 366]
-    if within_a_year:
-        fits = within_a_year
+    def in_order(o: DateOrder) -> int:
+        days = readings[o]
+        pairs = list(itertools.pairwise(days))
+        return max(sum(a <= b for a, b in pairs), sum(a >= b for a, b in pairs))
+
+    def widest_gap(o: DateOrder) -> int:
+        days = sorted(readings[o])
+        return max(((b - a).days for a, b in itertools.pairwise(days)), default=0)
+
+    narrowed(lambda o: all(d <= latest for d in readings[o]))
+    narrowed(lambda o: spread(o) <= _MAX_SPREAD_DAYS)
+    most_in_order = max(in_order(o) for o in fits)
+    narrowed(lambda o: in_order(o) == most_in_order)
+    narrowed(lambda o: widest_gap(o) <= _MAX_GAP_DAYS)
+
+    best: DateOrder = prefer if prefer in fits else fits[0]
     if len(fits) == 1:
-        return fits[0], None
-    best: DateOrder = min(fits, key=spread)
+        return best, None
     # Only a date that reads differently in the orders still in play is
     # evidence of a guess; 05/05/2026 is the same day either way.
     example = next(
@@ -145,8 +232,18 @@ def detect_date_order(values: Iterable[str]) -> tuple[DateOrder, str | None]:
     )
 
 
+def _squeezed(text: str) -> str | None:
+    """`text` with its whitespace collapsed, or None if too long to be a date."""
+    if len(text) > _MAX_DATE_LENGTH * 4:
+        return None
+    s = " ".join(text.split())
+    return s if len(s) <= _MAX_DATE_LENGTH else None
+
+
 def _date(text: str, order: DateOrder) -> datetime.date | None:
-    s = text.strip()
+    s = _squeezed(text)
+    if s is None:
+        return None
     named = _named(s)
     if named is not None:
         return _real(*named)
@@ -175,12 +272,14 @@ def _numbers(s: str) -> tuple[str, str, str, bool] | None:
     the last one is marked as the year (Quicken writes 10/ 1'26)."""
     match = _NUMERIC.fullmatch(s)
     if match:
-        return match.group(1), match.group(2), match.group(4), match.group(3) == "'"
+        return match.group(1), match.group(4), match.group(7), match.group(5) == "'"
     match = _COMPACT.fullmatch(s)
     if match:
         digits = match.group(1)
-        # 20261001 leads with its year; 01102026 ends with it.
-        if 1900 <= int(digits[:4]) <= 2100:
+        # 20261001 leads with its year; 01102026 ends with it. Eight digits
+        # that are no real year-month-day (19102026: the 19th of October)
+        # end with the year.
+        if _real(int(digits[:4]), int(digits[4:6]), int(digits[6:])) is not None:
             return digits[:4], digits[4:6], digits[6:], False
         return digits[:2], digits[2:4], digits[4:], True
     return None

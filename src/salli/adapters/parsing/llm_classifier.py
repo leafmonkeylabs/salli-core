@@ -14,7 +14,7 @@ for manual review. The caller still checks every id it returns against the chart
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from salli.domain.ai_models import EXTRACTION_MODEL
 from salli.domain.parsing.models import ParsedTransaction, RawRow
@@ -192,9 +192,24 @@ def _parse_response(text: str) -> dict[int, dict[str, Any]]:
         text = text.rstrip("`").strip()
 
     try:
-        items = json.loads(text)
-        if not isinstance(items, list):
-            return {}
-        return {int(item["index"]): item for item in items if "index" in item}
-    except (json.JSONDecodeError, KeyError, ValueError):
+        items: Any = json.loads(text)
+    except json.JSONDecodeError:
         return {}
+    if not isinstance(items, list):
+        return {}
+    # The model only ever proposes, and may answer badly: an item that is
+    # not an object, or whose index is not a number, is left out, so its
+    # row stays undecided rather than failing the whole import.
+    parsed: dict[int, dict[str, Any]] = {}
+    for item in cast(list[Any], items):
+        if not isinstance(item, dict):
+            continue
+        entry = cast(dict[str, Any], item)
+        index = entry.get("index")
+        if isinstance(index, bool) or not isinstance(index, (int, str)):
+            continue
+        try:
+            parsed[int(index)] = entry
+        except ValueError:
+            continue
+    return parsed

@@ -22,6 +22,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -245,6 +246,12 @@ class ParsedTransactionORM(Base):
 
     statement: Mapped[StatementORM] = relationship(
         "StatementORM", back_populates="parsed_transactions"
+    )
+
+    __table_args__ = (
+        Index("ix_parsed_transactions_statement_id", "statement_id"),
+        # What every import searches its history by: the row's date.
+        Index("ix_parsed_transactions_date", text("(extracted_json ->> 'date')")),
     )
 
 
@@ -979,9 +986,23 @@ class BankConnectionORM(Base):
     credential_sealed: Mapped[str] = mapped_column(Text, nullable=False)
     key_version: Mapped[int] = mapped_column(Integer, nullable=False)
     # active: syncs. error: the last sync failed (last_error says why).
+    # attention: it synced, but the institution reported a problem or an
+    # account could not be imported (warnings, last_error).
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What the provider asked to show the user at the last sync.
+    warnings: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When a sync last started, successful or not: the scheduler backs off
+    # from it.
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A sync running now holds the connection until then, so a second one
+    # (an overlapping cron run, a double click) can't fetch it again.
+    sync_claimed_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -1011,6 +1032,14 @@ class BankConnectionAccountORM(Base):
     # The bank's balance at its last sync, for reconciling against the ledger.
     balance_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     balance_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When its transactions were last imported in full: the next sync fetches
+    # from a little before. Null until its first import (a newly mapped
+    # account gets the first sync's window).
+    last_imported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Why its last import failed, if it did.
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

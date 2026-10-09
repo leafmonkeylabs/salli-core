@@ -34,6 +34,17 @@ def trial_balance(entries: list[StoredJournalEntry]) -> dict[str, Decimal]:
     return dict(balances)
 
 
+def owned_and_owed(account_type: AccountType, balance: Decimal) -> tuple[Decimal, Decimal]:
+    """(owned, owed) for an account's signed base balance, judged on its own
+    sign: what is in debit is owned, what is in credit is owed, so an
+    overdrawn bank account is debt, not a smaller asset, and an overpaid card
+    is money owned. Accounts other than assets and liabilities are neither.
+    The one rule net worth is told by, wherever it is told."""
+    if account_type not in ("asset", "liability"):
+        return Decimal(0), Decimal(0)
+    return (balance, Decimal(0)) if balance >= 0 else (Decimal(0), -balance)
+
+
 def assert_trial_balance(entries: list[StoredJournalEntry]) -> None:
     """Raise if the trial balance does not net to zero."""
     total = sum(trial_balance(entries).values(), Decimal(0))

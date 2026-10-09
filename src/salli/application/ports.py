@@ -6,11 +6,12 @@ Adapters (in salli/adapters/) implement these; the domain never imports adapters
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict
 
 from salli.domain.usage import AIAction
 
@@ -40,6 +41,20 @@ class LedgerRepository(ABC):
     async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
         """Mark an entry as reversed by another entry."""
         ...
+
+    async def posting_totals(
+        self, user_id: str, account_ids: Collection[str]
+    ) -> list[tuple[str, str, Decimal, Decimal]]:
+        """For each of these accounts and each currency posted to it: (account
+        id, currency, the signed total in that currency, the signed total in
+        the base currency), summed by the store over every entry."""
+        raise NotImplementedError
+
+    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
+        """Each account's signed base-currency balance from every entry dated
+        before `before` (YYYY-MM-DD): debits up, credits down, exactly as
+        `Posting.base_signed` sums them. Summed by the store, not loaded."""
+        raise NotImplementedError
 
     @abstractmethod
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
@@ -169,11 +184,24 @@ class StatementRepository(ABC):
         ...
 
     @abstractmethod
-    async def imported_between(self, user_id: str, from_date: str, to_date: str) -> list[Any]:
+    async def imported_between(
+        self,
+        user_id: str,
+        from_date: str,
+        to_date: str,
+        *,
+        account_id: str | None = None,
+        excluding_statement: str | None = None,
+    ) -> list[Any]:
         """The user's parsed transactions dated `from_date`..`to_date`, what a
-        new import is checked against for duplicates. Not the discarded ones,
-        which never happened, nor those already found to duplicate another:
-        that one stands for both."""
+        new import is checked against for duplicates: the discarded ones too
+        (a discarded card hold is still that transaction), but not those
+        already found to duplicate another, which that one stands for.
+
+        With `account_id`, only rows on that account or on a statement with
+        no account (which may be on any). `excluding_statement`'s rows are
+        left out unless posted: a statement being imported again on purpose
+        does not duplicate itself."""
         ...
 
     @abstractmethod
@@ -194,7 +222,13 @@ class StatementRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]: ...
+    async def get_by_ids(
+        self, user_id: str, ids: list[str], *, for_update: bool = False
+    ) -> list[Any]:
+        """The user's parsed transactions with these ids. `for_update` locks
+        them until the unit of work ends, so two approvals of the same rows
+        post them once: the second waits, then reads them posted."""
+        ...
 
     @abstractmethod
     async def set_choice(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> None:
@@ -213,6 +247,11 @@ class StatementRepository(ABC):
 
     @abstractmethod
     async def mark_posted(self, transaction_id: str, entry_id: str) -> None: ...
+
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every statement of the user's, each with all its parsed
+        transactions whatever their state, for the data export."""
+        raise NotImplementedError
 
     @abstractmethod
     async def get_statement(self, user_id: str, statement_id: str) -> dict[str, Any] | None:
@@ -270,6 +309,24 @@ class FxQuote:
     rate: Decimal
     source: str
     as_of: str
+
+
+class ProfileMissing(LookupError):
+    """The user has no profile row yet, so nothing that needs one (a base
+    currency, a setting) can be read or written. Callers create it first:
+    `UserProfileService.ensure_user`, which `salli setup` and onboarding run."""
+
+    def __init__(self, user_id: str) -> None:
+        super().__init__(f"User {user_id} has no profile")
+        self.user_id = user_id
+
+
+class AccountCodeTaken(ValueError):
+    """The user already has an account with this code (active or not)."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(f"An account with code {code} already exists")
+        self.code = code
 
 
 class FxUnavailableError(LookupError):
@@ -398,10 +455,10 @@ class UserProfileRepository(ABC):
         ...
 
     async def base_currency(self, user_id: str) -> str:
-        """The ISO code the user's amounts are kept in. `LookupError` if no profile."""
+        """The ISO code the user's amounts are kept in. `ProfileMissing` if none."""
         profile = await self.get(user_id)
         if not profile or not profile.get("base_currency"):
-            raise LookupError(f"User {user_id} has no profile")
+            raise ProfileMissing(user_id)
         return str(profile["base_currency"])
 
     async def has_financial_data(self, user_id: str) -> bool:
@@ -685,6 +742,21 @@ class OAuthClientRepository(ABC):
     async def get(self, client_id: str) -> dict[str, Any] | None: ...
 
 
+class McpConnectionRow(TypedDict):
+    """One connected client grant (a client, for one resource)."""
+
+    #: The newest access token of the grant: what revoking it takes.
+    token_id: str
+    client_id: str
+    #: As the client registered itself; "Unnamed app" when it gave no name.
+    client_name: str
+    scope: str
+    #: The resource it was issued for: None or the MCP URL for an AI client,
+    #: the API's for the user's own CLI.
+    resource: str | None
+    connected_at: datetime
+
+
 class OAuthTokenRepository(ABC):
     @abstractmethod
     async def save_authorization_code(
@@ -743,7 +815,8 @@ class OAuthTokenRepository(ABC):
 
     @abstractmethod
     async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
-        """None if missing, expired, or revoked."""
+        """None if missing, expired, or revoked — or if the access token it
+        was issued with has been revoked."""
         ...
 
     @abstractmethod
@@ -755,12 +828,30 @@ class OAuthTokenRepository(ABC):
     async def revoke_refresh_token(self, token_hash: str) -> None: ...
 
     @abstractmethod
+    async def token_exists(self, token_hash: str) -> bool:
+        """Whether an access or refresh token with this hash was ever issued,
+        expired, revoked or for any resource."""
+        ...
+
+    @abstractmethod
+    async def get_access_token_by_id(self, token_id: str, user_id: str) -> dict[str, Any] | None:
+        """The user's access token row by id, whatever its state (expired or
+        revoked included), with its client and resource. None if not theirs."""
+        ...
+
+    @abstractmethod
+    async def revoke_client_grant(self, user_id: str, client_id: str, resource: str | None) -> int:
+        """Revoke every access and refresh token this client holds for this
+        user and resource. Returns how many it revoked."""
+        ...
+
+    @abstractmethod
     async def list_active_connections(
         self, user_id: str, resource: str | None = None
-    ) -> list[dict[str, Any]]:
-        """Active (non-revoked, non-expired) client connections for a user,
-        one row per access token, joined with the client's display name. With
-        `resource`, only tokens issued for it."""
+    ) -> list[McpConnectionRow]:
+        """Connected clients for a user: one row per client grant (client and
+        resource) holding a live access token or a live refresh token, joined
+        with the client's display name. With `resource`, only grants for it."""
         ...
 
     # Device authorization (RFC 8628). Not abstract: only a server that offers
@@ -801,6 +892,8 @@ class RemoteAccount:
     remote_id: str
     name: str
     institution: str
+    #: An ISO 4217 code, normalised by the connector; or a provider's own unit
+    #: (points, miles) as it gave it, which `is_currency` says no ledger holds.
     currency: str
     balance: Decimal
     balance_date: datetime | None
@@ -823,6 +916,9 @@ class BankSnapshot:
     #: Messages the provider asks to show the user (a connection needing
     #: re-authentication, an account it could not reach). Already sanitized.
     warnings: list[str]
+    #: Accounts whose institution reported a problem: what came back for
+    #: them may be incomplete, so their import marker is not moved on.
+    troubled: frozenset[str] = frozenset()
 
 
 class BankLinkError(Exception):
@@ -880,9 +976,29 @@ class BankConnectionRepository(ABC):
     async def delete(self, user_id: str, connection_id: str) -> bool: ...
 
     @abstractmethod
-    async def list_due(self, synced_before: datetime) -> list[tuple[str, str]]:
-        """(user id, connection id) of every connection, anyone's, never
-        synced or last synced before `synced_before`. For the scheduler."""
+    async def list_due(
+        self, attempted_before: datetime, failed_before: datetime, now: datetime
+    ) -> list[tuple[str, str]]:
+        """(user id, connection id) of every connection, anyone's, due a sync:
+        never attempted or last attempted before `attempted_before`, one in
+        error only if attempted before `failed_before`, and none another sync
+        holds (`claim`). For the scheduler."""
+        ...
+
+    @abstractmethod
+    async def claim(self, user_id: str, connection_id: str, now: datetime, until: datetime) -> bool:
+        """Hold the connection for a sync until `until`, and record the
+        attempt. False when another sync holds it."""
+        ...
+
+    @abstractmethod
+    async def release(self, user_id: str, connection_id: str) -> None: ...
+
+    @abstractmethod
+    async def update_account(
+        self, user_id: str, connection_id: str, remote_id: str, fields: dict[str, Any]
+    ) -> None:
+        """Set a bank account's `last_imported_at` or `notes`."""
         ...
 
 
