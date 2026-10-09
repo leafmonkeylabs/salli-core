@@ -85,6 +85,8 @@ PLACES = 18
 INTEGER_DIGITS = 20
 _STEP = Decimal(1).scaleb(-PLACES)
 _LIMIT = Decimal(10) ** INTEGER_DIGITS
+#: Money is stored as BIGINT minor units (at most 4 places): under 10¹⁴ fits.
+MONEY_LIMIT = Decimal(10) ** 14
 #: Places a partly consumed lot's share of its cost is rounded to: more than
 #: any product of three 18-place numbers has, so a share that divides exactly
 #: (the same price in and out) is never rounded at all.
@@ -170,17 +172,21 @@ def check_number(name: str, value: Decimal, *, positive: bool = False) -> None:
         raise TransactionError(f"{name} must be {'positive' if positive else 'zero or more'}")
     if value >= _LIMIT:
         raise TransactionError(f"{name} must be less than 10^{INTEGER_DIGITS}")
-    # Trailing zeros are not places: "1.50000000000000000000" is 1.5.
-    exponent = value.normalize(EXACT).as_tuple().exponent
-    if isinstance(exponent, int) and exponent < -PLACES:
+    # Trailing zeros are not places ("1.50000000000000000000" is 1.5), and a
+    # value too small for 18 places (1E-999999999) does not round to one.
+    if value.quantize(_STEP, context=EXACT) != value:
         raise TransactionError(f"{name} has more than {PLACES} decimal places")
 
 
-def _check_money(name: str, value: Decimal, *, positive: bool = False) -> None:
+def check_amount(name: str, value: Decimal, *, positive: bool = False) -> None:
+    """An amount of money Salli can keep: finite, not negative (or positive),
+    and under 10¹⁴, so its minor units fit a BIGINT in any currency."""
     if not value.is_finite():
         raise TransactionError(f"{name} must be an amount, not {value}")
     if value < 0 or (positive and value == 0):
         raise TransactionError(f"{name} must be {'positive' if positive else 'zero or more'}")
+    if value >= MONEY_LIMIT:
+        raise TransactionError(f"{name} must be less than 10^14")
 
 
 def validate(tx: Transaction) -> None:
@@ -190,13 +196,13 @@ def validate(tx: Transaction) -> None:
     if tx.kind in (Kind.BUY, Kind.SELL):
         check_number("quantity", tx.quantity, positive=True)
         check_number("price", tx.price)
-        _check_money("fees", tx.fees)
+        check_amount("fees", tx.fees)
     elif tx.kind is Kind.TRANSFER_IN:
         check_number("quantity", tx.quantity, positive=True)
-        _check_money("cost", tx.amount)
+        check_amount("cost", tx.amount)
     elif tx.kind in INCOME:
-        _check_money("amount", tx.amount, positive=True)
-        _check_money("withholding_tax", tx.withholding_tax)
+        check_amount("amount", tx.amount, positive=True)
+        check_amount("withholding_tax", tx.withholding_tax)
         if tx.withholding_tax > tx.amount:
             raise TransactionError("withholding_tax cannot exceed the amount")
     else:  # split

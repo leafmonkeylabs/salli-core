@@ -244,3 +244,56 @@ async def test_a_holding_from_before_reads_as_it_did(upgraded_with_a_holding):
     )
     assert (holding["tracking"], holding["native"]["currency"]) == ("declared", "EUR")
     assert (summary["total_value"], summary["total_gain"]) == ("1250.50", "250.50")
+
+
+async def test_two_sales_of_the_same_units_at_once_cannot_both_stand(uow_factory, monkeypatch):
+    import asyncio
+
+    from salli.adapters.db.repositories import SQLHoldingTransactionRepository
+    from salli.domain.portfolio.lots import TransactionError
+
+    await _profile(uow_factory, "USD")
+    svc = PortfolioService(uow_factory)
+    holding = await _holding(svc)
+    await svc.add_transaction(
+        USER, holding, {"kind": "buy", "date": "2026-01-05", "quantity": "1", "price": "1"}
+    )
+
+    # The race at its worst: each sale reads the history before either is
+    # saved. Unlocked, both would see the unit and both be stored; locked,
+    # the second waits (the barrier gives up after a second) and then sees
+    # the first.
+    barrier = asyncio.Barrier(2)
+    read = SQLHoldingTransactionRepository.list
+
+    async def read_then_wait(self, user_id, holding_id=None):
+        rows = await read(self, user_id, holding_id)
+        if holding_id is not None:
+            try:
+                await asyncio.wait_for(barrier.wait(), 1)
+            except TimeoutError:
+                pass
+        return rows
+
+    monkeypatch.setattr(SQLHoldingTransactionRepository, "list", read_then_wait)
+    sale = {"kind": "sell", "date": "2026-01-06", "quantity": "1", "price": "2"}
+    results = await asyncio.gather(
+        svc.add_transaction(USER, holding, sale),
+        svc.add_transaction(USER, holding, sale),
+        return_exceptions=True,
+    )
+    assert sum(isinstance(r, str) for r in results) == 1
+    assert sum(isinstance(r, TransactionError) for r in results) == 1
+    lots = await svc.get_lots(USER, holding)
+    assert lots is not None and lots["quantity"] == "0"
+
+
+async def test_a_symbol_has_a_close_a_day_in_each_currency(uow_factory):
+    await _profile(uow_factory, "USD")
+    svc = PortfolioService(uow_factory)
+    on = {"symbol": "BTC", "date": "2026-02-01"}
+    usd = await svc.set_price(USER, {**on, "close": "200", "currency": "USD"})
+    eur = await svc.set_price(USER, {**on, "close": "180", "currency": "EUR"})
+    again = await svc.set_price(USER, {**on, "close": "201", "currency": "USD"})
+    assert usd == again != eur
+    assert sorted(p["close"] for p in await svc.list_prices(USER, "BTC")) == ["180", "201"]

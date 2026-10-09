@@ -347,3 +347,12 @@ async def test_the_export_has_every_holdings_transactions():
         (one, h, "USD"),
         (two, lkr, "LKR"),
     ]
+
+
+async def test_every_change_to_a_history_holds_the_holding_first():
+    svc, uow, _ = _service()
+    h = await _holding(svc)
+    tx_id = await _add(svc, h, kind="buy", date="2026-01-05", quantity="1", price="1")
+    await svc.update_transaction(USER, h, tx_id, {"price": "2"})
+    await svc.delete_transaction(USER, h, tx_id)
+    assert uow.holdings.locked == [h, h, h]

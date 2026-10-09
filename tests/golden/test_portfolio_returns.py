@@ -106,3 +106,14 @@ def test_no_rate_without_money_both_ways_or_over_time():
     assert xirr([Flow(date(2021, 1, 1), D(-100)), Flow(date(2022, 1, 1), D(-5))]) is None
     assert xirr([Flow(date(2021, 1, 1), D(-100)), Flow(date(2021, 1, 1), D(110))]) is None
     assert xirr([]) is None
+
+
+def test_rates_over_days_are_found_however_far_they_annualise():
+    # −10% in a day and +100% in three both annualise past e^±30: the search
+    # widens with the flows' span rather than coming back empty.
+    loss = xirr([Flow(date(2026, 1, 1), D(-100)), Flow(date(2026, 1, 2), D(90))])
+    assert loss is not None and abs(loss - (D("0.9") ** 365 - 1)) < D("1e-15")
+    gain = xirr([Flow(date(2026, 1, 1), D(-100)), Flow(date(2026, 1, 4), D(200))])
+    assert gain is not None
+    expected = D(2) ** (D(365) / D(3)) - 1
+    assert abs(gain / expected - 1) < D("1e-14")

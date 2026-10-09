@@ -340,7 +340,7 @@ class HoldingLots(BaseModel):
 
 class PriceRequest(BaseModel):
     """A closing price, as quoted that day. Recording another for the same
-    symbol and day replaces it."""
+    symbol, currency and day replaces it."""
 
     symbol: str = Field(min_length=1, max_length=20)
     close: DecimalIn

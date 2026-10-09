@@ -19054,7 +19054,7 @@
           "close"
         ],
         "title": "PriceRequest",
-        "description": "A closing price, as quoted that day. Recording another for the same\nsymbol and day replaces it."
+        "description": "A closing price, as quoted that day. Recording another for the same\nsymbol, currency and day replaces it."
       },
       "Profile": {
         "properties": {

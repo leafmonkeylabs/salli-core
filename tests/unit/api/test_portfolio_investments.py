@@ -240,3 +240,23 @@ async def test_the_old_paths_still_reach_the_new_routes(client, mock_services):
     h = await _holding(client)
     r = await client.get(f"/portfolio/{h}/transactions", headers=AUTH)
     assert (r.status_code, r.headers.get("Deprecation")) == (200, "true")
+
+
+async def test_numbers_out_of_range_are_422s_not_500s(client, mock_services):
+    _service(mock_services)
+    h = await _holding(client)
+    lot = await _transaction(client, h, kind="buy", date="2026-01-05", quantity="1", price="1")
+    for body in (
+        {"kind": "dividend", "date": "2026-01-06", "amount": "1e20"},
+        {"kind": "dividend", "date": "2026-01-06", "amount": "1e999999999"},
+        {"kind": "buy", "date": "2026-01-06", "quantity": "1e-999999999", "price": "1"},
+        {
+            "kind": "sell",
+            "date": "2026-01-06",
+            "quantity": "1",
+            "price": "1",
+            "lots": [{"lot_id": lot, "quantity": "1e999999999"}],
+        },
+    ):
+        r = await client.post(f"/v1/portfolio/{h}/transactions", json=body, headers=AUTH)
+        assert r.status_code == 422, body

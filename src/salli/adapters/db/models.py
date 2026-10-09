@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -826,7 +827,7 @@ class HoldingTransactionORM(Base):
     split_from: Mapped[Decimal | None] = mapped_column(Numeric(38, 18), nullable=True)
     # A sale's named lots, [{"lot_id": …, "quantity": "1.5"}]; empty is FIFO.
     # Quantities are decimal strings: a JSON number is a float to most readers.
-    lots: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    lots: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     # Base currency per unit of the holding's, on the transaction's date: the
     # one given, or the published one (see application/fx.py).
     fx_rate: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=1)
@@ -865,8 +866,8 @@ class HoldingTransactionORM(Base):
 
 class HoldingPriceORM(Base):
     """A closing price for a symbol on a day, as the user recorded it (or a
-    provider gave it, when the user asked for a refresh). One per user, symbol
-    and day: recording another replaces it. The price is as quoted that day,
+    provider gave it, when the user asked for a refresh). One per user,
+    symbol, currency and day: recording another replaces it. The price is as quoted that day,
     not adjusted for later splits (the domain adjusts), and like a
     transaction's unit price it is an exact NUMERIC(38, 18), not money in
     minor units."""
@@ -890,8 +891,14 @@ class HoldingPriceORM(Base):
     )
 
     __table_args__ = (
+        # One close a day per symbol and currency: a symbol held in two
+        # currencies (a fund listed in USD and in EUR) has a price in each.
         UniqueConstraint(
-            "user_id", "symbol", "price_date", name="uq_holding_prices_user_symbol_date"
+            "user_id",
+            "symbol",
+            "currency",
+            "price_date",
+            name="uq_holding_prices_user_symbol_currency_date",
         ),
         CheckConstraint("close > 0", name="ck_holding_prices_close"),
         CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_holding_prices_currency"),

@@ -828,6 +828,11 @@ class PortfolioRepository(ABC):
         """Delete the holding, and with it its transactions."""
         ...
 
+    async def lock(self, user_id: str, holding_id: str) -> None:
+        """Hold the holding against concurrent changes to its history until
+        the unit of work ends. A store with no concurrency need not."""
+        return None
+
 
 class HoldingTransactionRepository(ABC):
     """Holdings' transactions, as plain dicts of their stored columns: money in
@@ -857,14 +862,14 @@ class HoldingTransactionRepository(ABC):
 
 
 class HoldingPriceRepository(ABC):
-    """The closing prices a user keeps, one per symbol and day, as plain
+    """The closing prices a user keeps, one per symbol, currency and day, as plain
     dicts: symbol (upper case), price_date (YYYY-MM-DD), close (Decimal),
     currency, source."""
 
     @abstractmethod
     async def upsert(self, user_id: str, price: dict[str, Any]) -> str:
-        """Record a close; one already recorded for that symbol and day is
-        replaced. Returns its id."""
+        """Record a close; one already recorded for that symbol, currency and
+        day is replaced. Returns its id."""
         ...
 
     @abstractmethod

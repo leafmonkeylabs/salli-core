@@ -3490,7 +3490,7 @@ def portfolio_prices_set(
         None, "--currency", help="ISO 4217 (default: that of your holdings of the symbol)"
     ),
 ):
-    """Record a closing price; one already recorded for that day is replaced."""
+    """Record a closing price; one already recorded for that day, in that currency, is replaced."""
     user_id = _require_user()
     given = {"symbol": symbol, "close": close, "date": date, "currency": currency}
     data = {k: v for k, v in given.items() if v}

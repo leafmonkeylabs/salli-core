@@ -2156,6 +2156,15 @@ class SQLPortfolioRepository(PortfolioRepository):
             # Its transactions go with it (ON DELETE CASCADE).
             await self._s.delete(r)
 
+    async def lock(self, user_id: str, holding_id: str) -> None:
+        # SELECT … FOR UPDATE: a second change to the same holding's history
+        # waits here until the first commits, then checks against it.
+        await self._s.execute(
+            select(HoldingORM.id)
+            .where(HoldingORM.id == holding_id, HoldingORM.user_id == user_id)
+            .with_for_update()
+        )
+
 
 _TRANSACTION_COLUMNS = (
     "kind",
@@ -2181,7 +2190,7 @@ def _transaction_to_dict(r: HoldingTransactionORM) -> dict[str, Any]:
         "holding_id": r.holding_id,
         **{column: getattr(r, column) for column in _TRANSACTION_COLUMNS},
         "transaction_date": r.transaction_date.isoformat(),
-        "lots": list(r.lots or []),
+        "lots": [dict(pick) for pick in r.lots or []],
         "created_at": r.created_at.isoformat(),
         "updated_at": r.updated_at.isoformat(),
     }
@@ -2283,10 +2292,9 @@ class SQLHoldingPriceRepository(HoldingPriceRepository):
             pg_insert(HoldingPriceORM)
             .values(id=str(uuid.uuid4()), user_id=user_id, created_at=now, updated_at=now, **values)
             .on_conflict_do_update(
-                constraint="uq_holding_prices_user_symbol_date",
+                constraint="uq_holding_prices_user_symbol_currency_date",
                 set_={
                     "close": values["close"],
-                    "currency": values["currency"],
                     "source": values["source"],
                     "updated_at": now,
                 },

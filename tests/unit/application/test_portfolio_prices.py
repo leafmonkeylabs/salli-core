@@ -219,3 +219,37 @@ async def test_a_holding_declared_by_value_keeps_its_figures():
         "100.00",
     )
     assert await svc.get_valuation("someone-else", h) is None
+
+
+async def test_a_holding_is_valued_the_same_alone_or_among_the_others():
+    # A's close on 2 March has no published rate here, but B's purchase that
+    # day carries one: it values A whichever holdings are asked for.
+    svc, _, _ = _service("LKR")
+    a = await _holding(svc, "AAA", "USD")
+    b = await _holding(svc, "BBB", "USD")
+    await _add(svc, a, kind="buy", date="2026-01-05", quantity="1", price="100", fx_rate="290")
+    await _add(svc, b, kind="buy", date="2026-03-02", quantity="1", price="10", fx_rate="300")
+    await svc.set_price(USER, {"symbol": "AAA", "close": "120", "date": "2026-03-02"})
+    alone = await svc.get_holding(USER, a)
+    listed = {h["id"]: h for h in await svc.list_holdings(USER)}[a]
+    assert alone == listed
+    assert (alone is not None) and (alone["current_value"], alone["converted"]) == (
+        "36000.00",
+        True,
+    )
+
+
+async def test_a_symbol_held_in_two_currencies_keeps_a_price_in_each():
+    svc, uow, _ = _service("LKR")
+    usd = await _holding(svc, "BTC", "USD")
+    await _holding(svc, "BTC", "EUR")
+    await _add(svc, usd, kind="buy", date="2026-01-05", quantity="1", price="100", fx_rate="1")
+    await svc.set_price(
+        USER, {"symbol": "BTC", "close": "200", "currency": "USD", "date": "2026-02-01"}
+    )
+    await svc.set_price(
+        USER, {"symbol": "BTC", "close": "180", "currency": "EUR", "date": "2026-02-01"}
+    )
+    assert len(uow.holding_prices.rows) == 2
+    valuation = await svc.get_valuation(USER, usd)
+    assert valuation is not None and valuation["price"]["close"] == "200"

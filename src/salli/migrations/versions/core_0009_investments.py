@@ -15,7 +15,7 @@ Additive and safe on existing data:
 - `holding_transactions` is a new, empty table. A holding without
   transactions keeps its declared figures, exactly as before.
 - `holding_prices` is a new, empty table: the closing prices a user keeps,
-  one per symbol and day.
+  one per symbol, currency and day.
 
 Revision ID: core_0009_investments
 Revises: core_0008_jurisdiction
@@ -109,7 +109,11 @@ def upgrade() -> None:
         sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_holding_prices_currency"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
-            "user_id", "symbol", "price_date", name="uq_holding_prices_user_symbol_date"
+            "user_id",
+            "symbol",
+            "currency",
+            "price_date",
+            name="uq_holding_prices_user_symbol_currency_date",
         ),
     )
     op.create_index("ix_holding_prices_user_id", "holding_prices", ["user_id"], unique=False)

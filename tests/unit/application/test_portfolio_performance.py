@@ -168,3 +168,53 @@ async def test_an_empty_portfolio_has_nothing_to_measure():
     assert report is not None
     assert report["holdings"] == [] and report["portfolio"]["twr"] is None
     assert (report["start"], report["end"]) == ("2026-10-09", "2026-10-09")
+
+
+async def test_from_the_first_day_there_is_is_from_inception():
+    svc, _, _ = _service()
+    h = await _holding(svc, "A")
+    await _add(svc, h, kind="buy", date="2026-01-05", quantity="1", price="100")
+    report = await svc.get_performance(USER, "0001-01-01", "2026-06-30")
+    assert report is not None
+    assert (report["start"], report["portfolio"]["paid_in"]) == ("2026-01-05", "100.00")
+
+
+async def test_rates_for_many_days_are_looked_up_once_each():
+    svc, _, fx = _service("LKR", {("USD", "LKR"): "300"})
+    h = await _holding(svc, "VOO", "USD")
+    await _add(svc, h, kind="buy", date="2026-01-05", quantity="1", price="100", fx_rate="290")
+    for day in range(1, 21):
+        await svc.set_price(USER, {"symbol": "VOO", "close": "101", "date": f"2026-02-{day:02d}"})
+    other = await _holding(svc, "BND")
+    for day in range(1, 21):
+        await _add(svc, other, kind="buy", date=f"2026-02-{day:02d}", quantity="1", price="1")
+    report = await svc.get_performance(USER, end="2026-02-28")
+    assert report is not None
+    # Each day another holding's money moved, VOO is valued at that day's
+    # close, at that day's rate: twenty days, each asked for once.
+    assert sorted(fx.asked) == [("USD", "LKR", f"2026-02-{d:02d}") for d in range(1, 21)]
+
+
+async def test_a_holding_is_annualised_over_its_own_time():
+    svc, _, _ = _service("USD")
+    old = await _holding(svc, "OLD")
+    new = await _holding(svc, "NEW")
+    await _add(svc, old, kind="buy", date="2020-01-01", quantity="1", price="1")
+    await _add(svc, new, kind="buy", date="2025-10-01", quantity="1", price="100")
+    await svc.set_price(USER, {"symbol": "NEW", "close": "150", "date": "2026-10-01"})
+    together = await svc.get_performance(USER, end="2026-10-08")
+    alone = await svc.get_performance(USER, end="2026-10-08", holding_id=new)
+    assert together is not None and alone is not None
+    in_portfolio = {h["symbol"]: h for h in together["holdings"]}["NEW"]
+    assert in_portfolio["native"] == alone["holdings"][0]["native"]
+    # +50% over 373 days.
+    assert in_portfolio["native"]["twr_annualised"] == "0.487012"
+
+
+def test_a_rate_of_any_size_is_shown_to_six_places():
+    from decimal import Decimal
+
+    from salli.application.services.portfolio_service import _rate_view
+
+    assert _rate_view(Decimal("1e60")) == "1" + "0" * 60 + ".000000"
+    assert _rate_view(Decimal("-0.1234565")) == "-0.123456"

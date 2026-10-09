@@ -144,6 +144,10 @@ class FakeHoldings(FakeRecords):
     def __init__(self, transactions: FakeHoldingTransactions) -> None:
         super().__init__(is_active=True)
         self.transactions = transactions
+        self.locked: list[str] = []
+
+    async def lock(self, user_id: str, holding_id: str) -> None:
+        self.locked.append(holding_id)
 
     async def delete(self, user_id: str, record_id: str) -> None:
         await super().delete(user_id, record_id)
@@ -154,8 +158,8 @@ class FakeHoldings(FakeRecords):
 
 
 class FakeHoldingPrices:
-    """Closing prices as the SQL repository keeps them: one per user, symbol
-    and day (recording another replaces it), listed oldest first."""
+    """Closing prices as the SQL repository keeps them: one per user, symbol,
+    currency and day (recording another replaces it), listed oldest first."""
 
     def __init__(self) -> None:
         self.rows: dict[str, dict[str, Any]] = {}
@@ -163,9 +167,10 @@ class FakeHoldingPrices:
     async def upsert(self, user_id: str, price: dict[str, Any]) -> str:
         now = datetime.now(UTC).isoformat()
         for row in self.rows.values():
-            if (row["user_id"], row["symbol"], row["price_date"]) == (
+            if (row["user_id"], row["symbol"], row["currency"], row["price_date"]) == (
                 user_id,
                 price["symbol"],
+                price["currency"],
                 price["price_date"],
             ):
                 row.update(price, updated_at=now)

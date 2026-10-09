@@ -170,7 +170,10 @@ def xirr(flows: Sequence[Flow]) -> Decimal | None:
        are dropped. The rate is sought as x = ln(1 + r), where the discounted
        sum f(x) = Σ aᵢ·e^(−tᵢx) is smooth and has no pole.
     2. f is evaluated on a fixed grid of x (r from just above −100% to about
-       e⁸⁰). Every adjacent pair where it changes sign brackets a root.
+       e⁸⁰ a year) and, for flows less than a year apart, on the same grid
+       divided by their span in years: a day's −10% is −100%·(1 − 0.9³⁶⁵) a
+       year, past the first grid. Every adjacent pair where it changes sign
+       brackets a root.
     3. Each bracket is narrowed by Newton's method from the last point, when
        the step lands inside the bracket and has at least halved it since two
        steps before; otherwise by bisection. That keeps Newton's speed and
@@ -203,12 +206,14 @@ def xirr(flows: Sequence[Flow]) -> Decimal | None:
                 derivative -= t * term
             return value, derivative
 
-        values = [f(x)[0] for x in _GRID]
-        roots: list[Decimal] = [x for x, value in zip(_GRID, values, strict=True) if value == 0]
-        for i in range(len(_GRID) - 1):
+        span = terms[-1][0]
+        grid = sorted(set(_GRID) | ({x / span for x in _GRID} if span < 1 else set()))
+        values = [f(x)[0] for x in grid]
+        roots: list[Decimal] = [x for x, value in zip(grid, values, strict=True) if value == 0]
+        for i in range(len(grid) - 1):
             low, high = values[i], values[i + 1]
             if low != 0 and high != 0 and (low > 0) != (high > 0):
-                roots.append(_narrow(f, _GRID[i], _GRID[i + 1], low > 0))
+                roots.append(_narrow(f, grid[i], grid[i + 1], low > 0))
         if not roots:
             return None
         x = min(roots, key=abs)

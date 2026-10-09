@@ -23,11 +23,12 @@ impossible.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import Context, Decimal, InvalidOperation, localcontext
 from typing import Any, cast
 
 from salli.application.fx import rate_to_base
@@ -46,6 +47,7 @@ from salli.domain.portfolio.lots import (
     LotPick,
     Transaction,
     TransactionError,
+    check_amount,
     check_number,
     ordered,
     plain,
@@ -57,6 +59,7 @@ from salli.domain.portfolio.returns import RATE, annualised
 from salli.domain.portfolio.valuation import Close, Pricing, Valuation
 
 _STEP = Decimal(1).scaleb(-PLACES)
+_NUMBER_LIMIT = Decimal(10) ** 20
 
 # What each kind of transaction needs, and what else it may have. Anything else
 # is refused rather than ignored: a price on a dividend is a client's mistake.
@@ -92,6 +95,10 @@ def _decimal(name: str, value: object) -> Decimal:
         raise TransactionError(f"{name} must be a decimal number, not {value!r}")
     if not number.is_finite():
         raise TransactionError(f"{name} must be a decimal number, not {value!r}")
+    # Nothing Salli keeps is this large, or this small but not zero; refused
+    # here, before arithmetic on it could overflow.
+    if number.copy_abs() >= _NUMBER_LIMIT or (number != 0 and number.adjusted() < -60):
+        raise TransactionError(f"{name} is out of range: {value!r}")
     return number
 
 
@@ -157,7 +164,11 @@ def _columns(
     (rounded HALF-UP, the money path's one rule), the rest exact."""
 
     def money(name: str) -> int | None:
-        return to_minor(_decimal(name, fields[name]), currency) if name in fields else None
+        if name not in fields:
+            return None
+        amount = _decimal(name, fields[name])
+        check_amount(name, amount.copy_abs())
+        return to_minor(amount, currency)
 
     split_to, split_from = _ratio(fields["ratio"]) if kind is Kind.SPLIT else (None, None)
     return {
@@ -328,6 +339,9 @@ class _Tracked:
     pricing: Pricing
     #: Closes recorded for its symbol in another currency: not its prices.
     foreign_closes: int
+    #: The rates every one of the user's transactions carries, by currency
+    #: and day (shared by all of the user's holdings).
+    recorded: dict[tuple[str, date], Decimal]
 
     @property
     def currency(self) -> str:
@@ -339,14 +353,17 @@ class _Tracked:
         return bool(self.transactions)
 
 
-def _recorded_rates(tracked: Iterable[_Tracked]) -> dict[tuple[str, date], Decimal]:
+def _recorded_rates(
+    rows: Iterable[dict[str, Any]], currencies: dict[str, str]
+) -> dict[tuple[str, date], Decimal]:
     """The rates the user's own transactions carry, by currency and day: real
-    rates for those days, so no source has to be asked for them again."""
+    rates for those days, so no source has to be asked for them again. From
+    every holding's, so a holding is valued the same whichever are asked for."""
     rates: dict[tuple[str, date], Decimal] = {}
-    for t in tracked:
-        for tx in t.transactions:
-            if tx.kind is not Kind.SPLIT:
-                rates[t.currency, tx.on] = tx.fx_rate
+    for row in rows:
+        currency = currencies.get(row["holding_id"])
+        if currency is not None and row["kind"] != Kind.SPLIT.value:
+            rates[currency, _date(row["transaction_date"])] = Decimal(row["fx_rate"])
     return rates
 
 
@@ -417,13 +434,16 @@ def _valuation_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, An
 
 
 _RATE_STEP = Decimal("0.000001")
+#: Exchange rates looked up at once while valuing (see PortfolioService._rates).
+_RATE_LOOKUPS = 8
 
 
 def _rate_view(rate: Decimal | None) -> str | None:
     """A rate of return as a fraction of one, to six places ("0.073512")."""
     if rate is None:
         return None
-    with localcontext(RATE):
+    # Enough digits for any rate, however large a return compounds to.
+    with localcontext(Context(prec=max(RATE.prec, rate.adjusted() + 10))):
         return str(rate.quantize(_RATE_STEP))
 
 
@@ -660,6 +680,9 @@ class PortfolioService:
             **_columns(kind, fields, currency, rate, source),
         }
         async with self._uow_factory() as uow:
+            # Hold the holding while its history is checked and changed, so
+            # two sales of the same units cannot both pass the check.
+            await uow.holdings.lock(user_id, holding_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
             _check([*rows, row], currency)
             return await uow.holding_transactions.save(user_id, row)
@@ -714,6 +737,7 @@ class PortfolioService:
             rate, source = Decimal(current["fx_rate"]), current.get("fx_rate_source")
         columns = _columns(kind, fields, currency, rate, source)
         async with self._uow_factory() as uow:
+            await uow.holdings.lock(user_id, holding_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
             _check([{**r, **columns} if r["id"] == transaction_id else r for r in rows], currency)
             return await uow.holding_transactions.update(user_id, transaction_id, columns)
@@ -725,6 +749,7 @@ class PortfolioService:
             holding = await uow.holdings.get(user_id, holding_id)
             if holding is None:
                 return False
+            await uow.holdings.lock(user_id, holding_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
             if transaction_id not in {r["id"] for r in rows}:
                 return False
@@ -815,7 +840,7 @@ class PortfolioService:
     async def set_price(self, user_id: str, data: dict[str, Any]) -> str:
         """Record a closing price: `symbol`, `close`, `date` (default today),
         `currency` (default: that of the user's holdings with the symbol).
-        One already recorded for that symbol and day is replaced."""
+        One already recorded for that symbol, currency and day is replaced."""
         symbol = symbol_key(str(data.get("symbol") or ""))
         if not symbol or len(symbol) > 20:
             raise ValueError("A price needs the symbol it is for, of at most 20 characters")
@@ -874,8 +899,11 @@ class PortfolioService:
     ) -> list[_Tracked]:
         """Each holding with its transactions and its recorded closes."""
         by_holding: dict[str, list[dict[str, Any]]] = {}
-        for row in await uow.holding_transactions.list(user_id):
+        rows = await uow.holding_transactions.list(user_id)
+        for row in rows:
             by_holding.setdefault(row["holding_id"], []).append(row)
+        everything = await uow.holdings.list(user_id, active_only=False)
+        recorded = _recorded_rates(rows, {h["id"]: h["currency"] for h in everything})
         market = StoredPriceHistory(uow.holding_prices, user_id)
         quotes: dict[str, list[Any]] = {}
         tracked: list[_Tracked] = []
@@ -889,7 +917,11 @@ class PortfolioService:
             transactions = _history(by_holding.get(h["id"], []), h["currency"])
             tracked.append(
                 _Tracked(
-                    h, transactions, Pricing(transactions, closes), len(quotes[key]) - len(closes)
+                    h,
+                    transactions,
+                    Pricing(transactions, closes),
+                    len(quotes[key]) - len(closes),
+                    recorded,
                 )
             )
         return tracked
@@ -922,13 +954,21 @@ class PortfolioService:
         for t in tracked:
             if t.tracked:
                 needed.setdefault(t.currency, set()).update(t.pricing.rate_dates(dates))
-        recorded = _recorded_rates(tracked)
+        recorded = tracked[0].recorded if tracked else {}
+        wanted = [(currency, on) for currency in sorted(needed) for on in sorted(needed[currency])]
+        # A rate source can be slow, or down; ask for several at once rather
+        # than one after another, but not for all of them at once.
+        limit = asyncio.Semaphore(_RATE_LOOKUPS)
+
+        async def look_up(currency: str, on: date) -> Decimal | None:
+            async with limit:
+                return await self._rate_on(currency, base, on, recorded)
+
+        rates = await asyncio.gather(*(look_up(currency, on) for currency, on in wanted))
         found: dict[str, dict[date, Decimal]] = {}
-        for currency in sorted(needed):
-            for on in sorted(needed[currency]):
-                rate = await self._rate_on(currency, base, on, recorded)
-                if rate is not None:
-                    found.setdefault(currency, {})[on] = rate
+        for (currency, on), rate in zip(wanted, rates, strict=True):
+            if rate is not None:
+                found.setdefault(currency, {})[on] = rate
         return found
 
     async def _value_now(self, base: str, tracked: list[_Tracked]) -> list[Valuation | None]:
@@ -986,6 +1026,9 @@ class PortfolioService:
 
         measured = [t for t in tracked if t.tracked]
         first = _date(start) if start else None
+        if first == date.min:
+            # Nothing can precede the first day there is: from the start.
+            first = None
         last = (
             _date(end)
             if end
@@ -1020,6 +1063,11 @@ class PortfolioService:
         holdings_view: list[dict[str, Any]] = []
         for t, figures in zip(measured, result.holdings, strict=True):
             symbol = symbol_key(t.holding["symbol"])
+            # A holding's own period: from its first money, without a start.
+            own_start = first or min(
+                (tx.on for tx in t.transactions if tx.kind is not Kind.SPLIT), default=last
+            )
+            own_days = max((last - own_start).days + 1, 1)
             holdings_view.append(
                 {
                     "holding_id": t.holding["id"],
@@ -1027,8 +1075,8 @@ class PortfolioService:
                     "name": t.holding["name"],
                     "asset_class": t.holding["asset_class"],
                     "is_active": t.holding["is_active"],
-                    "native": _figures_view(figures.native, t.currency, result.days),
-                    "base": _figures_view(figures.base, base, result.days),
+                    "native": _figures_view(figures.native, t.currency, own_days),
+                    "base": _figures_view(figures.base, base, own_days),
                     "notes": _at_cost_notes(figures, symbol, t.currency, base),
                 }
             )
