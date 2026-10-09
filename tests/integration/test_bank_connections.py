@@ -154,3 +154,15 @@ async def test_no_encryption_key_means_no_bank_connection(uow_factory):
     service = BankConnectionService(uow_factory, KeyRing(""), {"fake": FakeBank()})
     with pytest.raises(BankConnectionsUnavailable):
         await service.connect("u1", "fake", "good-token")
+
+
+async def test_development_sign_in_means_no_bank_connection(uow_factory):
+    # Anyone can name any user id then, so no one's bank may be read.
+    service = BankConnectionService(
+        uow_factory, KeyRing(KEYS), {"fake": FakeBank()}, Importer(), auth_is_real=False
+    )
+    assert not service.available
+    with pytest.raises(BankConnectionsUnavailable, match="development sign-in"):
+        await service.connect("u1", "fake", "good-token")
+    with pytest.raises(BankConnectionsUnavailable):
+        await service.sync("u1", "any")

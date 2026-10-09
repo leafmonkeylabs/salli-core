@@ -31,7 +31,8 @@ _OVERLAP_DAYS = 7
 
 
 class BankConnectionsUnavailable(RuntimeError):
-    """No encryption key is configured, so a credential cannot be stored safely."""
+    """A bank credential cannot be held safely here: no encryption key is
+    configured, or authentication is the development fallback."""
 
 
 class RowImporter(Protocol):
@@ -69,19 +70,36 @@ class BankConnectionService:
         keyring: Any,
         connectors: Mapping[str, BankConnector],
         importer: RowImporter | None = None,
+        *,
+        # False while "the bearer token is the user id" is in force: any
+        # caller could then read anyone's bank (config.insecure_dev_auth).
+        auth_is_real: bool = True,
     ) -> None:
         self._uow_factory = uow_factory
         self._keyring = keyring
         self._connectors = dict(connectors)
         self._importer = importer
+        self._auth_is_real = auth_is_real
 
     @property
     def available(self) -> bool:
-        return self._keyring.available
+        return self._auth_is_real and self._keyring.available
 
     @property
     def providers(self) -> list[str]:
         return sorted(self._connectors)
+
+    def _require_available(self) -> None:
+        if not self._auth_is_real:
+            raise BankConnectionsUnavailable(
+                "Bank connections are off while development sign-in is on "
+                "(SALLI_INSECURE_DEV_AUTH): anyone could act as anyone."
+            )
+        if not self._keyring.available:
+            raise BankConnectionsUnavailable(
+                "Connecting a bank needs an encryption key (BYOK_ENCRYPTION_KEYS), "
+                "so its credential is never stored in the clear."
+            )
 
     def _connector(self, provider: str) -> BankConnector:
         try:
@@ -96,11 +114,7 @@ class BankConnectionService:
     ) -> dict[str, Any]:
         """Claim the setup token, store the credential sealed, and record the
         accounts the provider can see (with their balances)."""
-        if not self.available:
-            raise BankConnectionsUnavailable(
-                "Connecting a bank needs an encryption key (BYOK_ENCRYPTION_KEYS), "
-                "so its credential is never stored in the clear."
-            )
+        self._require_available()
         connector = self._connector(provider)
         credential = await connector.link(setup)
         snapshot = await connector.fetch(credential, start=None, balances_only=True)
@@ -138,14 +152,10 @@ class BankConnectionService:
         the same currency, or (create=True) a new asset account named after it.
         account_id=None and create=False unmaps it."""
         async with self._uow_factory() as uow:
-            connection = next(
-                (c for c in await uow.bank_connections.list(user_id) if c["id"] == connection_id),
-                None,
-            )
-            remote = next(
-                (a for a in (connection or {}).get("accounts", []) if a["remote_id"] == remote_id),
-                None,
-            )
+            connections: list[dict[str, Any]] = await uow.bank_connections.list(user_id)
+            connection = next((c for c in connections if c["id"] == connection_id), None)
+            accounts: list[dict[str, Any]] = connection["accounts"] if connection else []
+            remote = next((a for a in accounts if a["remote_id"] == remote_id), None)
             if remote is None:
                 raise KeyError(remote_id)
             if (create or account_id) and not is_currency(remote["currency"]):
@@ -186,6 +196,7 @@ class BankConnectionService:
 
     async def sync(self, user_id: str, connection_id: str) -> dict[str, Any]:
         """Fetch what was posted since the last sync and queue it for review."""
+        self._require_available()
         if self._importer is None:
             raise RuntimeError("No importer configured for bank transactions")
         async with self._uow_factory() as uow:

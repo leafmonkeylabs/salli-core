@@ -111,6 +111,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
 
+def insecure_dev_auth(settings: Settings) -> bool:
+    """Whether "the bearer token is the user id" is in force. Needs both the
+    explicit flag and a development environment, so neither a stray env var on
+    a server nor a forgotten ENVIRONMENT alone can switch authentication off.
+
+    While it is, any caller can name any user id, so nothing that holds a
+    user's secrets (stored LLM keys, bank credentials) may be switched on."""
+    return settings.salli_insecure_dev_auth and settings.environment == "development"
+
+
 _settings: Settings | None = None
 
 

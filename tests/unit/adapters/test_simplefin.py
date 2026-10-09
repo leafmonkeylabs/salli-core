@@ -98,3 +98,14 @@ async def test_revoked_or_unpaid_access_is_reported(status, message):
     connector = SimpleFinConnector(transport=_transport(lambda r: httpx.Response(status)))
     with pytest.raises(BankLinkError, match=message):
         await connector.fetch(ACCESS, None)
+
+
+async def test_an_answer_that_is_not_an_account_set_is_refused_or_passed_over():
+    garbled = SimpleFinConnector(transport=_transport(lambda r: httpx.Response(200, text="<html>")))
+    with pytest.raises(BankLinkError, match="not JSON"):
+        await garbled.fetch(ACCESS, None)
+    odd = '{"accounts": [42, {"id": "a", "currency": "USD", "balance": "1"}], "errlist": "x"}'
+    snapshot = await SimpleFinConnector(
+        transport=_transport(lambda r: httpx.Response(200, text=odd))
+    ).fetch(ACCESS, None)
+    assert [a.remote_id for a in snapshot.accounts] == ["a"] and snapshot.warnings == []

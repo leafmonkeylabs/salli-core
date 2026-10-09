@@ -53,6 +53,8 @@ jobs:
           src/salli/application/services/rules_service.py
           src/salli/application/services/insights_service.py
           src/salli/interfaces/api/routers/insights.py
+          src/salli/adapters/banks src/salli/application/services/bank_connection_service.py
+          src/salli/interfaces/api/routers/banks.py
       - name: Tests
         # Includes the contract tests: every API route has a CLI command, and
         # salli-core carries no billing vocabulary.

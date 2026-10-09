@@ -59,6 +59,7 @@ llm_keys_app = typer.Typer(help="Your own LLM API keys, stored encrypted")
 tokens_app = typer.Typer(help="Personal access tokens, for scripts and remote clients")
 rules_app = typer.Typer(help="Rules that book transactions that look a certain way")
 export_app = typer.Typer(help="Your whole ledger as plain-text accounting")
+banks_app = typer.Typer(help="Bank connections: read accounts at your bank (SimpleFIN)")
 insights_app = typer.Typer(help="Cash flow, spending, net worth over time, and recurring payments")
 mcp_app = typer.Typer(help="AI clients (Claude, ChatGPT) connected over MCP")
 
@@ -91,6 +92,7 @@ app.add_typer(tokens_app, name="tokens")
 app.add_typer(rules_app, name="rules")
 app.add_typer(export_app, name="export")
 app.add_typer(insights_app, name="insights")
+app.add_typer(banks_app, name="banks")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(members_app, name="members")
 app.add_typer(skills_app, name="skills")
@@ -3797,6 +3799,188 @@ def insights_recurring():
             f"[dim]{untracked} not tracked: add one with `salli subscription add` "
             "to be told when it is missed or its price changes.[/dim]"
         )
+
+
+# ── banks ─────────────────────────────────────────────────────────────────────
+
+
+def _connection_id(user_id: str, prefix: str) -> str:
+    connections = asyncio.run(_services().bank_connections.list(user_id))
+    return _resolve_id(connections, prefix, "bank connection")
+
+
+@banks_app.command("list")
+def banks_list():
+    """Your bank connections, their accounts, and where each is imported."""
+    user_id = _require_user()
+    banks = _services().bank_connections
+    connections = asyncio.run(banks.list(user_id))
+    if emit(
+        {"available": banks.available, "providers": banks.providers, "connections": connections}
+    ):
+        return
+    if not banks.available:
+        console.print(
+            "[yellow]Bank connections are off on this server:[/yellow] they need an "
+            "encryption key (BYOK_ENCRYPTION_KEYS) and real sign-in."
+        )
+    if not connections:
+        console.print("[dim]No banks connected. Use `salli banks connect`.[/dim]")
+        return
+    accounts = {a.id: a for a in asyncio.run(_services().ledger.list_accounts(user_id, True))}
+    for c in connections:
+        synced = c["last_synced_at"].strftime("%Y-%m-%d %H:%M") if c["last_synced_at"] else "never"
+        state = (
+            f"[red]{c['status']}: {c['last_error']}[/red]"
+            if c["status"] == "error"
+            else c["status"]
+        )
+        table = Table(
+            title=f"{c['name']} ({c['provider']}, {c['id'][:8]}): synced {synced}, {state}"
+        )
+        table.add_column("Bank account")
+        table.add_column("Id", style="dim")
+        table.add_column("Balance", justify="right")
+        table.add_column("Imported into")
+        for a in c["accounts"]:
+            target = accounts.get(a["account_id"]) if a["account_id"] else None
+            table.add_row(
+                f"{a['institution']} · {a['name']}" if a["institution"] else a["name"],
+                a["remote_id"],
+                _money(a["balance"], a["currency"], width=0)
+                if a["balance"] is not None
+                else a["currency"],
+                f"{target.code} {target.name}" if target else "[yellow]not mapped[/yellow]",
+            )
+        console.print(table)
+
+
+@banks_app.command("connect")
+def banks_connect(
+    provider: str = typer.Option("simplefin", "--provider", help="Which provider"),
+    name: str = typer.Option(None, "--name", help="What to call it (default: the bank's name)"),
+    setup_token: str = typer.Option(
+        None,
+        "--setup-token",
+        envvar="SALLI_BANK_SETUP_TOKEN",
+        help="The provider's one-time setup token (asked for when omitted)",
+    ),
+):
+    """Connect a bank: for SimpleFIN, paste the setup token from the SimpleFIN Bridge."""
+    from salli.application.ports import BankLinkError
+    from salli.application.services.bank_connection_service import BankConnectionsUnavailable
+
+    user_id = _require_user()
+    token = setup_token or typer.prompt("Setup token", hide_input=True)
+    try:
+        connected = asyncio.run(
+            _services().bank_connections.connect(user_id, provider, token, name)
+        )
+    except (BankLinkError, BankConnectionsUnavailable, ValueError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    if emit(connected):
+        return
+    console.print(f"[green]Connected[/green] ({connected['id'][:8]}).")
+    for warning in connected["warnings"]:
+        console.print(f"[yellow]{warning}[/yellow]")
+    console.print(
+        "Next: map each bank account to a Salli account with `salli banks map`, "
+        "then `salli banks sync`."
+    )
+
+
+@banks_app.command("map")
+def banks_map(
+    connection: str = typer.Argument(..., help="Connection id (the first characters will do)"),
+    remote_id: str = typer.Argument(..., help="The bank account's id, from `salli banks list`"),
+    account: str = typer.Option(None, "--account", help="Import into this account (code or id)"),
+    create: bool = typer.Option(False, "--create", help="Create an asset account for it"),
+    unmap: bool = typer.Option(False, "--unmap", help="Stop importing it"),
+):
+    """Choose where a bank account's transactions are imported."""
+    if sum([bool(account), create, unmap]) != 1:
+        console.print("[red]Give exactly one of --account, --create or --unmap.[/red]")
+        raise typer.Exit(2)
+    user_id = _require_user()
+    connection_id = _connection_id(user_id, connection)
+    account_id = None
+    if account:
+        accounts = asyncio.run(_services().ledger.list_accounts(user_id))
+        match = next((a for a in accounts if a.id == account or a.code == account), None)
+        if match is None:
+            console.print(f"[red]No active account {account!r}.[/red]")
+            raise typer.Exit(1)
+        account_id = match.id
+    try:
+        mapped = asyncio.run(
+            _services().bank_connections.map_account(
+                user_id, connection_id, remote_id, account_id, create=create
+            )
+        )
+    except KeyError as exc:
+        console.print(f"[red]No bank account {remote_id!r} on that connection.[/red]")
+        raise typer.Exit(1) from exc
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    if emit({"remote_id": remote_id, "account_id": mapped}):
+        return
+    console.print("[green]Unmapped.[/green]" if mapped is None else "[green]Mapped.[/green]")
+
+
+@banks_app.command("sync")
+def banks_sync(
+    connection: str = typer.Argument(None, help="Connection id; every connection when omitted"),
+):
+    """Fetch new transactions and queue them for review (`salli parse review`)."""
+    from salli.application.ports import BankLinkError
+    from salli.application.services.bank_connection_service import BankConnectionsUnavailable
+
+    user_id = _require_user()
+    banks = _services().bank_connections
+    ids = (
+        [_connection_id(user_id, connection)]
+        if connection
+        else [c["id"] for c in asyncio.run(banks.list(user_id))]
+    )
+    results: list[dict[str, Any]] = []
+    failed = False
+    for connection_id in ids:
+        try:
+            synced = asyncio.run(banks.sync(user_id, connection_id))
+            results.append({"id": connection_id, **synced})
+        except (BankLinkError, BankConnectionsUnavailable) as exc:
+            failed = True
+            results.append({"id": connection_id, "error": str(exc)})
+    if emit(results):
+        raise typer.Exit(1 if failed else 0)
+    for r in results:
+        if "error" in r:
+            console.print(f"[red]{r['id'][:8]}: {r['error']}[/red]")
+            continue
+        for a in r["accounts"]:
+            fresh = a["queued"] - a["duplicates"]
+            console.print(f"{a['name']}: {fresh} new to review, {a['duplicates']} seen before")
+        for name in r["unmapped"]:
+            console.print(f"[dim]{name}: not mapped, skipped[/dim]")
+        for warning in r["warnings"]:
+            console.print(f"[yellow]{warning}[/yellow]")
+    if failed:
+        raise typer.Exit(1)
+
+
+@banks_app.command("disconnect")
+def banks_disconnect(
+    connection: str = typer.Argument(..., help="Connection id (the first characters will do)"),
+):
+    """Forget a connection and its credential. What was booked from it stays."""
+    user_id = _require_user()
+    connection_id = _connection_id(user_id, connection)
+    asyncio.run(_services().bank_connections.disconnect(user_id, connection_id))
+    if emit({"disconnected": connection_id}):
+        return
+    console.print("[green]Disconnected.[/green]")
 
 
 # ── mcp ───────────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ import datetime as dt
 import json
 import re
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -109,17 +109,31 @@ class SimpleFinConnector(BankConnector):
             raise BankLinkError("Your SimpleFIN subscription needs attention at the bridge")
         if resp.status_code != 200:
             raise BankLinkError(f"SimpleFIN answered HTTP {resp.status_code}")
-        data = json.loads(resp.text, parse_float=Decimal)
-        return _snapshot(data)
+        try:
+            data: object = json.loads(resp.text, parse_float=Decimal)
+        except ValueError as exc:
+            raise BankLinkError("SimpleFIN answered with something that is not JSON") from exc
+        return _snapshot(_object(data))
+
+
+def _objects(value: object) -> list[dict[str, Any]]:
+    """The objects in a JSON array; anything else there is passed over."""
+    if not isinstance(value, list):
+        return []
+    return [cast(dict[str, Any], v) for v in cast(list[object], value) if isinstance(v, dict)]
+
+
+def _object(value: object) -> dict[str, Any]:
+    return cast(dict[str, Any], value) if isinstance(value, dict) else {}
 
 
 def _snapshot(data: dict[str, Any]) -> BankSnapshot:
-    connections = {c.get("conn_id"): c for c in data.get("connections") or []}
+    connections = {c.get("conn_id"): c for c in _objects(data.get("connections"))}
     accounts: list[RemoteAccount] = []
     transactions: list[RemoteTransaction] = []
-    for raw in data.get("accounts") or []:
+    for raw in _objects(data.get("accounts")):
         conn = connections.get(raw.get("conn_id")) or {}
-        org = raw.get("org") or {}  # version 1 servers
+        org = _object(raw.get("org"))  # version 1 servers
         institution = conn.get("name") or conn.get("org_name") or org.get("name") or ""
         remote_id = str(raw["id"])
         balance_date = raw.get("balance-date")
@@ -137,7 +151,7 @@ def _snapshot(data: dict[str, Any]) -> BankSnapshot:
                 else None,
             )
         )
-        for txn in raw.get("transactions") or []:
+        for txn in _objects(raw.get("transactions")):
             if txn.get("pending") or not txn.get("posted"):
                 continue  # only what the bank has settled
             transactions.append(
@@ -149,8 +163,10 @@ def _snapshot(data: dict[str, Any]) -> BankSnapshot:
                     description=_clean(txn.get("description") or txn.get("payee") or "", 300),
                 )
             )
-    warnings = [_clean(e.get("msg", "")) for e in data.get("errlist") or [] if e.get("msg")]
-    warnings += [_clean(e) for e in data.get("errors") or [] if isinstance(e, str)]
+    warnings = [_clean(str(e["msg"])) for e in _objects(data.get("errlist")) if e.get("msg")]
+    errors = data.get("errors")
+    if isinstance(errors, list):
+        warnings += [_clean(e) for e in cast(list[object], errors) if isinstance(e, str)]
     return BankSnapshot(
         accounts=accounts, transactions=transactions, warnings=list(dict.fromkeys(warnings))
     )

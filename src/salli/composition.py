@@ -14,6 +14,7 @@ from salli.adapters.fx.chain import default_fx_rates
 from salli.application.ports import EntitlementPolicy, FxRatePort, StoragePort, UsageMeter
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
+from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
 from salli.application.services.budget_service import BudgetService
 from salli.application.services.data_portability_service import DataPortabilityService
 from salli.application.services.debt_service import DebtService
@@ -36,7 +37,7 @@ from salli.application.services.subscription_service import SubscriptionService
 from salli.application.services.tax_service import TaxService
 from salli.application.services.user_profile_service import UserProfileService
 from salli.application.unit_of_work import UnitOfWork
-from salli.config import Settings
+from salli.config import Settings, insecure_dev_auth
 from salli.extensions import (
     Contributions,
     ExtensionContext,
@@ -73,6 +74,7 @@ class Services:
     tokens: PersonalAccessTokenService
     rules: RulesService
     insights: InsightsService
+    bank_connections: BankConnectionService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
     # The extension seams. Salli's own defaults unless an enabled extension
@@ -249,10 +251,44 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
         tokens=PersonalAccessTokenService(uow_factory),
         rules=rules,
         insights=InsightsService(uow_factory),
+        bank_connections=_build_bank_connections(settings, uow_factory, parsing),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,
         entitlements=extensions.entitlements,
         extensions=extensions,
+    )
+
+
+def _build_bank_connections(
+    settings: Settings, uow_factory, parsing: ParsingService
+) -> BankConnectionService:
+    """Bank connections, sealing credentials with the same key ring as stored
+    LLM keys (bound to their own row, so neither opens as the other). Off
+    while development sign-in is on: anyone could then read anyone's bank."""
+    from salli.adapters.banks.simplefin import SimpleFinConnector
+    from salli.adapters.crypto.keyring import KeyRing
+
+    async def import_rows(user_id: str, rows, *, bank: str, account_id: str):  # type: ignore[no-untyped-def]
+        # Each sync is one review batch, deduplicated against earlier ones by
+        # the bank's own transaction ids.
+        if not rows:
+            return {"statement_id": None, "queued": 0, "duplicates": 0}
+        result = await parsing.import_rows(user_id, rows, bank=bank, account_id=account_id)
+        return {
+            "statement_id": result.statement_id or None,
+            "queued": len(result.transactions),
+            "duplicates": sum(
+                1 for t in result.transactions if t.dedup_status == "exact_duplicate"
+            ),
+        }
+
+    importer: RowImporter = import_rows
+    return BankConnectionService(
+        uow_factory,
+        KeyRing(settings.byok_encryption_keys),
+        {"simplefin": SimpleFinConnector()},
+        importer,
+        auth_is_real=not insecure_dev_auth(settings),
     )
 
 

@@ -199,6 +199,12 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/insights/spending"): "insights.spending",
     ("GET", "/insights/net-worth"): "insights.netWorth",
     ("GET", "/insights/recurring"): "insights.recurring",
+    # bank connections
+    ("GET", "/bank-connections"): "bankConnections.list",
+    ("POST", "/bank-connections"): "bankConnections.connect",
+    ("PUT", "/bank-connections/{connection_id}/accounts/{remote_id}"): "bankConnections.mapAccount",
+    ("POST", "/bank-connections/{connection_id}/sync"): "bankConnections.sync",
+    ("DELETE", "/bank-connections/{connection_id}"): "bankConnections.disconnect",
     # personal access tokens
     ("GET", "/tokens"): "tokens.list",
     ("POST", "/tokens"): "tokens.create",

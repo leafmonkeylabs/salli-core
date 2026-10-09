@@ -7374,6 +7374,229 @@
         ]
       }
     },
+    "/v1/bank-connections": {
+      "get": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "List Connections",
+        "operationId": "bankConnections.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankConnections"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Connect",
+        "operationId": "bankConnections.connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectBank"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankConnected"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/bank-connections/{connection_id}/accounts/{remote_id}": {
+      "put": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Map Account",
+        "operationId": "bankConnections.mapAccount",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "remote_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Remote Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapBankAccount"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccountMapping"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bank-connections/{connection_id}/sync": {
+      "post": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Sync",
+        "operationId": "bankConnections.sync",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankSync"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bank-connections/{connection_id}": {
+      "delete": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Disconnect",
+        "operationId": "bankConnections.disconnect",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/meta": {
       "get": {
         "tags": [
@@ -9139,6 +9362,219 @@
         ],
         "title": "BalanceSheetRequest"
       },
+      "BankAccount": {
+        "properties": {
+          "remote_id": {
+            "type": "string",
+            "title": "Remote Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "institution": {
+            "type": "string",
+            "title": "Institution"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "balance_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Date"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remote_id",
+          "name",
+          "institution",
+          "currency",
+          "balance",
+          "balance_date",
+          "account_id"
+        ],
+        "title": "BankAccount",
+        "description": "An account at the bank, as the provider reports it."
+      },
+      "BankAccountMapping": {
+        "properties": {
+          "remote_id": {
+            "type": "string",
+            "title": "Remote Id"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remote_id",
+          "account_id"
+        ],
+        "title": "BankAccountMapping"
+      },
+      "BankConnected": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "warnings"
+        ],
+        "title": "BankConnected"
+      },
+      "BankConnection": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/BankAccount"
+            },
+            "type": "array",
+            "title": "Accounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "name",
+          "status",
+          "last_error",
+          "last_synced_at",
+          "created_at",
+          "accounts"
+        ],
+        "title": "BankConnection"
+      },
+      "BankConnections": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/BankConnection"
+            },
+            "type": "array",
+            "title": "Connections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "providers",
+          "connections"
+        ],
+        "title": "BankConnections"
+      },
       "BankStatement": {
         "properties": {
           "id": {
@@ -9224,6 +9660,38 @@
           "statements"
         ],
         "title": "BankStatementList"
+      },
+      "BankSync": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/SyncedAccount"
+            },
+            "type": "array",
+            "title": "Accounts"
+          },
+          "unmapped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unmapped"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accounts",
+          "unmapped",
+          "warnings"
+        ],
+        "title": "BankSync"
       },
       "BriefingAction": {
         "properties": {
@@ -10088,6 +10556,40 @@
           "content"
         ],
         "title": "ChatUserMessage"
+      },
+      "ConnectBank": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "examples": [
+              "simplefin"
+            ]
+          },
+          "setup_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Setup Token"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "setup_token"
+        ],
+        "title": "ConnectBank"
       },
       "ConsentDecision": {
         "properties": {
@@ -13066,6 +13568,29 @@
         ],
         "title": "LlmKeys",
         "description": "The user's own keys, as far as they are ever shown: the key itself is write-only."
+      },
+      "MapBankAccount": {
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "create": {
+            "type": "boolean",
+            "title": "Create",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "MapBankAccount",
+        "description": "Import into `account_id` (one held in the same currency), or `create`\nan asset account named after the bank account; neither unmaps it."
       },
       "McpConnection": {
         "properties": {
@@ -16996,6 +17521,45 @@
         ],
         "title": "SurplusBreakdown",
         "description": "Monthly averages over the trailing 12 months."
+      },
+      "SyncedAccount": {
+        "properties": {
+          "remote_id": {
+            "type": "string",
+            "title": "Remote Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "statement_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Id"
+          },
+          "queued": {
+            "type": "integer",
+            "title": "Queued",
+            "default": 0
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "remote_id",
+          "name"
+        ],
+        "title": "SyncedAccount"
       },
       "SyncedAlerts": {
         "properties": {

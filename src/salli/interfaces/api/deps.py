@@ -15,7 +15,7 @@ from salli.application.services.llm_credential_service import ResolvedCredential
 from salli.application.services.mcp_oauth_service import API
 from salli.application.services.personal_access_token_service import is_personal_access_token
 from salli.composition import Services, build_services
-from salli.config import Settings, get_settings
+from salli.config import Settings, get_settings, insecure_dev_auth
 
 _bearer = HTTPBearer(auto_error=True)
 
@@ -59,13 +59,6 @@ def _get_jwks(settings: Settings) -> list[dict]:
     _jwks_cache["keys"] = keys
     _jwks_cache["ts"] = now
     return keys
-
-
-def insecure_dev_auth(settings: Settings) -> bool:
-    """Whether "the bearer token is the user id" is in force. Needs both the
-    explicit flag and a development environment, so neither a stray env var on
-    a server nor a forgotten ENVIRONMENT alone can switch authentication off."""
-    return settings.salli_insecure_dev_auth and settings.environment == "development"
 
 
 def _decode_jwt(token: str, settings: Settings) -> tuple[str, str | None]:
