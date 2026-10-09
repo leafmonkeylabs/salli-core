@@ -16,6 +16,7 @@ Salli · home · http://localhost:8000
 Net worth       USD 14,034.50
   Assets        USD 15,234.50
   Liabilities   USD  1,200.00
+Safe to spend   USD 1,234.56 until Nov 1, 2026, when Salary comes in
 
 October 2026 so far (Oct 1 – 9, 2026)
   Income        USD 5,000.00
@@ -26,6 +27,10 @@ October 2026 so far (Oct 1 – 9, 2026)
 FI score        72.5 (B) · 1.9% of the way to financial independence
   Savings rate  55.8% of income
   FI by         Oct 9, 2040
+
+Needs attention
+  ! Checking runs short on Nov 2
+    It is forecast to reach USD -370.00 before payday.
 
 Coming up
 ! Oct 9, 2026   Budget overspend            warning
@@ -125,15 +130,19 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Record a transaction, in your words | `salli add "lunch 12.50 cash"` |
 | Record one exactly | `salli entries add --desc Lunch --debit groceries:12.50 --credit cash:12.50` |
 | Correct one | `salli entries reverse <id>`, then add the right one |
-| Import a bank statement | `salli import september.pdf` |
+| Import a bank statement | `salli import september.ofx --account checking` |
+| Fetch from your bank instead | `salli banks connect`, `salli banks map …`, `salli banks sync` |
 | Book the same payee the same way | `salli rules add Uber --if "description contains uber" --account transport` |
 | See accounts and balances | `salli accounts list --balances`, `salli accounts show checking` |
 | Reports | `salli ledger income-statement --month 2026-09`, `salli reports balance-sheet` |
+| Where it goes, where it is heading | `salli insights spending`, `salli insights forecast`, `salli insights safe-to-spend` |
 | Ask the AI | `salli ask "how much did I spend on groceries?"`, or `salli chat` |
 | Ask about a document | `salli ask "what is this charge?" --attach receipt.pdf` |
-| Budgets, debts, investments | `salli budgets summary <id>`, `salli debts payoff-plan`, `salli portfolio` |
-| Financial independence | `salli fi score`, `salli fi afford 2400 --months 12` |
-| Tax | `salli tax compute` |
+| Budgets, debts | `salli budgets summary <id>`, `salli debts payoff-plan` |
+| Investments | `salli portfolio`, `salli portfolio transactions add VTI buy --quantity 10 --price 240`, `salli portfolio performance` |
+| Financial independence | `salli fi score`, `salli fi assumptions`, `salli fi afford 2400 --months 12` |
+| Tax | `salli tax year`, `salli tax compute`, `salli profile set --tax-residency LK` |
+| Choose what powers the AI | `salli ai status`, `salli ai connect chatgpt`, `salli llm-keys set openai` |
 | Take your ledger elsewhere | `salli export beancount -o ledger.beancount`, `salli export hledger` |
 | Everything Salli keeps about you | `salli profile export` (JSON, readable only by you) |
 | Everything else | `salli --help`, and `--help` on any command |
@@ -145,11 +154,16 @@ characters.
 `salli add` asks the AI to draft an entry from your sentence, shows you the draft,
 and lets you post it, change an account, the amount, the description or the date,
 or cancel. It posts nothing you have not seen unless you pass `--yes`.
-`salli import` reads a statement on the server and walks you through each
-transaction (approve, skip, change an account); duplicates of what is already in
-your ledger are skipped. With `--yes` it posts only what is unique and has both
-accounts (`--allow-possible-duplicates` adds possible duplicates), and leaves the
-rest pending for `salli statements pending`.
+`salli import` reads a statement on the server (CSV, OFX/QFX, QIF, camt.053,
+MT940, PDF or Excel) into the account you name with `--account`, and walks you
+through each transaction: approve it, change where the money came from or went,
+skip it, or discard it. Your changes are sent to the server before posting;
+transactions imported before are skipped. With `--yes` it posts only what is
+complete and not a possible duplicate (`--allow-possible-duplicates` adds those),
+and leaves the rest pending for `salli statements pending`, `statements
+categorize`, `statements post` and `statements discard`. `--replaces` imports a
+statement again on purpose. Bank connections (`salli banks`) queue new
+transactions the same way.
 
 Rules book imported transactions before any AI is asked: `--if` takes a
 condition (`description contains uber`, `amount between 10 50`, `direction
@@ -157,6 +171,13 @@ equals out`, `currency equals USD`; repeat it for more), and `--account`,
 `--category`, `--need` and `--rename` say what to do. `salli rules test` shows
 what a rule would match among what you have booked, and `salli rules suggest`
 the rules your own bookkeeping implies, each with the command that adds it.
+
+`salli ai connect chatgpt` lets Salli's AI use your ChatGPT plan: run it where
+your browser is, choose "Continue with ChatGPT", and the sign-in goes straight to
+the server, which keeps and renews it. Using the plan counts toward its usage
+limits (https://chatgpt.com/settings/usage). Nothing is kept on your computer and
+no token is printed. Your own Anthropic or OpenAI key works too (`salli
+llm-keys set`), and `salli ai use` chooses between them.
 
 `salli chat` streams the AI's reply as it is written and shows the tools and
 specialists it uses. Before the AI changes anything it says what and asks; nothing
