@@ -86,7 +86,7 @@ async def _emit_events(
                 # raising, because raising past its `finally` would discard the
                 # exception. Without this branch the event would fall through
                 # every elif and vanish just as silently.
-                yield _sse({"type": "error", "message": payload["message"]})  # type: ignore[index]
+                yield _sse({"type": "error", **payload})  # type: ignore[dict-item]
             elif event_type == "done":
                 yield _sse({"type": "done"})
                 return
@@ -109,12 +109,16 @@ used by the agent, or by the specialist named in `agent`.
 for the user. Answer it with `agent.resume` (`workflow: "chat"`, `decision: "approved"` \
 or `"denied"`).
 - `interrupt` `{data}`: any other pause.
-- `error` `{message}`: the turn failed; `message` is a sentence to show.
+- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. \
+For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT \
+plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) \
+and `link` is where the user can fix it (ChatGPT's usage settings).
 - `done`: the last event, always sent."""
 
 _CHAT_EVENTS = (
     _EVENTS + "\n\nA refusal from the deployment's usage meter comes before the stream "
-    "opens, as an error response rather than an event."
+    "opens, as an error response rather than an event, and so does an AI provider that "
+    "cannot run at all (a ChatGPT plan paused at its limit, or needing a new sign-in)."
 )
 
 _RESUME_EVENTS = (

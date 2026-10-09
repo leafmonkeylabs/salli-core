@@ -329,12 +329,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         mentoring pass over the user's FI score, FIRE strategy, and goals. It is a
         fresh model run, so prefer get_latest_advisor_report unless the user
         explicitly asks for a fresh analysis."""
+        from salli.domain.llm import LLMError
         from salli.domain.usage import UsageLimitReached
 
         user_id = _current_user_id()
         try:
             return await advisor_svc.run_advisor(user_id, email=None, trigger="manual")
-        except UsageLimitReached as exc:
+        except (UsageLimitReached, LLMError) as exc:
             return {"error": exc.message}
 
     # ── Documents & memories ─────────────────────────────────────────────

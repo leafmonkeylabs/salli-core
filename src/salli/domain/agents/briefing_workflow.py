@@ -22,6 +22,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from salli.domain.llm import LLMError
 from salli.domain.secrets import error_label
 
 # ── State ──────────────────────────────────────────────────────────────────────
@@ -65,6 +66,10 @@ async def _narrate(state: BriefingState, advisor_svc: Any) -> dict[str, Any]:
         # per run, exactly as a manual advisor run resolves it.
         llm = await advisor_svc.llm_for(state.user_id)
         advice = await advisor_llm.generate_advice(state.context, llm=llm)
+    except LLMError as e:
+        # Salli's own sentence (a plan's usage limit, a sign-in to renew), safe
+        # to keep in state and to show.
+        return {"error": e.message}
     except Exception as e:
         # generate_advice calls the provider, so `e` can be an SDK error whose
         # message embeds the rejected API key, see error_label.

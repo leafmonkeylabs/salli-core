@@ -2116,7 +2116,12 @@ def _run_agent_chat(priming_message: str | None, thread_id: str | None = None):
                 console.print(f"\n[dim]  ▸ {payload.get('name')}…[/dim]", end="")
             elif event_type == "interrupt":
                 console.print(f"\n[yellow]  ⏸ Review required: {payload}[/yellow]")
-            elif event_type in ("done", "error"):
+            elif event_type == "error":
+                # Our own sentence: a ChatGPT plan's usage limit says where to
+                # change it, a sign-in to renew says how.
+                console.print(f"\n[red]{payload['message']}[/red]")
+                break
+            elif event_type == "done":
                 break
         console.print()
 

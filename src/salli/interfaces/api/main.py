@@ -23,6 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from salli.application.ports import FxUnavailableError, ProfileMissing
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
+from salli.domain.llm import LLMError
 from salli.domain.secrets import redact
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
@@ -302,6 +303,19 @@ def create_app() -> FastAPI:
     @app.exception_handler(UsageLimitReached)
     async def usage_limit_handler(request: Request, exc: UsageLimitReached) -> JSONResponse:
         return problem(exc.status_code, "usage-limit", "Usage limit reached", exc.detail)
+
+    # A model request that could not be served: a ChatGPT plan at its usage
+    # limit (429, with where to change it), a sign-in to renew (409), a
+    # provider that refused or could not be reached. The message is always
+    # Salli's own sentence, never the provider's, so it is safe to show. Raised
+    # before a stream opens, it is a plain problem response; once a stream is
+    # open, the stream's own `error` event carries the same detail.
+    @app.exception_handler(LLMError)
+    async def llm_error_handler(request: Request, exc: LLMError) -> JSONResponse:
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else {}
+        return problem(
+            exc.status, exc.code.replace("_", "-"), "AI unavailable", exc.detail(), **headers
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:

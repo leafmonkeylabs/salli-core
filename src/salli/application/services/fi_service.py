@@ -23,6 +23,7 @@ from salli.domain.fi import engine
 from salli.domain.fi.allocation import Claim, GoalFunding, compute_goal_funding
 from salli.domain.fi.models import AllocationBucket, FinancialSnapshot, FireStrategy, FiScore
 from salli.domain.fi.packs import registry
+from salli.domain.llm import LLMError
 from salli.domain.money import from_minor, to_minor
 
 # Account-name patterns that mark an asset account as an *investment* rather than
@@ -611,13 +612,20 @@ class FiService:
 
         yield _sse({"type": "status", "message": "Generating personalised FIRE configuration..."})
 
-        result = await fs_llm.generate_strategy(
-            context,
-            llm=await self.llm_for(user_id, api_key),
-            # The model the usage meter was told about. Metering Opus and then
-            # running Sonnet would charge for an answer the user never got.
-            model=model,
-        )
+        try:
+            result = await fs_llm.generate_strategy(
+                context,
+                llm=await self.llm_for(user_id, api_key),
+                # The model the usage meter was told about. Metering Opus and
+                # then running Sonnet would charge for an answer the user never got.
+                model=model,
+            )
+        except LLMError as exc:
+            # The stream is already open, so the failure is its last event: our
+            # own sentence, a code to branch on, and where to fix it (ChatGPT's
+            # usage settings, when a plan's limit was reached).
+            yield _sse({"type": "error", **exc.detail()})
+            return
 
         yield _sse({"type": "status", "message": "Saving your FIRE strategy..."})
 

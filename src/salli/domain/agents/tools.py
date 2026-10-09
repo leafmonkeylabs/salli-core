@@ -644,11 +644,12 @@ def make_manager_tools(
         if advisor_svc is None:
             return {"error": "Advisor service unavailable"}
         user_id = _current_user.get()
+        from salli.domain.llm import LLMError
         from salli.domain.usage import UsageLimitReached
 
         try:
             return await advisor_svc.run_advisor(user_id, email=None, trigger="manual")
-        except UsageLimitReached as exc:
+        except (UsageLimitReached, LLMError) as exc:
             return {"error": exc.message}
 
     # ── Write tools (require user approval via interrupt) ─────────────────────

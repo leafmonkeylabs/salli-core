@@ -39,6 +39,7 @@ from salli.domain.dedup.matcher import (
     dedup_key,
     find_duplicates,
 )
+from salli.domain.llm import LLMError
 from salli.domain.parsing.models import DedupState, ParsedTransaction, ParseResult, RawRow
 from salli.domain.rules.engine import Facts, Rule
 from salli.domain.rules.history import booked_transactions
@@ -405,22 +406,41 @@ class ParsingService:
         # The model, for the rows still missing an account, when there is a
         # key to ask it with. Without one the import still goes ahead.
         undecided = [t for t in live if not _booked(t)]
-        llm = await self._llm_for(user_id, api_key) if undecided else None
-        why_not = "" if llm is not None or not undecided else "with no AI key set up"
+        # A model that cannot run at all (the user's ChatGPT plan paused at its
+        # usage limit, a sign-in to renew) is treated like a refusing meter: a
+        # request is refused with its message, a sync goes on with the user's
+        # rules alone and says why.
+        why_not = ""
+        try:
+            llm = await self._llm_for(user_id, api_key) if undecided else None
+        except LLMError as unavailable:
+            if on_usage_limit == "raise":
+                raise
+            llm, why_not = None, "with the model not asked"
+            errors.append(f"The model was not asked: {unavailable.message}")
+        if llm is None and undecided and not why_not:
+            why_not = "with no AI key set up"
         if llm is not None and self._usage is not None:
             try:
                 await self._usage.charge(user_id, AIAction.STATEMENT_IMPORT, email=email)
-            except UsageLimitReached as refused:
+            except UsageLimitReached as limit:
                 if on_usage_limit == "raise":
                     raise
                 llm, why_not = None, "with the model not asked (usage limit)"
-                errors.append(f"The model was not asked: {refused}")
+                errors.append(f"The model was not asked: {limit}")
         modelled: set[int] = set()
         if llm is not None:
             try:
                 guesses = await llm_classifier.classify_transactions(
                     [t.raw for t in undecided], accounts, llm=llm, money_account=account
                 )
+            except LLMError as failed:
+                # Once charged, a model that fails is like any other failure
+                # below: the rows stay undecided. A typed error (the plan's
+                # limit reached mid-import, a sign-in that lapsed) carries our
+                # own sentence, with where to go about it.
+                why_not = "with the model unavailable"
+                errors.append(f"The model could not sort this import: {failed.message}")
             except Exception as failure:  # the provider's error, a timeout, a bad answer
                 # The rows stay undecided: an import, or a bank feed's sync,
                 # must not fail because the model did.

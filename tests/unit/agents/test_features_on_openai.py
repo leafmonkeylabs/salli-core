@@ -321,3 +321,33 @@ async def test_a_conversation_is_named_on_the_fast_model():
     assert titles == [("u1", "t1", "Accounts overview")]
     _contract(fake)
     assert fake.bodies[0]["model"] == "gpt-test-mini"
+
+
+async def test_a_briefing_at_the_plans_limit_says_where_to_change_it():
+    from tests.openai_fakes import failed_after
+
+    fake = FakeOpenAI(failed_after("{", "subscription_sharing_usage_limit_exceeded"))
+
+    class AdvisorSvc:
+        async def llm_for(self, user_id: str) -> Any:
+            return fake.client()
+
+    result = await _narrate(BriefingState(user_id="u1", context={}), AdvisorSvc())
+
+    assert "chatgpt.com/settings/usage" in result["error"]
+
+
+async def test_the_agents_advisor_tool_reports_the_plans_limit_to_the_model():
+    from salli.domain.agents.tools import make_manager_tools, set_current_user
+    from salli.domain.llm import chatgpt_usage_limit
+
+    class AdvisorSvc:
+        async def run_advisor(self, *args: Any, **kwargs: Any) -> Any:
+            raise chatgpt_usage_limit()
+
+    tools = {t.name: t for t in make_manager_tools(None, None, None, advisor_svc=AdvisorSvc())}
+    set_current_user("u1")
+
+    result = await tools["run_wealth_advisor"].ainvoke({})
+
+    assert "ChatGPT settings" in result["error"]

@@ -970,3 +970,72 @@ def test_shifting_a_date_past_the_calendar_stays_within_it():
 
     assert _shift("9999-12-31", 10) == "9999-12-31"
     assert _shift("0001-01-01", -10) == "0001-01-01"
+
+
+# ── When the model cannot run ─────────────────────────────────────────────────
+
+
+class PlanCredentials:
+    """A user on their ChatGPT plan, resolving to a client, or to an error."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+
+    async def resolve(self, user_id: str) -> ResolvedCredentials:
+        if self.error is not None:
+            raise self.error
+        from tests.fakes import FakeLLM
+
+        return ResolvedCredentials(
+            anthropic=Secret(""),
+            anthropic_is_user_key=False,
+            llm=FakeLLM(provider="chatgpt", source="user"),
+            provider="chatgpt",
+            source="user",
+        )
+
+
+async def test_a_plan_that_reaches_its_limit_mid_import_leaves_the_rows_undecided(
+    world, monkeypatch
+):
+    """Once the meter has charged, the plan's own limit is a model failure
+    like any other: the import goes ahead with the user's rules, the rest wait
+    for review, and the message says where the limit is changed."""
+    from salli.domain.llm import chatgpt_usage_limit
+
+    async def at_limit(rows: list[RawRow], accounts: Any, **_: Any) -> list[ParsedTransaction]:
+        raise chatgpt_usage_limit()
+
+    monkeypatch.setattr(llm_classifier, "classify_transactions", at_limit)
+    _rule(world, "uber", account_id="transport")
+    service = world.service(credentials=PlanCredentials())
+    for on_usage_limit, cents in (("raise", "40"), ("skip", "41")):
+        rows = [_row("UBER *TRIP 8H3K2", f"23.{cents}"), _row("WHOLE FOODS", f"84.{cents}")]
+        result = await service.import_rows(
+            USER, rows, bank="", account_id="checking", on_usage_limit=on_usage_limit
+        )
+        ride, groceries = result.transactions
+        assert ride.debit_account_id == "transport"  # the rule still booked it
+        assert groceries.debit_account_id == ""
+        assert any("chatgpt.com/settings/usage" in e for e in result.errors)
+        assert any("with the model unavailable" in e for e in result.errors)
+        assert not any("no AI key set up" in e for e in result.errors)
+
+
+async def test_a_plan_that_needs_signing_in_refuses_a_request_and_lets_a_sync_go_on(world, model):
+    from salli.domain.llm import LLMSignInRequired
+
+    service = world.service(
+        credentials=PlanCredentials(LLMSignInRequired("Sign in with ChatGPT again."))
+    )
+    rows = [_row("WHOLE FOODS", "84.17")]
+
+    with pytest.raises(LLMSignInRequired):
+        await service.import_rows(USER, rows, bank="", account_id="checking")
+
+    synced = await service.import_rows(
+        USER, rows, bank="", account_id="checking", on_usage_limit="skip"
+    )
+    assert model == []
+    assert "The model was not asked: Sign in with ChatGPT again." in synced.errors
+    assert len(synced.transactions) == 1  # queued for review all the same
