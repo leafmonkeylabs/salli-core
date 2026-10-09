@@ -10620,6 +10620,13 @@
             },
             "type": "array",
             "title": "Flows"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -16374,6 +16381,7 @@
             "enum": [
               "weekly",
               "biweekly",
+              "semimonthly",
               "monthly",
               "quarterly",
               "yearly"

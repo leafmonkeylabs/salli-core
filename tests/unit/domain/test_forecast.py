@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from decimal import Decimal
 
@@ -34,7 +35,7 @@ def _recurring(
         next_expected=next_expected,
         direction=direction,
         money_account_id=money,
-        anchor_day=day,
+        anchor_days=(day,) if day else (),
     )
 
 
@@ -116,3 +117,119 @@ def test_a_bill_on_the_31st_stays_on_the_last_day_of_short_months():
     rent = _recurring("Landlord", "1000", "2026-10-31", day=31)
     flows = recurring_flows([rent], CASH, TODAY, dt.date(2027, 1, 31))
     assert [f.date for f in flows] == ["2026-10-31", "2026-11-30", "2026-12-31", "2027-01-31"]
+
+
+# ── What review found ─────────────────────────────────────────────────────────
+
+
+def test_a_late_charge_moves_alone_and_the_schedule_keeps_its_dates():
+    # Moving the late one to today shifted the rest: the 5th became the 9th
+    # every month, and November's charge fell out of a window ending the 6th.
+    late = _recurring("Gym", "40", "2026-10-05", day=5)
+    flows = recurring_flows([late], CASH, TODAY, dt.date(2026, 11, 6))
+    assert [f.date for f in flows] == ["2026-10-09", "2026-11-05"]
+
+
+def test_each_side_moves_in_its_own_accounts_currency():
+    # A USD salary into a rupee account added 3,000 rupees, not 900,000; and
+    # a transfer between cash accounts in two currencies lost its second leg.
+    cash = {"lkr": "LKR", "usd": "USD"}
+    salary = dataclasses.replace(
+        _recurring("Acme Payroll", "3000", "2026-10-25", direction="in", money="lkr", day=25),
+        currency="USD",
+        money_amount=Decimal(900000),
+    )
+    transfer = dataclasses.replace(
+        _recurring("To Dollars", "300000", "2026-10-26", money="lkr", to="usd", day=26),
+        currency="LKR",
+        money_amount=Decimal(300000),
+        counter_amount=Decimal(1000),
+    )
+    flows = recurring_flows([salary, transfer], cash, TODAY, dt.date(2026, 10, 31))
+    assert [(f.account_id, f.amount, f.currency) for f in flows] == [
+        ("lkr", Decimal(900000), "LKR"),
+        ("lkr", Decimal(-300000), "LKR"),
+        ("usd", Decimal(1000), "USD"),
+    ]
+
+
+def test_a_side_whose_amount_cant_be_known_is_left_out_and_said():
+    unknown = dataclasses.replace(
+        _recurring("Acme Payroll", "3000", "2026-10-25", direction="in", money="lkr"),
+        currency="USD",
+    )
+    notes: list[str] = []
+    assert recurring_flows([unknown], {"lkr": "LKR"}, TODAY, END, notes) == []
+    assert notes and "can't be known" in notes[0]
+
+
+def test_an_accounts_low_point_is_where_it_ends_the_day():
+    # Rent before salary on one day was a dip that never happens.
+    flows = recurring_flows(
+        [
+            _recurring("Landlord", "1500", "2026-10-15", day=15),
+            _recurring("Acme Payroll", "3000", "2026-10-15", direction="in", day=15),
+        ],
+        CASH,
+        TODAY,
+        dt.date(2026, 10, 20),
+    )
+    [checking] = _project(flows).accounts
+    assert (checking.lowest, checking.lowest_date) == (Decimal(1000), "2026-10-09")
+
+
+def test_cash_is_what_money_is_spent_from():
+    # After onboarding (bank, EPF, house, housing loan) every account that
+    # moved was "cash", opening balances included: the house and the EPF
+    # fund were forecast as spending money.
+    from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
+    from salli.domain.reports.forecast import cash_accounts
+    from salli.domain.rules.history import booked_transactions
+
+    def account(id_, type_):
+        return Account(id=id_, user_id="u", code=id_, name=id_, type=type_, currency="LKR")
+
+    accounts = [
+        account("bank", "asset"),
+        account("epf", "asset"),
+        account("house", "asset"),
+        account("loan", "liability"),
+        account("card", "liability"),
+        account("equity", "equity"),
+        account("salary", "income"),
+        account("food", "expense"),
+        account("fuel", "expense"),
+        account("interest", "expense"),
+    ]
+
+    def entry(n, day, debit, credit, description="x"):
+        legs = {"amount": Decimal(100), "currency": "LKR"}
+        return StoredJournalEntry(
+            id=f"e{n}",
+            user_id="u",
+            entry_date=day,
+            description=description,
+            source="manual",
+            postings=[
+                Posting(account_id=debit, direction=Direction.DEBIT, **legs),
+                Posting(account_id=credit, direction=Direction.CREDIT, **legs),
+            ],
+        )
+
+    entries = [
+        entry(1, "2026-09-01", "bank", "equity", "Opening balance: Bank"),
+        entry(2, "2026-09-01", "epf", "equity", "Opening balance: EPF"),
+        entry(3, "2026-09-01", "house", "equity", "Opening balance: House"),
+        entry(4, "2026-09-01", "equity", "loan", "Opening balance: Housing loan"),
+        entry(5, "2026-09-25", "bank", "salary"),
+        entry(6, "2026-09-25", "epf", "salary"),  # contributions: in, never out
+        entry(7, "2026-09-28", "food", "bank"),
+        entry(8, "2026-09-30", "interest", "loan"),  # the loan's interest
+        entry(9, "2026-10-01", "loan", "bank"),  # a repayment
+        entry(10, "2026-10-02", "food", "card"),
+        entry(11, "2026-10-03", "fuel", "card"),
+    ]
+    booked = booked_transactions(entries, accounts)
+    assert set(cash_accounts(booked, accounts, "2026-07-11")) == {"bank", "card"}
+    # An account a statement is imported into is cash, whatever it did.
+    assert "epf" in cash_accounts(booked, accounts, "2026-07-11", {"epf"})

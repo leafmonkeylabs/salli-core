@@ -12,9 +12,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from salli.domain.accounting.ledger import native_signed
 from salli.domain.currency import quantize
-from salli.domain.money import from_minor
 from salli.domain.reports import forecast as forecasting
 from salli.domain.reports import insights
 from salli.domain.rules.engine import payee_word
@@ -159,23 +157,46 @@ class InsightsService:
         total's, from what keeps happening in the ledger and the declared
         subscriptions it has not shown (domain/reports/forecast.py).
 
-        Cash accounts are those that moved money in the last 90 days: the
-        bank and cash accounts and cards transactions went through. Each is
-        valued in its own currency; the total, in the base currency, at the
-        rate of the latest posting in that currency (no rate is fetched)."""
-        accounts, entries, base, subscriptions = await self._snapshot(user_id)
+        Cash accounts are the ones money is spent from (forecast.cash_accounts).
+        Each is valued in its own currency, from what the database sums of its
+        postings (exact, and no history loaded); an account whose balance in
+        its currency can't be known (postings in another currency with no
+        rate into its own) is left out and said in `notes`, never shown at a
+        wrong balance. The total is in the base currency, at the rate of the
+        latest posting in each currency (no rate is fetched)."""
         today = self._today()
         end = today + dt.timedelta(days=days)
+        since = (today - dt.timedelta(days=_RECURRING_DAYS)).isoformat()
+        accounts, entries, base, subscriptions = await self._snapshot(user_id, since)
         by_id = {a.id: a for a in accounts}
         booked = booked_transactions(entries, accounts)
+        notes: list[str] = []
 
-        recent = (today - dt.timedelta(days=90)).isoformat()
-        cash = {
-            b.money_account_id: by_id[b.money_account_id].currency
-            for b in booked
-            if b.entry.entry_date >= recent and b.money_account_id in by_id
-        }
-        balances = {account_id: (currency, Decimal(0)) for account_id, currency in cash.items()}
+        async with self._uow_factory() as uow:
+            fed = await self._statement_accounts(uow, user_id)
+            cash = forecasting.cash_accounts(
+                booked, accounts, (today - dt.timedelta(days=90)).isoformat(), fed
+            )
+            totals = await uow.ledger.posting_totals(user_id, list(cash))
+        native: dict[str, Decimal] = dict.fromkeys(cash, Decimal(0))
+        unknowable: set[str] = set()
+        for account_id, currency, amount, in_base in totals:
+            held_in = cash[account_id]
+            if currency == held_in:
+                native[account_id] += amount
+            elif held_in == base:
+                native[account_id] += in_base
+            else:
+                unknowable.add(account_id)
+        for account_id in sorted(unknowable):
+            notes.append(
+                f"{by_id[account_id].name}: its balance in {cash[account_id]} can't be known "
+                "(amounts posted to it in another currency, with no rate into its own); "
+                "left out of the forecast"
+            )
+            del cash[account_id]
+        balances = {a: (currency, native[a]) for a, currency in cash.items()}
+
         latest_rate: dict[str, tuple[str, Decimal]] = {}  # currency -> (date, base per unit)
         for entry in entries:
             for p in entry.postings:
@@ -183,27 +204,34 @@ class InsightsService:
                     seen = latest_rate.get(p.currency)
                     if seen is None or entry.entry_date >= seen[0]:
                         latest_rate[p.currency] = (entry.entry_date, p.fx_rate)
-                if p.account_id in balances:
-                    signed = native_signed(p, cash[p.account_id], base)
-                    if signed is not None:
-                        currency, amount = balances[p.account_id]
-                        balances[p.account_id] = (currency, amount + signed)
 
-        found = insights.detect_recurring(booked, today, direction=None)
+        currencies = {a.id: a.currency for a in accounts}
+        found = insights.detect_recurring(
+            booked, today, direction=None, currencies=currencies, base=base
+        )
         covered_by = _coverage(subscriptions, entries, accounts, base)
+        # A declared subscription is shown by the ledger only for the series
+        # it covers; any other is forecast from its declaration.
         covered = {covered_by(r) for r in found} - {None}
-        charges = [
-            forecasting.DeclaredCharge(
-                name=s["name"],
-                amount=from_minor(s["amount_minor"], base),
-                cadence=s["frequency"],
-                next_due=dt.date.fromisoformat(s["next_due_date"]),
+        charges: list[forecasting.DeclaredCharge] = []
+        for row in subscriptions:
+            if row["id"] in covered:
+                continue
+            try:
+                declared = Subscription.from_row(row, base)
+            except ValueError as exc:
+                notes.append(f"{row.get('name', 'A subscription')}: left out ({exc})")
+                continue
+            charges.append(
+                forecasting.DeclaredCharge(
+                    name=declared.name,
+                    amount=declared.amount,
+                    cadence=declared.frequency,
+                    next_due=dt.date.fromisoformat(declared.next_due_date),
+                )
             )
-            for s in subscriptions
-            if s["id"] not in covered
-        ]
         flows = [
-            *forecasting.recurring_flows(found, cash, today, end),
+            *forecasting.recurring_flows(found, cash, today, end, notes),
             *forecasting.declared_flows(charges, base, today, end),
         ]
         result = forecasting.project(
@@ -245,7 +273,19 @@ class InsightsService:
                 }
                 for f in result.flows
             ],
+            "notes": list(dict.fromkeys(notes)),
         }
+
+    @staticmethod
+    async def _statement_accounts(uow: Any, user_id: str) -> set[str]:
+        """Accounts a statement or a bank feed is imported into: cash for sure."""
+        fed: set[str] = set()
+        for statement in await uow.statements.list_statements(user_id, 1000):
+            if statement.get("account_id"):
+                fed.add(statement["account_id"])
+        for connection in await uow.bank_connections.list(user_id):
+            fed |= {a["account_id"] for a in connection.get("accounts", []) if a["account_id"]}
+        return fed
 
 
 # Two years: a yearly payment's last three charges, and their slack.

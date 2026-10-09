@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from salli.domain.reports.insights import Cadence, SpendingAxis
 from salli.interfaces.api.contract import Amount, CurrencyCode
@@ -138,6 +138,9 @@ class CashForecast(BaseModel):
     daily: list[ForecastDay]
     accounts: list[AccountForecast]
     flows: list[ExpectedFlow]
+    #: What was left out, and why: a cash account whose balance in its own
+    #: currency can't be known, a series or subscription that can't be read.
+    notes: list[str] = Field(default_factory=list)
 
 
 @router.get("/cash-flow")

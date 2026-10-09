@@ -3864,19 +3864,24 @@ def insights_forecast(
     flows: int = typer.Option(10, "--flows", help="How many upcoming flows to list"),
 ):
     """Where your cash is heading: the lowest point, and what moves it."""
+    from salli.domain.currency import format_amount
+
+    def inline(value: str, currency: str) -> str:
+        return format_amount(Decimal(value), currency, strict=False)
+
     user_id = _require_user()
     data = asyncio.run(_services().insights.forecast(user_id, days))
     if emit(data):
         return
     base = data["currency"]
     console.print(
-        f"Cash today {_money(data['today'], base, width=0)}; "
-        f"in {days} days {_money(data['end_balance'], base, width=0)}."
+        f"Cash today {inline(data['today'], base)}; "
+        f"in {days} days {inline(data['end_balance'], base)}."
     )
     low = Decimal(data["lowest"])
     style = "red" if low < 0 else "yellow" if low < Decimal(data["today"]) else "green"
     console.print(
-        f"[{style}]Lowest: {_money(data['lowest'], base, width=0)} on {data['lowest_date']}[/{style}]"
+        f"[{style}]Lowest: {inline(data['lowest'], base)} on {data['lowest_date']}[/{style}]"
     )
     if data["accounts"]:
         table = Table(title="By account")
@@ -3884,11 +3889,11 @@ def insights_forecast(
             table.add_column(column, justify="left" if column in ("Account", "On") else "right")
         for a in data["accounts"]:
             table.add_row(
-                a["name"],
-                _money(a["today"], a["currency"], width=0),
-                _money(a["lowest"], a["currency"], width=0),
+                escape(a["name"]),
+                inline(a["today"], a["currency"]),
+                inline(a["lowest"], a["currency"]),
                 a["lowest_date"],
-                _money(a["end"], a["currency"], width=0),
+                inline(a["end"], a["currency"]),
             )
         console.print(table)
     upcoming = data["flows"][:flows]
@@ -3898,11 +3903,13 @@ def insights_forecast(
         table.add_column("What")
         table.add_column("Amount", justify="right")
         for f in upcoming:
-            label = f["description"] + (
+            label = escape(f["description"]) + (
                 " [dim](declared)[/dim]" if f["source"] == "subscription" else ""
             )
-            table.add_row(f["date"], label, _money(f["amount"], f["currency"], width=0))
+            table.add_row(f["date"], label, inline(f["amount"], f["currency"]))
         console.print(table)
+    for note in data.get("notes", []):
+        console.print(f"[yellow]{escape(note)}[/yellow]")
 
 
 # ── banks ─────────────────────────────────────────────────────────────────────

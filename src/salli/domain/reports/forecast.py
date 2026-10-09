@@ -6,10 +6,14 @@ keeps happening (insights.detect_recurring: the salary, the rent, the
 subscriptions it has seen) and the subscriptions the user declared that it
 has not seen yet. Pure: no I/O, and nothing here guesses beyond those rhythms.
 
+- Cash accounts are the ones money is spent from (`cash_accounts`): not a
+  house, a pension fund or a loan whose only movements are an opening
+  balance, contributions or interest.
 - A transfer between two cash accounts (rent from checking to the card,
-  savings to checking) moves both, so the total does not change.
+  savings to checking) moves both, each in its own currency, so the total
+  does not change but by the exchange.
 - A charge a little overdue is expected today, not skipped: for planning,
-  late is not never.
+  late is not never. Only that one moves; the rest keep their schedule.
 - A declared subscription with no history has no account to say which cash
   account pays it, so it moves the total only.
 - Amounts in an account's own currency; the total in the base currency, at
@@ -20,12 +24,14 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
 
-from salli.domain.reports.insights import Cadence, Recurring, add_period
+from salli.domain.accounting.models import Account
+from salli.domain.reports.insights import CADENCES, Cadence, Recurring, add_period
+from salli.domain.rules.history import Booked
 
 FlowSource = Literal["recurring", "subscription"]
 
@@ -78,13 +84,64 @@ class Forecast:
     flows: list[Flow] = field(default_factory=list[Flow])
 
 
-def _dates(first: dt.date, cadence: Cadence, anchor_day: int | None, end: dt.date) -> list[dt.date]:
+def cash_accounts(
+    booked: Sequence[Booked],
+    accounts: Sequence[Account],
+    since: str,
+    statement_accounts: Collection[str] = frozenset(),
+) -> dict[str, str]:
+    """The accounts money is spent from (account id → its currency): what a
+    cash forecast is about.
+
+    An account a statement or bank feed is imported into is one. Otherwise,
+    from what was booked since `since` (opening balances, which are booked
+    against equity, and the system's own entries left out), one that paid
+    an expense: an asset (a bank or cash account) that did at all, a
+    liability that paid several (a card, not a loan accruing its interest).
+    A pension fund that only ever receives contributions, a house, and a
+    loan are not cash, though money moved on them."""
+    by_id = {a.id: a for a in accounts}
+    spent: dict[str, set[str]] = defaultdict(set)  # money account -> expense accounts paid
+    for b in booked:
+        if b.entry.entry_date < since or b.entry.source == "system":
+            continue
+        counter = by_id.get(b.counter_account_id)
+        if counter is None or counter.type != "expense" or b.facts.direction != "out":
+            continue
+        spent[b.money_account_id].add(counter.id)
+    cash: dict[str, str] = {}
+    for a in accounts:
+        if not a.is_active or a.type not in ("asset", "liability"):
+            continue
+        paid = spent.get(a.id, set())
+        if (
+            a.id in statement_accounts
+            or (a.type == "asset" and paid)
+            or (a.type == "liability" and len(paid) >= 2)
+        ):
+            cash[a.id] = a.currency
+    return cash
+
+
+def schedule(
+    first: dt.date,
+    cadence: Cadence,
+    anchor_days: Sequence[int],
+    start: dt.date,
+    end: dt.date,
+) -> list[dt.date]:
+    """The dates from `first` on, to `end`, that a rhythm lands on. If the
+    first is already past (`start` is today), it is expected today — late is
+    not never — and only it: the later ones keep their own dates."""
     dates: list[dt.date] = []
     day = first
     while day <= end:
-        dates.append(day)
-        day = add_period(day, cadence, anchor_day)
-    return dates
+        if day >= start:
+            dates.append(day)
+        elif not dates:
+            dates.append(start)
+        day = add_period(day, cadence, anchor_days)
+    return list(dict.fromkeys(dates))  # a late one moved to a day already due
 
 
 def recurring_flows(
@@ -92,39 +149,45 @@ def recurring_flows(
     cash: Mapping[str, str],
     start: dt.date,
     end: dt.date,
+    notes: list[str] | None = None,
 ) -> list[Flow]:
     """Every occurrence from `start` to `end` of what keeps happening on a cash
-    account. `cash` is account id → its currency."""
+    account. `cash` is account id → its currency.
+
+    Each side moves by its typical amount in its own account's currency
+    (`Recurring.money_amount`, `counter_amount`): a USD salary into a rupee
+    account in rupees. A side whose amount can't be known in its account's
+    currency is left out, and said in `notes`."""
     flows: list[Flow] = []
     for r in found:
-        if r.money_account_id not in cash:
+        currency = cash.get(r.money_account_id)
+        if currency is None:
+            continue
+        amount = r.money_amount
+        if amount is None and r.currency == currency:
+            amount = r.typical_amount  # asked without the accounts' currencies
+        if amount is None:
+            if notes is not None:
+                notes.append(f"{r.payee}: its amount in {currency} can't be known; left out")
             continue
         sign = Decimal(1) if r.direction == "in" else Decimal(-1)
-        first = max(dt.date.fromisoformat(r.next_expected), start)  # late is not never
-        for day in _dates(first, r.cadence, r.anchor_day, end):
+        # Into or out of another cash account: a transfer, which moves that
+        # account the other way, in its own currency.
+        other = cash.get(r.account_id) if r.account_id != r.money_account_id else None
+        other_amount = r.counter_amount
+        if other is not None and other_amount is None and other == r.currency:
+            other_amount = r.typical_amount
+        if other is not None and other_amount is None and notes is not None:
+            notes.append(f"{r.payee}: its amount in {other} can't be known; that side left out")
+        due = dt.date.fromisoformat(r.next_expected)
+        for day in schedule(due, r.cadence, r.anchor_days, start, end):
             when = day.isoformat()
             flows.append(
-                Flow(
-                    when,
-                    r.money_account_id,
-                    sign * r.typical_amount,
-                    r.currency,
-                    r.payee,
-                    "recurring",
-                )
+                Flow(when, r.money_account_id, sign * amount, currency, r.payee, "recurring")
             )
-            # Into or out of another cash account in the same currency: a
-            # transfer, which moves that account the other way.
-            if cash.get(r.account_id) == r.currency:
+            if other is not None and other_amount is not None:
                 flows.append(
-                    Flow(
-                        when,
-                        r.account_id,
-                        -sign * r.typical_amount,
-                        r.currency,
-                        r.payee,
-                        "recurring",
-                    )
+                    Flow(when, r.account_id, -sign * other_amount, other, r.payee, "recurring")
                 )
     return flows
 
@@ -132,16 +195,15 @@ def recurring_flows(
 def declared_flows(
     charges: Sequence[DeclaredCharge], base: str, start: dt.date, end: dt.date
 ) -> list[Flow]:
-    """Declared subscriptions the ledger has not shown, as charges on the total."""
+    """Declared subscriptions the ledger has not shown, as charges on the
+    total, on the day of the month (or week) their next due date gives."""
     flows: list[Flow] = []
     for c in charges:
+        anchors = (c.next_due.day,) if CADENCES[c.cadence].kind == "month_days" else ()
         first = c.next_due
-        while first < start:
-            first = add_period(
-                first, c.cadence, None if c.cadence in ("weekly", "biweekly") else c.next_due.day
-            )
-        anchor = None if c.cadence in ("weekly", "biweekly") else c.next_due.day
-        for day in _dates(first, c.cadence, anchor, end):
+        while first < start:  # a due date the user has not moved on since
+            first = add_period(first, c.cadence, anchors)
+        for day in schedule(first, c.cadence, anchors, start, end):
             flows.append(Flow(day.isoformat(), None, -c.amount, base, c.name, "subscription"))
     return flows
 
@@ -189,8 +251,12 @@ def project(
                 unassigned += moved if moved is not None else Decimal(0)
             elif f.account_id in running:
                 running[f.account_id] += f.amount
-                if running[f.account_id] < lowest[f.account_id][0]:
-                    lowest[f.account_id] = (running[f.account_id], when)
+        # Each account's low point is where it ends a day, after all of the
+        # day's flows: the rent and the salary landing on one day are not a
+        # dip in between.
+        for account_id, value in running.items():
+            if value < lowest[account_id][0]:
+                lowest[account_id] = (value, when)
         balance = total()
         daily.append((when, balance))
         if balance < low:

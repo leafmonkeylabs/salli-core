@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
@@ -342,6 +342,31 @@ class SQLLedgerRepository(LedgerRepository):
 
         result = await self._session.execute(stmt)
         return [_entry_from_orm(row) for row in result.scalars().all()]
+
+    async def posting_totals(
+        self, user_id: str, account_ids: Collection[str]
+    ) -> list[tuple[str, str, Decimal, Decimal]]:
+        if not account_ids:
+            return []
+        signed = PostingORM.direction * PostingORM.amount_minor
+        rows = await self._session.execute(
+            select(
+                PostingORM.account_id,
+                PostingORM.currency,
+                func.sum(signed),
+                func.sum(signed * PostingORM.fx_rate),
+            )
+            .join(JournalEntryORM, JournalEntryORM.id == PostingORM.entry_id)
+            .where(JournalEntryORM.user_id == user_id, PostingORM.account_id.in_(list(account_ids)))
+            .group_by(PostingORM.account_id, PostingORM.currency)
+        )
+        totals: list[tuple[str, str, Decimal, Decimal]] = []
+        for account_id, currency, amount, base in rows.all():
+            places = -exponent(currency, strict=False)
+            totals.append(
+                (account_id, currency, Decimal(amount).scaleb(places), Decimal(base).scaleb(places))
+            )
+        return totals
 
     async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
         # Exactly what Posting.base_signed sums, unrounded: direction times

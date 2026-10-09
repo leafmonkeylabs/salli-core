@@ -6,6 +6,7 @@ Adapters (in salli/adapters/) implement these; the domain never imports adapters
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -40,6 +41,14 @@ class LedgerRepository(ABC):
     async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
         """Mark an entry as reversed by another entry."""
         ...
+
+    async def posting_totals(
+        self, user_id: str, account_ids: Collection[str]
+    ) -> list[tuple[str, str, Decimal, Decimal]]:
+        """For each of these accounts and each currency posted to it: (account
+        id, currency, the signed total in that currency, the signed total in
+        the base currency), summed by the store over every entry."""
+        raise NotImplementedError
 
     async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
         """Each account's signed base-currency balance from every entry dated
