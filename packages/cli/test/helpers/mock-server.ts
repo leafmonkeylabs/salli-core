@@ -28,6 +28,7 @@ import {
   ACCOUNTS,
   BALANCE_SHEET,
   ENTRIES,
+  FI_ASSUMPTIONS,
   FI_SCORE,
   INCOME_STATEMENT,
   REMINDERS,
@@ -254,7 +255,7 @@ export class MockSalli {
       api_version: this.options.apiVersion ?? '1',
       server_version: '0.1.0',
       extensions: [],
-      tax_packs: [{ country: 'LK', year: '2025/26', version: '1', currency: 'LKR', period_start: '2025-04-01', period_end: '2026-03-31' }],
+      tax_packs: [{ country: 'LK', year: '2025/26', version: '1', currency: 'LKR', period_start: '2025-04-01', period_end: '2026-03-31', withholding_kinds: [] }],
       oauth: {
         issuer: base,
         authorization_endpoint: `${base}/mcp/oauth/authorize`,
@@ -545,6 +546,7 @@ export class MockSalli {
         stale_after_days: 30,
         real_return_used: '0.035',
         swr: '0.04',
+        assumptions: FI_ASSUMPTIONS,
       };
       return { status: 200, body: impact };
     }
@@ -641,6 +643,8 @@ export class MockSalli {
         set_due: '09-30',
         installments: ['08-15', '11-15', '02-15'],
         final_installment_due: '05-15',
+        withholding_kinds: [{ code: 'apit', label: 'APIT', description: 'Tax your employer withholds' }],
+        tax_roles: ['apit_credit', 'ait_credit'],
       };
       return { status: 200, body: [pack] };
     }

@@ -5,6 +5,7 @@
  */
 import type {
   Account,
+  FiAssumptions,
   BalanceSheet,
   FiScore,
   IncomeStatement,
@@ -200,9 +201,14 @@ export const STATEMENT_UPLOAD = {
       credit_flag: false,
       bank_ref: 'REF1',
       currency: 'USD',
+      account_id: uid(2),
       debit_account_id: uid(6),
       credit_account_id: uid(2),
       category: 'Groceries',
+      need: null,
+      rule_id: null,
+      description_override: null,
+      duplicate_of: null,
       confidence: 0.92,
       // What the server says for a transaction that matched nothing.
       dedup_status: 'pending',
@@ -215,11 +221,16 @@ export const STATEMENT_UPLOAD = {
       credit_flag: false,
       bank_ref: 'REF2',
       currency: 'USD',
+      account_id: uid(2),
       debit_account_id: uid(6),
       credit_account_id: uid(2),
       category: 'Dining',
+      need: null,
+      rule_id: null,
+      description_override: null,
       confidence: 0.61,
       dedup_status: 'fuzzy_match',
+      duplicate_of: uid(203),
     },
     {
       id: uid(903),
@@ -229,11 +240,23 @@ export const STATEMENT_UPLOAD = {
       credit_flag: false,
       bank_ref: 'REF3',
       currency: 'USD',
+      account_id: uid(2),
       debit_account_id: uid(7),
       credit_account_id: uid(2),
       category: 'Rent',
+      need: null,
+      rule_id: null,
+      description_override: null,
       confidence: 0.99,
       dedup_status: 'exact_duplicate',
+      duplicate_of: uid(909),
     },
   ],
 } satisfies StatementUpload;
+
+export const FI_ASSUMPTIONS: FiAssumptions = {
+  region: 'US',
+  inflation: { value: '0.03', origin: 'default', source: 'US CPI, 10-year average' },
+  real_return: { value: '0.05', origin: 'default', source: 'A balanced portfolio, after inflation' },
+  safe_withdrawal_rate: { value: '0.04', origin: 'user', source: 'Your choice' },
+};

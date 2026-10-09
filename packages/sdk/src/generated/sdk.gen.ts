@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { AccountDeleteData, AccountDeleteErrors, AccountDeleteResponses, AccountExportData, AccountExportErrors, AccountExportResponses, AccountsCreateData, AccountsCreateErrors, AccountsCreateResponses, AccountsDeactivateData, AccountsDeactivateErrors, AccountsDeactivateResponses, AccountsGetData, AccountsGetErrors, AccountsGetResponses, AccountsListData, AccountsListErrors, AccountsListResponses, AccountsOverviewData, AccountsOverviewErrors, AccountsOverviewResponses, AccountsReactivateData, AccountsReactivateErrors, AccountsReactivateResponses, AccountsUpdateData, AccountsUpdateErrors, AccountsUpdateResponses, AdvisorBriefingPrepareData, AdvisorBriefingPrepareErrors, AdvisorBriefingPrepareResponses, AdvisorBriefingResumeData, AdvisorBriefingResumeErrors, AdvisorBriefingResumeResponses, AdvisorCronRunDueData, AdvisorCronRunDueErrors, AdvisorCronRunDueResponses, AdvisorDailyBriefingGetData, AdvisorDailyBriefingGetErrors, AdvisorDailyBriefingGetResponses, AdvisorDailyBriefingSetData, AdvisorDailyBriefingSetErrors, AdvisorDailyBriefingSetResponses, AdvisorRecommendationsApplyData, AdvisorRecommendationsApplyErrors, AdvisorRecommendationsApplyResponses, AdvisorRecommendationsDismissData, AdvisorRecommendationsDismissErrors, AdvisorRecommendationsDismissResponses, AdvisorReportsLatestData, AdvisorReportsLatestErrors, AdvisorReportsLatestResponses, AdvisorReportsListData, AdvisorReportsListErrors, AdvisorReportsListResponses, AdvisorRunData, AdvisorRunErrors, AdvisorRunResponses, AgentAuditLogData, AgentAuditLogErrors, AgentAuditLogResponses, AgentChatData, AgentChatErrors, AgentChatResponses, AgentFilesUploadData, AgentFilesUploadErrors, AgentFilesUploadResponses, AgentHistoryData, AgentHistoryErrors, AgentHistoryResponses, AgentResumeData, AgentResumeErrors, AgentResumeResponses, AgentSessionsDeleteData, AgentSessionsDeleteErrors, AgentSessionsDeleteResponses, AgentSessionsListData, AgentSessionsListErrors, AgentSessionsListResponses, AuthMeData, AuthMeErrors, AuthMeResponses, BudgetsCreateData, BudgetsCreateErrors, BudgetsCreateResponses, BudgetsDeleteData, BudgetsDeleteErrors, BudgetsDeleteResponses, BudgetsGetData, BudgetsGetErrors, BudgetsGetResponses, BudgetsListData, BudgetsListErrors, BudgetsListResponses, BudgetsSummaryData, BudgetsSummaryErrors, BudgetsSummaryResponses, BudgetsUpdateData, BudgetsUpdateErrors, BudgetsUpdateResponses, DebtsCreateData, DebtsCreateErrors, DebtsCreateResponses, DebtsDeleteData, DebtsDeleteErrors, DebtsDeleteResponses, DebtsGetData, DebtsGetErrors, DebtsGetResponses, DebtsListData, DebtsListErrors, DebtsListResponses, DebtsPayoffPlanData, DebtsPayoffPlanErrors, DebtsPayoffPlanResponses, DebtsUpdateData, DebtsUpdateErrors, DebtsUpdateResponses, DocumentsDeleteData, DocumentsDeleteErrors, DocumentsDeleteResponses, DocumentsGetData, DocumentsGetErrors, DocumentsGetResponses, DocumentsListData, DocumentsListErrors, DocumentsListResponses, EntriesCreateData, EntriesCreateErrors, EntriesCreateResponses, EntriesGetData, EntriesGetErrors, EntriesGetResponses, EntriesListData, EntriesListErrors, EntriesListResponses, EntriesParseData, EntriesParseErrors, EntriesParseResponses, EntriesPostingsSetTagsData, EntriesPostingsSetTagsErrors, EntriesPostingsSetTagsResponses, EntriesProvenanceData, EntriesProvenanceErrors, EntriesProvenanceResponses, EntriesReverseData, EntriesReverseErrors, EntriesReverseResponses, ExportsBeancountData, ExportsBeancountErrors, ExportsBeancountResponses, ExportsHledgerData, ExportsHledgerErrors, ExportsHledgerResponses, FiProjectionsData, FiProjectionsErrors, FiProjectionsResponses, FiScoreGetData, FiScoreGetErrors, FiScoreGetResponses, FiScoreHistoryData, FiScoreHistoryErrors, FiScoreHistoryResponses, FiScoreRecomputeData, FiScoreRecomputeErrors, FiScoreRecomputeResponses, FiSimulatePurchaseData, FiSimulatePurchaseErrors, FiSimulatePurchaseResponses, FiStrategyGenerateData, FiStrategyGenerateErrors, FiStrategyGenerateResponses, FiStrategyGetData, FiStrategyGetErrors, FiStrategyGetResponses, FiStrategyHistoryData, FiStrategyHistoryErrors, FiStrategyHistoryResponses, FiSurplusData, FiSurplusErrors, FiSurplusResponses, GoalsAllocationsListData, GoalsAllocationsListErrors, GoalsAllocationsListResponses, GoalsAllocationsSetData, GoalsAllocationsSetErrors, GoalsAllocationsSetResponses, GoalsCreateData, GoalsCreateErrors, GoalsCreateResponses, GoalsDeleteData, GoalsDeleteErrors, GoalsDeleteResponses, GoalsListData, GoalsListErrors, GoalsListResponses, GoalsUpdateData, GoalsUpdateErrors, GoalsUpdateResponses, HoldingsCreateData, HoldingsCreateErrors, HoldingsCreateResponses, HoldingsDeleteData, HoldingsDeleteErrors, HoldingsDeleteResponses, HoldingsGetData, HoldingsGetErrors, HoldingsGetResponses, HoldingsListData, HoldingsListErrors, HoldingsListResponses, HoldingsUpdateData, HoldingsUpdateErrors, HoldingsUpdateResponses, InsurancePoliciesCreateData, InsurancePoliciesCreateErrors, InsurancePoliciesCreateResponses, InsurancePoliciesDeleteData, InsurancePoliciesDeleteErrors, InsurancePoliciesDeleteResponses, InsurancePoliciesGetData, InsurancePoliciesGetErrors, InsurancePoliciesGetResponses, InsurancePoliciesListData, InsurancePoliciesListErrors, InsurancePoliciesListResponses, InsurancePoliciesUpdateData, InsurancePoliciesUpdateErrors, InsurancePoliciesUpdateResponses, InsuranceReportData, InsuranceReportErrors, InsuranceReportResponses, InsuranceTargetsDeleteData, InsuranceTargetsDeleteErrors, InsuranceTargetsDeleteResponses, InsuranceTargetsListData, InsuranceTargetsListErrors, InsuranceTargetsListResponses, InsuranceTargetsSetData, InsuranceTargetsSetErrors, InsuranceTargetsSetResponses, LedgerIncomeStatementData, LedgerIncomeStatementErrors, LedgerIncomeStatementResponses, LedgerTrialBalanceData, LedgerTrialBalanceErrors, LedgerTrialBalanceResponses, LlmKeysDeleteData, LlmKeysDeleteErrors, LlmKeysDeleteResponses, LlmKeysListData, LlmKeysListErrors, LlmKeysListResponses, LlmKeysSetData, LlmKeysSetErrors, LlmKeysSetResponses, McpConnectionsListData, McpConnectionsListErrors, McpConnectionsListResponses, McpConnectionsRevokeData, McpConnectionsRevokeErrors, McpConnectionsRevokeResponses, McpEnabledGetData, McpEnabledGetErrors, McpEnabledGetResponses, McpEnabledSetData, McpEnabledSetErrors, McpEnabledSetResponses, MetaGetData, MetaGetErrors, MetaGetResponses, MetaHealthData, MetaHealthErrors, MetaHealthResponses, OauthAuthorizationServerMetadataData, OauthAuthorizationServerMetadataErrors, OauthAuthorizationServerMetadataResponses, OauthAuthorizeData, OauthAuthorizeErrors, OauthAuthorizeResponses, OauthConsentData, OauthConsentErrors, OauthConsentInfoData, OauthConsentInfoErrors, OauthConsentInfoResponses, OauthConsentResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthProtectedResourceMetadataData, OauthProtectedResourceMetadataErrors, OauthProtectedResourceMetadataResponses, OauthRegisterData, OauthRegisterErrors, OauthRegisterResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, OnboardingBalanceSheetData, OnboardingBalanceSheetErrors, OnboardingBalanceSheetResponses, OnboardingCompleteData, OnboardingCompleteErrors, OnboardingCompleteResponses, OnboardingGoalsData, OnboardingGoalsErrors, OnboardingGoalsResponses, OnboardingIncomeData, OnboardingIncomeErrors, OnboardingIncomeResponses, OnboardingRiskQuestionnaireData, OnboardingRiskQuestionnaireErrors, OnboardingRiskQuestionnaireResponses, OnboardingStatusData, OnboardingStatusErrors, OnboardingStatusResponses, PortfolioSummaryData, PortfolioSummaryErrors, PortfolioSummaryResponses, ProfileGetData, ProfileGetErrors, ProfileGetResponses, ProfileUpdateData, ProfileUpdateErrors, ProfileUpdateResponses, RemindersCreateData, RemindersCreateErrors, RemindersCreateResponses, RemindersDeleteData, RemindersDeleteErrors, RemindersDeleteResponses, RemindersListData, RemindersListErrors, RemindersListResponses, RemindersMarkDoneData, RemindersMarkDoneErrors, RemindersMarkDoneResponses, RemindersSeedFilingCalendarData, RemindersSeedFilingCalendarErrors, RemindersSeedFilingCalendarResponses, RemindersSyncAlertsData, RemindersSyncAlertsErrors, RemindersSyncAlertsResponses, ReportsBalanceSheetData, ReportsBalanceSheetErrors, ReportsBalanceSheetResponses, ReportsExportCsvData, ReportsExportCsvErrors, ReportsExportCsvResponses, ReportsGoalProgressData, ReportsGoalProgressErrors, ReportsGoalProgressResponses, ReportsNetWorthData, ReportsNetWorthErrors, ReportsNetWorthResponses, RulesCreateData, RulesCreateErrors, RulesCreateResponses, RulesDeleteData, RulesDeleteErrors, RulesDeleteResponses, RulesGetData, RulesGetErrors, RulesGetResponses, RulesListData, RulesListErrors, RulesListResponses, RulesSuggestionsData, RulesSuggestionsErrors, RulesSuggestionsResponses, RulesTestData, RulesTestErrors, RulesTestResponses, RulesUpdateData, RulesUpdateErrors, RulesUpdateResponses, StatementsListData, StatementsListErrors, StatementsListResponses, StatementsPendingData, StatementsPendingErrors, StatementsPendingResponses, StatementsPostData, StatementsPostErrors, StatementsPostResponses, StatementsUploadData, StatementsUploadErrors, StatementsUploadResponses, SubscriptionsCreateData, SubscriptionsCreateErrors, SubscriptionsCreateResponses, SubscriptionsDeleteData, SubscriptionsDeleteErrors, SubscriptionsDeleteResponses, SubscriptionsGetData, SubscriptionsGetErrors, SubscriptionsGetResponses, SubscriptionsListData, SubscriptionsListErrors, SubscriptionsListResponses, SubscriptionsReportData, SubscriptionsReportErrors, SubscriptionsReportResponses, SubscriptionsReportsData, SubscriptionsReportsErrors, SubscriptionsReportsResponses, SubscriptionsUpdateData, SubscriptionsUpdateErrors, SubscriptionsUpdateResponses, TagsListData, TagsListErrors, TagsListResponses, TaxComputeData, TaxComputeErrors, TaxComputeResponses, TaxLatestData, TaxLatestErrors, TaxLatestResponses, TaxPacksData, TaxPacksErrors, TaxPacksResponses, TokensCreateData, TokensCreateErrors, TokensCreateResponses, TokensListData, TokensListErrors, TokensListResponses, TokensRevokeData, TokensRevokeErrors, TokensRevokeResponses } from './types.gen';
+import type { AccountDeleteData, AccountDeleteErrors, AccountDeleteResponses, AccountExportData, AccountExportErrors, AccountExportResponses, AccountsCreateData, AccountsCreateErrors, AccountsCreateResponses, AccountsDeactivateData, AccountsDeactivateErrors, AccountsDeactivateResponses, AccountsGetData, AccountsGetErrors, AccountsGetResponses, AccountsListData, AccountsListErrors, AccountsListResponses, AccountsOverviewData, AccountsOverviewErrors, AccountsOverviewResponses, AccountsReactivateData, AccountsReactivateErrors, AccountsReactivateResponses, AccountsUpdateData, AccountsUpdateErrors, AccountsUpdateResponses, AdvisorBriefingPrepareData, AdvisorBriefingPrepareErrors, AdvisorBriefingPrepareResponses, AdvisorBriefingResumeData, AdvisorBriefingResumeErrors, AdvisorBriefingResumeResponses, AdvisorCronRunDueData, AdvisorCronRunDueErrors, AdvisorCronRunDueResponses, AdvisorDailyBriefingGetData, AdvisorDailyBriefingGetErrors, AdvisorDailyBriefingGetResponses, AdvisorDailyBriefingSetData, AdvisorDailyBriefingSetErrors, AdvisorDailyBriefingSetResponses, AdvisorRecommendationsApplyData, AdvisorRecommendationsApplyErrors, AdvisorRecommendationsApplyResponses, AdvisorRecommendationsDismissData, AdvisorRecommendationsDismissErrors, AdvisorRecommendationsDismissResponses, AdvisorReportsLatestData, AdvisorReportsLatestErrors, AdvisorReportsLatestResponses, AdvisorReportsListData, AdvisorReportsListErrors, AdvisorReportsListResponses, AdvisorRunData, AdvisorRunErrors, AdvisorRunResponses, AgentAuditLogData, AgentAuditLogErrors, AgentAuditLogResponses, AgentChatData, AgentChatErrors, AgentChatResponses, AgentFilesUploadData, AgentFilesUploadErrors, AgentFilesUploadResponses, AgentHistoryData, AgentHistoryErrors, AgentHistoryResponses, AgentResumeData, AgentResumeErrors, AgentResumeResponses, AgentSessionsDeleteData, AgentSessionsDeleteErrors, AgentSessionsDeleteResponses, AgentSessionsListData, AgentSessionsListErrors, AgentSessionsListResponses, AiChatgptConnectData, AiChatgptConnectErrors, AiChatgptConnectResponses, AiChatgptDisconnectData, AiChatgptDisconnectErrors, AiChatgptDisconnectResponses, AiChatgptGetData, AiChatgptGetErrors, AiChatgptGetResponses, AiHostGetData, AiHostGetErrors, AiHostGetResponses, AiModelsListData, AiModelsListErrors, AiModelsListResponses, AiModelsSetData, AiModelsSetErrors, AiModelsSetResponses, AiSettingsGetData, AiSettingsGetErrors, AiSettingsGetResponses, AiSettingsSetData, AiSettingsSetErrors, AiSettingsSetResponses, AuthMeData, AuthMeErrors, AuthMeResponses, BankConnectionsConnectData, BankConnectionsConnectErrors, BankConnectionsConnectResponses, BankConnectionsCronSyncDueData, BankConnectionsCronSyncDueErrors, BankConnectionsCronSyncDueResponses, BankConnectionsDisconnectData, BankConnectionsDisconnectErrors, BankConnectionsDisconnectResponses, BankConnectionsListData, BankConnectionsListErrors, BankConnectionsListResponses, BankConnectionsMapAccountData, BankConnectionsMapAccountErrors, BankConnectionsMapAccountResponses, BankConnectionsSyncData, BankConnectionsSyncErrors, BankConnectionsSyncResponses, BudgetsCreateData, BudgetsCreateErrors, BudgetsCreateResponses, BudgetsDeleteData, BudgetsDeleteErrors, BudgetsDeleteResponses, BudgetsGetData, BudgetsGetErrors, BudgetsGetResponses, BudgetsListData, BudgetsListErrors, BudgetsListResponses, BudgetsSummaryData, BudgetsSummaryErrors, BudgetsSummaryResponses, BudgetsUpdateData, BudgetsUpdateErrors, BudgetsUpdateResponses, DebtsCreateData, DebtsCreateErrors, DebtsCreateResponses, DebtsDeleteData, DebtsDeleteErrors, DebtsDeleteResponses, DebtsGetData, DebtsGetErrors, DebtsGetResponses, DebtsListData, DebtsListErrors, DebtsListResponses, DebtsPayoffPlanData, DebtsPayoffPlanErrors, DebtsPayoffPlanResponses, DebtsUpdateData, DebtsUpdateErrors, DebtsUpdateResponses, DocumentsDeleteData, DocumentsDeleteErrors, DocumentsDeleteResponses, DocumentsGetData, DocumentsGetErrors, DocumentsGetResponses, DocumentsListData, DocumentsListErrors, DocumentsListResponses, EntriesCreateData, EntriesCreateErrors, EntriesCreateResponses, EntriesGetData, EntriesGetErrors, EntriesGetResponses, EntriesListData, EntriesListErrors, EntriesListResponses, EntriesParseData, EntriesParseErrors, EntriesParseResponses, EntriesPostingsSetTagsData, EntriesPostingsSetTagsErrors, EntriesPostingsSetTagsResponses, EntriesProvenanceData, EntriesProvenanceErrors, EntriesProvenanceResponses, EntriesReverseData, EntriesReverseErrors, EntriesReverseResponses, ExportsBeancountData, ExportsBeancountErrors, ExportsBeancountResponses, ExportsHledgerData, ExportsHledgerErrors, ExportsHledgerResponses, FiAssumptionsData, FiAssumptionsErrors, FiAssumptionsResponses, FiProjectionsData, FiProjectionsErrors, FiProjectionsResponses, FiScoreGetData, FiScoreGetErrors, FiScoreGetResponses, FiScoreHistoryData, FiScoreHistoryErrors, FiScoreHistoryResponses, FiScoreRecomputeData, FiScoreRecomputeErrors, FiScoreRecomputeResponses, FiSimulatePurchaseData, FiSimulatePurchaseErrors, FiSimulatePurchaseResponses, FiStrategyGenerateData, FiStrategyGenerateErrors, FiStrategyGenerateResponses, FiStrategyGetData, FiStrategyGetErrors, FiStrategyGetResponses, FiStrategyHistoryData, FiStrategyHistoryErrors, FiStrategyHistoryResponses, FiSurplusData, FiSurplusErrors, FiSurplusResponses, GoalsAllocationsListData, GoalsAllocationsListErrors, GoalsAllocationsListResponses, GoalsAllocationsSetData, GoalsAllocationsSetErrors, GoalsAllocationsSetResponses, GoalsCreateData, GoalsCreateErrors, GoalsCreateResponses, GoalsDeleteData, GoalsDeleteErrors, GoalsDeleteResponses, GoalsListData, GoalsListErrors, GoalsListResponses, GoalsUpdateData, GoalsUpdateErrors, GoalsUpdateResponses, HoldingsCreateData, HoldingsCreateErrors, HoldingsCreateResponses, HoldingsDeleteData, HoldingsDeleteErrors, HoldingsDeleteResponses, HoldingsGetData, HoldingsGetErrors, HoldingsGetResponses, HoldingsListData, HoldingsListErrors, HoldingsListResponses, HoldingsLotsData, HoldingsLotsErrors, HoldingsLotsResponses, HoldingsPerformanceData, HoldingsPerformanceErrors, HoldingsPerformanceResponses, HoldingsTransactionsCreateData, HoldingsTransactionsCreateErrors, HoldingsTransactionsCreateResponses, HoldingsTransactionsDeleteData, HoldingsTransactionsDeleteErrors, HoldingsTransactionsDeleteResponses, HoldingsTransactionsGetData, HoldingsTransactionsGetErrors, HoldingsTransactionsGetResponses, HoldingsTransactionsListData, HoldingsTransactionsListErrors, HoldingsTransactionsListResponses, HoldingsTransactionsUpdateData, HoldingsTransactionsUpdateErrors, HoldingsTransactionsUpdateResponses, HoldingsUpdateData, HoldingsUpdateErrors, HoldingsUpdateResponses, InsightsCashFlowData, InsightsCashFlowErrors, InsightsCashFlowResponses, InsightsForecastData, InsightsForecastErrors, InsightsForecastResponses, InsightsNetWorthData, InsightsNetWorthErrors, InsightsNetWorthResponses, InsightsRecurringData, InsightsRecurringErrors, InsightsRecurringResponses, InsightsSafeToSpendData, InsightsSafeToSpendErrors, InsightsSafeToSpendResponses, InsightsSignalsData, InsightsSignalsErrors, InsightsSignalsResponses, InsightsSpendingData, InsightsSpendingErrors, InsightsSpendingResponses, InsurancePoliciesCreateData, InsurancePoliciesCreateErrors, InsurancePoliciesCreateResponses, InsurancePoliciesDeleteData, InsurancePoliciesDeleteErrors, InsurancePoliciesDeleteResponses, InsurancePoliciesGetData, InsurancePoliciesGetErrors, InsurancePoliciesGetResponses, InsurancePoliciesListData, InsurancePoliciesListErrors, InsurancePoliciesListResponses, InsurancePoliciesUpdateData, InsurancePoliciesUpdateErrors, InsurancePoliciesUpdateResponses, InsuranceReportData, InsuranceReportErrors, InsuranceReportResponses, InsuranceTargetsDeleteData, InsuranceTargetsDeleteErrors, InsuranceTargetsDeleteResponses, InsuranceTargetsListData, InsuranceTargetsListErrors, InsuranceTargetsListResponses, InsuranceTargetsSetData, InsuranceTargetsSetErrors, InsuranceTargetsSetResponses, LedgerIncomeStatementData, LedgerIncomeStatementErrors, LedgerIncomeStatementResponses, LedgerTrialBalanceData, LedgerTrialBalanceErrors, LedgerTrialBalanceResponses, LlmKeysDeleteData, LlmKeysDeleteErrors, LlmKeysDeleteResponses, LlmKeysListData, LlmKeysListErrors, LlmKeysListResponses, LlmKeysSetData, LlmKeysSetErrors, LlmKeysSetResponses, McpConnectionsListData, McpConnectionsListErrors, McpConnectionsListResponses, McpConnectionsRevokeData, McpConnectionsRevokeErrors, McpConnectionsRevokeResponses, McpEnabledGetData, McpEnabledGetErrors, McpEnabledGetResponses, McpEnabledSetData, McpEnabledSetErrors, McpEnabledSetResponses, MetaGetData, MetaGetErrors, MetaGetResponses, MetaHealthData, MetaHealthErrors, MetaHealthResponses, OauthAuthorizationServerMetadataData, OauthAuthorizationServerMetadataErrors, OauthAuthorizationServerMetadataResponses, OauthAuthorizeData, OauthAuthorizeErrors, OauthAuthorizeResponses, OauthConsentData, OauthConsentErrors, OauthConsentInfoData, OauthConsentInfoErrors, OauthConsentInfoResponses, OauthConsentResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthProtectedResourceMetadataData, OauthProtectedResourceMetadataErrors, OauthProtectedResourceMetadataResponses, OauthRegisterData, OauthRegisterErrors, OauthRegisterResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, OnboardingBalanceSheetData, OnboardingBalanceSheetErrors, OnboardingBalanceSheetResponses, OnboardingCompleteData, OnboardingCompleteErrors, OnboardingCompleteResponses, OnboardingGoalsData, OnboardingGoalsErrors, OnboardingGoalsResponses, OnboardingIncomeData, OnboardingIncomeErrors, OnboardingIncomeResponses, OnboardingRiskQuestionnaireData, OnboardingRiskQuestionnaireErrors, OnboardingRiskQuestionnaireResponses, OnboardingStatusData, OnboardingStatusErrors, OnboardingStatusResponses, PortfolioPerformanceData, PortfolioPerformanceErrors, PortfolioPerformanceResponses, PortfolioPricesDeleteData, PortfolioPricesDeleteErrors, PortfolioPricesDeleteResponses, PortfolioPricesListData, PortfolioPricesListErrors, PortfolioPricesListResponses, PortfolioPricesSetData, PortfolioPricesSetErrors, PortfolioPricesSetResponses, PortfolioSummaryData, PortfolioSummaryErrors, PortfolioSummaryResponses, ProfileGetData, ProfileGetErrors, ProfileGetResponses, ProfileUpdateData, ProfileUpdateErrors, ProfileUpdateResponses, RemindersCreateData, RemindersCreateErrors, RemindersCreateResponses, RemindersDeleteData, RemindersDeleteErrors, RemindersDeleteResponses, RemindersListData, RemindersListErrors, RemindersListResponses, RemindersMarkDoneData, RemindersMarkDoneErrors, RemindersMarkDoneResponses, RemindersSeedFilingCalendarData, RemindersSeedFilingCalendarErrors, RemindersSeedFilingCalendarResponses, RemindersSyncAlertsData, RemindersSyncAlertsErrors, RemindersSyncAlertsResponses, ReportsBalanceSheetData, ReportsBalanceSheetErrors, ReportsBalanceSheetResponses, ReportsExportCsvData, ReportsExportCsvErrors, ReportsExportCsvResponses, ReportsGoalProgressData, ReportsGoalProgressErrors, ReportsGoalProgressResponses, ReportsNetWorthData, ReportsNetWorthErrors, ReportsNetWorthResponses, RulesCreateData, RulesCreateErrors, RulesCreateResponses, RulesDeleteData, RulesDeleteErrors, RulesDeleteResponses, RulesGetData, RulesGetErrors, RulesGetResponses, RulesListData, RulesListErrors, RulesListResponses, RulesSuggestionsData, RulesSuggestionsErrors, RulesSuggestionsResponses, RulesTestData, RulesTestErrors, RulesTestResponses, RulesUpdateData, RulesUpdateErrors, RulesUpdateResponses, StatementsCategorizeData, StatementsCategorizeErrors, StatementsCategorizeResponses, StatementsDiscardData, StatementsDiscardErrors, StatementsDiscardResponses, StatementsListData, StatementsListErrors, StatementsListResponses, StatementsPendingData, StatementsPendingErrors, StatementsPendingResponses, StatementsPostData, StatementsPostErrors, StatementsPostResponses, StatementsUploadData, StatementsUploadErrors, StatementsUploadResponses, SubscriptionsCreateData, SubscriptionsCreateErrors, SubscriptionsCreateResponses, SubscriptionsDeleteData, SubscriptionsDeleteErrors, SubscriptionsDeleteResponses, SubscriptionsGetData, SubscriptionsGetErrors, SubscriptionsGetResponses, SubscriptionsListData, SubscriptionsListErrors, SubscriptionsListResponses, SubscriptionsReportData, SubscriptionsReportErrors, SubscriptionsReportResponses, SubscriptionsReportsData, SubscriptionsReportsErrors, SubscriptionsReportsResponses, SubscriptionsUpdateData, SubscriptionsUpdateErrors, SubscriptionsUpdateResponses, TagsListData, TagsListErrors, TagsListResponses, TaxComputeData, TaxComputeErrors, TaxComputeResponses, TaxCurrentYearData, TaxCurrentYearErrors, TaxCurrentYearResponses, TaxLatestData, TaxLatestErrors, TaxLatestResponses, TaxPacksData, TaxPacksErrors, TaxPacksResponses, TokensCreateData, TokensCreateErrors, TokensCreateResponses, TokensListData, TokensListErrors, TokensListResponses, TokensRevokeData, TokensRevokeErrors, TokensRevokeResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -224,6 +224,12 @@ export const taxPacks = <ThrowOnError extends boolean = false>(options?: Options
 
 /**
  * Compute Tax
+ *
+ * Compute the user's income tax for a year with their country's pack.
+ *
+ * Their country is their tax residency or, while they have not set one, the
+ * one country whose packs compute in their base currency. 422
+ * (/problems/no-tax-pack) when Salli has no pack that can compute it.
  */
 export const taxCompute = <ThrowOnError extends boolean = false>(options?: Options<TaxComputeData, ThrowOnError>): RequestResult<TaxComputeResponses, TaxComputeErrors, ThrowOnError> => (options?.client ?? client).post<TaxComputeResponses, TaxComputeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -237,6 +243,17 @@ export const taxCompute = <ThrowOnError extends boolean = false>(options?: Optio
 export const taxLatest = <ThrowOnError extends boolean = false>(options?: Options<TaxLatestData, ThrowOnError>): RequestResult<TaxLatestResponses, TaxLatestErrors, ThrowOnError> => (options?.client ?? client).get<TaxLatestResponses, TaxLatestErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/tax/latest',
+    ...options
+});
+
+/**
+ * Get Current Year
+ *
+ * The tax year the user is in today, in their country.
+ */
+export const taxCurrentYear = <ThrowOnError extends boolean = false>(options?: Options<TaxCurrentYearData, ThrowOnError>): RequestResult<TaxCurrentYearResponses, TaxCurrentYearErrors, ThrowOnError> => (options?.client ?? client).get<TaxCurrentYearResponses, TaxCurrentYearErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/current-year',
     ...options
 });
 
@@ -516,9 +533,23 @@ export const accountDelete = <ThrowOnError extends boolean = false>(options: Opt
  * Transactions have LLM-assigned accounts and dedup status; review before posting.
  * Passes the deployment's usage meter before any parsing starts.
  *
- * `currency` is the statement's ISO 4217 code (default: the user's base
- * currency). Posting a statement in another currency converts each
- * transaction at the published rate for its date.
+ * `account_id` is the account the statement is for (an active asset or
+ * liability account): the money side of every transaction in it. `currency`
+ * is the statement's ISO 4217 code, for files that do not name their own
+ * (OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the
+ * account's currency, else the user's base currency, and a transaction in
+ * another currency than the account's is skipped. Posting a statement in
+ * another currency than the base converts each transaction at the published
+ * rate for its date. `date_order` settles dates a CSV or QIF file leaves
+ * ambiguous (01/02/2026). Rows that could not be read, and any guess the
+ * importer made, come back in `errors`.
+ *
+ * A file holding several accounts (a QIF with a card register, an OFX with
+ * two statements) is imported one account at a time: `source_account`
+ * names the file's account to import when the statement's account does not
+ * match one by name or code. `replaces` is an earlier upload of the same
+ * statement, imported again on purpose: its rows are not taken for
+ * duplicates, and those still in review are discarded.
  */
 export const statementsUpload = <ThrowOnError extends boolean = false>(options: Options<StatementsUploadData, ThrowOnError>): RequestResult<StatementsUploadResponses, StatementsUploadErrors, ThrowOnError> => (options.client ?? client).post<StatementsUploadResponses, StatementsUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,
@@ -548,7 +579,7 @@ export const statementsList = <ThrowOnError extends boolean = false>(options?: O
 /**
  * Get Pending
  *
- * Return unposted transactions for a statement.
+ * A statement's transactions still to review: neither posted nor discarded.
  */
 export const statementsPending = <ThrowOnError extends boolean = false>(options: Options<StatementsPendingData, ThrowOnError>): RequestResult<StatementsPendingResponses, StatementsPendingErrors, ThrowOnError> => (options.client ?? client).get<StatementsPendingResponses, StatementsPendingErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -564,6 +595,41 @@ export const statementsPending = <ThrowOnError extends boolean = false>(options:
 export const statementsPost = <ThrowOnError extends boolean = false>(options: Options<StatementsPostData, ThrowOnError>): RequestResult<StatementsPostResponses, StatementsPostErrors, ThrowOnError> => (options.client ?? client).post<StatementsPostResponses, StatementsPostErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/statements/{statement_id}/post',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Discard
+ *
+ * Discard a statement's pending transactions — those named in `ids`, or
+ * every one. A discarded transaction is never posted, leaves review, and is
+ * no duplicate of anything imported later.
+ */
+export const statementsDiscard = <ThrowOnError extends boolean = false>(options: Options<StatementsDiscardData, ThrowOnError>): RequestResult<StatementsDiscardResponses, StatementsDiscardErrors, ThrowOnError> => (options.client ?? client).post<StatementsDiscardResponses, StatementsDiscardErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/statements/{statement_id}/discard',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Categorize
+ *
+ * Choose the other side of pending transactions before posting them:
+ * what the user decided, or an AI client of theirs (over MCP) proposed and
+ * they accepted. Replaces what a rule or the model chose. Only transactions
+ * waiting for review change (422 otherwise); one that is not yours is a 404.
+ */
+export const statementsCategorize = <ThrowOnError extends boolean = false>(options: Options<StatementsCategorizeData, ThrowOnError>): RequestResult<StatementsCategorizeResponses, StatementsCategorizeErrors, ThrowOnError> => (options.client ?? client).post<StatementsCategorizeResponses, StatementsCategorizeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/statements/categorize',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -596,7 +662,8 @@ export const remindersCreate = <ThrowOnError extends boolean = false>(options: O
 /**
  * Seed Filing Calendar
  *
- * Seed the IRD filing deadlines for the given year of assessment.
+ * Seed the filing deadlines of the user's tax pack for a tax year; by
+ * default the latest one Salli can compute for them.
  */
 export const remindersSeedFilingCalendar = <ThrowOnError extends boolean = false>(options?: Options<RemindersSeedFilingCalendarData, ThrowOnError>): RequestResult<RemindersSeedFilingCalendarResponses, RemindersSeedFilingCalendarErrors, ThrowOnError> => (options?.client ?? client).post<RemindersSeedFilingCalendarResponses, RemindersSeedFilingCalendarErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -631,6 +698,17 @@ export const remindersMarkDone = <ThrowOnError extends boolean = false>(options:
 export const remindersDelete = <ThrowOnError extends boolean = false>(options: Options<RemindersDeleteData, ThrowOnError>): RequestResult<RemindersDeleteResponses, RemindersDeleteErrors, ThrowOnError> => (options.client ?? client).delete<RemindersDeleteResponses, RemindersDeleteErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/reminders/{reminder_id}',
+    ...options
+});
+
+/**
+ * Get Assumptions
+ *
+ * The planning assumptions behind the user's FI figures, and where each came from.
+ */
+export const fiAssumptions = <ThrowOnError extends boolean = false>(options?: Options<FiAssumptionsData, ThrowOnError>): RequestResult<FiAssumptionsResponses, FiAssumptionsErrors, ThrowOnError> => (options?.client ?? client).get<FiAssumptionsResponses, FiAssumptionsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/fi/assumptions',
     ...options
 });
 
@@ -1093,6 +1171,54 @@ export const portfolioSummary = <ThrowOnError extends boolean = false>(options?:
 });
 
 /**
+ * Get Performance
+ *
+ * Gains, income and returns over a period (a tax year, say), per holding
+ * in its own currency and the base one, and for the whole portfolio.
+ */
+export const portfolioPerformance = <ThrowOnError extends boolean = false>(options?: Options<PortfolioPerformanceData, ThrowOnError>): RequestResult<PortfolioPerformanceResponses, PortfolioPerformanceErrors, ThrowOnError> => (options?.client ?? client).get<PortfolioPerformanceResponses, PortfolioPerformanceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/performance',
+    ...options
+});
+
+/**
+ * List Prices
+ *
+ * The closing prices recorded, newest first: one symbol's, or every one.
+ */
+export const portfolioPricesList = <ThrowOnError extends boolean = false>(options?: Options<PortfolioPricesListData, ThrowOnError>): RequestResult<PortfolioPricesListResponses, PortfolioPricesListErrors, ThrowOnError> => (options?.client ?? client).get<PortfolioPricesListResponses, PortfolioPricesListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/prices',
+    ...options
+});
+
+/**
+ * Set Price
+ *
+ * Record a closing price. Nothing fetches prices: holdings are valued at
+ * the ones recorded here.
+ */
+export const portfolioPricesSet = <ThrowOnError extends boolean = false>(options: Options<PortfolioPricesSetData, ThrowOnError>): RequestResult<PortfolioPricesSetResponses, PortfolioPricesSetErrors, ThrowOnError> => (options.client ?? client).post<PortfolioPricesSetResponses, PortfolioPricesSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/prices',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Price
+ */
+export const portfolioPricesDelete = <ThrowOnError extends boolean = false>(options: Options<PortfolioPricesDeleteData, ThrowOnError>): RequestResult<PortfolioPricesDeleteResponses, PortfolioPricesDeleteErrors, ThrowOnError> => (options.client ?? client).delete<PortfolioPricesDeleteResponses, PortfolioPricesDeleteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/prices/{quote_id}',
+    ...options
+});
+
+/**
  * Delete Holding
  */
 export const holdingsDelete = <ThrowOnError extends boolean = false>(options: Options<HoldingsDeleteData, ThrowOnError>): RequestResult<HoldingsDeleteResponses, HoldingsDeleteErrors, ThrowOnError> => (options.client ?? client).delete<HoldingsDeleteResponses, HoldingsDeleteErrors, ThrowOnError>({
@@ -1121,6 +1247,88 @@ export const holdingsUpdate = <ThrowOnError extends boolean = false>(options: Op
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * List Transactions
+ */
+export const holdingsTransactionsList = <ThrowOnError extends boolean = false>(options: Options<HoldingsTransactionsListData, ThrowOnError>): RequestResult<HoldingsTransactionsListResponses, HoldingsTransactionsListErrors, ThrowOnError> => (options.client ?? client).get<HoldingsTransactionsListResponses, HoldingsTransactionsListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/{holding_id}/transactions',
+    ...options
+});
+
+/**
+ * Add Transaction
+ *
+ * Record a transaction. The whole history is checked first: a sale of
+ * more than was held then, or of a lot that was not, is a 422.
+ */
+export const holdingsTransactionsCreate = <ThrowOnError extends boolean = false>(options: Options<HoldingsTransactionsCreateData, ThrowOnError>): RequestResult<HoldingsTransactionsCreateResponses, HoldingsTransactionsCreateErrors, ThrowOnError> => (options.client ?? client).post<HoldingsTransactionsCreateResponses, HoldingsTransactionsCreateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/{holding_id}/transactions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Transaction
+ *
+ * Delete a transaction, unless a later sale needs it (422).
+ */
+export const holdingsTransactionsDelete = <ThrowOnError extends boolean = false>(options: Options<HoldingsTransactionsDeleteData, ThrowOnError>): RequestResult<HoldingsTransactionsDeleteResponses, HoldingsTransactionsDeleteErrors, ThrowOnError> => (options.client ?? client).delete<HoldingsTransactionsDeleteResponses, HoldingsTransactionsDeleteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/{holding_id}/transactions/{transaction_id}',
+    ...options
+});
+
+/**
+ * Get Transaction
+ */
+export const holdingsTransactionsGet = <ThrowOnError extends boolean = false>(options: Options<HoldingsTransactionsGetData, ThrowOnError>): RequestResult<HoldingsTransactionsGetResponses, HoldingsTransactionsGetErrors, ThrowOnError> => (options.client ?? client).get<HoldingsTransactionsGetResponses, HoldingsTransactionsGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/{holding_id}/transactions/{transaction_id}',
+    ...options
+});
+
+/**
+ * Update Transaction
+ *
+ * Change a transaction, if the history still stands with the change.
+ */
+export const holdingsTransactionsUpdate = <ThrowOnError extends boolean = false>(options: Options<HoldingsTransactionsUpdateData, ThrowOnError>): RequestResult<HoldingsTransactionsUpdateResponses, HoldingsTransactionsUpdateErrors, ThrowOnError> => (options.client ?? client).patch<HoldingsTransactionsUpdateResponses, HoldingsTransactionsUpdateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/{holding_id}/transactions/{transaction_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Lots
+ *
+ * The holding's lots and each sale with the lots it consumed.
+ */
+export const holdingsLots = <ThrowOnError extends boolean = false>(options: Options<HoldingsLotsData, ThrowOnError>): RequestResult<HoldingsLotsResponses, HoldingsLotsErrors, ThrowOnError> => (options.client ?? client).get<HoldingsLotsResponses, HoldingsLotsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/{holding_id}/lots',
+    ...options
+});
+
+/**
+ * Get Holding Performance
+ *
+ * One holding's gains, income and returns over a period.
+ */
+export const holdingsPerformance = <ThrowOnError extends boolean = false>(options: Options<HoldingsPerformanceData, ThrowOnError>): RequestResult<HoldingsPerformanceResponses, HoldingsPerformanceErrors, ThrowOnError> => (options.client ?? client).get<HoldingsPerformanceResponses, HoldingsPerformanceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/portfolio/{holding_id}/performance',
+    ...options
 });
 
 /**
@@ -1378,6 +1586,119 @@ export const llmKeysSet = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
+ * Get Settings
+ *
+ * Which provider powers this user's AI, what that resolves to now, and
+ * what they can choose from. Never a key.
+ */
+export const aiSettingsGet = <ThrowOnError extends boolean = false>(options?: Options<AiSettingsGetData, ThrowOnError>): RequestResult<AiSettingsGetResponses, AiSettingsGetErrors, ThrowOnError> => (options?.client ?? client).get<AiSettingsGetResponses, AiSettingsGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/settings',
+    ...options
+});
+
+/**
+ * Set Settings
+ *
+ * Choose the provider: `auto`, `anthropic`, `openai` or `chatgpt`. A
+ * chosen provider that cannot run says so on each AI request; it never
+ * falls back to another way of paying.
+ */
+export const aiSettingsSet = <ThrowOnError extends boolean = false>(options: Options<AiSettingsSetData, ThrowOnError>): RequestResult<AiSettingsSetResponses, AiSettingsSetErrors, ThrowOnError> => (options.client ?? client).put<AiSettingsSetResponses, AiSettingsSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/settings',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Models
+ *
+ * The models a provider offers this user, and which one each task runs
+ * on. For OpenAI and ChatGPT that is the account's own list.
+ */
+export const aiModelsList = <ThrowOnError extends boolean = false>(options: Options<AiModelsListData, ThrowOnError>): RequestResult<AiModelsListResponses, AiModelsListErrors, ThrowOnError> => (options.client ?? client).get<AiModelsListResponses, AiModelsListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/models/{provider}',
+    ...options
+});
+
+/**
+ * Set Models
+ *
+ * Name the model each task runs on, for an OpenAI provider (Claude's
+ * are fixed). Checked against the account's models when they can be listed.
+ */
+export const aiModelsSet = <ThrowOnError extends boolean = false>(options: Options<AiModelsSetData, ThrowOnError>): RequestResult<AiModelsSetResponses, AiModelsSetErrors, ThrowOnError> => (options.client ?? client).put<AiModelsSetResponses, AiModelsSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/models/{provider}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Host
+ *
+ * This instance's `ext_agent_host_id`, for a sign-in done on another
+ * computer on behalf of this server.
+ */
+export const aiHostGet = <ThrowOnError extends boolean = false>(options?: Options<AiHostGetData, ThrowOnError>): RequestResult<AiHostGetResponses, AiHostGetErrors, ThrowOnError> => (options?.client ?? client).get<AiHostGetResponses, AiHostGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/host',
+    ...options
+});
+
+/**
+ * Disconnect Chatgpt
+ *
+ * Sign out: end the sign-in with OpenAI, then clear its tokens here. The
+ * account and its issued client id are kept for the next sign-in.
+ */
+export const aiChatgptDisconnect = <ThrowOnError extends boolean = false>(options?: Options<AiChatgptDisconnectData, ThrowOnError>): RequestResult<AiChatgptDisconnectResponses, AiChatgptDisconnectErrors, ThrowOnError> => (options?.client ?? client).delete<AiChatgptDisconnectResponses, AiChatgptDisconnectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/connections/chatgpt',
+    ...options
+});
+
+/**
+ * Get Chatgpt
+ *
+ * The user's ChatGPT plan connection: which account, what was granted,
+ * and whether it needs them. Never a token.
+ */
+export const aiChatgptGet = <ThrowOnError extends boolean = false>(options?: Options<AiChatgptGetData, ThrowOnError>): RequestResult<AiChatgptGetResponses, AiChatgptGetErrors, ThrowOnError> => (options?.client ?? client).get<AiChatgptGetResponses, AiChatgptGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/connections/chatgpt',
+    ...options
+});
+
+/**
+ * Connect Chatgpt
+ *
+ * Keep a ChatGPT sign-in completed on the user's own computer.
+ *
+ * Checked before it is kept: the issued client id, the ID token (signature
+ * against OpenAI's keys, issuer, audience, expiry), that the scopes include
+ * `chatgpt.tokens.use.direct`, and that `GET /v1/models` works with the
+ * access token. From then on this server renews it, with its own host id.
+ */
+export const aiChatgptConnect = <ThrowOnError extends boolean = false>(options: Options<AiChatgptConnectData, ThrowOnError>): RequestResult<AiChatgptConnectResponses, AiChatgptConnectErrors, ThrowOnError> => (options.client ?? client).put<AiChatgptConnectResponses, AiChatgptConnectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/ai/connections/chatgpt',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List Connections
  */
 export const mcpConnectionsList = <ThrowOnError extends boolean = false>(options?: Options<McpConnectionsListData, ThrowOnError>): RequestResult<McpConnectionsListResponses, McpConnectionsListErrors, ThrowOnError> => (options?.client ?? client).get<McpConnectionsListResponses, McpConnectionsListErrors, ThrowOnError>({
@@ -1544,6 +1865,130 @@ export const exportsBeancount = <ThrowOnError extends boolean = false>(options?:
 export const exportsHledger = <ThrowOnError extends boolean = false>(options?: Options<ExportsHledgerData, ThrowOnError>): RequestResult<ExportsHledgerResponses, ExportsHledgerErrors, ThrowOnError> => (options?.client ?? client).get<ExportsHledgerResponses, ExportsHledgerErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/export/hledger',
+    ...options
+});
+
+/**
+ * Cash Flow
+ */
+export const insightsCashFlow = <ThrowOnError extends boolean = false>(options?: Options<InsightsCashFlowData, ThrowOnError>): RequestResult<InsightsCashFlowResponses, InsightsCashFlowErrors, ThrowOnError> => (options?.client ?? client).get<InsightsCashFlowResponses, InsightsCashFlowErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/insights/cash-flow',
+    ...options
+});
+
+/**
+ * Spending
+ */
+export const insightsSpending = <ThrowOnError extends boolean = false>(options?: Options<InsightsSpendingData, ThrowOnError>): RequestResult<InsightsSpendingResponses, InsightsSpendingErrors, ThrowOnError> => (options?.client ?? client).get<InsightsSpendingResponses, InsightsSpendingErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/insights/spending',
+    ...options
+});
+
+/**
+ * Net Worth
+ */
+export const insightsNetWorth = <ThrowOnError extends boolean = false>(options?: Options<InsightsNetWorthData, ThrowOnError>): RequestResult<InsightsNetWorthResponses, InsightsNetWorthErrors, ThrowOnError> => (options?.client ?? client).get<InsightsNetWorthResponses, InsightsNetWorthErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/insights/net-worth',
+    ...options
+});
+
+/**
+ * Recurring
+ */
+export const insightsRecurring = <ThrowOnError extends boolean = false>(options?: Options<InsightsRecurringData, ThrowOnError>): RequestResult<InsightsRecurringResponses, InsightsRecurringErrors, ThrowOnError> => (options?.client ?? client).get<InsightsRecurringResponses, InsightsRecurringErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/insights/recurring',
+    ...options
+});
+
+/**
+ * Forecast
+ */
+export const insightsForecast = <ThrowOnError extends boolean = false>(options?: Options<InsightsForecastData, ThrowOnError>): RequestResult<InsightsForecastResponses, InsightsForecastErrors, ThrowOnError> => (options?.client ?? client).get<InsightsForecastResponses, InsightsForecastErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/insights/forecast',
+    ...options
+});
+
+/**
+ * Safe To Spend
+ */
+export const insightsSafeToSpend = <ThrowOnError extends boolean = false>(options?: Options<InsightsSafeToSpendData, ThrowOnError>): RequestResult<InsightsSafeToSpendResponses, InsightsSafeToSpendErrors, ThrowOnError> => (options?.client ?? client).get<InsightsSafeToSpendResponses, InsightsSafeToSpendErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/insights/safe-to-spend',
+    ...options
+});
+
+/**
+ * Signals
+ */
+export const insightsSignals = <ThrowOnError extends boolean = false>(options?: Options<InsightsSignalsData, ThrowOnError>): RequestResult<InsightsSignalsResponses, InsightsSignalsErrors, ThrowOnError> => (options?.client ?? client).get<InsightsSignalsResponses, InsightsSignalsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/insights/signals',
+    ...options
+});
+
+/**
+ * List Connections
+ */
+export const bankConnectionsList = <ThrowOnError extends boolean = false>(options?: Options<BankConnectionsListData, ThrowOnError>): RequestResult<BankConnectionsListResponses, BankConnectionsListErrors, ThrowOnError> => (options?.client ?? client).get<BankConnectionsListResponses, BankConnectionsListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/bank-connections',
+    ...options
+});
+
+/**
+ * Connect
+ */
+export const bankConnectionsConnect = <ThrowOnError extends boolean = false>(options: Options<BankConnectionsConnectData, ThrowOnError>): RequestResult<BankConnectionsConnectResponses, BankConnectionsConnectErrors, ThrowOnError> => (options.client ?? client).post<BankConnectionsConnectResponses, BankConnectionsConnectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/bank-connections',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Map Account
+ */
+export const bankConnectionsMapAccount = <ThrowOnError extends boolean = false>(options: Options<BankConnectionsMapAccountData, ThrowOnError>): RequestResult<BankConnectionsMapAccountResponses, BankConnectionsMapAccountErrors, ThrowOnError> => (options.client ?? client).put<BankConnectionsMapAccountResponses, BankConnectionsMapAccountErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/bank-connections/{connection_id}/accounts/{remote_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Sync
+ */
+export const bankConnectionsSync = <ThrowOnError extends boolean = false>(options: Options<BankConnectionsSyncData, ThrowOnError>): RequestResult<BankConnectionsSyncResponses, BankConnectionsSyncErrors, ThrowOnError> => (options.client ?? client).post<BankConnectionsSyncResponses, BankConnectionsSyncErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/bank-connections/{connection_id}/sync',
+    ...options
+});
+
+/**
+ * Cron Sync Due
+ *
+ * Sync every connection that is due, for a scheduler (the hosted
+ * product's pg_cron, or a self-hoster's cron). Auth: X-Cron-Secret header.
+ */
+export const bankConnectionsCronSyncDue = <ThrowOnError extends boolean = false>(options?: Options<BankConnectionsCronSyncDueData, ThrowOnError>): RequestResult<BankConnectionsCronSyncDueResponses, BankConnectionsCronSyncDueErrors, ThrowOnError> => (options?.client ?? client).post<BankConnectionsCronSyncDueResponses, BankConnectionsCronSyncDueErrors, ThrowOnError>({ url: '/v1/bank-connections/cron/sync-due', ...options });
+
+/**
+ * Disconnect
+ */
+export const bankConnectionsDisconnect = <ThrowOnError extends boolean = false>(options: Options<BankConnectionsDisconnectData, ThrowOnError>): RequestResult<BankConnectionsDisconnectResponses, BankConnectionsDisconnectErrors, ThrowOnError> => (options.client ?? client).delete<BankConnectionsDisconnectResponses, BankConnectionsDisconnectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/bank-connections/{connection_id}',
     ...options
 });
 

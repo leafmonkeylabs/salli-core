@@ -113,6 +113,11 @@ export function hintFor(error: unknown): string | undefined {
   if (error instanceof CliError) return error.hint;
   if (error instanceof SalliApiError) {
     if (error.status === 401) return 'Your session may have expired. Run `salli login` to sign in again.';
+    const link = (error.detail as { link?: unknown } | null)?.link;
+    if (typeof link === 'string' && /^https:\/\//.test(link)) return `See ${link}`;
+    if (error.kind === 'profile-missing') {
+      return 'This account is not set up yet: finish onboarding in the Salli app, or ask whoever runs this server.';
+    }
     if (error.status >= 500 && error.requestId) return `Request id: ${error.requestId} (quote it when reporting this)`;
   }
   if (error instanceof SalliNetworkError) {
