@@ -184,10 +184,11 @@ A new `salli` command line is in beta in [`packages/cli`](packages/cli/README.md
 It is a client of a running Salli server rather than an in-process tool, so it
 works against your own instance (`uv run salli serve`) or one someone runs for
 you, from any machine. It signs in with OAuth (in a browser, or with a device
-code) and keeps tokens in your system keychain, prints tables for people and the
-API's JSON for scripts, has stable exit codes, and never does arithmetic on
-money. It is built on the TypeScript SDK in [`packages/sdk`](packages/sdk),
-generated from `openapi/openapi.json`.
+code where there is none) or a personal access token, keeps tokens in your
+system keychain, prints tables for people and the API's JSON for scripts, has
+stable exit codes, and never does arithmetic on money. It is built on the
+TypeScript SDK in [`packages/sdk`](packages/sdk), generated from
+`openapi/openapi.json`.
 
 ```bash
 npm install && npm run build

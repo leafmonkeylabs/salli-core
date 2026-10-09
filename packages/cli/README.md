@@ -18,9 +18,10 @@ Net worth       USD 14,034.50
   Liabilities   USD  1,200.00
 
 October 2026 so far (Oct 1 – 9, 2026)
+  Income        USD 5,000.00
+  Spending      USD 2,212.35
   Net income    USD 2,787.65
-  Income        Salary USD 5,000.00
-  Spending      Rent USD 1,800.00 · Groceries USD 412.35
+  Most on       Rent 1,800.00 · Groceries 412.35
 
 FI score        72.5 (B) · 1.9% of the way to financial independence
   Savings rate  55.8% of income
@@ -63,7 +64,7 @@ To build them yourself (needs [Bun](https://bun.sh) 1.3): `npm run build`, then
 ```bash
 salli login                                  # http://localhost:8000, in your browser
 salli login --server https://salli.example.com
-salli login --device                         # no browser here: approve on another device
+salli login --device                         # approve with a code on another device
 salli login --token -  < token.txt           # a personal access token, from stdin
 salli whoami
 salli logout
@@ -72,9 +73,20 @@ salli logout
 `salli login` reads the server's sign-in endpoints from `/v1/meta`, registers
 itself once (the client id is kept in the context), and signs in with OAuth 2.1:
 the authorization code flow with PKCE, your browser coming back to a one-off
-listener on `127.0.0.1`. `--device` uses the device authorization grant instead:
+listener on `127.0.0.1`. Where no browser can open (over SSH, on a server with
+no display) it uses the device authorization grant instead, as `--device` does:
 open the link it prints, on any device, and enter the code. `--no-browser` prints
-the link without opening it.
+the link without opening it. The tokens are for the server's API (the
+`api_resource` it names); a token an AI client got for MCP does not work here.
+
+For scripts, CI and other machines, make a personal access token and sign in
+with it there, or set it as `SALLI_TOKEN`:
+
+```bash
+salli tokens create "backup job" --expires-in-days 90   # printed once
+salli tokens list
+salli tokens revoke 3fa85f64
+```
 
 Tokens are kept in your system keychain (macOS Keychain, Windows Credential
 Manager, the Secret Service on Linux) and refreshed when they expire. Where there
@@ -114,6 +126,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Record one exactly | `salli entries add --desc Lunch --debit groceries:12.50 --credit cash:12.50` |
 | Correct one | `salli entries reverse <id>`, then add the right one |
 | Import a bank statement | `salli import september.pdf` |
+| Book the same payee the same way | `salli rules add Uber --if "description contains uber" --account transport` |
 | See accounts and balances | `salli accounts list --balances`, `salli accounts show checking` |
 | Reports | `salli ledger income-statement --month 2026-09`, `salli reports balance-sheet` |
 | Ask the AI | `salli ask "how much did I spend on groceries?"`, or `salli chat` |
@@ -121,6 +134,8 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Budgets, debts, investments | `salli budgets summary <id>`, `salli debts payoff-plan`, `salli portfolio` |
 | Financial independence | `salli fi score`, `salli fi afford 2400 --months 12` |
 | Tax | `salli tax compute` |
+| Take your ledger elsewhere | `salli export beancount -o ledger.beancount`, `salli export hledger` |
+| Everything Salli keeps about you | `salli profile export` (JSON, readable only by you) |
 | Everything else | `salli --help`, and `--help` on any command |
 
 Accounts are named by code (`1000`), name (`Cash`, or any unique start of it) or
@@ -136,6 +151,13 @@ your ledger are skipped. With `--yes` it posts only what is unique and has both
 accounts (`--allow-possible-duplicates` adds possible duplicates), and leaves the
 rest pending for `salli statements pending`.
 
+Rules book imported transactions before any AI is asked: `--if` takes a
+condition (`description contains uber`, `amount between 10 50`, `direction
+equals out`, `currency equals USD`; repeat it for more), and `--account`,
+`--category`, `--need` and `--rename` say what to do. `salli rules test` shows
+what a rule would match among what you have booked, and `salli rules suggest`
+the rules your own bookkeeping implies, each with the command that adds it.
+
 `salli chat` streams the AI's reply as it is written and shows the tools and
 specialists it uses. Before the AI changes anything it says what and asks; nothing
 is written unless you approve. `salli ask` asks once; without a terminal to ask in,
@@ -146,7 +168,7 @@ a change it proposes is declined.
 Data goes to stdout, everything else to stderr: progress, confirmations,
 warnings and errors. stdout is only ever the result.
 
-| `--output` (`-o`) | Prints |
+| `--output` | Prints |
 |---|---|
 | `table` (default) | Tables and summaries for people. Colour in a terminal only. |
 | `json` (`--json`) | The API's JSON, exactly as the server sent it (re-indented; numbers keep their text). |
@@ -200,7 +222,7 @@ overrides the default.
 salli reports balance-sheet --json | jq -r '.net_worth'
 
 # Every expense account's code and name
-salli accounts list --type expense -o csv
+salli accounts list --type expense --output csv
 
 # Post from a script, failing on any refusal
 salli entries add --date 2026-10-01 --desc "Rent" \
