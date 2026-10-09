@@ -153,12 +153,17 @@ class LedgerService:
                         statement_info = await uow.statements.get_statement(
                             user_id, txn.statement_id
                         )
+                    raw = txn.raw
                     provenance["statement"] = {
                         "parsed_transaction_id": txn.id,
-                        "raw_description": txn.raw.description,
-                        "raw_amount": str(txn.raw.amount),
-                        "raw_date": txn.raw.date,
-                        "bank_ref": txn.raw.bank_ref,
+                        "raw_description": raw.description,
+                        # At the statement currency's precision, and saying
+                        # which currency that is: a statement need not be in
+                        # the base currency.
+                        "raw_amount": str(quantize(raw.amount, raw.currency, strict=False)),
+                        "currency": raw.currency,
+                        "raw_date": raw.date,
+                        "bank_ref": raw.bank_ref,
                         "statement": statement_info,
                     }
             elif entry.source == "manual" and entry.external_ref:

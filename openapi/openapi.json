@@ -448,7 +448,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -514,7 +516,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JournalEntry"
+                  },
+                  "title": "Response Entries.List"
+                }
               }
             }
           },
@@ -559,7 +567,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JournalEntry"
+                }
               }
             }
           },
@@ -605,7 +615,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/EntryProvenance"
+                }
               }
             }
           },
@@ -650,7 +662,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Ref"
+                }
               }
             }
           },
@@ -6234,6 +6248,82 @@
         ],
         "title": "DeleteAccountRequest"
       },
+      "EntryProvenance": {
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "title": "Entry Id"
+          },
+          "entry_date": {
+            "type": "string",
+            "title": "Entry Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "statement",
+              "sms",
+              "system"
+            ],
+            "title": "Source"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "statement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProvenanceStatement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProvenanceReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "possible_subscriptions": {
+            "items": {
+              "$ref": "#/components/schemas/ProvenanceSubscription"
+            },
+            "type": "array",
+            "title": "Possible Subscriptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry_id",
+          "entry_date",
+          "description",
+          "source",
+          "external_ref",
+          "statement",
+          "receipt",
+          "possible_subscriptions"
+        ],
+        "title": "EntryProvenance"
+      },
       "GoalRequest": {
         "properties": {
           "name": {
@@ -6605,6 +6695,72 @@
           "amount"
         ],
         "title": "IncomeItem"
+      },
+      "JournalEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "entry_date": {
+            "type": "string",
+            "title": "Entry Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "statement",
+              "sms",
+              "system"
+            ],
+            "title": "Source"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "reversed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversed By"
+          },
+          "postings": {
+            "items": {
+              "$ref": "#/components/schemas/Posting"
+            },
+            "type": "array",
+            "title": "Postings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entry_date",
+          "description",
+          "source",
+          "external_ref",
+          "reversed_by",
+          "postings"
+        ],
+        "title": "JournalEntry"
       },
       "McpEnabledRequest": {
         "properties": {
@@ -7158,6 +7314,66 @@
         ],
         "title": "PostRequest"
       },
+      "Posting": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tags": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Tags"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "direction": {
+            "type": "integer",
+            "enum": [
+              1,
+              -1
+            ],
+            "title": "Direction"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "fx_rate": {
+            "type": "string",
+            "title": "Fx Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tags",
+          "account_id",
+          "direction",
+          "amount",
+          "currency",
+          "fx_rate"
+        ],
+        "title": "Posting"
+      },
       "PostingRequest": {
         "properties": {
           "account_id": {
@@ -7326,6 +7542,186 @@
         },
         "type": "object",
         "title": "ProfileIdentityRequest"
+      },
+      "ProvenanceReceipt": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "storage_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "title",
+          "mime_type",
+          "storage_key"
+        ],
+        "title": "ProvenanceReceipt",
+        "description": "The uploaded document attached to a manual entry."
+      },
+      "ProvenanceStatement": {
+        "properties": {
+          "parsed_transaction_id": {
+            "type": "string",
+            "title": "Parsed Transaction Id"
+          },
+          "raw_description": {
+            "type": "string",
+            "title": "Raw Description"
+          },
+          "raw_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Raw Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "raw_date": {
+            "type": "string",
+            "title": "Raw Date"
+          },
+          "bank_ref": {
+            "type": "string",
+            "title": "Bank Ref"
+          },
+          "statement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProvenanceStatementFile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "parsed_transaction_id",
+          "raw_description",
+          "raw_amount",
+          "currency",
+          "raw_date",
+          "bank_ref",
+          "statement"
+        ],
+        "title": "ProvenanceStatement",
+        "description": "The bank-statement transaction an entry was posted from."
+      },
+      "ProvenanceStatementFile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "bank": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank"
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "storage_key": {
+            "type": "string",
+            "title": "Storage Key"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "bank",
+          "period_start",
+          "period_end",
+          "storage_key",
+          "status",
+          "created_at"
+        ],
+        "title": "ProvenanceStatementFile",
+        "description": "The uploaded bank statement a transaction was read from."
+      },
+      "ProvenanceSubscription": {
+        "properties": {
+          "subscription_id": {
+            "type": "string",
+            "title": "Subscription Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscription_id",
+          "name"
+        ],
+        "title": "ProvenanceSubscription",
+        "description": "A recurring subscription this entry looks like a payment of."
       },
       "PurchaseRequest": {
         "properties": {

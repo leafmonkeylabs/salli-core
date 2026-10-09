@@ -66,11 +66,6 @@ UNTYPED = {
     # Ledger, tax, statements, documents, reminders
     "documents.get",
     "documents.list",
-    "entries.create",
-    "entries.get",
-    "entries.list",
-    "entries.provenance",
-    "entries.reverse",
     "ledger.incomeStatement",
     "ledger.trialBalance",
     "reminders.create",
