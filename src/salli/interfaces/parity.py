@@ -39,6 +39,7 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/tax/packs"): "tax packs",
     ("POST", "/tax/compute"): "tax compute",
     ("GET", "/tax/latest"): "tax latest",
+    ("GET", "/tax/current-year"): "tax year",
     # statements
     ("POST", "/statements/upload"): "parse upload",
     ("GET", "/statements/"): "parse list",

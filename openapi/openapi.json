@@ -1137,6 +1137,7 @@
           "tax"
         ],
         "summary": "Compute Tax",
+        "description": "Compute the user's income tax for a year with their country's pack.\n\nTheir country is their tax residency or, while they have not set one, the\none country whose packs compute in their base currency. 422\n(/problems/no-tax-pack) when Salli has no pack that can compute it.",
         "operationId": "tax.compute",
         "security": [
           {
@@ -1149,8 +1150,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "default": "2025/26",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2025/26"
+              ],
               "title": "Year"
             }
           }
@@ -1207,8 +1217,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "default": "2025/26",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2025/26"
+              ],
               "title": "Year"
             }
           }
@@ -1245,6 +1264,43 @@
             }
           }
         }
+      }
+    },
+    "/v1/tax/current-year": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Current Year",
+        "description": "The tax year the user is in today, in their country.",
+        "operationId": "tax.currentYear",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxYearStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/agent/chat": {
@@ -2984,7 +3040,7 @@
           "reminders"
         ],
         "summary": "Seed Filing Calendar",
-        "description": "Seed the IRD filing deadlines for the given year of assessment.",
+        "description": "Seed the filing deadlines of the user's tax pack for a tax year; by\ndefault the latest one Salli can compute for them.",
         "operationId": "reminders.seedFilingCalendar",
         "security": [
           {
@@ -2997,8 +3053,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "default": "2025/26",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2025/26"
+              ],
               "title": "Year"
             }
           }
@@ -19745,6 +19810,101 @@
           "withholding_kinds"
         ],
         "title": "TaxPackInfo"
+      },
+      "TaxYearStatus": {
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "country_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "tax_residency",
+                  "base_currency"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Source"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "has_pack": {
+            "type": "boolean",
+            "title": "Has Pack"
+          },
+          "latest_year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "country_source",
+          "year",
+          "start",
+          "end",
+          "has_pack",
+          "latest_year"
+        ],
+        "title": "TaxYearStatus",
+        "description": "The tax year the user is in today, and the latest one Salli can compute."
       },
       "TokenGrant": {
         "properties": {

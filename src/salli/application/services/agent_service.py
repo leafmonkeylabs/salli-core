@@ -761,12 +761,14 @@ class AgentService:
     async def prepare_return(
         self,
         user_id: str,
-        year: str = "2025/26",
+        year: str | None = None,
         thread_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Run the return workflow up to the human review gate.
-        Returns the interrupt payload (draft return for human approval).
+        Run the return workflow up to the human review gate, for `year` or the
+        latest year Salli can compute for the user.
+        Returns the interrupt payload (draft return for human approval), or the
+        reason there is none (`error`).
         """
         if thread_id is None:
             thread_id = str(uuid.uuid4())
@@ -775,12 +777,13 @@ class AgentService:
         config = {"configurable": {"thread_id": thread_id}}
 
         result = await workflow.ainvoke(
-            {"user_id": user_id, "year": year},
+            {"user_id": user_id, "year": year or ""},
             config=config,
         )
         return {
             "thread_id": thread_id,
             "draft_return": result.get("draft_return", {}),
+            "error": result.get("error", ""),
             "state": result,
         }
 

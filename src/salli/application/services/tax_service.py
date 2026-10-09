@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Literal
 
 from salli.domain.accounting.models import Account, StoredJournalEntry
+from salli.domain.jurisdiction import country_name
 from salli.domain.secrets import error_label
 from salli.domain.tax import engine
 from salli.domain.tax.models import (
     CREDITED_KINDS,
     FSI_INCOME_ROLE,
     QUALIFYING_PAYMENT_ROLE,
+    CurrentTaxYear,
     LedgerView,
     TaxComputation,
     TaxPack,
@@ -137,17 +141,109 @@ class TaxPackCurrencyError(ValueError):
     """The user's ledger is not in the currency their tax pack computes in."""
 
 
+class NoTaxPackError(ValueError):
+    """Salli has no tax pack that can compute this user's tax."""
+
+
+@dataclass(frozen=True)
+class TaxJurisdiction:
+    """Whose tax packs compute a user's tax, and why."""
+
+    #: The country, or None when Salli cannot tell.
+    country: str | None
+    #: "tax_residency" when the user said where they are taxed. "base_currency"
+    #: when they have not, and the packs of exactly one country compute in
+    #: their base currency: so a rupee ledger keeps being computed with Sri
+    #: Lanka's packs, as it always was, until its owner says otherwise.
+    source: Literal["tax_residency", "base_currency"] | None
+    tax_residency: str | None
+    base_currency: str | None
+
+
+def jurisdiction_of(profile: dict[str, Any] | None) -> TaxJurisdiction:
+    profile = profile or {}
+    residency = profile.get("tax_residency") or None
+    base = profile.get("base_currency") or None
+    if residency:
+        return TaxJurisdiction(residency, "tax_residency", residency, base)
+    inferred = registry.country_for_currency(base) if base else None
+    if inferred:
+        return TaxJurisdiction(inferred, "base_currency", None, base)
+    return TaxJurisdiction(None, None, None, base)
+
+
+def _no_pack(where: TaxJurisdiction) -> NoTaxPackError:
+    if where.country is None:
+        countries = sorted({country_name(p.country) for p in registry.list_packs()})
+        return NoTaxPackError(
+            "Salli doesn't know where you are taxed. Set your tax residency on your "
+            f"profile; it has tax packs for {', '.join(countries)}."
+        )
+    if not registry.packs_for(where.country):
+        return NoTaxPackError(f"Salli has no tax pack for {country_name(where.country)} yet.")
+    return NoTaxPackError(
+        f"Salli's tax packs for {country_name(where.country)} are for years that have not begun."
+    )
+
+
 class TaxService:
     def __init__(self, uow_factory: Callable[[], Any]) -> None:
         self._uow_factory = uow_factory
 
-    async def compute_tax(self, user_id: str, year: str, *, persist: bool = True) -> TaxComputation:
-        """Compute this user's tax for `year` from their current ledger.
+    # ── Whose tax, which year ────────────────────────────────────────────────
 
-        `persist=False` computes without recording the result — used to preview
-        what a recompute would produce before writing it.
+    async def jurisdiction(self, user_id: str) -> TaxJurisdiction:
+        async with self._uow_factory() as uow:
+            return jurisdiction_of(await uow.user_profiles.get(user_id))
+
+    async def current_tax_year(
+        self, user_id: str, today: datetime.date | None = None
+    ) -> tuple[TaxJurisdiction, CurrentTaxYear | None]:
+        """The tax year the user is in today, in their country (registry
+        .current_tax_year), with how their country was decided."""
+        where = await self.jurisdiction(user_id)
+        return where, registry.current_tax_year(where.country, today or datetime.date.today())
+
+    async def pack(self, user_id: str, year: str | None = None) -> TaxPack:
+        """The pack that computes `year` for this user: their country's pack for
+        it (KeyError when there is none), or, with no year, the latest year
+        their country's packs have begun. NoTaxPackError with no country."""
+        where = await self.jurisdiction(user_id)
+        if where.country is None:
+            raise _no_pack(where)
+        if year:
+            return registry.get_pack(where.country, year)
+        latest = registry.latest_pack(where.country, datetime.date.today())
+        if latest is None:
+            raise _no_pack(where)
+        return latest
+
+    async def default_year(self, user_id: str) -> str:
+        """The year a computation uses when none is named: the latest one Salli
+        can compute for the user."""
+        return (await self.pack(user_id)).year
+
+    # ── Computations ─────────────────────────────────────────────────────────
+
+    async def compute_tax(
+        self,
+        user_id: str,
+        year: str | None = None,
+        *,
+        persist: bool = True,
+        country: str | None = None,
+    ) -> TaxComputation:
+        """Compute this user's tax for `year` from their current ledger, with
+        their country's pack; with no year, the latest year Salli can compute.
+
+        `country` overrides theirs: a stored computation is recomputed with the
+        country it was made for. `persist=False` computes without recording the
+        result — used to preview what a recompute would produce before writing it.
         """
-        pack = registry.get_pack("LK", year)
+        if country and year:
+            pack = registry.get_pack(country, year)
+        else:
+            pack = await self.pack(user_id, year)
         async with self._uow_factory() as uow:
             base = await uow.user_profiles.base_currency(user_id)
             if base != pack.currency:
@@ -170,7 +266,16 @@ class TaxService:
                 await uow.tax_computations.save(user_id, computation)
         return computation
 
-    async def get_latest_computation(self, user_id: str, year: str) -> TaxComputation | None:
+    async def get_latest_computation(
+        self, user_id: str, year: str | None = None
+    ) -> TaxComputation | None:
+        """The last computation stored for `year`; with no year, for the latest
+        year Salli can compute for the user (None when it can compute none)."""
+        if year is None:
+            try:
+                year = await self.default_year(user_id)
+            except NoTaxPackError:
+                return None
         async with self._uow_factory() as uow:
             return await uow.tax_computations.get_latest(user_id, year)
 
@@ -198,7 +303,11 @@ class TaxService:
         for user_id, year in await self.list_computation_keys():
             try:
                 stored = await self.get_latest_computation(user_id, year)
-                fresh = await self.compute_tax(user_id, year, persist=False)
+                # With the country it was made for, whatever the user's is now.
+                # The oldest rows record none, and were all Sri Lankan.
+                made_for = _stored_field(stored, "pack_country")
+                country = made_for if made_for != "—" else "LK"
+                fresh = await self.compute_tax(user_id, year, persist=False, country=country)
             except Exception as exc:  # noqa: BLE001 — one bad row must not halt the sweep
                 report.append({"user_id": user_id, "year": year, "error": error_label(exc)})
                 continue
@@ -217,7 +326,7 @@ class TaxService:
             )
 
             if changed and apply:
-                await self.compute_tax(user_id, year, persist=True)
+                await self.compute_tax(user_id, year, persist=True, country=country)
 
             report.append(
                 {

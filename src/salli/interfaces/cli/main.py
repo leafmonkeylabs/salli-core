@@ -626,7 +626,11 @@ def ledger_tags(
 
 @tax_app.command("compute")
 def tax_compute(
-    year: str = typer.Option("2025/26", "--year", help="Year of assessment"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
 ):
     """Compute income tax using the versioned rules engine."""
     user_id = _require_user()
@@ -634,6 +638,9 @@ def tax_compute(
         result = asyncio.run(_services().tax.compute_tax(user_id, year))
     except KeyError as e:
         console.print(f"[red]Unknown tax pack:[/red] {e}")
+        raise typer.Exit(1)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
     if emit(result):
         return
@@ -668,16 +675,25 @@ def tax_compute(
 
 @tax_app.command("explain")
 def tax_explain(
-    year: str = typer.Option("2025/26", "--year"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
 ):
     """Launch the Tax Agent REPL to explain your tax situation."""
     # Delegate to agent chat with a priming message
-    _run_agent_chat(f"Please explain my tax situation for the {year} year of assessment.")
+    which = f"the {year} tax year" if year else "my latest tax year"
+    _run_agent_chat(f"Please explain my tax situation for {which}.")
 
 
 @tax_app.command("prepare-return")
 def tax_prepare_return(
-    year: str = typer.Option("2025/26", "--year"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
     thread_id: str = typer.Option(None, "--thread-id", help="Resume an existing return thread"),
 ):
     """Run the return preparation workflow (pauses for review before finalizing)."""
@@ -690,7 +706,11 @@ def tax_prepare_return(
             draft = result.get("draft_return", {})
             tid = result.get("thread_id", "")
 
-            console.print(f"\n[bold]Draft Return — {year}[/bold]  (thread: {tid})\n")
+            if result.get("error"):
+                console.print(f"[red]{result['error']}[/red]")
+                return
+            shown = draft.get("year") or year
+            console.print(f"\n[bold]Draft Return — {shown}[/bold]  (thread: {tid})\n")
             for cage, value in draft.items():
                 if cage == "note":
                     continue
@@ -826,16 +846,57 @@ def tax_recompute_stored(
 
 
 @tax_app.command("latest")
-def tax_latest(year: str = typer.Option("2025/26", help="Year of assessment")):
+def tax_latest(
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
+):
     """Show the most recently stored tax computation for a year."""
     user_id = _require_user()
     result = asyncio.run(_services().tax.get_latest_computation(user_id, year))
     if emit(result):
         return
     if result is None:
-        console.print(f"[dim]No stored computation for {year}. Run 'salli tax compute'.[/dim]")
+        which = year or "your latest tax year"
+        console.print(f"[dim]No stored computation for {which}. Run 'salli tax compute'.[/dim]")
         return
     console.print(result)
+
+
+@tax_app.command("year")
+def tax_year():
+    """The tax year you are in today, and the latest one Salli can compute."""
+    from salli.domain.jurisdiction import country_name
+
+    user_id = _require_user()
+    where, current = asyncio.run(_services().tax.current_tax_year(user_id))
+    data = {
+        "country": where.country,
+        "country_source": where.source,
+        "year": current.year.label if current else None,
+        "start": current.year.start.isoformat() if current else None,
+        "end": current.year.end.isoformat() if current else None,
+        "has_pack": bool(current and current.pack),
+        "latest_year": current.latest.year if current and current.latest else None,
+    }
+    if emit(data):
+        return
+    if where.country is None:
+        console.print(
+            "[yellow]Salli doesn't know where you are taxed.[/yellow] "
+            "Set it with 'salli profile update --tax-residency <country>'."
+        )
+        return
+    how = "your tax residency" if where.source == "tax_residency" else "your base currency"
+    console.print(f"  Country:      {country_name(where.country)} (from {how})")
+    if current is None:
+        console.print(f"  [dim]Salli has no tax pack for {country_name(where.country)} yet.[/dim]")
+        return
+    console.print(f"  Tax year:     {data['year']} ({data['start']} to {data['end']})")
+    pack_note = "" if data["has_pack"] else " (no pack for the current year yet)"
+    console.print(f"  Can compute:  {data['latest_year'] or 'none yet'}{pack_note}")
 
 
 # ── parse ─────────────────────────────────────────────────────────────────────
@@ -1263,13 +1324,27 @@ def reminders_delete(
 
 @reminders_app.command("seed")
 def reminders_seed(
-    year: str = typer.Option("2025/26", "--year", help="Year of assessment"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
 ):
-    """Seed the standard filing calendar for a year of assessment."""
+    """Seed the filing calendar of your tax pack for a tax year."""
     user_id = _require_user()
-    ids = asyncio.run(_services().reminders.seed_filing_calendar(user_id, year))
-    emit({"year": year, "ids": ids})
-    console.print(f"[green]Seeded {len(ids)} reminder(s) for {year}.[/green]")
+    svc = _services()
+
+    async def _run() -> tuple[str, list[str]]:
+        pack = await svc.tax.pack(user_id, year)
+        return pack.year, await svc.reminders.seed_filing_calendar(user_id, pack.year)
+
+    try:
+        seeded_year, ids = asyncio.run(_run())
+    except (KeyError, ValueError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    emit({"year": seeded_year, "ids": ids})
+    console.print(f"[green]Seeded {len(ids)} reminder(s) for {seeded_year}.[/green]")
 
 
 @reminders_app.command("sync-alerts")

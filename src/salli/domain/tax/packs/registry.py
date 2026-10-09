@@ -7,10 +7,19 @@ the cost of a bad pack is a wrong number a user acts on.
 
 from __future__ import annotations
 
+import datetime
 import re
 from decimal import Decimal
 
-from salli.domain.tax.models import CREDITED_KINDS, TAX_ROLE_PATTERN, StarterAccount, TaxPack
+from salli.domain.tax.models import (
+    CREDITED_KINDS,
+    TAX_ROLE_PATTERN,
+    CurrentTaxYear,
+    StarterAccount,
+    TaxPack,
+    TaxYear,
+    year_label,
+)
 from salli.domain.tax.packs.lk_2025_26 import LK_2025_26
 
 _ACCOUNT_TYPES = frozenset({"asset", "liability", "equity", "income", "expense"})
@@ -18,6 +27,48 @@ _ACCOUNT_TYPES = frozenset({"asset", "liability", "equity", "income", "expense"}
 
 class InvalidTaxPack(ValueError):
     """A pack whose bands or rates could not produce a correct computation."""
+
+
+def _year_from(year_start: str, start: datetime.date) -> TaxYear:
+    """The tax year beginning on `start`, which falls on `year_start`."""
+    first = start.replace(month=int(year_start[:2]), day=int(year_start[3:]))
+    after = first.replace(year=first.year + 1)
+    return TaxYear("", year_label(year_start, first), first, after - datetime.timedelta(days=1))
+
+
+def _month_day(value: str, reference_year: int) -> datetime.date | None:
+    """ "04-01" as a date in `reference_year`, or None if it is not one."""
+    if not re.fullmatch(r"\d{2}-\d{2}", value):
+        return None
+    try:
+        return datetime.date(reference_year, int(value[:2]), int(value[3:]))
+    except ValueError:
+        return None
+
+
+def _validate_year(pack: TaxPack, where: str) -> None:
+    """The year's shape is a real day of every year, and the pack's period is
+    exactly one such year, named the way every year of it is named."""
+    if _month_day(pack.year_start, 2001) is None:  # 2001: no 29 February to start on
+        raise InvalidTaxPack(f"{where}: year_start {pack.year_start!r} is not an MM-DD date")
+    try:
+        start = datetime.date.fromisoformat(pack.period_start)
+        end = datetime.date.fromisoformat(pack.period_end)
+    except ValueError:
+        raise InvalidTaxPack(f"{where}: the period is not two YYYY-MM-DD dates") from None
+    year = _year_from(pack.year_start, start)
+    if (start, end) != (year.start, year.end):
+        raise InvalidTaxPack(
+            f"{where}: the period {pack.period_start} to {pack.period_end} is not one tax "
+            f"year starting {pack.year_start}"
+        )
+    if end.strftime("%m-%d") != pack.year_end:
+        raise InvalidTaxPack(f"{where}: year_end {pack.year_end!r} is not the period's last day")
+    if pack.year != year_label(pack.year_start, start):
+        raise InvalidTaxPack(
+            f"{where}: a year starting {pack.period_start} is called "
+            f"{year_label(pack.year_start, start)!r}"
+        )
 
 
 def _validate_roles(pack: TaxPack, where: str) -> None:
@@ -103,6 +154,7 @@ def validate_pack(pack: TaxPack) -> None:
     ):
         raise InvalidTaxPack(f"{where}: qualifying-payment relief is out of range")
 
+    _validate_year(pack, where)
     _validate_roles(pack, where)
 
 
@@ -134,6 +186,60 @@ def packs_for(country: str | None) -> list[TaxPack]:
         return []
     found = [p for p in _REGISTRY.values() if p.country == country.upper()]
     return sorted(found, key=lambda p: p.period_start)
+
+
+def country_for_currency(currency: str) -> str | None:
+    """The one country whose packs compute in `currency`, or None when there is
+    none, or more than one to choose from."""
+    countries = {p.country for p in _REGISTRY.values() if p.currency == currency.upper()}
+    return countries.pop() if len(countries) == 1 else None
+
+
+# ── Tax years ────────────────────────────────────────────────────────────────
+
+
+def tax_year(country: str, on: datetime.date) -> TaxYear | None:
+    """The tax year of `country` that `on` falls in, shaped as its packs declare
+    (the newest pack's, should the country ever change it). None when Salli has
+    no pack for the country, so does not know its tax year."""
+    packs = packs_for(country)
+    if not packs:
+        return None
+    year_start = packs[-1].year_start
+    first = on.replace(month=int(year_start[:2]), day=int(year_start[3:]))
+    if on < first:
+        first = first.replace(year=first.year - 1)
+    year = _year_from(year_start, first)
+    return TaxYear(country.upper(), year.label, year.start, year.end)
+
+
+def pack_for(country: str, on: datetime.date) -> TaxPack | None:
+    """The pack whose tax year `on` falls in, or None when Salli has none."""
+    day = on.isoformat()
+    return next(
+        (p for p in packs_for(country) if p.period_start <= day <= p.period_end),
+        None,
+    )
+
+
+def latest_pack(country: str, on: datetime.date) -> TaxPack | None:
+    """The newest pack whose tax year had begun by `on`: the latest year Salli
+    can compute. None when it has no pack for the country, or only future ones."""
+    day = on.isoformat()
+    begun = [p for p in packs_for(country) if p.period_start <= day]
+    return begun[-1] if begun else None
+
+
+def current_tax_year(country: str | None, on: datetime.date) -> CurrentTaxYear | None:
+    """Where someone taxed in `country` stands on `on`: the tax year they are in,
+    its pack if there is one, and the latest year Salli can compute. None with
+    no country, or a country Salli has no pack for."""
+    if not country:
+        return None
+    year = tax_year(country, on)
+    if year is None:
+        return None
+    return CurrentTaxYear(year=year, pack=pack_for(country, on), latest=latest_pack(country, on))
 
 
 # ── Tax roles ────────────────────────────────────────────────────────────────

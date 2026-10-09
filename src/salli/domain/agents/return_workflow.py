@@ -11,6 +11,10 @@ Nodes:
 The LLM is NOT invoked in this graph. It is pure Python orchestration.
 The interrupt() gate is where "agent files for you" would slot in when/if
 an IRD filing channel is available; for now it just gates the worksheet.
+
+The year is the user's: their country's pack for the year asked, or the latest
+year Salli can compute for them. The worksheet itself is a return form's, so it
+exists only for the forms it has been mapped to (`_RETURN_FORMS`).
 """
 
 from __future__ import annotations
@@ -26,10 +30,18 @@ from salli.domain.secrets import error_label
 # ── State ──────────────────────────────────────────────────────────────────────
 
 
+#: The return forms the worksheet is mapped to: Sri Lanka's individual return
+#: in RAMIS, as the cages stood for 2025/26. Cage numbers can change from year
+#: to year, so a new year needs its form checked and added here rather than
+#: inheriting a mapping that may no longer be right.
+_RETURN_FORMS = {("LK", "2025/26")}
+
+
 @dataclass
 class ReturnState:
     user_id: str = ""
-    year: str = "2025/26"
+    # The tax year; empty for the latest one Salli can compute for the user.
+    year: str = ""
 
     # Populated by gather
     ledger_entries: list[Any] = field(default_factory=list)
@@ -53,16 +65,27 @@ class ReturnState:
 
 
 async def _gather(state: ReturnState, ledger_svc: Any, tax_svc: Any) -> dict[str, Any]:
-    from salli.domain.tax.packs.registry import get_pack
-
-    pack = get_pack("LK", state.year)
+    try:
+        pack = await tax_svc.pack(state.user_id, state.year or None)
+    except (KeyError, ValueError) as e:
+        # Raised by the pack lookup, which is pure: the message is Salli's own
+        # (a country, a year), never a provider's, so it is safe to keep in the
+        # checkpoint where error_label keeps only the class name.
+        return {"error": str(e.args[0]) if e.args else error_label(e)}
+    if (pack.country, pack.year) not in _RETURN_FORMS:
+        return {
+            "error": (
+                f"Salli has no return worksheet for {pack.country} {pack.year} yet: "
+                "your computation is still available."
+            )
+        }
     accounts = await ledger_svc.list_accounts(state.user_id)
     entries = await ledger_svc.get_entries(
         state.user_id,
         from_date=pack.period_start,
         to_date=pack.period_end,
     )
-    return {"accounts": accounts, "ledger_entries": entries}
+    return {"accounts": accounts, "ledger_entries": entries, "year": pack.year}
 
 
 async def _compute(state: ReturnState, tax_svc: Any) -> dict[str, Any]:
@@ -77,7 +100,7 @@ def _map_to_cages(state: ReturnState) -> dict[str, Any]:
     """
     Map the engine's TaxComputation output to RAMIS return cages.
     RAMIS is the IRD's online return system. Cage numbers may change each year;
-    this mapping is for the 2025/26 individual return form.
+    this mapping is for the forms in `_RETURN_FORMS`.
     """
     if state.tax_computation is None:
         return {"error": "No tax computation available to map"}
@@ -131,12 +154,13 @@ def _finalize(state: ReturnState) -> dict[str, Any]:
             "worksheet": {},
             "error": f"Return not approved (decision: {state.review_decision})",
         }
+    year = state.draft_return.get("year") or state.year
     worksheet = {
         **state.draft_return,
         "status": "ready_to_submit",
         "instructions": (
             "Log in to RAMIS (ramis.ird.gov.lk), navigate to Individual Return → "
-            "2025/26, and enter the values from this worksheet. "
+            f"{year}, and enter the values from this worksheet. "
             "Keep a copy with your supporting documents."
         ),
     }
@@ -158,7 +182,7 @@ def build_return_workflow(ledger_svc, tax_svc, checkpointer=None):
 
     The returned compiled graph is invoked with:
         await workflow.ainvoke(
-            {"user_id": user_id, "year": "2025/26"},
+            {"user_id": user_id, "year": year},  # "" for the latest year
             config={"configurable": {"thread_id": thread_id}},
         )
     And resumed (after review interrupt) with:
@@ -197,7 +221,7 @@ def build_return_workflow(ledger_svc, tax_svc, checkpointer=None):
     g.add_node("finalize", finalize)
 
     g.add_edge(START, "gather")
-    g.add_edge("gather", "compute")
+    g.add_conditional_edges("gather", _should_finalize, {"finalize": "compute", "error": END})
     g.add_conditional_edges("compute", _should_finalize, {"finalize": "map_to_cages", "error": END})
     g.add_edge("map_to_cages", "review")
     g.add_edge("review", "finalize")

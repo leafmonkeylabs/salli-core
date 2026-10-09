@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from salli.domain.currency import quantize
 from salli.domain.tax.models import TaxComputation as DomainTaxComputation
 from salli.domain.tax.models import TaxPack as DomainTaxPack
-from salli.interfaces.api.contract import Amount, CurrencyCode
+from salli.interfaces.api.contract import Amount, CountryCode, CurrencyCode
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/tax", tags=["tax"])
@@ -270,19 +270,65 @@ def _fmt_computation(result: DomainTaxComputation | dict[str, Any]) -> dict[str,
 # ── routes ────────────────────────────────────────────────────────────────────
 
 
+#: A tax year by its pack's name: "2025/26". Omitted: the latest year Salli can
+#: compute for the user (GET /tax/current-year says which).
+TaxYearParam = Annotated[str | None, Query(examples=["2025/26"])]
+
+
 @router.post("/compute")
 async def compute_tax(
-    user_id: CurrentUser, svc: AppServices, year: str = "2025/26"
+    user_id: CurrentUser, svc: AppServices, year: TaxYearParam = None
 ) -> TaxComputation:
+    """Compute the user's income tax for a year with their country's pack.
+
+    Their country is their tax residency or, while they have not set one, the
+    one country whose packs compute in their base currency. 422
+    (/problems/no-tax-pack) when Salli has no pack that can compute it.
+    """
     result = await svc.tax.compute_tax(user_id, year)
     return TaxComputation.model_validate(_fmt_computation(result))
 
 
 @router.get("/latest")
 async def get_latest(
-    user_id: CurrentUser, svc: AppServices, year: str = "2025/26"
+    user_id: CurrentUser, svc: AppServices, year: TaxYearParam = None
 ) -> LatestTaxComputation:
     result = await svc.tax.get_latest_computation(user_id, year)
     if result is None:
         return LatestTaxComputation(result=None)
     return LatestTaxComputation(result=TaxComputation.model_validate(_fmt_computation(result)))
+
+
+class TaxYearStatus(BaseModel):
+    """The tax year the user is in today, and the latest one Salli can compute."""
+
+    #: Whose tax packs compute the user's tax; null when Salli cannot tell.
+    country: CountryCode | None
+    #: "tax_residency" when the user set it; "base_currency" while they have
+    #: not, and one country's packs compute in their base currency.
+    country_source: Literal["tax_residency", "base_currency"] | None
+    #: The country's tax year today falls in ("2026/27"), with its first and
+    #: last day (YYYY-MM-DD). Null when Salli has no pack for the country.
+    year: str | None
+    start: str | None
+    end: str | None
+    #: Whether Salli has a pack for that year.
+    has_pack: bool
+    #: The latest year Salli can compute for the user: what /tax/compute and
+    #: /tax/latest use when no year is given. Null when there is none.
+    latest_year: str | None
+
+
+@router.get("/current-year")
+async def get_current_year(user_id: CurrentUser, svc: AppServices) -> TaxYearStatus:
+    """The tax year the user is in today, in their country."""
+    where, current = await svc.tax.current_tax_year(user_id)
+    return TaxYearStatus(
+        country=where.country,
+        country_source=where.source,
+        year=current.year.label if current else None,
+        start=current.year.start.isoformat() if current else None,
+        end=current.year.end.isoformat() if current else None,
+        has_pack=bool(current and current.pack),
+        latest_year=current.latest.year if current and current.latest else None,
+    )

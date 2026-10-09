@@ -62,6 +62,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/tax/packs"): "tax.packs",
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",
+    ("GET", "/tax/current-year"): "tax.currentYear",
     # statements
     ("GET", "/statements/"): "statements.list",
     ("POST", "/statements/upload"): "statements.upload",

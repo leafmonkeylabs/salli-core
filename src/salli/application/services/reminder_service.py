@@ -12,6 +12,8 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from salli.application.services.tax_service import TaxService
+
 
 class ReminderService:
     def __init__(
@@ -20,11 +22,14 @@ class ReminderService:
         budget_svc: Any = None,
         subscription_svc: Any = None,
         insurance_svc: Any = None,
+        tax_svc: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._budget_svc = budget_svc
         self._subscription_svc = subscription_svc
         self._insurance_svc = insurance_svc
+        # Whose filing calendar a user follows: their tax pack's.
+        self._tax = tax_svc or TaxService(uow_factory)
 
     async def list_reminders(
         self,
@@ -53,24 +58,27 @@ class ReminderService:
         async with self._uow_factory() as uow:
             await uow.reminders.delete_reminder(user_id, reminder_id)
 
-    async def seed_filing_calendar(self, user_id: str, year: str = "2025/26") -> list[str]:
+    async def seed_filing_calendar(self, user_id: str, year: str | None = None) -> list[str]:
         """
-        Seed the standard IRD filing deadlines for the given year of assessment.
+        Seed the filing deadlines of the user's tax pack for a tax year: by
+        default the latest one Salli can compute for them.
         Safe to call multiple times — skips kinds that already exist.
         """
-        from salli.domain.tax.packs.registry import get_pack
-
-        pack = get_pack("LK", year)
+        pack = await self._tax.pack(user_id, year)
+        year = pack.year
         cal = pack.filing
-
-        # Extract the year start (April 1 for LK)
-        yoa_start = year.split("/")[0]  # "2025"
+        first_year = int(pack.period_start[:4])
 
         deadlines: list[tuple[str, str]] = []
         if cal.return_due:
-            deadlines.append((f"return_due_{year}", f"{int(yoa_start) + 1}-{cal.return_due}"))
+            # The return is due on the first such date after the year ends.
+            end_year = int(pack.period_end[:4])
+            due_year = end_year if cal.return_due > pack.period_end[5:] else end_year + 1
+            deadlines.append((f"return_due_{year}", f"{due_year}-{cal.return_due}"))
         for i, mmdd in enumerate(cal.installments, 1):
-            yr = yoa_start if int(mmdd[:2]) >= 4 else str(int(yoa_start) + 1)
+            # A date from the year's first day on falls in its first calendar
+            # year, an earlier one in the next (Sri Lanka: April on, or not).
+            yr = first_year if mmdd >= pack.year_start else first_year + 1
             deadlines.append((f"installment_{i}_{year}", f"{yr}-{mmdd}"))
 
         async with self._uow_factory() as uow:

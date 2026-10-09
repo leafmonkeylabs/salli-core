@@ -28,6 +28,9 @@ LK_2025_26 = TaxPack(
     currency="LKR",
     period_start="2025-04-01",
     period_end="2026-03-31",
+    # Sri Lanka's year of assessment runs from 1 April to 31 March.
+    year_start="04-01",
+    year_end="03-31",
     #
     # LKR 1,800,000 personal relief (effective 1 April 2025).
     personal_relief=Decimal("1_800_000"),

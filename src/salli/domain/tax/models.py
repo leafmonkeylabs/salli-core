@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -79,11 +80,16 @@ class TaxPack:
     """
 
     country: str
-    year: str
+    year: str  # "2025/26", or "2025" for a calendar tax year: see `year_label`
     version: str
     currency: str  # ISO 4217 — what every amount in the pack is in, and the ledger must be
     period_start: str  # YYYY-MM-DD
     period_end: str  # YYYY-MM-DD
+    # The country's tax year, every year: its first and last day, "MM-DD"
+    # (Sri Lanka: "04-01" to "03-31"). It names the tax year a date is in even
+    # when Salli has no pack for that year yet.
+    year_start: str
+    year_end: str
     personal_relief: Decimal
     bands: list[Band]
     foreign_service_income: ForeignServiceIncomeRegime | None
@@ -116,6 +122,43 @@ class TaxPack:
         if self.foreign_service_income is not None:
             roles.append(FSI_INCOME_ROLE)
         return tuple(roles)
+
+
+# ── tax years ──────────────────────────────────────────────────────────────────
+
+
+def year_label(year_start: str, start: datetime.date) -> str:
+    """How a tax year beginning on `start` is named: "2025" when it is the
+    calendar year, else "2025/26"."""
+    if year_start == "01-01":
+        return str(start.year)
+    return f"{start.year}/{(start.year + 1) % 100:02d}"
+
+
+@dataclass(frozen=True)
+class TaxYear:
+    """One country's tax year: "2026/27" in Sri Lanka, 1 April 2026 to 31 March 2027."""
+
+    country: str
+    label: str
+    start: datetime.date
+    end: datetime.date
+
+    def __contains__(self, day: datetime.date) -> bool:
+        return self.start <= day <= self.end
+
+
+@dataclass(frozen=True)
+class CurrentTaxYear:
+    """Where someone taxed in a country stands on a given day."""
+
+    #: The tax year the day falls in.
+    year: TaxYear
+    #: The pack for that year, when Salli has one.
+    pack: TaxPack | None
+    #: The newest pack whose year has begun: the latest year Salli can compute,
+    #: and the one a computation uses when no year is named.
+    latest: TaxPack | None
 
 
 # ── computation output ─────────────────────────────────────────────────────────

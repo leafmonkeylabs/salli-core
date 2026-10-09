@@ -200,23 +200,34 @@ def test_list_tax_packs():
     assert ("LK", "2025/26") in keys
 
 
-def test_explain_tax_band_valid():
+@pytest.mark.asyncio
+async def test_explain_tax_band_valid():
     ledger_svc, tax_svc = _make_services_with_income()
     tools = make_tools(ledger_svc, tax_svc)
     explain = next(t for t in tools if t.name == "explain_tax_band")
 
-    result = explain.invoke({"band_index": 0, "year": "2025/26"})
+    result = await explain.ainvoke({"band_index": 0, "year": "2025/26"})
     assert "rate" in result
     assert "rate_pct" in result
     assert result["band_index"] == 0
+    # The user's own pack: their rupee ledger has always been Sri Lanka's.
+    assert (result["country"], result["year"], result["currency"]) == ("LK", "2025/26", "LKR")
 
 
-def test_explain_tax_band_out_of_range():
+@pytest.mark.asyncio
+async def test_explain_tax_band_defaults_to_the_latest_year_salli_can_compute():
+    ledger_svc, tax_svc = _make_services_with_income()
+    explain = next(t for t in make_tools(ledger_svc, tax_svc) if t.name == "explain_tax_band")
+    assert (await explain.ainvoke({"band_index": 0}))["year"] == "2025/26"
+
+
+@pytest.mark.asyncio
+async def test_explain_tax_band_out_of_range():
     ledger_svc, tax_svc = _make_services_with_income()
     tools = make_tools(ledger_svc, tax_svc)
     explain = next(t for t in tools if t.name == "explain_tax_band")
 
-    result = explain.invoke({"band_index": 99, "year": "2025/26"})
+    result = await explain.ainvoke({"band_index": 99, "year": "2025/26"})
     assert "error" in result
 
 

@@ -20,7 +20,11 @@ class FakeProfiles:
         return self.rows.get(user_id, {}).get("base_currency", self.base)
 
     async def get(self, user_id: str) -> dict[str, Any] | None:
-        return {"id": user_id, "base_currency": await self.base_currency(user_id)}
+        return {
+            **self.rows.get(user_id, {}),
+            "id": user_id,
+            "base_currency": await self.base_currency(user_id),
+        }
 
     async def upsert(self, user_id: str, fields: dict[str, Any]) -> None:
         self.rows.setdefault(user_id, {}).update(fields)
