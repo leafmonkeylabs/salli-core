@@ -1,21 +1,42 @@
 # Salli
 
-Your own personal-finance, tax and financial-independence assistant for
-Sri Lanka — a double-entry ledger, the Sri Lankan income-tax engine, budgets,
-debts, investments, insurance, subscriptions, reports, and an AI advisor that
-explains it all. Runs on your machine, on your own data, with your own LLM key.
+Your own personal-finance platform — a double-entry ledger, budgets, debts,
+investments, insurance, subscriptions, reports, income tax and
+financial-independence planning, with an AI advisor that explains it all. Runs
+on your machine, on your own data, with your own LLM key.
 
 - **CLI-first.** Everything Salli does, `salli` does from the terminal, with
   `--json` on every command. The HTTP API and the MCP server are the same
   services over other transports.
 - **The LLM never does the maths.** Money and tax come from deterministic
   engines; the model parses documents, explains results and drafts advice.
+- **Tax rules in versioned packs, country by country.** A computation records
+  the pack it used, so a past return can be reproduced after the rules change.
 - **Works with your AI.** Connect Claude or ChatGPT over MCP, or let your own
   agent drive the CLI with the bundled skills.
 
-> **Not tax advice.** Salli estimates tax from your own records using the
-> Sri Lanka 2025/26 rules as we read them. The tax pack has not yet been
-> reviewed by a chartered accountant.
+> **Not tax advice.** Salli estimates tax from your own records using each
+> tax pack's rules as we read them. No pack has yet been reviewed by a
+> chartered accountant.
+
+## Where Salli is today
+
+Salli is for anyone, anywhere. It started in Sri Lanka, and that is still
+where it does the most:
+
+- **Tax:** one pack so far, Sri Lanka 2025/26 (APIT, AIT and foreign service
+  income included). Packs for other countries are welcome — see
+  [CONTRIBUTING.md](CONTRIBUTING.md#tax-packs).
+- **Currency:** the ledger's base currency is LKR, and can't be changed yet.
+  Accounts in other currencies are converted to it with the built-in
+  exchange-rate feed.
+- **Imports:** statement import was built against Sri Lankan banks' PDF and
+  Excel exports; other banks' exports may need work.
+- **Financial independence:** the default assumptions, such as 5% long-run
+  inflation, were chosen for Sri Lanka.
+
+Budgets, debts, investments, insurance, subscriptions and reports follow no
+country's rules, but for now they all report in LKR.
 
 ## Quickstart (about 10 minutes)
 
