@@ -58,7 +58,13 @@ ALLOWED: dict[tuple[str, str], str] = {
 
 #: Whole directories that are history: an applied migration is never edited,
 #: so the ones that once moved one country's data keep saying so.
-HISTORICAL = ("src/salli/migrations/versions/",)
+HISTORICAL = (
+    "src/salli/migrations/versions/",
+    # Design records: each describes the code as it stood when the design was
+    # written, including what a change removed (the country-neutral design
+    # names the country-specific code it took out).
+    "docs/design/",
+)
 
 
 def _files(bases: list[Path]) -> list[Path]:

@@ -1,7 +1,17 @@
 # A country-neutral core: tax rules and local knowledge as user data
 
-Status: **approved in principle (2026-10-10).** The decisions are recorded at the end.
-Phase 1 (the engine) is #29. Each phase is its own PR.
+Status: **done.** The decisions are recorded at the end. Approved on 2026-10-10 and
+shipped in October 2026:
+
+| Phase | PRs | What shipped |
+|---|---|---|
+| 1 | #29 | The engine, the expression language and the conformance suite |
+| 2 | #30, #31 | Storage, the API, MCP and CLI, and the `tax:activate` permission |
+| 3 | #32, #33 | The switch to rule sets; the country-specific code removed |
+
+This is a design record. It describes the code as it stood when the design was
+written, including the country-specific code it set out to remove. For how rule
+sets work now, see [`docs/taxrules.md`](../taxrules.md).
 
 There are **no real users yet**. So there is no user data to migrate, no need to run
 two engines side by side, and no deprecation windows. Old code and endpoints are
