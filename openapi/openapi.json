@@ -1303,6 +1303,827 @@
         ]
       }
     },
+    "/v1/tax/schema": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Schema",
+        "description": "The rule-set document's JSON Schema (Draft 2020-12), to write one\nagainst. The validator checks more than the schema can say (unique keys,\ndeclared sources, expressions that compile, examples that pass).",
+        "operationId": "tax.schema",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/JsonValue"
+                  },
+                  "type": "object",
+                  "title": "Response Tax.Schema"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tax/rule-sets": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "List Rule Sets",
+        "operationId": "tax.ruleSets.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaxRuleSet"
+                  },
+                  "type": "array",
+                  "title": "Response Tax.Rulesets.List"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Create Rule Set",
+        "description": "A new rule set with the document as version 1, stored whatever its\nvalidation finds (the report says what). 409 when the user already has\none for that jurisdiction and year: add a version to it instead.",
+        "operationId": "tax.ruleSets.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRuleDocumentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tax/rule-sets/import": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Import Rule Set",
+        "description": "A rule set from a document or a URL, as a new version of the user's\nrule set for its jurisdiction and year (created if there is none). It\nlands as a draft (or invalid), never further: validate it, review it,\nactivate it.",
+        "operationId": "tax.ruleSets.import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRuleImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Rule Set",
+        "operationId": "tax.ruleSets.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Add Version",
+        "description": "A new version: an edit never changes an existing one. Its jurisdiction\nand year must be the rule set's.",
+        "operationId": "tax.ruleSets.versions.create",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRuleDocumentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Version",
+        "operationId": "tax.ruleSets.versions.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/validate": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Validate Version",
+        "operationId": "tax.ruleSets.versions.validate",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/propose": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Propose Version",
+        "description": "Ask for the user's review. 409 unless it passes validation (run again).",
+        "operationId": "tax.ruleSets.versions.propose",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/activate": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Activate Version",
+        "description": "Make this the version Salli computes with for its jurisdiction and\nyear, superseding the active one. Needs `tax:activate`, which only the\nuser's own sign-ins hold (the app, the salli CLI, a personal access\ntoken): 403 for an AI connector or any other application. 409 unless it\npasses validation (run again).",
+        "operationId": "tax.ruleSets.versions.activate",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/diff": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Diff Versions",
+        "description": "What changed between two versions, with the source behind each change\nand the `to` version's example results: the review before activating.",
+        "operationId": "tax.ruleSets.diff",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The version to compare to",
+              "title": "To"
+            },
+            "description": "The version to compare to"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The version to compare from; the active one if omitted",
+              "title": "From"
+            },
+            "description": "The version to compare from; the active one if omitted"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleDiff"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/export": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Export Version",
+        "operationId": "tax.ruleSets.versions.export",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleExport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/evaluate": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Evaluate Version",
+        "description": "Apply this version's rules to the user's own ledger, read-only: each\nrole's total from the accounts carrying it, within the rules' year,\nconverted into their currency where needed; then every line.",
+        "operationId": "tax.ruleSets.versions.evaluate",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaxRuleEvaluateIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleEvaluation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/agent/chat": {
       "post": {
         "tags": [
@@ -9868,12 +10689,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "apit_credit",
-                  "ait_credit",
-                  "foreign_tax_credit",
-                  "qualifying_payment",
-                  "fsi_income"
+                "pattern": "^[a-z][a-z0-9_]{0,29}$",
+                "description": "A role a built-in tax pack or one of the user's tax rule sets declares.",
+                "examples": [
+                  "salary"
                 ]
               },
               {
@@ -10200,12 +11019,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "apit_credit",
-                  "ait_credit",
-                  "foreign_tax_credit",
-                  "qualifying_payment",
-                  "fsi_income"
+                "pattern": "^[a-z][a-z0-9_]{0,29}$",
+                "description": "A role a built-in tax pack or one of the user's tax rule sets declares.",
+                "examples": [
+                  "salary"
                 ]
               },
               {
@@ -17336,6 +18153,7 @@
         ],
         "title": "JournalEntry"
       },
+      "JsonValue": {},
       "LatestTaxComputation": {
         "properties": {
           "result": {
@@ -18056,6 +18874,10 @@
           "device_verification_uri": {
             "type": "string",
             "title": "Device Verification Uri"
+          },
+          "cli_client_id": {
+            "type": "string",
+            "title": "Cli Client Id"
           }
         },
         "type": "object",
@@ -18067,7 +18889,8 @@
           "revocation_endpoint",
           "device_authorization_endpoint",
           "api_resource",
-          "device_verification_uri"
+          "device_verification_uri",
+          "cli_client_id"
         ],
         "title": "OAuthInfo"
       },
@@ -22811,6 +23634,1115 @@
         ],
         "title": "TaxPackInfo"
       },
+      "TaxRuleChange": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "title": "Kind"
+          },
+          "before": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "after": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "figure": {
+            "type": "boolean",
+            "title": "Figure"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "figure",
+          "source"
+        ],
+        "title": "TaxRuleChange"
+      },
+      "TaxRuleDiff": {
+        "properties": {
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleChange"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "sources": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Sources"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleExampleResult"
+            },
+            "type": "array",
+            "title": "Examples"
+          },
+          "validation_ok": {
+            "type": "boolean",
+            "title": "Validation Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_set_id",
+          "from",
+          "to",
+          "changes",
+          "sources",
+          "examples",
+          "validation_ok"
+        ],
+        "title": "TaxRuleDiff"
+      },
+      "TaxRuleDocumentIn": {
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              }
+            ],
+            "title": "Document"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document"
+        ],
+        "title": "TaxRuleDocumentIn"
+      },
+      "TaxRuleEvaluateIn": {
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "type": "object",
+        "title": "TaxRuleEvaluateIn"
+      },
+      "TaxRuleEvaluation": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+          },
+          "validated": {
+            "type": "boolean",
+            "title": "Validated"
+          },
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "base_currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Base Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleRoleTotal"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleRate"
+            },
+            "type": "array",
+            "title": "Rates"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "net_expr": {
+            "type": "string",
+            "title": "Net Expr"
+          },
+          "tax_payable": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Tax Payable",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "refund_due": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Refund Due",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "forms": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleForm"
+            },
+            "type": "array",
+            "title": "Forms"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "validated",
+          "country",
+          "region",
+          "year",
+          "period_start",
+          "period_end",
+          "currency",
+          "base_currency",
+          "content_hash",
+          "roles",
+          "rates",
+          "lines",
+          "net",
+          "net_expr",
+          "tax_payable",
+          "refund_due",
+          "forms",
+          "warnings",
+          "provenance"
+        ],
+        "title": "TaxRuleEvaluation",
+        "description": "A version's rules applied to the user's ledger. Nothing is stored."
+      },
+      "TaxRuleExampleResult": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "mismatches": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleMismatch"
+            },
+            "type": "array",
+            "title": "Mismatches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "passed",
+          "error",
+          "mismatches"
+        ],
+        "title": "TaxRuleExampleResult"
+      },
+      "TaxRuleExport": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "canonical": {
+            "type": "boolean",
+            "title": "Canonical"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "content_hash",
+          "canonical",
+          "text"
+        ],
+        "title": "TaxRuleExport"
+      },
+      "TaxRuleForm": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleFormField"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "fields"
+        ],
+        "title": "TaxRuleForm"
+      },
+      "TaxRuleFormField": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "value"
+        ],
+        "title": "TaxRuleFormField"
+      },
+      "TaxRuleImportIn": {
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TaxRuleImportIn",
+        "description": "A rule set to import, from a document or an https URL (one of them)."
+      },
+      "TaxRuleLine": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "expr": {
+            "type": "string",
+            "title": "Expr"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "refundable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "amount",
+          "expr",
+          "source",
+          "refundable"
+        ],
+        "title": "TaxRuleLine"
+      },
+      "TaxRuleMismatch": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "expected": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expected",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "got": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Got",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "expr": {
+            "type": "string",
+            "title": "Expr"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "expected",
+          "got",
+          "expr",
+          "message"
+        ],
+        "title": "TaxRuleMismatch"
+      },
+      "TaxRuleProblem": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "message"
+        ],
+        "title": "TaxRuleProblem"
+      },
+      "TaxRuleRate": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "rate": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Rate",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "rate",
+          "source"
+        ],
+        "title": "TaxRuleRate"
+      },
+      "TaxRuleRoleTotal": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "income",
+              "deduction",
+              "withholding",
+              "other"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "postings": {
+            "type": "integer",
+            "title": "Postings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "label",
+          "total",
+          "postings"
+        ],
+        "title": "TaxRuleRoleTotal"
+      },
+      "TaxRuleSet": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year_label": {
+            "type": "string",
+            "title": "Year Label"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "active_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "country",
+          "region",
+          "year_label",
+          "name",
+          "active_version_id",
+          "created_at",
+          "updated_at",
+          "versions"
+        ],
+        "title": "TaxRuleSet"
+      },
+      "TaxRuleSetVersion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "validated",
+              "proposed",
+              "active",
+              "superseded",
+              "invalid"
+            ],
+            "title": "Status"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "author_kind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "agent"
+            ],
+            "title": "Author Kind"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "change_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "proposed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed At"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          },
+          "document": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Document"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/TaxRuleValidation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule_set_id",
+          "version",
+          "status",
+          "content_hash",
+          "author_kind",
+          "author_name",
+          "change_note",
+          "created_at",
+          "proposed_at",
+          "activated_at",
+          "superseded_at",
+          "document",
+          "validation"
+        ],
+        "title": "TaxRuleSetVersion"
+      },
+      "TaxRuleSetVersionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "validated",
+              "proposed",
+              "active",
+              "superseded",
+              "invalid"
+            ],
+            "title": "Status"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "author_kind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "agent"
+            ],
+            "title": "Author Kind"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "change_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "proposed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed At"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule_set_id",
+          "version",
+          "status",
+          "content_hash",
+          "author_kind",
+          "author_name",
+          "change_note",
+          "created_at",
+          "proposed_at",
+          "activated_at",
+          "superseded_at"
+        ],
+        "title": "TaxRuleSetVersionSummary"
+      },
+      "TaxRuleValidation": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "validated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Validated At"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleProblem"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleProblem"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleExampleResult"
+            },
+            "type": "array",
+            "title": "Examples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "content_hash",
+          "validated_at",
+          "errors",
+          "warnings",
+          "examples"
+        ],
+        "title": "TaxRuleValidation",
+        "description": "The validator's report (docs/taxrules.md, \"Validation\"). `ok` only with\nno errors, at least one worked example, and every example passing."
+      },
       "TaxYearStatus": {
         "properties": {
           "country": {
@@ -23063,12 +24995,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "apit_credit",
-                  "ait_credit",
-                  "foreign_tax_credit",
-                  "qualifying_payment",
-                  "fsi_income"
+                "pattern": "^[a-z][a-z0-9_]{0,29}$",
+                "description": "A role a built-in tax pack or one of the user's tax rule sets declares.",
+                "examples": [
+                  "salary"
                 ]
               },
               {

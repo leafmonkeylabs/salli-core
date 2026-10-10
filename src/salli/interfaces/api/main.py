@@ -20,7 +20,21 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from salli.application.ports import AccountNotFound, FxUnavailableError, ProfileMissing
+from salli.application.ports import (
+    AccountNotFound,
+    FetchRefused,
+    FxUnavailableError,
+    ProfileMissing,
+)
+from salli.application.services.tax_rule_service import (
+    RuleSetConflict,
+    RuleSetDocumentError,
+    RuleSetInputError,
+    RuleSetNotFound,
+    RuleSetPermissionError,
+    RuleSetRateMissing,
+    RuleSetStateError,
+)
 from salli.application.services.tax_service import NoTaxPackError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
@@ -60,6 +74,7 @@ from salli.interfaces.api.routers import (
     subscriptions,
     tags,
     tax,
+    tax_rules,
     tokens,
 )
 
@@ -208,6 +223,7 @@ def create_app() -> FastAPI:
         ledger.router,
         tags.router,
         tax.router,
+        tax_rules.router,
         agent.router,
         documents.router,
         onboarding.router,
@@ -300,6 +316,68 @@ def create_app() -> FastAPI:
     async def no_tax_pack_handler(request: Request, exc: NoTaxPackError) -> JSONResponse:
         return problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "no-tax-pack", "No tax pack", str(exc)
+        )
+
+    # Tax rule sets (application/services/tax_rule_service.py). Each before
+    # the ValueError and LookupError it is a kind of.
+    def _with_problems(message: str, problems: tuple[Any, ...]) -> str:
+        return f"{message}: " + "; ".join(str(p) for p in problems) if problems else message
+
+    @app.exception_handler(RuleSetNotFound)
+    async def rule_set_not_found_handler(request: Request, exc: RuleSetNotFound) -> JSONResponse:
+        # Someone else's rule set is "not found", exactly like a missing one.
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
+
+    @app.exception_handler(RuleSetDocumentError)
+    async def rule_set_document_handler(
+        request: Request, exc: RuleSetDocumentError
+    ) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid-rule-set",
+            "Not a rule set Salli can store",
+            _with_problems(str(exc), exc.problems),
+        )
+
+    @app.exception_handler(RuleSetInputError)
+    async def rule_set_input_handler(request: Request, exc: RuleSetInputError) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid", "Invalid request", str(exc)
+        )
+
+    @app.exception_handler(RuleSetStateError)
+    async def rule_set_state_handler(request: Request, exc: RuleSetStateError) -> JSONResponse:
+        return problem(
+            status.HTTP_409_CONFLICT, "rule-set-state", "Not possible in this state", str(exc)
+        )
+
+    @app.exception_handler(RuleSetConflict)
+    async def rule_set_conflict_handler(request: Request, exc: RuleSetConflict) -> JSONResponse:
+        return problem(
+            status.HTTP_409_CONFLICT, "rule-set-exists", "Rule set already exists", str(exc)
+        )
+
+    @app.exception_handler(RuleSetPermissionError)
+    async def rule_set_permission_handler(
+        request: Request, exc: RuleSetPermissionError
+    ) -> JSONResponse:
+        return problem(status.HTTP_403_FORBIDDEN, "permission", "Not permitted", str(exc))
+
+    @app.exception_handler(RuleSetRateMissing)
+    async def rule_set_rate_handler(request: Request, exc: RuleSetRateMissing) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "fx-rate-unavailable",
+            "No exchange rate",
+            str(exc),
+        )
+
+    # A URL the server won't fetch (not https, not public, too large or slow).
+    # The message never describes the network.
+    @app.exception_handler(FetchRefused)
+    async def fetch_refused_handler(request: Request, exc: FetchRefused) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "fetch-refused", "Not fetched", str(exc)
         )
 
     # Asked to change the base currency once amounts are stored in it.

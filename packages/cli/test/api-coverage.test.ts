@@ -37,6 +37,20 @@ const EXEMPT: Record<string, string> = {
   'bankConnections.cron.syncDue': 'for the server’s scheduler, authenticated by X-Cron-Secret; operators run `salli-server jobs sync-banks`',
   'accounts.get': '`salli accounts show` uses accounts.overview, which returns the same account with its balances',
   'onboarding.goals': 'the onboarding wizard’s batch form of goals.create; `salli goals add` adds goals one at a time',
+  // Tax rule sets (server side in phase 2a): `salli tax rules …` is phase 2b.
+  'tax.schema': 'CLI commands come in phase 2b',
+  'tax.ruleSets.list': 'CLI commands come in phase 2b',
+  'tax.ruleSets.create': 'CLI commands come in phase 2b',
+  'tax.ruleSets.import': 'CLI commands come in phase 2b',
+  'tax.ruleSets.get': 'CLI commands come in phase 2b',
+  'tax.ruleSets.diff': 'CLI commands come in phase 2b',
+  'tax.ruleSets.versions.create': 'CLI commands come in phase 2b',
+  'tax.ruleSets.versions.get': 'CLI commands come in phase 2b',
+  'tax.ruleSets.versions.validate': 'CLI commands come in phase 2b',
+  'tax.ruleSets.versions.propose': 'CLI commands come in phase 2b',
+  'tax.ruleSets.versions.activate': 'CLI commands come in phase 2b',
+  'tax.ruleSets.versions.export': 'CLI commands come in phase 2b',
+  'tax.ruleSets.versions.evaluate': 'CLI commands come in phase 2b',
 };
 
 /** SDK helpers that wrap an operation, and the operations each one calls. */

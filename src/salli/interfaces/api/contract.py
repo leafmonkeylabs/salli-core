@@ -63,6 +63,35 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",
     ("GET", "/tax/current-year"): "tax.currentYear",
+    # tax rule sets: the user's own rules (docs/taxrules.md)
+    ("GET", "/tax/schema"): "tax.schema",
+    ("GET", "/tax/rule-sets"): "tax.ruleSets.list",
+    ("POST", "/tax/rule-sets"): "tax.ruleSets.create",
+    ("POST", "/tax/rule-sets/import"): "tax.ruleSets.import",
+    ("GET", "/tax/rule-sets/{rule_set_id}"): "tax.ruleSets.get",
+    ("GET", "/tax/rule-sets/{rule_set_id}/diff"): "tax.ruleSets.diff",
+    ("POST", "/tax/rule-sets/{rule_set_id}/versions"): "tax.ruleSets.versions.create",
+    ("GET", "/tax/rule-sets/{rule_set_id}/versions/{version_id}"): "tax.ruleSets.versions.get",
+    (
+        "POST",
+        "/tax/rule-sets/{rule_set_id}/versions/{version_id}/validate",
+    ): "tax.ruleSets.versions.validate",
+    (
+        "POST",
+        "/tax/rule-sets/{rule_set_id}/versions/{version_id}/propose",
+    ): "tax.ruleSets.versions.propose",
+    (
+        "POST",
+        "/tax/rule-sets/{rule_set_id}/versions/{version_id}/activate",
+    ): "tax.ruleSets.versions.activate",
+    (
+        "GET",
+        "/tax/rule-sets/{rule_set_id}/versions/{version_id}/export",
+    ): "tax.ruleSets.versions.export",
+    (
+        "POST",
+        "/tax/rule-sets/{rule_set_id}/versions/{version_id}/evaluate",
+    ): "tax.ruleSets.versions.evaluate",
     # statements
     ("GET", "/statements/"): "statements.list",
     ("POST", "/statements/upload"): "statements.upload",
