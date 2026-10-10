@@ -93,6 +93,14 @@ jobs:
           node packages/cli/dist/salli.js --version
       - name: The generated SDK matches openapi/openapi.json
         run: npm run check:generated
+      - name: npm has nothing to fix in the packages' package.json
+        # npm silently rewrites what it considers invalid when it publishes
+        # (salli 0.1.0's `./dist/salli.js` bin): publish what we wrote.
+        run: |
+          for p in packages/cli packages/sdk; do
+            (cd "$p" && npm pkg fix)
+            git diff --exit-code -- "$p/package.json"
+          done
 
   cla-bot:
     runs-on: ubuntu-latest

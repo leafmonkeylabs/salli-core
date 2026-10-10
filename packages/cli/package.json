@@ -22,7 +22,7 @@
     "node": ">=22.12"
   },
   "bin": {
-    "salli": "./dist/salli.js"
+    "salli": "dist/salli.js"
   },
   "files": [
     "dist/salli.js",
