@@ -363,6 +363,19 @@ class FxQuote:
     as_of: str
 
 
+class AccountNotFound(KeyError):
+    """A posting names an account that is not the caller's: one that does not
+    exist, or another user's. The two look the same to the caller, so an
+    account id says nothing about anyone else's ledger."""
+
+    def __init__(self, account_ids: Collection[str]) -> None:
+        self.account_ids = tuple(sorted(account_ids))
+        super().__init__(self.account_ids)
+
+    def __str__(self) -> str:
+        return "Account not found: " + ", ".join(self.account_ids)
+
+
 class ProfileMissing(LookupError):
     """The user has no profile row yet, so nothing that needs one (a base
     currency, a setting) can be read or written. Callers create it first:

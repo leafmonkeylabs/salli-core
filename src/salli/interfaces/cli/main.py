@@ -420,7 +420,7 @@ def entry_add(
         )
         emit({"id": entry_id})
         console.print(f"[green]Entry posted:[/green] {entry_id}")
-    except ValueError as e:
+    except (ValueError, LookupError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
 
