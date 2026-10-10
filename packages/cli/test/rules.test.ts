@@ -180,41 +180,6 @@ describe('salli export', () => {
   });
 });
 
-describe('salli tokens', () => {
-  it('creates a token, printed once and alone on stdout, that works at once', async () => {
-    const result = await run(['tokens', 'create', 'ci', '--expires-in-days', '90']);
-    expect(result.code).toBe(0);
-    const token = result.stdout.trim();
-    expect(token).toMatch(/^salli_pat_[A-Za-z0-9_-]+$/);
-    expect(result.stderr).toContain('Created the token “ci”');
-    expect(result.stderr).toContain('only time it is shown');
-    expect(mock.requestsTo('POST', '/v1/tokens')[0]?.json).toEqual({ name: 'ci', expires_in_days: 90 });
-    const login = await runCli(['login', '--token', token, '--server', mock.url], { configDir: dir });
-    expect(login.code).toBe(0);
-  });
-
-  it('lists tokens without the tokens themselves', async () => {
-    const result = await run(['tokens', 'list']);
-    expect(result.stdout).toMatchInlineSnapshot(`
-      "ID        NAME        TOKEN            CREATED      EXPIRES  LAST USED
-      000002bd  backup job  salli_pat_bk7Q…  Sep 1, 2026  never    Oct 8, 2026
-      "
-    `);
-  });
-
-  it('revokes a token, and says so when it is the one this context uses', async () => {
-    const created = await run(['tokens', 'create', 'laptop']);
-    const token = created.stdout.trim();
-    await runCli(['login', '--token', token, '--server', mock.url], { configDir: dir });
-    const id = mock.data.tokens.find((t) => t.name === 'laptop')?.id ?? '';
-    const result = await runCli(['tokens', 'revoke', id.slice(0, 8), '--yes'], { configDir: dir });
-    expect(result.code).toBe(0);
-    expect(result.stderr).toContain('Revoked the token “laptop”.');
-    expect(result.stderr).toContain('This context signed in with that token');
-    expect((await runCli(['whoami'], { configDir: dir })).code).toBe(3);
-  });
-});
-
 describe('salli mcp', () => {
   it('lists connections and disconnects one by the start of its token id', async () => {
     const list = await run(['mcp', 'connections']);

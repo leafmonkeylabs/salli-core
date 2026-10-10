@@ -4,9 +4,10 @@
 import type { Command } from '@commander-js/extra-typings';
 import { authMe, SalliApiError, SalliNetworkError, SUPPORTED_API_VERSIONS } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import { identityOf } from '../auth/credentials';
+import { identityOf, type StoredCredentials } from '../auth/credentials';
 import { CliError, ExitCode, exitCodeFor, messageFor } from '../errors';
 import { singleLine } from '../output/text';
+import { TAX_ACTIVATE } from '../util/permissions';
 import { VERSION } from '../version';
 
 type Status = 'ok' | 'warn' | 'fail' | 'info';
@@ -22,6 +23,46 @@ function describeSkew(seconds: number): string {
   const abs = Math.abs(seconds);
   const amount = abs < 120 ? `${Math.round(abs)}s` : `${Math.round(abs / 60)} minutes`;
   return `${amount} ${seconds > 0 ? 'ahead of' : 'behind'} the server`;
+}
+
+/**
+ * Whether this sign-in may activate a tax rule set, and if not, why and what
+ * would. Said here, once, rather than on every command: most sign-ins never
+ * need it.
+ */
+function activationCheck(
+  permissions: readonly string[] | undefined,
+  method: string,
+  credentials: StoredCredentials | undefined,
+  cliClientId: string | undefined,
+): Check | undefined {
+  // A server older than the permission says nothing about it.
+  if (!Array.isArray(permissions)) return undefined;
+  const name = 'Tax rules';
+  if (permissions.includes(TAX_ACTIVATE)) {
+    return { name, status: 'ok', detail: 'this sign-in may activate tax rule sets (after you review them)' };
+  }
+  if (method === 'pat') {
+    return {
+      name,
+      status: 'info',
+      detail: 'this personal access token cannot activate tax rule sets (it was made without tax:activate)',
+      hint: 'Fine for scripts and agents. To activate one yourself, `salli login`, or make a token with `salli tokens create <name> --allow tax:activate`.',
+    };
+  }
+  const registered = credentials?.kind === 'oauth' && credentials.client_id !== cliClientId;
+  return {
+    name,
+    status: 'info',
+    detail: registered
+      ? cliClientId
+        ? `signed in as a client salli registered for itself, not the server’s own CLI client (${cliClientId}): it cannot activate tax rule sets`
+        : 'this server names no first-party CLI client, so salli registered its own: that sign-in cannot activate tax rule sets'
+      : 'this sign-in cannot activate tax rule sets',
+    hint: registered && cliClientId
+      ? 'Run `salli login` again to sign in as the server’s own client.'
+      : 'Activate in the Salli app, or with a personal access token made with tax:activate (`salli tokens create <name> --allow tax:activate`).',
+  };
 }
 
 export function registerDoctor(program: Command, app: App): void {
@@ -46,6 +87,7 @@ export function registerDoctor(program: Command, app: App): void {
 
       // Reachability, API version and clock, from one /v1/meta request.
       let reachable = false;
+      let cliClientId: string | undefined;
       try {
         const started = performance.now();
         const response = await app.runtime.fetch(`${ctx.server}/v1/meta`, {
@@ -63,7 +105,8 @@ export function registerDoctor(program: Command, app: App): void {
           fail({ name: 'Server', status: 'fail', detail: `${ctx.server} answered ${response.status}` }, ExitCode.ERROR);
         } else {
           reachable = true;
-          const meta = (await response.json()) as { api_version?: unknown; server_version?: unknown };
+          const meta = (await response.json()) as { api_version?: unknown; server_version?: unknown; oauth?: { cli_client_id?: unknown } };
+          if (typeof meta.oauth?.cli_client_id === 'string') cliClientId = meta.oauth.cli_client_id;
           checks.push({
             name: 'Server',
             status: 'ok',
@@ -138,6 +181,8 @@ export function registerDoctor(program: Command, app: App): void {
           const who = singleLine(email ?? userId) || 'yes';
           const via = auth.source === 'env' ? ' (SALLI_TOKEN)' : auth.credentials?.kind === 'token' ? ' (access token)' : '';
           checks.push({ name: 'Signed in', status: 'ok', detail: `as ${who}${via}` });
+          const activation = activationCheck(me.permissions, me.method, auth.credentials, cliClientId);
+          if (activation) checks.push(activation);
           if (me.method === 'dev') {
             checks.push({
               name: 'Server sign-in',
