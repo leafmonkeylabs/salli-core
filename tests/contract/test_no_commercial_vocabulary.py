@@ -4,8 +4,8 @@ salli-core knows nothing about plans, payments or credits.
 Metering and gating belong to whoever deploys Salli and live in an extension
 (salli/extensions.py). This keeps the vocabulary out too, so the seam stays a
 seam: a comment that says "free users get…" is how an `if plan == "free"`
-starts. Tax credits (APIT, AIT, foreign tax) and the ledger's debit/credit are
-Salli's own domain and are not what this looks for.
+starts. Tax credits (whatever a user's tax rules define) and the ledger's
+debit/credit are Salli's own domain and are not what this looks for.
 """
 
 from __future__ import annotations
@@ -29,9 +29,6 @@ BANNED = re.compile(
 #: (file, phrase) pairs that use one of these words about something other
 #: than Salli's own commerce. Each needs a reason.
 ALLOWED = {
-    # The FX adapter describes ExchangeRate-API's own plans.
-    ("adapters/fx/cbsl.py", "free tier"),
-    ("adapters/fx/cbsl.py", "paid plan"),
     # Recognising the LLM provider's own "quota exceeded" error for a user's key.
     ("application/services/agent_service.py", "quota"),
 }
