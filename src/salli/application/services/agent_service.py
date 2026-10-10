@@ -111,6 +111,26 @@ def _worker_from_event(event: dict) -> str | None:
     return None
 
 
+def _rules_context(rules: Any) -> Any:
+    """An active rule set (TaxService's ActiveRules) as the prompts describe
+    it, or None."""
+    if rules is None:
+        return None
+    from salli.domain.agents.jurisdiction import TaxRulesContext
+
+    doc = rules.document
+    return TaxRulesContext(
+        country=rules.country,
+        region=rules.region,
+        year=rules.year,
+        start=rules.start,
+        end=rules.end,
+        version=int(rules.version["version"]),
+        sources=tuple(s.title for s in doc.sources),
+        roles=tuple((r.key, r.label, r.kind) for r in doc.roles),
+    )
+
+
 def _workflow_config(user_id: str, workflow: str, thread_id: str) -> dict[str, Any]:
     """
     The checkpoint config for a review workflow's thread.
@@ -519,16 +539,17 @@ class AgentService:
 
         today = datetime.date.today()
         try:
-            where, current = await self._tax_svc.current_tax_year(user_id, today)
+            status = await self._tax_svc.status(user_id, today=today)
         except Exception:  # noqa: BLE001 — a reply without these details beats no reply
             logging.getLogger(__name__).warning("No prompt context for %s", user_id, exc_info=True)
             return UserContext(today=today)
+        where = status.jurisdiction
         return UserContext(
             today=today,
             base_currency=where.base_currency,
             tax_residency=where.tax_residency,
-            tax_country=where.country,
-            current=current,
+            current=_rules_context(status.current),
+            latest=_rules_context(status.latest),
         )
 
     # ── Session management ────────────────────────────────────────────────────
@@ -816,14 +837,18 @@ class AgentService:
     async def prepare_return(
         self,
         user_id: str,
+        *,
         year: str | None = None,
+        country: str | None = None,
+        region: str | None = None,
+        answers: dict[str, Any] | None = None,
         thread_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Run the return workflow up to the human review gate, for `year` or the
-        latest year Salli can compute for the user.
-        Returns the interrupt payload (draft return for human approval), or the
-        reason there is none (`error`).
+        Run the return workflow up to the human review gate, with the user's
+        active tax rules for `year` in `country` (each derived when not given:
+        TaxService.resolve). Returns the draft for review (its forms, filled
+        in from a stored computation), or the reason there is none (`error`).
         """
         if thread_id is None:
             thread_id = str(uuid.uuid4())
@@ -832,14 +857,33 @@ class AgentService:
         config = _workflow_config(user_id, "return", thread_id)
 
         result = await workflow.ainvoke(
-            {"user_id": user_id, "year": year or ""},
+            {
+                "user_id": user_id,
+                "year": year or "",
+                "country": country or "",
+                "region": region or "",
+                "answers": dict(answers or {}),
+            },
             config=config,
         )
         return {
             "thread_id": thread_id,
-            "draft_return": result.get("draft_return", {}),
+            "draft_return": result.get("draft_return", {}) if not result.get("error") else {},
             "error": result.get("error", ""),
-            "state": result,
+        }
+
+    async def get_return(self, user_id: str, thread_id: str) -> dict[str, Any]:
+        """The user's return waiting for review on `thread_id`: its draft, or
+        an empty one when nothing on that thread (of theirs) is waiting."""
+        workflow = self._get_workflow()
+        config = _workflow_config(user_id, "return", thread_id)
+        state = await workflow.aget_state(config)
+        waiting = bool(state.next)
+        values = state.values if isinstance(state.values, dict) else {}
+        return {
+            "thread_id": thread_id,
+            "waiting": waiting,
+            "draft_return": values.get("draft_return", {}) if waiting else {},
         }
 
     async def resume_return(
@@ -847,20 +891,35 @@ class AgentService:
         user_id: str,
         thread_id: str,
         decision: str,
+        answers: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Resume the user's return workflow after human review.
-        decision: "approve" | "edit" | "reject"
+        Resume the user's return workflow after review. decision: "approve"
+        (the worksheet, ready to file), "reject", or "edit": compute again,
+        with `answers` merged into the thread's, and come back to review with
+        a fresh draft (`draft_return`).
         """
         from langgraph.types import Command
 
         workflow = self._get_workflow()
         config = _workflow_config(user_id, "return", thread_id)
         if not await _awaiting_review(workflow, config):
-            return {"worksheet": {}, "error": "No return is waiting for review on this thread."}
+            return {
+                "worksheet": {},
+                "draft_return": {},
+                "error": "No return is waiting for review on this thread.",
+            }
 
-        result = await workflow.ainvoke(Command(resume=decision), config=config)
-        return {"worksheet": result.get("worksheet", {}), "error": result.get("error", "")}
+        resume: Any = decision
+        if decision == "edit":
+            resume = {"decision": "edit", "answers": dict(answers or {})}
+        result = await workflow.ainvoke(Command(resume=resume), config=config)
+        again = await _awaiting_review(workflow, config)
+        return {
+            "worksheet": result.get("worksheet", {}) if not again else {},
+            "draft_return": result.get("draft_return", {}) if again else {},
+            "error": result.get("error", ""),
+        }
 
     async def prepare_briefing(
         self,

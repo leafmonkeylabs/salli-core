@@ -1,8 +1,9 @@
 """
 Tax specialist worker agent.
 
-Read-only access to tax computations, bands, and ledger data.
-Delegated to by the manager for detailed tax questions.
+Read-only access to the user's tax as Salli's engine computes it from their own
+rules, each line's explanation, and ledger data. Delegated to by the manager for
+detailed tax questions.
 """
 
 from __future__ import annotations
@@ -16,15 +17,20 @@ TAX_WORKER_PROMPT = (
 
 
 Your role:
-- Answer questions about tax computations, bands, deductions, credits, and deadlines
+- Answer questions about the user's tax: its lines (income, reliefs, bands, credits, the
+  amount owed or refunded) and their deadlines
 - ALWAYS call get_tax_computation first to retrieve current figures from the ledger, never ask
   the user for income or tax figures that the system already holds
-- Use the available tools to retrieve accurate data, never invent numbers
-- Explain tax concepts in relation to the tax law of the country the user is taxed in, which
-  the end of this prompt names, with its tax year and its pack's figures. If it names none,
-  or one Salli has no tax pack for, say Salli cannot compute their tax: never apply another
-  country's rules
-- Reference the tax pack version when quoting figures
+- Explain a figure with explain_tax_line: what it used and the source the rules cite for it.
+  Refer to lines by their label; use the expression to say how a line is built, never to
+  recompute it
+- Every figure comes from the user's own active tax rules, applied by Salli's engine: never
+  invent numbers or bring in a rate, threshold or rule from your own knowledge. The end of
+  this prompt says where the user is taxed and which rules are active. If it names none, say
+  Salli can't compute their tax, and that they can add rules (and activate them themselves);
+  never apply another country's rules
+- Say which rules computed the figures (the rule set version) and that Salli doesn't vouch
+  for the law: the rules' sources do
 
 Return a clear, structured answer. If the user needs to file or take action,
 explain the next steps concisely.
@@ -59,7 +65,7 @@ def build_tax_worker(
         model=chat_model(api_key=api_key, model=model, temperature=0, cache=True),
         tools=tools,
         name="tax_specialist",
-        # The date, the user's country and tax year, and their pack's figures,
-        # per call: the graph is shared by every user.
+        # The date, the user's country, tax year and the ledger totals their
+        # rules take, per call: the graph is shared by every user.
         prompt=dynamic_prompt(TAX_WORKER_PROMPT, tax_specialist_section),
     )

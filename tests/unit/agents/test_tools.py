@@ -5,14 +5,17 @@ from __future__ import annotations
 import uuid
 from contextlib import asynccontextmanager
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
 from salli.application.services.ledger_service import LedgerService
-from salli.application.services.tax_service import TaxService
+from salli.application.services.tax_service import NoTaxRulesError
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
 from salli.domain.agents.tools import make_tools, set_current_user
+from salli.domain.taxrules.explain import UnknownLine
 from tests.fakes import FakeProfiles
+from tests.tax_views import computation_view
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +25,7 @@ def _act_as_the_seeded_user():
     set_current_user("u1")
 
 
-# ── Fake repos (same pattern as service tests) ────────────────────────────────
+# ── Fakes ──────────────────────────────────────────────────────────────────────
 
 
 class FakeLedgerRepo:
@@ -30,41 +33,16 @@ class FakeLedgerRepo:
         self._entries = list(entries or [])
         self._accounts = list(accounts or [])
 
-    async def save_account(self, user_id, account):
-        self._accounts.append(account)
-        return account.id
-
     async def get_accounts(self, user_id, include_inactive=False):
         return [a for a in self._accounts if a.user_id == user_id]
 
-    async def save_entry(self, user_id, entry):
-        return str(uuid.uuid4())
-
     async def get_entries(self, user_id, from_date=None, to_date=None):
-        result = [e for e in self._entries if e.user_id == user_id]
-        if from_date:
-            result = [e for e in result if e.entry_date >= from_date]
-        if to_date:
-            result = [e for e in result if e.entry_date <= to_date]
-        return result
-
-
-class FakeTaxComputationRepo:
-    def __init__(self):
-        self._store = {}
-
-    async def save(self, user_id, computation):
-        self._store[(user_id, computation.pack_year)] = computation
-        return str(uuid.uuid4())
-
-    async def get_latest(self, user_id, year):
-        return self._store.get((user_id, year))
+        return [e for e in self._entries if e.user_id == user_id]
 
 
 class FakeUoW:
-    def __init__(self, ledger_repo, tax_repo):
+    def __init__(self, ledger_repo):
         self.ledger = ledger_repo
-        self.tax_computations = tax_repo
         self.user_profiles = FakeProfiles()
 
     async def __aenter__(self):
@@ -74,171 +52,155 @@ class FakeUoW:
         pass
 
 
-def _make_services_with_income(income: Decimal = Decimal("3_000_000")):
-    salary_acc = Account(
+class FakeTax:
+    """TaxService, as far as the tools call it."""
+
+    def __init__(self, fail: Exception | None = None) -> None:
+        self.fail = fail
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def compute_tax(self, user_id, **kwargs):
+        self.calls.append(("compute_tax", {"user_id": user_id, **kwargs}))
+        if self.fail:
+            raise self.fail
+        return computation_view()
+
+    async def explain(self, user_id, line_key, **kwargs):
+        self.calls.append(("explain", {"user_id": user_id, "line_key": line_key, **kwargs}))
+        if line_key == "nowhere":
+            raise UnknownLine("nowhere", ["allowance", "tax"])
+        if self.fail:
+            raise self.fail
+        return {"line": {"key": line_key, "amount": "3000"}, "inputs": [], "provenance": "p"}
+
+
+def _services(tax: FakeTax | None = None):
+    income = Decimal("30000")
+    salary = Account(
         id=str(uuid.uuid4()),
         user_id="u1",
         code="4001",
-        name="Employment Income",
+        name="Salary",
         type="income",
-        currency="LKR",
+        currency="EUR",
     )
     entry = StoredJournalEntry(
         id=str(uuid.uuid4()),
         user_id="u1",
-        entry_date="2025-04-01",
+        entry_date="2031-04-01",
         description="test",
         source="manual",
         postings=[
-            Posting(account_id="bank", direction=Direction.DEBIT, amount=income, currency="LKR"),
+            Posting(account_id="bank", direction=Direction.DEBIT, amount=income, currency="EUR"),
             Posting(
-                account_id=salary_acc.id, direction=Direction.CREDIT, amount=income, currency="LKR"
+                account_id=salary.id, direction=Direction.CREDIT, amount=income, currency="EUR"
             ),
         ],
     )
-    ledger_repo = FakeLedgerRepo(entries=[entry], accounts=[salary_acc])
-    tax_repo = FakeTaxComputationRepo()
+    repo = FakeLedgerRepo(entries=[entry], accounts=[salary])
 
     @asynccontextmanager
     async def uow_factory():
-        yield FakeUoW(ledger_repo, tax_repo)
+        yield FakeUoW(repo)
 
-    ledger_svc = LedgerService(uow_factory)
-    tax_svc = TaxService(uow_factory)
-    return ledger_svc, tax_svc
+    return LedgerService(uow_factory), tax or FakeTax()
+
+
+def _tool(name: str, tax: FakeTax | None = None):
+    ledger_svc, tax_svc = _services(tax)
+    return next(t for t in make_tools(ledger_svc, tax_svc) if t.name == name)
 
 
 # ── Tests ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
+def test_the_read_tools_are_the_ledger_and_the_users_own_tax():
+    ledger_svc, tax_svc = _services()
+    assert [t.name for t in make_tools(ledger_svc, tax_svc)] == [
+        "get_trial_balance",
+        "get_accounts",
+        "get_tax_computation",
+        "explain_tax_line",
+    ]
+
+
 async def test_get_accounts_returns_list():
-    from salli.domain.agents.tools import set_current_user
-
-    set_current_user("u1")
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    get_accounts = next(t for t in tools if t.name == "get_accounts")
-
-    result = await get_accounts.ainvoke({})
-    assert "accounts" in result
+    result = await _tool("get_accounts").ainvoke({})
     assert len(result["accounts"]) == 1
     assert result["accounts"][0]["type"] == "income"
 
 
-@pytest.mark.asyncio
-async def test_get_trial_balance_keys():
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    get_tb = next(t for t in tools if t.name == "get_trial_balance")
-
-    result = await get_tb.ainvoke({"user_id": "u1"})
+async def test_get_trial_balance_nets_to_zero():
+    result = await _tool("get_trial_balance").ainvoke({})
     assert "trial_balance" in result
-    assert "net" in result
-
-
-@pytest.mark.asyncio
-async def test_get_trial_balance_net_is_zero():
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    get_tb = next(t for t in tools if t.name == "get_trial_balance")
-
-    result = await get_tb.ainvoke({"user_id": "u1"})
     assert Decimal(result["net"]) == Decimal(0)
 
 
-@pytest.mark.asyncio
-async def test_get_tax_computation_keys():
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    get_tax = next(t for t in tools if t.name == "get_tax_computation")
-
-    result = await get_tax.ainvoke({"year": "2025/26", "user_id": "u1"})
-    for key in (
-        "year",
-        "pack_version",
-        "gross_income",
-        "taxable_income",
-        "tax_payable",
-        "band_workings",
-    ):
-        assert key in result, f"Missing key: {key}"
+async def test_the_computation_is_read_only_and_for_the_signed_in_user():
+    tax = FakeTax()
+    await _tool("get_tax_computation", tax).ainvoke({"year": "2031", "country": "XZ"})
+    assert tax.calls == [
+        (
+            "compute_tax",
+            {"user_id": "u1", "country": "XZ", "year": "2031", "answers": None, "persist": False},
+        )
+    ]
 
 
-@pytest.mark.asyncio
-async def test_get_tax_computation_all_values_strings():
-    """Tool must return string representations of Decimal values (LLM-safe)."""
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    get_tax = next(t for t in tools if t.name == "get_tax_computation")
-
-    result = await get_tax.ainvoke({"year": "2025/26", "user_id": "u1"})
-    # All monetary values should be strings, not Decimal (JSON-safe)
-    for key in ("gross_income", "taxable_income", "tax_payable", "tax_before_credits"):
-        assert isinstance(result[key], str), f"{key} should be str, got {type(result[key])}"
-
-
-@pytest.mark.asyncio
-async def test_get_tax_computation_below_relief():
-    """Income below relief → tax_payable should be '0'."""
-    ledger_svc, tax_svc = _make_services_with_income(income=Decimal("1_000_000"))
-    tools = make_tools(ledger_svc, tax_svc)
-    get_tax = next(t for t in tools if t.name == "get_tax_computation")
-
-    result = await get_tax.ainvoke({"year": "2025/26", "user_id": "u1"})
-    assert Decimal(result["tax_payable"]) == Decimal(0)
+async def test_the_computation_is_lines_with_their_expressions_and_sources():
+    result = await _tool("get_tax_computation").ainvoke({})
+    assert result["rule_set_version"] == 2
+    assert [ln["key"] for ln in result["lines"]][-1] == "balance"
+    tax = next(ln for ln in result["lines"] if ln["key"] == "tax")
+    assert tax["expr"].startswith("line.tax.band_1.tax")
+    assert result["inputs"][0] == {
+        "role": "income",
+        "label": "Income",
+        "kind": "income",
+        "total": "25000",
+    }
+    assert (result["net"], result["tax_payable"], result["refund_due"]) == (
+        "3000.00",
+        "3000.00",
+        "0.00",
+    )
+    assert "Never recompute" in result["how_to_read"]
+    assert "explain_tax_line" in result["how_to_read"]
+    assert "Salli doesn't vouch" in result["provenance"]
 
 
-def test_list_tax_packs():
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    list_packs = next(t for t in tools if t.name == "list_tax_packs")
+async def test_every_figure_is_a_string_never_a_float():
+    result = await _tool("get_tax_computation").ainvoke({})
 
-    result = list_packs.invoke({})
-    assert "packs" in result
-    keys = {(p["country"], p["year"]) for p in result["packs"]}
-    assert ("LK", "2025/26") in keys
+    def walk(value):
+        if isinstance(value, dict):
+            for v in value.values():
+                yield from walk(v)
+        elif isinstance(value, list):
+            for v in value:
+                yield from walk(v)
+        else:
+            yield value
 
-
-@pytest.mark.asyncio
-async def test_explain_tax_band_valid():
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    explain = next(t for t in tools if t.name == "explain_tax_band")
-
-    result = await explain.ainvoke({"band_index": 0, "year": "2025/26"})
-    assert "rate" in result
-    assert "rate_pct" in result
-    assert result["band_index"] == 0
-    # The user's own pack: their rupee ledger has always been Sri Lanka's.
-    assert (result["country"], result["year"], result["currency"]) == ("LK", "2025/26", "LKR")
+    assert not [v for v in walk(result) if isinstance(v, float)]
 
 
-@pytest.mark.asyncio
-async def test_explain_tax_band_defaults_to_the_latest_year_salli_can_compute():
-    ledger_svc, tax_svc = _make_services_with_income()
-    explain = next(t for t in make_tools(ledger_svc, tax_svc) if t.name == "explain_tax_band")
-    assert (await explain.ainvoke({"band_index": 0}))["year"] == "2025/26"
+async def test_no_active_rules_is_an_answer_saying_what_to_do():
+    tax = FakeTax(fail=NoTaxRulesError("no_rule_set", "You have no tax rules for XZ. Add them."))
+    result = await _tool("get_tax_computation", tax).ainvoke({})
+    assert result == {"error": "You have no tax rules for XZ. Add them."}
 
 
-@pytest.mark.asyncio
-async def test_explain_tax_band_out_of_range():
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    explain = next(t for t in tools if t.name == "explain_tax_band")
-
-    result = await explain.ainvoke({"band_index": 99, "year": "2025/26"})
-    assert "error" in result
+async def test_explain_tax_line_passes_the_line_through():
+    tax = FakeTax()
+    result = await _tool("explain_tax_line", tax).ainvoke({"line_key": "tax"})
+    assert result["line"]["key"] == "tax"
+    assert tax.calls[0][1]["line_key"] == "tax"
 
 
-@pytest.mark.asyncio
-async def test_get_tax_computation_unknown_year():
-    ledger_svc, tax_svc = _make_services_with_income()
-    tools = make_tools(ledger_svc, tax_svc)
-    get_tax = next(t for t in tools if t.name == "get_tax_computation")
-
-    with pytest.raises(KeyError):
-        await get_tax.ainvoke({"year": "1999/00", "user_id": "u1"})
+async def test_explain_tax_line_names_the_lines_there_are_for_an_unknown_one():
+    result = await _tool("explain_tax_line").ainvoke({"line_key": "nowhere"})
+    assert "no line 'nowhere'" in result["error"] and "allowance, tax" in result["error"]
 
 
 # ── can_i_afford / get_freedom_snapshot — the affordability tools ──────────────
