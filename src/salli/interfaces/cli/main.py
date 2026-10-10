@@ -2008,7 +2008,7 @@ def advisor_briefing(
             if decision not in ("approve", "edit", "reject"):
                 decision = "reject"
 
-            final = await svc.agent.resume_briefing(tid, decision)
+            final = await svc.agent.resume_briefing(user_id, tid, decision)
             if final.get("error"):
                 console.print(f"[yellow]{final['error']}[/yellow]")
             else:

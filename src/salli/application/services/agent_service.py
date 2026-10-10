@@ -111,6 +111,29 @@ def _worker_from_event(event: dict) -> str | None:
     return None
 
 
+def _workflow_config(user_id: str, thread_id: str) -> dict[str, Any]:
+    """
+    The checkpoint config for a review workflow's thread.
+
+    The client names the thread, so the checkpoint key carries the user too, as
+    chat's does: another user sending the same thread id reaches their own
+    (empty) thread, never this one.
+    """
+    return {"configurable": {"thread_id": f"{user_id}:{thread_id}"}}
+
+
+async def _awaiting_review(workflow: Any, config: dict[str, Any]) -> bool:
+    """
+    Whether the workflow's thread is paused at its review gate.
+
+    Resuming a thread with no checkpoint does not fail: LangGraph runs the
+    graph from the start with empty state, which for the briefing means a
+    gather and a model call for nobody. So a resume checks first.
+    """
+    state = await workflow.aget_state(config)
+    return bool(state.next)
+
+
 #: How many graph steps one turn may take before LangGraph gives up.
 #:
 #: The default is 25, and a supervisor turn spends them fast: the manager's own
@@ -849,7 +872,7 @@ class AgentService:
             thread_id = str(uuid.uuid4())
 
         workflow = self._get_briefing_workflow()
-        config = {"configurable": {"thread_id": thread_id}}
+        config = _workflow_config(user_id, thread_id)
 
         result = await workflow.ainvoke(
             {"user_id": user_id, "email": email},
@@ -870,17 +893,20 @@ class AgentService:
 
     async def resume_briefing(
         self,
+        user_id: str,
         thread_id: str,
         decision: str,
     ) -> dict[str, Any]:
         """
-        Resume the briefing workflow after human review.
+        Resume the user's briefing workflow after human review.
         decision: "approve" | "edit" | "reject"
         """
         from langgraph.types import Command
 
         workflow = self._get_briefing_workflow()
-        config = {"configurable": {"thread_id": thread_id}}
+        config = _workflow_config(user_id, thread_id)
+        if not await _awaiting_review(workflow, config):
+            return {"report": {}, "error": "No briefing is waiting for review on this thread."}
 
         result = await workflow.ainvoke(Command(resume=decision), config=config)
         return {"report": result.get("report", {}), "error": result.get("error", "")}

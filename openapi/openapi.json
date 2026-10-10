@@ -4342,7 +4342,7 @@
           "advisor"
         ],
         "summary": "Resume Briefing",
-        "description": "Resume the briefing workflow after human review and persist if approved.",
+        "description": "Resume the caller's briefing workflow after human review and persist if approved.",
         "operationId": "advisor.briefing.resume",
         "requestBody": {
           "content": {
@@ -4385,7 +4385,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/advisor/cron/run-due": {
