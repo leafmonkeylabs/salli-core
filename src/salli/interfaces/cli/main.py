@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import typer
+from rich.markup import escape
 from rich.table import Table
 
 from salli.interfaces.cli.setup import members_app, serve, setup
@@ -116,7 +117,7 @@ async def _agent_services():
 
     async with AsyncPostgresSaver.from_conn_string(pg_url) as checkpointer:
         await checkpointer.setup()
-        yield build_services(settings, checkpointer=checkpointer)
+        yield build_services(settings, checkpointer=checkpointer, pooled=False)
 
 
 # ── accounts ──────────────────────────────────────────────────────────────────
@@ -279,8 +280,12 @@ def accounts_reactivate(
 def entry_add(
     date: str = typer.Option(..., "--date", help="YYYY-MM-DD"),
     desc: str = typer.Option(..., "--desc", help="Description"),
-    debit: list[str] = typer.Option(..., "--debit", help="ACCOUNT_ID:AMOUNT (repeat for splits)"),
-    credit: list[str] = typer.Option(..., "--credit", help="ACCOUNT_ID:AMOUNT (repeat for splits)"),
+    debit: list[str] = typer.Option(
+        ..., "--debit", help="ACCOUNT:AMOUNT, the account by code or id (repeat for splits)"
+    ),
+    credit: list[str] = typer.Option(
+        ..., "--credit", help="ACCOUNT:AMOUNT, the account by code or id (repeat for splits)"
+    ),
     receipt: str = typer.Option(
         None, "--receipt", help="Document ID of an attached receipt/file (source stays 'manual')"
     ),
@@ -293,30 +298,41 @@ def entry_add(
         help="Units of your base currency per unit of --currency (default: the published rate)",
     ),
 ):
-    """Add a balanced journal entry (ACCOUNT_ID:AMOUNT pairs)."""
-    from decimal import Decimal
+    """Add a balanced journal entry (ACCOUNT:AMOUNT pairs, by account code or id)."""
+    from decimal import Decimal, InvalidOperation
 
     from salli.domain.accounting.models import Direction
 
     user_id = _require_user()
+    accounts = asyncio.run(_services().ledger.list_accounts(user_id))
+    by_key = {a.code: a.id for a in accounts} | {a.id: a.id for a in accounts}
 
     def parse_side(pairs: list[str], direction: Direction) -> list[dict]:
         postings = []
         for pair in pairs:
-            try:
-                account_id, amount_str = pair.rsplit(":", 1)
-                postings.append(
-                    {
-                        "account_id": account_id.strip(),
-                        "direction": direction,
-                        "amount": Decimal(amount_str.strip()),
-                        "currency": currency,
-                        "fx_rate": Decimal(fx_rate) if fx_rate else None,
-                    }
+            account, _, amount_str = pair.rpartition(":")
+            account_id = by_key.get(account.strip())
+            if account_id is None:
+                console.print(
+                    f"[red]No active account {account.strip()!r}[/red] in {pair!r}: "
+                    "give its code or id (salli accounts list)."
                 )
-            except ValueError:
-                console.print(f"[red]Invalid format '{pair}'. Use ACCOUNT_ID:AMOUNT[/red]")
                 raise typer.Exit(1)
+            try:
+                amount = Decimal(amount_str.strip())
+                rate = Decimal(fx_rate) if fx_rate else None
+            except InvalidOperation:
+                console.print(f"[red]Not an amount in '{pair}'. Use ACCOUNT:AMOUNT[/red]")
+                raise typer.Exit(1) from None
+            postings.append(
+                {
+                    "account_id": account_id,
+                    "direction": direction,
+                    "amount": amount,
+                    "currency": currency,
+                    "fx_rate": rate,
+                }
+            )
         return postings
 
     postings_data = parse_side(debit, Direction.DEBIT) + parse_side(credit, Direction.CREDIT)
@@ -2695,20 +2711,24 @@ def subscription_add(
 ):
     """Add a recurring subscription."""
     user_id = _require_user()
-    subscription_id = asyncio.run(
-        _services().subscription.add_subscription(
-            user_id,
-            {
-                "name": name,
-                "amount": amount,
-                "frequency": frequency,
-                "next_due_date": next_due_date,
-                "account_id": account_id,
-                "grace_days": grace_days,
-                "amount_tolerance_pct": amount_tolerance_pct,
-            },
+    try:
+        subscription_id = asyncio.run(
+            _services().subscription.add_subscription(
+                user_id,
+                {
+                    "name": name,
+                    "amount": amount,
+                    "frequency": frequency,
+                    "next_due_date": next_due_date,
+                    "account_id": account_id,
+                    "grace_days": grace_days,
+                    "amount_tolerance_pct": amount_tolerance_pct,
+                },
+            )
         )
-    )
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "name": name})
     console.print(f"[green]Subscription created:[/green] {name} ({subscription_id})")
 
@@ -2749,7 +2769,11 @@ def subscription_update(
         raise typer.Exit(1)
     subs = asyncio.run(_services().subscription.list_subscriptions(user_id, active_only=False))
     subscription_id = _resolve_id(subs, subscription_id, "subscription")
-    asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    try:
+        asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
+    except ValueError as exc:  # an unknown frequency, a malformed date
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": subscription_id, "updated": data})
     console.print(f"[green]Subscription updated:[/green] {subscription_id}")
 
@@ -3205,6 +3229,10 @@ def onboarding_complete(
     svc = _services()
 
     async def _run() -> dict:
+        # The CLI acts as the instance's owner, who may be new here (only
+        # SALLI_USER_ID set): their profile starts in the currency asked for,
+        # or the instance's default.
+        await svc.profile.ensure_user(user_id, None, may_create=True, base_currency=base_currency)
         # Before any account exists: accounts open in the base currency.
         if base_currency:
             await svc.profile.set_base_currency(user_id, base_currency)
@@ -3610,14 +3638,14 @@ def mcp_connections():
     if emit(connections):
         return
     table = Table(title="MCP connections")
-    for column in ("ID", "Client", "Scope", "Expires"):
+    for column in ("ID", "Client", "Scope", "Connected"):
         table.add_column(column)
     for c in connections:
         table.add_row(
-            str(c.get("id", ""))[:8],
-            str(c.get("client_name", "")),
-            str(c.get("scope", "")),
-            str(c.get("expires_at", "")),
+            str(c.get("token_id", ""))[:8],
+            escape(str(c.get("client_name", ""))),
+            escape(str(c.get("scope", ""))),
+            str(c.get("connected_at", "")),
         )
     console.print(table)
 
@@ -3626,11 +3654,23 @@ def mcp_connections():
 def mcp_revoke(token_id: str = typer.Argument(..., help="Connection id")):
     """Disconnect one AI client."""
     user_id = _require_user()
-    connections = asyncio.run(_services().mcp_oauth.list_connections(user_id))
-    token_id = _resolve_id(connections, token_id, "connection")
-    asyncio.run(_services().mcp_oauth.revoke_connection(user_id, token_id))
-    emit({"id": token_id, "revoked": True})
-    console.print(f"[green]Disconnected:[/green] {token_id}")
+
+    async def _revoke() -> tuple[str, bool]:
+        svc = _services()
+        connections = await svc.mcp_oauth.list_connections(user_id)
+        ids = [{"id": c["token_id"]} for c in connections]
+        full_id = _resolve_id(ids, token_id, "connection")
+        return full_id, await svc.mcp_oauth.revoke_connection(user_id, full_id)
+
+    full_id, revoked = asyncio.run(_revoke())
+    if emit({"id": full_id, "revoked": revoked}):
+        if not revoked:
+            raise typer.Exit(1)
+        return
+    if not revoked:
+        console.print(f"[red]Nothing to disconnect:[/red] {full_id} is no longer connected.")
+        raise typer.Exit(1)
+    console.print(f"[green]Disconnected:[/green] {full_id}")
 
 
 # ── whoami ────────────────────────────────────────────────────────────────────
@@ -3715,7 +3755,18 @@ def cli() -> Any:
 
 
 def main():
-    cli()()
+    from salli.application.ports import ProfileMissing
+
+    try:
+        cli()()
+    except ProfileMissing as exc:
+        # The acting user (SALLI_USER_ID) has no profile yet, whichever command
+        # found out: say what to do rather than end in a traceback.
+        console.print(
+            f"[red]{escape(str(exc))}.[/red] Start with [bold]salli onboarding complete[/bold] "
+            "(or [bold]salli setup[/bold] for a new instance)."
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

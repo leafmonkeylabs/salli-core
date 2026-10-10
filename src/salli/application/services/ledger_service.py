@@ -66,9 +66,9 @@ class LedgerService:
             )
             return await uow.ledger.save_account(user_id, account)
 
-    async def list_accounts(self, user_id: str) -> list[Account]:
+    async def list_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
         async with self._uow_factory() as uow:
-            return await uow.ledger.get_accounts(user_id)
+            return await uow.ledger.get_accounts(user_id, include_inactive=include_inactive)
 
     async def get_account(self, user_id: str, account_id: str) -> Account | None:
         async with self._uow_factory() as uow:

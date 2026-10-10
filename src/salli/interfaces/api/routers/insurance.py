@@ -10,7 +10,7 @@ import datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref, Updated
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref, Updated
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/insurance", tags=["insurance"])
@@ -20,8 +20,8 @@ class PolicyRequest(BaseModel):
     name: str
     policy_type: str
     provider: str
-    coverage_amount: float
-    premium_amount: float
+    coverage_amount: AmountIn
+    premium_amount: AmountIn
     premium_frequency: str
     expiry_date: str
 
@@ -30,8 +30,8 @@ class PolicyUpdateRequest(BaseModel):
     name: str | None = None
     policy_type: str | None = None
     provider: str | None = None
-    coverage_amount: float | None = None
-    premium_amount: float | None = None
+    coverage_amount: AmountIn | None = None
+    premium_amount: AmountIn | None = None
     premium_frequency: str | None = None
     expiry_date: str | None = None
     is_active: bool | None = None
@@ -39,7 +39,7 @@ class PolicyUpdateRequest(BaseModel):
 
 class TargetRequest(BaseModel):
     policy_type: str
-    target_amount: float
+    target_amount: AmountIn
 
 
 # Policy types ("life", "health", "motor", "property", "other") and premium
@@ -160,6 +160,8 @@ async def get_policy(policy_id: str, user_id: CurrentUser, svc: AppServices) -> 
 async def update_policy(
     policy_id: str, body: PolicyUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
+    if await svc.insurance.get_policy(user_id, policy_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such policy")
     await svc.insurance.update_policy(user_id, policy_id, body.model_dump(exclude_none=True))
     return Updated(updated=True)
 

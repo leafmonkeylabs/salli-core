@@ -24,6 +24,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -51,6 +61,16 @@
                   },
                   "type": "array",
                   "title": "Response Accounts.List"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -90,11 +110,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -142,11 +172,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -197,11 +237,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -235,11 +285,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -315,11 +375,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -362,11 +432,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -404,11 +484,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -455,11 +545,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -527,11 +627,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -574,11 +684,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -622,11 +742,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -669,11 +799,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -720,11 +860,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -790,11 +940,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -846,11 +1006,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -904,11 +1074,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -934,6 +1114,16 @@
                   },
                   "type": "array",
                   "title": "Response Tax.Packs"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -977,11 +1167,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1025,11 +1225,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1063,11 +1273,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1110,11 +1330,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1153,11 +1383,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1220,11 +1460,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1283,11 +1533,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1332,11 +1592,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1373,11 +1643,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1463,11 +1743,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1511,11 +1801,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1550,11 +1850,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1577,6 +1887,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OnboardingStatusResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1619,11 +1939,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1651,6 +1981,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1690,11 +2030,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1737,11 +2087,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1784,11 +2144,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1831,11 +2201,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1878,11 +2258,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1910,6 +2300,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DataExport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1952,11 +2352,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2032,11 +2442,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2081,11 +2501,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2129,11 +2559,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2187,11 +2627,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2251,11 +2701,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2295,11 +2755,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2344,11 +2814,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2371,6 +2851,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SyncedAlerts"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2411,11 +2901,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2451,11 +2951,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2478,6 +2988,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FiScore"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2508,6 +3028,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2534,6 +3064,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2557,6 +3097,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GoalList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2596,11 +3146,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2658,11 +3218,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2696,11 +3266,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2723,6 +3303,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FireStrategy"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2753,6 +3343,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2775,6 +3375,16 @@
             "description": "Server-sent events: `status` messages while it works, then `done` with the new strategy (a `FireStrategy`), or `error`.",
             "content": {
               "text/event-stream": {}
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
             }
           }
         },
@@ -2803,6 +3413,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2827,6 +3447,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SurplusBreakdown"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2869,11 +3499,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2921,11 +3561,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2977,11 +3627,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3004,6 +3664,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DailyBriefingSetting"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3037,11 +3707,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3072,6 +3752,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3095,6 +3785,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdvisoryReportList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3122,6 +3822,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdvisoryReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3178,11 +3888,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3234,11 +3954,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3276,11 +4006,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3323,11 +4063,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3373,11 +4123,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3399,6 +4159,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BudgetList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3438,11 +4208,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3490,11 +4270,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3545,11 +4335,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3583,11 +4383,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3631,11 +4441,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3679,11 +4499,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3723,11 +4553,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3754,9 +4594,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "number",
-              "minimum": 0,
-              "default": 0,
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                }
+              ],
+              "default": "0",
               "title": "Extra Monthly Payment"
             }
           },
@@ -3784,11 +4632,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3831,11 +4689,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3886,11 +4754,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3924,11 +4802,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3972,11 +4860,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4016,11 +4914,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4070,11 +4978,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4117,11 +5035,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4172,11 +5100,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4210,11 +5148,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4258,11 +5206,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4302,11 +5260,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4329,6 +5297,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SubscriptionReportList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4376,11 +5354,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4431,11 +5419,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4469,11 +5467,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4517,11 +5525,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4565,11 +5583,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4609,11 +5637,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4636,6 +5674,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CoverageReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4662,6 +5710,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CoverageTargetList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4701,11 +5759,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4746,11 +5814,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4793,11 +5871,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4848,11 +5936,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4886,11 +5984,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4912,6 +6020,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BalanceSheet"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4941,6 +6059,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4964,6 +6092,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GoalProgressReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5008,11 +6146,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5035,6 +6183,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LlmKeys"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5087,11 +6245,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5127,11 +6295,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5153,6 +6331,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/McpConnections"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5193,11 +6381,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5219,6 +6417,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/McpEnabled"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5252,11 +6460,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5287,6 +6505,16 @@
                   },
                   "type": "array",
                   "title": "Response Tokens.List"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5326,11 +6554,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5371,11 +6609,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5401,6 +6649,16 @@
                   },
                   "type": "array",
                   "title": "Response Rules.List"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5440,11 +6698,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5486,11 +6754,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5521,6 +6799,16 @@
                   },
                   "type": "array",
                   "title": "Response Rules.Suggestions"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5568,11 +6856,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5623,11 +6921,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5661,11 +6969,21 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5688,6 +7006,16 @@
               "text/plain": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5718,6 +7046,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5744,6 +7082,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -5765,6 +7113,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -5783,6 +7141,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProtectedResourceMetadata"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5819,11 +7187,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5933,11 +7311,21 @@
             "description": "To the consent page, which asks the person"
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5980,11 +7368,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -6021,11 +7419,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -6078,11 +7486,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -6129,11 +7547,21 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "The request failed validation; `detail` lists each field",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -6161,6 +7589,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -6179,6 +7617,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -7149,11 +8597,33 @@
           "user_id": {
             "type": "string",
             "title": "User Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "session",
+              "oauth",
+              "pat",
+              "dev"
+            ],
+            "title": "Method"
           }
         },
         "type": "object",
         "required": [
-          "user_id"
+          "user_id",
+          "method"
         ],
         "title": "AuthIdentity"
       },
@@ -7699,8 +9169,13 @@
             "title": "Account Id"
           },
           "limit_amount": {
-            "type": "number",
-            "title": "Limit Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -8566,7 +10041,7 @@
             },
             "type": "array",
             "title": "Accounts",
-            "description": "Active accounts only."
+            "description": "Every account, closed ones included: entries refer to them."
           },
           "journal_entries": {
             "items": {
@@ -8586,7 +10061,16 @@
               }
             ],
             "title": "Tax Computation 2025 26",
-            "description": "The latest 2025/26 computation as the tax engine recorded it, or null."
+            "description": "The latest 2025/26 computation as the tax engine recorded it, or null.\nKept for tools that read it; `tax_computations` has every year."
+          },
+          "tax_computations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Tax Computations",
+            "description": "The latest computation for each tax year a pack covers, as recorded."
           },
           "budgets": {
             "items": {
@@ -8802,16 +10286,30 @@
             "title": "Name"
           },
           "principal": {
-            "type": "number",
-            "title": "Principal"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Principal",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "apr": {
-            "type": "number",
-            "title": "Apr"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Apr",
+            "examples": [
+              "0.05"
+            ]
           },
           "minimum_payment": {
-            "type": "number",
-            "title": "Minimum Payment"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Minimum Payment",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -8839,7 +10337,12 @@
           "principal": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -8850,7 +10353,11 @@
           "apr": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
               },
               {
                 "type": "null"
@@ -8861,7 +10368,12 @@
           "minimum_payment": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -9120,6 +10632,17 @@
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
+          },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
           }
         },
         "type": "object",
@@ -9231,6 +10754,29 @@
             "examples": [
               "USD"
             ]
+          },
+          "fx_rate": {
+            "type": "string",
+            "title": "Fx Rate",
+            "default": "1"
+          },
+          "fx_rate_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Rate Source"
+          },
+          "tags": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Tags"
           }
         },
         "type": "object",
@@ -10432,19 +11978,6 @@
         ],
         "title": "GoalsRequest"
       },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
       "Health": {
         "properties": {
           "status": {
@@ -10569,12 +12102,22 @@
             "title": "Asset Class"
           },
           "cost_basis": {
-            "type": "number",
-            "title": "Cost Basis"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost Basis",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "current_value": {
-            "type": "number",
-            "title": "Current Value"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Current Value",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -10625,7 +12168,12 @@
           "cost_basis": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -10636,7 +12184,12 @@
           "current_value": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -10797,6 +12350,24 @@
             "type": "object",
             "title": "Expenses"
           },
+          "total_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
           "net_income": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
@@ -10805,6 +12376,13 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/IncomeStatementLine"
+            },
+            "type": "array",
+            "title": "Lines"
           }
         },
         "type": "object",
@@ -10814,9 +12392,59 @@
           "currency",
           "income",
           "expenses",
-          "net_income"
+          "total_income",
+          "total_expenses",
+          "net_income",
+          "lines"
         ],
         "title": "IncomeStatement"
+      },
+      "IncomeStatementLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "income",
+              "expense"
+            ],
+            "title": "Type"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "code",
+          "name",
+          "type",
+          "amount",
+          "is_active"
+        ],
+        "title": "IncomeStatementLine"
       },
       "InsurancePolicy": {
         "properties": {
@@ -11935,12 +13563,22 @@
             "title": "Provider"
           },
           "coverage_amount": {
-            "type": "number",
-            "title": "Coverage Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Coverage Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "premium_amount": {
-            "type": "number",
-            "title": "Premium Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Premium Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "premium_frequency": {
             "type": "string",
@@ -12001,7 +13639,12 @@
           "coverage_amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -12012,7 +13655,12 @@
           "premium_amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -12235,7 +13883,11 @@
           },
           "amount": {
             "type": "string",
-            "title": "Amount"
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "examples": [
+              "1234.50"
+            ]
           },
           "currency": {
             "anyOf": [
@@ -12251,7 +13903,11 @@
           "fx_rate": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -13048,17 +14704,13 @@
       "PurchaseRequest": {
         "properties": {
           "amount": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)"
-              }
-            ],
-            "title": "Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "term_months": {
             "anyOf": [
@@ -14328,11 +15980,22 @@
             "title": "Name"
           },
           "amount": {
-            "type": "number",
-            "title": "Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "frequency": {
             "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
             "title": "Frequency"
           },
           "next_due_date": {
@@ -14356,9 +16019,13 @@
             "default": 5
           },
           "amount_tolerance_pct": {
-            "type": "number",
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Amount Tolerance Pct",
-            "default": 0.05
+            "default": "0.05",
+            "examples": [
+              "0.05"
+            ]
           }
         },
         "type": "object",
@@ -14386,7 +16053,12 @@
           "amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -14397,7 +16069,13 @@
           "frequency": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "yearly"
+                ]
               },
               {
                 "type": "null"
@@ -14441,7 +16119,11 @@
           "amount_tolerance_pct": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
               },
               {
                 "type": "null"
@@ -14643,8 +16325,13 @@
             "title": "Policy Type"
           },
           "target_amount": {
-            "type": "number",
-            "title": "Target Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target Amount",
+            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -15182,46 +16869,6 @@
         "title": "Updated",
         "description": "What the updates that predate `Ref` return instead of an id."
       },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
-      },
       "deviceAuthorization": {
         "properties": {
           "client_id": {
@@ -15323,6 +16970,49 @@
           "client_id"
         ],
         "title": "Body_oauth.token"
+      },
+      "Problem": {
+        "description": "An error, as RFC 9457 problem details (`application/problem+json`).\n\n`type` names the kind of problem as a path under `/problems/`, or is\n`about:blank` for a plain HTTP error. `detail` is what clients written\nbefore this shape existed already read: a sentence for most errors, the\nfield-by-field list for a request that failed validation.",
+        "properties": {
+          "type": {
+            "examples": [
+              "/problems/fx-rate-unavailable"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          },
+          "detail": {
+            "default": null,
+            "title": "Detail"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "title": "Problem",
+        "type": "object"
       }
     },
     "securitySchemes": {

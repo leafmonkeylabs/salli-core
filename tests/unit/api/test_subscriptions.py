@@ -160,3 +160,11 @@ async def test_all_reports_cover_every_active_subscription(client, mock_services
 @pytest.mark.parametrize("path", ["/v1/subscriptions/nope", "/v1/subscriptions/nope/report"])
 async def test_a_missing_subscription_is_not_found(client, uow, path):
     assert (await client.get(path, headers=AUTH)).status_code == 404
+
+
+async def test_an_unknown_frequency_is_refused_before_it_is_stored(client, mock_services, uow):
+    # It used to be stored, and every report on it then failed as a 404.
+    r = await client.post(
+        "/v1/subscriptions/", json={**STREAMING, "frequency": "fortnightly"}, headers=AUTH
+    )
+    assert r.status_code == 422

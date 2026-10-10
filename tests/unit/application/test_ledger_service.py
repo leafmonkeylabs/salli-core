@@ -24,7 +24,7 @@ class FakeLedgerRepo:
         self._accounts[account.id] = account
         return account.id
 
-    async def get_accounts(self, user_id: str) -> list[Account]:
+    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
         return [a for a in self._accounts.values() if a.user_id == user_id]
 
     async def save_entry(self, user_id: str, entry) -> str:

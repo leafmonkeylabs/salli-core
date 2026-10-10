@@ -364,10 +364,18 @@ def test_unavailable_without_an_encryption_key_at_all():
 
 
 def test_unavailable_when_the_dev_auth_fallback_is_live():
-    """deps._decode_jwt treats the bearer token AS the user id when Supabase is
-    entirely unconfigured. BYOK there would let any caller spend an arbitrary
-    user's key, so it must stay off — note the condition is both fields empty."""
-    assert _built(supabase_url="", supabase_jwt_secret="").available is False
+    """deps.get_principal treats the bearer token AS the user id when Supabase
+    is entirely unconfigured and the development fallback is on. BYOK there
+    would let any caller spend an arbitrary user's key, so it must stay off."""
+    live = {"salli_insecure_dev_auth": True, "environment": "development"}
+    assert _built(supabase_url="", supabase_jwt_secret="", **live).available is False
+
+
+def test_available_without_supabase_when_the_dev_fallback_is_off():
+    """No Supabase and no fallback: the API takes only Salli's own tokens, which
+    are real. The gate is the fallback, the same one get_principal applies."""
+    off = {"salli_insecure_dev_auth": False}
+    assert _built(supabase_url="", supabase_jwt_secret="", **off).available is True
 
 
 def test_a_jwt_secret_alone_is_enough_to_count_as_real_auth():

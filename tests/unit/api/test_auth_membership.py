@@ -31,6 +31,25 @@ def _creds(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
+def _services(
+    profile, oauth_user: str | None = None, dead_tokens: frozenset[str] = frozenset()
+) -> SimpleNamespace:
+    """Services for authentication: the profile service, and an OAuth server
+    that knows one token ("salli-oauth-token") if given a user for it, plus
+    `dead_tokens` it issued that no longer verify."""
+
+    async def verify(token: str, audience: str = "api"):
+        return {"user_id": oauth_user} if oauth_user and token == "salli-oauth-token" else None
+
+    async def is_salli_token(token: str) -> bool:
+        return token in dead_tokens or (oauth_user is not None and token == "salli-oauth-token")
+
+    return SimpleNamespace(
+        profile=profile,
+        mcp_oauth=SimpleNamespace(verify_access_token=verify, is_salli_token=is_salli_token),
+    )
+
+
 async def _caller(token: str, settings: Settings, services) -> str:
     """Authenticate the token, then check membership — as a request does."""
     principal = await get_principal(_creds(token), settings, services)
@@ -92,7 +111,7 @@ DEV = {"salli_insecure_dev_auth": True, "environment": "development"}
 
 async def test_a_closed_instance_refuses_a_stranger_and_creates_nothing():
     profile, profiles = _profile_service({"owner": {"id": "owner"}})
-    services = SimpleNamespace(profile=profile)
+    services = _services(profile)
 
     with pytest.raises(HTTPException) as caught:
         await _caller("stranger", _settings(**DEV), services)
@@ -103,13 +122,13 @@ async def test_a_closed_instance_refuses_a_stranger_and_creates_nothing():
 
 async def test_a_closed_instance_answers_its_members():
     profile, _ = _profile_service({"owner": {"id": "owner"}})
-    services = SimpleNamespace(profile=profile)
+    services = _services(profile)
     assert await _caller("owner", _settings(**DEV), services) == "owner"
 
 
 async def test_an_open_instance_creates_an_account_on_first_contact():
     profile, profiles = _profile_service()
-    services = SimpleNamespace(profile=profile)
+    services = _services(profile)
     settings = _settings(**DEV, salli_registration="open")
 
     assert await _caller("newcomer", settings, services) == "newcomer"
@@ -137,3 +156,52 @@ async def test_a_deleted_account_is_forgotten():
     del profiles.rows["owner"]
     profile.forget("owner")
     assert not await profile.ensure_user("owner", None, may_create=False)
+
+
+async def test_a_salli_token_is_its_user_even_under_the_dev_fallback():
+    # The fallback takes any token as a user id; a CLI that signed in with
+    # the device flow was taken to be the user named by its access token.
+    profile, _ = _profile_service({"owner": {"id": "owner"}})
+    services = _services(profile, oauth_user="owner")
+    principal = await get_principal(_creds("salli-oauth-token"), _settings(**DEV), services)
+    assert (principal.user_id, principal.method) == ("owner", "oauth")
+    dev = await get_principal(_creds("someone"), _settings(**DEV), services)
+    assert (dev.user_id, dev.method) == ("someone", "dev")
+
+
+async def test_a_dead_salli_token_is_refused_under_the_dev_fallback():
+    # An expired, revoked or MCP-audience token, or a refresh token, failed to
+    # verify and was then taken to be a user id by the dev fallback.
+    profile, _ = _profile_service({"owner": {"id": "owner"}})
+    services = _services(profile, dead_tokens=frozenset({"expired-or-revoked-token"}))
+    with pytest.raises(HTTPException) as refused:
+        await get_principal(_creds("expired-or-revoked-token"), _settings(**DEV), services)
+    assert refused.value.status_code == 401
+    dev = await get_principal(_creds("not-a-salli-token"), _settings(**DEV), services)
+    assert (dev.user_id, dev.method) == ("not-a-salli-token", "dev")
+
+
+@pytest.mark.parametrize(
+    ("overrides", "holds_secrets"),
+    [
+        ({**DEV}, False),  # the dev fallback is live: anyone can be anyone
+        ({}, True),  # no Supabase, no fallback: only real tokens get in
+        ({**DEV, "supabase_jwt_secret": "s"}, True),
+        ({"salli_insecure_dev_auth": True, "environment": "production"}, True),
+    ],
+)
+async def test_secrets_are_kept_unless_the_dev_fallback_is_live(overrides, holds_secrets):
+    from salli.config import auth_can_hold_secrets, dev_auth_fallback_live
+
+    settings = _settings(**overrides)
+    assert auth_can_hold_secrets(settings) is holds_secrets
+    assert dev_auth_fallback_live(settings) is not holds_secrets
+
+
+async def test_a_prefixed_salli_token_is_never_a_dev_user_id():
+    profile, _ = _profile_service({"owner": {"id": "owner"}})
+    services = _services(profile)  # knows no tokens: no lookup is needed
+    for token in ("salli_at_expired", "salli_rt_refresh"):
+        with pytest.raises(HTTPException) as refused:
+            await get_principal(_creds(token), _settings(**DEV), services)
+        assert refused.value.status_code == 401

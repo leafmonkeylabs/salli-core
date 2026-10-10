@@ -172,3 +172,19 @@ async def test_provenance_of_a_manual_entry_with_a_receipt(client, mock_services
     r = await client.get("/v1/entries/e1/provenance", headers=AUTH)
     assert r.status_code == 200
     assert r.json() == provenance
+
+
+@pytest.mark.parametrize("amount", ["abc", "1,000", "NaN", "1e3", 999.5])
+async def test_an_amount_that_is_not_a_decimal_string_is_refused(client, mock_services, amount):
+    # "abc" used to reach Decimal() in the handler and come back as a 500.
+    payload = {
+        "entry_date": "2025-04-01",
+        "description": "Test",
+        "postings": [
+            {"account_id": "a", "direction": 1, "amount": amount, "currency": "LKR"},
+            {"account_id": "b", "direction": -1, "amount": "999.50", "currency": "LKR"},
+        ],
+    }
+    r = await client.post("/v1/entries/", json=payload, headers=AUTH)
+    assert r.status_code == 422
+    mock_services.ledger.add_entry.assert_not_awaited()

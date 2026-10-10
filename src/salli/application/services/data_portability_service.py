@@ -12,6 +12,7 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from salli.domain.export import plaintext
+from salli.domain.tax.packs.registry import list_packs
 
 if TYPE_CHECKING:
     from salli.extensions import UserDataExporter
@@ -82,6 +83,9 @@ class DataPortabilityService:
         """
         entries = await self._ledger.get_entries(user_id)
         tax_computation = await self._tax.get_latest_computation(user_id, "2025/26")
+        # Every tax year a pack covers, not only the one this export once knew.
+        years = sorted({pack.year for pack in list_packs()})
+        computations = [await self._tax.get_latest_computation(user_id, year) for year in years]
 
         data: dict[str, Any] = {
             "user_id": user_id,
@@ -95,8 +99,10 @@ class DataPortabilityService:
                     "currency": a.currency,
                     "parent_id": a.parent_id,
                     "is_active": a.is_active,
+                    "tax_role": a.tax_role,
                 }
-                for a in await self._ledger.list_accounts(user_id)
+                # Closed accounts too: entries still refer to them.
+                for a in await self._ledger.list_accounts(user_id, include_inactive=True)
             ],
             "journal_entries": [
                 {
@@ -112,13 +118,21 @@ class DataPortabilityService:
                             "direction": p.direction.name,
                             "amount": str(p.amount),
                             "currency": p.currency,
+                            # What the base-currency amount was booked at, and from where.
+                            "fx_rate": str(p.fx_rate),
+                            "fx_rate_source": p.fx_rate_source,
+                            "tags": dict(p.tags),
                         }
                         for p in e.postings
                     ],
                 }
                 for e in entries
             ],
+            # Kept for exports read by older tools; `tax_computations` has every year.
             "tax_computation_2025_26": self._computation_to_dict(tax_computation),
+            "tax_computations": [
+                self._computation_to_dict(c) for c in computations if c is not None
+            ],
             "budgets": await self._budget.list_budgets(user_id),
             "debts": await self._debt.list_debts(user_id, active_only=False),
             "holdings": await self._portfolio.list_holdings(user_id, active_only=False),

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from salli.application.services.portfolio_service import PortfolioService
 from tests.fakes import FakeRecordsUoW
 from tests.unit.api.conftest import AUTH
@@ -128,3 +130,12 @@ async def test_an_empty_portfolio_sums_to_zero_in_the_currencys_precision(client
 async def test_a_missing_holding_is_not_found(client, mock_services):
     _uow(mock_services)
     assert (await client.get("/v1/portfolio/nope", headers=AUTH)).status_code == 404
+
+
+@pytest.mark.parametrize(
+    "bad", ["equity", "equity:abc", "equity:NaN", "equity:Infinity", "equity:1.5"]
+)
+async def test_a_target_that_is_not_a_share_is_refused(client, mock_services, bad):
+    # "equity:abc" used to escape the handler as a 500.
+    r = await client.get("/v1/portfolio/summary", params={"target": bad}, headers=AUTH)
+    assert r.status_code == 422

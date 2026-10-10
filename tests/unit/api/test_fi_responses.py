@@ -65,7 +65,7 @@ _ENTRIES = [
 
 
 class _Ledger:
-    async def get_accounts(self, user_id: str) -> list[Account]:
+    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
         return _ACCOUNTS
 
     async def get_entries(self, user_id: str, from_date: str | None = None, to_date=None):

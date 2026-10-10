@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator, Iterable
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from salli.application.ports import PayloadView, Surface
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
@@ -128,8 +128,22 @@ _SCORE_MONEY = (
 )
 
 
+#: Ratios, to four places ("0.5500"); months of expenses saved, to two. The
+#: stored score keeps every digit the engine computed; nothing reads 28 of them.
+_SCORE_PLACES = {
+    "savings_rate": Decimal("0.0001"),
+    "progress_to_fi": Decimal("0.0001"),
+    "debt_to_asset": Decimal("0.0001"),
+    "emergency_fund_months": Decimal("0.01"),
+}
+
+
 def _fi_score(score: dict[str, Any], currency: str) -> FiScore:
-    return FiScore.model_validate({**_priced(score, _SCORE_MONEY, currency), "currency": currency})
+    shown = _priced(score, _SCORE_MONEY, currency)
+    for key, places in _SCORE_PLACES.items():
+        if shown.get(key) is not None:
+            shown[key] = str(Decimal(str(shown[key])).quantize(places, rounding=ROUND_HALF_UP))
+    return FiScore.model_validate({**shown, "currency": currency})
 
 
 async def _gate_strategy_stream(
@@ -250,6 +264,8 @@ async def create_goal(body: GoalRequest, user_id: CurrentUser, svc: AppServices)
 async def update_goal(
     goal_id: str, body: GoalUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> GoalUpdated:
+    if not any(g["id"] == goal_id for g in await svc.fi.list_goals(user_id)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such goal")
     await svc.fi.update_goal(user_id, goal_id, body.model_dump(exclude_none=True))
     return GoalUpdated(updated=True)
 
@@ -493,7 +509,8 @@ class PurchaseRequest(BaseModel):
     silently costing the plan ~100x too dearly.
     """
 
-    amount: Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=2)]
+    #: In the base currency, at its own precision (no decimals for JPY, three for KWD).
+    amount: Annotated[AmountIn, Field(ge=0, max_digits=18)]
     term_months: Annotated[int | None, Field(default=None, ge=1, le=600)] = None
     annual_interest_rate: Annotated[Decimal, Field(default=Decimal(0), ge=0, le=1)] = Decimal(0)
 

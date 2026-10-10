@@ -6,12 +6,14 @@ missed-charge/price-change reports.
 from __future__ import annotations
 
 import datetime
+from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from salli.domain.subscription.models import AlertKind
-from salli.interfaces.api.contract import Amount, CurrencyCode, Ref, Updated
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref, Updated
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
@@ -19,22 +21,23 @@ router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
 class SubscriptionRequest(BaseModel):
     name: str
-    amount: float
-    frequency: str
+    amount: AmountIn
+    frequency: Literal["weekly", "monthly", "quarterly", "yearly"]
     next_due_date: str
     account_id: str | None = None
     grace_days: int = 5
-    amount_tolerance_pct: float = 0.05
+    #: How far a charge may differ before it counts as a price change ("0.05" is 5%).
+    amount_tolerance_pct: DecimalIn = Decimal("0.05")
 
 
 class SubscriptionUpdateRequest(BaseModel):
     name: str | None = None
-    amount: float | None = None
-    frequency: str | None = None
+    amount: AmountIn | None = None
+    frequency: Literal["weekly", "monthly", "quarterly", "yearly"] | None = None
     next_due_date: str | None = None
     account_id: str | None = None
     grace_days: int | None = None
-    amount_tolerance_pct: float | None = None
+    amount_tolerance_pct: DecimalIn | None = None
     is_active: bool | None = None
 
 
@@ -128,6 +131,8 @@ async def get_subscription(
 async def update_subscription(
     subscription_id: str, body: SubscriptionUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
+    if await svc.subscription.get_subscription(user_id, subscription_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such subscription")
     await svc.subscription.update_subscription(
         user_id, subscription_id, body.model_dump(exclude_none=True)
     )

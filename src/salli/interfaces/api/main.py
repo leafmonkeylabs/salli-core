@@ -20,13 +20,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from salli.application.ports import FxUnavailableError
+from salli.application.ports import FxUnavailableError, ProfileMissing
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
 from salli.domain.secrets import redact
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
-from salli.interfaces.api.contract import API_PREFIX, operation_id
+from salli.interfaces.api.contract import API_PREFIX, document_problems, operation_id
 from salli.interfaces.api.deps import get_services
 from salli.interfaces.api.request_context import RequestContextMiddleware
 from salli.interfaces.api.routers import (
@@ -247,7 +247,7 @@ def create_app() -> FastAPI:
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         return problem(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid", "Invalid request", redact(str(exc))
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid", "Invalid request", redact(str(exc))
         )
 
     @app.exception_handler(KeyError)
@@ -262,10 +262,22 @@ def create_app() -> FastAPI:
     @app.exception_handler(FxUnavailableError)
     async def fx_unavailable_handler(request: Request, exc: FxUnavailableError) -> JSONResponse:
         return problem(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "fx-rate-unavailable",
             "No exchange rate",
             f"{exc}. Send the exchange rate (fx_rate) with the amount.",
+        )
+
+    # A write that needs the caller's profile before it exists. Every request
+    # provisions its caller first, so this is rare: say what to do.
+    @app.exception_handler(ProfileMissing)
+    async def profile_missing_handler(request: Request, exc: ProfileMissing) -> JSONResponse:
+        return problem(
+            status.HTTP_409_CONFLICT,
+            "profile-missing",
+            "No profile yet",
+            "This account has no profile yet. Complete onboarding (POST /v1/onboarding/complete)"
+            " first.",
         )
 
     # Asked to change the base currency once amounts are stored in it.
@@ -296,7 +308,7 @@ def create_app() -> FastAPI:
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         return problem(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "validation",
             "Request validation failed",
             jsonable_encoder(exc.errors()),
@@ -306,6 +318,16 @@ def create_app() -> FastAPI:
     @app.get("/healthz", tags=["meta"])
     async def health() -> Health:
         return Health(status="ok", version=app.version)
+
+    # The spec documents errors as the problem details they are.
+    build_openapi = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            app.openapi_schema = document_problems(build_openapi())
+        return app.openapi_schema
+
+    app.openapi = openapi  # type: ignore[method-assign]
 
     return app
 

@@ -285,6 +285,10 @@ async def test_exported_postings_keep_amounts_as_decimal_strings(client, mock_se
         "direction": "DEBIT",
         "amount": "1234.50",
         "currency": "USD",
+        # With what reproduces its base amount, and its tags.
+        "fx_rate": "1",
+        "fx_rate_source": None,
+        "tags": {},
     }
 
 
@@ -304,3 +308,13 @@ async def test_deleting_the_account_reports_what_went(client, app, mock_services
 
     assert r.status_code == 200
     assert r.json() == {"deleted": True, "counts": {"accounts": 2, "budgets": 0}}
+
+
+async def test_the_export_keeps_closed_accounts_and_every_tax_year():
+    service = _portability_service()
+    document = await service.export_all(USER)
+    # Entries refer to closed accounts too, so they must be in the document.
+    service._ledger.list_accounts.assert_awaited_with(USER, include_inactive=True)
+    assert "tax_role" in document["accounts"][0]
+    years = {call.args[1] for call in service._tax.get_latest_computation.await_args_list}
+    assert "2025/26" in years and isinstance(document["tax_computations"], list)

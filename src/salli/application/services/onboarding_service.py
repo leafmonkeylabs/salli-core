@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from salli.application.ports import AccountCodeTaken
+
 # ── Account templates per income source ───────────────────────────────────────
 
 # (code, name, account_type, tax_role). `tax_role` is what the tax engine reads
@@ -174,7 +176,9 @@ class OnboardingService:
         created: list[str] = []
         skipped: list[str] = []
 
-        existing = await self._ledger.list_accounts(user_id)
+        # Deactivated accounts too: the code is still taken, and re-creating a
+        # starter account the user closed would fail on it.
+        existing = await self._ledger.list_accounts(user_id, include_inactive=True)
         existing_codes = {a.code for a in existing}
 
         for code, name, acct_type, tax_role in accounts_to_create:
@@ -182,6 +186,8 @@ class OnboardingService:
                 skipped.append(code)
                 continue
             seen_codes.add(code)
+            # Existing codes were skipped above; anything else that fails now
+            # is a real failure, and reporting "0 accounts created" hid it.
             try:
                 await self._ledger.add_account(
                     user_id,
@@ -190,9 +196,11 @@ class OnboardingService:
                     type=acct_type,  # type: ignore[arg-type]
                     tax_role=tax_role,  # type: ignore[arg-type]
                 )
-                created.append(f"{code} {name}")
-            except Exception:
+            except AccountCodeTaken:
+                # Created meanwhile, by an onboarding running at the same time.
                 skipped.append(code)
+                continue
+            created.append(f"{code} {name}")
 
         # Seed the need axis. Idempotent — `ensure_system_tags` is a no-op when the
         # rows already exist, so re-running onboarding does not duplicate them.

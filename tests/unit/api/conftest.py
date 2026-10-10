@@ -8,6 +8,7 @@ is needed. All services are replaced with async mocks.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -54,6 +55,12 @@ def _fake_current_user(request: Request) -> str:
     return auth.removeprefix("Bearer ").strip()
 
 
+def _fake_principal(request: Request) -> Any:
+    from salli.interfaces.api.deps import Principal
+
+    return Principal(_fake_current_user(request), None, "dev")
+
+
 def _fake_current_email(request: Request) -> str | None:
     auth = request.headers.get("authorization", "")
     if not auth.startswith("Bearer "):
@@ -63,12 +70,18 @@ def _fake_current_email(request: Request) -> str | None:
 
 @pytest.fixture
 def app(mock_services):
-    from salli.interfaces.api.deps import get_current_email, get_current_user, get_services
+    from salli.interfaces.api.deps import (
+        get_current_email,
+        get_current_user,
+        get_principal,
+        get_services,
+    )
     from salli.interfaces.api.main import create_app
 
     application = create_app()
     application.dependency_overrides[get_services] = lambda: mock_services
     application.dependency_overrides[get_current_user] = _fake_current_user
+    application.dependency_overrides[get_principal] = _fake_principal
     application.dependency_overrides[get_current_email] = _fake_current_email
     return application
 

@@ -135,10 +135,13 @@ class UserProfileService:
         goals, policies) is a number in the base currency. Changing the
         currency under them would silently reinterpret all of it, so once there
         is any, it is refused (`BaseCurrencyLockedError`). Setting the currency
-        it already has is always fine.
+        it already has is always fine. The profile must exist (`ProfileMissing`
+        otherwise): this never creates one.
         """
         code = normalize_currency(currency)
         async with self._uow_factory() as uow:
+            # `ProfileMissing` without a profile: creating one is ensure_user's,
+            # behind its may_create gate, so callers ensure the user first.
             current = await uow.user_profiles.base_currency(user_id)
             if code == current:
                 return code
@@ -154,10 +157,10 @@ class UserProfileService:
 
     async def get_profile(self, user_id: str) -> dict[str, Any]:
         async with self._uow_factory() as uow:
-            profile = await uow.user_profiles.get(user_id)
-        if profile is None:
-            profile = {"id": user_id}
-        await self._backfill_from_legacy_memories(user_id, profile)
+            stored = await uow.user_profiles.get(user_id)
+        profile = stored if stored is not None else {"id": user_id}
+        # Only into a profile that exists: a read never creates one.
+        await self._backfill_from_legacy_memories(user_id, profile, persist=stored is not None)
         return profile
 
     async def get_preferred_model(self, user_id: str) -> str:
@@ -209,7 +212,9 @@ class UserProfileService:
             )
             await uow.user_profiles.upsert(user_id, {"life_stage": life_stage})
 
-    async def _backfill_from_legacy_memories(self, user_id: str, profile: dict[str, Any]) -> None:
+    async def _backfill_from_legacy_memories(
+        self, user_id: str, profile: dict[str, Any], *, persist: bool = True
+    ) -> None:
         missing = {
             slug: column
             for slug, column in _LEGACY_MEMORY_TO_COLUMN.items()
@@ -226,7 +231,7 @@ class UserProfileService:
             if mem and mem.get("content") in ("conservative", "balanced", "aggressive"):
                 updates["risk_category"] = mem["content"]
                 profile["risk_category"] = mem["content"]
-        if updates:
+        if updates and persist:
             async with self._uow_factory() as uow:
                 await uow.user_profiles.upsert(user_id, updates)
 

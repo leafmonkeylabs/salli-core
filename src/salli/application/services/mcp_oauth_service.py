@@ -51,6 +51,8 @@ from urllib.parse import urlencode, urlparse
 from jose import JWTError, jwt
 from jose.exceptions import ExpiredSignatureError
 
+from salli.application.ports import McpConnectionRow
+
 _ART_ISSUER = "salli-mcp-oauth"
 _log = logging.getLogger(__name__)
 
@@ -64,6 +66,19 @@ _LOOPBACK_HOSTS = ("127.0.0.1", "[::1]", "localhost")
 
 MCP = "mcp"
 API = "api"
+
+# Recognisable prefixes, like personal access tokens' `salli_pat_`: secret
+# scanners can spot a leaked one, and the API's development fallback can tell
+# a Salli token from a user id without a lookup. Tokens issued before the
+# prefixes have none, and are still verified by lookup.
+ACCESS_TOKEN_PREFIX = "salli_at_"
+REFRESH_TOKEN_PREFIX = "salli_rt_"
+SALLI_TOKEN_PREFIX = "salli_"
+
+
+def has_salli_prefix(token: str) -> bool:
+    """Whether `token` is shaped like one of Salli's own (OAuth or PAT)."""
+    return token.startswith(SALLI_TOKEN_PREFIX)
 
 
 class OAuthError(Exception):
@@ -346,8 +361,8 @@ class McpOAuthService:
     async def _issue_token_pair(
         self, client_id: str, user_id: str, scope: str, resource: str | None
     ) -> dict[str, Any]:
-        access_token = secrets.token_urlsafe(32)
-        refresh_token = secrets.token_urlsafe(32)
+        access_token = ACCESS_TOKEN_PREFIX + secrets.token_urlsafe(32)
+        refresh_token = REFRESH_TOKEN_PREFIX + secrets.token_urlsafe(32)
         access_expires_at = datetime.now(UTC) + timedelta(seconds=self._access_ttl)
         refresh_expires_at = datetime.now(UTC) + timedelta(seconds=self._refresh_ttl)
 
@@ -401,6 +416,12 @@ class McpOAuthService:
             return None
         return record
 
+    async def is_salli_token(self, token: str) -> bool:
+        """Whether this server ever issued `token`, as an access or a refresh
+        token, whatever its state now."""
+        async with self._uow_factory() as uow:
+            return await uow.oauth_tokens.token_exists(_hash_token(token))
+
     # ── Revocation ───────────────────────────────────────────────────────
 
     async def revoke_token_by_value(self, token: str) -> None:
@@ -416,15 +437,27 @@ class McpOAuthService:
 
     # ── Settings UI: connection management ──────────────────────────────────
 
-    async def list_connections(self, user_id: str) -> list[dict[str, Any]]:
+    async def list_connections(self, user_id: str) -> list[McpConnectionRow]:
         """The AI clients connected over MCP (not the user's own CLI sessions)."""
         async with self._uow_factory() as uow:
             rows = await uow.oauth_tokens.list_active_connections(user_id)
         return [r for r in rows if self._token_audience(r) == MCP]
 
     async def revoke_connection(self, user_id: str, token_id: str) -> bool:
+        """Disconnect an AI client: every token of its grant, the refresh
+        tokens and any earlier rotated access tokens too, so it cannot come
+        back with a refresh. `token_id` is any of the grant's access tokens,
+        expired ones included (the refresh token may outlive it). Only AI
+        clients: a CLI session's token is not a connection, and is signed out
+        with `salli logout`."""
         async with self._uow_factory() as uow:
-            return await uow.oauth_tokens.revoke_access_token(token_id, user_id)
+            token = await uow.oauth_tokens.get_access_token_by_id(token_id, user_id)
+            if token is None or self._token_audience(token) != MCP:
+                return False
+            revoked = await uow.oauth_tokens.revoke_client_grant(
+                user_id, token["client_id"], token["resource"]
+            )
+        return revoked > 0
 
     # ── Metadata (RFC 8414 / RFC 9728) ──────────────────────────────────────
 
