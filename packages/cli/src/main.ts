@@ -19,6 +19,32 @@ function wantsJson(argv: readonly string[]): boolean {
   );
 }
 
+/** Program options that take a value, so their value is not a command. */
+const ROOT_VALUE_OPTIONS = new Set(['--output', '--context', '--server']);
+
+/**
+ * `--version` is the program's own flag (`salli --version`), and Commander
+ * claims it wherever it appears; but after a command it is that command's
+ * option (`salli tax rules show XA --version 3`). So, after the command, a
+ * `--version <value>` is passed on as `--version=<value>`, which the program's
+ * flag (taking no value) leaves to the command.
+ */
+export function routeVersionOption(argv: readonly string[]): string[] {
+  const args = [...argv];
+  let i = 0;
+  while (i < args.length && args[i]?.startsWith('-') && args[i] !== '--') {
+    i += ROOT_VALUE_OPTIONS.has(args[i] ?? '') ? 2 : 1;
+  }
+  for (let j = i + 1; j < args.length; j += 1) {
+    if (args[j] === '--') break;
+    const value = args[j + 1];
+    if (args[j] === '--version' && value !== undefined && !value.startsWith('-')) {
+      args.splice(j, 2, `--version=${value}`);
+    }
+  }
+  return args;
+}
+
 export async function main(argv: readonly string[], runtime: Runtime): Promise<number> {
   const app = new App(runtime);
   const json = (): boolean => app.out.json || wantsJson(argv);
@@ -58,7 +84,7 @@ export async function main(argv: readonly string[], runtime: Runtime): Promise<n
   }
 
   try {
-    await program.parseAsync([...argv], { from: 'user' });
+    await program.parseAsync(routeVersionOption(argv), { from: 'user' });
     return ExitCode.OK;
   } catch (error) {
     if (error instanceof CommanderError) {

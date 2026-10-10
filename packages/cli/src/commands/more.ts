@@ -57,6 +57,7 @@ import { readAllStdin } from '../util/stdin';
 import { fieldLabel, renderRecord } from './records';
 import { humanize } from './status';
 import { amountArg, collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
+import { registerTaxRules } from './taxrules';
 
 /** A field from the server, as one line of safe text. */
 const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
@@ -306,7 +307,7 @@ function taxView(app: App, t: TaxComputation): void {
 }
 
 function registerTax(program: Command, app: App): void {
-  const tax = program.command('tax').description('Income tax, by the versioned rules of your country’s tax pack');
+  const tax = program.command('tax').description('Income tax: the built-in packs, and tax rule sets you or your agent write');
 
   tax
     .command('packs')
@@ -378,6 +379,8 @@ function registerTax(program: Command, app: App): void {
       }
       app.out.emit(data, { human: (d) => d.result && taxView(app, d.result) });
     });
+
+  registerTaxRules(tax, app);
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────
