@@ -802,8 +802,9 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         amount=Decimal(str(j["amount"])),
         credit_flag=j["credit_flag"],
         bank_ref=j.get("bank_ref", ""),
-        # Rows saved before the currency was recorded were all rupees.
-        currency=j.get("currency", "LKR"),
+        # Every row records its currency when it is saved: there is no default
+        # currency to fall back on.
+        currency=j["currency"],
         ref_kind=j.get("ref_kind", "id"),
         ref_source=j.get("ref_source", ""),
         source_account=j.get("source_account", ""),

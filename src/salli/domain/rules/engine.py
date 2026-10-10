@@ -294,7 +294,7 @@ _DOMAIN = re.compile(
 
 def payee_key(description: str) -> str:
     """The stable part of a bank description: its first words that are not
-    references. "POS 1234 STARBUCKS #881 COLOMBO 03" → "pos starbucks colombo"."""
+    references. "POS 1234 STARBUCKS #881 LYON 03" → "pos starbucks lyon"."""
     words = (_DOMAIN.sub("", w.casefold().strip(".-'&")) for w in _SPLIT.split(description))
     kept = [w for w in words if len(w) > 1 and not any(ch.isdigit() for ch in w)]
     return " ".join(kept[:3])
@@ -302,7 +302,7 @@ def payee_key(description: str) -> str:
 
 def payee_word(description: str) -> str | None:
     """Who was paid, as one word: the first that is not a generic banking word.
-    "POS 1234 STARBUCKS #881 COLOMBO" and "STARBUCKS 4413 KANDY" are both
+    "POS 1234 STARBUCKS #881 LYON" and "STARBUCKS 4413 PARIS" are both
     "starbucks"; "UBER *TRIP 8H3K2" and "UBER *EATS 77Q" are both "uber"."""
     return next(
         (w for w in payee_key(description).split() if w not in _GENERIC and len(w) >= 3),
@@ -312,7 +312,7 @@ def payee_word(description: str) -> str | None:
 
 def payee_name(description: str) -> str:
     """Who was paid, to show: the stable words without the generic ones.
-    "POS 1234 STARBUCKS #881 COLOMBO" → "Starbucks Colombo"."""
+    "POS 1234 STARBUCKS #881 LYON" → "Starbucks Lyon"."""
     words = [w for w in payee_key(description).split() if w not in _GENERIC]
     return " ".join(words).title()
 

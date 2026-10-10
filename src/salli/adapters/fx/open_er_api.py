@@ -1,9 +1,9 @@
 """
 ExchangeRate-API's open-access rates (https://www.exchangerate-api.com/docs/free).
 
-Keyless, and covers 160-odd currencies, including many the ECB does not publish
-(the Sri Lankan rupee among them). But it only has *today's* rates, refreshed
-once a day. A rate for a date more than a week back would be today's market
+Keyless, and covers 160-odd currencies, including many the ECB does not
+publish (the Kenyan shilling and the Vietnamese dong among them). But it only
+has *today's* rates, refreshed once a day. A rate for a date more than a week back would be today's market
 passed off as that day's, so those are refused (FxUnavailableError) rather
 than answered.
 

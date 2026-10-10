@@ -958,7 +958,7 @@ class HoldingORM(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(40), nullable=False)
     # ISO 4217: what it trades in, its transactions' money and its prices.
-    # Not necessarily the owner's base currency (a US fund in a rupee ledger).
+    # Not necessarily the owner's base currency (a US fund in a euro ledger).
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     # Declared, in the base currency; ignored once there are transactions.
     cost_basis_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)

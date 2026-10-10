@@ -88,7 +88,7 @@ class LedgerService:
         tax_role: TaxRole | None = None,
     ) -> str:
         """Open an account, held in `currency` — the user's base currency unless
-        another is named (a USD savings account in a rupee ledger).
+        another is named (a USD savings account in a yen ledger).
 
         A `tax_role` must be one the user's tax rule sets declare
         (`UnknownTaxRoleError` otherwise), and a `parent_id` one of the user's

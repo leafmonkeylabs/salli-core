@@ -68,8 +68,7 @@ _INVESTMENT_PATTERN = re.compile(
     r"|crypto\w*"
     r"|etfs?"
     r"|pensions?"
-    r"|epf"
-    r"|etf"
+    r"|provident"
     r"|portfolios?"
     r")\b"
 )

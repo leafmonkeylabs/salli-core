@@ -437,7 +437,7 @@ class UserProfileService:
                 continue
             # Foreign income is the reason this exists. Booking it at face value
             # in the base currency misstates it by the exchange rate: a $2,000
-            # remittance into a rupee ledger became Rs. 2,000.
+            # remittance into a peso ledger became 2,000 pesos.
             currency = normalize_currency(item.get("currency") or base)
             fx_rate, fx_source = await self._rate_to_base(
                 currency, base, today, item.get("fx_rate")
