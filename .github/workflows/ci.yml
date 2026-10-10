@@ -60,7 +60,7 @@ jobs:
           src/salli/application/services/llm_credential_service.py
           src/salli/application/services/chatgpt_connection_service.py
           src/salli/interfaces/api/routers/ai.py
-          src/salli/domain/jurisdiction.py src/salli/domain/tax
+          src/salli/domain/jurisdiction.py src/salli/domain/tax src/salli/domain/taxrules
           src/salli/domain/agents/jurisdiction.py src/salli/domain/agents/prompting.py
           src/salli/domain/fi/assumptions.py
           src/salli/domain/portfolio/lots.py src/salli/domain/portfolio/valuation.py

@@ -6,6 +6,8 @@ an author (or their agent) can follow, and nothing broken passes.
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -33,6 +35,15 @@ def test_the_minimal_document_is_valid():
 
 def test_validate_accepts_json_text_too():
     assert validate(json.dumps(minimal())).ok
+
+
+def test_the_example_document_in_the_docs_is_valid():
+    """docs/taxrules.md shows a whole document; it must stay one that works."""
+    text = (Path(__file__).parents[2] / "docs" / "taxrules.md").read_text()
+    match = re.search(r"```jsonc\n(.*?)```", text, re.DOTALL)
+    assert match is not None
+    report = validate(match.group(1))
+    assert report.ok and report.warnings == ()
 
 
 # ── the broken documents the suite must catch ──────────────────────────────────
