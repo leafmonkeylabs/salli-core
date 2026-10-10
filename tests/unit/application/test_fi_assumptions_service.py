@@ -23,8 +23,16 @@ USER = "u1"
 pytestmark = pytest.mark.asyncio
 
 
-def _entry(n: int, days_ago: int, debit: str, credit: str, amount: str) -> StoredJournalEntry:
-    day = datetime.date.today() - datetime.timedelta(days=days_ago)
+def _last_month(day: int) -> datetime.date:
+    # Pinned to last month rather than "N days ago": the service averages over
+    # the calendar months from the earliest entry to today, so a fixed number
+    # of days back spans two months on some dates and three on others (it
+    # failed in CI, in UTC, on a date it passed locally).
+    first_of_this_month = datetime.date.today().replace(day=1)
+    return (first_of_this_month - datetime.timedelta(days=1)).replace(day=day)
+
+
+def _entry(n: int, day: datetime.date, debit: str, credit: str, amount: str) -> StoredJournalEntry:
     return StoredJournalEntry(
         id=f"e{n}",
         user_id=USER,
@@ -54,8 +62,8 @@ class _Ledger:
         Account(id="rent", user_id=USER, code="5000", name="Rent", type="expense", currency="USD"),
     ]
     entries = [
-        _entry(1, 40, "cash", "salary", "5000"),
-        _entry(2, 30, "rent", "cash", "2000"),
+        _entry(1, _last_month(1), "cash", "salary", "5000"),
+        _entry(2, _last_month(2), "rent", "cash", "2000"),
     ]
 
     async def get_accounts(self, user_id, include_inactive=False):
@@ -166,7 +174,8 @@ async def test_with_nothing_set_every_currency_gets_the_same_labelled_placeholde
 async def test_projections_never_block_on_missing_assumptions():
     svc, *_ = _service("USD")
     projections = await svc.get_projections(USER)
-    # 2,000 of rent over the two months the ledger covers is 1,000 a month:
+    # 2,000 of rent over the two months the ledger covers (last month and this
+    # one) is 1,000 a month:
     # 12,000 a year, at the 4% placeholder rate, is 300,000.
     assert Decimal(projections["fi_number"]) == Decimal("300000")
     assert projections["points"][0]["year"] == 0
