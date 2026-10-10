@@ -2624,9 +2624,13 @@ def budget_add(
             console.print(f"[red]Invalid format '{raw}'. Use ACCOUNT_ID:LIMIT_AMOUNT[/red]")
             raise typer.Exit(1)
         lines.append({"account_id": account_id.strip(), "limit_amount": limit_amount.strip()})
-    budget_id = asyncio.run(
-        _services().budget.create_budget(user_id, period_start, period_end, lines)
-    )
+    try:
+        budget_id = asyncio.run(
+            _services().budget.create_budget(user_id, period_start, period_end, lines)
+        )
+    except LookupError as exc:  # a line on an account that is not yours
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": budget_id, "period_start": period_start, "period_end": period_end, "lines": lines})
     console.print(f"[green]Budget created:[/green] {budget_id}")
 
@@ -2728,7 +2732,11 @@ def budget_update(
     if not data:
         console.print("[red]Nothing to update.[/red]")
         raise typer.Exit(1)
-    asyncio.run(_services().budget.update_budget(user_id, budget_id, data))
+    try:
+        asyncio.run(_services().budget.update_budget(user_id, budget_id, data))
+    except LookupError as exc:  # a line on an account that is not yours
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
     emit({"id": budget_id, "updated": data})
     console.print(f"[green]Budget updated:[/green] {budget_id}")
 
@@ -3649,7 +3657,8 @@ def subscription_add(
                 },
             )
         )
-    except ValueError as exc:  # an unknown frequency, a malformed date
+    # An unknown frequency, a malformed date, an account that is not yours.
+    except (ValueError, LookupError) as exc:
         console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(1) from exc
     emit({"id": subscription_id, "name": name})
@@ -3694,7 +3703,8 @@ def subscription_update(
     subscription_id = _resolve_id(subs, subscription_id, "subscription")
     try:
         asyncio.run(_services().subscription.update_subscription(user_id, subscription_id, data))
-    except ValueError as exc:  # an unknown frequency, a malformed date
+    # An unknown frequency, a malformed date, an account that is not yours.
+    except (ValueError, LookupError) as exc:
         console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(1) from exc
     emit({"id": subscription_id, "updated": data})

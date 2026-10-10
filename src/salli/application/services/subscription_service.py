@@ -12,6 +12,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from salli.application.ownership import require_own_accounts
 from salli.domain.currency import quantize
 from salli.domain.money import from_minor, to_minor
 from salli.domain.subscription import engine
@@ -71,8 +72,10 @@ class SubscriptionService:
         self._uow_factory = uow_factory
 
     async def add_subscription(self, user_id: str, data: dict[str, Any]) -> str:
-        """ValueError for an unknown frequency or a malformed due date."""
+        """ValueError for an unknown frequency or a malformed due date;
+        AccountNotFound for an account that is not one of the user's."""
         async with self._uow_factory() as uow:
+            await require_own_accounts(uow, user_id, [data.get("account_id")])
             currency = await uow.user_profiles.base_currency(user_id)
             subscription = {
                 "name": data["name"],
@@ -120,6 +123,7 @@ class SubscriptionService:
         if "is_active" in data:
             updates["is_active"] = data["is_active"]
         async with self._uow_factory() as uow:
+            await require_own_accounts(uow, user_id, [updates.get("account_id")])
             if "amount" in data:
                 currency = await uow.user_profiles.base_currency(user_id)
                 updates["amount_minor"] = to_minor(Decimal(str(data["amount"])), currency)
