@@ -36,7 +36,7 @@ _HLEDGER_TYPES = {"asset": "A", "liability": "L", "equity": "E", "income": "R", 
 
 def _component(name: str) -> str:
     """`Donations & Qualifying Payments` → `DonationsQualifyingPayments`. Each
-    word keeps its own capitals (APIT stays APIT); only ASCII letters and
+    word keeps its own capitals (VAT stays VAT); only ASCII letters and
     digits survive, which every Beancount version accepts."""
     words = re.findall(r"[A-Za-z0-9]+", name)
     joined = "".join(w[0].upper() + w[1:] for w in words)

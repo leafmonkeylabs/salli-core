@@ -121,7 +121,7 @@ class SurplusBreakdown:
 
 @dataclass(frozen=True)
 class FiPack:
-    """Versioned FIRE methodology + assumptions (reviewable, like a tax pack)."""
+    """Versioned FIRE methodology + assumptions, reviewable."""
 
     version: str
     # Fallback 4% rule → FI number = annual_expenses / safe_withdrawal_rate (= ×25
@@ -172,7 +172,7 @@ class FiScore:
     overall_score: Decimal  # 0..100
     grade: str
 
-    # Figures (all recorded for transparency, like TaxComputation.band_workings)
+    # Figures (all recorded for transparency, as a tax computation's lines are)
     monthly_income: Decimal
     monthly_expenses: Decimal
     monthly_surplus: Decimal

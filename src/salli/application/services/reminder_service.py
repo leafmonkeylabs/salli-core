@@ -1,9 +1,11 @@
 """
-ReminderService — filing calendar and user-defined reminders.
+ReminderService — filing deadlines, user-defined reminders and alerts.
 
-Automatically seeds tax-deadline reminders from the active tax pack's
-FilingCalendar when a user's first account is created. Users can also
-create custom reminders (e.g. "gather bank statements").
+Filing deadlines come from the user's active tax rule sets (their
+`deadlines`): activating a version seeds them and replaces the superseded
+version's (application/tax_deadlines.py), and `seed_filing_calendar` refreshes
+them on demand. Users can also create custom reminders (e.g. "gather bank
+statements").
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from salli.application.services.tax_service import TaxService
+from salli.application.tax_deadlines import sync_deadlines
 
 
 class ReminderService:
@@ -22,14 +24,11 @@ class ReminderService:
         budget_svc: Any = None,
         subscription_svc: Any = None,
         insurance_svc: Any = None,
-        tax_svc: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._budget_svc = budget_svc
         self._subscription_svc = subscription_svc
         self._insurance_svc = insurance_svc
-        # Whose filing calendar a user follows: their tax pack's.
-        self._tax = tax_svc or TaxService(uow_factory)
 
     async def list_reminders(
         self,
@@ -58,39 +57,22 @@ class ReminderService:
         async with self._uow_factory() as uow:
             await uow.reminders.delete_reminder(user_id, reminder_id)
 
-    async def seed_filing_calendar(self, user_id: str, year: str | None = None) -> list[str]:
-        """
-        Seed the filing deadlines of the user's tax pack for a tax year: by
-        default the latest one Salli can compute for them.
-        Safe to call multiple times — skips kinds that already exist.
-        """
-        pack = await self._tax.pack(user_id, year)
-        year = pack.year
-        cal = pack.filing
-        first_year = int(pack.period_start[:4])
-
-        deadlines: list[tuple[str, str]] = []
-        if cal.return_due:
-            # The return is due on the first such date after the year ends.
-            end_year = int(pack.period_end[:4])
-            due_year = end_year if cal.return_due > pack.period_end[5:] else end_year + 1
-            deadlines.append((f"return_due_{year}", f"{due_year}-{cal.return_due}"))
-        for i, mmdd in enumerate(cal.installments, 1):
-            # A date from the year's first day on falls in its first calendar
-            # year, an earlier one in the next (Sri Lanka: April on, or not).
-            yr = first_year if mmdd >= pack.year_start else first_year + 1
-            deadlines.append((f"installment_{i}_{year}", f"{yr}-{mmdd}"))
-
+    async def seed_filing_calendar(
+        self, user_id: str, year: str | None = None
+    ) -> dict[str, list[str]]:
+        """Refresh the filing reminders from the deadlines of the user's
+        active tax rule sets (for one year, when `year` names one). Activation
+        already does this; this catches up a calendar on demand. Idempotent:
+        returns the reminder ids `created`, `updated` and `removed`."""
+        report: dict[str, list[str]] = {"created": [], "updated": [], "removed": []}
         async with self._uow_factory() as uow:
-            existing = {r["kind"] for r in await uow.reminders.list_reminders(user_id)}
-            created = []
-            for kind, due_date in deadlines:
-                if kind not in existing and due_date:
-                    rid = str(uuid.uuid4())
-                    await uow.reminders.create_reminder(user_id, rid, kind, due_date)
-                    created.append(rid)
-
-        return created
+            for active in await uow.tax_rule_sets.active_versions(user_id):
+                if year is not None and active["year_label"] != year:
+                    continue
+                synced = await sync_deadlines(uow, user_id, active, active["version"]["content"])
+                for key, ids in synced.items():
+                    report[key] += ids
+        return report
 
     async def sync_alerts(self, user_id: str, today: str) -> dict[str, int]:
         """

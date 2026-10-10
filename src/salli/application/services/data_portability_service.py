@@ -13,16 +13,11 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from salli.domain.export import plaintext
-from salli.domain.tax.packs.registry import list_packs
 
 if TYPE_CHECKING:
     from salli.extensions import UserDataExporter
 
 _log = logging.getLogger(__name__)
-
-#: The year the export's `tax_computation_2025_26` key is named after. A name,
-#: not "the current year": the key predates exports of every year.
-_LEGACY_EXPORT_YEAR = "2025/26"
 
 
 class DataPortabilityService:
@@ -84,18 +79,14 @@ class DataPortabilityService:
         tables directly.
 
         Known scope limits, documented rather than silently incomplete:
-        - tax_computations: the latest computation for each tax year a pack
-          covers; earlier recomputations of a year are not included
+        - tax_computations: every stored computation, newest first, each with
+          the rule set version that computed it and its inputs
         - chat message content lives in the LangGraph checkpointer (Postgres,
           managed by AsyncPostgresSaver), not in these domain tables — it is
           not included here
         """
         entries = await self._ledger.get_entries(user_id)
-        # Every tax year a pack covers, not only the one this export once knew.
-        years = sorted({pack.year for pack in list_packs()})
-        computations = {
-            year: await self._tax.get_latest_computation(user_id, year) for year in years
-        }
+        computations = await self._tax.list_computations(user_id)
 
         data: dict[str, Any] = {
             "user_id": user_id,
@@ -138,15 +129,7 @@ class DataPortabilityService:
                 }
                 for e in entries
             ],
-            # Kept for exports read by older tools, holding what its name says:
-            # the 2025/26 computation, whichever year is current now.
-            # `tax_computations` has every year.
-            "tax_computation_2025_26": self._computation_to_dict(
-                computations.get(_LEGACY_EXPORT_YEAR)
-            ),
-            "tax_computations": [
-                self._computation_to_dict(c) for c in computations.values() if c is not None
-            ],
+            "tax_computations": computations,
             "budgets": await self._budget.list_budgets(user_id),
             "debts": await self._debt.list_debts(user_id, active_only=False),
             "holdings": await self._portfolio.list_holdings(user_id, active_only=False),
@@ -204,19 +187,6 @@ class DataPortabilityService:
             }
             for c in connections
         ]
-
-    @staticmethod
-    def _computation_to_dict(computation: Any) -> dict[str, Any] | None:
-        if computation is None:
-            return None
-        import dataclasses
-        import json
-
-        # TaxComputationRepository.get_latest() deserializes the stored JSON as a
-        # plain dict rather than reconstructing the TaxComputation dataclass.
-        if dataclasses.is_dataclass(computation) and not isinstance(computation, type):
-            computation = dataclasses.asdict(computation)
-        return json.loads(json.dumps(computation, default=str))
 
     async def delete_account(self, user_id: str) -> dict[str, int]:
         """Permanently delete every row belonging to this user. Irreversible.

@@ -163,8 +163,8 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
 
     fx = default_fx_rates()
     ledger = LedgerService(uow_factory, fx=fx)
-    tax = TaxService(uow_factory)
     tax_rules = _build_tax_rules(uow_factory, fx)
+    tax = TaxService(uow_factory, tax_rules)
     documents = DocumentService(uow_factory, storage)
     fi = FiService(uow_factory, llm_credentials)
     budget = BudgetService(uow_factory)
@@ -217,7 +217,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     # configured, which 503'd exactly the users BYOK is for.
     entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
-    reminders = ReminderService(uow_factory, budget, subscription, insurance, tax)
+    reminders = ReminderService(uow_factory, budget, subscription, insurance)
     reports = ReportService(ledger, fi)
     public_url = settings.mcp_public_base_url.rstrip("/")
     mcp_oauth = McpOAuthService(

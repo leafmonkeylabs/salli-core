@@ -4,8 +4,9 @@ Where a user is taxed, and the numbers their tax authorities know them by.
 Pure domain: no I/O.
 
 - A **tax residency** is an ISO 3166-1 alpha-2 country code ("LK", "GB"), or
-  None while the user has not said. It decides which tax packs apply to them
-  (domain/tax/packs). Nothing assumes a country when it is None.
+  None while the user has not said. It decides which of their own tax rule
+  sets compute their tax (application/services/tax_service.py). Nothing
+  assumes a country when it is None.
 - A **tax id** is a scheme and a value. The scheme names the country and the
   kind of number: "LK-TIN" is a Sri Lankan taxpayer identification number,
   "LK-NIC" a Sri Lankan national identity card number. A list of them replaces

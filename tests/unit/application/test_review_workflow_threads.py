@@ -93,15 +93,13 @@ async def test_resuming_a_briefing_that_was_never_prepared_runs_nothing(agent, a
 
 @pytest.fixture
 def return_agent() -> AgentService:
-    from tests.unit.agents.test_return_workflow import _make_services
+    from tests.unit.agents.test_return_workflow import FakeTax
 
-    # A ledger with one salaried year for "u1" and nothing for anyone else.
-    ledger_svc, tax_svc = _make_services()
-    return AgentService(ledger_svc=ledger_svc, tax_svc=tax_svc)
+    return AgentService(ledger_svc=None, tax_svc=FakeTax())
 
 
 async def test_a_return_thread_is_kept_under_its_owner_and_handed_back_as_sent(return_agent):
-    prepared = await return_agent.prepare_return("u1", year="2025/26", thread_id="thread-1")
+    prepared = await return_agent.prepare_return("u1", year="2031", thread_id="thread-1")
 
     assert prepared["thread_id"] == "thread-1"
     assert prepared["draft_return"]
@@ -113,7 +111,7 @@ async def test_a_return_thread_is_kept_under_its_owner_and_handed_back_as_sent(r
 
 
 async def test_another_user_resuming_a_return_thread_gets_nothing_of_the_owners(return_agent):
-    prepared = await return_agent.prepare_return("u1", year="2025/26", thread_id="thread-1")
+    prepared = await return_agent.prepare_return("u1", year="2031", thread_id="thread-1")
 
     stolen = await return_agent.resume_return("u2", "thread-1", "approve")
 
@@ -122,14 +120,14 @@ async def test_another_user_resuming_a_return_thread_gets_nothing_of_the_owners(
 
     # The owner's draft is still waiting, and approving it is theirs.
     mine = await return_agent.resume_return("u1", "thread-1", "approve")
-    assert mine["worksheet"]["status"] == "ready_to_submit"
+    assert mine["worksheet"]["status"] == "ready_to_file"
     assert mine["worksheet"]["year"] == prepared["draft_return"]["year"]
 
 
 async def test_a_workflow_thread_and_a_chat_thread_with_one_id_stay_apart(return_agent):
     # Chat and the workflows share one checkpointer; the same client id used
     # for both must not land on one thread.
-    await return_agent.prepare_return("u1", year="2025/26", thread_id="thread-1")
+    await return_agent.prepare_return("u1", year="2031", thread_id="thread-1")
 
     workflow = return_agent._get_workflow()
     as_chat = await workflow.aget_state({"configurable": {"thread_id": "u1:thread-1"}})
