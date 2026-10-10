@@ -1,6 +1,11 @@
 # A country-neutral core: tax rules and local knowledge as user data
 
-Status: **proposal, awaiting sign-off.** Nothing here is built yet.
+Status: **approved in principle (2026-10-10).** The decisions are recorded at the end.
+Nothing is built yet. Each phase below is its own PR.
+
+There are **no real users yet**. So there is no user data to migrate, no need to run
+two engines side by side, and no deprecation windows. Old code and endpoints are
+replaced outright.
 
 ## Why
 
@@ -10,13 +15,13 @@ Salli's core ships one country's tax law. Sri Lanka's 2025/26 income tax lives i
 codebase, Salli is tied to whichever countries they have time to follow. It's also
 always a release behind the law.
 
-This proposal is that **nothing country-specific is kept in salli-core**.
+So **nothing country-specific is kept in salli-core**.
 - **The code provides:** generic, deterministic engines and the interfaces to feed
   them.
 - **The country knowledge:** tax rules, filing forms and dates, tax-ID schemes,
-  planning assumptions. It becomes **data the user owns**, written by the user or
-  by the AI agent they use (with web access). It is versioned, cited, and checked
-  against worked examples before Salli computes with it.
+  planning assumptions. It's **data the user owns**, written by the user or by the AI
+  agent they use (with web access). It is versioned, cited, and checked against
+  worked examples before Salli computes with it.
 
 The rule that matters most still holds: **the LLM never computes money or tax.** An
 agent may *write rules*. Only Salli's engine *applies* them.
@@ -29,19 +34,57 @@ From the survey of `main` (5186f88):
 |---|---|
 | `TaxPack` and `lk_2025_26.py` (bands, relief, qualifying payments, foreign service income, the filing calendar, withholding kinds, starter accounts, rounding "nearest_rupee") | A **tax rule set**: user data, using the schema below |
 | `registry.py` (`_REGISTRY`, `country_for_currency`, roles) | A per-user store of rule sets. No inference of country from currency |
-| Engine's hardwired Sri Lankan buckets: `CREDITED_KINDS`, the fixed fields on `LedgerView` and `TaxComputation` (`fsi_tax`, `apit_credit`, …) | Income kinds, deductions and credits the rule set declares, keyed by account `tax_role` |
-| Return workflow's `_RETURN_FORMS`, `_map_to_cages` (RAMIS cages), and the instructions for `ramis.ird.gov.lk` | **Form definitions** inside the rule set: fields mapped to computation lines, plus filing instructions |
+| Engine's hardwired Sri Lankan buckets: `CREDITED_KINDS`, the fixed fields on `LedgerView` and `TaxComputation` (`fsi_tax`, `apit_credit`, …) | Lines the rule set defines, fed by account `tax_role`s |
+| Return workflow's `_RETURN_FORMS`, `_map_to_cages` (RAMIS cages), and the instructions for `ramis.ird.gov.lk` | **Form definitions** inside the rule set: fields mapped to lines, plus filing instructions |
 | `LK_TIN` / `LK_NIC`, the legacy `ird_number` / `nic` fields, and `_LEGACY_TAX_ID_COUNTRY = "LK"` | Only the generic `tax_ids` (`scheme`, `value`). A rule set may suggest schemes |
-| FI `REGIONAL_DEFAULTS`, per currency (inflation targets, return scenarios) | **Planning assumptions** as user data, with sources. One neutral fallback stays in code |
+| FI `REGIONAL_DEFAULTS`, per currency (inflation targets, return scenarios) | **Planning assumptions** as user data, with sources. Projections run in real terms by default (see below) |
 | `domain/agents/jurisdiction.py` `_MARKETS["LK"]` (CSE, ASPI) | Removed. The agent researches market context when it needs it |
 | Tax-role enum frozen into the OpenAPI schema from `all_tax_roles()` | A string, checked against the roles in the user's active rule set |
-| Golden tests from IRD worked examples | Engine tests against a **fictional jurisdiction**. Each real rule set carries its own worked examples as data |
+| Golden tests from IRD worked examples | A **conformance suite of fictional jurisdictions** tests the engine. Each real rule set carries its own worked examples as data |
 | Skill text and README sections about APIT, AIT, LKR and IRD | Neutral wording and examples |
 
 The statement parsers (CSV, OFX, QIF, MT940, camt.053), the ledger, insurance, debt,
 risk and budgets are already generic.
 
-## The tax rule set
+## The engine: a graph of named lines
+
+Tax systems differ in shape, not just in numbers:
+- an allowance that tapers away as income rises;
+- capital gains taxed in their own bands, but stacked on top of salary;
+- capped social contributions;
+- formula tariffs;
+- rebates with marginal relief;
+- joint filing.
+
+A fixed pipeline of bands, then reliefs, then credits can't express those. Adding them
+later would mean rewriting the engine and migrating every rule set already saved.
+
+So the engine is general from the start.
+
+**Lines.** A rule set defines **named lines**. Each is an expression over:
+- **inputs:** ledger totals by `tax_role`, and answers the user gives, such as their
+  filing status;
+- **other lines:** the engine evaluates them in dependency order, and rejects cycles;
+- **constants.**
+
+**The expression language** is small and safe:
+- decimal arithmetic only (never floats), with comparisons, `if`, `min`, `max` and
+  `clamp`;
+- `bands(amount, table)` for progressive schedules, and `round(x, mode, unit)`;
+- no loops, no recursion, no I/O and no host functions;
+- a hard limit on how complex an expression can be.
+
+It's parsed by a dedicated grammar, never Python `eval`.
+
+**Building blocks** (`schedule`, `deduction`, `relief`, `credit`, `final_rate`) are
+shorthand that compiles to lines. A simple jurisdiction stays simple to write, and a
+complex one can drop to expressions where it needs to.
+
+**The result** is every line with its key, label, amount and the expression behind it.
+That's enough to explain each figure ("this came from this band, applied to this
+total") and to fill forms. The result records which rule-set version produced it.
+
+### The rule set
 
 A rule set is a JSON document validated against a published JSON Schema
 (`GET /v1/tax/schema`), so an agent can produce one reliably. An abbreviated
@@ -53,110 +96,143 @@ example:
   "jurisdiction": { "country": "LK", "region": null },
   "year": { "label": "2025/26", "start": "2025-04-01", "end": "2026-03-31" },
   "currency": "LKR",
-  "sources": [{ "url": "https://www.ird.gov.lk/…", "title": "…", "retrieved": "2026-10-10" }],
+  "sources": [{ "id": "act", "url": "https://www.ird.gov.lk/…", "title": "…", "retrieved": "2026-10-10" }],
 
-  // What the ledger feeds in: account tax_roles grouped into kinds.
+  // Inputs: what the ledger and the user supply.
   "roles": [
     { "key": "employment_income", "kind": "income", "label": "Employment income" },
     { "key": "foreign_service_income", "kind": "income", "label": "Foreign service income" },
-    { "key": "apit_withheld", "kind": "withholding", "label": "APIT deducted by employer" }
+    { "key": "apit_withheld", "kind": "withholding", "label": "APIT deducted by employer" },
+    { "key": "foreign_tax_paid", "kind": "withholding", "label": "Foreign tax paid" }
   ],
-  "income": [
-    { "key": "general", "roles": ["employment_income", "business_income"] },
-    { "key": "foreign_service", "roles": ["foreign_service_income"] }
-  ],
+  "questions": [],
 
-  // Applied in order to the income they name.
-  "deductions": [
-    { "key": "personal_relief", "type": "fixed", "amount": "1800000", "from": ["general"] },
-    { "key": "qualifying_payments", "type": "capped_share", "roles": ["qualifying_payment"],
-      "share_of": "taxable", "fraction": "0.3333", "cap": "1200000" }
-  ],
-  "schedules": [
-    { "key": "general", "income": ["general"],
+  // Building blocks; each compiles to lines.
+  "blocks": [
+    { "type": "final_rate", "key": "fsi", "of": "role.foreign_service_income",
+      "rate": "0.15", "source": "act" },
+    { "type": "relief", "key": "personal_relief",
+      "of": "role.employment_income", "amount": "1800000", "source": "act" },
+    { "type": "schedule", "key": "general", "of": "line.personal_relief.remaining",
       "bands": [{ "upto": "1000000", "rate": "0.06" }, { "upto": "1500000", "rate": "0.18" },
-                { "upto": null, "rate": "0.36" }] }
+                { "upto": null, "rate": "0.36" }],
+      "round": { "mode": "nearest", "unit": "1" }, "source": "act" },
+    { "type": "credit", "key": "ftc", "of": "role.foreign_tax_paid",
+      "refundable": false, "cap": "line.liability" },
+    { "type": "credit", "key": "apit", "of": "role.apit_withheld", "refundable": true }
   ],
-  "final_rates": [
-    { "key": "fsi", "income": "foreign_service", "rate": "0.15",
-      "note": "Remitted through a bank" }
-  ],
-  "credits": [
-    { "key": "foreign_tax", "roles": ["foreign_tax_paid"], "refundable": false, "cap": "liability" },
-    { "key": "apit", "roles": ["apit_withheld"], "refundable": true }
-  ],
-  "rounding": { "lines": { "mode": "nearest", "unit": "1" }, "final": { "mode": "down", "unit": "1" } },
 
-  "deadlines": [{ "key": "return", "label": "Return due", "date": "2026-11-30" }],
+  // Expressions, for anything the blocks can't say (an illustrative taper).
+  "lines": [
+    { "key": "liability", "label": "Tax before credits",
+      "expr": "line.general + line.fsi" }
+  ],
+  "result": { "payable": "line.net", "round": { "mode": "down", "unit": "1" } },
+
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2026-11-30", "source": "act" }],
   "suggested_accounts": [{ "code": "4110", "name": "APIT withheld", "type": "income",
                            "tax_role": "apit_withheld" }],
   "forms": [{
     "key": "return", "label": "Annual return",
-    "fields": [{ "id": "cage_1a", "label": "Employment income", "value": "income.general" }],
+    "fields": [{ "id": "cage_1a", "label": "Employment income", "value": "role.employment_income" }],
     "instructions": "Log in to … and enter each field.", "url": "https://…"
   }],
 
-  // A rule set can't be activated until every example produces its expected result.
+  // Required: a rule set can't be activated until every example matches.
   "examples": [{
-    "name": "IRD worked example 3", "source": "https://…",
+    "name": "Authority's worked example 3", "source": "https://…",
     "inputs": { "employment_income": "4200000", "apit_withheld": "300000" },
-    "expected": { "tax_payable": "…", "lines": { "schedule.general": "…" } }
+    "expected": { "payable": "…", "lines": { "general": "…" } }
   }]
 }
 ```
 
-**The engine applies these steps, always in the same order:**
-1. Total each income kind from the ledger, by tax role.
-2. Carve out the income taxed at final rates.
-3. Apply the deductions, in order, each to the income it names.
-4. Run the band schedules.
-5. Compute the final-rate tax.
-6. Apply the non-refundable credits, capped as declared.
-7. Apply the refundable credits.
-8. Round, then split the result into payable or refund.
+Every figure can name the source it came from, and validation warns about any that
+doesn't.
 
-Every figure becomes a **line** with a key, a label and an amount. The result records
-which rule-set version produced it.
+### Coverage: one schema, delivered in stages
 
-**What v1 covers:** band-based personal income tax with reliefs, capped deductions,
-flat or final-rate income and credits. That's the shape of Sri Lanka's tax today, and
-of many others.
+The schema and engine above are designed for the whole of personal taxation, and the
+schema is frozen as `salli.tax/1` only after the conformance suite passes.
 
-**What v1 doesn't cover:**
-- phase-outs;
-- formula tariffs such as Germany's;
-- joint filing;
-- social contributions with caps;
-- capital-gains regimes.
+**The conformance suite** is a set of fictional jurisdictions. Each copies the
+*structure* of a real-world feature, not its law:
 
-Those need a **small, safe expression language** in v2. It would compute in Decimal,
-with no loops and no I/O; CEL or a minimal arithmetic grammar would do. The schema is
-versioned (`salli.tax/1`) so that v2 can add it without breaking v1 rule sets.
+| Fictional jurisdiction | Feature it exercises |
+|---|---|
+| **Taperland** | an allowance withdrawn as income rises |
+| **Jointland** | filing status, and joint versus single schedules |
+| **Stackland** | capital gains with their own bands, stacked on ordinary income |
+| **Capland** | a social contribution capped at a ceiling |
+| **Formulaland** | a formula tariff instead of bands |
+| **Rebateland** | a rebate with marginal relief at the threshold |
+| **Remitland** | final-rate foreign income outside the bands (today's Sri Lankan shape) |
+
+These tests are the engine's correctness guarantee, and none of them encodes a real
+country.
+
+**Coverage arrives in stages:**
+1. **Personal income tax.** Everything above except capital gains and social
+   contributions.
+2. **Capital gains:** lots and holding periods come from the portfolio engine.
+3. **Social contributions.**
+
+Later stages add roles, blocks and conformance jurisdictions. They don't change the
+format, so existing rule sets keep working.
 
 ## Lifecycle and safety
 
 `draft → validated → active → superseded`
 
-- **Validated:** the document passes the schema, and **every worked example** runs
-  through the engine and matches its expected result. Validation reports each line
-  that differs.
-- **Active:** only the user can activate a rule set, from the API, the CLI or a client.
-  There is one active rule set per jurisdiction and year. An agent can draft, validate
-  and *propose*, but never activate. This is the same human gate the return workflow
-  already has.
+**Validated** means the document:
+- passes the schema;
+- compiles, with no unknown references and no cycles;
+- matches **every worked example** exactly, through the engine.
+
+Validation reports each line that differs and the expression behind it.
+
+### Activation is the user's alone, through a channel the agent can't fake
+
+While researching tax rules, an agent reads arbitrary web pages, and any of them may
+carry instructions planted to trick it. A confirmation relayed *through the agent*
+("the user said yes") is only as trustworthy as the agent. So:
+- **A dedicated permission.** Activating a rule set requires the `tax:activate`
+  permission. OAuth tokens issued to AI connectors (MCP clients) can never be granted
+  it. A user's own session, CLI login or personal access token can.
+- **Agents propose.** They can draft, validate and **propose** an activation, never
+  perform one.
+- **A review before activation.** The user sees:
+  - the diff against the active version;
+  - every worked example's result;
+  - the source behind each changed figure.
+- **MCP elicitation, later.** Where a client supports it, Salli can ask the user
+  directly instead of through the model. The permission rule still applies.
+
+There is one active rule set per jurisdiction and year.
+
+### Versions and provenance
+
 - **Versions are immutable** once a computation uses them. A change creates a new
-  version, with change notes and a diff against the last one. Every stored
-  computation keeps the version id and a content hash, so an old return can always be
-  reproduced, even after the rules change.
-- **Provenance:**
-  - every rule set carries its sources (URLs and dates) and its author (the user,
-    or the named agent);
-  - results always say "computed from rules you or your agent entered";
-  - Salli doesn't vouch for the law.
-- **Sharing is optional and outside the core.** A rule set can be exported or
-  imported as a file or a URL. Before activating an imported one, its examples must
-  pass and the user must activate it. A community catalogue could exist somewhere,
-  but salli-core neither ships one nor depends on one.
+  version, with change notes and a diff against the last one.
+- **Every stored computation** keeps the version id and a content hash, so an old
+  return can always be reproduced, even after the rules change.
+- **Every rule set carries its sources** (URLs and dates) and its author (the user, or
+  the named agent).
+- **Results say where their rules came from:** "computed from rules you or your agent
+  entered". Salli doesn't vouch for the law.
+
+### Sharing: imports are untrusted
+
+- **Export and import** use a file or a URL. salli-core neither ships nor depends on
+  a catalogue. One can exist outside it (Leaf Monkey Labs could run one separately).
+- **An import is data, never code:** JSON validated against the schema.
+- **The URL fetch is guarded.** It reuses the SimpleFIN guard against requests to
+  internal or private addresses, follows no redirects to them, and enforces size and
+  time limits.
+- **An import always lands as a draft.** Its examples must pass, and the user
+  activates it under the same `tax:activate` rule.
+- **Later, optional signing:** a publisher can sign a rule set (for example with
+  Sigstore), and Salli shows who signed it.
 
 ## How users and agents use it
 
@@ -166,26 +242,30 @@ versioned (`salli.tax/1`) so that v2 can add it without breaking v1 rule sets.
   - `GET /v1/tax/rule-sets/{id}`
   - `POST /v1/tax/rule-sets/{id}/versions`
   - `POST /…/validate`
-  - `POST /…/activate`
+  - `POST /…/propose`
+  - `POST /…/activate`, which needs `tax:activate`
   - `GET /…/diff`
+  - `POST /v1/tax/rule-sets/import` (a file or URL)
+  - `GET /…/export`
   - `POST /v1/tax/compute` uses the active rule set for the jurisdiction and year.
-  - `GET /v1/tax/packs` and `meta.tax_packs` are removed after a deprecation window.
+  - `GET /v1/tax/packs` and `meta.tax_packs` are removed in phase 3.
 - **MCP tools:**
   - `get_tax_rule_schema`
   - `list_tax_rule_sets`
   - `draft_tax_rule_set`
-  - `validate_tax_rule_set` (returns the lines that differ)
-  - `propose_tax_rule_set` (asks the user to activate)
+  - `validate_tax_rule_set` (returns the lines that differ and why)
+  - `propose_tax_rule_set`
+  - `explain_tax_line`
 - **MCP prompt** `research_tax_rules(country, year)` tells the agent to:
   1. find official sources;
   2. fill in the schema, citing each figure;
   3. include the authority's own worked examples;
-  4. validate;
-  5. show the user what changed.
-- **CLI:** `salli tax rules list|show|import|export|validate|activate|diff`.
+  4. validate and fix until every example passes;
+  5. propose, and show the user what changed and why.
+- **CLI:** `salli tax rules list|show|import|export|validate|propose|activate|diff`.
 - **Salli's own agent** uses the same tools; it already has web search.
 
-The decision lab follows the same split. Deterministic scenario tools supply the
+The **decision lab** follows the same split. Deterministic scenario tools supply the
 numbers, and the user's own agent, guided by prompts, supplies the judgement.
 
 ## Other local knowledge
@@ -193,87 +273,93 @@ numbers, and the user's own agent, guided by prompts, supplies the judgement.
 - **Jurisdiction:** the user picks their tax residency explicitly, at onboarding or
   later. Salli no longer infers the country from the currency.
 - **Tax IDs:** only generic `{scheme, value}` records. The legacy `ird_number` / `nic`
-  fields stay readable and writable for one deprecation window, mapped to the generic
-  records, because the web and mobile apps still send them.
-- **Planning assumptions:**
-  - inflation, expected returns and their scenarios become user data with sources,
-    which the user or agent sets;
-  - one neutral fallback stays in code, clearly labelled as a placeholder;
-  - the FI engine is unchanged.
+  fields and columns are removed. The web and mobile apps switch to `tax_ids` when the
+  hosted product upgrades.
+- **Planning assumptions are in real terms by default.**
+  - FI projections run *after inflation*. A real-return assumption is broadly the same
+    whatever the currency, so **one neutral default** (labelled as a placeholder)
+    works anywhere without a per-country table.
+  - Inflation and nominal returns are user data with sources, which the user or agent
+    sets. Inflation matters only for showing future amounts in nominal currency.
+  - Projections never block on missing assumptions. They show that a placeholder is
+    in use, and Salli prompts the user or agent to set real ones.
 - **Reminders:** filing reminders come from the active rule set's `deadlines`.
 
-## Migration
+## Delivery
 
-This changes stored data and the API, so it ships in phases. Each phase is its own PR,
-and nothing runs against a production database without a written plan and sign-off.
+There are no real users, so nothing needs migrating and nothing is kept for
+compatibility. Each phase is its own PR.
 
-1. **Engine v2 beside the old one.** No behaviour change.
-   - The schema, the validator and the generic engine.
-   - Engine tests against a fictional jurisdiction.
-   - The current Sri Lankan pack, expressed as a rule set, must reproduce the existing
-     golden results line for line. This proves the engine is general enough.
-2. **Storage and interfaces.**
+1. **Engine, expression language and conformance suite.** No behaviour change yet.
+   - The line graph, the safe expression grammar, the building blocks, the schema and
+     validator, and the fictional-jurisdiction suite.
+   - Today's Sri Lankan pack, written as a rule set in a test fixture, must reproduce
+     the existing golden results **line for line**. This proves the engine can carry
+     what exists today. The fixture is deleted in phase 3.
+2. **Storage, interfaces and the activation permission.**
    - New tables: `tax_rule_sets` (owner, jurisdiction, year, status) and
-     `tax_rule_set_versions` (content JSONB, hash, sources, validation result).
-   - `tax_computations` gains `rule_set_version_id` and `lines` JSONB. The legacy
-     columns stay.
-   - The new API, MCP and CLI surfaces.
-   - Compute prefers the user's active rule set and falls back to the built-in pack,
-     now deprecated.
-3. **Existing users.** This touches production.
-   - A data migration gives each user who has stored computations, or LK residency,
-     their own copy of the 2025/26 rules as an active rule set. Their history stays
-     reproducible and nothing changes for them.
-   - The rules are frozen inside the migration as historical data, the way
-     `core_0008` already freezes its roles.
-   - Before it runs: a dry run on a copy of production, a backup, and a tested down
-     migration.
-   - Fresh installs get no rule sets.
-4. **Removal.**
-   - Delete the built-in packs and registry, the hardwired engine fields,
-     `_RETURN_FORMS`, `REGIONAL_DEFAULTS`, `_MARKETS` and the legacy tax-ID constants.
+     `tax_rule_set_versions` (content JSONB, hash, sources, validation result,
+     author).
+   - `tax_computations` is reshaped around `rule_set_version_id`, a content hash and
+     `lines` JSONB.
+   - The new API, MCP and CLI surfaces, with `tax:activate` kept out of
+     connector-issued tokens.
+3. **Switch and remove, in one go.**
+   - Compute uses only the rule-set store.
+   - Delete the built-in packs and registry, the hardwired engine fields, the legacy
+     computation columns, `_RETURN_FORMS`, `REGIONAL_DEFAULTS`, `_MARKETS`, the
+     legacy tax-ID constants, fields and columns, the old `/tax/packs` endpoints, and
+     the phase 1 fixture.
    - Neutralise skills, docs and tests.
    - Update CLAUDE.md.
-   - Remove the deprecated endpoints once clients have moved.
+   - Migrations drop what's gone. Developer and test databases can be recreated from
+     scratch.
 
-The hosted product can keep serving Sri Lankan users exactly as before. After phase 3
-their rules are their own data, and the hosted side can help them keep those rules
-current if it wants to.
+### Hosted Salli
 
-### CLAUDE.md changes
+The hosted product pins salli-core at `v0.1.0`, from before the 2026-10 rebuild. It
+picks all of this up when it upgrades to the new core, a project with its own plan
+that also moves the web and mobile apps onto the new API. Its test accounts start
+fresh. If the hosted product wants to offer Sri Lankan rules to its users, it does so
+as data, through the same interfaces anyone else uses.
+
+### CLAUDE.md changes, in phase 3
 
 | Invariant | Today | Becomes |
 |---|---|---|
-| Tax packs | "Tax packs are versioned `(country, year, version)` in `domain/tax/packs/` and need a chartered accountant's review." | "Tax rule sets are user data. They are versioned and immutable once used. Every stored computation records the rule-set version and content hash. A rule set can't be activated until its worked examples pass." |
-| Adding a new tax pack | A how-to for developers | Replaced by the rule-set schema docs and the `research_tax_rules` prompt |
+| Tax packs | "Tax packs are versioned `(country, year, version)` in `domain/tax/packs/` and need a chartered accountant's review." | "Tax rule sets are user data. They are versioned and immutable once used. Every stored computation records the rule-set version and content hash. A rule set can't be activated until its worked examples pass, and only the user can activate one; AI connectors never hold `tax:activate`." |
+| Adding a new tax pack | A how-to for developers | Replaced by the rule-set schema docs, the conformance suite and the `research_tax_rules` prompt |
 
 ## Risks
 
 - **Wrong rules.** A user or agent can enter the law incorrectly. Mitigations:
   - worked examples are required before activation;
-  - every figure is cited;
+  - figures are cited;
   - every change is diffed;
   - each result states plainly where its rules came from.
 
   This is honest: today's built-in pack is also unreviewed by an accountant, and it
   ages silently.
-- **Agent hallucination.** Validation fails without source URLs and official worked
-  examples. Activation is the user's alone.
-- **Coverage.** v1 can't express every tax system. Unsupported features fail
-  validation with a clear message, rather than computing something wrong.
-- **API churn.** The web, mobile and TypeScript clients use `/tax/packs`, the fixed
-  computation fields and the legacy tax-ID fields. Those keep working, deprecated,
-  until the clients move.
+- **Prompt injection during research.** Agents can't activate. Activation needs a
+  permission that connector tokens never hold, and the review shows sources and
+  diffs.
+- **Agent hallucination.** Validation fails without official worked examples, and
+  sources are shown next to every changed figure.
+- **The expression language as an attack surface.** A dedicated grammar, no `eval`,
+  no host functions, no loops, decimal arithmetic only, and complexity limits.
+  Fuzz-tested.
+- **Coverage gaps.** Anything the schema can't express fails validation with a clear
+  message rather than computing something wrong.
+- **API churn.** The web and mobile apps use `/tax/packs`, the fixed computation
+  fields and the legacy tax-ID fields. They move to the new API with the hosted
+  upgrade. The TypeScript CLI and SDK move in phase 3, regenerated from the spec.
 
-## Questions for sign-off
+## Decisions (2026-10-10)
 
-1. **v1 scope:** personal income tax only, or also capital gains and social
-   contributions? Either of those pulls the expression language into v1.
-2. **Who activates:** the user only, as proposed, or the agent too, with an
-   in-chat confirmation?
-3. **Sharing:** should Salli support importing rule sets from a URL, so a community
-   catalogue can exist outside the core?
-4. **Planning assumptions:** keep one neutral fallback in code, or require the user
-   or agent to set them before any FI projection runs?
-5. **The phase 3 data migration** for existing (Sri Lankan) users: approve the
-   approach, so that a detailed runbook can follow before it runs.
+| # | Question | Decision |
+|---|---|---|
+| 1 | Scope | A general engine from the start: a line graph with a safe expression language, plus building blocks. Proven by the fictional-jurisdiction conformance suite before `salli.tax/1` is frozen. Coverage arrives in stages: personal income tax, then capital gains, then social contributions. |
+| 2 | Who activates | The user only. It needs `tax:activate`, which AI-connector tokens can never hold. Agents draft, validate and propose. The user reviews diffs, examples and sources first. MCP elicitation comes later, where supported. |
+| 3 | Sharing | File and URL import and export, treated as untrusted: guarded fetch, data only, lands as a draft, user activation. No catalogue in salli-core. Optional signing later. |
+| 4 | Planning assumptions | Projections in real terms, with one neutral placeholder default that is always labelled as such. Users or agents set real figures with sources. Projections never block on missing assumptions. |
+| 5 | Migrating existing users | Not needed: there are no real users yet. No data migration, no running two engines side by side, no deprecation windows. The old code goes in phase 3, once the new engine reproduces today's results line for line in phase 1. |
