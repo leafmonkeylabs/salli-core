@@ -22,7 +22,9 @@ server.
 3. **Confirm before you write.** Before any command that adds, updates, posts,
    reverses or deletes, show the user exactly what will change (accounts,
    amounts, dates) and wait for a yes. Then pass `--yes` where the command
-   asks for confirmation: there is no terminal for it to ask in.
+   asks for confirmation: there is no terminal for it to ask in. One command
+   is the user's alone: `salli tax rules activate` has no `--yes` and refuses
+   to run for you. Ask the user to run it themselves (see `salli-tax`).
 4. **Posted entries are permanent.** Fix a wrong entry with
    `salli entries reverse <id> --yes` and then post the correct one. Never try
    to edit or delete a posted entry.
@@ -50,7 +52,8 @@ Other ids can be shortened to any unique prefix.
 | `import <file>`, `statements` | bank statements: import, then `statements pending`, `post`, `discard`, `categorize` |
 | `ledger` | `trial-balance`, `income-statement` |
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
-| `tax` | `year`, `compute`, `latest`, `packs` |
+| `tax` | `year`, `compute`, `latest`, `packs`; `schema` (the rule-set JSON Schema) |
+| `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`; `activate` is the user's, never yours |
 | `budgets`, `debts`, `insurance`, `subscriptions` | each domain's records and reports |
 | `holdings`, `portfolio` | holdings: `holdings list`, `holdings add`; `portfolio` (summary), `portfolio transactions add <holding> buy\|sell\|dividend\|…`, `portfolio lots <holding>`, `portfolio prices set <symbol> <close>`, `portfolio performance --from --to` |
 | `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `afford`, `strategy`; `goals list`, `goals allocate` |

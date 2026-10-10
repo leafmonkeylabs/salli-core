@@ -75,10 +75,13 @@ salli whoami
 salli logout
 ```
 
-`salli login` reads the server's sign-in endpoints from `/v1/meta`, registers
-itself once (the client id is kept in the context), and signs in with OAuth 2.1:
-the authorization code flow with PKCE, your browser coming back to a one-off
-listener on `127.0.0.1`. Where no browser can open (over SSH, on a server with
+`salli login` reads the server's sign-in endpoints from `/v1/meta` and signs in
+as the client it names for the CLI (`cli_client_id`, Salli's own first-party
+client, so the sign-in may do what only yours may, like activating tax rules),
+with OAuth 2.1: the authorization code flow with PKCE, your browser coming back
+to a one-off listener on `127.0.0.1`. (A server too old to name one gets a
+client `salli` registers for itself, once, kept in the context; `salli doctor`
+says what such a sign-in can't do.) Where no browser can open (over SSH, on a server with
 no display) it uses the device authorization grant instead, as `--device` does:
 open the link it prints, on any device, and enter the code. `--no-browser` prints
 the link without opening it. The tokens are for the server's API (the
@@ -89,9 +92,16 @@ with it there, or set it as `SALLI_TOKEN`:
 
 ```bash
 salli tokens create "backup job" --expires-in-days 90   # printed once
+salli tokens create "my laptop" --allow tax:activate    # may activate tax rules
 salli tokens list
 salli tokens revoke 3fa85f64
 ```
+
+A token can do everything you can except what needs a permission it was made
+with, and it has none unless you ask: `--allow tax:activate` lets it activate a
+tax rule set. Tokens are what scripts and AI agents are given, so leave that
+off for any token you hand on. Only your own sign-in can make a token, and only
+with permissions it holds.
 
 Tokens are kept in your system keychain (macOS Keychain, Windows Credential
 Manager, the Secret Service on Linux) and refreshed when they expire. Where there
@@ -144,6 +154,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Financial independence | `salli fi score`, `salli fi assumptions`, `salli fi afford 2400 --months 12` |
 | A review from the advisor | `salli advisor run`, or `salli advisor briefing` to approve a monthly briefing before it is saved |
 | Tax | `salli tax year`, `salli tax compute`, `salli profile set --tax-residency LK` |
+| Your own tax rules | `salli tax rules list`, `salli tax rules diff "XA 2031"`, `salli tax rules activate "XA 2031"` (see below) |
 | Choose what powers the AI | `salli ai status`, `salli ai connect chatgpt`, `salli llm-keys set openai` |
 | Take your ledger elsewhere | `salli export beancount -o ledger.beancount`, `salli export hledger` |
 | Everything Salli keeps about you | `salli profile export` (JSON, readable only by you); `salli profile delete-account` deletes it |
@@ -185,6 +196,56 @@ llm-keys set`), and `salli ai use` chooses between them.
 specialists it uses. Before the AI changes anything it says what and asks; nothing
 is written unless you approve. `salli ask` asks once; without a terminal to ask in,
 a change it proposes is declined.
+
+## Tax rules
+
+Where Salli has no built-in rules for your country or year, you (or your AI
+agent) can write a **tax rule set**: a JSON document, `salli.tax/1`, saying how
+one jurisdiction taxes one year, citing its sources, with the authority's own
+worked examples. Salli validates it against those examples and computes with
+it; it never takes a figure from the AI. The format is in
+[docs/taxrules.md](../../docs/taxrules.md).
+
+```bash
+salli tax schema -o salli-tax.schema.json             # the JSON Schema to write against
+salli tax rules create xa-2031.json --note "From the Income Tax Act 2031"
+salli tax rules version "XA 2031" xa-2031.json --note "Band 2 ceiling fixed"
+salli tax rules import https://example.org/xa-2031.salli-tax.json   # lands as a draft
+salli tax rules list
+salli tax rules show "XA 2031"                        # versions: status, author, note, hash
+salli tax rules show "XA 2031" --version 3            # one version, and its validation report
+salli tax rules validate "XA 2031"                    # exit 1 until every example passes
+salli tax rules propose "XA 2031"
+salli tax rules diff "XA 2031"                        # active vs newest, with each change's source
+salli tax rules evaluate "XA 2031" --answer filing_status=joint
+salli tax rules export "XA 2031" -o xa-2031.json      # canonical: its SHA-256 is the content hash
+salli tax rules activate "XA 2031"                    # you, at your terminal
+```
+
+A rule set is named by its id (or the start of it) or its name ("XA 2031");
+`--version` takes a number or a version id, and without it commands use the
+newest. Every change is a new version: nothing stored ever changes.
+
+`salli tax rules activate` makes a version the rules Salli computes your tax
+with, and is yours alone. It shows what you are about to activate: the changes
+against the active version (or that it is the first), each changed figure next
+to the source it cites (title and URL), every worked example and whether it
+passes, and who wrote the version (you, or an agent and which) and why. Then
+you type the version number to confirm. It has no `--yes`, and it refuses to
+run when stdin or stdout is not a terminal or with `--json` or `--output`: an AI
+agent running commands can't answer the prompt, so it can't activate. It
+defaults to the newest proposed version.
+
+The server checks too. Activating needs the `tax:activate` permission, which
+your own sign-ins hold (the app, `salli login`), and a personal access token
+only if you made it with `--allow tax:activate`. AI connectors (MCP) never hold
+it. If the server refuses, `activate` says why and what to do.
+
+An agent with your own terminal and your own credentials *is* you, as far as
+any server can tell, so no check can stop one that is running as you. What the
+layers do is keep activation to a person looking at a screen: connectors can't,
+tokens can't unless you said so, the CLI wants a human at a terminal, and the
+review shows plainly what changes and on whose say-so.
 
 ## The output contract
 
@@ -279,6 +340,7 @@ thousands separators only). Rates take a fraction or a percentage: `0.18` or `18
 
 `salli doctor` checks the lot: the server answers, speaks a compatible API
 version, accepts your sign-in, and agrees with your clock (tokens expire by it).
+It also says whether this sign-in may activate tax rule sets, and what would.
 
 ## Your agent, driving salli
 
@@ -291,7 +353,9 @@ salli skills uninstall
 ```
 
 The skills teach an AI agent to drive this CLI: always `--json`, confirm
-before writing, reverse rather than edit, and never compute money itself.
+before writing, reverse rather than edit, and never compute money itself. The
+tax skill has it research, draft, validate and propose tax rule sets from
+official sources, and leave activating them to you.
 They travel inside `salli`, so the standalone binaries install them too.
 Installing again updates them. A copy you changed is kept unless you pass
 `--force`.

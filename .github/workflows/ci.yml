@@ -67,6 +67,8 @@ jobs:
           src/salli/domain/portfolio/returns.py src/salli/domain/portfolio/performance.py
           src/salli/application/market_data.py
           src/salli/application/permissions.py src/salli/adapters/net
+          src/salli/application/services/personal_access_token_service.py
+          src/salli/interfaces/api/routers/tokens.py src/salli/interfaces/api/routers/auth.py
           src/salli/adapters/db/tax_rule_sets.py
           src/salli/application/services/tax_rule_service.py
           src/salli/interfaces/api/routers/tax_rules.py

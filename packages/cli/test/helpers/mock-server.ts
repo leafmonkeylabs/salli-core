@@ -62,6 +62,7 @@ import {
   TRIAL_BALANCE,
   uid,
 } from './fixtures';
+import { TaxRulesMock } from './taxrules';
 
 export interface RecordedRequest {
   method: string;
@@ -89,7 +90,15 @@ export interface MockOptions {
   consent?: boolean;
   /** The resource indicator for the REST API. Default: `<url>/v1`. */
   apiResource?: string;
+  /**
+   * Advertise Salli's own CLI client (`salli-cli`, seeded, first party) in
+   * /v1/meta. Default true; false is a server from before first-party clients.
+   */
+  cliClient?: boolean;
 }
+
+/** The first-party CLI client a real server seeds (core_0011). */
+export const CLI_CLIENT_ID = 'salli-cli';
 
 type Reply = { status: number; body?: unknown; headers?: Record<string, string>; raw?: string };
 type Handler = (req: RecordedRequest, params: Record<string, string>, res: http.ServerResponse) => Reply | undefined | Promise<Reply | undefined>;
@@ -111,13 +120,17 @@ export class MockSalli {
   url = '';
   readonly options: MockOptions;
   readonly requests: RecordedRequest[] = [];
-  readonly clients = new Map<string, { redirect_uris: string[]; client_name?: string }>();
+  readonly clients = new Map<string, { redirect_uris: string[]; client_name?: string; first_party?: boolean }>();
   readonly codes = new Map<string, { client_id: string; redirect_uri: string; challenge: string; resource?: string }>();
-  readonly accessTokens = new Map<string, { expires_at: number }>();
+  readonly accessTokens = new Map<string, { expires_at: number; client_id?: string }>();
   readonly refreshTokens = new Map<string, { client_id: string }>();
+  /** Permissions each personal access token was made with (none if absent). */
+  readonly patPermissions = new Map<string, string[]>();
   readonly revoked: string[] = [];
   readonly pats = new Set<string>(['pat-valid']);
   user: { user_id: string; email: string | null } = { user_id: 'user-123', email: null };
+  /** Tax rule sets (`/v1/tax/schema`, `/v1/tax/rule-sets`). */
+  readonly taxRules = new TaxRulesMock();
   data = {
     accounts: clone(ACCOUNTS),
     entries: clone(ENTRIES),
@@ -240,7 +253,7 @@ export class MockSalli {
       },
     ] as CategorizationRule[],
     tokens: [
-      { id: uid(701), name: 'backup job', prefix: 'salli_pat_bk7Q', created_at: '2026-09-01T09:00:00Z', expires_at: null, last_used_at: '2026-10-08T03:00:00Z' },
+      { id: uid(701), name: 'backup job', prefix: 'salli_pat_bk7Q', permissions: [], created_at: '2026-09-01T09:00:00Z', expires_at: null, last_used_at: '2026-10-08T03:00:00Z' },
     ] as PersonalAccessToken[],
     bodies: [] as Array<{ method: string; path: string; body: unknown }>,
   };
@@ -274,6 +287,9 @@ export class MockSalli {
   private constructor(options: MockOptions) {
     this.options = options;
     this.deviceSteps = [...(options.deviceSteps ?? ['authorization_pending', 'approve'])];
+    if (options.cliClient !== false) {
+      this.clients.set(CLI_CLIENT_ID, { redirect_uris: ['http://127.0.0.1/callback'], client_name: 'Salli CLI', first_party: true });
+    }
   }
 
   static async start(options: MockOptions = {}): Promise<MockSalli> {
@@ -306,11 +322,11 @@ export class MockSalli {
   }
 
   /** Issues a token pair, as a sign-in would. */
-  issueTokens(ttl = this.options.accessTokenTtl ?? 3600): { access_token: string; refresh_token: string; expires_in: number } {
+  issueTokens(ttl = this.options.accessTokenTtl ?? 3600, clientId = CLI_CLIENT_ID): { access_token: string; refresh_token: string; expires_in: number } {
     const access = `at-${b64url(randomBytes(9))}`;
     const refresh = `rt-${b64url(randomBytes(9))}`;
-    this.accessTokens.set(access, { expires_at: Date.now() / 1000 + ttl });
-    this.refreshTokens.set(refresh, { client_id: 'seeded' });
+    this.accessTokens.set(access, { expires_at: Date.now() / 1000 + ttl, client_id: clientId });
+    this.refreshTokens.set(refresh, { client_id: clientId });
     return { access_token: access, refresh_token: refresh, expires_in: ttl };
   }
 
@@ -334,10 +350,14 @@ export class MockSalli {
         device_authorization_endpoint: `${base}/mcp/oauth/device_authorization`,
         api_resource: this.options.apiResource ?? `${base}/v1`,
         device_verification_uri: `${base}/mcp/oauth/device`,
-        cli_client_id: 'salli-cli',
+        cli_client_id: CLI_CLIENT_ID,
       },
       default_currency: 'USD',
     };
+    if (this.options.cliClient === false) {
+      const { cli_client_id: _cli, ...oauth } = meta.oauth;
+      meta.oauth = oauth as Meta['oauth'];
+    }
     if (this.options.device === false) {
       // A server from before device sign-in.
       const { device_authorization_endpoint: _endpoint, device_verification_uri: _page, ...oauth } = meta.oauth;
@@ -350,6 +370,18 @@ export class MockSalli {
   private tokenOf(req: RecordedRequest): string {
     const header = req.headers.authorization ?? '';
     return header.startsWith('Bearer ') ? header.slice(7) : '';
+  }
+
+  /**
+   * What the request's sign-in may do, as the real server derives it: a
+   * token what it was made with, an OAuth token tax:activate only when its
+   * client is first party.
+   */
+  permissionsOf(req: RecordedRequest): string[] {
+    const token = this.tokenOf(req);
+    if (this.pats.has(token)) return [...(this.patPermissions.get(token) ?? [])];
+    const client = this.clients.get(this.accessTokens.get(token)?.client_id ?? '');
+    return client?.first_party ? ['tax:activate'] : [];
   }
 
   private authorized(req: RecordedRequest): boolean {
@@ -402,8 +434,11 @@ export class MockSalli {
     const p = (pattern: string): Record<string, string> | undefined => match(pattern, path);
     let params: Record<string, string> | undefined;
 
+    const taxRules = this.taxRules.route(req, this.permissionsOf(req));
+    if (taxRules) return taxRules;
+
     if (method === 'GET' && path === '/v1/auth/me') {
-      return { status: 200, body: { ...this.user, method: this.pats.has(this.tokenOf(req)) ? 'pat' : 'oauth' } };
+      return { status: 200, body: { ...this.user, method: this.pats.has(this.tokenOf(req)) ? 'pat' : 'oauth', permissions: this.permissionsOf(req) } };
     }
 
     // accounts
@@ -1208,19 +1243,28 @@ export class MockSalli {
     const { method, path } = req;
     if (path === '/v1/tokens' && method === 'GET') return { status: 200, body: this.data.tokens };
     if (path === '/v1/tokens' && method === 'POST') {
-      const input = req.json as { name?: string; expires_in_days?: number | null };
+      const input = req.json as { name?: string; expires_in_days?: number | null; permissions?: PersonalAccessToken['permissions'] };
       if (!input?.name) return problem(422, 'Request validation failed', [{ loc: ['body', 'name'], msg: 'Field required', type: 'missing' }], '/problems/validation');
       const token = `salli_pat_${b64url(randomBytes(18))}`;
       const created: PersonalAccessToken = {
         id: uid(700 + this.data.tokens.length + 10),
         name: input.name,
         prefix: token.slice(0, 14),
+        permissions: input.permissions ?? [],
         created_at: '2026-10-09T10:00:00Z',
         expires_at: input.expires_in_days ? '2027-01-07T10:00:00Z' : null,
         last_used_at: null,
       };
+      if (this.pats.has(this.tokenOf(req))) {
+        return problem(403, 'Forbidden', 'A personal access token cannot create another; sign in to make one.', '/problems/permission');
+      }
+      const missing = created.permissions.filter((p) => !this.permissionsOf(req).includes(p));
+      if (missing.length) {
+        return problem(403, 'Forbidden', `This sign-in doesn't hold ${missing.join(', ')}, so it can't give it to a token.`, '/problems/permission');
+      }
       this.data.tokens.push(created);
       this.pats.add(token);
+      this.patPermissions.set(token, [...created.permissions]);
       return { status: 201, body: { ...created, token } };
     }
     const params = match('/v1/tokens/{id}', path);
@@ -1357,16 +1401,17 @@ export class MockSalli {
         const computed = createHash('sha256').update(form.code_verifier ?? '').digest('base64url');
         if (computed !== record.challenge) return oauthError('invalid_grant', 'PKCE verification failed');
         this.codes.delete(form.code ?? '');
-        return { status: 200, body: { ...this.issueTokens(), token_type: 'Bearer', scope: '' } };
+        return { status: 200, body: { ...this.issueTokens(undefined, record.client_id), token_type: 'Bearer', scope: '' } };
       }
       if (form.grant_type === 'refresh_token') {
-        if (!this.refreshTokens.has(form.refresh_token ?? '')) return oauthError('invalid_grant', 'invalid or expired refresh token');
+        const refresh = this.refreshTokens.get(form.refresh_token ?? '');
+        if (!refresh) return oauthError('invalid_grant', 'invalid or expired refresh token');
         this.refreshTokens.delete(form.refresh_token ?? '');
-        return { status: 200, body: { ...this.issueTokens(), token_type: 'Bearer', scope: '' } };
+        return { status: 200, body: { ...this.issueTokens(undefined, refresh.client_id), token_type: 'Bearer', scope: '' } };
       }
       if (form.grant_type === 'urn:ietf:params:oauth:grant-type:device_code') {
         const step = this.deviceSteps.shift() ?? 'approve';
-        if (step === 'approve') return { status: 200, body: { ...this.issueTokens(), token_type: 'Bearer' } };
+        if (step === 'approve') return { status: 200, body: { ...this.issueTokens(undefined, form.client_id), token_type: 'Bearer' } };
         return oauthError(step);
       }
       return oauthError('unsupported_grant_type', form.grant_type);

@@ -1397,11 +1397,15 @@ class PersonalAccessTokenRepository(ABC):
         token_hash: str,
         prefix: str,
         expires_at: datetime | None,
-    ) -> dict[str, Any]: ...
+        permissions: list[str],
+    ) -> dict[str, Any]:
+        """A new token holding `permissions` (application/permissions.py)."""
+        ...
 
     @abstractmethod
     async def list(self, user_id: str) -> list[dict[str, Any]]:
-        """The user's tokens that are not revoked, newest first (never the hash)."""
+        """The user's tokens that are not revoked, newest first (never the
+        hash), each with its `permissions`."""
         ...
 
     @abstractmethod

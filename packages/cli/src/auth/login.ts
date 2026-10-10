@@ -11,8 +11,15 @@
  *
  * OAuth tokens are asked for the server's API (`resource` is the
  * `api_resource` from `/v1/meta`): a token issued for MCP is refused by the
- * API. The CLI registers itself with each server once (RFC 7591) and keeps
- * the client_id in the context.
+ * API.
+ *
+ * Which client the CLI signs in as: the one `/v1/meta` advertises as the
+ * CLI's own (`oauth.cli_client_id`, `salli-cli`), a first-party client the
+ * server seeded rather than one that registered itself. Only its sign-ins hold
+ * what only the user's own may (activating a tax rule set). A server that
+ * advertises none (one older than first-party clients) gets the old way: the
+ * CLI registers itself once (RFC 7591) and keeps the client_id in the context.
+ * Such a sign-in works for everything else; `salli doctor` says what it can't do.
  */
 import {
   authMe,
@@ -137,13 +144,41 @@ async function registerCli(app: App, endpoints: OAuthEndpoints): Promise<string>
   return client.client_id;
 }
 
-/** The client_id registered for this context's server, registering once if needed. */
-async function clientIdFor(app: App, target: LoginTarget, endpoints: OAuthEndpoints, fresh = false): Promise<string> {
+/** The client id a server advertises for Salli's own CLI, if it advertises one. */
+export function firstPartyClientId(meta: Meta): string | undefined {
+  // Typed as always present, but a server older than first-party clients sends none.
+  const id = (meta.oauth as { cli_client_id?: unknown }).cli_client_id;
+  return typeof id === 'string' && id.trim() ? id.trim() : undefined;
+}
+
+/** Who the CLI signs in as: Salli's own client, or one it registered. */
+interface SignInClient {
+  id: string;
+  firstParty: boolean;
+}
+
+/**
+ * The client to sign in as: the server's first-party CLI client when it
+ * advertises one (never registering), else the one registered for this
+ * context's server, registering once if needed (or again, with `fresh`).
+ */
+async function clientFor(app: App, target: LoginTarget, meta: Meta, fresh = false): Promise<SignInClient> {
+  const own = firstPartyClientId(meta);
+  if (own) return { id: own, firstParty: true };
   const known = target.entry?.server === target.server ? target.entry.client_id : undefined;
-  if (known && !fresh) return known;
-  const clientId = await registerCli(app, endpoints);
+  if (known && !fresh) return { id: known, firstParty: false };
+  const clientId = await registerCli(app, oauth.oauthEndpointsOf(meta));
   await saveLoginContext(app, target, { client_id: clientId });
-  return clientId;
+  return { id: clientId, firstParty: false };
+}
+
+/** The server advertises the CLI's client but does not know it. */
+function unknownFirstPartyClient(target: LoginTarget, client: SignInClient, detail: string): CliError {
+  return new CliError(`${target.server} names "${client.id}" as the CLI’s client, but does not know it: ${detail}`, {
+    exitCode: ExitCode.NOT_SIGNED_IN,
+    kind: 'not-signed-in',
+    hint: 'Its database may need migrating (`salli-server db upgrade`). Meanwhile, sign in with a personal access token: `salli login --token -`.',
+  });
 }
 
 type Preflight = { ok: true } | { ok: false; detail: string };
@@ -221,7 +256,7 @@ export async function browserLogin(app: App, target: LoginTarget, meta: Meta, op
   const loopback = await startLoopbackServer(state);
   try {
     const pkce = await oauth.createPkcePair();
-    let clientId = await clientIdFor(app, target, endpoints);
+    let client = await clientFor(app, target, meta);
     const urlFor = (id: string): string =>
       oauth.buildAuthorizationUrl({
         authorizationEndpoint: endpoints.authorization_endpoint,
@@ -232,12 +267,17 @@ export async function browserLogin(app: App, target: LoginTarget, meta: Meta, op
         resource,
       });
 
-    let url = urlFor(clientId);
+    let url = urlFor(client.id);
     let check = await preflight(app, url);
-    if (!check.ok && /client/i.test(check.detail)) {
+    if (!check.ok && client.firstParty && /unknown client/i.test(check.detail)) {
+      // Salli's own client is never swapped for a registered one: that would
+      // quietly sign in with less than the user expects.
+      throw unknownFirstPartyClient(target, client, check.detail);
+    }
+    if (!check.ok && !client.firstParty && /client/i.test(check.detail)) {
       // The server forgot this client (reset, or a different deployment): register again.
-      clientId = await clientIdFor(app, target, endpoints, true);
-      url = urlFor(clientId);
+      client = await clientFor(app, target, meta, true);
+      url = urlFor(client.id);
       check = await preflight(app, url);
     }
     if (!check.ok) {
@@ -268,7 +308,7 @@ export async function browserLogin(app: App, target: LoginTarget, meta: Meta, op
     }
     const tokens = await oauth.exchangeAuthorizationCode({
       tokenEndpoint: endpoints.token_endpoint,
-      clientId,
+      clientId: client.id,
       code,
       redirectUri: loopback.redirectUri,
       codeVerifier: pkce.verifier,
@@ -276,7 +316,7 @@ export async function browserLogin(app: App, target: LoginTarget, meta: Meta, op
       fetch: app.runtime.fetch,
       signal: app.runtime.signal,
     });
-    return oauthCredentials(target, endpoints, clientId, resource, 'browser', tokens, app.runtime.now());
+    return oauthCredentials(target, endpoints, client.id, resource, 'browser', tokens, app.runtime.now());
   } finally {
     await loopback.close();
   }
@@ -293,7 +333,7 @@ export async function deviceLogin(app: App, target: LoginTarget, meta: Meta): Pr
     });
   }
   const resource = endpoints.api_resource;
-  let clientId = await clientIdFor(app, target, endpoints);
+  let client = await clientFor(app, target, meta);
   const request = (id: string): Promise<oauth.DeviceAuthorization> =>
     oauth.requestDeviceAuthorization({
       deviceAuthorizationEndpoint: endpoints.device_authorization_endpoint,
@@ -304,11 +344,12 @@ export async function deviceLogin(app: App, target: LoginTarget, meta: Meta): Pr
     });
   let device: oauth.DeviceAuthorization;
   try {
-    device = await request(clientId);
+    device = await request(client.id);
   } catch (error) {
     if (!(error instanceof SalliOAuthError && error.error === 'invalid_client')) throw error;
-    clientId = await clientIdFor(app, target, endpoints, true);
-    device = await request(clientId);
+    if (client.firstParty) throw unknownFirstPartyClient(target, client, error.errorDescription ?? error.error);
+    client = await clientFor(app, target, meta, true);
+    device = await request(client.id);
   }
 
   const out = app.out;
@@ -324,14 +365,14 @@ export async function deviceLogin(app: App, target: LoginTarget, meta: Meta): Pr
   try {
     const tokens = await oauth.pollDeviceAuthorization({
       tokenEndpoint: endpoints.token_endpoint,
-      clientId,
+      clientId: client.id,
       device,
       resource,
       fetch: app.runtime.fetch,
       signal: app.runtime.signal,
       onSlowDown: (seconds) => spinner.message(`Waiting for approval (checking every ${seconds}s)`),
     });
-    return oauthCredentials(target, endpoints, clientId, resource, 'device', tokens, app.runtime.now());
+    return oauthCredentials(target, endpoints, client.id, resource, 'device', tokens, app.runtime.now());
   } catch (error) {
     if (error instanceof SalliOAuthError) {
       if (error.error === 'access_denied') throw new NotSignedInError('Sign-in was declined.', 'Run `salli login --device` to try again.');

@@ -39,7 +39,12 @@ async def test_health_and_identity_keep_their_shapes(client):
     me = await client.get("/v1/auth/me", headers=AUTH)
     assert me.status_code == 200
     # user_id as before; how they signed in, and their email when known, since.
-    assert me.json() == {"user_id": "test-user-1", "email": None, "method": "dev"}
+    assert me.json() == {
+        "user_id": "test-user-1",
+        "email": None,
+        "method": "dev",
+        "permissions": ["tax:activate"],
+    }
 
 
 async def test_errors_are_problem_details_that_keep_their_detail(client):

@@ -6,12 +6,12 @@ Salli's engine applies it. The agent may *write* rules; only the engine
 *computes* with them. This is the format and the language, for authors and for
 agents. The design behind it is `docs/design/country-neutral-core.md`.
 
-> **Status: phase 2a.** The engine, language, schema and validator
+> **Status: phase 2b.** The engine, language, schema and validator
 > (`src/salli/domain/taxrules/`, proven by a conformance suite of fictional
-> jurisdictions) now have storage, a lifecycle, an API and MCP tools: see
-> [Lifecycle](#lifecycle) and [Interfaces](#interfaces). `/v1/tax/compute`
-> still uses the built-in pack in `salli.domain.tax` until phase 3; the
-> `salli tax rules` commands come in phase 2b.
+> jurisdictions) have storage, a lifecycle, an API, MCP tools and the
+> `salli tax rules` commands: see [Lifecycle](#lifecycle) and
+> [Interfaces](#interfaces). `/v1/tax/compute` still uses the built-in pack in
+> `salli.domain.tax` until phase 3.
 
 ## The document
 
@@ -340,15 +340,15 @@ new version, with a note saying why. Each version has a status:
 An agent researching tax law reads arbitrary web pages, any of which can carry
 instructions planted to trick it, and "the user said yes" relayed through the
 agent is only as trustworthy as the agent. So activation needs the
-`tax:activate` permission, derived from how the caller signed in
-(`application/permissions.py`), never stored or requested:
+`tax:activate` permission, which follows from how the caller signed in
+(`application/permissions.py`, the one place it is decided):
 
 | Sign-in | `tax:activate` |
 |---|---|
 | The web or mobile app (a Supabase session) | yes |
-| A personal access token | yes |
 | The local-development sign-in | yes |
-| OAuth for the REST API, as Salli's own CLI (`salli-cli`, a first-party client the server knows) | yes |
+| OAuth for the REST API, as Salli's own CLI (`salli-cli`, a first-party client the server knows), from any grant | yes |
+| A personal access token | only if made with it |
 | OAuth for the REST API, as a client that registered itself | no |
 | OAuth for MCP (an AI connector), any client | never |
 
@@ -358,7 +358,31 @@ client the server seeded as first party counts; `/v1/meta` names the CLI's
 the MCP server has no activate tool, and the service checks the permission
 itself, so no route or tool that forgot to could activate. What a caller
 without it writes is recorded as written by an `agent`, with the client's
-name.
+name (a personal access token's writes are the user's, under the token's
+name).
+
+**Personal access tokens opt in.** Tokens are what people hand to scripts and
+agents, so a token holds `tax:activate` only if the user asked for it when
+making it (`POST /v1/tokens` with `"permissions": ["tax:activate"]`, or
+`salli tokens create <name> --allow tax:activate`); it is the one sign-in whose
+permissions are stored (`personal_access_tokens.permissions`, core_0012), and
+tokens made before then hold none. Only a first-party sign-in may make a token
+(never a token, never a client that registered itself), and only with
+permissions it holds itself. `GET /v1/tokens` shows each token's permissions,
+and `GET /v1/auth/me` what the current sign-in holds.
+
+**The honest limit.** An agent running on the user's own machine, in the
+user's own terminal, with the user's own credentials, *is* the user as far as
+any server can tell. Nothing Salli checks can tell such an agent from its
+user. The protections are layered so that, short of that, activation stays
+with a person looking at what they activate:
+
+- remote AI connectors (MCP) can never hold the permission;
+- personal access tokens don't carry it unless the user opts in;
+- the CLI's `activate` needs a person at a terminal (below), and has no `--yes`;
+- its review screen makes plain what is being activated, what changed, the
+  source of each changed figure, whether every worked example passes, and who
+  wrote it.
 
 ### Evaluating against the ledger
 
@@ -414,6 +438,42 @@ loopback, private, link-local, shared, unique local, multicast or reserved,
 nor an IPv6 address embedding one), the connection made to the address that
 was checked, at most three redirects each checked again, 1 MiB at most and
 15 seconds for the whole exchange.
+
+**CLI** (`packages/cli`, see its README): `salli tax schema [-o file]`, and
+
+| | |
+|---|---|
+| `salli tax rules list` | Rule sets, their active and newest versions. |
+| `salli tax rules show <set> [--version <n\|id>]` | Versions with status, author, note and hash; or one version's details and validation report. |
+| `salli tax rules create <file> [--note]` | A new rule set (the file's text is sent as it is, so it is read strictly). |
+| `salli tax rules version <set> <file> [--note]` | A new version. |
+| `salli tax rules import <file\|url>` | Lands as a draft. |
+| `salli tax rules export <set> [--version] [-o file]` | The canonical text, byte for byte. |
+| `salli tax rules validate <set> [--version]` | Problems, warnings, every example; each mismatch with expected, got and its expression. Exits 1 until valid. |
+| `salli tax rules propose <set> [--version]` | |
+| `salli tax rules diff <set> [--from] [--to]` | Active against newest by default; each changed figure with its source's title and URL. |
+| `salli tax rules evaluate <set> [--version] [--answer key=value]…` | Line by line, then net, payable or refund. |
+| `salli tax rules activate <set> [--version]` | For a person at a terminal only (below). |
+
+`<set>` is a rule set's id, a unique start of it, or its name (`XA 2031`);
+`--version` a number or a version id; without it, the newest. `--json`
+prints the API's JSON, as everywhere in the CLI.
+
+`activate` defaults to the newest proposed version. It shows a review: the
+diff against the active version (or "first version"), each changed figure
+next to its source, every worked example and whether it passes, and the
+author (the user, or an agent and its client's name) with the change note.
+Then the user types the version number to confirm. It refuses, before
+signing in, when stdin or stdout isn't a terminal or when the output is for
+a program (`--json`, `--output`), and has no `--yes`: an agent running
+commands can't answer the prompt. A 403 from the server is explained (an
+agent's or another application's sign-in, or a token made without
+`tax:activate`) with what to do instead.
+
+`salli login` signs in as `salli-cli` (the browser's PKCE flow and the device
+flow alike), the client `/v1/meta` names as `oauth.cli_client_id`, so its
+sign-ins hold `tax:activate`. Against a server that names none it registers
+a client for itself, which doesn't; `salli doctor` says so.
 
 **MCP** (see [ai-clients.md](ai-clients.md)): `get_tax_rule_schema`,
 `list_tax_rule_sets`, `get_tax_rule_set`, `draft_tax_rule_set`,

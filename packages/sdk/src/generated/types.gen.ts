@@ -696,6 +696,10 @@ export type AuthIdentity = {
      * Method
      */
     method: 'session' | 'oauth' | 'pat' | 'dev';
+    /**
+     * Permissions
+     */
+    permissions: Array<'tax:activate'>;
 };
 
 /**
@@ -1998,6 +2002,10 @@ export type CreateTokenRequest = {
      * Expires In Days
      */
     expires_in_days?: number | null;
+    /**
+     * Permissions
+     */
+    permissions?: Array<'tax:activate'>;
 };
 
 /**
@@ -4583,6 +4591,10 @@ export type NewPersonalAccessToken = {
      */
     prefix: string;
     /**
+     * Permissions
+     */
+    permissions: Array<'tax:activate'>;
+    /**
      * Created At
      */
     created_at: string;
@@ -5094,6 +5106,10 @@ export type PersonalAccessToken = {
      * Prefix
      */
     prefix: string;
+    /**
+     * Permissions
+     */
+    permissions: Array<'tax:activate'>;
     /**
      * Created At
      */

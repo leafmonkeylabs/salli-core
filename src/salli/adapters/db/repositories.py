@@ -3199,6 +3199,7 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
             "user_id": row.user_id,
             "name": row.name,
             "prefix": row.prefix,
+            "permissions": sorted(row.permissions or []),
             "expires_at": row.expires_at,
             "last_used_at": row.last_used_at,
             "created_at": row.created_at,
@@ -3211,6 +3212,7 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
         token_hash: str,
         prefix: str,
         expires_at: datetime | None,
+        permissions: list[str],
     ) -> dict[str, Any]:
         row = PersonalAccessTokenORM(
             id=str(uuid.uuid4()),
@@ -3218,6 +3220,7 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
             name=name,
             token_hash=token_hash,
             prefix=prefix,
+            permissions=sorted(set(permissions)),
             expires_at=expires_at,
             created_at=datetime.now(UTC),
         )

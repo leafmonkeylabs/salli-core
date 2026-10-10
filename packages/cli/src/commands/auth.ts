@@ -141,6 +141,7 @@ Examples:
               ['Server', ctx.server],
               ['Signed in with', via],
               ['Server sees', SIGN_IN_METHODS[data.method]],
+              ['May also', Array.isArray(data.permissions) ? data.permissions.join(', ') || 'nothing more' : undefined],
               ['Token expires', credentials?.kind === 'oauth' ? describeExpiry(credentials.tokens.expires_at, app.runtime.now()) : undefined],
             ]),
           );

@@ -61,9 +61,11 @@ def rules(mock_services):
     return mock_services.tax_rules
 
 
-def _as(app, method: str, first_party_client: bool = False) -> None:
+def _as(
+    app, method: str, first_party_client: bool = False, granted: frozenset[str] = frozenset()
+) -> None:
     app.dependency_overrides[get_principal] = lambda: Principal(
-        "test-user-1", None, method, first_party_client=first_party_client
+        "test-user-1", None, method, first_party_client=first_party_client, granted=granted
     )
 
 
@@ -125,19 +127,20 @@ async def test_a_proposal_that_fails_validation_is_a_409(client, rules):
 
 
 @pytest.mark.parametrize(
-    ("method", "first_party_client", "allowed"),
+    ("method", "first_party_client", "granted", "allowed"),
     [
-        ("session", False, True),
-        ("pat", False, True),
-        ("dev", False, True),
-        ("oauth", True, True),  # the salli CLI
-        ("oauth", False, False),  # any other OAuth client
+        ("session", False, frozenset(), True),
+        ("dev", False, frozenset(), True),
+        ("oauth", True, frozenset(), True),  # the salli CLI
+        ("pat", False, frozenset({"tax:activate"}), True),  # a token made with it
+        ("pat", False, frozenset(), False),  # a token made without it
+        ("oauth", False, frozenset(), False),  # any other OAuth client
     ],
 )
 async def test_only_the_user_s_own_sign_ins_reach_activation(
-    app, client, rules, method, first_party_client, allowed
+    app, client, rules, method, first_party_client, granted, allowed
 ):
-    _as(app, method, first_party_client)
+    _as(app, method, first_party_client, granted)
     rules.activate.return_value = {**VERSION, "status": "active", "activated_at": NOW}
     r = await client.post(f"{BASE}/rs1/versions/v1/activate", headers=AUTH)
     if allowed:
@@ -146,6 +149,8 @@ async def test_only_the_user_s_own_sign_ins_reach_activation(
     else:
         assert r.status_code == 403
         assert "tax:activate" in r.json()["detail"]
+        if method == "pat":
+            assert "--allow tax:activate" in r.json()["detail"]
         rules.activate.assert_not_awaited()
 
 

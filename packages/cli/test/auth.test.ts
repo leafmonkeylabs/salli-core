@@ -33,8 +33,55 @@ async function config(): Promise<{ current_context: string; contexts: Array<Reco
 }
 
 describe('salli login (browser, PKCE, loopback)', () => {
-  it('registers once, signs in through the loopback redirect and stores the tokens', async () => {
+  it('signs in as the server’s own CLI client, without registering one', async () => {
     await startMock();
+    const result = await run(['login', '--server', mock.url]);
+    expect(result.code).toBe(0);
+    expect(mock.requestsTo('POST', '/mcp/oauth/register')).toHaveLength(0);
+
+    const authorize = new URL(result.opened[0] ?? '');
+    expect(authorize.searchParams.get('client_id')).toBe('salli-cli');
+    expect(authorize.searchParams.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/callback$/);
+    expect(mock.requestsTo('POST', '/mcp/oauth/token')[0]?.form).toMatchObject({ grant_type: 'authorization_code', client_id: 'salli-cli' });
+    expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'browser', client_id: 'salli-cli' });
+    // Nothing registered, so nothing to remember about a registration.
+    expect((await config()).contexts[0]?.client_id).toBeUndefined();
+
+    // That sign-in may activate tax rule sets; the server says so.
+    const me = JSON.parse((await run(['whoami', '--json'])).stdout) as { permissions: string[] };
+    expect(me.permissions).toEqual(['tax:activate']);
+  });
+
+  it('uses the CLI’s client over a registration saved from before', async () => {
+    await startMock({ cliClient: false });
+    expect((await run(['login', '--server', mock.url])).code).toBe(0);
+    expect((await config()).contexts[0]?.client_id).toBe('client-1');
+    await mock.close();
+    // The same server, upgraded: it now names the CLI's own client.
+    const upgraded = await MockSalli.start();
+    try {
+      const again = await run(['login', '--server', upgraded.url]);
+      expect(again.code).toBe(0);
+      expect(upgraded.requestsTo('POST', '/mcp/oauth/register')).toHaveLength(0);
+      expect((await credentials()).default?.client_id).toBe('salli-cli');
+    } finally {
+      await upgraded.close();
+    }
+  });
+
+  it('never swaps the CLI’s own client for a registered one', async () => {
+    await startMock();
+    mock.clients.delete('salli-cli'); // advertised, but the server does not know it (unmigrated)
+    const result = await run(['login', '--server', mock.url]);
+    expect(result.code).toBe(3);
+    expect(result.opened).toEqual([]);
+    expect(result.stderr).toContain('names "salli-cli" as the CLI’s client, but does not know it');
+    expect(result.stderr).toContain('salli-server db upgrade');
+    expect(mock.requestsTo('POST', '/mcp/oauth/register')).toHaveLength(0);
+  });
+
+  it('on a server that names no CLI client, registers once, signs in through the loopback redirect and stores the tokens', async () => {
+    await startMock({ cliClient: false });
     const result = await run(['login', '--server', mock.url]);
     expect(result.stderr).toContain(`Signed in to ${mock.url} as user-123 (context "default")`);
     expect(result.code).toBe(0);
@@ -90,7 +137,7 @@ describe('salli login (browser, PKCE, loopback)', () => {
       context: 'home',
       server: mock.url,
       method: 'browser',
-      user: { user_id: 'user-123', email: null, method: 'oauth' },
+      user: { user_id: 'user-123', email: null, method: 'oauth', permissions: ['tax:activate'] },
     });
   });
 
@@ -140,7 +187,8 @@ describe('salli login (browser, PKCE, loopback)', () => {
     expect(result.opened).toEqual([]);
     expect(result.stderr).toContain('No browser here');
     expect(result.stderr).toContain('WDJB-MJHT');
-    expect(mock.requestsTo('POST', '/mcp/oauth/device_authorization')[0]?.form).toMatchObject({ client_id: 'client-1', resource: `${mock.url}/v1` });
+    expect(mock.requestsTo('POST', '/mcp/oauth/device_authorization')[0]?.form).toMatchObject({ client_id: 'salli-cli', resource: `${mock.url}/v1` });
+    expect(mock.requestsTo('POST', '/mcp/oauth/register')).toHaveLength(0);
     expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'device' });
   });
 
@@ -168,8 +216,8 @@ describe('salli login (browser, PKCE, loopback)', () => {
     expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'browser' });
   });
 
-  it('registers again when the server has forgotten the client', async () => {
-    await startMock();
+  it('registers again when the server has forgotten the client it registered', async () => {
+    await startMock({ cliClient: false });
     expect((await run(['login', '--server', mock.url])).code).toBe(0);
     mock.clients.clear(); // e.g. the server's database was reset
     const again = await run(['login']);
@@ -213,9 +261,18 @@ describe('salli login --device', () => {
     expect(polls[0]?.form).toMatchObject({
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
       device_code: 'dev-code-1',
-      client_id: 'client-1',
+      client_id: 'salli-cli',
     });
-    expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'device' });
+    expect(mock.requestsTo('POST', '/mcp/oauth/register')).toHaveLength(0);
+    expect((await credentials()).default).toMatchObject({ kind: 'oauth', method: 'device', client_id: 'salli-cli' });
+  });
+
+  it('registers for the device flow on a server that names no CLI client', async () => {
+    await startMock({ cliClient: false });
+    const result = await run(['login', '--device', '--server', mock.url]);
+    expect(result.code).toBe(0);
+    expect(mock.requestsTo('POST', '/mcp/oauth/register')).toHaveLength(1);
+    expect(mock.requestsTo('POST', '/mcp/oauth/device_authorization')[0]?.form).toMatchObject({ client_id: 'client-1' });
   });
 
   it('exits 3 when the sign-in is declined or the code expires', async () => {
@@ -269,13 +326,14 @@ describe('using the stored sign-in', () => {
     await run(['login', '--server', mock.url, '--token', 'pat-valid']);
     const result = await run(['whoami', '--json']);
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe('{\n  "user_id": "user-123",\n  "email": null,\n  "method": "pat"\n}\n');
+    expect(result.stdout).toBe('{\n  "user_id": "user-123",\n  "email": null,\n  "method": "pat",\n  "permissions": []\n}\n');
     mock.user.email = 'ada@example.com';
     const human = await run(['whoami']);
     expect(human.stdout).toContain('ada@example.com');
     expect(human.stdout).toContain('user-123');
     expect(human.stdout).toContain('access token');
     expect(human.stdout).toContain('a personal access token');
+    expect(human.stdout).toMatch(/May also\s+nothing more/);
   });
 
   it('refreshes an expired access token once and retries', async () => {
@@ -288,7 +346,7 @@ describe('using the stored sign-in', () => {
     expect(result.code).toBe(0);
     const refreshes = mock.requestsTo('POST', '/mcp/oauth/token').filter((r) => r.form?.grant_type === 'refresh_token');
     expect(refreshes).toHaveLength(1);
-    expect(refreshes[0]?.form).toMatchObject({ refresh_token: before?.refresh_token, client_id: 'client-1', resource: `${mock.url}/v1` });
+    expect(refreshes[0]?.form).toMatchObject({ refresh_token: before?.refresh_token, client_id: 'salli-cli', resource: `${mock.url}/v1` });
     const after = (await credentials()).default?.tokens;
     expect(after?.access_token).not.toBe(before?.access_token);
     expect(after?.refresh_token).not.toBe(before?.refresh_token);
@@ -344,7 +402,7 @@ describe('salli logout', () => {
     expect(result.code).toBe(0);
     expect(result.stderr).toContain(`Signed out of ${mock.url}`);
     expect(mock.revoked).toEqual([tokens?.refresh_token, tokens?.access_token]);
-    expect(mock.requestsTo('POST', '/mcp/oauth/revoke')[0]?.form).toMatchObject({ token_type_hint: 'refresh_token', client_id: 'client-1' });
+    expect(mock.requestsTo('POST', '/mcp/oauth/revoke')[0]?.form).toMatchObject({ token_type_hint: 'refresh_token', client_id: 'salli-cli' });
     expect((await credentials()).default).toBeUndefined();
     expect((await run(['whoami'])).code).toBe(3);
   });
