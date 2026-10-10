@@ -32,6 +32,8 @@ export interface RunOptions {
   browser?: boolean;
   now?: Date;
   signal?: AbortSignal;
+  /** The working directory (default: the config directory). */
+  cwd?: string;
 }
 
 export const FIXED_NOW = new Date('2026-10-09T10:00:00Z');
@@ -78,6 +80,7 @@ export async function runCli(args: string[], options: RunOptions): Promise<RunRe
     stdin,
     platform: 'linux',
     homedir: options.configDir,
+    cwd: options.cwd ?? options.configDir,
     now: () => options.now ?? FIXED_NOW,
     fetch: globalThis.fetch.bind(globalThis),
     openUrl: async (url) => {

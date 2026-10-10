@@ -33,7 +33,9 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "binaries": "node scripts/build-binaries.mjs"
+    "binaries": "node scripts/build-binaries.mjs",
+    "generate:skills": "node scripts/bundle-skills.mjs",
+    "check:skills": "node scripts/bundle-skills.mjs --check"
   },
   "devDependencies": {
     "@clack/prompts": "^1.8.1",
