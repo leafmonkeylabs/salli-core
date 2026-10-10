@@ -1,0 +1,189 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "LK", "region": null },
+  "year": { "label": "2025/26", "start": "2025-04-01", "end": "2026-03-31" },
+  "currency": "LKR",
+  "sources": [
+    {
+      "id": "builtin_pack",
+      "url": "https://www.ird.gov.lk/",
+      "title": "salli.domain.tax.packs.lk_2025_26 (Inland Revenue (Amendment) Act No. 2 of 2025, IRD Notice PN/IT/2025-01), as the built-in pack encodes it"
+    }
+  ],
+  "roles": [
+    { "key": "total_income", "kind": "income", "label": "Total income, every source" },
+    { "key": "foreign_service_income", "kind": "income", "label": "Foreign service income (part of total income)" },
+    { "key": "apit_withheld", "kind": "withholding", "label": "APIT withheld by employers" },
+    { "key": "ait_withheld", "kind": "withholding", "label": "AIT withheld at source" },
+    { "key": "foreign_tax_paid", "kind": "withholding", "label": "Foreign tax paid" },
+    { "key": "qualifying_payments", "kind": "deduction", "label": "Qualifying payments and donations" }
+  ],
+  "questions": [],
+  "band_tables": {
+    "general": {
+      "label": "Rates on taxable income after relief",
+      "bands": [
+        { "upto": "1000000", "rate": "0.06" },
+        { "upto": "1500000", "rate": "0.18" },
+        { "upto": "2000000", "rate": "0.24" },
+        { "upto": "2500000", "rate": "0.30" },
+        { "upto": null, "rate": "0.36" }
+      ],
+      "round": { "mode": "nearest", "unit": "1" },
+      "source": "builtin_pack"
+    }
+  },
+  "blocks": [
+    {
+      "type": "final_rate", "key": "fsi_tax", "label": "Tax on foreign service income",
+      "of": "max(0, line.foreign_service_income)", "rate": "0.15",
+      "round": { "mode": "nearest", "unit": "1" }, "source": "builtin_pack"
+    },
+    {
+      "type": "relief", "key": "personal_relief", "label": "Personal relief",
+      "of": "line.regular_income", "amount": "1800000", "source": "builtin_pack"
+    },
+    {
+      "type": "capped_share", "key": "qualifying_payments", "label": "Qualifying payments",
+      "of": "line.personal_relief.remaining", "claimed": "role.qualifying_payments",
+      "fraction": "0.3333333333333333333333333333", "cap": "75000", "source": "builtin_pack"
+    },
+    { "type": "schedule", "key": "general", "label": "Tax on taxable income", "of": "line.taxable_income", "table": "general" },
+    {
+      "type": "credit", "key": "foreign_tax_credit", "label": "Foreign tax credit",
+      "of": "role.foreign_tax_paid", "refundable": false, "cap": "line.tax_before_credits"
+    },
+    { "type": "credit", "key": "apit", "label": "APIT credit", "of": "role.apit_withheld", "refundable": true },
+    { "type": "credit", "key": "ait", "label": "AIT credit", "of": "role.ait_withheld", "refundable": true }
+  ],
+  "lines": [
+    { "key": "gross", "label": "Gross income", "expr": "role.total_income" },
+    {
+      "key": "foreign_service_income", "label": "Foreign service income (at most gross)",
+      "expr": "min(role.foreign_service_income, role.total_income)"
+    },
+    { "key": "regular_income", "label": "Regular income", "expr": "max(0, line.gross - line.foreign_service_income)" },
+    { "key": "taxable_income", "label": "Taxable income", "expr": "line.qualifying_payments.remaining" },
+    { "key": "tax_before_credits", "label": "Tax before credits", "expr": "line.general + line.fsi_tax" },
+    {
+      "key": "total_credits", "label": "Total credits",
+      "expr": "line.foreign_tax_credit + (line.apit + line.ait)"
+    },
+    { "key": "balance", "label": "Tax less credits", "expr": "line.tax_before_credits - line.total_credits" }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "nearest", "unit": "1" } },
+  "deadlines": [
+    { "key": "installment_1", "label": "First installment", "date": "2025-08-15", "source": "builtin_pack" },
+    { "key": "installment_2", "label": "Second installment", "date": "2025-11-15", "source": "builtin_pack" },
+    { "key": "installment_3", "label": "Third installment", "date": "2026-02-15", "source": "builtin_pack" },
+    { "key": "installment_4", "label": "Fourth installment", "date": "2026-05-15", "source": "builtin_pack" },
+    { "key": "final_installment", "label": "Final installment", "date": "2026-09-30", "source": "builtin_pack" },
+    { "key": "return", "label": "Return due", "date": "2026-11-30", "source": "builtin_pack" }
+  ],
+  "suggested_accounts": [
+    { "code": "5900", "name": "Donations & Qualifying Payments", "type": "expense", "tax_role": "qualifying_payments" },
+    { "code": "4110", "name": "APIT Receivable", "type": "asset", "tax_role": "apit_withheld" },
+    { "code": "4410", "name": "AIT Receivable", "type": "asset", "tax_role": "ait_withheld" },
+    { "code": "4500", "name": "Foreign Service Income (FSI)", "type": "income", "tax_role": "foreign_service_income" },
+    { "code": "4510", "name": "Foreign Tax Credit Receivable", "type": "asset", "tax_role": "foreign_tax_paid" }
+  ],
+  "forms": [
+    {
+      "key": "summary", "label": "Summary of the computation",
+      "fields": [
+        { "id": "gross_income", "label": "Gross income", "value": "line.gross" },
+        { "id": "taxable_income", "label": "Taxable income", "value": "line.taxable_income" },
+        { "id": "tax_before_credits", "label": "Tax before credits", "value": "line.tax_before_credits" },
+        { "id": "total_credits", "label": "Total credits", "value": "line.total_credits" }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "name": "Golden case 1: income below relief", "source": "builtin_pack",
+      "inputs": { "total_income": "1500000" },
+      "expected": { "payable": "0", "refund": "0", "lines": { "taxable_income": "0" } }
+    },
+    {
+      "name": "Golden case 2: one band", "source": "builtin_pack",
+      "inputs": { "total_income": "2300000" },
+      "expected": { "payable": "30000", "lines": { "taxable_income": "500000" } }
+    },
+    {
+      "name": "Golden case 3: two bands", "source": "builtin_pack",
+      "inputs": { "total_income": "3300000" },
+      "expected": { "payable": "150000", "lines": { "taxable_income": "1500000" } }
+    },
+    {
+      "name": "Golden case 4: every band", "source": "builtin_pack",
+      "inputs": { "total_income": "6500000" },
+      "expected": {
+        "payable": "1212000",
+        "lines": {
+          "taxable_income": "4700000",
+          "general.band_1.tax": "60000", "general.band_2.tax": "90000", "general.band_3.tax": "120000",
+          "general.band_4.tax": "150000", "general.band_5.amount": "2200000", "general.band_5.tax": "792000"
+        }
+      }
+    },
+    {
+      "name": "Golden case 5: APIT credit", "source": "builtin_pack",
+      "inputs": { "total_income": "2300000", "apit_withheld": "20000" },
+      "expected": { "payable": "10000", "lines": { "apit": "20000" } }
+    },
+    {
+      "name": "Golden case 6: excess APIT is refunded", "source": "builtin_pack",
+      "inputs": { "total_income": "2300000", "apit_withheld": "50000" },
+      "expected": { "payable": "0", "refund": "20000" }
+    },
+    {
+      "name": "Golden case 7: credits match the liability", "source": "builtin_pack",
+      "inputs": { "total_income": "2300000", "apit_withheld": "30000" },
+      "expected": { "payable": "0", "refund": "0" }
+    },
+    {
+      "name": "Golden case 8: qualifying payments capped", "source": "builtin_pack",
+      "inputs": { "total_income": "2800000", "qualifying_payments": "100000" },
+      "expected": { "payable": "55500", "lines": { "qualifying_payments": "75000", "taxable_income": "925000" } }
+    },
+    {
+      "name": "Golden case 9: relief capped at gross", "source": "builtin_pack",
+      "inputs": { "total_income": "1000000" },
+      "expected": { "payable": "0", "lines": { "personal_relief": "1000000", "taxable_income": "0" } }
+    },
+    {
+      "name": "Golden case 10: FSI taxed flat, outside the bands", "source": "builtin_pack",
+      "inputs": { "total_income": "5000000", "foreign_service_income": "3000000" },
+      "expected": {
+        "payable": "462000",
+        "lines": {
+          "foreign_service_income": "3000000", "regular_income": "2000000", "fsi_tax": "450000",
+          "taxable_income": "200000", "tax_before_credits": "462000"
+        }
+      }
+    },
+    {
+      "name": "Golden case 11: relief doesn't shelter FSI", "source": "builtin_pack",
+      "inputs": { "total_income": "3000000", "foreign_service_income": "3000000" },
+      "expected": {
+        "payable": "450000",
+        "lines": { "regular_income": "0", "personal_relief": "0", "taxable_income": "0" }
+      }
+    },
+    {
+      "name": "Golden case 12: foreign tax credit", "source": "builtin_pack",
+      "inputs": { "total_income": "3000000", "foreign_service_income": "3000000", "foreign_tax_paid": "200000" },
+      "expected": { "payable": "250000", "lines": { "foreign_tax_credit": "200000" } }
+    },
+    {
+      "name": "Golden case 13: foreign tax credit can't create a refund", "source": "builtin_pack",
+      "inputs": { "total_income": "3000000", "foreign_service_income": "3000000", "foreign_tax_paid": "900000" },
+      "expected": { "payable": "0", "refund": "0", "lines": { "foreign_tax_credit": "450000" } }
+    },
+    {
+      "name": "Golden case 14: the pack's own qualifying-payment cap", "source": "builtin_pack",
+      "inputs": { "total_income": "2800000", "qualifying_payments": "150000" },
+      "expected": { "lines": { "qualifying_payments": "75000" } }
+    }
+  ]
+}
