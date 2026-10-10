@@ -305,13 +305,12 @@ def entry_add(
 
     user_id = _require_user()
     accounts = asyncio.run(_services().ledger.list_accounts(user_id))
-    by_key = {a.code: a.id for a in accounts} | {a.id: a.id for a in accounts}
 
     def parse_side(pairs: list[str], direction: Direction) -> list[dict]:
         postings = []
         for pair in pairs:
             account, _, amount_str = pair.rpartition(":")
-            account_id = by_key.get(account.strip())
+            account_id = _account_ref(accounts, account.strip())
             if account_id is None:
                 console.print(
                     f"[red]No active account {account.strip()!r}[/red] in {pair!r}: "
@@ -775,35 +774,90 @@ def tax_latest(year: str = typer.Option("2025/26", help="Year of assessment")):
 
 @parse_app.command("upload")
 def parse_upload(
-    file: str = typer.Argument(..., help="Path to bank statement (PDF, XLSX, or CSV)"),
+    file: str = typer.Argument(
+        ...,
+        help="Path to bank statement (PDF, XLSX, CSV, OFX/QFX, QIF, camt.053 or MT940)",
+    ),
     bank: str = typer.Option("unknown", "--bank", help="Bank name hint (e.g. 'ComBank', 'HNB')"),
     currency: str = typer.Option(
-        None, "--currency", help="ISO 4217 code of the statement (default: your base currency)"
+        None,
+        "--currency",
+        help="ISO 4217 code of the statement, if the file names none "
+        "(default: the account's, else your base currency)",
+    ),
+    account: str = typer.Option(
+        None,
+        "--account",
+        help="The bank, cash or card account the statement is for (its code or id)",
+    ),
+    date_order: str = typer.Option(
+        None,
+        "--date-order",
+        help="DMY, MDY or YMD: how to read dates a CSV or QIF file leaves ambiguous",
+    ),
+    source_account: str = typer.Option(
+        None,
+        "--source-account",
+        help="For a file holding several accounts: the file's account to import "
+        "(its number or name, as the error listing them says)",
+    ),
+    replaces: str = typer.Option(
+        None,
+        "--replaces",
+        help="An earlier import of this statement (its id), parsed again on purpose: "
+        "its rows are not duplicates, and those still in review are discarded",
     ),
 ):
     """
     Parse a bank statement and queue transactions for review.
 
-    Runs PDF/XLSX/CSV extraction, deduplication, and LLM classification.
+    Reads PDF, XLSX, CSV, OFX/QFX, QIF, camt.053 and MT940 statements, then runs
+    deduplication and LLM classification. With --account, that account is the
+    money side of every transaction.
     Prints a summary and prompts for immediate inline review.
     """
     import pathlib
+
+    from salli.application.services.parsing_service import upload_view
+    from salli.domain.usage import UsageLimitReached
 
     user_id = _require_user()
     path = pathlib.Path(file)
     if not path.exists():
         console.print(f"[red]File not found:[/red] {file}")
         raise typer.Exit(1)
+    order = date_order.upper() if date_order else None
+    if order not in (None, "DMY", "MDY", "YMD"):
+        console.print("[red]--date-order must be DMY, MDY or YMD[/red]")
+        raise typer.Exit(1)
 
     data = path.read_bytes()
     filename = path.name
     svc = _services()
+    account_id = _account_by_code_or_id(svc, user_id, account) if account else None
+    replaced = _statement_id(svc, user_id, replaces) if replaces else None
 
-    console.print(f"[dim]Parsing {filename} …[/dim]")
-    result = asyncio.run(
-        svc.parsing.parse_statement(user_id, filename, data, bank, currency=currency)
-    )
-    if emit(result):
+    console.print(f"[dim]Parsing {escape(filename)} …[/dim]")
+    try:
+        result = asyncio.run(
+            svc.parsing.parse_statement(
+                user_id,
+                filename,
+                data,
+                bank,
+                currency=currency,
+                account_id=account_id,
+                source_account=source_account,
+                replaces=replaced,
+                date_order=order,
+            )
+        )
+    except (ValueError, UsageLimitReached) as refused:
+        # Not a money account, an inactive one, a currency it isn't kept in,
+        # or the usage meter said no: said plainly, not as a traceback.
+        console.print(f"[red]{escape(str(refused))}[/red]")
+        raise typer.Exit(1) from None
+    if emit(upload_view(result)):
         return
 
     console.print(
@@ -811,12 +865,36 @@ def parse_upload(
         f"({result.period_start} → {result.period_end}), "
         f"{len(result.errors)} error(s)\n"
     )
+    # Rows the importer skipped, and anything it had to guess.
+    for error in result.errors:
+        console.print(f"[yellow]{escape(error)}[/yellow]")
 
     if not result.transactions:
         console.print("[dim]No transactions found.[/dim]")
         return
 
     _interactive_review(user_id, svc, result)
+
+
+def _account_ref(accounts: list[Any], ref: str) -> str | None:
+    """The id of the account whose code is `ref`, or whose id it is (or
+    uniquely begins with); None when there is no such one account."""
+    by_code = [a.id for a in accounts if a.code == ref]
+    if len(by_code) == 1:
+        return by_code[0]
+    by_id = [a.id for a in accounts if a.id == ref] or [
+        a.id for a in accounts if a.id.startswith(ref)
+    ]
+    return by_id[0] if len(by_id) == 1 else None
+
+
+def _account_by_code_or_id(svc: Any, user_id: str, ref: str) -> str:
+    """The id of the account whose code is `ref`, or whose id it is (or begins)."""
+    accounts = asyncio.run(svc.ledger.list_accounts(user_id))
+    found = _account_ref(accounts, ref)
+    if found is None:
+        return _resolve_id([{"id": a.id} for a in accounts], ref, "account")
+    return found
 
 
 def _interactive_review(user_id, svc, result) -> None:
@@ -828,9 +906,16 @@ def _interactive_review(user_id, svc, result) -> None:
 
     for i, txn in enumerate(result.transactions, 1):
         raw = txn.raw
-        header = f"[{i}/{len(result.transactions)}] {raw.date}  {raw.description[:50]}"
+        header = f"[{i}/{len(result.transactions)}] {raw.date}  {escape(raw.description[:50])}"
         amount_str = f"{'CR' if raw.credit_flag else 'DR'} {raw.currency} {raw.amount:,.2f}"
-        dedup = "[yellow]DUPLICATE — skipping[/yellow]" if txn.dedup_status == "duplicate" else ""
+        duplicate = txn.dedup_status == "exact_duplicate"
+        dedup = (
+            "[yellow]DUPLICATE of an earlier import — skipping[/yellow]"
+            if duplicate
+            else "[yellow]Looks like an entry already booked: check before approving[/yellow]"
+            if txn.dedup_status == "fuzzy_match"
+            else ""
+        )
 
         console.print(
             Panel(
@@ -843,7 +928,7 @@ def _interactive_review(user_id, svc, result) -> None:
             )
         )
 
-        if txn.dedup_status == "duplicate":
+        if duplicate:
             skipped += 1
             continue
 
@@ -864,8 +949,16 @@ def _interactive_review(user_id, svc, result) -> None:
 
     if approved_ids:
         console.print(f"\n[dim]Posting {len(approved_ids)} approved transaction(s)…[/dim]")
-        asyncio.run(svc.parsing.post_approved(user_id, approved_ids))
-        console.print(f"[green]Posted {len(approved_ids)} entries.[/green]")
+        posted = asyncio.run(svc.parsing.post_approved(user_id, approved_ids))
+        console.print(f"[green]Posted {len(posted)} entries.[/green]")
+        # A row is posted only once both its sides have an account.
+        waiting = len(approved_ids) - len(posted)
+        if waiting:
+            console.print(
+                f"[yellow]{waiting} approved transaction(s) still need an account and were not "
+                "posted.[/yellow] Add a rule that gives them one (salli rules add), then "
+                "import the statement again with --replaces <statement id>."
+            )
     else:
         console.print("[dim]Nothing posted.[/dim]")
 
@@ -873,13 +966,28 @@ def _interactive_review(user_id, svc, result) -> None:
         console.print(f"[dim]{skipped} transaction(s) skipped/duplicated.[/dim]")
 
 
+def _statement_id(svc: Any, user_id: str, ref: str) -> str:
+    """The id of the user's statement whose id is `ref`, or begins with it."""
+    statements = asyncio.run(svc.parsing.list_statements(user_id, 1000))
+    return _resolve_id(statements, ref, "statement")
+
+
 @parse_app.command("pending")
-def parse_pending():
-    """List transactions parsed but not yet posted."""
+def parse_pending(
+    statement: str = typer.Argument(
+        None, help="Only this statement's (its id, or the start of it)"
+    ),
+):
+    """List transactions parsed but not yet posted (nor discarded)."""
+    from salli.application.services.parsing_service import transaction_view
+
     user_id = _require_user()
     svc = _services()
-    pending = asyncio.run(svc.parsing.get_pending(user_id))
-    if emit(pending):
+    statement_id = _statement_id(svc, user_id, statement) if statement else None
+    pending = asyncio.run(svc.parsing.get_pending(user_id, statement_id))
+    # The API's field names: `description` is the bank's text,
+    # `description_override` what it will be booked as.
+    if emit([transaction_view(t) for t in pending]):
         return
 
     if not pending:
@@ -899,7 +1007,7 @@ def parse_pending():
         table.add_row(
             str(txn.id or "")[:8],
             raw.date,
-            raw.description[:40],
+            escape(raw.description[:40]),
             f"{'CR' if raw.credit_flag else 'DR'} {raw.currency} {raw.amount:,.2f}",
             txn.debit_account_id or "—",
             txn.credit_account_id or "—",
@@ -925,6 +1033,28 @@ def parse_post(
     entry_ids = asyncio.run(_run())
     emit({"entry_ids": entry_ids})
     console.print(f"[green]Posted {len(entry_ids)} transaction(s).[/green]")
+
+
+@parse_app.command("discard")
+def parse_discard(
+    statement: str = typer.Argument(..., help="The statement (its id, or the start of it)"),
+    ids: list[str] = typer.Argument(
+        None, help="Transactions to discard (default: every pending one of the statement)"
+    ),
+):
+    """Discard pending transactions: they are never posted and leave review."""
+    user_id = _require_user()
+    svc = _services()
+    statement_id = _statement_id(svc, user_id, statement)
+    chosen = None
+    if ids:
+        pending = asyncio.run(svc.parsing.get_pending(user_id, statement_id))
+        pending_ids = [{"id": str(txn.id)} for txn in pending]
+        chosen = [_resolve_id(pending_ids, id_, "pending transaction") for id_ in ids]
+    count = asyncio.run(svc.parsing.discard(user_id, statement_id, chosen))
+    if emit({"statement_id": statement_id, "discarded": count}):
+        return
+    console.print(f"[green]Discarded {count} transaction(s).[/green]")
 
 
 @parse_app.command("list")

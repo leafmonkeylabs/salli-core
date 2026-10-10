@@ -34,8 +34,9 @@ where it does the most:
 - **Tax:** one pack so far, Sri Lanka 2025/26 (APIT, AIT and foreign service
   income included). Packs for other countries are welcome — see
   [CONTRIBUTING.md](CONTRIBUTING.md#tax-packs).
-- **Imports:** statement import was built against Sri Lankan banks' PDF and
-  Excel exports; other banks' exports may need work.
+- **Imports:** OFX/QFX, QIF, camt.053, MT940, CSV and Excel statements from
+  any bank. PDF statements vary the most, and have mostly been tried with Sri
+  Lankan banks' so far.
 - **Financial independence:** the default assumptions, such as 5% long-run
   inflation, were chosen for Sri Lanka.
 

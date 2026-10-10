@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 from typing import Self
 
 from salli.domain.currency import exponent, format_amount, minor_factor, normalize_currency
@@ -15,7 +15,9 @@ def to_minor(amount: Decimal, currency: str) -> int:
     a Kuwaiti dinar has a thousand, so the factor comes from the currency.
     The single rounding rule for the money path.
     """
-    return int((amount * minor_factor(currency)).to_integral_value(ROUND_HALF_UP))
+    with localcontext() as ctx:  # exact for any amount, however large
+        ctx.prec = max(ctx.prec, amount.adjusted() + 6)
+        return int((amount * minor_factor(currency)).to_integral_value(ROUND_HALF_UP))
 
 
 def from_minor(minor_units: int, currency: str, *, strict: bool = True) -> Decimal:

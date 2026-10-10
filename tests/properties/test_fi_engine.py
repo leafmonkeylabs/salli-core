@@ -317,12 +317,18 @@ def test_months_of_freedom_are_scale_invariant(
 ) -> None:
     """
     The unit-bug catcher, applied to the purchase path: scaling every money input
-    AND the purchase by k must leave the months-of-freedom answer identical. This
+    AND the purchase by k must leave the months-of-freedom answer unchanged. This
     is the property that catches a ×100 slip in the funding comparison.
+
+    Unchanged to the month, give or take one: the walk rounds to cents at each
+    year's end, and no scaling preserves rounding, so a value that lands within
+    a cent of the target can cross a month apart. A unit slip moves it by years.
     """
     a = engine.simulate_purchase(s, PACK, amount).options[0].months_delay
     b = engine.simulate_purchase(_scaled(s, k), PACK, amount * k).options[0].months_delay
-    assert a == b
+    assert (a is None) == (b is None)
+    if a is not None and b is not None:
+        assert abs(a - b) <= 1
 
 
 @given(snapshot(), purchase)

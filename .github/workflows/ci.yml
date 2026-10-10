@@ -44,6 +44,11 @@ jobs:
           src/salli/interfaces/cli/support.py
           src/salli/domain/currency.py src/salli/domain/money.py
           src/salli/application/fx.py src/salli/adapters/fx
+          src/salli/domain/dedup
+          src/salli/adapters/parsing/support.py src/salli/adapters/parsing/amounts.py
+          src/salli/adapters/parsing/dates.py src/salli/adapters/parsing/csv_import.py
+          src/salli/adapters/parsing/ofx.py src/salli/adapters/parsing/qif.py
+          src/salli/adapters/parsing/camt053.py src/salli/adapters/parsing/mt940.py
       - name: Tests
         # Includes the contract tests: every API route has a CLI command, and
         # salli-core carries no billing vocabulary.

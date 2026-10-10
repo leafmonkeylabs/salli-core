@@ -165,15 +165,25 @@ class RulesService:
 
     # ── deciding new transactions ─────────────────────────────────────────────
 
-    async def decide(self, user_id: str, facts: Sequence[Facts]) -> list[Rule | None]:
+    async def decide(
+        self, user_id: str, facts: Sequence[Facts], *, record: bool = True
+    ) -> list[Rule | None]:
         """The rule that decides each transaction (or None), in order, and a
-        hit recorded on every rule that decided one."""
+        hit recorded on every rule that decided one. With `record=False` the
+        hits are left for `record_hits`, once what they decided is kept: an
+        import refused afterwards must not count."""
         async with self._uow_factory() as uow:
             rules = [rule_from_row(r) for r in await uow.rules.list(user_id)]
             if not rules:
                 return [None] * len(facts)
             decided = [first_match(rules, f) for f in facts]
-            counts = Counter(r.id for r in decided if r is not None)
-            if counts:
-                await uow.rules.record_hits(user_id, dict(counts), datetime.now(UTC))
+        if record:
+            await self.record_hits(user_id, decided)
         return decided
+
+    async def record_hits(self, user_id: str, decided: Sequence[Rule | None]) -> None:
+        """Count a hit on each rule for each transaction it decided."""
+        counts = Counter(r.id for r in decided if r is not None)
+        if counts:
+            async with self._uow_factory() as uow:
+                await uow.rules.record_hits(user_id, dict(counts), datetime.now(UTC))

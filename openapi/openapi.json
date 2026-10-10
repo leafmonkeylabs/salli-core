@@ -2385,7 +2385,7 @@
           "statements"
         ],
         "summary": "Upload Statement",
-        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`currency` is the statement's ISO 4217 code (default: the user's base\ncurrency). Posting a statement in another currency converts each\ntransaction at the published rate for its date.",
+        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`account_id` is the account the statement is for (an active asset or\nliability account): the money side of every transaction in it. `currency`\nis the statement's ISO 4217 code, for files that do not name their own\n(OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the\naccount's currency, else the user's base currency, and a transaction in\nanother currency than the account's is skipped. Posting a statement in\nanother currency than the base converts each transaction at the published\nrate for its date. `date_order` settles dates a CSV or QIF file leaves\nambiguous (01/02/2026). Rows that could not be read, and any guess the\nimporter made, come back in `errors`.\n\nA file holding several accounts (a QIF with a card register, an OFX with\ntwo statements) is imported one account at a time: `source_account`\nnames the file's account to import when the statement's account does not\nmatch one by name or code. `replaces` is an earlier upload of the same\nstatement, imported again on purpose: its rows are not taken for\nduplicates, and those still in review are discarded.",
         "operationId": "statements.upload",
         "security": [
           {
@@ -2417,6 +2417,75 @@
                 }
               ],
               "title": "Currency"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Id"
+            }
+          },
+          {
+            "name": "source_account",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Account"
+            }
+          },
+          {
+            "name": "replaces",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Replaces"
+            }
+          },
+          {
+            "name": "date_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "DMY",
+                    "MDY",
+                    "YMD"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date Order"
             }
           }
         ],
@@ -2529,7 +2598,7 @@
           "statements"
         ],
         "summary": "Get Pending",
-        "description": "Return unposted transactions for a statement.",
+        "description": "A statement's transactions still to review: neither posted nor discarded.",
         "operationId": "statements.pending",
         "security": [
           {
@@ -2622,6 +2691,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PostedStatementTransactions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/statements/{statement_id}/discard": {
+      "post": {
+        "tags": [
+          "statements"
+        ],
+        "summary": "Discard",
+        "description": "Discard a statement's pending transactions — those named in `ids`, or\nevery one. A discarded transaction is never posted, leaves review, and is\nno duplicate of anything imported later.",
+        "operationId": "statements.discard",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "statement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Statement Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DiscardRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardedStatementTransactions"
                 }
               }
             }
@@ -8847,6 +8991,17 @@
             ],
             "title": "Bank"
           },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "period_start": {
             "anyOf": [
               {
@@ -10170,6 +10325,15 @@
             "type": "array",
             "title": "Documents",
             "description": "Each as in `documents.list`: the record, not the file it may point to."
+          },
+          "statements": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Statements",
+            "description": "Each imported statement as in `statements.list`, with its parsed\n`transactions` (as statement transactions are shown), whatever their state."
           }
         },
         "additionalProperties": true,
@@ -10479,6 +10643,39 @@
         ],
         "title": "DeviceAuthorization",
         "description": "RFC 8628 §3.2."
+      },
+      "DiscardRequest": {
+        "properties": {
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "title": "DiscardRequest"
+      },
+      "DiscardedStatementTransactions": {
+        "properties": {
+          "discarded": {
+            "type": "integer",
+            "title": "Discarded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "discarded"
+        ],
+        "title": "DiscardedStatementTransactions"
       },
       "EntryProvenance": {
         "properties": {
@@ -15613,6 +15810,17 @@
               "USD"
             ]
           },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "debit_account_id": {
             "anyOf": [
               {
@@ -15646,6 +15854,39 @@
             ],
             "title": "Category"
           },
+          "need": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "description_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Override"
+          },
           "confidence": {
             "type": "number",
             "title": "Confidence"
@@ -15653,6 +15894,17 @@
           "dedup_status": {
             "type": "string",
             "title": "Dedup Status"
+          },
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of"
           }
         },
         "type": "object",
@@ -15664,11 +15916,16 @@
           "credit_flag",
           "bank_ref",
           "currency",
+          "account_id",
           "debit_account_id",
           "credit_account_id",
           "category",
+          "need",
+          "rule_id",
+          "description_override",
           "confidence",
-          "dedup_status"
+          "dedup_status",
+          "duplicate_of"
         ],
         "title": "StatementTransaction",
         "description": "A transaction read from a statement and classified, awaiting review."

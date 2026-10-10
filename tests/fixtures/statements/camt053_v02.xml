@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02 camt.053.001.02.xsd">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>053D2026-10-31T23:55:00N260000001</MsgId>
+      <CreDtTm>2026-10-31T23:55:00.0+01:00</CreDtTm>
+      <MsgPgntn>
+        <PgNb>1</PgNb>
+        <LastPgInd>true</LastPgInd>
+      </MsgPgntn>
+    </GrpHdr>
+    <Stmt>
+      <Id>2026-10-31-0001</Id>
+      <ElctrncSeqNb>10</ElctrncSeqNb>
+      <CreDtTm>2026-10-31T23:55:00.0+01:00</CreDtTm>
+      <FrToDt>
+        <FrDtTm>2026-10-01T00:00:00.0+02:00</FrDtTm>
+        <ToDtTm>2026-10-31T23:59:59.0+01:00</ToDtTm>
+      </FrToDt>
+      <Acct>
+        <Id>
+          <IBAN>DE89370400440532013000</IBAN>
+        </Id>
+        <Ccy>EUR</Ccy>
+        <Ownr>
+          <Nm>Erika Mustermann</Nm>
+        </Ownr>
+        <Svcr>
+          <FinInstnId>
+            <BIC>COBADEFFXXX</BIC>
+          </FinInstnId>
+        </Svcr>
+      </Acct>
+      <Bal>
+        <Tp>
+          <CdOrPrtry>
+            <Cd>PRCD</Cd>
+          </CdOrPrtry>
+        </Tp>
+        <Amt Ccy="EUR">2540.12</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt>
+          <Dt>2026-09-30</Dt>
+        </Dt>
+      </Bal>
+      <Bal>
+        <Tp>
+          <CdOrPrtry>
+            <Cd>CLBD</Cd>
+          </CdOrPrtry>
+        </Tp>
+        <Amt Ccy="EUR">4730.33</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt>
+          <Dt>2026-10-31</Dt>
+        </Dt>
+      </Bal>
+      <Ntry>
+        <Amt Ccy="EUR">1200.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-01</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-01</Dt>
+        </ValDt>
+        <AcctSvcrRef>2026100100012345</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>ESCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Erika Mustermann</Nm>
+              </Dbtr>
+              <Cdtr>
+                <Nm>Hausverwaltung Schmidt GmbH</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>DE02120300000000202051</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Miete Oktober 2026 Whg 3</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>SEPA-Ueberweisung</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">3450.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-28</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-28</Dt>
+        </ValDt>
+        <AcctSvcrRef>2026102800098765</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>SALA</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Contoso GmbH</Nm>
+              </Dbtr>
+              <Cdtr>
+                <Nm>Erika Mustermann</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>LOHN/GEHALT 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">54.99</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-05</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-05</Dt>
+        </ValDt>
+        <AcctSvcrRef>2026100500023456</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>IDDT</Cd>
+              <SubFmlyCd>ESDD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties>
+              <Cdtr>
+                <Nm>Telekom Deutschland GmbH</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RmtInf>
+              <Ustrd>Kundennummer 123456789</Ustrd>
+              <Ustrd>Rechnung 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">54.99</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <RvslInd>true</RvslInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-08</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-05</Dt>
+        </ValDt>
+        <AcctSvcrRef>2026100800034567</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>IDDT</Cd>
+              <SubFmlyCd>UPDD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <AddtlNtryInf>Ruecklastschrift Telekom Deutschland GmbH</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">4.90</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <DtTm>2026-10-31T23:00:00+01:00</DtTm>
+        </BookgDt>
+        <AcctSvcrRef>2026103100045678</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>ACMT</Cd>
+            <Fmly>
+              <Cd>MDOP</Cd>
+              <SubFmlyCd>CHRG</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <AddtlNtryInf>Kontofuehrungsentgelt</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">35.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>PDNG</Sts>
+        <ValDt>
+          <Dt>2026-11-02</Dt>
+        </ValDt>
+        <AcctSvcrRef>2026110200056789</AcctSvcrRef>
+        <BkTxCd>
+          <Prtry>
+            <Cd>NTRF+005</Cd>
+          </Prtry>
+        </BkTxCd>
+        <AddtlNtryInf>Kartenzahlung vorgemerkt</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

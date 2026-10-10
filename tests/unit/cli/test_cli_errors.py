@@ -13,6 +13,13 @@ from salli.interfaces.cli import main as cli_main
 
 
 def _run(monkeypatch, services, *argv: str) -> int:
+    from salli.interfaces.cli import support
+
+    # --json switches the process into JSON mode for good, and points the
+    # console at stderr: both undone after. The console's own file is None
+    # (whatever sys.stdout is at the time), never a captured stream.
+    monkeypatch.setattr(support, "_json_mode", False)
+    monkeypatch.setattr(support.console, "_file", None)
     monkeypatch.setenv("SALLI_USER_ID", "u1")
     monkeypatch.setattr(cli_main, "_services", lambda: services)
     monkeypatch.setattr(sys, "argv", ["salli", *argv])
@@ -53,3 +60,30 @@ def test_mcp_revoke_reports_success(monkeypatch, capsys):
     )
     assert _run(monkeypatch, SimpleNamespace(mcp_oauth=oauth), "mcp", "revoke", "connection") == 0
     assert "Disconnected" in capsys.readouterr().out
+
+
+def test_parse_upload_says_why_it_was_refused(monkeypatch, capsys, tmp_path):
+    # A non-money account, a currency mismatch or the usage meter ended in a
+    # traceback.
+    statement = tmp_path / "s.csv"
+    statement.write_bytes(b"Date,Description,Amount\n13/10/2026,Coffee,-4.50\n")
+    parsing = SimpleNamespace(
+        parse_statement=AsyncMock(side_effect=ValueError("Food is an expense account."))
+    )
+    code = _run(monkeypatch, SimpleNamespace(parsing=parsing), "parse", "upload", str(statement))
+    assert code == 1
+    assert "Food is an expense account." in capsys.readouterr().out
+
+
+def test_parse_pending_json_has_the_apis_field_names(monkeypatch, capsys):
+    import json
+    from decimal import Decimal
+
+    from salli.domain.parsing.models import ParsedTransaction, RawRow
+
+    row = RawRow("2026-10-13", "AMZN MKTP US*2K4", Decimal("12.00"), False, "USD")
+    txn = ParsedTransaction(row, "", "checking", description="Amazon", id="t1")
+    parsing = SimpleNamespace(get_pending=AsyncMock(return_value=[txn]))
+    assert _run(monkeypatch, SimpleNamespace(parsing=parsing), "parse", "pending", "--json") == 0
+    [shown] = json.loads(capsys.readouterr().out)
+    assert (shown["description"], shown["description_override"]) == ("AMZN MKTP US*2K4", "Amazon")

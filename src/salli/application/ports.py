@@ -149,6 +149,9 @@ class ReminderRepository(ABC):
 
 
 class StatementRepository(ABC):
+    """Imported statements and their parsed transactions. A parsed transaction
+    read back carries its statement's `account_id` ("" when it has none)."""
+
     @abstractmethod
     async def save_statement(
         self,
@@ -159,16 +162,58 @@ class StatementRepository(ABC):
         period_end: str,
         transactions: list[Any],
         storage_key: str = "",
-    ) -> None: ...
+        account_id: str | None = None,
+    ) -> None:
+        """Store the statement and its transactions, and fill in each
+        transaction's new `id` and `statement_id`."""
+        ...
 
     @abstractmethod
-    async def get_all_pending(self, user_id: str) -> list[Any]: ...
+    async def imported_between(
+        self,
+        user_id: str,
+        from_date: str,
+        to_date: str,
+        *,
+        account_id: str | None = None,
+        excluding_statement: str | None = None,
+    ) -> list[Any]:
+        """The user's parsed transactions dated `from_date`..`to_date`, what a
+        new import is checked against for duplicates: the discarded ones too
+        (a discarded card hold is still that transaction), but not those
+        already found to duplicate another, which that one stands for.
+
+        With `account_id`, only rows on that account or on a statement with
+        no account (which may be on any). `excluding_statement`'s rows are
+        left out unless posted: a statement being imported again on purpose
+        does not duplicate itself."""
+        ...
 
     @abstractmethod
-    async def get_pending(self, user_id: str, statement_id: str) -> list[Any]: ...
+    async def get_all_pending(self, user_id: str) -> list[Any]:
+        """Transactions waiting for review: neither posted nor discarded."""
+        ...
 
     @abstractmethod
-    async def get_by_ids(self, user_id: str, ids: list[str]) -> list[Any]: ...
+    async def get_pending(self, user_id: str, statement_id: str) -> list[Any]:
+        """One statement's transactions waiting for review."""
+        ...
+
+    @abstractmethod
+    async def discard(self, user_id: str, statement_id: str, ids: list[str] | None = None) -> int:
+        """Mark a statement's pending transactions (those of `ids`, or all of
+        them) discarded: never posted, out of review, and no duplicate of
+        anything imported later. Returns how many."""
+        ...
+
+    @abstractmethod
+    async def get_by_ids(
+        self, user_id: str, ids: list[str], *, for_update: bool = False
+    ) -> list[Any]:
+        """The user's parsed transactions with these ids. `for_update` locks
+        them until the unit of work ends, so two approvals of the same rows
+        post them once: the second waits, then reads them posted."""
+        ...
 
     @abstractmethod
     async def list_statements(self, user_id: str, limit: int = 50) -> list[Any]:
@@ -181,6 +226,11 @@ class StatementRepository(ABC):
 
     @abstractmethod
     async def mark_posted(self, transaction_id: str, entry_id: str) -> None: ...
+
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every statement of the user's, each with all its parsed
+        transactions whatever their state, for the data export."""
+        raise NotImplementedError
 
     @abstractmethod
     async def get_statement(self, user_id: str, statement_id: str) -> dict[str, Any] | None:
