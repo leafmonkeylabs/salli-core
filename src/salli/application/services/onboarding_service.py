@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from typing import Any, NamedTuple
 
 from salli.application.ports import AccountCodeTaken
-from salli.domain.jurisdiction import LEGACY_TAX_ID_FIELDS, InvalidTaxIdError, make_tax_id
+from salli.domain.jurisdiction import normalize_country, parse_tax_ids
 
 # ── The starter chart of accounts ──────────────────────────────────────────────
 
@@ -94,12 +94,11 @@ GOAL_LABELS = {
 
 
 _ANSWER_DEFAULTS: dict[str, Any] = {
-    "nic": "",
     "residency": "resident",
     "tax_residency": None,
+    "tax_ids": [],
     "employer": "",
     "employment_type": "",
-    "ird_number": "",
     "income_sources": [],
     "primary_goal": "",
     "goal_target_amount": 0,
@@ -115,7 +114,8 @@ class OnboardingService:
         self._fi = fi
         self._ledger = ledger
         # Where the tax identity goes (UserProfileService). Optional so the
-        # service builds without one; then only memories record the numbers.
+        # service builds without one; then the residency and tax ids are
+        # checked but not saved.
         self._profile = profile
 
     async def is_complete(self, user_id: str) -> bool:
@@ -127,8 +127,13 @@ class OnboardingService:
 
         `answers` has the fields of the API's OnboardingRequest; only `name` is
         required; the rest default as the API's request model does.
+
+        The tax residency and tax ids are checked before anything is saved: an
+        unknown country or a malformed tax id (a ValueError) fails the whole
+        call rather than leaving a half-finished onboarding.
         """
         a: dict[str, Any] = {**_ANSWER_DEFAULTS, **answers}
+        identity = self._tax_identity(a)
 
         # Save profile memories
         memories: dict[str, str] = {
@@ -136,14 +141,10 @@ class OnboardingService:
             "user_name": a["name"],
             "residency_status": a["residency"],
         }
-        if a["nic"]:
-            memories["nic_number"] = a["nic"]
         if a["employer"]:
             memories["employer"] = a["employer"]
         if a["employment_type"]:
             memories["employment_type"] = a["employment_type"]
-        if a["ird_number"]:
-            memories["ird_number"] = a["ird_number"]
         if a["income_sources"]:
             memories["income_sources"] = ", ".join(a["income_sources"])
         if a["primary_goal"]:
@@ -160,7 +161,8 @@ class OnboardingService:
         for slug, value in memories.items():
             await self._documents.save_memory(user_id, slug=slug, value=value)
 
-        await self._record_tax_identity(user_id, a)
+        if identity and self._profile is not None:
+            await self._profile.update_identity(user_id, identity)
 
         # If they named a concrete target, seed an initial Financial Independence goal.
         if a["primary_goal"] and a["goal_target_amount"] > 0:
@@ -225,25 +227,14 @@ class OnboardingService:
             "accounts_skipped": skipped,
         }
 
-    async def _record_tax_identity(self, user_id: str, a: dict[str, Any]) -> None:
-        """Put where the user is taxed, and the Sri Lankan numbers this flow
-        collects, on the profile (where a Sri Lankan number with no residency
-        makes the user LK; see UserProfileService.update_identity)."""
-        if self._profile is None:
-            return
+    @staticmethod
+    def _tax_identity(a: dict[str, Any]) -> dict[str, Any]:
+        """Where the user is taxed and the tax ids they gave, validated, as
+        UserProfileService.update_identity takes them; {} for neither. Each
+        is only what the user said: neither implies the other."""
         identity: dict[str, Any] = {}
         if a.get("tax_residency"):
-            identity["tax_residency"] = a["tax_residency"]
-        for field, scheme in LEGACY_TAX_ID_FIELDS.items():
-            value = a.get(field)
-            if not value:
-                continue
-            try:
-                make_tax_id(scheme, value)
-            except InvalidTaxIdError:
-                # This flow always took any text. One that cannot be a number
-                # stays the memory it always was, rather than failing onboarding.
-                continue
-            identity[field] = value
-        if identity:
-            await self._profile.update_identity(user_id, identity)
+            identity["tax_residency"] = normalize_country(a["tax_residency"])
+        if a.get("tax_ids"):
+            identity["tax_ids"] = [t.as_dict() for t in parse_tax_ids(a["tax_ids"])]
+        return identity

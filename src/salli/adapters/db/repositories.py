@@ -1211,7 +1211,6 @@ class SQLUserProfileRepository(UserProfileRepository):
             "residency_status": row.residency_status,
             "employer": row.employer,
             "employment_type": row.employment_type,
-            "ird_number": row.ird_number,
             "risk_score": row.risk_score,
             "risk_category": row.risk_category,
             "life_stage": row.life_stage,
@@ -1251,13 +1250,11 @@ class SQLUserProfileRepository(UserProfileRepository):
         *,
         tax_residency: str | None,
         tax_ids: list[dict[str, str]],
-        ird_number: str | None,
     ) -> None:
         """Write where the user is taxed and their tax ids, exactly as given.
 
         `upsert` skips None, so it could never clear a residency; this writes
-        NULL too. `ird_number` is the legacy column, which the caller keeps
-        equal to the "LK-TIN" tax id.
+        NULL too.
         """
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
@@ -1265,7 +1262,6 @@ class SQLUserProfileRepository(UserProfileRepository):
             raise ProfileMissing(user_id)
         row.tax_residency = tax_residency
         row.tax_ids = tax_ids
-        row.ird_number = ird_number
         await self._s.flush()
 
     async def upsert(self, user_id: str, fields: dict[str, Any]) -> None:

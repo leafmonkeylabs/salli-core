@@ -19532,10 +19532,12 @@
             ],
             "title": "Tax Residency"
           },
-          "nic": {
-            "type": "string",
-            "title": "Nic",
-            "default": ""
+          "tax_ids": {
+            "items": {
+              "$ref": "#/components/schemas/TaxId"
+            },
+            "type": "array",
+            "title": "Tax Ids"
           },
           "residency": {
             "type": "string",
@@ -19550,11 +19552,6 @@
           "employment_type": {
             "type": "string",
             "title": "Employment Type",
-            "default": ""
-          },
-          "ird_number": {
-            "type": "string",
-            "title": "Ird Number",
             "default": ""
           },
           "income_sources": {
@@ -20825,17 +20822,6 @@
             ],
             "title": "Employment Type"
           },
-          "ird_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ird Number"
-          },
           "risk_score": {
             "anyOf": [
               {
@@ -20911,17 +20897,6 @@
             "type": "array",
             "title": "Tax Ids"
           },
-          "nic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nic"
-          },
           "fi_assumptions": {
             "$ref": "#/components/schemas/FiAssumptionOverrides"
           }
@@ -20938,7 +20913,6 @@
           "residency_status",
           "employer",
           "employment_type",
-          "ird_number",
           "risk_score",
           "risk_category",
           "life_stage",
@@ -21057,28 +21031,6 @@
               }
             ],
             "title": "Tax Ids"
-          },
-          "ird_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ird Number"
-          },
-          "nic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nic"
           },
           "fi_assumptions": {
             "anyOf": [
@@ -24275,7 +24227,7 @@
             "pattern": "^[A-Z]{2}-[A-Z0-9]+$",
             "title": "Scheme",
             "examples": [
-              "LK-TIN"
+              "XX-TIN"
             ]
           },
           "value": {

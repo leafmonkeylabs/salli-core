@@ -3,15 +3,13 @@ Where a user is taxed, and the numbers their tax authorities know them by.
 
 Pure domain: no I/O.
 
-- A **tax residency** is an ISO 3166-1 alpha-2 country code ("LK", "GB"), or
+- A **tax residency** is an ISO 3166-1 alpha-2 country code ("DE", "KE"), or
   None while the user has not said. It decides which of their own tax rule
   sets compute their tax (application/services/tax_service.py). Nothing
   assumes a country when it is None.
 - A **tax id** is a scheme and a value. The scheme names the country and the
-  kind of number: "LK-TIN" is a Sri Lankan taxpayer identification number,
-  "LK-NIC" a Sri Lankan national identity card number. A list of them replaces
-  the profile's two Sri Lankan fields, `ird_number` and `nic`, which live on as
-  those two schemes (`LEGACY_TAX_ID_FIELDS`).
+  kind of number, "XX-KIND": the user (or a rule set's suggestion) names it, and
+  Salli knows no country's schemes. They are the only tax ids a profile has.
 """
 
 from __future__ import annotations
@@ -302,7 +300,7 @@ def normalize_country(code: object) -> str:
 
 
 def country_name(code: str) -> str:
-    """ "Sri Lanka" for "LK"; the code itself for one Salli has no name for."""
+    """ "Kenya" for "KE"; the code itself for one Salli has no name for."""
     return COUNTRIES.get(code.upper(), code.upper())
 
 
@@ -312,7 +310,7 @@ _ALSO_WITH_ARTICLE = frozenset({"BS", "GM", "IM", "MV", "PH", "KM", "SC"})
 
 
 def country_phrase(code: str) -> str:
-    """The country's name as it reads in a sentence: "Sri Lanka", "the United
+    """The country's name as it reads in a sentence: "Kenya", "the United
     States", "the Philippines"."""
     name = country_name(code)
     upper = code.upper()
@@ -326,18 +324,9 @@ def country_phrase(code: str) -> str:
 #: "<country>-<kind>": two capital letters, a hyphen, then capitals and digits.
 SCHEME_PATTERN = re.compile(r"^[A-Z]{2}-[A-Z0-9]+$")
 
-#: Tax numbers are short (Sri Lanka's TIN has 9 digits, its NIC 10 or 12
-#: characters); this is also the width of the legacy `ird_number` column, so a
-#: Sri Lankan TIN always fits in both places.
+#: Tax numbers are short: identity and taxpayer numbers run to a dozen or so
+#: characters, and this leaves room for separators.
 MAX_TAX_ID_LENGTH = 32
-
-LK_TIN = "LK-TIN"
-LK_NIC = "LK-NIC"
-
-#: The profile fields that predate tax ids, and the scheme each one now is. The
-#: web and mobile apps still read and write them, so the API keeps serving them,
-#: derived from the tax ids.
-LEGACY_TAX_ID_FIELDS: dict[str, str] = {"ird_number": LK_TIN, "nic": LK_NIC}
 
 
 @dataclass(frozen=True)
@@ -347,7 +336,7 @@ class TaxId:
 
     @property
     def country(self) -> str:
-        """The country whose scheme this is: "LK" for "LK-TIN"."""
+        """The country whose scheme this is: "XX" for "XX-TIN"."""
         return self.scheme[:2]
 
     def as_dict(self) -> dict[str, str]:
@@ -362,7 +351,7 @@ def normalize_scheme(scheme: object) -> str:
     if not SCHEME_PATTERN.fullmatch(normalized):
         raise InvalidTaxIdError(
             f"{scheme!r} is not a tax id scheme: a country code, a hyphen and a name "
-            "in capitals or digits, like LK-TIN"
+            "in capitals or digits, like XX-TIN"
         )
     return normalized
 
@@ -419,21 +408,3 @@ def stored_tax_ids(raw: object) -> list[TaxId]:
             seen.add(tax_id.scheme)
             found.append(tax_id)
     return found
-
-
-def tax_id_value(ids: Iterable[TaxId], scheme: str) -> str | None:
-    """The number under `scheme`, or None."""
-    return next((t.value for t in ids if t.scheme == scheme), None)
-
-
-def with_tax_id(ids: Iterable[TaxId], scheme: str, value: str | None) -> list[TaxId]:
-    """`ids` with `scheme` set to `value`, in place if it was there and last if
-    not; or with `scheme` removed when `value` is None or blank."""
-    scheme = normalize_scheme(scheme)
-    current = list(ids)
-    if value is None or not value.strip():
-        return [t for t in current if t.scheme != scheme]
-    new = make_tax_id(scheme, value)
-    if any(t.scheme == scheme for t in current):
-        return [new if t.scheme == scheme else t for t in current]
-    return [*current, new]

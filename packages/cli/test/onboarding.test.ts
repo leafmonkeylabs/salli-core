@@ -50,6 +50,36 @@ describe('onboarding', () => {
     expect(result.stdout).toContain('1000 Cash');
   });
 
+  it('sends the residency and generic tax ids, or asks where you are taxed', async () => {
+    const done = () => ({ status: 200, body: { memories_saved: [], accounts_created: [], accounts_skipped: [] } });
+    mock.on('POST', '/v1/onboarding/complete', done);
+    const given = await run(['onboarding', 'complete', '--name', 'Sam', '--tax-residency', 'ke', '--tax-id', 'ke-pin=A001', '--tax-id', 'KE-X=7']);
+    expect(given.code).toBe(0);
+    expect(sent('POST', '/v1/onboarding/complete')).toEqual({
+      name: 'Sam',
+      residency: 'resident',
+      tax_residency: 'KE',
+      tax_ids: [
+        { scheme: 'KE-PIN', value: 'A001' },
+        { scheme: 'KE-X', value: '7' },
+      ],
+    });
+
+    const prompter = new ScriptedPrompter(['br']);
+    expect((await run(['onboarding', 'complete', '--name', 'Sam'], { prompter })).code).toBe(0);
+    expect(prompter.asked[0]).toContain('Which country are you taxed in?');
+    expect(sent('POST', '/v1/onboarding/complete')).toMatchObject({ tax_residency: 'BR' });
+
+    // Not asked when nobody can answer, and never guessed: the reply says how to set it.
+    const unattended = await run(['onboarding', 'complete', '--name', 'Sam']);
+    expect(sent('POST', '/v1/onboarding/complete')).not.toHaveProperty('tax_residency');
+    expect(unattended.stderr).toContain('salli profile set --tax-residency');
+
+    for (const bad of [['--tax-residency', 'Kenya'], ['--tax-id', 'PIN=1'], ['--tax-id', 'KE-PIN=']]) {
+      expect((await run(['onboarding', 'complete', '--name', 'Sam', ...bad])).code).toBe(2);
+    }
+  });
+
   it('refuses an income source the server would quietly ignore', async () => {
     const result = await run(['onboarding', 'complete', '--name', 'Sam', '--income', 'employment,lottery']);
     expect(result.code).toBe(2);

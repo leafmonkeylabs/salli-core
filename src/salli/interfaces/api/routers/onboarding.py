@@ -31,6 +31,16 @@ from salli.interfaces.api.routers.fi import FiAssumptionOverrides, FiAssumptionO
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 
+class TaxId(BaseModel):
+    """A number a tax authority knows the user by."""
+
+    #: The country's ISO 3166-1 alpha-2 code, a hyphen, then the kind of
+    #: number in capitals or digits ("XX-TIN"). Salli knows no country's
+    #: schemes: the user, or a rule set's suggestion, names them.
+    scheme: Annotated[str, Field(pattern=r"^[A-Z]{2}-[A-Z0-9]+$", examples=["XX-TIN"])]
+    value: Annotated[str, Field(min_length=1, max_length=MAX_TAX_ID_LENGTH)]
+
+
 class OnboardingRequest(BaseModel):
     name: str
     #: ISO 4217 code the ledger is kept in. Only settable while the ledger is
@@ -40,15 +50,14 @@ class OnboardingRequest(BaseModel):
     #: decides which of their tax rule sets compute their tax; the starter
     #: accounts are the same for everyone, and tax accounts come later from a
     #: rule set's suggestions (`tax.ruleSets.suggestedAccounts.apply`).
+    #: Never inferred: not from the currency, nor from a tax id.
     tax_residency: CountryCode | None = None
-    #: A Sri Lankan NIC: saved as the "LK-NIC" tax id.
-    nic: str = ""
+    #: The numbers the user's tax authorities know them by, saved on the
+    #: profile; one per scheme. Omitted or empty: unchanged.
+    tax_ids: list[TaxId] = Field(default_factory=list[TaxId])
     residency: str = "resident"  # "resident" | "non_resident"
     employer: str = ""
     employment_type: str = ""  # "permanent" | "contract" | "self_employed" | "other"
-    #: A Sri Lankan TIN: saved as the "LK-TIN" tax id. With `nic`, makes a
-    #: user with no tax residency resident in LK.
-    ird_number: str = ""
     income_sources: list[
         str
     ] = []  # ["employment","freelance","rental","interest","foreign","dividends"]
@@ -100,15 +109,6 @@ async def complete_onboarding(
 # ── Focused fact-find steps (Phase 1 redo) ─────────────────────────────────────
 
 
-class TaxId(BaseModel):
-    """A number a tax authority knows the user by."""
-
-    #: The country, then the kind of number: "LK-TIN" is a Sri Lankan taxpayer
-    #: identification number, "LK-NIC" a Sri Lankan national identity card.
-    scheme: Annotated[str, Field(pattern=r"^[A-Z]{2}-[A-Z0-9]+$", examples=["LK-TIN"])]
-    value: Annotated[str, Field(min_length=1, max_length=MAX_TAX_ID_LENGTH)]
-
-
 class ProfileIdentityRequest(BaseModel):
     display_name: str | None = None
     date_of_birth: str | None = None  # YYYY-MM-DD
@@ -119,13 +119,8 @@ class ProfileIdentityRequest(BaseModel):
     employer: str | None = None
     #: Where the user is taxed. An explicit null clears it.
     tax_residency: CountryCode | None = None
-    #: Replaces every tax id; one number per scheme.
+    #: Replaces every tax id; one number per scheme. An empty list removes them.
     tax_ids: list[TaxId] | None = None
-    #: The "LK-TIN" tax id, as the field it was before tax ids; "" removes it.
-    #: Setting it on a profile with no tax residency makes it LK.
-    ird_number: str | None = None
-    #: The "LK-NIC" tax id, likewise.
-    nic: str | None = None
     #: The user's own FI planning assumptions; only the fields sent change.
     fi_assumptions: FiAssumptionOverridesIn | None = None
     #: ISO 4217. Changes only while the ledger is empty (409 otherwise).
@@ -153,8 +148,6 @@ class Profile(BaseModel):
     employer: str | None
     #: permanent | contract | self_employed | other
     employment_type: str | None
-    #: The "LK-TIN" tax id, kept as the field it was before tax ids.
-    ird_number: str | None
     #: 0-100, from the risk questionnaire.
     risk_score: int | None
     #: conservative | balanced | aggressive
@@ -164,13 +157,11 @@ class Profile(BaseModel):
     mcp_enabled: bool
     daily_briefing_enabled: bool
     preferred_model: str | None
-    #: Where the user is taxed; null until they say. It decides which tax
-    #: packs apply to them.
+    #: Where the user is taxed; null until they say. It decides which of their
+    #: tax rule sets compute their tax.
     tax_residency: CountryCode | None = None
     #: The numbers their tax authorities know them by.
     tax_ids: list[TaxId] = Field(default_factory=list[TaxId])
-    #: The "LK-NIC" tax id, as a field of its own like `ird_number`.
-    nic: str | None = None
     #: The FI planning assumptions the user set themselves (GET
     #: /fi/assumptions says which apply, and the defaults).
     fi_assumptions: FiAssumptionOverrides = Field(default_factory=FiAssumptionOverrides)

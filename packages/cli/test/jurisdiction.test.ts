@@ -41,24 +41,27 @@ describe('tax residency, tax years and FI assumptions', () => {
 
   it('sets tax residency, tax ids (merged with the stored ones) and FI assumptions', async () => {
     const result = await run([
-      'profile', 'set', '--tax-residency', 'gb', '--tax-id', 'GB-UTR=1234567890', '--tax-id', 'lk-tin=', '--nic', '199012345678',
+      'profile', 'set', '--tax-residency', 'gb', '--tax-id', 'GB-UTR=1234567890', '--tax-id', 'ke-pin=',
       '--fi-swr', '3.5%', '--fi-inflation', 'none',
     ]);
     expect(result.code).toBe(0);
     expect(lastBody('/v1/onboarding/profile')).toEqual({
       tax_residency: 'GB',
-      nic: '199012345678',
       fi_assumptions: { inflation: null, safe_withdrawal_rate: '0.035' },
       tax_ids: [{ scheme: 'GB-UTR', value: '1234567890' }],
     });
     expect((await run(['profile', 'set', '--tax-residency', 'Britain'])).code).toBe(2);
     expect((await run(['profile', 'set', '--tax-id', '123'])).code).toBe(2);
+    expect((await run(['profile', 'set', '--tax-id', 'TIN=123'])).code).toBe(2);
+    // One country's numbers are not options of their own.
+    expect((await run(['profile', 'set', '--ird-number', '123'])).code).toBe(2);
+    expect((await run(['profile', 'set', '--nic', '123'])).code).toBe(2);
   });
 
   it('shows the profile with its tax ids and own assumptions', async () => {
     const out = (await run(['profile', 'get'])).stdout;
     expect(out).toContain('Tax residency');
-    expect(out).toContain('LK-TIN 123456789');
+    expect(out).toContain('KE-PIN A001234567Z');
     expect(out).toContain('safe withdrawal rate 4%');
   });
 

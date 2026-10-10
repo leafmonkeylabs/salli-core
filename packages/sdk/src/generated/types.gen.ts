@@ -4727,9 +4727,9 @@ export type OnboardingRequest = {
      */
     tax_residency?: string | null;
     /**
-     * Nic
+     * Tax Ids
      */
-    nic?: string;
+    tax_ids?: Array<TaxId>;
     /**
      * Residency
      */
@@ -4742,10 +4742,6 @@ export type OnboardingRequest = {
      * Employment Type
      */
     employment_type?: string;
-    /**
-     * Ird Number
-     */
-    ird_number?: string;
     /**
      * Income Sources
      */
@@ -5445,10 +5441,6 @@ export type Profile = {
      */
     employment_type: string | null;
     /**
-     * Ird Number
-     */
-    ird_number: string | null;
-    /**
      * Risk Score
      */
     risk_score: number | null;
@@ -5480,10 +5472,6 @@ export type Profile = {
      * Tax Ids
      */
     tax_ids?: Array<TaxId>;
-    /**
-     * Nic
-     */
-    nic?: string | null;
     fi_assumptions?: FiAssumptionOverrides;
 };
 
@@ -5527,14 +5515,6 @@ export type ProfileIdentityRequest = {
      * Tax Ids
      */
     tax_ids?: Array<TaxId> | null;
-    /**
-     * Ird Number
-     */
-    ird_number?: string | null;
-    /**
-     * Nic
-     */
-    nic?: string | null;
     fi_assumptions?: FiAssumptionOverridesIn | null;
     /**
      * Base Currency

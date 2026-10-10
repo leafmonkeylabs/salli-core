@@ -589,9 +589,6 @@ class UserProfileORM(Base):
     residency_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     employer: Mapped[str | None] = mapped_column(String(200), nullable=True)
     employment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # The Sri Lankan TIN from before `tax_ids`: kept, and kept equal to the
-    # "LK-TIN" tax id, for anything that still reads the column.
-    ird_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
     risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_category: Mapped[str | None] = mapped_column(String(16), nullable=True)
     life_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -622,7 +619,7 @@ class UserProfileORM(Base):
     # Where the user is taxed: an ISO 3166-1 alpha-2 code, or NULL while they
     # have not said. It decides which of their tax rule sets compute their tax.
     tax_residency: Mapped[str | None] = mapped_column(String(2), nullable=True)
-    # Their tax ids, [{"scheme": "LK-TIN", "value": "..."}, ...], one per scheme.
+    # Their tax ids, [{"scheme": "XX-TIN", "value": "..."}, ...], one per scheme.
     tax_ids: Mapped[list[dict[str, str]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )

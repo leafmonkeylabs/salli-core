@@ -1,7 +1,8 @@
 """
-Tax residency and tax ids in a real database: migration core_0008 turns the
-profile's Sri Lankan numbers into tax ids and makes the users who have them
-Sri Lankan, and the repository writes the new columns, NULL included.
+Tax residency and tax ids in a real database, and the migrations that shaped
+them: core_0008 (historical) turned the profile's two legacy numbers into
+generic tax ids, and core_0014 drops the legacy column, leaving `tax_ids` the
+only place a tax id lives. The repository writes both columns, NULL included.
 """
 
 from __future__ import annotations
@@ -65,7 +66,9 @@ def _row(url: str, user_id: str) -> tuple[object, object, object]:
     return row[0], row[1], row[2]
 
 
-def test_existing_sri_lankan_numbers_become_tax_ids(monkeypatch):
+def test_core_0008_turned_the_legacy_numbers_into_tax_ids(monkeypatch):
+    """The historical migration, as it ran: tested at its own revision, since
+    core_0014 has since dropped the column it filled."""
     with scratch_database() as url:
         monkeypatch.setenv("DATABASE_URL", url)
         upgrade(CORE_SCRIPT_LOCATION, "core_0007_ai_connections")
@@ -92,7 +95,7 @@ def test_existing_sri_lankan_numbers_become_tax_ids(monkeypatch):
             _memory("too-long", "nic_number", "x" * 40),
         )
 
-        upgrade(CORE_SCRIPT_LOCATION)
+        upgrade(CORE_SCRIPT_LOCATION, "core_0008_jurisdiction")
 
         assert _row(url, "both") == (
             "LK",
@@ -117,13 +120,42 @@ def test_existing_sri_lankan_numbers_become_tax_ids(monkeypatch):
         assert scalar(url, "select count(*) from agent_documents") == 4
 
 
-def test_the_migration_reverses(monkeypatch):
+def test_core_0014_drops_the_legacy_column_and_keeps_the_tax_ids(monkeypatch):
     with scratch_database() as url:
         monkeypatch.setenv("DATABASE_URL", url)
+        upgrade(CORE_SCRIPT_LOCATION, "core_0013_tax_from_rule_sets")
+        _execute(
+            url,
+            _profile("u", ird_number="123"),
+            (
+                "update user_profiles set tax_ids = cast(:ids as jsonb) where id = 'u'",
+                {"ids": json.dumps([{"scheme": "XX-TIN", "value": "123"}])},
+            ),
+        )
         upgrade(CORE_SCRIPT_LOCATION)
+
+        columns = (
+            "select count(*) from information_schema.columns"
+            " where table_name = 'user_profiles' and column_name = 'ird_number'"
+        )
+        assert scalar(url, columns) == 0
+        assert scalar(url, "select tax_ids from user_profiles where id = 'u'") == [
+            {"scheme": "XX-TIN", "value": "123"}
+        ]
+
+        # Reversible in shape only: the column comes back, empty.
+        command.downgrade(alembic_config(CORE_SCRIPT_LOCATION), "core_0013_tax_from_rule_sets")
+        assert scalar(url, "select ird_number from user_profiles where id = 'u'") is None
+
+
+def test_the_migrations_reverse(monkeypatch):
+    with scratch_database() as url:
+        monkeypatch.setenv("DATABASE_URL", url)
+        upgrade(CORE_SCRIPT_LOCATION, "core_0013_tax_from_rule_sets")
         _execute(url, _profile("u", ird_number="123"))
+        upgrade(CORE_SCRIPT_LOCATION)
         command.downgrade(alembic_config(CORE_SCRIPT_LOCATION), "core_0007_ai_connections")
-        assert scalar(url, "select ird_number from user_profiles where id = 'u'") == "123"
+        assert scalar(url, "select ird_number from user_profiles where id = 'u'") is None
         assert (
             scalar(
                 url,
@@ -135,10 +167,19 @@ def test_the_migration_reverses(monkeypatch):
         )
 
 
+def _new_profile(user_id: str) -> tuple[str, dict]:
+    return (
+        "insert into user_profiles (id, base_currency, mcp_enabled,"
+        " daily_briefing_enabled, created_at, updated_at)"
+        " values (:id, 'EUR', false, false, now(), now())",
+        {"id": user_id},
+    )
+
+
 def test_a_residency_is_an_upper_case_code_and_tax_ids_a_list(db):
-    _execute(db, _profile("u"))
+    _execute(db, _new_profile("u"))
     for bad in (
-        "update user_profiles set tax_residency = 'lk'",
+        "update user_profiles set tax_residency = 'ke'",
         "update user_profiles set tax_residency = 'L1'",
     ):
         with pytest.raises(Exception, match="ck_user_profiles_tax_residency"):
@@ -149,35 +190,24 @@ def test_a_residency_is_an_upper_case_code_and_tax_ids_a_list(db):
 
 async def test_the_repository_writes_the_tax_identity_and_can_clear_it(db, uow_factory):
     async with uow_factory() as uow:
-        await uow.user_profiles.upsert("u", {"base_currency": "LKR"})
+        await uow.user_profiles.upsert("u", {"base_currency": "KES"})
         assert (await uow.user_profiles.get("u"))["tax_ids"] == []
         await uow.user_profiles.set_tax_identity(
-            "u",
-            tax_residency="LK",
-            tax_ids=[{"scheme": "LK-TIN", "value": "1"}],
-            ird_number="1",
+            "u", tax_residency="KE", tax_ids=[{"scheme": "KE-PIN", "value": "1"}]
         )
     async with uow_factory() as uow:
         profile = await uow.user_profiles.get("u")
-        assert (profile["tax_residency"], profile["tax_ids"], profile["ird_number"]) == (
-            "LK",
-            [{"scheme": "LK-TIN", "value": "1"}],
-            "1",
+        assert "ird_number" not in profile
+        assert (profile["tax_residency"], profile["tax_ids"]) == (
+            "KE",
+            [{"scheme": "KE-PIN", "value": "1"}],
         )
-        await uow.user_profiles.set_tax_identity(
-            "u", tax_residency=None, tax_ids=[], ird_number=None
-        )
+        await uow.user_profiles.set_tax_identity("u", tax_residency=None, tax_ids=[])
     async with uow_factory() as uow:
         profile = await uow.user_profiles.get("u")
-        assert (profile["tax_residency"], profile["tax_ids"], profile["ird_number"]) == (
-            None,
-            [],
-            None,
-        )
+        assert (profile["tax_residency"], profile["tax_ids"]) == (None, [])
         with pytest.raises(LookupError):
-            await uow.user_profiles.set_tax_identity(
-                "nobody", tax_residency=None, tax_ids=[], ird_number=None
-            )
+            await uow.user_profiles.set_tax_identity("nobody", tax_residency=None, tax_ids=[])
 
 
 def _account(role: str | None) -> tuple[str, dict]:

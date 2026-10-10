@@ -720,16 +720,14 @@ export class MockSalli {
         residency_status: 'resident',
         employer: null,
         employment_type: null,
-        ird_number: null,
         risk_score: null,
         risk_category: null,
         life_stage: null,
         mcp_enabled: true,
         daily_briefing_enabled: false,
         preferred_model: null,
-        tax_residency: 'LK',
-        tax_ids: [{ scheme: 'LK-TIN', value: '123456789' }],
-        nic: null,
+        tax_residency: 'KE',
+        tax_ids: [{ scheme: 'KE-PIN', value: 'A001234567Z' }],
         fi_assumptions: { safe_withdrawal_rate: '0.04' },
       };
       return { status: 200, body: profile };

@@ -274,8 +274,8 @@ describe('your data and settings', () => {
       Residency status        resident
       MCP enabled             yes
       Daily briefing enabled  no
-      Tax residency           LK
-      Tax ids                 LK-TIN 123456789
+      Tax residency           KE
+      Tax ids                 KE-PIN A001234567Z
       FI assumptions          safe withdrawal rate 4%
       "
     `);

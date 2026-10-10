@@ -50,7 +50,7 @@ import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
 import { fieldLabel, renderRecord } from './records';
 import { humanize } from './status';
-import { amountArg, collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
+import { amountArg, collect, confirmAction, countArg, countryArg, currencyArg, rateArg, taxIdArg } from './shared';
 import { registerTax } from './tax';
 
 /** A field from the server, as one line of safe text. */
@@ -390,10 +390,8 @@ function registerProfile(program: Command, app: App): void {
     .addOption(new Option('--employment-type <type>', 'Employment type').choices(['permanent', 'contract', 'self_employed', 'other']))
     .addOption(new Option('--residency <status>', 'Tax residency').choices(['resident', 'non_resident']))
     .option('--employer <name>', 'Employer')
-    .option('--tax-residency <country>', 'The country you are taxed in, as a code (LK, GB, US…); "none" clears it')
-    .option('--tax-id <scheme=number>', 'A tax id, e.g. LK-TIN=123456789 (repeatable); SCHEME= removes one', collect)
-    .option('--ird-number <number>', 'Your Sri Lankan taxpayer number (LK-TIN)')
-    .option('--nic <number>', 'Your Sri Lankan national identity card number (LK-NIC)')
+    .option('--tax-residency <country>', 'The country you are taxed in, as a two-letter code (DE, KE, BR…); "none" clears it')
+    .option('--tax-id <scheme=number>', 'A tax id as SCHEME=NUMBER, the scheme your country\'s code and the kind of number, e.g. XX-TIN=123456789 (repeatable); SCHEME= removes one', collect)
     .option('--fi-inflation <rate>', 'Your own yearly inflation for FI plans, e.g. 3%; "none" for the default')
     .option('--fi-real-return <rate>', 'Your own yearly return after inflation, e.g. 4%; "none" for the default')
     .option('--fi-swr <rate>', 'Your own safe withdrawal rate, e.g. 3.5%; "none" for the default')
@@ -408,14 +406,7 @@ function registerProfile(program: Command, app: App): void {
         }).filter(([, v]) => v !== undefined),
       );
       const residency = opts.taxResidency?.trim();
-      if (residency && residency.toLowerCase() !== 'none' && !/^[A-Za-z]{2}$/.test(residency)) {
-        throw new UsageError(`A country is a two-letter code like LK or GB (got "${opts.taxResidency}").`);
-      }
-      const idChanges = (opts.taxId ?? []).map((raw) => {
-        const at = raw.indexOf('=');
-        if (at <= 0) throw new UsageError(`--tax-id takes SCHEME=NUMBER, e.g. LK-TIN=123456789 (got "${raw}").`);
-        return { scheme: raw.slice(0, at).trim().toUpperCase(), value: raw.slice(at + 1).trim() };
-      });
+      const idChanges = (opts.taxId ?? []).map(taxIdArg);
       const body: ProfileIdentityRequest = Object.fromEntries(
         Object.entries({
           display_name: opts.name,
@@ -426,9 +417,7 @@ function registerProfile(program: Command, app: App): void {
           employment_type: opts.employmentType,
           residency_status: opts.residency,
           employer: opts.employer,
-          tax_residency: residency === undefined ? undefined : residency.toLowerCase() === 'none' ? null : residency.toUpperCase(),
-          ird_number: opts.irdNumber,
-          nic: opts.nic,
+          tax_residency: residency === undefined ? undefined : residency.toLowerCase() === 'none' ? null : countryArg(residency),
           fi_assumptions: Object.keys(own).length ? own : undefined,
         }).filter(([, v]) => v !== undefined),
       );
