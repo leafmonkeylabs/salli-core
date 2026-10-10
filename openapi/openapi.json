@@ -7209,6 +7209,576 @@
         ]
       }
     },
+    "/v1/insights/cash-flow": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Cash Flow",
+        "operationId": "insights.cashFlow",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 120,
+              "minimum": 1,
+              "description": "How many months, ending this one",
+              "default": 12,
+              "title": "Months"
+            },
+            "description": "How many months, ending this one"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashFlow"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/spending": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Spending",
+        "operationId": "insights.spending",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 120,
+              "minimum": 1,
+              "description": "How many months, ending this one",
+              "default": 3,
+              "title": "Months"
+            },
+            "description": "How many months, ending this one"
+          },
+          {
+            "name": "by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "category",
+                "account",
+                "need"
+              ],
+              "type": "string",
+              "default": "category",
+              "title": "By"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spending"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/net-worth": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Net Worth",
+        "operationId": "insights.netWorth",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 600,
+              "minimum": 1,
+              "description": "How many month ends, ending this one",
+              "default": 24,
+              "title": "Months"
+            },
+            "description": "How many month ends, ending this one"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetWorthByMonth"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/insights/recurring": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Recurring",
+        "operationId": "insights.recurring",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringPayments"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/bank-connections": {
+      "get": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "List Connections",
+        "operationId": "bankConnections.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankConnections"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Connect",
+        "operationId": "bankConnections.connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectBank"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankConnected"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/bank-connections/{connection_id}/accounts/{remote_id}": {
+      "put": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Map Account",
+        "operationId": "bankConnections.mapAccount",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "remote_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Remote Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapBankAccount"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccountMapping"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bank-connections/{connection_id}/sync": {
+      "post": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Sync",
+        "operationId": "bankConnections.sync",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankSync"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bank-connections/cron/sync-due": {
+      "post": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Cron Sync Due",
+        "description": "Sync every connection that is due, for a scheduler (the hosted\nproduct's pg_cron, or a self-hoster's cron). Auth: X-Cron-Secret header.",
+        "operationId": "bankConnections.cron.syncDue",
+        "parameters": [
+          {
+            "name": "x-cron-secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Cron-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledBankSyncs"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bank-connections/{connection_id}": {
+      "delete": {
+        "tags": [
+          "bank-connections"
+        ],
+        "summary": "Disconnect",
+        "operationId": "bankConnections.disconnect",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/meta": {
       "get": {
         "tags": [
@@ -8974,6 +9544,260 @@
         ],
         "title": "BalanceSheetRequest"
       },
+      "BankAccount": {
+        "properties": {
+          "remote_id": {
+            "type": "string",
+            "title": "Remote Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "institution": {
+            "type": "string",
+            "title": "Institution"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "balance_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Date"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "last_imported_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Imported At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remote_id",
+          "name",
+          "institution",
+          "currency",
+          "balance",
+          "balance_date",
+          "account_id"
+        ],
+        "title": "BankAccount",
+        "description": "An account at the bank, as the provider reports it."
+      },
+      "BankAccountMapping": {
+        "properties": {
+          "remote_id": {
+            "type": "string",
+            "title": "Remote Id"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remote_id",
+          "account_id"
+        ],
+        "title": "BankAccountMapping"
+      },
+      "BankConnected": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "warnings"
+        ],
+        "title": "BankConnected"
+      },
+      "BankConnection": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/BankAccount"
+            },
+            "type": "array",
+            "title": "Accounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "name",
+          "status",
+          "last_error",
+          "last_synced_at",
+          "created_at",
+          "accounts"
+        ],
+        "title": "BankConnection"
+      },
+      "BankConnections": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/BankConnection"
+            },
+            "type": "array",
+            "title": "Connections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "providers",
+          "connections"
+        ],
+        "title": "BankConnections"
+      },
       "BankStatement": {
         "properties": {
           "id": {
@@ -9059,6 +9883,38 @@
           "statements"
         ],
         "title": "BankStatementList"
+      },
+      "BankSync": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/SyncedAccount"
+            },
+            "type": "array",
+            "title": "Accounts"
+          },
+          "unmapped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unmapped"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accounts",
+          "unmapped",
+          "warnings"
+        ],
+        "title": "BankSync"
       },
       "BriefingAction": {
         "properties": {
@@ -9543,6 +10399,32 @@
         "type": "object",
         "title": "BudgetUpdateRequest"
       },
+      "CashFlow": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/MonthCashFlow"
+            },
+            "type": "array",
+            "title": "Months"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "months"
+        ],
+        "title": "CashFlow"
+      },
       "CategorizationRule": {
         "properties": {
           "name": {
@@ -9897,6 +10779,40 @@
           "content"
         ],
         "title": "ChatUserMessage"
+      },
+      "ConnectBank": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "examples": [
+              "simplefin"
+            ]
+          },
+          "setup_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Setup Token"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "setup_token"
+        ],
+        "title": "ConnectBank"
       },
       "ConsentDecision": {
         "properties": {
@@ -10334,6 +11250,15 @@
             "type": "array",
             "title": "Statements",
             "description": "Each imported statement as in `statements.list`, with its parsed\n`transactions` (as statement transactions are shown), whatever their state."
+          },
+          "bank_connections": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Bank Connections",
+            "description": "Each bank connection as in `bank-connections.list`: its accounts, where\neach is imported, and the bank's last balances. Never its credential."
           }
         },
         "additionalProperties": true,
@@ -12885,6 +13810,29 @@
         "title": "LlmKeys",
         "description": "The user's own keys, as far as they are ever shown: the key itself is write-only."
       },
+      "MapBankAccount": {
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "create": {
+            "type": "boolean",
+            "title": "Create",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "MapBankAccount",
+        "description": "Import into `account_id` (one held in the same currency), or `create`\nan asset account named after the bank account; neither unmaps it."
+      },
       "McpConnection": {
         "properties": {
           "token_id": {
@@ -13008,6 +13956,130 @@
           "default_currency"
         ],
         "title": "Meta"
+      },
+      "MonthCashFlow": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "income",
+          "expenses",
+          "net",
+          "savings_rate"
+        ],
+        "title": "MonthCashFlow"
+      },
+      "MonthEndNetWorth": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "assets",
+          "liabilities",
+          "net_worth"
+        ],
+        "title": "MonthEndNetWorth"
+      },
+      "NetWorthByMonth": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/MonthEndNetWorth"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "points"
+        ],
+        "title": "NetWorthByMonth"
       },
       "NetWorthPoint": {
         "properties": {
@@ -14996,6 +16068,116 @@
         ],
         "title": "RecommendationStatus"
       },
+      "RecurringPayment": {
+        "properties": {
+          "payee": {
+            "type": "string",
+            "title": "Payee"
+          },
+          "cadence": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "title": "Cadence"
+          },
+          "typical_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Typical Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "varies": {
+            "type": "boolean",
+            "title": "Varies"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "occurrences": {
+            "type": "integer",
+            "title": "Occurrences"
+          },
+          "last_date": {
+            "type": "string",
+            "title": "Last Date"
+          },
+          "next_expected": {
+            "type": "string",
+            "title": "Next Expected"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Examples"
+          },
+          "tracked": {
+            "type": "boolean",
+            "title": "Tracked"
+          },
+          "subscription_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "payee",
+          "cadence",
+          "typical_amount",
+          "varies",
+          "currency",
+          "account_id",
+          "occurrences",
+          "last_date",
+          "next_expected",
+          "examples",
+          "tracked",
+          "subscription_id"
+        ],
+        "title": "RecurringPayment"
+      },
+      "RecurringPayments": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringPayment"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "RecurringPayments"
+      },
       "Ref": {
         "properties": {
           "id": {
@@ -15733,6 +16915,25 @@
         "title": "ScheduledAdvisorRuns",
         "description": "The daily run, accepted: the advisor runs for each due user after this response."
       },
+      "ScheduledBankSyncs": {
+        "properties": {
+          "due": {
+            "type": "integer",
+            "title": "Due"
+          },
+          "scheduled": {
+            "type": "boolean",
+            "title": "Scheduled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "due",
+          "scheduled"
+        ],
+        "title": "ScheduledBankSyncs",
+        "description": "Accepted: each due connection syncs after this response."
+      },
       "SeededReminders": {
         "properties": {
           "created": {
@@ -15769,6 +16970,98 @@
           "tags"
         ],
         "title": "SetPostingTagsRequest"
+      },
+      "Spending": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "by": {
+            "type": "string",
+            "enum": [
+              "category",
+              "account",
+              "need"
+            ],
+            "title": "By"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/SpendingLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "by",
+          "months",
+          "lines"
+        ],
+        "title": "Spending"
+      },
+      "SpendingLine": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "by_month": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string in the currency's own precision; never a float.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "object",
+            "title": "By Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "total",
+          "share",
+          "by_month"
+        ],
+        "title": "SpendingLine"
       },
       "StatementTransaction": {
         "properties": {
@@ -16495,6 +17788,52 @@
         ],
         "title": "SurplusBreakdown",
         "description": "Monthly averages over the trailing 12 months."
+      },
+      "SyncedAccount": {
+        "properties": {
+          "remote_id": {
+            "type": "string",
+            "title": "Remote Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "statement_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Id"
+          },
+          "queued": {
+            "type": "integer",
+            "title": "Queued",
+            "default": 0
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates",
+            "default": 0
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remote_id",
+          "name"
+        ],
+        "title": "SyncedAccount"
       },
       "SyncedAlerts": {
         "properties": {

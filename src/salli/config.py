@@ -114,7 +114,11 @@ class Settings(BaseSettings):
 def insecure_dev_auth(settings: Settings) -> bool:
     """Whether "the bearer token is the user id" is switched on. Needs both the
     explicit flag and a development environment, so neither a stray env var on
-    a server nor a forgotten ENVIRONMENT alone can switch authentication off."""
+    a server nor a forgotten ENVIRONMENT alone can switch authentication off.
+
+    While it is (and no Supabase is configured), any caller can name any user
+    id, so nothing that holds a user's secrets may be switched on: see
+    `auth_can_hold_secrets`."""
     return settings.salli_insecure_dev_auth and settings.environment == "development"
 
 

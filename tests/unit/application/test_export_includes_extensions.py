@@ -14,7 +14,7 @@ from salli.application.services.data_portability_service import DataPortabilityS
 pytestmark = pytest.mark.asyncio
 
 
-def _service(exporters=(), statements=()):
+def _service(exporters=(), statements=(), banks=()):
     # profile, ledger, tax, budget, debt, portfolio, subscription, insurance,
     # fi, advisor, documents, reminders
     from contextlib import asynccontextmanager
@@ -26,7 +26,10 @@ def _service(exporters=(), statements=()):
 
     @asynccontextmanager
     async def uow():
-        yield SimpleNamespace(statements=SimpleNamespace(export=AsyncMock(return_value=statements)))
+        yield SimpleNamespace(
+            statements=SimpleNamespace(export=AsyncMock(return_value=statements)),
+            bank_connections=SimpleNamespace(list=AsyncMock(return_value=banks)),
+        )
 
     return DataPortabilityService(uow, *svcs, exporters=exporters)
 
@@ -60,3 +63,21 @@ async def test_statements_and_their_transactions_are_exported():
     [exported] = statement["transactions"]
     assert (statement["id"], exported["id"], exported["amount"]) == ("s1", "t1", "4.50")
     assert exported["dedup_status"] == "discarded"
+
+
+async def test_bank_connections_are_exported_without_credentials():
+    from decimal import Decimal
+
+    bank = {
+        "id": "b1",
+        "name": "Chase",
+        "accounts": [{"remote_id": "a1", "account_id": "checking", "balance": Decimal("12.5")}],
+    }
+    data = await _service(banks=[bank]).export_all("u1")
+    [exported] = data["bank_connections"]
+    assert exported["accounts"][0] == {
+        "remote_id": "a1",
+        "account_id": "checking",
+        "balance": "12.5",
+    }
+    assert "credential_sealed" not in exported

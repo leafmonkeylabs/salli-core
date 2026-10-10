@@ -383,6 +383,9 @@ class DataExport(BaseModel):
     statements: list[dict[str, Any]] = Field(default_factory=list)
     """Each imported statement as in `statements.list`, with its parsed
     `transactions` (as statement transactions are shown), whatever their state."""
+    bank_connections: list[dict[str, Any]] = Field(default_factory=list)
+    """Each bank connection as in `bank-connections.list`: its accounts, where
+    each is imported, and the bank's last balances. Never its credential."""
 
 
 @router.get("/export")

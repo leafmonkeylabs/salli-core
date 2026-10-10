@@ -968,3 +968,82 @@ class CategorizationRuleORM(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
+
+
+class BankConnectionORM(Base):
+    """A link to a user's bank through a provider (SimpleFIN, …).
+
+    The credential the provider issued is sealed with the instance's key ring
+    (AES-GCM, bound to this user and row), exactly like a stored LLM key:
+    whoever reads the database alone cannot use it."""
+
+    __tablename__ = "bank_connections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    credential_sealed: Mapped[str] = mapped_column(Text, nullable=False)
+    key_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # active: syncs. error: the last sync failed (last_error says why).
+    # attention: it synced, but the institution reported a problem or an
+    # account could not be imported (warnings, last_error).
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What the provider asked to show the user at the last sync.
+    warnings: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When a sync last started, successful or not: the scheduler backs off
+    # from it.
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A sync running now holds the connection until then, so a second one
+    # (an overlapping cron run, a double click) can't fetch it again.
+    sync_claimed_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    accounts: Mapped[list[BankConnectionAccountORM]] = relationship(
+        "BankConnectionAccountORM", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class BankConnectionAccountORM(Base):
+    """One account at the bank, and the Salli account it feeds (once mapped)."""
+
+    __tablename__ = "bank_connection_accounts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    connection_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("bank_connections.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    remote_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    institution: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    currency: Mapped[str] = mapped_column(String(200), nullable=False)
+    account_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    # The bank's balance at its last sync, for reconciling against the ledger.
+    balance_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    balance_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When its transactions were last imported in full: the next sync fetches
+    # from a little before. Null until its first import (a newly mapped
+    # account gets the first sync's window).
+    last_imported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Why its last import failed, if it did.
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        UniqueConstraint("connection_id", "remote_id", name="uq_bank_connection_accounts_remote"),
+    )

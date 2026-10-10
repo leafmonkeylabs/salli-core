@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,8 @@ from salli.adapters.db.models import (
     AgentDocumentORM,
     AgentSessionORM,
     AuditLogORM,
+    BankConnectionAccountORM,
+    BankConnectionORM,
     BudgetORM,
     CategorizationRuleORM,
     DebtORM,
@@ -60,6 +62,7 @@ from salli.application.ports import (
     AgentDocumentRepository,
     AgentSessionRepository,
     AuditLogRepository,
+    BankConnectionRepository,
     BudgetRepository,
     DataPortabilityRepository,
     DebtRepository,
@@ -78,6 +81,7 @@ from salli.application.ports import (
     ProfileMissing,
     RecurringSubscriptionRepository,
     ReminderRepository,
+    RemoteAccount,
     RuleRepository,
     StatementRepository,
     TaxComputationRepository,
@@ -91,6 +95,7 @@ from salli.domain.accounting.models import (
     StoredJournalEntry,
     Tag,
 )
+from salli.domain.currency import exponent, is_currency
 from salli.domain.money import from_minor, to_minor
 from salli.domain.tax.models import TaxComputation
 
@@ -338,6 +343,26 @@ class SQLLedgerRepository(LedgerRepository):
         result = await self._session.execute(stmt)
         return [_entry_from_orm(row) for row in result.scalars().all()]
 
+    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
+        # Exactly what Posting.base_signed sums, unrounded: direction times
+        # amount (minor units of its currency) times the rate, per currency,
+        # then scaled by that currency's decimals.
+        rows = await self._session.execute(
+            select(
+                PostingORM.account_id,
+                PostingORM.currency,
+                func.sum(PostingORM.direction * PostingORM.amount_minor * PostingORM.fx_rate),
+            )
+            .join(JournalEntryORM, JournalEntryORM.id == PostingORM.entry_id)
+            .where(JournalEntryORM.user_id == user_id, JournalEntryORM.entry_date < before)
+            .group_by(PostingORM.account_id, PostingORM.currency)
+        )
+        balances: dict[str, Decimal] = {}
+        for account_id, currency, total in rows.all():
+            scaled = Decimal(total).scaleb(-exponent(currency, strict=False))
+            balances[account_id] = balances.get(account_id, Decimal(0)) + scaled
+        return balances
+
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
         stmt = select(AccountORM).where(AccountORM.user_id == user_id).order_by(AccountORM.code)
         if not include_inactive:
@@ -546,11 +571,14 @@ class SQLStatementRepository(StatementRepository):
     ) -> None:
         import uuid as _uuid
 
+        # The label fits its column, whoever made it: a bank feed's
+        # "institution · account name" can run past it.
+        width = StatementORM.__table__.c.bank.type.length or 100
         orm = StatementORM(
             id=statement_id,
             user_id=user_id,
             storage_key=storage_key,
-            bank=bank,
+            bank=(bank or "")[:width],
             account_id=account_id,
             period_start=period_start,
             period_end=period_end,
@@ -2274,6 +2302,8 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
         await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
         await _delete(CategorizationRuleORM, CategorizationRuleORM.user_id)
+        await _delete(BankConnectionAccountORM, BankConnectionAccountORM.user_id)
+        await _delete(BankConnectionORM, BankConnectionORM.user_id)
 
         # Extensions' tables have no foreign keys into Salli's, so they can go
         # at any point before the profile row.
@@ -2861,3 +2891,218 @@ class SQLRuleRepository(RuleRepository):
                 row.hits += count
                 row.last_hit_at = at
         await self._s.flush()
+
+
+class SQLBankConnectionRepository(BankConnectionRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def list_due(
+        self, attempted_before: datetime, failed_before: datetime, now: datetime
+    ) -> list[tuple[str, str]]:
+        rows = await self._s.execute(
+            select(BankConnectionORM.user_id, BankConnectionORM.id)
+            .where(
+                or_(
+                    BankConnectionORM.last_attempt_at.is_(None),
+                    BankConnectionORM.last_attempt_at < attempted_before,
+                ),
+                # A connection whose last attempt failed is retried once a day.
+                or_(
+                    BankConnectionORM.status != "error",
+                    BankConnectionORM.last_attempt_at.is_(None),
+                    BankConnectionORM.last_attempt_at < failed_before,
+                ),
+                or_(
+                    BankConnectionORM.sync_claimed_until.is_(None),
+                    BankConnectionORM.sync_claimed_until < now,
+                ),
+            )
+            .order_by(BankConnectionORM.last_attempt_at.asc().nulls_first())
+        )
+        return [(user_id, connection_id) for user_id, connection_id in rows.all()]
+
+    async def claim(self, user_id: str, connection_id: str, now: datetime, until: datetime) -> bool:
+        claimed = await self._s.execute(
+            update(BankConnectionORM)
+            .where(
+                BankConnectionORM.id == connection_id,
+                BankConnectionORM.user_id == user_id,
+                or_(
+                    BankConnectionORM.sync_claimed_until.is_(None),
+                    BankConnectionORM.sync_claimed_until < now,
+                ),
+            )
+            .values(sync_claimed_until=until, last_attempt_at=now)
+            .returning(BankConnectionORM.id)
+        )
+        return claimed.first() is not None
+
+    async def release(self, user_id: str, connection_id: str) -> None:
+        await self._s.execute(
+            update(BankConnectionORM)
+            .where(BankConnectionORM.id == connection_id, BankConnectionORM.user_id == user_id)
+            .values(sync_claimed_until=None)
+        )
+
+    async def update_account(
+        self, user_id: str, connection_id: str, remote_id: str, fields: dict[str, Any]
+    ) -> None:
+        row = (
+            await self._s.execute(
+                select(BankConnectionAccountORM).where(
+                    BankConnectionAccountORM.connection_id == connection_id,
+                    BankConnectionAccountORM.user_id == user_id,
+                    BankConnectionAccountORM.remote_id == remote_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        for key in ("last_imported_at", "notes"):
+            if key in fields:
+                setattr(row, key, fields[key])
+        await self._s.flush()
+
+    async def _one(self, user_id: str, connection_id: str) -> BankConnectionORM | None:
+        return (
+            await self._s.execute(
+                select(BankConnectionORM).where(
+                    BankConnectionORM.id == connection_id, BankConnectionORM.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+
+    @staticmethod
+    def _account(row: BankConnectionAccountORM) -> dict[str, Any]:
+        balance = None
+        if row.balance_minor is not None and is_currency(row.currency):
+            balance = from_minor(row.balance_minor, row.currency)
+        return {
+            "remote_id": row.remote_id,
+            "name": row.name,
+            "institution": row.institution,
+            "currency": row.currency,
+            "account_id": row.account_id,
+            "balance": balance,
+            "balance_date": row.balance_date,
+            "last_imported_at": row.last_imported_at,
+            "notes": row.notes,
+        }
+
+    def _connection(self, row: BankConnectionORM) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "provider": row.provider,
+            "name": row.name,
+            "status": row.status,
+            "last_error": row.last_error,
+            "warnings": list(row.warnings or []),
+            "last_synced_at": row.last_synced_at,
+            "last_attempt_at": row.last_attempt_at,
+            "created_at": row.created_at,
+            "accounts": [self._account(a) for a in sorted(row.accounts, key=lambda a: a.name)],
+        }
+
+    async def create(self, user_id: str, connection: dict[str, Any]) -> str:
+        row = BankConnectionORM(
+            id=connection.get("id") or str(uuid.uuid4()),
+            user_id=user_id,
+            provider=connection["provider"],
+            name=connection["name"],
+            credential_sealed=connection["credential_sealed"],
+            key_version=connection["key_version"],
+            status="active",
+            warnings=[],
+            created_at=datetime.now(UTC),
+        )
+        self._s.add(row)
+        await self._s.flush()
+        return row.id
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        rows = (
+            await self._s.execute(
+                select(BankConnectionORM)
+                .where(BankConnectionORM.user_id == user_id)
+                .order_by(BankConnectionORM.created_at)
+            )
+        ).scalars()
+        return [self._connection(r) for r in rows]
+
+    async def get_secret(self, user_id: str, connection_id: str) -> dict[str, Any] | None:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return None
+        return {
+            **self._connection(row),
+            "credential_sealed": row.credential_sealed,
+            "key_version": row.key_version,
+        }
+
+    async def upsert_accounts(
+        self, user_id: str, connection_id: str, accounts: list[RemoteAccount]
+    ) -> None:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return
+        existing = {a.remote_id: a for a in row.accounts}
+        for remote in accounts:
+            current = existing.get(remote.remote_id)
+            if current is None:
+                current = BankConnectionAccountORM(
+                    id=str(uuid.uuid4()),
+                    connection_id=connection_id,
+                    user_id=user_id,
+                    remote_id=remote.remote_id,
+                    created_at=datetime.now(UTC),
+                )
+                row.accounts.append(current)
+            current.name = remote.name
+            current.institution = remote.institution
+            current.currency = remote.currency
+            current.balance_minor = (
+                to_minor(remote.balance, remote.currency) if is_currency(remote.currency) else None
+            )
+            current.balance_date = remote.balance_date
+        await self._s.flush()
+
+    async def map_account(
+        self, user_id: str, connection_id: str, remote_id: str, account_id: str | None
+    ) -> bool:
+        row = (
+            await self._s.execute(
+                select(BankConnectionAccountORM).where(
+                    BankConnectionAccountORM.connection_id == connection_id,
+                    BankConnectionAccountORM.user_id == user_id,
+                    BankConnectionAccountORM.remote_id == remote_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        if row.account_id != account_id:
+            # Into another account, its history starts again: the first
+            # sync's window, then the overlap.
+            row.last_imported_at = None
+            row.notes = None
+        row.account_id = account_id
+        await self._s.flush()
+        return True
+
+    async def update(self, user_id: str, connection_id: str, fields: dict[str, Any]) -> None:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return
+        for key in ("name", "status", "last_error", "last_synced_at", "warnings"):
+            if key in fields:
+                setattr(row, key, fields[key])
+        await self._s.flush()
+
+    async def delete(self, user_id: str, connection_id: str) -> bool:
+        row = await self._one(user_id, connection_id)
+        if row is None:
+            return False
+        await self._s.delete(row)
+        await self._s.flush()
+        return True

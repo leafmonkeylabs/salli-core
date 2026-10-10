@@ -42,18 +42,6 @@ def _subscription_view(s: dict[str, Any], currency: str) -> dict[str, Any]:
     }
 
 
-def _to_domain(s: dict[str, Any], currency: str) -> Subscription:
-    return Subscription(
-        name=s["name"],
-        amount=from_minor(s["amount_minor"], currency),
-        frequency=s["frequency"],
-        next_due_date=s["next_due_date"],
-        account_id=s["account_id"],
-        grace_days=s["grace_days"],
-        amount_tolerance_pct=Decimal(s["amount_tolerance_pct"]),
-    )
-
-
 def _report_view(subscription: dict[str, Any], report: Any, currency: str) -> dict[str, Any]:
     def money(amount: Decimal | None) -> str | None:
         return None if amount is None else str(quantize(amount, currency))
@@ -152,7 +140,9 @@ class SubscriptionService:
             accounts = await uow.ledger.get_accounts(user_id)
             entries = await uow.ledger.get_entries(user_id)
 
-        report = engine.compute_report(_to_domain(subscription, currency), entries, accounts, today)
+        report = engine.compute_report(
+            Subscription.from_row(subscription, currency), entries, accounts, today
+        )
         return _report_view(subscription, report, currency)
 
     async def get_all_reports(self, user_id: str, today: str) -> list[dict[str, Any]]:
@@ -165,7 +155,7 @@ class SubscriptionService:
         reports: list[dict[str, Any]] = []
         for subscription in subscriptions:
             report = engine.compute_report(
-                _to_domain(subscription, currency), entries, accounts, today
+                Subscription.from_row(subscription, currency), entries, accounts, today
             )
             reports.append(_report_view(subscription, report, currency))
         return reports

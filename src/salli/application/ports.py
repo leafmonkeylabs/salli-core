@@ -41,6 +41,12 @@ class LedgerRepository(ABC):
         """Mark an entry as reversed by another entry."""
         ...
 
+    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
+        """Each account's signed base-currency balance from every entry dated
+        before `before` (YYYY-MM-DD): debits up, credits down, exactly as
+        `Posting.base_signed` sums them. Summed by the store, not loaded."""
+        raise NotImplementedError
+
     @abstractmethod
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
         """Return Account list for the user."""
@@ -859,6 +865,126 @@ class OAuthTokenRepository(ABC):
     async def update_device_code(self, device_id: str, **fields: Any) -> None:
         """Set status / user_id / last_polled_at."""
         raise NotImplementedError
+
+
+# ── Bank connections ─────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class RemoteAccount:
+    """An account at a bank, as a connection provider reports it."""
+
+    remote_id: str
+    name: str
+    institution: str
+    #: An ISO 4217 code, normalised by the connector; or a provider's own unit
+    #: (points, miles) as it gave it, which `is_currency` says no ledger holds.
+    currency: str
+    balance: Decimal
+    balance_date: datetime | None
+
+
+@dataclass(frozen=True)
+class RemoteTransaction:
+    remote_id: str
+    account_remote_id: str
+    posted: str  # YYYY-MM-DD
+    #: Signed: positive is money into the account, as banks report it.
+    amount: Decimal
+    description: str
+
+
+@dataclass(frozen=True)
+class BankSnapshot:
+    accounts: list[RemoteAccount]
+    transactions: list[RemoteTransaction]
+    #: Messages the provider asks to show the user (a connection needing
+    #: re-authentication, an account it could not reach). Already sanitized.
+    warnings: list[str]
+    #: Accounts whose institution reported a problem: what came back for
+    #: them may be incomplete, so their import marker is not moved on.
+    troubled: frozenset[str] = frozenset()
+
+
+class BankLinkError(Exception):
+    """The provider refused: a used or unknown setup token, revoked access."""
+
+
+class BankConnector(ABC):
+    """A provider that reads accounts and transactions from people's banks."""
+
+    provider: str
+
+    @abstractmethod
+    async def link(self, setup: str) -> str:
+        """Exchange what the user pasted (a setup token, a code) for the
+        credential to keep. Raises BankLinkError."""
+        ...
+
+    @abstractmethod
+    async def fetch(
+        self, credential: str, start: datetime | None, balances_only: bool = False
+    ) -> BankSnapshot:
+        """Accounts, and transactions posted since `start`. Raises BankLinkError
+        when the credential no longer works."""
+        ...
+
+
+class BankConnectionRepository(ABC):
+    @abstractmethod
+    async def create(self, user_id: str, connection: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """Connections with their accounts, never the credential."""
+        ...
+
+    @abstractmethod
+    async def get_secret(self, user_id: str, connection_id: str) -> dict[str, Any] | None:
+        """The sealed credential and its key version, for a sync."""
+        ...
+
+    @abstractmethod
+    async def upsert_accounts(
+        self, user_id: str, connection_id: str, accounts: list[RemoteAccount]
+    ) -> None: ...
+
+    @abstractmethod
+    async def map_account(
+        self, user_id: str, connection_id: str, remote_id: str, account_id: str | None
+    ) -> bool: ...
+
+    @abstractmethod
+    async def update(self, user_id: str, connection_id: str, fields: dict[str, Any]) -> None: ...
+
+    @abstractmethod
+    async def delete(self, user_id: str, connection_id: str) -> bool: ...
+
+    @abstractmethod
+    async def list_due(
+        self, attempted_before: datetime, failed_before: datetime, now: datetime
+    ) -> list[tuple[str, str]]:
+        """(user id, connection id) of every connection, anyone's, due a sync:
+        never attempted or last attempted before `attempted_before`, one in
+        error only if attempted before `failed_before`, and none another sync
+        holds (`claim`). For the scheduler."""
+        ...
+
+    @abstractmethod
+    async def claim(self, user_id: str, connection_id: str, now: datetime, until: datetime) -> bool:
+        """Hold the connection for a sync until `until`, and record the
+        attempt. False when another sync holds it."""
+        ...
+
+    @abstractmethod
+    async def release(self, user_id: str, connection_id: str) -> None: ...
+
+    @abstractmethod
+    async def update_account(
+        self, user_id: str, connection_id: str, remote_id: str, fields: dict[str, Any]
+    ) -> None:
+        """Set a bank account's `last_imported_at` or `notes`."""
+        ...
 
 
 class RuleRepository(ABC):

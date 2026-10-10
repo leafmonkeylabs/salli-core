@@ -15,6 +15,7 @@ from salli.adapters.db.repositories import (
     SQLAgentDocumentRepository,
     SQLAgentSessionRepository,
     SQLAuditLogRepository,
+    SQLBankConnectionRepository,
     SQLBudgetRepository,
     SQLDataPortabilityRepository,
     SQLDebtRepository,
@@ -41,6 +42,7 @@ from salli.application.ports import (
     AgentDocumentRepository,
     AgentSessionRepository,
     AuditLogRepository,
+    BankConnectionRepository,
     BudgetRepository,
     DataPortabilityRepository,
     DebtRepository,
@@ -92,6 +94,7 @@ class UnitOfWork:
     llm_credentials: LlmCredentialRepository
     personal_access_tokens: PersonalAccessTokenRepository
     rules: RuleRepository
+    bank_connections: BankConnectionRepository
 
     def __init__(
         self,
@@ -128,6 +131,7 @@ class UnitOfWork:
         self.llm_credentials = SQLLlmCredentialRepository(self._session)
         self.personal_access_tokens = SQLPersonalAccessTokenRepository(self._session)
         self.rules = SQLRuleRepository(self._session)
+        self.bank_connections = SQLBankConnectionRepository(self._session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:

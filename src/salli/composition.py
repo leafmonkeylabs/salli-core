@@ -14,12 +14,14 @@ from salli.adapters.fx.chain import default_fx_rates
 from salli.application.ports import EntitlementPolicy, FxRatePort, StoragePort, UsageMeter
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
+from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
 from salli.application.services.budget_service import BudgetService
 from salli.application.services.data_portability_service import DataPortabilityService
 from salli.application.services.debt_service import DebtService
 from salli.application.services.document_service import DocumentService
 from salli.application.services.entry_parse_service import EntryParseService
 from salli.application.services.fi_service import FiService
+from salli.application.services.insights_service import InsightsService
 from salli.application.services.insurance_service import InsuranceService
 from salli.application.services.ledger_service import LedgerService
 from salli.application.services.llm_credential_service import LlmCredentialService
@@ -71,6 +73,8 @@ class Services:
     llm_credentials: LlmCredentialService
     tokens: PersonalAccessTokenService
     rules: RulesService
+    insights: InsightsService
+    bank_connections: BankConnectionService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
     # The extension seams. Salli's own defaults unless an enabled extension
@@ -247,10 +251,55 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         llm_credentials=llm_credentials,
         tokens=PersonalAccessTokenService(uow_factory),
         rules=rules,
+        insights=InsightsService(uow_factory),
+        bank_connections=_build_bank_connections(settings, uow_factory, parsing),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,
         entitlements=extensions.entitlements,
         extensions=extensions,
+    )
+
+
+def _build_bank_connections(
+    settings: Settings, uow_factory, parsing: ParsingService
+) -> BankConnectionService:
+    """Bank connections, sealing credentials with the same key ring as stored
+    LLM keys (bound to their own row, so neither opens as the other). Off
+    while the development sign-in fallback is live (`auth_can_hold_secrets`):
+    anyone could then read anyone's bank."""
+    from salli.adapters.banks.simplefin import SimpleFinConnector
+    from salli.adapters.crypto.keyring import KeyRing
+
+    async def import_rows(user_id: str, rows, *, bank: str, account_id: str):  # type: ignore[no-untyped-def]
+        # Each sync is one review batch. It overlaps the last on purpose, so
+        # what was imported before is left out (by the bank's own ids), not
+        # queued again; a refused usage meter leaves the user's rules alone
+        # to sort it, rather than failing a sync nobody is waiting on.
+        if not rows:
+            return {"statement_id": None, "queued": 0, "duplicates": 0, "notes": []}
+        result = await parsing.import_rows(
+            user_id,
+            rows,
+            bank=bank,
+            account_id=account_id,
+            keep_duplicates=False,
+            on_usage_limit="skip",
+        )
+        return {
+            "statement_id": result.statement_id or None,
+            "queued": len(result.transactions),
+            "duplicates": result.duplicates_dropped,
+            "notes": result.errors,
+        }
+
+    importer: RowImporter = import_rows
+    return BankConnectionService(
+        uow_factory,
+        KeyRing(settings.byok_encryption_keys),
+        {"simplefin": SimpleFinConnector()},
+        importer,
+        # The one gate on holding a user's secrets, shared with stored LLM keys.
+        auth_is_real=auth_can_hold_secrets(settings),
     )
 
 

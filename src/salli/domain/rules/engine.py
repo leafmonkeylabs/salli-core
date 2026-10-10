@@ -259,25 +259,48 @@ _GENERIC = frozenset(
         "from",
         "to",
         "via",
+        # Company forms, anywhere: "SPOTIFY AB", "BOLT OPERATIONS OU".
         "ltd",
+        "limited",
         "pvt",
         "inc",
+        "corp",
         "llc",
         "co",
         "plc",
+        "gmbh",
+        "ag",
+        "ab",
+        "bv",
+        "nv",
+        "oy",
+        "ou",
+        "pty",
+        "srl",
+        "sarl",
+        "sa",
+        "kk",
     ]
+)
+
+
+#: A web address's ending: "NETFLIX.COM", "AMAZON.CO.UK" and "BOLT.EU" are
+#: Netflix, Amazon and Bolt.
+_DOMAIN = re.compile(
+    r"(?<=[a-z0-9]{2})\.(?:[a-z]{2,3}|app|info|shop|store|online|site|tech|dev|cloud|live)"
+    r"(?:\.[a-z]{2})?$"
 )
 
 
 def payee_key(description: str) -> str:
     """The stable part of a bank description: its first words that are not
     references. "POS 1234 STARBUCKS #881 COLOMBO 03" → "pos starbucks colombo"."""
-    words = (w.casefold().strip(".-'&") for w in _SPLIT.split(description))
+    words = (_DOMAIN.sub("", w.casefold().strip(".-'&")) for w in _SPLIT.split(description))
     kept = [w for w in words if len(w) > 1 and not any(ch.isdigit() for ch in w)]
     return " ".join(kept[:3])
 
 
-def _payee(description: str) -> str | None:
+def payee_word(description: str) -> str | None:
     """Who was paid, as one word: the first that is not a generic banking word.
     "POS 1234 STARBUCKS #881 COLOMBO" and "STARBUCKS 4413 KANDY" are both
     "starbucks"; "UBER *TRIP 8H3K2" and "UBER *EATS 77Q" are both "uber"."""
@@ -285,6 +308,13 @@ def _payee(description: str) -> str | None:
         (w for w in payee_key(description).split() if w not in _GENERIC and len(w) >= 3),
         None,
     )
+
+
+def payee_name(description: str) -> str:
+    """Who was paid, to show: the stable words without the generic ones.
+    "POS 1234 STARBUCKS #881 COLOMBO" → "Starbucks Colombo"."""
+    words = [w for w in payee_key(description).split() if w not in _GENERIC]
+    return " ".join(words).title()
 
 
 def suggest(
@@ -304,7 +334,7 @@ def suggest(
     """
     groups: dict[tuple[str, Direction], list[tuple[Facts, str]]] = defaultdict(list)
     for facts, account_id in history:
-        payee = _payee(facts.description)
+        payee = payee_word(facts.description)
         if payee:
             groups[(payee, facts.direction)].append((facts, account_id))
 

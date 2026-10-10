@@ -20,7 +20,7 @@ import re
 from collections.abc import Iterable, Sequence
 from decimal import Decimal
 
-from salli.domain.accounting.models import Account, Direction, StoredJournalEntry
+from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
 from salli.domain.currency import quantize
 
 _ROOTS = {
@@ -78,7 +78,7 @@ def _rate(rate: Decimal) -> str:
     return format(rate.normalize(), "f")
 
 
-def _signed(posting) -> Decimal:  # type: ignore[no-untyped-def]
+def _signed(posting: Posting) -> Decimal:
     return posting.amount if posting.direction == Direction.DEBIT else -posting.amount
 
 
