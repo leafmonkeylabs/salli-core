@@ -135,7 +135,7 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: npm ci
-      - run: npm run build --workspace salli
+      - run: npm run build --workspace @leafmonkeylabs/salli
       - name: Build the ${{ matrix.target }} binary on its own platform
         run: npm run binaries -- --host
       - name: It runs
