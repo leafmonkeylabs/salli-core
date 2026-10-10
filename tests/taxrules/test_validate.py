@@ -73,6 +73,7 @@ def test_unknown_references_are_each_reported_where_they_are():
     doc["lines"][0]["expr"] = "line.tax - line.withholdings + answer.status"
     doc["result"]["net"] = "line.nope"
     problems = errors(doc)
+    assert len(problems) == 4, "each mistake once, where it was written"
     assert has(problems, "blocks[0].of", "Unknown role: role.salary")
     assert has(problems, "lines[0].expr", "Unknown line: line.withholdings")
     assert has(problems, "lines[0].expr", "Unknown question: answer.status")

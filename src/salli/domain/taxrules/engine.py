@@ -316,10 +316,12 @@ def compile_rule_set(doc: RuleSet | Mapping[str, Any]) -> CompiledRuleSet:
     for source in authored:
         problems.extend(_check(source, env, tables, doc))
     # A block's lines are its authored expressions put together, so they check
-    # out when those do; checked again anyway, as the engine's own guard.
-    for line in lines.values():
-        if line.block is not None:
-            problems.extend(_check(_Source(line.path, line.expr, "number"), env, tables, doc))
+    # out when those do; checked again anyway, as the engine's own guard (but
+    # only then, so a mistake in a block's `of` isn't reported twice).
+    if not problems:
+        for line in lines.values():
+            if line.block is not None:
+                problems.extend(_check(_Source(line.path, line.expr, "number"), env, tables, doc))
 
     problems.extend(_cycles(lines))
 
