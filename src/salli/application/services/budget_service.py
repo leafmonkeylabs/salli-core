@@ -11,6 +11,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from salli.application.ownership import require_own_accounts
 from salli.domain.budget import engine
 from salli.domain.budget.models import BudgetLineDef
 from salli.domain.currency import quantize
@@ -59,7 +60,9 @@ class BudgetService:
     async def create_budget(
         self, user_id: str, period_start: str, period_end: str, lines: list[dict[str, Any]]
     ) -> str:
+        """AccountNotFound for a line on an account that is not one of the user's."""
         async with self._uow_factory() as uow:
+            await require_own_accounts(uow, user_id, (line["account_id"] for line in lines))
             currency = await uow.user_profiles.base_currency(user_id)
             budget = {
                 "period_start": period_start,
@@ -88,6 +91,9 @@ class BudgetService:
             updates["period_end"] = data["period_end"]
         async with self._uow_factory() as uow:
             if "lines" in data:
+                await require_own_accounts(
+                    uow, user_id, (line["account_id"] for line in data["lines"])
+                )
                 currency = await uow.user_profiles.base_currency(user_id)
                 updates["lines"] = _lines_to_minor(data["lines"], currency)
             await uow.budgets.update(user_id, budget_id, updates)

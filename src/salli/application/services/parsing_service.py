@@ -39,6 +39,7 @@ from salli.domain.dedup.matcher import (
     dedup_key,
     find_duplicates,
 )
+from salli.domain.files import safe_filename
 from salli.domain.llm import LLMError
 from salli.domain.parsing.models import DedupState, ParsedTransaction, ParseResult, RawRow
 from salli.domain.rules.engine import Facts, Rule
@@ -476,8 +477,10 @@ class ParsingService:
         # it is best-effort, so an import never fails over it.
         if self._storage is not None and file_bytes is not None:
             try:
+                # The filename is the client's: only its safe last component
+                # goes in the key.
                 storage_key = await self._storage.upload(
-                    user_id, f"{statement_id}/{filename or 'statement'}", file_bytes
+                    user_id, f"{statement_id}/{safe_filename(filename, 'statement')}", file_bytes
                 )
             except Exception:
                 pass

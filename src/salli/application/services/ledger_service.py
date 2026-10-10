@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from salli.application.fx import rate_to_base
+from salli.application.ownership import require_own_accounts
 from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.accounting.models import (
     Account,
@@ -85,10 +86,12 @@ class LedgerService:
         another is named (a USD savings account in a rupee ledger).
 
         A `tax_role` must be one the user's tax packs declare
-        (`UnknownTaxRoleError` otherwise)."""
+        (`UnknownTaxRoleError` otherwise), and a `parent_id` one of the user's
+        own accounts (`AccountNotFound` otherwise)."""
         async with self._uow_factory() as uow:
             if tax_role is not None:
                 await self._check_tax_role(uow, user_id, tax_role)
+            await require_own_accounts(uow, user_id, [parent_id])
             held_in = (
                 normalize_currency(currency)
                 if currency

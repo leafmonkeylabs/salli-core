@@ -23,6 +23,8 @@ JANUARY = {"period_start": "2026-01-01", "period_end": "2026-01-31"}
 
 def _uow(mock_services, base_currency: str = "LKR") -> FakeRecordsUoW:
     uow = FakeRecordsUoW(base_currency)
+    # A budget line has to be on one of the user's accounts.
+    uow.ledger.accounts = [_account("food", "Groceries", "expense", base_currency)]
     mock_services.budget = BudgetService(lambda: uow)
     return uow
 
@@ -81,6 +83,7 @@ async def test_the_summary_compares_limits_with_spend_in_the_period(client, mock
     uow.ledger.accounts = [
         _account("food", "Groceries", "expense"),
         _account("cash", "Cash", "asset"),
+        _account("gone", "Gone", "expense"),
     ]
     uow.ledger.entries = [
         _spend("2026-01-10", "food", "1234.50"),
@@ -93,6 +96,8 @@ async def test_the_summary_compares_limits_with_spend_in_the_period(client, mock
             {"account_id": "gone", "limit_amount": 100.5},
         ],
     )
+    # An account the ledger no longer has still reads back, under its id.
+    uow.ledger.accounts.pop()
 
     r = await client.get(f"/v1/budget/{budget_id}/summary", headers=AUTH)
     assert r.status_code == 200
@@ -145,6 +150,20 @@ async def test_an_update_answers_that_it_was_applied(client, mock_services):
     assert (r.status_code, r.json()) == (200, {"updated": True})
     budget = (await client.get(f"/v1/budget/{budget_id}", headers=AUTH)).json()
     assert budget["lines"] == [{"account_id": "food", "limit_amount": "30000.00"}]
+
+
+async def test_a_line_on_an_account_that_is_not_yours_is_not_found(client, mock_services):
+    uow = _uow(mock_services)
+
+    r = await client.post(
+        "/v1/budget/",
+        json={**JANUARY, "lines": [{"account_id": "theirs", "limit_amount": 100}]},
+        headers=AUTH,
+    )
+
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Account not found: theirs"
+    assert await uow.budgets.list(USER) == []
 
 
 @pytest.mark.parametrize("path", ["/v1/budget/nope", "/v1/budget/nope/summary"])
