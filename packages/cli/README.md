@@ -6,7 +6,7 @@ investments, insurance, tax and financial-independence planning, and an AI
 that explains it all, in tables made for reading and JSON made for scripts.
 
 > **Beta.** `salli` is a client of a running Salli server, over HTTP. Start one
-> with `uv run salli-server serve` (see the [quickstart](../../README.md#quickstart-about-10-minutes)),
+> with `uv run salli-server serve` (see the [quickstart](../../README.md#quickstart)),
 > or point it at a server someone runs for you. It speaks Salli's API version 1.
 
 ```console

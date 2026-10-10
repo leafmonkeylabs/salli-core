@@ -54,11 +54,6 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("src/salli/domain/jurisdiction.py", '"LK": "Sri Lanka",'): "ISO 3166-1 country names",
     # The ISO 4217 table: every currency's code, this one included.
     ("src/salli/domain/currency.py", '"LKR",'): "ISO 4217 currency codes",
-    # Where the project began, as history; it claims no support for anywhere.
-    (
-        "README.md",
-        "Salli is for anyone, anywhere. It started in Sri Lanka, but its code knows no",
-    ): "the project's history",
 }
 
 #: Whole directories that are history: an applied migration is never edited,
