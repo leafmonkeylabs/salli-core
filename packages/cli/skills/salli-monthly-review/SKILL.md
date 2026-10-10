@@ -11,18 +11,20 @@ one fails, say what is missing rather than estimating.
 1. **Alerts first.**
 
        salli reminders sync-alerts --json
-       salli reminders list --alerts-only --json
+       salli reminders list --alerts --status pending --json
+       salli insights signals --json
 
 2. **Spending vs. budget.**
 
-       salli budget list --json
-       salli budget summary <budget-id> --json
+       salli budgets list --json
+       salli budgets summary <budget-id> --json
+       salli insights spending --json
 
    Lead with categories over their limit.
 
 3. **Subscriptions.**
 
-       salli subscription report --json
+       salli subscriptions report --json
 
    Flag missed charges and price changes.
 
@@ -30,9 +32,10 @@ one fails, say what is missing rather than estimating.
 
        salli reports net-worth --json
        salli fi score --json
+       salli insights forecast --json
 
-5. **One next step.** Optionally run the advisor (an AI step, needs an API key)
-   and present its top recommendation:
+5. **One next step.** Optionally run the advisor (an AI step) and present its
+   top recommendation:
 
        salli advisor run --json
 

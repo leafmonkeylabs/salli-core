@@ -11,6 +11,7 @@ Read the `salli-cli` skill first.
 figures exactly, and explain them. Don't recompute, round differently, or
 "adjust" them.
 
+    salli tax year --json              # the tax year today, and the latest one Salli can compute
     salli tax packs --json             # which rule packs exist (country, year, version)
     salli tax compute --year 2025/26 --json
     salli tax latest --json            # the last stored computation

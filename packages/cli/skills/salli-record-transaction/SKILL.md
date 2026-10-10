@@ -13,7 +13,7 @@ writing, never edit a posted entry).
     salli accounts list --json
 
 Every entry moves money between two or more accounts: what increased gets the
-**debit**, where the money came from gets the **credit**. Spending LKR 2,500 on
+**debit**, where the money came from gets the **credit**. Spending 2,500 on
 groceries from cash: debit the groceries (expense) account, credit Cash.
 
 If no suitable account exists, propose one and, once the user agrees:
@@ -22,25 +22,27 @@ If no suitable account exists, propose one and, once the user agrees:
 
 ## 2. Draft it
 
-For free text, Salli can draft the entry (an AI feature; needs an API key):
+For free text, Salli can draft the entry (an AI feature):
 
-    salli entry parse "groceries 2500 cash yesterday" --json
+    salli add "groceries 2500 cash yesterday" --dry-run --json
 
-The draft is never posted. Use it, or build the entry yourself.
+`--dry-run` posts nothing. Use the draft, or build the entry yourself.
 
 ## 3. Confirm, then post
 
 Show the user the date, description, and each debit and credit line. On yes:
 
-    salli entry add --date 2026-10-08 --desc "Groceries" \
-      --debit <groceries-id>:2500 --credit <cash-id>:2500 --json
+    salli entries add --date 2026-10-08 --desc "Groceries" \
+      --debit groceries:2500 --credit cash:2500 --json
 
-Debits must equal credits. Salli rejects an unbalanced entry; don't work
-around it, fix the amounts.
+`--debit` and `--credit` take `ACCOUNT:AMOUNT` and repeat to split. Debits
+must equal credits. Salli rejects an unbalanced entry; don't work around it,
+fix the amounts. An amount in another currency needs `--currency` (and
+`--fx-rate` if the user knows the rate their bank used).
 
 ## Correcting a mistake
 
-    salli entry show <id> --json      # check what was posted
-    salli entry reverse <id> --json   # cancels it with an opposite entry
+    salli entries show <id> --json          # check what was posted
+    salli entries reverse <id> --yes --json # cancels it with an opposite entry
 
 Then post the correct entry. Tell the user both happened.
