@@ -25,6 +25,8 @@ export interface Runtime {
   stdin: InputStream;
   platform: NodeJS.Platform;
   homedir: string;
+  /** The working directory: where `--project` installs go. */
+  cwd: string;
   /** The current time. */
   now(): Date;
   fetch: typeof globalThis.fetch;
@@ -58,6 +60,7 @@ export function processRuntime(signal: AbortSignal): Runtime {
     stdin: process.stdin,
     platform: process.platform,
     homedir: homedir(),
+    cwd: process.cwd(),
     now: () => new Date(),
     fetch: globalThis.fetch.bind(globalThis),
     openUrl: (url) => openInBrowser(url, process.env, process.platform),

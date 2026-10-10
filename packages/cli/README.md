@@ -280,6 +280,22 @@ thousands separators only). Rates take a fraction or a percentage: `0.18` or `18
 `salli doctor` checks the lot: the server answers, speaks a compatible API
 version, accepts your sign-in, and agrees with your clock (tokens expire by it).
 
+## Your agent, driving salli
+
+```bash
+salli skills list                  # what each skill teaches
+salli skills install               # into ~/.claude/skills, where Claude Code finds them
+salli skills install --project     # into ./.claude/skills, for this project only
+salli skills install --dir <path>  # for another agent that reads SKILL.md folders
+salli skills uninstall
+```
+
+The skills teach an AI agent to drive this CLI: always `--json`, confirm
+before writing, reverse rather than edit, and never compute money itself.
+They travel inside `salli`, so the standalone binaries install them too.
+Installing again updates them. A copy you changed is kept unless you pass
+`--force`.
+
 ## Shell completion
 
 ```bash
@@ -299,6 +315,7 @@ The CLI lives in `packages/cli`, on the SDK in `packages/sdk`
 ```bash
 npm install
 npm run generate     # regenerate the SDK from openapi/openapi.json
+npm run generate:skills --workspace @leafmonkeylabs/salli   # after editing packages/cli/skills
 npm run typecheck
 npm run lint         # includes the money guard: no Number()/parseFloat() on an amount
 npm test             # unit tests, and the real CLI against an in-process mock server

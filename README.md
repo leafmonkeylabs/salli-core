@@ -169,10 +169,10 @@ connected; `salli mcp disable` cuts everything off.
 ### Your agent, driving the CLI
 
 ```bash
-cp -R packages/cli/skills/* ~/.claude/skills/    # or ./.claude/skills in a project
+salli skills install            # into ~/.claude/skills; --project for ./.claude/skills
 ```
 
-Claude Code skills that teach an agent the CLI's rules: always `--json`,
+Skills (from [`packages/cli/skills`](packages/cli/skills)) that teach an agent the CLI's rules: always `--json`,
 confirm before writing, reverse rather than edit, and never compute money
 itself. Then "add this month's statement" just works.
 

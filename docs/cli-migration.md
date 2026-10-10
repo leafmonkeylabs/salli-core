@@ -217,8 +217,8 @@ with the server under `salli-server`; **3** have no replacement yet (below).
 | `salli mcp connections` | `salli mcp connections` | mcp.connections.list |
 | `salli mcp revoke` | `salli mcp revoke` | mcp.connections.revoke |
 | `salli members add` | `salli-server members add` | server only |
-| `salli skills list` | none (the skills are files in packages/cli/skills) | no API operation |
-| `salli skills install` | copy packages/cli/skills into ~/.claude/skills | no API operation |
+| `salli skills list` | `salli skills list` | no API operation (bundled in the CLI) |
+| `salli skills install` | `salli skills install` | no API operation (bundled in the CLI) |
 
 Names that changed on the way: `entry` is `entries`, `parse` is `import` and
 `statements`, `agent` is `chat`, `ask` and `sessions`, `fi goals` is `goals`,
@@ -241,12 +241,10 @@ These had no API operation, so no client can offer them until one exists:
   and then a `salli tax prepare-return` command. It is also the part most
   affected by the planned move of tax rules and filing forms into
   user-authored data, so it is left for that design.
-- **`salli skills list` / `install`** — they copied the Claude Code skills into
-  `~/.claude/skills`. The skills now live beside the CLI they drive, in
-  [`packages/cli/skills`](../packages/cli/skills), rewritten for its commands;
-  copy them by hand for now (`cp -R packages/cli/skills/* ~/.claude/skills/`).
-  A `salli skills install` in the TypeScript CLI would need the skills bundled
-  into its build.
+- **`salli skills list` / `install`** are now in the TypeScript CLI (with
+  `uninstall`, `--project` and `--dir`). The skills live in
+  [`packages/cli/skills`](../packages/cli/skills) and are bundled into the CLI
+  (`npm run generate:skills`), so the standalone binaries carry them too.
 
 ## API operations no command calls
 
