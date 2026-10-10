@@ -6,16 +6,24 @@ Both the CLI (Phase 1) and FastAPI (Phase 2) wire up services here.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from salli.adapters.db.session import make_session_factory
 from salli.adapters.fx.chain import default_fx_rates
-from salli.application.ports import EntitlementPolicy, FxRatePort, StoragePort, UsageMeter
+from salli.application.ports import (
+    ChatGPTPlanPolicy,
+    EntitlementPolicy,
+    FxRatePort,
+    StoragePort,
+    UsageMeter,
+)
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
 from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
 from salli.application.services.budget_service import BudgetService
+from salli.application.services.chatgpt_connection_service import ChatGPTConnectionService
 from salli.application.services.data_portability_service import DataPortabilityService
 from salli.application.services.debt_service import DebtService
 from salli.application.services.document_service import DocumentService
@@ -47,6 +55,9 @@ from salli.extensions import (
     enabled_specs,
 )
 
+#: Whether a user may use their ChatGPT plan on this deployment.
+PlanAllowed = Callable[[str], Awaitable[bool]]
+
 
 @dataclass
 class Services:
@@ -71,6 +82,8 @@ class Services:
     data_portability: DataPortabilityService
     mcp_oauth: McpOAuthService
     llm_credentials: LlmCredentialService
+    # A user's ChatGPT plan, signed in to and kept renewed.
+    chatgpt: ChatGPTConnectionService
     tokens: PersonalAccessTokenService
     rules: RulesService
     insights: InsightsService
@@ -113,7 +126,19 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         return UnitOfWork(session_factory, purgers)
 
     storage = _build_storage(settings)
-    llm_credentials = _build_llm_credentials(settings, uow_factory)
+
+    # Whether a user may use their ChatGPT plan: the setting, then an enabled
+    # extension's policy (a hosted product needs OpenAI's approval first).
+    # Read at call time: extensions are built after the services that ask.
+    plan_policy: list[ChatGPTPlanPolicy] = []
+
+    async def plan_allowed(user_id: str) -> bool:
+        if not settings.salli_chatgpt_plan_usage:
+            return False
+        return not plan_policy or await plan_policy[0].allows(user_id)
+
+    chatgpt = _build_chatgpt(settings, uow_factory, plan_allowed)
+    llm_credentials = _build_llm_credentials(settings, uow_factory, chatgpt, plan_allowed)
 
     # Extensions are built before Salli's own services so their meter and policy
     # can be injected into them. Raises if an enabled extension is unavailable.
@@ -131,6 +156,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         )
     )
     purgers.extend(extensions.user_data_purgers)
+    plan_policy.append(extensions.chatgpt_plan)
 
     fx = default_fx_rates()
     ledger = LedgerService(uow_factory, fx=fx)
@@ -171,6 +197,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         fi,
         checkpointer=checkpointer,
         uow_factory=uow_factory,
+        credentials=llm_credentials,
     )
     # The user's categorisation rules: statement import and quick add both
     # try them before any model.
@@ -179,19 +206,12 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         uow_factory, storage, llm_credentials, fx=fx, rules=rules, usage=extensions.usage_meter
     )
 
-    # Free-text → draft journal entry (voice/text quick-add) and Voice Mode
-    # speech-to-text. Both are now always constructed: which key they run on is
-    # resolved per request, so a user with their own key gets the feature even
-    # where no platform key exists. Previously both were None unless a platform
-    # key was configured, which 503'd exactly the users BYOK is for.
-    from salli.adapters.llm.anthropic_adapter import AnthropicLLMAdapter
-
-    entry_parse = EntryParseService(
-        ledger,
-        lambda key: AnthropicLLMAdapter(key, settings.langsmith_project),
-        credentials=llm_credentials,
-        rules=rules,
-    )
+    # Free-text → draft journal entry (voice/text quick-add). Always
+    # constructed: which model it runs on is resolved per request, so a user
+    # with their own key or ChatGPT plan gets the feature even where no
+    # platform key exists. It was once None unless a platform key was
+    # configured, which 503'd exactly the users BYOK is for.
+    entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
     reports = ReportService(ledger, fi)
@@ -225,6 +245,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         documents,
         reminders,
         exporters=extensions.user_data_exporters,
+        chatgpt=chatgpt,
     )
 
     return Services(
@@ -249,6 +270,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         data_portability=data_portability,
         mcp_oauth=mcp_oauth,
         llm_credentials=llm_credentials,
+        chatgpt=chatgpt,
         tokens=PersonalAccessTokenService(uow_factory),
         rules=rules,
         insights=InsightsService(uow_factory),
@@ -303,7 +325,28 @@ def _build_bank_connections(
     )
 
 
-def _build_llm_credentials(settings: Settings, uow_factory) -> LlmCredentialService:
+def _build_chatgpt(
+    settings: Settings, uow_factory, plan_allowed: PlanAllowed | None = None
+) -> ChatGPTConnectionService:
+    """A user's ChatGPT plan: behind the same two gates as stored API keys
+    (see _build_llm_credentials), sealed with the same key ring, and only
+    where the deployment allows plan use."""
+    from salli.adapters.crypto.keyring import KeyRing
+
+    return ChatGPTConnectionService(
+        uow_factory,
+        KeyRing(settings.byok_encryption_keys),
+        feature_enabled=auth_can_hold_secrets(settings),
+        plan_allowed=plan_allowed,
+    )
+
+
+def _build_llm_credentials(
+    settings: Settings,
+    uow_factory,
+    chatgpt: ChatGPTConnectionService | None = None,
+    plan_allowed: PlanAllowed | None = None,
+) -> LlmCredentialService:
     """Always constructed; `available` decides whether users may supply keys.
 
     Two gates, both of which must hold, and both of which fail *closed*:
@@ -333,6 +376,8 @@ def _build_llm_credentials(settings: Settings, uow_factory) -> LlmCredentialServ
         platform_anthropic_key=settings.anthropic_api_key,
         validator=validate_provider_key,
         feature_enabled=auth_is_real,
+        chatgpt=chatgpt,
+        plan_allowed=plan_allowed,
     )
 
 

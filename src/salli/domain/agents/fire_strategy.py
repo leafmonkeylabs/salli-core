@@ -157,19 +157,18 @@ class FireStrategySchema(BaseModel):
 
 
 async def generate_strategy(
-    context: dict[str, Any], *, api_key: Any, model: str | None = None
+    context: dict[str, Any], *, llm: Any, model: str | None = None
 ) -> FireStrategySchema:
-    from langchain_core.messages import HumanMessage, SystemMessage
+    """The strategy the model proposes for `context`, validated.
 
-    from salli.domain.agents.model_factory import CONVERSATION_MODEL, chat_model
+    `llm` is the user's resolved LLMClient (application/ports.py), on whichever
+    provider they use; `model` is the one the usage meter was told about, so
+    the model priced is the model that runs (None: the client's "best").
+    """
+    from pydantic import ValidationError
 
-    # Named `llm`, not `model`: `model` is the parameter holding the model *id*,
-    # and rebinding it to the constructed client makes the two meanings of the
-    # same name overlap in one function.
-    llm = chat_model(
-        api_key=api_key, model=model or CONVERSATION_MODEL, temperature=0.3, max_tokens=8000
-    )
-    structured = llm.with_structured_output(FireStrategySchema)
+    from salli.domain.llm import LLMUnreadableAnswer, parse_json_answer
+
     payload = json.dumps(context, indent=2, default=str)
 
     is_refresh = bool(context.get("previous_strategy"))
@@ -180,12 +179,20 @@ async def generate_strategy(
         else "Generate a comprehensive, personalised FIRE strategy for this user based on their actual financial data."
     )
 
-    result = await structured.ainvoke(
-        [
-            SystemMessage(content=FIRE_SYSTEM_PROMPT),
-            HumanMessage(
-                content=f"Here is the user's financial profile:\n\n{payload}\n\nTask: {task}"
-            ),
-        ]
+    text = await llm.generate(
+        instructions=FIRE_SYSTEM_PROMPT,
+        input=f"Here is the user's financial profile:\n\n{payload}\n\nTask: {task}",
+        tier="best",
+        model=model,
+        schema=FireStrategySchema,
+        temperature=0.3,
+        max_output_tokens=8000,
     )
-    return result  # type: ignore[return-value]
+    try:
+        return FireStrategySchema.model_validate(parse_json_answer(text))
+    except ValidationError as exc:
+        # The bounds above are what stand between a misread rate and a wrong
+        # Freedom Number, so an answer outside them is refused, not repaired.
+        raise LLMUnreadableAnswer(
+            "The strategy the AI proposed was not usable. Please try again."
+        ) from exc

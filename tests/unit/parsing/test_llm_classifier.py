@@ -8,13 +8,12 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Any
 
-import anthropic
 import pytest
 
 from salli.adapters.parsing.llm_classifier import classify_transactions
 from salli.domain.parsing.models import RawRow
+from tests.fakes import FakeLLM
 
 CHART = [
     SimpleNamespace(id="checking", code="1000", name="Checking", type="asset"),
@@ -28,20 +27,9 @@ ROWS = [
 
 
 @pytest.fixture
-def model(monkeypatch):
+def model():
     """Answers every prompt with `model.reply`, and keeps the prompts."""
-    seen = SimpleNamespace(reply="[]", prompts=[])
-
-    class Client:
-        def __init__(self, api_key: str) -> None:
-            self.messages = self
-
-        async def create(self, **request: Any) -> Any:
-            seen.prompts.append(request["messages"][0]["content"])
-            return SimpleNamespace(content=[SimpleNamespace(text=seen.reply)])
-
-    monkeypatch.setattr(anthropic, "AsyncAnthropic", Client)
-    return seen
+    return FakeLLM("[]")
 
 
 async def test_with_the_statements_account_the_model_chooses_only_the_other_side(model):
@@ -52,7 +40,7 @@ async def test_with_the_statements_account_the_model_chooses_only_the_other_side
         ]
     )
 
-    spent, earned = await classify_transactions(ROWS, CHART, api_key="k", money_account=CHART[0])
+    spent, earned = await classify_transactions(ROWS, CHART, llm=model, money_account=CHART[0])
 
     assert "never choose checking" in model.prompts[0]
     assert (spent.debit_account_id, spent.credit_account_id) == ("food", "checking")
@@ -65,7 +53,7 @@ async def test_without_it_the_model_chooses_both_and_a_null_is_no_account(model)
         [{"index": 0, "debit_account_id": "food", "credit_account_id": None, "category": None}]
     )
 
-    spent, earned = await classify_transactions(ROWS, CHART, api_key="k")
+    spent, earned = await classify_transactions(ROWS, CHART, llm=model)
 
     assert "debit_account_id" in model.prompts[0]
     assert (spent.debit_account_id, spent.credit_account_id, spent.category) == ("food", "", "")
@@ -80,3 +68,16 @@ def test_malformed_items_in_the_models_answer_are_left_out():
 
     answer = '[{"index": null}, "junk", 3, {"index": "x"}, {"index": 1, "account_id": "a"}]'
     assert _parse_response(answer) == {1: {"index": 1, "account_id": "a"}}
+
+
+async def test_it_asks_the_fast_model_with_the_whole_prompt_as_the_user_turn(model):
+    """The request Anthropic always got: no system prompt, the prompt as the
+    user's turn, 4096 tokens to answer in. On the OpenAI routes the token
+    hint is dropped (the plan route forbids it)."""
+    await classify_transactions(ROWS, CHART, llm=model)
+
+    (request,) = model.requests
+    assert request["tier"] == "fast"
+    assert request["instructions"] == ""
+    assert request["max_output_tokens"] == 4096
+    assert "WHOLE FOODS" in request["input"]

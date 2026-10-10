@@ -39,6 +39,7 @@ from salli.domain.dedup.matcher import (
     dedup_key,
     find_duplicates,
 )
+from salli.domain.llm import LLMError
 from salli.domain.parsing.models import DedupState, ParsedTransaction, ParseResult, RawRow
 from salli.domain.rules.engine import Facts, Rule
 from salli.domain.rules.history import booked_transactions
@@ -88,22 +89,25 @@ class ParsingService:
         # decide, or one with no key, spends nothing and costs nothing.
         self._usage = usage
 
-    async def _key_for(self, user_id: str, api_key: Any) -> Any:
-        """Use the caller's already-resolved key, else resolve for this user;
-        None when there is no key to use (no credential source, or neither a
-        key of the user's own nor a platform key).
+    async def _llm_for(self, user_id: str, api_key: Any) -> Any:
+        """Use the caller's already-resolved credential, else resolve for this
+        user; None when there is nothing to run on (no credential source, or
+        neither a key or plan of the user's own nor a platform key).
 
-        The HTTP routes resolve once at the boundary and pass it down, so the hot
+        `api_key` is an LLMClient, or an Anthropic key as it always was. The
+        HTTP routes resolve once at the boundary and pass it down, so the hot
         path does one lookup. The MCP server, the agent's own tools, and the CLI
         have no such boundary, so they omit it and this resolves on their behalf
-        — which keeps every surface on the same key rather than leaving some of
-        them on the platform's.
+        — which keeps every surface on the same credential rather than leaving
+        some of them on the platform's.
         """
+        from salli.application.services.llm_credential_service import as_llm
+
         if api_key is not None:
-            return api_key or None
+            return as_llm(api_key)
         if self._credentials is None:
             return None
-        return (await self._credentials.resolve(user_id)).anthropic or None
+        return (await self._credentials.resolve(user_id)).llm
 
     async def _decide(self, user_id: str, rows: list[RawRow]) -> list[Rule | None]:
         """The rule that decides each row, or None. Hits are counted once the
@@ -402,22 +406,41 @@ class ParsingService:
         # The model, for the rows still missing an account, when there is a
         # key to ask it with. Without one the import still goes ahead.
         undecided = [t for t in live if not _booked(t)]
-        key = await self._key_for(user_id, api_key) if undecided else None
-        why_not = "" if key is not None or not undecided else "with no AI key set up"
-        if key is not None and self._usage is not None:
+        # A model that cannot run at all (the user's ChatGPT plan paused at its
+        # usage limit, a sign-in to renew) is treated like a refusing meter: a
+        # request is refused with its message, a sync goes on with the user's
+        # rules alone and says why.
+        why_not = ""
+        try:
+            llm = await self._llm_for(user_id, api_key) if undecided else None
+        except LLMError as unavailable:
+            if on_usage_limit == "raise":
+                raise
+            llm, why_not = None, "with the model not asked"
+            errors.append(f"The model was not asked: {unavailable.message}")
+        if llm is None and undecided and not why_not:
+            why_not = "with no AI key set up"
+        if llm is not None and self._usage is not None:
             try:
                 await self._usage.charge(user_id, AIAction.STATEMENT_IMPORT, email=email)
-            except UsageLimitReached as refused:
+            except UsageLimitReached as limit:
                 if on_usage_limit == "raise":
                     raise
-                key, why_not = None, "with the model not asked (usage limit)"
-                errors.append(f"The model was not asked: {refused}")
+                llm, why_not = None, "with the model not asked (usage limit)"
+                errors.append(f"The model was not asked: {limit}")
         modelled: set[int] = set()
-        if key is not None:
+        if llm is not None:
             try:
                 guesses = await llm_classifier.classify_transactions(
-                    [t.raw for t in undecided], accounts, api_key=key, money_account=account
+                    [t.raw for t in undecided], accounts, llm=llm, money_account=account
                 )
+            except LLMError as failed:
+                # Once charged, a model that fails is like any other failure
+                # below: the rows stay undecided. A typed error (the plan's
+                # limit reached mid-import, a sign-in that lapsed) carries our
+                # own sentence, with where to go about it.
+                why_not = "with the model unavailable"
+                errors.append(f"The model could not sort this import: {failed.message}")
             except Exception as failure:  # the provider's error, a timeout, a bad answer
                 # The rows stay undecided: an import, or a bank feed's sync,
                 # must not fail because the model did.

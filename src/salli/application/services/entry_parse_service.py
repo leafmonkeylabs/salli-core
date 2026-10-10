@@ -14,9 +14,10 @@ import json
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from salli.application.ports import LLMPort
+from salli.application.ports import LLMClient
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.currency import is_currency
+from salli.domain.llm import LLMNotConfigured, LLMUnreadableAnswer, parse_json_answer
 from salli.domain.rules.engine import Facts
 
 _DRAFT_SCHEMA: dict[str, Any] = {
@@ -128,18 +129,14 @@ User's note:
 class EntryParseService:
     """Free-text → draft journal entry.
 
-    Takes an `llm_factory` rather than a prebuilt LLMPort so the adapter can be
-    constructed against whichever key resolved for this request. Previously this
-    service only existed when a *platform* Anthropic key was configured, which
-    meant a BYOK user got a 503 from /entries/parse despite having a working key
-    of their own.
+    Which model it runs on is resolved per request (LlmCredentialService), so
+    a user with their own key or ChatGPT plan gets the feature even where the
+    deployment has no key of its own. It once existed only when a *platform*
+    Anthropic key was configured, which 503'd exactly the users BYOK is for.
     """
 
-    def __init__(
-        self, ledger: LedgerService, llm_factory: Any, credentials: Any = None, rules: Any = None
-    ) -> None:
+    def __init__(self, ledger: LedgerService, credentials: Any = None, rules: Any = None) -> None:
         self._ledger = ledger
-        self._llm_factory = llm_factory
         self._credentials = credentials
         # The user's categorisation rules, applied after the model's draft.
         self._rules = rules
@@ -150,9 +147,14 @@ class EntryParseService:
         now a per-user question, answered at call time."""
         return self._credentials is not None
 
-    async def _llm_for(self, user_id: str) -> LLMPort:
+    async def _llm_for(self, user_id: str) -> LLMClient:
         creds = await self._credentials.resolve(user_id)
-        return self._llm_factory(creds.anthropic)
+        if creds.llm is None:
+            raise LLMNotConfigured(
+                "Quick add needs an AI model: add your own API key or connect your "
+                "ChatGPT plan in Settings."
+            )
+        return creds.llm
 
     async def parse_draft(self, user_id: str, text: str) -> dict[str, Any]:
         accounts = [a for a in await self._ledger.list_accounts(user_id) if a.is_active]
@@ -168,7 +170,15 @@ class EntryParseService:
         )
 
         llm = await self._llm_for(user_id)
-        draft = await llm.extract_structured(prompt, _DRAFT_SCHEMA, model_tier="fast")
+        answer = await llm.generate(
+            instructions="", input=prompt, tier="fast", schema=_DRAFT_SCHEMA, temperature=0
+        )
+        # Read with Decimal for any number: the amount is meant to be a string,
+        # and a model that answers with a JSON number must not put a float
+        # into the money path on its way to the form.
+        draft = parse_json_answer(answer)
+        if not isinstance(draft, dict):
+            raise LLMUnreadableAnswer("The AI's draft could not be read. Please try again.")
 
         # Guard: never let a hallucinated account id through — only ids from the chart.
         valid_ids = {a.id for a in accounts}
@@ -188,6 +198,11 @@ class EntryParseService:
         # Normalise the amount to a plain number string (strip commas / currency noise).
         amount = str(draft.get("amount") or "").replace(",", "").strip()
         draft["amount"] = amount
+        # A score, not money: a plain number in 0..1, whatever form it came in.
+        try:
+            draft["confidence"] = min(max(float(draft.get("confidence") or 0), 0.0), 1.0)
+        except (TypeError, ValueError):
+            draft["confidence"] = 0.0
         # Only a real ISO code survives; anything else becomes the base currency.
         currency = str(draft.get("currency") or "").strip().upper()
         draft["currency"] = currency if is_currency(currency) else base

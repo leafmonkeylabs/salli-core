@@ -14,6 +14,7 @@ from salli.adapters.db.repositories import (
     SQLAdvisoryRepository,
     SQLAgentDocumentRepository,
     SQLAgentSessionRepository,
+    SQLAiConnectionRepository,
     SQLAuditLogRepository,
     SQLBankConnectionRepository,
     SQLBudgetRepository,
@@ -22,6 +23,7 @@ from salli.adapters.db.repositories import (
     SQLFireStrategyRepository,
     SQLFiScoreRepository,
     SQLGoalRepository,
+    SQLInstanceSettingsRepository,
     SQLInsuranceTargetRepository,
     SQLLedgerRepository,
     SQLLlmCredentialRepository,
@@ -41,6 +43,7 @@ from salli.application.ports import (
     AdvisoryRepository,
     AgentDocumentRepository,
     AgentSessionRepository,
+    AiConnectionRepository,
     AuditLogRepository,
     BankConnectionRepository,
     BudgetRepository,
@@ -49,6 +52,7 @@ from salli.application.ports import (
     FireStrategyRepository,
     FiScoreRepository,
     GoalRepository,
+    InstanceSettingsRepository,
     InsuranceTargetRepository,
     LedgerRepository,
     LlmCredentialRepository,
@@ -92,6 +96,8 @@ class UnitOfWork:
     oauth_clients: OAuthClientRepository
     oauth_tokens: OAuthTokenRepository
     llm_credentials: LlmCredentialRepository
+    ai_connections: AiConnectionRepository
+    instance_settings: InstanceSettingsRepository
     personal_access_tokens: PersonalAccessTokenRepository
     rules: RuleRepository
     bank_connections: BankConnectionRepository
@@ -129,6 +135,8 @@ class UnitOfWork:
         self.oauth_clients = SQLOAuthClientRepository(self._session)
         self.oauth_tokens = SQLOAuthTokenRepository(self._session)
         self.llm_credentials = SQLLlmCredentialRepository(self._session)
+        self.ai_connections = SQLAiConnectionRepository(self._session)
+        self.instance_settings = SQLInstanceSettingsRepository(self._session)
         self.personal_access_tokens = SQLPersonalAccessTokenRepository(self._session)
         self.rules = SQLRuleRepository(self._session)
         self.bank_connections = SQLBankConnectionRepository(self._session)

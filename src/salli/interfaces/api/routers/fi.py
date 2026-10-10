@@ -17,7 +17,7 @@ from salli.application.ports import PayloadView, Surface
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
 from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref
-from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
+from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
 
@@ -376,7 +376,9 @@ async def get_strategy_history(
         }
     },
 )
-async def generate_strategy(user_id: CurrentUser, email: CurrentEmail, svc: AppServices):
+async def generate_strategy(
+    user_id: CurrentUser, email: CurrentEmail, svc: AppServices, creds: Credentials
+):
     """
     Trigger AI FIRE strategy generation. Returns an SSE stream.
 
@@ -388,11 +390,20 @@ async def generate_strategy(user_id: CurrentUser, email: CurrentEmail, svc: AppS
     Passes the deployment's usage meter like /agent/chat — checked before the
     stream opens, same as chat, rather than mid-stream.
     """
-    model_id = await svc.profile.get_preferred_model(user_id)
+    # As in agent chat: the pinned Claude model, or the user's own OpenAI or
+    # ChatGPT model, and the meter is told the one that runs.
+    model_id = (
+        await svc.profile.get_preferred_model(user_id)
+        if creds.provider == "anthropic"
+        else creds.model_for("best")
+    )
     await svc.usage.charge(user_id, AIAction.FIRE_STRATEGY, model_id=model_id, email=email)
     view = await svc.entitlements.for_user(user_id, email)
+    strategy = svc.fi.generate_strategy(
+        user_id, email, api_key=creds.llm or creds.anthropic, model=model_id
+    )
     return StreamingResponse(
-        _gate_strategy_stream(svc.fi.generate_strategy(user_id, email, model=model_id), view),
+        _gate_strategy_stream(strategy, view),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )

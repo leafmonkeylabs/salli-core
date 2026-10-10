@@ -45,7 +45,20 @@ def mock_services():
     # routers with a green suite behind it.
     svc.profile = AsyncMock()
     svc.profile.get_preferred_model.return_value = DEFAULT_MODEL
+    # What a request's AI runs on: the platform's Anthropic key, as a
+    # deployment without anything of the user's resolves.
+    svc.llm_credentials = AsyncMock()
+    svc.llm_credentials.resolve.return_value = platform_credentials()
     return svc
+
+
+def platform_credentials() -> Any:
+    from salli.application.services.llm_credential_service import ResolvedCredentials
+    from salli.domain.secrets import Secret
+
+    return ResolvedCredentials(
+        anthropic=Secret("sk-ant-test-platform"), anthropic_is_user_key=False
+    )
 
 
 def _fake_current_user(request: Request) -> str:

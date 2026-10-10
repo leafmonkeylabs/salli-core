@@ -56,9 +56,23 @@ class FakeCredentialRepo:
         return self.rows.pop((user_id, provider), None) is not None
 
 
+class FakeAiSettings:
+    """The slice of UserProfileRepository that holds a user's AI settings."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, dict[str, Any]] = {}
+
+    async def get_ai_settings(self, user_id: str) -> dict[str, Any]:
+        return dict(self.rows.get(user_id, {"provider": None, "models": {}}))
+
+    async def set_ai_settings(self, user_id: str, *, provider: Any, models: Any) -> None:
+        self.rows[user_id] = {"provider": provider, "models": dict(models)}
+
+
 class FakeUoW:
-    def __init__(self, repo: FakeCredentialRepo) -> None:
+    def __init__(self, repo: FakeCredentialRepo, profiles: FakeAiSettings | None = None) -> None:
         self.llm_credentials = repo
+        self.user_profiles = profiles or FakeAiSettings()
 
     async def __aenter__(self) -> FakeUoW:
         return self

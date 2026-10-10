@@ -13,6 +13,9 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Protocol, TypedDict
 
+from pydantic import BaseModel
+
+from salli.domain.llm import Tier
 from salli.domain.usage import AIAction
 
 
@@ -259,30 +262,79 @@ class StatementRepository(ABC):
         ...
 
 
-class LLMPort(ABC):
-    """
-    Single gateway to the LLM — tiering, retries, and usage metering live here.
-    The domain never calls Anthropic directly.
+class LLMClient(ABC):
+    """One user's way to a language model, for one request, whichever provider
+    is behind it: Anthropic or OpenAI on an API key, or the user's ChatGPT plan.
+
+    LlmCredentialService.resolve builds it: it has already decided the
+    provider, the credential and the model for each tier, so nothing that
+    holds one ever branches on which company runs the model. Two ways in, which
+    between them cover every AI feature:
+
+    - `generate`: one instruction, one input, the model's text back. Statement
+      sorting, quick add, the FIRE strategy and the advisor ask for JSON and
+      parse it themselves; naming a conversation takes the text as it is.
+    - `chat_model`: a LangChain chat model with tool calling and streaming, for
+      the LangGraph agents.
+
+    Errors are the typed ones in domain/llm.py, in our own words.
     """
 
+    #: "anthropic", "openai" or "chatgpt".
+    provider: str
+    #: "user" when the user's own key or plan pays, "platform" for the
+    #: deployment's key.
+    source: str
+
+    @property
     @abstractmethod
-    async def extract_structured(
-        self,
-        prompt: str,
-        schema: dict[str, Any],
-        *,
-        model_tier: str = "fast",
-    ) -> dict[str, Any]:
-        """Run structured extraction; returns validated JSON matching schema."""
+    def fingerprint(self) -> str:
+        """Names this provider and credential without containing it: what a
+        compiled agent graph is cached under."""
         ...
 
     @abstractmethod
-    async def stream_agent(
+    def model_for(self, tier: Tier) -> str:
+        """The model this client runs for a tier ("fast" or "best")."""
+        ...
+
+    @abstractmethod
+    async def generate(
         self,
-        thread_id: str,
-        user_message: str,
-    ):
-        """Stream agent tokens; yields (event_type, payload) tuples."""
+        *,
+        instructions: str,
+        input: str,
+        tier: Tier = "fast",
+        model: str | None = None,
+        schema: dict[str, Any] | type[BaseModel] | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> str:
+        """The model's answer to `input` under `instructions`, once it is complete.
+
+        With `schema` (a JSON Schema, or a pydantic model), the answer is JSON
+        of that shape; the caller still parses and validates it, because a
+        model only ever proposes. `max_output_tokens` and `temperature` are
+        hints a route honours where it may: Anthropic does, as it always has;
+        the ChatGPT plan forbids both, and so the OpenAI routes never send them.
+        """
+        ...
+
+    @abstractmethod
+    def chat_model(
+        self,
+        *,
+        model: str | None = None,
+        tier: Tier = "best",
+        cache: bool = False,
+        **options: Any,
+    ) -> Any:
+        """A LangChain chat model (tool calling, streaming) for the agents.
+
+        `cache` asks for prompt caching where the provider offers it; `options`
+        are Anthropic's own settings (temperature, max_tokens), which the
+        OpenAI routes do not send.
+        """
         ...
 
 
@@ -465,6 +517,19 @@ class UserProfileRepository(ABC):
         """Whether anything is stored in the user's base currency yet."""
         raise NotImplementedError
 
+    async def get_ai_settings(self, user_id: str) -> dict[str, Any]:
+        """`{"provider": str | None, "models": {provider: {tier: model}}}`:
+        which provider powers this user's AI (None is "auto"), and the models
+        they chose themselves. The defaults when there is no profile."""
+        raise NotImplementedError
+
+    async def set_ai_settings(
+        self, user_id: str, *, provider: str | None, models: dict[str, Any]
+    ) -> None:
+        """Replace both, `provider` None meaning "auto". `ProfileMissing` if
+        there is no profile."""
+        raise NotImplementedError
+
 
 class LlmCredentialRepository(ABC):
     """Per-user provider API keys (BYOK), stored encrypted.
@@ -506,6 +571,49 @@ class LlmCredentialRepository(ABC):
     @abstractmethod
     async def delete(self, user_id: str, provider: str) -> bool:
         """Remove it. Returns False when there was nothing to remove."""
+        ...
+
+
+class AiConnectionRepository(ABC):
+    """Per-user sign-ins with an AI provider's plan (ChatGPT), stored sealed.
+
+    As dumb as LlmCredentialRepository, for the same reason: it moves the
+    sealed blob and the few columns beside it, and never encrypts or decrypts.
+    A row is a dict of `sealed`, `key_version`, `status`, `status_detail`,
+    `expires_at`, `paused_until`, `created_at` and `updated_at`.
+    """
+
+    @abstractmethod
+    async def get(self, user_id: str, provider: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def get_for_update(self, user_id: str, provider: str) -> dict[str, Any] | None:
+        """The row, locked until this unit of work ends (SELECT ... FOR
+        UPDATE): a renewal holds it while it spends the refresh token, so a
+        second renewal waits and then sees the new one."""
+        ...
+
+    @abstractmethod
+    async def save(self, user_id: str, provider: str, fields: dict[str, Any]) -> bool:
+        """Create the row or replace these fields. True when it was created."""
+        ...
+
+    @abstractmethod
+    async def update(self, user_id: str, provider: str, fields: dict[str, Any]) -> bool:
+        """Change these fields of an existing row. False when there is none."""
+        ...
+
+    @abstractmethod
+    async def delete(self, user_id: str, provider: str) -> bool: ...
+
+
+class InstanceSettingsRepository(ABC):
+    """Facts about the instance as a whole (not any user's), by key."""
+
+    @abstractmethod
+    async def get_or_create(self, key: str, value: str) -> str:
+        """The stored value for `key`, storing `value` first if there is none.
+        Safe when two processes race: both get the one value that was kept."""
         ...
 
 
@@ -1083,6 +1191,22 @@ class UsageMeter(ABC):
         model_id: str | None = None,
         email: str | None = None,
     ) -> None: ...
+
+
+class ChatGPTPlanPolicy(ABC):
+    """Whether a user may power Salli's AI with their ChatGPT plan here.
+
+    OpenAI lets open-source and self-hosted apps offer ChatGPT plan usage;
+    a paid or remotely hosted product needs its approval first. Salli as
+    shipped allows it (application/defaults.py), subject to
+    `Settings.salli_chatgpt_plan_usage`; a hosted deployment's extension can
+    say no until it is approved, or yes for only some users while it is
+    being reviewed. Asked when a user connects their plan and on every
+    request that would use it.
+    """
+
+    @abstractmethod
+    async def allows(self, user_id: str) -> bool: ...
 
 
 class Surface(StrEnum):

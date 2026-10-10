@@ -117,7 +117,7 @@ def build_manager_agent(
     from langgraph_supervisor import create_supervisor
 
     from salli.domain.agents.finance_worker import build_finance_worker
-    from salli.domain.agents.model_factory import CONVERSATION_MODEL, chat_model
+    from salli.domain.agents.model_factory import chat_model
     from salli.domain.agents.tax_worker import build_tax_worker
     from salli.domain.agents.tools import make_manager_tools
 
@@ -160,9 +160,7 @@ def build_manager_agent(
 
     graph = create_supervisor(
         agents=[tax_worker, finance_worker],
-        model=chat_model(
-            api_key=api_key, model=model or CONVERSATION_MODEL, temperature=0, cache=True
-        ),
+        model=chat_model(api_key=api_key, model=model, temperature=0, cache=True),
         tools=manager_tools,
         prompt=dated_prompt,
         output_mode="full_history",

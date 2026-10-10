@@ -1267,7 +1267,7 @@
         },
         "responses": {
           "200": {
-            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message}`: the turn failed; `message` is a sentence to show.\n- `done`: the last event, always sent.\n\nA refusal from the deployment's usage meter comes before the stream opens, as an error response rather than an event.",
+            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).\n- `done`: the last event, always sent.\n\nA refusal from the deployment's usage meter comes before the stream opens, as an error response rather than an event, and so does an AI provider that cannot run at all (a ChatGPT plan paused at its limit, or needing a new sign-in).",
             "content": {
               "text/event-stream": {}
             }
@@ -1377,7 +1377,7 @@
         },
         "responses": {
           "200": {
-            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message}`: the turn failed; `message` is a sentence to show.\n- `done`: the last event, always sent.\n\nWith `workflow: \"return\"` the stream is instead a single `token` whose `content` is the JSON-encoded result of the return workflow (`{worksheet, error}`), then `done`.",
+            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).\n- `done`: the last event, always sent.\n\nWith `workflow: \"return\"` the stream is instead a single `token` whose `content` is the JSON-encoded result of the return workflow (`{worksheet, error}`), then `done`.",
             "content": {
               "text/event-stream": {}
             }
@@ -6425,7 +6425,10 @@
             "in": "path",
             "required": true,
             "schema": {
-              "const": "anthropic",
+              "enum": [
+                "anthropic",
+                "openai"
+              ],
               "type": "string",
               "title": "Provider"
             }
@@ -6485,7 +6488,10 @@
             "in": "path",
             "required": true,
             "schema": {
-              "const": "anthropic",
+              "enum": [
+                "anthropic",
+                "openai"
+              ],
               "type": "string",
               "title": "Provider"
             }
@@ -6516,6 +6522,395 @@
             }
           }
         }
+      }
+    },
+    "/v1/ai/settings": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Settings",
+        "description": "Which provider powers this user's AI, what that resolves to now, and\nwhat they can choose from. Never a key.",
+        "operationId": "ai.settings.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Set Settings",
+        "description": "Choose the provider: `auto`, `anthropic`, `openai` or `chatgpt`. A\nchosen provider that cannot run says so on each AI request; it never\nfalls back to another way of paying.",
+        "operationId": "ai.settings.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAiProvider"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ai/models/{provider}": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "List Models",
+        "description": "The models a provider offers this user, and which one each task runs\non. For OpenAI and ChatGPT that is the account's own list.",
+        "operationId": "ai.models.list",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "anthropic",
+                "openai",
+                "chatgpt"
+              ],
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModels"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Set Models",
+        "description": "Name the model each task runs on, for an OpenAI provider (Claude's\nare fixed). Checked against the account's models when they can be listed.",
+        "operationId": "ai.models.set",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "openai",
+                "chatgpt"
+              ],
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAiModels"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModels"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ai/host": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Host",
+        "description": "This instance's `ext_agent_host_id`, for a sign-in done on another\ncomputer on behalf of this server.",
+        "operationId": "ai.host.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiHost"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ai/connections/chatgpt": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Get Chatgpt",
+        "description": "The user's ChatGPT plan connection: which account, what was granted,\nand whether it needs them. Never a token.",
+        "operationId": "ai.chatgpt.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTConnection"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Connect Chatgpt",
+        "description": "Keep a ChatGPT sign-in completed on the user's own computer.\n\nChecked before it is kept: the issued client id, the ID token (signature\nagainst OpenAI's keys, issuer, audience, expiry), that the scopes include\n`chatgpt.tokens.use.direct`, and that `GET /v1/models` works with the\naccess token. From then on this server renews it, with its own host id.",
+        "operationId": "ai.chatgpt.connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatGPTCredential"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTConnection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Disconnect Chatgpt",
+        "description": "Sign out: end the sign-in with OpenAI, then clear its tokens here. The\naccount and its issued client id are kept for the next sign-in.",
+        "operationId": "ai.chatgpt.disconnect",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTDisconnected"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/mcp/connections/": {
@@ -9378,6 +9773,199 @@
         ],
         "title": "AgentSessions"
       },
+      "AiActive": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "platform",
+              "none"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "source"
+        ],
+        "title": "AiActive",
+        "description": "What the setting resolves to now."
+      },
+      "AiHost": {
+        "properties": {
+          "ext_agent_host_id": {
+            "type": "string",
+            "title": "Ext Agent Host Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ext_agent_host_id"
+        ],
+        "title": "AiHost",
+        "description": "This instance's host id for Sign in with ChatGPT."
+      },
+      "AiModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "AiModel"
+      },
+      "AiModelChoice": {
+        "properties": {
+          "fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fast"
+          },
+          "best": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          }
+        },
+        "type": "object",
+        "title": "AiModelChoice",
+        "description": "Models the user named themselves; null lets Salli pick."
+      },
+      "AiModels": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/AiModel"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "fast": {
+            "type": "string",
+            "title": "Fast"
+          },
+          "best": {
+            "type": "string",
+            "title": "Best"
+          },
+          "chosen": {
+            "$ref": "#/components/schemas/AiModelChoice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "models",
+          "fast",
+          "best",
+          "chosen"
+        ],
+        "title": "AiModels",
+        "description": "The models a provider offers this user, and the one each task runs on."
+      },
+      "AiSettings": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          },
+          "active": {
+            "$ref": "#/components/schemas/AiActive"
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys"
+          },
+          "chatgpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chatgpt"
+          },
+          "chatgpt_available": {
+            "type": "boolean",
+            "title": "Chatgpt Available"
+          },
+          "platform_key": {
+            "type": "boolean",
+            "title": "Platform Key"
+          },
+          "models": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AiModelChoice"
+            },
+            "type": "object",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "active",
+          "keys",
+          "chatgpt",
+          "chatgpt_available",
+          "platform_key",
+          "models"
+        ],
+        "title": "AiSettings",
+        "description": "Which provider powers the user's AI, and what they can choose from."
+      },
       "AllocationRequest": {
         "properties": {
           "account_id": {
@@ -10882,6 +11470,265 @@
         ],
         "title": "ChatAttachment",
         "description": "A file uploaded for a chat message."
+      },
+      "ChatGPTConnection": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_connected",
+              "active",
+              "needs_sign_in",
+              "needs_consent",
+              "signed_out"
+            ],
+            "title": "Status"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "paused_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Until"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "readable": {
+            "type": "boolean",
+            "title": "Readable"
+          },
+          "manage_usage_url": {
+            "type": "string",
+            "title": "Manage Usage Url",
+            "default": "https://chatgpt.com/settings/usage"
+          },
+          "first_time": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "status",
+          "connected",
+          "email",
+          "client_id",
+          "scopes",
+          "expires_at",
+          "paused_until",
+          "detail",
+          "readable"
+        ],
+        "title": "ChatGPTConnection",
+        "description": "A user's ChatGPT plan connection, described without any token."
+      },
+      "ChatGPTCredential": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Client Id"
+          },
+          "access_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Refresh Token"
+          },
+          "id_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id Token"
+          },
+          "token_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Type"
+          },
+          "expires_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scopes"
+          },
+          "earliest_refresh_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Refresh At"
+          },
+          "saved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved At"
+          },
+          "ext_agent_host_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ext Agent Host Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "access_token",
+          "refresh_token",
+          "id_token"
+        ],
+        "title": "ChatGPTCredential",
+        "description": "A ChatGPT sign-in completed on another computer, for this server to keep.\n\nThe token endpoint's answer to the authorization-code exchange, as it\ncame, plus the issued `client_id`. OpenAI's example credential record is\naccepted too (`scopes` as a list, and `saved_at`)."
+      },
+      "ChatGPTDisconnected": {
+        "properties": {
+          "disconnected": {
+            "type": "boolean",
+            "title": "Disconnected"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "disconnected",
+          "revoked",
+          "message"
+        ],
+        "title": "ChatGPTDisconnected"
       },
       "ChatHistory": {
         "properties": {
@@ -17349,6 +18196,54 @@
           "ids"
         ],
         "title": "SeededReminders"
+      },
+      "SetAiModels": {
+        "properties": {
+          "fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fast"
+          },
+          "best": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          }
+        },
+        "type": "object",
+        "title": "SetAiModels",
+        "description": "Name a model per task, or null to let Salli pick from the account's models."
+      },
+      "SetAiProvider": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "anthropic",
+              "openai",
+              "chatgpt"
+            ],
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "SetAiProvider"
       },
       "SetPostingTagsRequest": {
         "properties": {

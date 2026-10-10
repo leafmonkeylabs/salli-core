@@ -138,3 +138,40 @@ class FakeRecordsUoW:
 
     async def __aexit__(self, *_: object) -> None:
         pass
+
+
+class FakeLLM:
+    """An LLMClient stand-in (application/ports.py): answers every `generate`
+    with `reply`, or the next of `replies`, and keeps what it was asked."""
+
+    def __init__(
+        self,
+        reply: str = "",
+        *,
+        replies: list[str] | None = None,
+        provider: str = "anthropic",
+        source: str = "platform",
+    ) -> None:
+        self.reply = reply
+        self.replies = list(replies or [])
+        self.provider = provider
+        self.source = source
+        self.requests: list[dict[str, Any]] = []
+
+    @property
+    def fingerprint(self) -> str:
+        return f"fake:{self.provider}"
+
+    def model_for(self, tier: str) -> str:
+        return f"fake-{tier}"
+
+    @property
+    def prompts(self) -> list[str]:
+        return [r["input"] for r in self.requests]
+
+    async def generate(self, **request: Any) -> str:
+        self.requests.append(request)
+        return self.replies.pop(0) if self.replies else self.reply
+
+    def chat_model(self, **options: Any) -> Any:
+        raise NotImplementedError("FakeLLM has no chat model")

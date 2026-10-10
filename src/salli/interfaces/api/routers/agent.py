@@ -86,7 +86,7 @@ async def _emit_events(
                 # raising, because raising past its `finally` would discard the
                 # exception. Without this branch the event would fall through
                 # every elif and vanish just as silently.
-                yield _sse({"type": "error", "message": payload["message"]})  # type: ignore[index]
+                yield _sse({"type": "error", **payload})  # type: ignore[dict-item]
             elif event_type == "done":
                 yield _sse({"type": "done"})
                 return
@@ -109,12 +109,16 @@ used by the agent, or by the specialist named in `agent`.
 for the user. Answer it with `agent.resume` (`workflow: "chat"`, `decision: "approved"` \
 or `"denied"`).
 - `interrupt` `{data}`: any other pause.
-- `error` `{message}`: the turn failed; `message` is a sentence to show.
+- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. \
+For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT \
+plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) \
+and `link` is where the user can fix it (ChatGPT's usage settings).
 - `done`: the last event, always sent."""
 
 _CHAT_EVENTS = (
     _EVENTS + "\n\nA refusal from the deployment's usage meter comes before the stream "
-    "opens, as an error response rather than an event."
+    "opens, as an error response rather than an event, and so does an AI provider that "
+    "cannot run at all (a ChatGPT plan paused at its limit, or needing a new sign-in)."
 )
 
 _RESUME_EVENTS = (
@@ -155,7 +159,14 @@ async def chat(
     before streaming; after the stream completes a background task generates a
     session title via Haiku.
     """
-    model_id = await svc.profile.get_preferred_model(user_id)
+    # The model this conversation runs on: the pinned Claude model on
+    # Anthropic, else the one picked from the user's own OpenAI or ChatGPT
+    # models. The meter is told exactly that one.
+    model_id = (
+        await svc.profile.get_preferred_model(user_id)
+        if creds.provider == "anthropic"
+        else creds.model_for("best")
+    )
     await svc.usage.charge(user_id, AIAction.CHAT_MESSAGE, model_id=model_id, email=email)
 
     ai_acc: list[str] = []
@@ -170,7 +181,7 @@ async def chat(
         ai_text = "".join(ai_acc)[:500]
         if ai_text:
             await svc.agent._try_generate_title(
-                user_id, body.thread_id, body.message, ai_text, api_key=creds.anthropic
+                user_id, body.thread_id, body.message, ai_text, api_key=creds.llm or creds.anthropic
             )
 
     return StreamingResponse(
@@ -182,7 +193,7 @@ async def chat(
                     message=body.message,
                     file_refs=body.file_refs or None,
                     persona=body.persona,
-                    api_key=creds.anthropic,
+                    api_key=creds.llm or creds.anthropic,
                     # The same id the usage meter above was told about. If
                     # these two ever diverge a meter prices one model while
                     # another runs, so they are deliberately the one variable.
@@ -265,8 +276,13 @@ async def resume(body: ResumeRequest, user_id: CurrentUser, svc: AppServices, cr
                 thread_id=body.thread_id,
                 decision=body.decision,
                 persona=body.persona,
-                api_key=creds.anthropic,
-                model=await svc.profile.get_preferred_model(user_id),
+                api_key=creds.llm or creds.anthropic,
+                # The same model the conversation ran on (see `chat`).
+                model=(
+                    await svc.profile.get_preferred_model(user_id)
+                    if creds.provider == "anthropic"
+                    else creds.model_for("best")
+                ),
             )
         ),
         media_type="text/event-stream",

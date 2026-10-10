@@ -18,6 +18,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from salli.domain.reports.insights import SPENDING_AXES, SpendingAxis
+from salli.interfaces.cli.ai import ai_app
 from salli.interfaces.cli.setup import members_app, serve, setup
 from salli.interfaces.cli.skills import skills_app
 from salli.interfaces.cli.support import amount as _amount
@@ -90,6 +91,7 @@ app.add_typer(reports_app, name="reports")
 app.add_typer(db_app, name="db")
 app.add_typer(onboarding_app, name="onboarding")
 app.add_typer(llm_keys_app, name="llm-keys")
+app.add_typer(ai_app, name="ai")
 app.add_typer(tokens_app, name="tokens")
 app.add_typer(rules_app, name="rules")
 app.add_typer(export_app, name="export")
@@ -2114,7 +2116,12 @@ def _run_agent_chat(priming_message: str | None, thread_id: str | None = None):
                 console.print(f"\n[dim]  ▸ {payload.get('name')}…[/dim]", end="")
             elif event_type == "interrupt":
                 console.print(f"\n[yellow]  ⏸ Review required: {payload}[/yellow]")
-            elif event_type in ("done", "error"):
+            elif event_type == "error":
+                # Our own sentence: a ChatGPT plan's usage limit says where to
+                # change it, a sign-in to renew says how.
+                console.print(f"\n[red]{payload['message']}[/red]")
+                break
+            elif event_type == "done":
                 break
         console.print()
 
@@ -3445,7 +3452,7 @@ def llm_keys_list():
 
 
 @llm_keys_app.command("set")
-def llm_keys_set(provider: str = typer.Argument("anthropic", help="anthropic")):
+def llm_keys_set(provider: str = typer.Argument("anthropic", help="anthropic or openai")):
     """Store your key for a provider (checked with the provider first)."""
     user_id = _require_user()
     key = typer.prompt(f"{provider} API key", hide_input=True)
@@ -3460,7 +3467,7 @@ def llm_keys_set(provider: str = typer.Argument("anthropic", help="anthropic")):
 
 
 @llm_keys_app.command("delete")
-def llm_keys_delete(provider: str = typer.Argument("anthropic", help="anthropic")):
+def llm_keys_delete(provider: str = typer.Argument("anthropic", help="anthropic or openai")):
     """Remove your stored key for a provider."""
     user_id = _require_user()
     removed = asyncio.run(_services().llm_credentials.delete(user_id, provider))

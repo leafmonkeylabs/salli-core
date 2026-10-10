@@ -23,6 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from salli.application.ports import FxUnavailableError, ProfileMissing
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
+from salli.domain.llm import LLMError
 from salli.domain.secrets import redact
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
@@ -33,6 +34,7 @@ from salli.interfaces.api.routers import (
     accounts,
     advisor,
     agent,
+    ai,
     auth,
     banks,
     budget,
@@ -219,6 +221,7 @@ def create_app() -> FastAPI:
         insurance.router,
         reports.router,
         llm_keys.router,
+        ai.router,
         mcp_oauth.connections_router,
         tokens.router,
         rules.router,
@@ -301,6 +304,19 @@ def create_app() -> FastAPI:
     async def usage_limit_handler(request: Request, exc: UsageLimitReached) -> JSONResponse:
         return problem(exc.status_code, "usage-limit", "Usage limit reached", exc.detail)
 
+    # A model request that could not be served: a ChatGPT plan at its usage
+    # limit (429, with where to change it), a sign-in to renew (409), a
+    # provider that refused or could not be reached. The message is always
+    # Salli's own sentence, never the provider's, so it is safe to show. Raised
+    # before a stream opens, it is a plain problem response; once a stream is
+    # open, the stream's own `error` event carries the same detail.
+    @app.exception_handler(LLMError)
+    async def llm_error_handler(request: Request, exc: LLMError) -> JSONResponse:
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else {}
+        return problem(
+            exc.status, exc.code.replace("_", "-"), "AI unavailable", exc.detail(), **headers
+        )
+
     @app.exception_handler(StarletteHTTPException)
     async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         return problem(
@@ -311,11 +327,18 @@ def create_app() -> FastAPI:
     async def validation_error_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        # Where and why, never what was sent: pydantic puts the offending
+        # input (for a missing field, the whole body) in each error, and a
+        # body can hold a credential (an API key, a ChatGPT sign-in's tokens).
+        errors = [
+            {k: v for k, v in error.items() if k not in ("input", "ctx", "url")}
+            for error in exc.errors()
+        ]
         return problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "validation",
             "Request validation failed",
-            jsonable_encoder(exc.errors()),
+            jsonable_encoder(errors),
         )
 
     # ── Health ────────────────────────────────────────────────────────────────

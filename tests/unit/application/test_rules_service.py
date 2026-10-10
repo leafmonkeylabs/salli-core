@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
@@ -15,6 +16,7 @@ from salli.application.services.entry_parse_service import EntryParseService
 from salli.application.services.rules_service import RulesService
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
 from salli.domain.rules.engine import Facts, InvalidRule
+from tests.fakes import FakeLLM
 
 USER = "u1"
 
@@ -185,23 +187,24 @@ def _quick_add(rules: RulesService | None) -> EntryParseService:
     ledger = MagicMock()
     ledger.list_accounts = AsyncMock(return_value=list(ACCOUNTS.values()))
     ledger.base_currency = AsyncMock(return_value="USD")
-    llm = MagicMock()
-    llm.extract_structured = AsyncMock(
-        return_value={
-            "entry_type": "expense",
-            "amount": "12.00",
-            "description": "Ride",
-            "debit_account_id": "food",  # the model's (wrong) guess
-            "credit_account_id": "bank",
-            "debit_account_hint": None,
-            "credit_account_hint": None,
-            "currency": "USD",
-            "confidence": 0.6,
-        }
+    llm = FakeLLM(
+        json.dumps(
+            {
+                "entry_type": "expense",
+                "amount": "12.00",
+                "description": "Ride",
+                "debit_account_id": "food",  # the model's (wrong) guess
+                "credit_account_id": "bank",
+                "debit_account_hint": None,
+                "credit_account_hint": None,
+                "currency": "USD",
+                "confidence": 0.6,
+            }
+        )
     )
     credentials = MagicMock()
-    credentials.resolve = AsyncMock(return_value=SimpleNamespace(anthropic="key"))
-    return EntryParseService(ledger, lambda key: llm, credentials=credentials, rules=rules)
+    credentials.resolve = AsyncMock(return_value=SimpleNamespace(llm=llm))
+    return EntryParseService(ledger, credentials=credentials, rules=rules)
 
 
 async def test_a_rule_beats_the_models_guess_in_quick_add(world):
