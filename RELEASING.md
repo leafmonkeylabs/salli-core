@@ -6,7 +6,7 @@ version and its own tags:
 
 | Package | npm | Tag |
 |---|---|---|
-| `packages/cli` | [`salli`](https://www.npmjs.com/package/salli) | `cli-v<version>` |
+| `packages/cli` (the `salli` command) | [`@leafmonkeylabs/salli`](https://www.npmjs.com/package/@leafmonkeylabs/salli) | `cli-v<version>` |
 | `packages/sdk` | [`@leafmonkeylabs/salli-sdk`](https://www.npmjs.com/package/@leafmonkeylabs/salli-sdk) | `sdk-v<version>` |
 
 Pushing a tag tests, builds and packs the package, then **stages** it on npm with
@@ -17,7 +17,7 @@ GitHub release holding them and `SHA256SUMS`.
 
 ## A release
 
-1. Bump the version in a pull request: `npm version 0.2.0 --workspace salli --no-git-tag-version`,
+1. Bump the version in a pull request: `npm version 0.2.0 --workspace @leafmonkeylabs/salli --no-git-tag-version`,
    or `--workspace @leafmonkeylabs/salli-sdk` for the SDK. Merge it.
 2. Tag the merge commit on `main` and push the tag:
 
@@ -29,7 +29,7 @@ GitHub release holding them and `SHA256SUMS`.
    version with a pre-release part (`0.2.0-beta.1`) goes to the `next` dist-tag, not
    `latest`.
 3. Wait for the **Release** workflow. Then approve the staged version on npmjs.com,
-   or with `npm stage list salli` and `npm stage approve <id>`.
+   or with `npm stage list @leafmonkeylabs/salli` and `npm stage approve <id>`.
 4. Publish the draft release on GitHub.
 
 To rehearse, open **Actions → Release → Run workflow** and pick a package. A rehearsal
@@ -50,7 +50,7 @@ each package therefore stages with a short-lived token:
    run creates it).
    - Add the token as the secret `NPM_BOOTSTRAP_TOKEN`.
    - Add yourself as a required reviewer.
-4. **Release:** release both packages as above (`cli-v0.1.0` and `sdk-v0.1.0`), and
+4. **Release:** release both packages as above (`cli-v0.1.1` and `sdk-v0.1.0`), and
    approve both staged versions.
 5. **Trusted publishing:** for each package, open **Settings → Trusted publishing** on
    npmjs.com and add GitHub Actions with:
@@ -65,6 +65,11 @@ each package therefore stages with a short-lived token:
 
 From then on the workflow publishes through OIDC alone, and no npm credential is stored
 anywhere.
+
+npm refuses the unscoped name `salli` as too similar to existing packages (`sails`,
+`vanli`), so the CLI is published under the organisation's scope. The command is still
+`salli`. Its first release is 0.1.1: the `cli-v0.1.0` tag was cut under the refused name,
+and nothing was published from it.
 
 ## Not yet
 

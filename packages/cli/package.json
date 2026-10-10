@@ -1,6 +1,6 @@
 {
-  "name": "salli",
-  "version": "0.1.0",
+  "name": "@leafmonkeylabs/salli",
+  "version": "0.1.1",
   "description": "salli: your personal finances from the terminal. A client for a Salli server.",
   "license": "Apache-2.0",
   "author": "Leaf Monkey Labs",
@@ -22,7 +22,7 @@
     "node": ">=22.12"
   },
   "bin": {
-    "salli": "./dist/salli.js"
+    "salli": "dist/salli.js"
   },
   "files": [
     "dist/salli.js",
