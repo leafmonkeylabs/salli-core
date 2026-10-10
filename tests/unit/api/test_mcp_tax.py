@@ -106,6 +106,8 @@ async def test_suggested_accounts_are_shown_then_applied_and_audited(services):
 
 
 async def test_a_refused_suggestion_is_explained(services):
-    services.tax_rules.suggested_accounts.side_effect = RuleSetStateError("Version 1 was superseded")
+    services.tax_rules.suggested_accounts.side_effect = RuleSetStateError(
+        "Version 1 was superseded"
+    )
     result = await _call(services, "suggested_tax_accounts", {"rule_set_id": "rs1"})
     assert result == {"error": "Version 1 was superseded"}
