@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import sys
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from types import SimpleNamespace
@@ -78,15 +79,33 @@ async def _before(user_id: str, before: str) -> dict[str, Decimal]:
     return trial_balance([e for e in ENTRIES if e.entry_date < before])
 
 
-def _service(subscriptions: list[dict[str, Any]]) -> InsightsService:
+async def _totals(user_id: str, account_ids: list[str]):
+    """What the database sums: per account and currency, the signed totals."""
+    sums: dict[tuple[str, str], list[Decimal]] = {}
+    for e in ENTRIES:
+        for p in e.postings:
+            if p.account_id in account_ids:
+                signed = Decimal(p.direction.value) * p.amount
+                pair = sums.setdefault((p.account_id, p.currency), [Decimal(0), Decimal(0)])
+                pair[0] += signed
+                pair[1] += signed * p.fx_rate
+    return [(a, c, amount, base) for (a, c), (amount, base) in sums.items()]
+
+
+def _service(
+    subscriptions: list[dict[str, Any]], statements: list[dict[str, Any]] | None = None
+) -> InsightsService:
     uow = SimpleNamespace(
         ledger=SimpleNamespace(
             get_accounts=AsyncMock(return_value=ACCOUNTS),
             get_entries=AsyncMock(side_effect=_entries),
             balances_before=AsyncMock(side_effect=_before),
+            posting_totals=AsyncMock(side_effect=_totals),
         ),
         user_profiles=FakeProfiles("EUR"),
         recurring_subscriptions=SimpleNamespace(list=AsyncMock(return_value=subscriptions)),
+        statements=SimpleNamespace(list_statements=AsyncMock(return_value=statements or [])),
+        bank_connections=SimpleNamespace(list=AsyncMock(return_value=[])),
     )
 
     @asynccontextmanager
@@ -160,6 +179,39 @@ async def test_a_subscription_named_after_the_payee_covers_it_at_another_price()
     assert (fitx["tracked"], fitx["subscription_id"]) == (True, "sub2")
 
 
+async def test_the_forecast_carries_cash_forward_without_counting_a_subscription_twice():
+    # Netflix is both seen in the ledger and declared (sub1): one charge a month.
+    result = await _service([_subscription()]).forecast("u", days=30)
+    assert (result["start"], result["end"], result["currency"]) == (
+        "2026-10-09",
+        "2026-11-08",
+        "EUR",
+    )
+    assert result["today"] == "2831.04"
+    assert [(f["date"], f["description"], f["amount"]) for f in result["flows"]] == [
+        ("2026-11-01", "Fitx Studio", "-39.00"),
+        ("2026-11-08", "Netflix", "-12.99"),
+    ]
+    assert (result["end_balance"], result["lowest"], result["lowest_date"]) == (
+        "2779.05",
+        "2779.05",
+        "2026-11-08",
+    )
+    [bank] = result["accounts"]
+    assert (bank["account_id"], bank["name"], bank["currency"]) == ("bank", "Checking", "EUR")
+
+
+async def test_a_declared_subscription_the_ledger_has_not_shown_is_forecast_too():
+    spotify = _subscription(
+        id="sub3", name="Spotify", account_id=None, amount_minor=999, next_due_date="2026-10-20"
+    )
+    result = await _service([spotify]).forecast("u", days=30)
+    declared = [f for f in result["flows"] if f["source"] == "subscription"]
+    assert [(f["date"], f["amount"], f["account_id"]) for f in declared] == [
+        ("2026-10-20", "-9.99", None)
+    ]
+
+
 async def test_matching_alone_does_not_make_one_subscription_cover_another():
     # Disney+ is tied to the streaming account, so the engine matched every
     # charge there: Netflix read as "tracked by Disney Plus".
@@ -184,3 +236,44 @@ async def test_a_yearly_subscription_does_not_cover_a_monthly_payment():
         r for r in (await _service([yearly]).recurring("u"))["items"] if r["payee"] == "Netflix"
     )
     assert netflix["tracked"] is False
+
+
+async def test_a_malformed_subscription_is_left_out_of_the_forecast_with_a_note():
+    # A bad frequency (stored before it was checked) failed the whole forecast.
+    bad = _subscription(id="bad", name="Old Thing", frequency="Fortnightly", account_id=None)
+    result = await _service([bad]).forecast("u", days=30)
+    assert any(n.startswith("Old Thing: left out") for n in result["notes"])
+
+
+async def test_an_account_whose_balance_cant_be_known_is_left_out_and_said(monkeypatch):
+    # Dollars posted to the euro account in a euro ledger: its balance in
+    # euros was computed by skipping them, silently wrong.
+    foreign = StoredJournalEntry(
+        id="x1",
+        user_id="u",
+        entry_date="2026-10-01",
+        description="ODD DOLLARS",
+        source="statement",
+        postings=[
+            Posting(
+                account_id="bank",
+                direction=Direction.DEBIT,
+                amount=Decimal(10),
+                currency="USD",
+                fx_rate=Decimal("0.9"),
+            ),
+            Posting(
+                account_id="salary",
+                direction=Direction.CREDIT,
+                amount=Decimal(10),
+                currency="USD",
+                fx_rate=Decimal("0.9"),
+            ),
+        ],
+    )
+    accounts = [*ACCOUNTS[1:], ACCOUNTS[0].model_copy(update={"currency": "GBP"})]
+    monkeypatch.setattr(sys.modules[__name__], "ACCOUNTS", accounts)
+    monkeypatch.setattr(sys.modules[__name__], "ENTRIES", [*ENTRIES, foreign])
+    result = await _service([]).forecast("u", days=30)
+    assert result["accounts"] == []
+    assert any(n.startswith("Checking: its balance in GBP can't be known") for n in result["notes"])

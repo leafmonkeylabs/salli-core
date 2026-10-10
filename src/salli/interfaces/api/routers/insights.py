@@ -9,8 +9,10 @@ declared subscription that covers each, if any).
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from salli.domain.reports.insights import Cadence, SpendingAxis
 from salli.interfaces.api.contract import Amount, CurrencyCode
@@ -91,6 +93,56 @@ class RecurringPayments(BaseModel):
     items: list[RecurringPayment]
 
 
+class ForecastDay(BaseModel):
+    date: str
+    #: All cash accounts together at the day's end, in the base currency.
+    balance: Amount
+
+
+class AccountForecast(BaseModel):
+    account_id: str
+    name: str
+    #: The account's own currency; its amounts are in it.
+    currency: CurrencyCode
+    today: Amount
+    end: Amount
+    lowest: Amount
+    lowest_date: str
+
+
+class ExpectedFlow(BaseModel):
+    date: str
+    #: The cash account it moves; null for a declared subscription the ledger
+    #: has not shown, which moves only the total.
+    account_id: str | None
+    #: Signed: money in is positive. In `currency`.
+    amount: Amount
+    currency: CurrencyCode
+    description: str
+    #: "recurring" (seen in the ledger) or "subscription" (declared, not yet seen).
+    source: Literal["recurring", "subscription"]
+
+
+class CashForecast(BaseModel):
+    """Where the cash accounts are heading, from what keeps happening."""
+
+    #: The base currency, which the totals are in.
+    currency: CurrencyCode
+    start: str
+    end: str
+    today: Amount
+    end_balance: Amount
+    #: The lowest the total gets, and when: the day to watch.
+    lowest: Amount
+    lowest_date: str
+    daily: list[ForecastDay]
+    accounts: list[AccountForecast]
+    flows: list[ExpectedFlow]
+    #: What was left out, and why: a cash account whose balance in its own
+    #: currency can't be known, a series or subscription that can't be read.
+    notes: list[str] = Field(default_factory=list)
+
+
 @router.get("/cash-flow")
 async def cash_flow(
     user_id: CurrentUser,
@@ -122,3 +174,12 @@ async def net_worth(
 @router.get("/recurring")
 async def recurring(user_id: CurrentUser, svc: AppServices) -> RecurringPayments:
     return RecurringPayments.model_validate(await svc.insights.recurring(user_id))
+
+
+@router.get("/forecast")
+async def forecast(
+    user_id: CurrentUser,
+    svc: AppServices,
+    days: int = Query(60, ge=1, le=366, description="How many days ahead"),
+) -> CashForecast:
+    return CashForecast.model_validate(await svc.insights.forecast(user_id, days))

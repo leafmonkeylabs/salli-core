@@ -98,3 +98,16 @@ async def test_windowed_insights_answer_as_the_whole_ledger_does(uow_factory):
     assert [line["total"] for line in served_lines] == [
         str(line.total.quantize(Decimal("0.01"))) for line in lines
     ]
+
+    # The forecast's balances: each account's totals per currency, summed in SQL.
+    async with uow_factory() as uow:
+        totals = await uow.ledger.posting_totals("u1", [bank, euros])
+    expected: dict[tuple[str, str], list[Decimal]] = {}
+    for entry in everything:
+        for p in entry.postings:
+            if p.account_id in (bank, euros):
+                signed = Decimal(p.direction.value) * p.amount
+                pair = expected.setdefault((p.account_id, p.currency), [Decimal(0), Decimal(0)])
+                pair[0] += signed
+                pair[1] += signed * p.fx_rate
+    assert {(a, c): [amount, base] for a, c, amount, base in totals} == expected

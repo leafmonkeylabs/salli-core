@@ -7446,6 +7446,68 @@
         ]
       }
     },
+    "/v1/insights/forecast": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Forecast",
+        "operationId": "insights.forecast",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 366,
+              "minimum": 1,
+              "description": "How many days ahead",
+              "default": 60,
+              "title": "Days"
+            },
+            "description": "How many days ahead"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashForecast"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/bank-connections": {
       "get": {
         "tags": [
@@ -8542,6 +8604,69 @@
           "counts"
         ],
         "title": "AccountDeletion"
+      },
+      "AccountForecast": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "today": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Today",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "end": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "End",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Lowest",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest_date": {
+            "type": "string",
+            "title": "Lowest Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "name",
+          "currency",
+          "today",
+          "end",
+          "lowest",
+          "lowest_date"
+        ],
+        "title": "AccountForecast"
       },
       "AccountHint": {
         "properties": {
@@ -10425,6 +10550,101 @@
         ],
         "title": "CashFlow"
       },
+      "CashForecast": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "today": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Today",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "end_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "End Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Lowest",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest_date": {
+            "type": "string",
+            "title": "Lowest Date"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastDay"
+            },
+            "type": "array",
+            "title": "Daily"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountForecast"
+            },
+            "type": "array",
+            "title": "Accounts"
+          },
+          "flows": {
+            "items": {
+              "$ref": "#/components/schemas/ExpectedFlow"
+            },
+            "type": "array",
+            "title": "Flows"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "start",
+          "end",
+          "today",
+          "end_balance",
+          "lowest",
+          "lowest_date",
+          "daily",
+          "accounts",
+          "flows"
+        ],
+        "title": "CashForecast",
+        "description": "Where the cash accounts are heading, from what keeps happening."
+      },
       "CategorizationRule": {
         "properties": {
           "name": {
@@ -11678,6 +11898,65 @@
         ],
         "title": "EntryProvenance"
       },
+      "ExpectedFlow": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "recurring",
+              "subscription"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "account_id",
+          "amount",
+          "currency",
+          "description",
+          "source"
+        ],
+        "title": "ExpectedFlow"
+      },
       "ExpiringPolicy": {
         "properties": {
           "policy_name": {
@@ -12742,6 +13021,29 @@
         "type": "object",
         "title": "FireStrategySummary",
         "description": "A version in the strategy history. Optional throughout, as `FireStrategy` is."
+      },
+      "ForecastDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "balance"
+        ],
+        "title": "ForecastDay"
       },
       "Goal": {
         "properties": {
@@ -16078,6 +16380,8 @@
             "type": "string",
             "enum": [
               "weekly",
+              "biweekly",
+              "semimonthly",
               "monthly",
               "quarterly",
               "yearly"

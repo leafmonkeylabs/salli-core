@@ -72,3 +72,31 @@ async def test_recurring_payments_say_whether_they_are_tracked(client, insights)
     }
     body = (await client.get("/v1/insights/recurring", headers=AUTH)).json()
     assert body["items"][0]["tracked"] is False
+
+
+async def test_the_forecast_looks_ahead_at_most_a_year(client, insights):
+    insights.forecast.return_value = {
+        "currency": "USD",
+        "start": "2026-10-09",
+        "end": "2026-10-10",
+        "today": "100.00",
+        "end_balance": "60.00",
+        "lowest": "60.00",
+        "lowest_date": "2026-10-10",
+        "daily": [{"date": "2026-10-09", "balance": "100.00"}],
+        "accounts": [],
+        "flows": [
+            {
+                "date": "2026-10-10",
+                "account_id": None,
+                "amount": "-40.00",
+                "currency": "USD",
+                "description": "Gym",
+                "source": "subscription",
+            }
+        ],
+    }
+    r = await client.get("/v1/insights/forecast?days=1", headers=AUTH)
+    assert r.status_code == 200 and r.json()["lowest_date"] == "2026-10-10"
+    insights.forecast.assert_awaited_once_with("test-user-1", 1)
+    assert (await client.get("/v1/insights/forecast?days=400", headers=AUTH)).status_code == 422

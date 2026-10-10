@@ -236,10 +236,11 @@ def test_a_monthly_charge_is_found_with_when_the_next_one_is_due():
     assert netflix.entry_ids == tuple(e.id for e in entries)
 
 
-def test_the_next_month_is_counted_in_calendar_months():
+def test_the_next_month_is_counted_in_calendar_months_on_the_usual_day():
+    # On the 31st, which September does not have: October's is the 31st again.
     entries = _charges(["2026-07-31", "2026-08-31", "2026-09-30"], "GYM CLUB", "40")
     [gym] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 10, 1))
-    assert gym.next_expected == "2026-10-30"
+    assert (gym.next_expected, gym.anchor_days) == ("2026-10-31", (31,))
     entries = _charges(["2025-11-30", "2025-12-31", "2026-01-31"], "GYM CLUB", "40")
     [gym] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 2, 1))
     assert gym.next_expected == "2026-02-28"
@@ -326,6 +327,59 @@ def test_a_charge_a_week_late_has_not_stopped():
     assert gym.next_expected == "2026-09-30"
 
 
+def test_income_is_found_when_asked_for():
+    entries = [
+        _entry(day, "bank", "salary", "4000", "ACME PAYROLL")
+        for day in ("2026-07-25", "2026-08-25", "2026-09-25")
+    ]
+    booked = booked_transactions(entries, ACCOUNTS)
+    assert detect_recurring(booked, TODAY) == []  # payments only, by default
+    [salary] = detect_recurring(booked, TODAY, direction="in")
+    assert (salary.direction, salary.money_account_id, salary.account_id) == (
+        "in",
+        "bank",
+        "salary",
+    )
+    assert salary.next_expected == "2026-10-25"
+
+
+def test_a_paycheck_every_other_week_is_biweekly():
+    entries = [
+        _entry(day, "bank", "salary", "2100", "ACME CORP PAYROLL")
+        for day in ("2026-08-14", "2026-08-28", "2026-09-11", "2026-09-25")
+    ]
+    [pay] = detect_recurring(booked_transactions(entries, ACCOUNTS), TODAY, direction="in")
+    assert (pay.cadence, pay.next_expected, pay.anchor_days) == ("biweekly", "2026-10-09", ())
+
+
+def test_shopping_twice_a_month_on_set_days_is_not_a_rhythm():
+    # The 8th and the 22nd, but never the same amount: groceries, not a bill.
+    days = ["2026-07-08", "2026-07-22", "2026-08-08", "2026-08-22", "2026-09-08", "2026-09-22"]
+    amounts = ["120", "84.20", "143.10", "97", "76.40", "131.55"]
+    assert _recurring(_charges(days, "WHOLE FOODS #123", amounts)) == []
+
+
+def test_a_salary_on_the_15th_and_the_last_is_semimonthly_not_biweekly():
+    # 15/16-day gaps passed for every other week (26 paychecks a year, not 24).
+    days = ["2026-07-15", "2026-07-31", "2026-08-14", "2026-08-31", "2026-09-15", "2026-09-30"]
+    entries = [_entry(day, "bank", "salary", "2100", "ACME CORP PAYROLL") for day in days]
+    [pay] = detect_recurring(booked_transactions(entries, ACCOUNTS), TODAY, direction="in")
+    assert (pay.cadence, pay.anchor_days, pay.next_expected) == (
+        "semimonthly",
+        (15, 31),
+        "2026-10-15",
+    )
+
+
+def test_every_other_week_is_tighter_than_twice_a_month():
+    # 16-day gaps, drifting through the month: no rhythm at all now.
+    days = ["2026-07-01", "2026-07-17", "2026-08-02", "2026-08-18", "2026-09-03"]
+    entries = [
+        _entry(day, "bank", "salary", str(100 + i), "ODD JOBS") for i, day in enumerate(days)
+    ]
+    assert detect_recurring(booked_transactions(entries, ACCOUNTS), TODAY, direction="in") == []
+
+
 # ── What review found ─────────────────────────────────────────────────────────
 
 
@@ -382,3 +436,36 @@ def test_a_bill_that_drifts_in_price_stays_one_series():
     ]
     [power] = detect_recurring(booked_transactions(entries, ACCOUNTS), dt.date(2026, 10, 20))
     assert power.occurrences == 6 and power.varies
+
+
+def test_the_next_charge_is_on_its_anchor_day_nearest_a_period_on():
+    # Paid 30 October for 1 November: next is 1 December, not 1 November.
+    from salli.domain.reports.insights import next_due
+
+    assert next_due(dt.date(2026, 10, 30), "monthly", (1,)) == dt.date(2026, 12, 1)
+    # Rent for 30 September paid on 1 October: next is 30 October.
+    assert next_due(dt.date(2026, 10, 1), "monthly", (30,)) == dt.date(2026, 10, 30)
+    assert next_due(dt.date(2026, 10, 15), "monthly", (15,)) == dt.date(2026, 11, 15)
+
+
+def test_a_salary_in_another_currency_says_its_amount_in_the_accounts():
+    accounts = [
+        Account(id="lkr", user_id="u", code="1", name="Bank", type="asset", currency="LKR"),
+        Account(id="salary", user_id="u", code="4", name="Salary", type="income", currency="LKR"),
+    ]
+    entries = [
+        _entry(day, "lkr", "salary", "3000", "ACME PAYROLL", currency="USD", fx_rate="300")
+        for day in ("2026-07-25", "2026-08-25", "2026-09-25")
+    ]
+    [pay] = detect_recurring(
+        booked_transactions(entries, accounts),
+        TODAY,
+        direction="in",
+        currencies={a.id: a.currency for a in accounts},
+        base="LKR",
+    )
+    assert (pay.typical_amount, pay.currency, pay.money_amount) == (
+        Decimal(3000),
+        "USD",
+        Decimal(900000),
+    )
