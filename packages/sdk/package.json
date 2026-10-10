@@ -2,7 +2,7 @@
   "name": "@leafmonkeylabs/salli-sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for the Salli personal finance API",
-  "license": "AGPL-3.0-only",
+  "license": "Apache-2.0",
   "author": "Leaf Monkey Labs",
   "homepage": "https://github.com/leafmonkeylabs/salli-core/tree/main/packages/sdk",
   "repository": {
@@ -23,7 +23,9 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "generate": "openapi-ts",

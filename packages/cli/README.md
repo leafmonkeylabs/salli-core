@@ -312,4 +312,5 @@ does.
 
 ## License
 
-[AGPL-3.0-only](../../LICENSE), like the rest of Salli.
+[Apache-2.0](LICENSE), like the SDK, so you can script it and build on it freely.
+The Salli server it talks to is [AGPL-3.0-only](../../LICENSE).

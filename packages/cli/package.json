@@ -2,7 +2,7 @@
   "name": "@leafmonkeylabs/salli",
   "version": "0.1.0",
   "description": "salli: your personal finances from the terminal. A client for a Salli server.",
-  "license": "AGPL-3.0-only",
+  "license": "Apache-2.0",
   "author": "Leaf Monkey Labs",
   "homepage": "https://github.com/leafmonkeylabs/salli-core/tree/main/packages/cli#readme",
   "repository": {
@@ -25,7 +25,9 @@
     "salli": "./dist/salli.js"
   },
   "files": [
-    "dist/salli.js"
+    "dist/salli.js",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build": "tsdown",
