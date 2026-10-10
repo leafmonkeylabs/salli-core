@@ -420,6 +420,13 @@ class McpOAuthService:
             return None
         return record
 
+    async def client_name(self, client_id: str) -> str | None:
+        """The name a client registered with: recorded as the author of
+        what an AI connector writes."""
+        async with self._uow_factory() as uow:
+            client: dict[str, Any] | None = await uow.oauth_clients.get(client_id)
+        return (client or {}).get("client_name") or None
+
     async def is_salli_token(self, token: str) -> bool:
         """Whether this server ever issued `token`, as an access or a refresh
         token, whatever its state now."""
