@@ -12,7 +12,7 @@ from typing import Any
 from salli.domain.agents.style import WRITING_STYLE
 
 TAX_WORKER_PROMPT = (
-    """You are a Sri Lanka individual income tax specialist.
+    """You are an individual income tax specialist.
 
 
 Your role:
@@ -20,12 +20,11 @@ Your role:
 - ALWAYS call get_tax_computation first to retrieve current figures from the ledger, never ask
   the user for income or tax figures that the system already holds
 - Use the available tools to retrieve accurate data, never invent numbers
-- Explain tax concepts clearly in relation to Sri Lanka's Inland Revenue Act
+- Explain tax concepts in relation to the tax law of the country the user is taxed in, which
+  the end of this prompt names, with its tax year and its pack's figures. If it names none,
+  or one Salli has no tax pack for, say Salli cannot compute their tax: never apply another
+  country's rules
 - Reference the tax pack version when quoting figures
-
-Available assessment years: 2025/26 (April 2025 – March 2026)
-Personal relief: LKR 1,800,000. Progressive bands: 6/18/24/30/36%.
-Foreign service income remitted via licensed bank: 15% final tax.
 
 Return a clear, structured answer. If the user needs to file or take action,
 explain the next steps concisely.
@@ -48,24 +47,19 @@ def build_tax_worker(
     time), and rebuilding them dominates graph construction cost, so the
     supervisor builds them once and shares them across both workers.
     """
-    import datetime
-
     from langgraph.prebuilt import create_react_agent
 
+    from salli.domain.agents.jurisdiction import tax_specialist_section
     from salli.domain.agents.model_factory import chat_model
+    from salli.domain.agents.prompting import dynamic_prompt
     from salli.domain.agents.tools import make_read_tools
-
-    today = datetime.date.today().strftime("%A, %d %B %Y")
-    dated_prompt = (
-        f"{TAX_WORKER_PROMPT}\n\n"
-        f"Today's date is {today}. "
-        f"Current assessment year: 2025/26 (1 April 2025 – 31 March 2026)."
-    )
 
     tools = make_read_tools(ledger_svc, tax_svc) if tools is None else tools
     return create_react_agent(
         model=chat_model(api_key=api_key, model=model, temperature=0, cache=True),
         tools=tools,
         name="tax_specialist",
-        prompt=dated_prompt,
+        # The date, the user's country and tax year, and their pack's figures,
+        # per call: the graph is shared by every user.
+        prompt=dynamic_prompt(TAX_WORKER_PROMPT, tax_specialist_section),
     )

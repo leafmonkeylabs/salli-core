@@ -82,12 +82,19 @@ keeps plan/payment vocabulary out of the codebase.
 - **Money is always `decimal.Decimal` in the domain; `BIGINT` minor units in the DB.** A float anywhere in the money path is a bug. Minor units are each currency's own (ISO 4217 exponent: JPY 0, USD 2, KWD 3 — `domain/currency.py`); never assume 100.
 - **Every user has a base currency** (on their profile). Postings in it have `fx_rate` 1; postings in any other currency carry the rate into it — the one given, or the published one for the entry's date — and are refused when there is neither (`application/fx.py`). The base currency cannot change once anything is stored in it.
 - **Tax packs are versioned `(country, year, version)`.** Every stored `TaxComputation` records the pack version so historical returns remain reproducible after rate changes.
+- **Nothing assumes a country.** A user's tax residency (ISO 3166-1, on their profile, with their tax ids) decides which packs compute their tax (`TaxService.jurisdiction`; with none set, the one country whose packs compute in their base currency), their tax year, the tax accounts in their starter chart, and the agents' tax framing. With no residency there is no country's framing at all.
 
 ### Tax engine
 
 `domain/tax/engine.py` exports a pure function `compute(ledger_view, pack) -> TaxComputation`. It applies the pack's rate bands to taxable income **after** deducting personal relief, then subtracts credits (APIT, AIT, FTC). The engine never calls the LLM.
 
 Tax packs live in `domain/tax/packs/`. The first pack is Sri Lanka 2025/26 (`lk_2025_26.py`): LKR 1,800,000 personal relief, bands 6/18/24/30/36%, 15% final tax on foreign service income remitted via bank, credits for APIT/AIT/FTC.
+
+A pack also declares its tax year's shape (`year_start`/`year_end`, so the registry can name the year any date falls in, and the pack for a date), its `withholding_kinds` (the `tax_role`s an account may carry for them; only kinds the engine credits, `CREDITED_KINDS`), the accounts a resident's starter chart gets (`starter_accounts`), and how the agents should talk about it (`authority`, `law`, `year_name`). Nothing hard-codes "the current year": with none named, the latest year whose pack has begun is computed.
+
+### Financial independence
+
+`domain/fi/engine.py` is the pure FI engine; `domain/fi/assumptions.py` holds its planning assumptions. Defaults follow the base currency (a small table: each central bank's inflation target, a round real return, the 4% rule, each with its source; Sri Lanka keeps Salli's original figures). The user's own figures on their profile win, then their FIRE strategy's, then the defaults, and every FI response says which applied and where it came from.
 
 ### Agents (LangGraph)
 
@@ -112,7 +119,7 @@ All config is in `config.py` via `pydantic-settings` and reads from environment 
 
 ### Adding a new tax pack
 
-1. Add `domain/tax/packs/<country>_<year>.py` declaring a `TaxPack` dataclass instance.
-2. Register it in `domain/tax/packs/registry.py`.
+1. Add `domain/tax/packs/<country>_<year>.py` declaring a `TaxPack` dataclass instance: its rates, its tax year (`year_start`, `year_end`; `year` named as `year_label` names it), its withholding kinds and starter accounts.
+2. Register it in `domain/tax/packs/registry.py` (`validate_pack` refuses a malformed one at import).
 3. Add golden tests in `tests/golden/` using IRD/revenue-authority worked examples.
 4. A chartered accountant must review the pack before it is used in production.

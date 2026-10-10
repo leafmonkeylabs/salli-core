@@ -15,16 +15,18 @@ a new frontend wizard is a follow-up once these are in place.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field
 
 from salli.domain.accounting.models import AccountType, Source
+from salli.domain.jurisdiction import MAX_TAX_ID_LENGTH
 from salli.domain.risk.models import RiskCategory
-from salli.interfaces.api.contract import Amount, CurrencyCode
+from salli.interfaces.api.contract import Amount, CountryCode, CurrencyCode
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
+from salli.interfaces.api.routers.fi import FiAssumptionOverrides, FiAssumptionOverridesIn
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -34,10 +36,18 @@ class OnboardingRequest(BaseModel):
     #: ISO 4217 code the ledger is kept in. Only settable while the ledger is
     #: empty — which it is, the first time onboarding runs. Omitted: unchanged.
     base_currency: str | None = None
+    #: Where the user is taxed, saved on the profile. Omitted: unchanged. The
+    #: starter accounts follow it: a resident of a country Salli has a tax pack
+    #: for also gets that pack's tax accounts (for LK, the APIT and AIT
+    #: receivables), and with no residency nothing tax-specific is opened.
+    tax_residency: CountryCode | None = None
+    #: A Sri Lankan NIC: saved as the "LK-NIC" tax id.
     nic: str = ""
     residency: str = "resident"  # "resident" | "non_resident"
     employer: str = ""
     employment_type: str = ""  # "permanent" | "contract" | "self_employed" | "other"
+    #: A Sri Lankan TIN: saved as the "LK-TIN" tax id. With `nic`, makes a
+    #: user with no tax residency resident in LK.
     ird_number: str = ""
     income_sources: list[
         str
@@ -90,6 +100,15 @@ async def complete_onboarding(
 # ── Focused fact-find steps (Phase 1 redo) ─────────────────────────────────────
 
 
+class TaxId(BaseModel):
+    """A number a tax authority knows the user by."""
+
+    #: The country, then the kind of number: "LK-TIN" is a Sri Lankan taxpayer
+    #: identification number, "LK-NIC" a Sri Lankan national identity card.
+    scheme: Annotated[str, Field(pattern=r"^[A-Z]{2}-[A-Z0-9]+$", examples=["LK-TIN"])]
+    value: Annotated[str, Field(min_length=1, max_length=MAX_TAX_ID_LENGTH)]
+
+
 class ProfileIdentityRequest(BaseModel):
     display_name: str | None = None
     date_of_birth: str | None = None  # YYYY-MM-DD
@@ -98,7 +117,17 @@ class ProfileIdentityRequest(BaseModel):
     employment_type: str | None = None  # permanent|contract|self_employed|other
     residency_status: str | None = None  # resident|non_resident
     employer: str | None = None
+    #: Where the user is taxed. An explicit null clears it.
+    tax_residency: CountryCode | None = None
+    #: Replaces every tax id; one number per scheme.
+    tax_ids: list[TaxId] | None = None
+    #: The "LK-TIN" tax id, as the field it was before tax ids; "" removes it.
+    #: Setting it on a profile with no tax residency makes it LK.
     ird_number: str | None = None
+    #: The "LK-NIC" tax id, likewise.
+    nic: str | None = None
+    #: The user's own FI planning assumptions; only the fields sent change.
+    fi_assumptions: FiAssumptionOverridesIn | None = None
     #: ISO 4217. Changes only while the ledger is empty (409 otherwise).
     base_currency: str | None = None
 
@@ -124,6 +153,7 @@ class Profile(BaseModel):
     employer: str | None
     #: permanent | contract | self_employed | other
     employment_type: str | None
+    #: The "LK-TIN" tax id, kept as the field it was before tax ids.
     ird_number: str | None
     #: 0-100, from the risk questionnaire.
     risk_score: int | None
@@ -134,6 +164,16 @@ class Profile(BaseModel):
     mcp_enabled: bool
     daily_briefing_enabled: bool
     preferred_model: str | None
+    #: Where the user is taxed; null until they say. It decides which tax
+    #: packs apply to them.
+    tax_residency: CountryCode | None = None
+    #: The numbers their tax authorities know them by.
+    tax_ids: list[TaxId] = Field(default_factory=list[TaxId])
+    #: The "LK-NIC" tax id, as a field of its own like `ird_number`.
+    nic: str | None = None
+    #: The FI planning assumptions the user set themselves (GET
+    #: /fi/assumptions says which apply, and the defaults).
+    fi_assumptions: FiAssumptionOverrides = Field(default_factory=FiAssumptionOverrides)
 
 
 class ProfileUpdated(BaseModel):
@@ -159,9 +199,14 @@ async def update_profile(
 ) -> ProfileUpdated:
     if body.base_currency:
         await svc.profile.set_base_currency(user_id, body.base_currency)
-    await svc.profile.update_identity(
-        user_id, body.model_dump(exclude_none=True, exclude={"base_currency"})
-    )
+    data = body.model_dump(exclude_none=True, exclude={"base_currency", "fi_assumptions"})
+    # A null leaves every other field as it is; for the residency it is how a
+    # client clears it, and for an FI assumption how it returns to the default.
+    if "tax_residency" in body.model_fields_set and body.tax_residency is None:
+        data["tax_residency"] = None
+    if body.fi_assumptions is not None:
+        data["fi_assumptions"] = body.fi_assumptions.model_dump(exclude_unset=True)
+    await svc.profile.update_identity(user_id, data)
     return ProfileUpdated(updated=True)
 
 

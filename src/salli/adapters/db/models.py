@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -58,7 +59,8 @@ class AccountORM(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # How the tax engine should treat this account. NULL = no tax significance.
     # See `domain.accounting.models.TaxRole` for why this is explicit rather
-    # than inferred from `name`.
+    # than inferred from `name`. Tax packs declare which roles exist, so the
+    # database checks only the shape of the code.
     tax_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -71,9 +73,7 @@ class AccountORM(Base):
             name="ck_accounts_type",
         ),
         CheckConstraint(
-            "tax_role IS NULL OR tax_role IN "
-            "('apit_credit','ait_credit','foreign_tax_credit',"
-            "'qualifying_payment','fsi_income')",
+            "tax_role IS NULL OR tax_role ~ '^[a-z][a-z0-9_]*$'",
             name="ck_accounts_tax_role",
         ),
     )
@@ -406,6 +406,8 @@ class UserProfileORM(Base):
     residency_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     employer: Mapped[str | None] = mapped_column(String(200), nullable=True)
     employment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # The Sri Lankan TIN from before `tax_ids`: kept, and kept equal to the
+    # "LK-TIN" tax id, for anything that still reads the column.
     ird_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
     risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_category: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -434,6 +436,19 @@ class UserProfileORM(Base):
     # tier: {"chatgpt": {"best": "...", "fast": "..."}, "openai": {...}}. NULL
     # or a missing tier means "let Salli pick from the account's models".
     ai_models: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Where the user is taxed: an ISO 3166-1 alpha-2 code, or NULL while they
+    # have not said. It decides which tax packs apply (domain/jurisdiction.py).
+    tax_residency: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # Their tax ids, [{"scheme": "LK-TIN", "value": "..."}, ...], one per scheme.
+    tax_ids: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+
+    # The user's own FI planning assumptions, as yearly fractions ("0.03" is
+    # 3%). NULL uses the default for their base currency (domain/fi/assumptions.py).
+    fi_inflation: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    fi_real_return: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    fi_safe_withdrawal_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -444,6 +459,11 @@ class UserProfileORM(Base):
 
     __table_args__ = (
         CheckConstraint("base_currency ~ '^[A-Z]{3}$'", name="ck_user_profiles_base_currency"),
+        CheckConstraint(
+            "tax_residency IS NULL OR tax_residency ~ '^[A-Z]{2}$'",
+            name="ck_user_profiles_tax_residency",
+        ),
+        CheckConstraint("jsonb_typeof(tax_ids) = 'array'", name="ck_user_profiles_tax_ids"),
     )
 
 

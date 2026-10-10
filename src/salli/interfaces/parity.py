@@ -39,6 +39,7 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/tax/packs"): "tax packs",
     ("POST", "/tax/compute"): "tax compute",
     ("GET", "/tax/latest"): "tax latest",
+    ("GET", "/tax/current-year"): "tax year",
     # statements
     ("POST", "/statements/upload"): "parse upload",
     ("GET", "/statements/"): "parse list",
@@ -71,6 +72,7 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/fi/score/history"): "fi history",
     ("GET", "/fi/projections"): "fi projections",
     ("GET", "/fi/surplus"): "fi surplus",
+    ("GET", "/fi/assumptions"): "fi assumptions",
     ("POST", "/fi/simulate-purchase"): "fi simulate-purchase",
     ("GET", "/fi/goals"): "fi goals list",
     ("POST", "/fi/goals"): "fi goals add",

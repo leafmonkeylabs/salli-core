@@ -19,8 +19,32 @@ from salli.domain.accounting.models import (
     TaxRole,
 )
 from salli.domain.currency import normalize_currency, quantize
+from salli.domain.jurisdiction import country_phrase
 from salli.domain.subscription import engine as subscription_engine
 from salli.domain.subscription.models import Subscription
+from salli.domain.tax.packs import registry
+
+
+class UnknownTaxRoleError(ValueError):
+    """A tax role the packs of the user's tax residency do not declare."""
+
+
+async def tax_residency(uow: Any, user_id: str) -> str | None:
+    """Where the user is taxed, or None while they have not said (or have no
+    profile yet)."""
+    profile = await uow.user_profiles.get(user_id)
+    residency = (profile or {}).get("tax_residency")
+    return residency if isinstance(residency, str) and residency else None
+
+
+def _role_refusal(role: str, residency: str | None, allowed: tuple[str, ...]) -> str:
+    if residency and not allowed:
+        return (
+            f"Salli has no tax pack for {country_phrase(residency)} yet, so an account "
+            "there has no tax role to carry."
+        )
+    whose = f"the tax packs for {country_phrase(residency)}" if residency else "any tax pack"
+    return f"{role!r} is not a tax role {whose} use: {', '.join(allowed)}"
 
 
 class LedgerService:
@@ -35,6 +59,18 @@ class LedgerService:
         async with self._uow_factory() as uow:
             return await uow.user_profiles.base_currency(user_id)
 
+    async def allowed_tax_roles(self, user_id: str) -> tuple[str, ...]:
+        """The tax roles this user's accounts may carry (registry.allowed_tax_roles):
+        their country's packs decide, and with no residency any pack's role will do."""
+        async with self._uow_factory() as uow:
+            return registry.allowed_tax_roles(await tax_residency(uow, user_id))
+
+    async def _check_tax_role(self, uow: Any, user_id: str, role: str) -> None:
+        residency = await tax_residency(uow, user_id)
+        allowed = registry.allowed_tax_roles(residency)
+        if role not in allowed:
+            raise UnknownTaxRoleError(_role_refusal(role, residency, allowed))
+
     async def add_account(
         self,
         user_id: str,
@@ -46,8 +82,13 @@ class LedgerService:
         tax_role: TaxRole | None = None,
     ) -> str:
         """Open an account, held in `currency` — the user's base currency unless
-        another is named (a USD savings account in a rupee ledger)."""
+        another is named (a USD savings account in a rupee ledger).
+
+        A `tax_role` must be one the user's tax packs declare
+        (`UnknownTaxRoleError` otherwise)."""
         async with self._uow_factory() as uow:
+            if tax_role is not None:
+                await self._check_tax_role(uow, user_id, tax_role)
             held_in = (
                 normalize_currency(currency)
                 if currency
@@ -236,11 +277,16 @@ class LedgerService:
     ) -> None:
         """Edit an account. `currency` None leaves it as it is; it can only
         change while the account has no entries, because its postings are
-        amounts in that currency."""
+        amounts in that currency.
+
+        A new `tax_role` must be one the user's tax packs declare; the role an
+        account already has may stay, so a rename never fails on it."""
         async with self._uow_factory() as uow:
             account = await uow.ledger.get_account(user_id, account_id)
             if account is None:
                 raise KeyError(account_id)
+            if tax_role is not None and tax_role != account.tax_role:
+                await self._check_tax_role(uow, user_id, tax_role)
             held_in = normalize_currency(currency) if currency else account.currency
             if held_in != account.currency and any(
                 p.account_id == account_id

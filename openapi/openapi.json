@@ -1137,6 +1137,7 @@
           "tax"
         ],
         "summary": "Compute Tax",
+        "description": "Compute the user's income tax for a year with their country's pack.\n\nTheir country is their tax residency or, while they have not set one, the\none country whose packs compute in their base currency. 422\n(/problems/no-tax-pack) when Salli has no pack that can compute it.",
         "operationId": "tax.compute",
         "security": [
           {
@@ -1149,8 +1150,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "default": "2025/26",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2025/26"
+              ],
               "title": "Year"
             }
           }
@@ -1207,8 +1217,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "default": "2025/26",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2025/26"
+              ],
               "title": "Year"
             }
           }
@@ -1245,6 +1264,43 @@
             }
           }
         }
+      }
+    },
+    "/v1/tax/current-year": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Current Year",
+        "description": "The tax year the user is in today, in their country.",
+        "operationId": "tax.currentYear",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxYearStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/agent/chat": {
@@ -2984,7 +3040,7 @@
           "reminders"
         ],
         "summary": "Seed Filing Calendar",
-        "description": "Seed the IRD filing deadlines for the given year of assessment.",
+        "description": "Seed the filing deadlines of the user's tax pack for a tax year; by\ndefault the latest one Salli can compute for them.",
         "operationId": "reminders.seedFilingCalendar",
         "security": [
           {
@@ -2997,8 +3053,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "default": "2025/26",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2025/26"
+              ],
               "title": "Year"
             }
           }
@@ -3172,6 +3237,43 @@
             }
           }
         }
+      }
+    },
+    "/v1/fi/assumptions": {
+      "get": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Get Assumptions",
+        "description": "The planning assumptions behind the user's FI figures, and where each came from.",
+        "operationId": "fi.assumptions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiAssumptionsReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/fi/score": {
@@ -13127,6 +13229,174 @@
         ],
         "title": "ExportedPosting"
       },
+      "FiAssumption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user",
+              "strategy",
+              "default"
+            ],
+            "title": "Origin"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "origin",
+          "source"
+        ],
+        "title": "FiAssumption",
+        "description": "One planning assumption, and where it came from."
+      },
+      "FiAssumptionOverrides": {
+        "properties": {
+          "inflation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflation"
+          },
+          "real_return": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real Return"
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safe Withdrawal Rate"
+          }
+        },
+        "type": "object",
+        "title": "FiAssumptionOverrides",
+        "description": "The planning assumptions the user set themselves; null where they use\nthe default for their currency. Yearly fractions in decimal strings."
+      },
+      "FiAssumptionOverridesIn": {
+        "properties": {
+          "inflation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflation"
+          },
+          "real_return": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real Return"
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safe Withdrawal Rate"
+          }
+        },
+        "type": "object",
+        "title": "FiAssumptionOverridesIn",
+        "description": "Set the user's own planning assumptions, as yearly fractions (\"0.03\" is\n3%). Only the fields sent change; an explicit null returns one to the\ndefault for their currency."
+      },
+      "FiAssumptions": {
+        "properties": {
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "inflation": {
+            "$ref": "#/components/schemas/FiAssumption"
+          },
+          "real_return": {
+            "$ref": "#/components/schemas/FiAssumption"
+          },
+          "safe_withdrawal_rate": {
+            "$ref": "#/components/schemas/FiAssumption"
+          }
+        },
+        "type": "object",
+        "required": [
+          "region",
+          "inflation",
+          "real_return",
+          "safe_withdrawal_rate"
+        ],
+        "title": "FiAssumptions",
+        "description": "The assumptions these figures were computed with. Defaults are round,\nconservative starting points to adjust, never forecasts."
+      },
+      "FiAssumptionsReport": {
+        "properties": {
+          "applied": {
+            "$ref": "#/components/schemas/FiAssumptions"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/FiAssumptions"
+          },
+          "overrides": {
+            "$ref": "#/components/schemas/FiAssumptionOverrides"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied",
+          "defaults",
+          "overrides"
+        ],
+        "title": "FiAssumptionsReport",
+        "description": "The assumptions the user's FI figures use, the defaults for their\ncurrency, and what they set themselves."
+      },
       "FiProjectionPoint": {
         "properties": {
           "year": {
@@ -13322,6 +13592,16 @@
               }
             ],
             "title": "Expected Inflation"
+          },
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": true,
@@ -13525,6 +13805,16 @@
             },
             "type": "array",
             "title": "Components"
+          },
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "inputs_hash": {
             "anyOf": [
@@ -15591,6 +15881,22 @@
             ],
             "title": "Base Currency"
           },
+          "tax_residency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Residency"
+          },
           "nic": {
             "type": "string",
             "title": "Nic",
@@ -16617,6 +16923,43 @@
               }
             ],
             "title": "Preferred Model"
+          },
+          "tax_residency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Residency"
+          },
+          "tax_ids": {
+            "items": {
+              "$ref": "#/components/schemas/TaxId"
+            },
+            "type": "array",
+            "title": "Tax Ids"
+          },
+          "nic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nic"
+          },
+          "fi_assumptions": {
+            "$ref": "#/components/schemas/FiAssumptionOverrides"
           }
         },
         "type": "object",
@@ -16721,6 +17064,36 @@
             ],
             "title": "Employer"
           },
+          "tax_residency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Residency"
+          },
+          "tax_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaxId"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Ids"
+          },
           "ird_number": {
             "anyOf": [
               {
@@ -16731,6 +17104,27 @@
               }
             ],
             "title": "Ird Number"
+          },
+          "nic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nic"
+          },
+          "fi_assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumptionOverridesIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "base_currency": {
             "anyOf": [
@@ -17084,6 +17478,9 @@
           "swr": {
             "type": "string",
             "title": "Swr"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/FiAssumptions"
           }
         },
         "type": "object",
@@ -17104,7 +17501,8 @@
           "is_stale",
           "stale_after_days",
           "real_return_used",
-          "swr"
+          "swr",
+          "assumptions"
         ],
         "title": "PurchaseImpact",
         "description": "What a purchase does to the balance sheet and the FI date. Every figure is the engine's."
@@ -19487,6 +19885,31 @@
         ],
         "title": "TaxComputation"
       },
+      "TaxId": {
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}-[A-Z0-9]+$",
+            "title": "Scheme",
+            "examples": [
+              "LK-TIN"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheme",
+          "value"
+        ],
+        "title": "TaxId",
+        "description": "A number a tax authority knows the user by."
+      },
       "TaxPack": {
         "properties": {
           "country": {
@@ -19545,6 +19968,20 @@
           "final_installment_due": {
             "type": "string",
             "title": "Final Installment Due"
+          },
+          "withholding_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/WithholdingKind"
+            },
+            "type": "array",
+            "title": "Withholding Kinds"
+          },
+          "tax_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tax Roles"
           }
         },
         "type": "object",
@@ -19559,7 +19996,9 @@
           "return_due",
           "set_due",
           "installments",
-          "final_installment_due"
+          "final_installment_due",
+          "withholding_kinds",
+          "tax_roles"
         ],
         "title": "TaxPack"
       },
@@ -19593,6 +20032,13 @@
           "period_end": {
             "type": "string",
             "title": "Period End"
+          },
+          "withholding_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/WithholdingKind"
+            },
+            "type": "array",
+            "title": "Withholding Kinds"
           }
         },
         "type": "object",
@@ -19602,9 +20048,105 @@
           "version",
           "currency",
           "period_start",
-          "period_end"
+          "period_end",
+          "withholding_kinds"
         ],
         "title": "TaxPackInfo"
+      },
+      "TaxYearStatus": {
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$",
+                "description": "ISO 3166-1 alpha-2 country code",
+                "examples": [
+                  "LK"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "country_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "tax_residency",
+                  "base_currency"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Source"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "has_pack": {
+            "type": "boolean",
+            "title": "Has Pack"
+          },
+          "latest_year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "country_source",
+          "year",
+          "start",
+          "end",
+          "has_pack",
+          "latest_year"
+        ],
+        "title": "TaxYearStatus",
+        "description": "The tax year the user is in today, and the latest one Salli can compute."
       },
       "TokenGrant": {
         "properties": {
@@ -19799,6 +20341,30 @@
         ],
         "title": "Updated",
         "description": "What the updates that predate `Ref` return instead of an id."
+      },
+      "WithholdingKind": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "label",
+          "description"
+        ],
+        "title": "WithholdingKind",
+        "description": "Tax withheld or paid ahead of the return that a pack credits against the bill."
       },
       "deviceAuthorization": {
         "properties": {

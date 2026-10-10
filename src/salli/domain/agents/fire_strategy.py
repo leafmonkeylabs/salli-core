@@ -23,8 +23,9 @@ You will analyse a user's REAL financial data (from their ledger) and produce a 
 FIRE strategy using these seven foundational theories:
 
 1. **Trinity Study / 4% Rule**: Derive the safe withdrawal rate (SWR) based on the user's
-   situation. Standard SWR is 4% (25x expenses), but FatFIRE users with conservative needs
-   may use 3.5%, and those with aggressive growth plans may use 4.5%.
+   situation, starting from the one in the assumptions (4% is the Trinity study's: 25x
+   expenses). FatFIRE users with conservative needs may use 3.5%, and those with aggressive
+   growth plans may use 4.5%.
 
 2. **Barbell Strategy**: Create two poles, ultra-safe (emergency + bonds/FDs) and
    high-growth (equities/business). Avoid the mushy middle. The size of each pole depends
@@ -38,13 +39,13 @@ FIRE strategy using these seven foundational theories:
    bucket first, then stability, then growth. Monthly contributions flow in this sequence.
 
 5. **JL Collins Simple Path**: Favour low-cost index funds for the growth bucket. Suggest
-   what is available where the user lives (in Sri Lanka, for example, CSE index funds (ASPI)
-   and unit trusts), and for the international portion, broad index ETFs, via a foreign
-   account where needed.
+   what is available where the user lives (the end of this prompt says what is known about
+   that), and for the international portion, broad index ETFs, via a foreign account where
+   needed.
 
-6. **Currency Diversification**: If the user has foreign income (FSI) or multi-currency
-   accounts, create a dedicated foreign currency / hedge bucket. Home-currency depreciation
-   risk is real (the LKR's, for example), weight this bucket appropriately.
+6. **Currency Diversification**: If the user has foreign income or multi-currency accounts,
+   create a dedicated foreign currency / hedge bucket. Home-currency depreciation risk is
+   real for many currencies: weight this bucket for the user's base currency.
 
 7. **FIRE Tier Classification**: Classify the user:
    - LeanFIRE: savings rate < 30%, living lean
@@ -54,6 +55,16 @@ FIRE strategy using these seven foundational theories:
 
 Generate allocation buckets appropriate to this user, not a generic template. The bucket
 count, names, and target percentages should reflect their actual financial profile.
+
+Planning assumptions: the data's `assumptions` gives the inflation, the base scenario's real
+return and the safe withdrawal rate Salli applies for this user. Each has an `origin`: `user`
+when they set it on their profile, `default` when it is the default for their currency
+(`region`), with its `source`. Use them:
+- Choose nominal returns consistent with that inflation: after inflation, your base return
+  should be near the real return given, or say in ai_rationale why it is not
+- Keep to any assumption whose origin is `user`: Salli applies theirs over yours
+- In ai_rationale, say which assumptions you built on and where each came from. Call defaults
+  what they are, round starting points the user can change on their profile, never forecasts
 
 Rules:
 - Target percentages across all buckets must sum to 100%
@@ -179,8 +190,13 @@ async def generate_strategy(
         else "Generate a comprehensive, personalised FIRE strategy for this user based on their actual financial data."
     )
 
+    from salli.domain.agents.jurisdiction import market_notes
+
+    # What is known about where the user invests: nothing country-specific when
+    # their tax residency is not known.
+    system = f"{FIRE_SYSTEM_PROMPT}\n\n{market_notes(context.get('tax_residency'))}"
     text = await llm.generate(
-        instructions=FIRE_SYSTEM_PROMPT,
+        instructions=system,
         input=f"Here is the user's financial profile:\n\n{payload}\n\nTask: {task}",
         tier="best",
         model=model,

@@ -75,12 +75,16 @@ def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
 
     @tool
     async def get_tax_computation(
-        year: Annotated[str, "Year of assessment, e.g. 2025/26"] = "2025/26",
+        year: Annotated[
+            str | None,
+            "Tax year as its pack names it, e.g. 2025/26; omit for the latest year "
+            "Salli can compute for the user",
+        ] = None,
     ) -> dict[str, Any]:
         """
-        Return the latest stored tax computation for the given year.
-        If none exists, compute it now. Numbers here are authoritative;
-        narrate them, do NOT recompute or adjust them.
+        Compute the user's income tax for a year with their country's tax pack.
+        Numbers here are authoritative; narrate them, do NOT recompute or
+        adjust them.
 
         The band table covers taxable_income only. Foreign service income is
         taxed separately at a flat rate, so the bands will not sum to
@@ -111,8 +115,10 @@ def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
         band_tax = sum((Decimal(_bw(bw)["tax"]) for bw in result.band_workings), Decimal(0))
 
         return {
+            "country": result.pack_country,
             "year": result.pack_year,
             "pack_version": result.pack_version,
+            "currency": result.currency,
             "gross_income": str(result.gross_income),
             # Split out, because the bands only ever apply to `regular_income`.
             # Without these the band table looks like it should reconcile to
@@ -151,7 +157,8 @@ def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
 
     @tool
     def list_tax_packs() -> dict[str, Any]:
-        """List available tax packs (country, year, version)."""
+        """List available tax packs (country, year, version) and the withholding
+        kinds each credits."""
         packs = tax_svc.list_packs()
         return {
             "packs": [
@@ -161,27 +168,34 @@ def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
                     "version": p.version,
                     "period_start": p.period_start,
                     "period_end": p.period_end,
+                    "withholding_kinds": [
+                        {"code": k.code, "label": k.label, "description": k.description}
+                        for k in p.withholding_kinds
+                    ],
                 }
                 for p in packs
             ]
         }
 
     @tool
-    def explain_tax_band(
+    async def explain_tax_band(
         band_index: Annotated[int, "0-indexed band number"],
-        year: Annotated[str, "Year of assessment"] = "2025/26",
+        year: Annotated[
+            str | None, "Tax year, e.g. 2025/26; omit for the latest Salli can compute"
+        ] = None,
     ) -> dict[str, Any]:
         """
-        Explain a specific tax band (rate, threshold, how much tax it generates).
+        Explain a specific band of the user's own tax pack (rate, threshold).
         Returns the band definition from the tax pack — do NOT invent numbers.
         """
-        from salli.domain.tax.packs.registry import get_pack
-
-        pack = get_pack("LK", year)
+        pack = await tax_svc.pack(_current_user.get(), year)
         if band_index < 0 or band_index >= len(pack.bands):
             return {"error": f"Band index {band_index} out of range (0–{len(pack.bands) - 1})"}
         band = pack.bands[band_index]
         return {
+            "country": pack.country,
+            "year": pack.year,
+            "currency": pack.currency,
             "band_index": band_index,
             "upto": str(band.upto) if band.upto else "unbounded",
             "rate": str(band.rate),
@@ -237,7 +251,7 @@ def make_manager_tools(
             max_results=5,
             description=(
                 "Search the internet for current tax laws and revenue-authority guidance "
-                "(such as Sri Lanka's IRD circulars), "
+                "(such as the circulars of the user's tax authority), "
                 "exchange rates, financial news, or any other real-time information. "
                 "Always cite the source URL in your response."
             ),

@@ -174,9 +174,9 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         }
 
     @mcp.tool()
-    async def get_tax_computation(year: str = "2025/26") -> dict[str, Any]:
-        """Return the latest stored tax computation for the given year of assessment.
-        If none exists, compute it now."""
+    async def get_tax_computation(year: str | None = None) -> dict[str, Any]:
+        """Compute the user's income tax for a tax year (e.g. "2025/26") with their
+        country's tax pack; omit the year for the latest one Salli can compute."""
         user_id = _current_user_id()
         result = await tax_svc.compute_tax(user_id, year)
 
@@ -199,8 +199,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             }
 
         return {
+            "country": result.pack_country,
             "year": result.pack_year,
             "pack_version": result.pack_version,
+            "currency": result.currency,
             "gross_income": str(result.gross_income),
             "personal_relief": str(result.personal_relief_applied),
             "taxable_income": str(result.taxable_income),
@@ -230,15 +232,17 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         }
 
     @mcp.tool()
-    def explain_tax_band(band_index: int, year: str = "2025/26") -> dict[str, Any]:
-        """Explain a specific tax band (rate, threshold, how much tax it generates)."""
-        from salli.domain.tax.packs.registry import get_pack
-
-        pack = get_pack("LK", year)
+    async def explain_tax_band(band_index: int, year: str | None = None) -> dict[str, Any]:
+        """Explain a band of the user's own tax pack (rate, threshold); omit the
+        year for the latest one Salli can compute."""
+        pack = await tax_svc.pack(_current_user_id(), year)
         if band_index < 0 or band_index >= len(pack.bands):
             return {"error": f"Band index {band_index} out of range (0–{len(pack.bands) - 1})"}
         band = pack.bands[band_index]
         return {
+            "country": pack.country,
+            "year": pack.year,
+            "currency": pack.currency,
             "band_index": band_index,
             "upto": str(band.upto) if band.upto else "unbounded",
             "rate": str(band.rate),

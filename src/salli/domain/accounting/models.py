@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from enum import Enum
 from typing import Literal
@@ -32,13 +33,15 @@ Source = Literal["manual", "statement", "sms", "system"]
 #
 # `AccountType` stays the accounting classification; `TaxRole` is the tax
 # treatment. They answer different questions and an account needs both.
-TaxRole = Literal[
-    "apit_credit",
-    "ait_credit",
-    "foreign_tax_credit",
-    "qualifying_payment",
-    "fsi_income",
-]
+#
+# Which roles exist is not fixed here. Tax packs declare them (their withholding
+# kinds, and the roles of the regimes they have: `TaxPack.tax_roles`), and an
+# account may only take one its owner's pack declares (LedgerService). Sri
+# Lanka's are apit_credit, ait_credit, foreign_tax_credit, qualifying_payment
+# and fsi_income. This model checks only that a code looks like one.
+TaxRole = str
+
+_TAX_ROLE_SHAPE = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
 
 
 def _currency_code(value: object) -> str:
@@ -68,6 +71,13 @@ class Account(BaseModel):
     @classmethod
     def _code(cls, v: object) -> str:
         return _currency_code(v)
+
+    @field_validator("tax_role")
+    @classmethod
+    def _role_shape(cls, v: str | None) -> str | None:
+        if v is not None and not _TAX_ROLE_SHAPE.fullmatch(v):
+            raise ValueError(f"{v!r} is not a tax role code")
+        return v
 
 
 #: Accounts that hold money (a bank, cash) or owe it (a card, a loan): what a

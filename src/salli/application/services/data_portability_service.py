@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
+#: The year the export's `tax_computation_2025_26` key is named after. A name,
+#: not "the current year": the key predates exports of every year.
+_LEGACY_EXPORT_YEAR = "2025/26"
+
 
 class DataPortabilityService:
     def __init__(
@@ -80,19 +84,18 @@ class DataPortabilityService:
         tables directly.
 
         Known scope limits, documented rather than silently incomplete:
-        - accounts: active accounts only (list_accounts has no include-inactive
-          option today)
-        - tax_computations: only the current pack year (2025/26) — there is no
-          "list all years" method, only get_latest_computation(year)
+        - tax_computations: the latest computation for each tax year a pack
+          covers; earlier recomputations of a year are not included
         - chat message content lives in the LangGraph checkpointer (Postgres,
           managed by AsyncPostgresSaver), not in these domain tables — it is
           not included here
         """
         entries = await self._ledger.get_entries(user_id)
-        tax_computation = await self._tax.get_latest_computation(user_id, "2025/26")
         # Every tax year a pack covers, not only the one this export once knew.
         years = sorted({pack.year for pack in list_packs()})
-        computations = [await self._tax.get_latest_computation(user_id, year) for year in years]
+        computations = {
+            year: await self._tax.get_latest_computation(user_id, year) for year in years
+        }
 
         data: dict[str, Any] = {
             "user_id": user_id,
@@ -135,10 +138,14 @@ class DataPortabilityService:
                 }
                 for e in entries
             ],
-            # Kept for exports read by older tools; `tax_computations` has every year.
-            "tax_computation_2025_26": self._computation_to_dict(tax_computation),
+            # Kept for exports read by older tools, holding what its name says:
+            # the 2025/26 computation, whichever year is current now.
+            # `tax_computations` has every year.
+            "tax_computation_2025_26": self._computation_to_dict(
+                computations.get(_LEGACY_EXPORT_YEAR)
+            ),
             "tax_computations": [
-                self._computation_to_dict(c) for c in computations if c is not None
+                self._computation_to_dict(c) for c in computations.values() if c is not None
             ],
             "budgets": await self._budget.list_budgets(user_id),
             "debts": await self._debt.list_debts(user_id, active_only=False),

@@ -213,7 +213,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     # configured, which 503'd exactly the users BYOK is for.
     entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
-    reminders = ReminderService(uow_factory, budget, subscription, insurance)
+    reminders = ReminderService(uow_factory, budget, subscription, insurance, tax)
     reports = ReportService(ledger, fi)
     public_url = settings.mcp_public_base_url.rstrip("/")
     mcp_oauth = McpOAuthService(
@@ -260,7 +260,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         fi=fi,
         advisor=advisor,
         profile=profile,
-        onboarding=OnboardingService(documents, fi, ledger),
+        onboarding=OnboardingService(documents, fi, ledger, profile),
         budget=budget,
         debt=debt,
         portfolio=portfolio,

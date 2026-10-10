@@ -16,7 +16,9 @@ from salli.domain.tax.models import (
     Band,
     FilingCalendar,
     ForeignServiceIncomeRegime,
+    StarterAccount,
     TaxPack,
+    WithholdingKind,
 )
 
 LK_2025_26 = TaxPack(
@@ -26,6 +28,12 @@ LK_2025_26 = TaxPack(
     currency="LKR",
     period_start="2025-04-01",
     period_end="2026-03-31",
+    # Sri Lanka's year of assessment runs from 1 April to 31 March.
+    year_start="04-01",
+    year_end="03-31",
+    year_name="Year of Assessment",
+    authority="Inland Revenue Department (IRD)",
+    law="the Inland Revenue Act No. 24 of 2017, as amended",
     #
     # LKR 1,800,000 personal relief (effective 1 April 2025).
     personal_relief=Decimal("1_800_000"),
@@ -60,5 +68,53 @@ LK_2025_26 = TaxPack(
         installments=["08-15", "11-15", "02-15", "05-15"],
         final_installment_due="09-30",
         return_due="11-30",  # 30 November
+    ),
+    #
+    # Qualifying payments (donations): deductible up to a third of taxable
+    # income, and at most LKR 75,000.
+    qualifying_payment_cap=Decimal("75000"),
+    qualifying_payment_fraction=Decimal("1") / Decimal("3"),
+    #
+    # The credits above, as the tax roles an account may carry. With the FSI
+    # regime and the qualifying-payment relief, they are every role a Sri
+    # Lankan resident's accounts can have.
+    withholding_kinds=(
+        WithholdingKind(
+            code="apit_credit",
+            label="APIT",
+            description=(
+                "Advance Personal Income Tax: income tax your employer withheld from "
+                "your pay and paid to the Inland Revenue Department."
+            ),
+        ),
+        WithholdingKind(
+            code="ait_credit",
+            label="AIT",
+            description=(
+                "Advance Income Tax withheld at source by whoever paid you, such as a "
+                "bank from the interest it pays."
+            ),
+        ),
+        WithholdingKind(
+            code="foreign_tax_credit",
+            label="Foreign tax credit",
+            description=(
+                "Tax paid to another country on income Sri Lanka taxes too, credited so "
+                "the same income is not taxed twice."
+            ),
+        ),
+    ),
+    #
+    # A Sri Lankan resident's starter chart: receivables for the tax withheld
+    # from them, foreign service income kept apart for its flat rate, and
+    # donations recorded for the relief.
+    starter_accounts=(
+        StarterAccount("5900", "Donations & Qualifying Payments", "expense", "qualifying_payment"),
+        StarterAccount("4110", "APIT Receivable", "asset", "apit_credit", "employment"),
+        StarterAccount("4410", "AIT Receivable", "asset", "ait_credit", "interest"),
+        StarterAccount("4500", "Foreign Service Income (FSI)", "income", "fsi_income", "foreign"),
+        StarterAccount(
+            "4510", "Foreign Tax Credit Receivable", "asset", "foreign_tax_credit", "foreign"
+        ),
     ),
 )

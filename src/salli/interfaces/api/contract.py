@@ -62,6 +62,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/tax/packs"): "tax.packs",
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",
+    ("GET", "/tax/current-year"): "tax.currentYear",
     # statements
     ("GET", "/statements/"): "statements.list",
     ("POST", "/statements/upload"): "statements.upload",
@@ -95,6 +96,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/fi/projections"): "fi.projections",
     ("POST", "/fi/simulate-purchase"): "fi.simulatePurchase",
     ("GET", "/fi/surplus"): "fi.surplus",
+    ("GET", "/fi/assumptions"): "fi.assumptions",
     ("GET", "/fi/strategy"): "fi.strategy.get",
     ("POST", "/fi/strategy/generate"): "fi.strategy.generate",
     ("GET", "/fi/strategy/history"): "fi.strategy.history",
@@ -302,6 +304,12 @@ Amount = Annotated[
 #: An ISO 4217 currency code.
 CurrencyCode = Annotated[
     str, Field(pattern=r"^[A-Z]{3}$", examples=["USD"], description="ISO 4217 currency code")
+]
+
+#: An ISO 3166-1 alpha-2 country code.
+CountryCode = Annotated[
+    str,
+    Field(pattern=r"^[A-Z]{2}$", examples=["LK"], description="ISO 3166-1 alpha-2 country code"),
 ]
 
 

@@ -13,6 +13,7 @@ import uuid
 from typing import Any
 
 from salli.domain.agents import advisor as advisor_llm
+from salli.domain.jurisdiction import country_phrase
 from salli.domain.usage import AIAction
 
 
@@ -90,13 +91,17 @@ class AdvisorService:
         score = await self._fi.compute_score(user_id)
         goals = await self._fi.list_goals(user_id)
         profile = await self._gather_profile(user_id)
-        rates = await self._research_rates()
+        residency = await self._tax_residency(user_id)
+        rates = await self._research_rates(residency, score.get("currency"))
         fire_strategy = await self._fi.get_strategy(user_id)
         fire_projections = await self._fi.get_projections(user_id)
         surplus = await self._fi.get_surplus_breakdown(user_id)
 
         context = {
             "currency": score["currency"],
+            # Where the user is taxed (ISO 3166-1), or None: advice tailored
+            # to a country only when it is known.
+            "tax_residency": residency,
             "fi_score": {
                 "overall": score.get("overall_score"),
                 "grade": score.get("grade"),
@@ -143,6 +148,8 @@ class AdvisorService:
                 # assumptions in fire_strategy — say so, or the model will conflate them.
                 "real_returns_used": fire_projections.get("real_returns"),
                 "expected_inflation": fire_projections.get("expected_inflation"),
+                # Which planning assumptions applied, and where each came from.
+                "assumptions": fire_projections.get("assumptions"),
             },
             "surplus_breakdown": {
                 "income_by_source": surplus.get("income_by_source", {}),
@@ -207,14 +214,27 @@ class AdvisorService:
                 out[k] = mem["content"]
         return out
 
-    async def _research_rates(self) -> str:
-        """Best-effort: fetch current SL deposit/T-bill rates via web search."""
+    async def _tax_residency(self, user_id: str) -> str | None:
+        async with self._uow_factory() as uow:
+            profile = await uow.user_profiles.get(user_id)
+        residency = (profile or {}).get("tax_residency")
+        return residency if isinstance(residency, str) and residency else None
+
+    async def _research_rates(self, residency: str | None, currency: str | None) -> str:
+        """Best-effort: current deposit and treasury bill rates where the user
+        is, by their tax residency, or else for savers in their base currency."""
+        if residency:
+            where = f"in {country_phrase(residency)}"
+        elif currency:
+            where = f"for {currency} savings"
+        else:
+            return ""
         try:
             from langchain_community.tools.tavily_search import TavilySearchResults
 
             tool = TavilySearchResults(max_results=3)
             results = await tool.ainvoke(
-                "current fixed deposit and treasury bill interest rates Sri Lanka banks"
+                f"current fixed deposit and treasury bill interest rates {where}"
             )
             if isinstance(results, list):
                 return " | ".join(

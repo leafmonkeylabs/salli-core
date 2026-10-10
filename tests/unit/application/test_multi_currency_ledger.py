@@ -17,7 +17,11 @@ import pytest
 
 from salli.application.ports import FxQuote, FxRatePort, FxUnavailableError
 from salli.application.services.ledger_service import LedgerService
-from salli.application.services.tax_service import TaxPackCurrencyError, TaxService
+from salli.application.services.tax_service import (
+    NoTaxPackError,
+    TaxPackCurrencyError,
+    TaxService,
+)
 from salli.application.services.user_profile_service import (
     BaseCurrencyLockedError,
     UserProfileService,
@@ -302,8 +306,18 @@ async def test_the_base_currency_changes_freely_until_something_is_stored_in_it(
 
 @pytest.mark.asyncio
 async def test_a_tax_pack_only_computes_for_a_ledger_in_its_own_currency():
-    *_, uow_factory = _setup("EUR")
+    *_, profiles, uow_factory = _setup("EUR")
+    profiles.rows[USER] = {"tax_residency": "LK"}
     with pytest.raises(
         TaxPackCurrencyError, match="computes in LKR, but this ledger is kept in EUR"
     ):
         await TaxService(uow_factory).compute_tax(USER, "2025/26")
+
+
+@pytest.mark.asyncio
+async def test_with_no_residency_a_ledger_no_pack_computes_in_has_no_tax_country():
+    """Nobody is assumed to be Sri Lankan: with no residency, a euro ledger has
+    no pack to compute with, rather than Sri Lanka's."""
+    *_, uow_factory = _setup("EUR")
+    with pytest.raises(NoTaxPackError, match="doesn't know where you are taxed"):
+        await TaxService(uow_factory).compute_tax(USER)

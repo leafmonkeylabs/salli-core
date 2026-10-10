@@ -159,6 +159,11 @@ def accounts_add(
     currency: str = typer.Option(
         None, help="ISO 4217 code the account is held in (default: your base currency)"
     ),
+    tax_role: str = typer.Option(
+        None,
+        "--tax-role",
+        help="What your tax pack treats it as, e.g. apit_credit ('salli tax packs' lists them)",
+    ),
 ):
     """Add an account to the chart of accounts."""
     user_id = _require_user()
@@ -172,11 +177,31 @@ def accounts_add(
 
     async def _run() -> tuple[str, str]:
         held_in = currency or await svc.ledger.base_currency(user_id)
-        new_id = await svc.ledger.add_account(user_id, code, name, type, held_in)  # type: ignore[arg-type]
+        new_id = await svc.ledger.add_account(
+            user_id,
+            code,
+            name,
+            type,  # type: ignore[arg-type]
+            held_in,
+            tax_role=tax_role,
+        )
         return new_id, held_in
 
-    account_id, currency = asyncio.run(_run())
-    emit({"id": account_id, "code": code, "name": name, "type": type, "currency": currency})
+    try:
+        account_id, currency = asyncio.run(_run())
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
+    emit(
+        {
+            "id": account_id,
+            "code": code,
+            "name": name,
+            "type": type,
+            "currency": currency,
+            "tax_role": tax_role,
+        }
+    )
     console.print(f"[green]Account created:[/green] {code} — {name} ({account_id})")
 
 
@@ -245,8 +270,13 @@ def accounts_update(
     currency: str = typer.Option(
         None, "--currency", help="ISO 4217 (default: unchanged; only while it has no entries)"
     ),
+    tax_role: str = typer.Option(
+        None,
+        "--tax-role",
+        help="What your tax pack treats it as (default: unchanged; 'none' clears it)",
+    ),
 ):
-    """Update an account's code, name, type, and currency."""
+    """Update an account's code, name, type, currency and tax role."""
     user_id = _require_user()
     valid_types = {"asset", "liability", "equity", "income", "expense"}
     if type not in valid_types:
@@ -254,8 +284,37 @@ def accounts_update(
             f"[red]Invalid type '{type}'. Must be one of: {', '.join(sorted(valid_types))}[/red]"
         )
         raise typer.Exit(1)
-    asyncio.run(_services().ledger.update_account(user_id, account_id, code, name, type, currency))
-    emit({"id": account_id, "code": code, "name": name, "type": type, "currency": currency})
+    svc = _services()
+
+    async def _run() -> str | None:
+        # Omitted keeps the role the account has, as the API does: the
+        # repository writes whatever it is given, a missing role included.
+        role = tax_role
+        if role is None:
+            existing = await svc.ledger.get_account(user_id, account_id)
+            role = existing.tax_role if existing else None
+        elif role.lower() == "none":
+            role = None
+        await svc.ledger.update_account(
+            user_id, account_id, code, name, type, currency, tax_role=role
+        )
+        return role
+
+    try:
+        role = asyncio.run(_run())
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
+    emit(
+        {
+            "id": account_id,
+            "code": code,
+            "name": name,
+            "type": type,
+            "currency": currency,
+            "tax_role": role,
+        }
+    )
     console.print(f"[green]Account updated:[/green] {account_id}")
 
 
@@ -567,7 +626,11 @@ def ledger_tags(
 
 @tax_app.command("compute")
 def tax_compute(
-    year: str = typer.Option("2025/26", "--year", help="Year of assessment"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
 ):
     """Compute income tax using the versioned rules engine."""
     user_id = _require_user()
@@ -575,6 +638,9 @@ def tax_compute(
         result = asyncio.run(_services().tax.compute_tax(user_id, year))
     except KeyError as e:
         console.print(f"[red]Unknown tax pack:[/red] {e}")
+        raise typer.Exit(1)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
     if emit(result):
         return
@@ -609,16 +675,25 @@ def tax_compute(
 
 @tax_app.command("explain")
 def tax_explain(
-    year: str = typer.Option("2025/26", "--year"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
 ):
     """Launch the Tax Agent REPL to explain your tax situation."""
     # Delegate to agent chat with a priming message
-    _run_agent_chat(f"Please explain my tax situation for the {year} year of assessment.")
+    which = f"the {year} tax year" if year else "my latest tax year"
+    _run_agent_chat(f"Please explain my tax situation for {which}.")
 
 
 @tax_app.command("prepare-return")
 def tax_prepare_return(
-    year: str = typer.Option("2025/26", "--year"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
     thread_id: str = typer.Option(None, "--thread-id", help="Resume an existing return thread"),
 ):
     """Run the return preparation workflow (pauses for review before finalizing)."""
@@ -631,7 +706,11 @@ def tax_prepare_return(
             draft = result.get("draft_return", {})
             tid = result.get("thread_id", "")
 
-            console.print(f"\n[bold]Draft Return — {year}[/bold]  (thread: {tid})\n")
+            if result.get("error"):
+                console.print(f"[red]{result['error']}[/red]")
+                return
+            shown = draft.get("year") or year
+            console.print(f"\n[bold]Draft Return — {shown}[/bold]  (thread: {tid})\n")
             for cage, value in draft.items():
                 if cage == "note":
                     continue
@@ -673,13 +752,16 @@ def tax_packs():
     table.add_column("Year")
     table.add_column("Version")
     table.add_column("Period")
+    table.add_column("Account tax roles")
 
     for pack in list_packs():
+        labels = {kind.code: f"{kind.code} ({kind.label})" for kind in pack.withholding_kinds}
         table.add_row(
             pack.country,
             pack.year,
             pack.version,
             f"{pack.period_start} → {pack.period_end}",
+            ", ".join(labels.get(role, role) for role in pack.tax_roles),
         )
 
     console.print(table)
@@ -764,16 +846,57 @@ def tax_recompute_stored(
 
 
 @tax_app.command("latest")
-def tax_latest(year: str = typer.Option("2025/26", help="Year of assessment")):
+def tax_latest(
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
+):
     """Show the most recently stored tax computation for a year."""
     user_id = _require_user()
     result = asyncio.run(_services().tax.get_latest_computation(user_id, year))
     if emit(result):
         return
     if result is None:
-        console.print(f"[dim]No stored computation for {year}. Run 'salli tax compute'.[/dim]")
+        which = year or "your latest tax year"
+        console.print(f"[dim]No stored computation for {which}. Run 'salli tax compute'.[/dim]")
         return
     console.print(result)
+
+
+@tax_app.command("year")
+def tax_year():
+    """The tax year you are in today, and the latest one Salli can compute."""
+    from salli.domain.jurisdiction import country_name
+
+    user_id = _require_user()
+    where, current = asyncio.run(_services().tax.current_tax_year(user_id))
+    data = {
+        "country": where.country,
+        "country_source": where.source,
+        "year": current.year.label if current else None,
+        "start": current.year.start.isoformat() if current else None,
+        "end": current.year.end.isoformat() if current else None,
+        "has_pack": bool(current and current.pack),
+        "latest_year": current.latest.year if current and current.latest else None,
+    }
+    if emit(data):
+        return
+    if where.country is None:
+        console.print(
+            "[yellow]Salli doesn't know where you are taxed.[/yellow] "
+            "Set it with 'salli profile update --tax-residency <country>'."
+        )
+        return
+    how = "your tax residency" if where.source == "tax_residency" else "your base currency"
+    console.print(f"  Country:      {country_name(where.country)} (from {how})")
+    if current is None:
+        console.print(f"  [dim]Salli has no tax pack for {country_name(where.country)} yet.[/dim]")
+        return
+    console.print(f"  Tax year:     {data['year']} ({data['start']} to {data['end']})")
+    pack_note = "" if data["has_pack"] else " (no pack for the current year yet)"
+    console.print(f"  Can compute:  {data['latest_year'] or 'none yet'}{pack_note}")
 
 
 # ── parse ─────────────────────────────────────────────────────────────────────
@@ -1201,13 +1324,27 @@ def reminders_delete(
 
 @reminders_app.command("seed")
 def reminders_seed(
-    year: str = typer.Option("2025/26", "--year", help="Year of assessment"),
+    year: str = typer.Option(
+        None,
+        "--year",
+        help="Tax year, e.g. 2025/26 (default: the latest Salli can compute for you)",
+    ),
 ):
-    """Seed the standard filing calendar for a year of assessment."""
+    """Seed the filing calendar of your tax pack for a tax year."""
     user_id = _require_user()
-    ids = asyncio.run(_services().reminders.seed_filing_calendar(user_id, year))
-    emit({"year": year, "ids": ids})
-    console.print(f"[green]Seeded {len(ids)} reminder(s) for {year}.[/green]")
+    svc = _services()
+
+    async def _run() -> tuple[str, list[str]]:
+        pack = await svc.tax.pack(user_id, year)
+        return pack.year, await svc.reminders.seed_filing_calendar(user_id, pack.year)
+
+    try:
+        seeded_year, ids = asyncio.run(_run())
+    except (KeyError, ValueError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    emit({"year": seeded_year, "ids": ids})
+    console.print(f"[green]Seeded {len(ids)} reminder(s) for {seeded_year}.[/green]")
 
 
 @reminders_app.command("sync-alerts")
@@ -1334,6 +1471,47 @@ def fi_projections():
                 _amount(p.get("growth"), cur),
             )
         console.print(table)
+
+
+@fi_app.command("assumptions")
+def fi_assumptions():
+    """The planning assumptions behind your FI figures, and where each came from."""
+    from decimal import Decimal
+
+    user_id = _require_user()
+    report = asyncio.run(_services().fi.assumptions(user_id))
+    if emit(report):
+        return
+    applied, defaults = report["applied"], report["defaults"]
+    where = (
+        "your currency" if applied["region"] != "other" else "currencies Salli has no figures for"
+    )
+    console.print(f"\n[bold]FI assumptions[/bold]  (defaults for {where}: {applied['region']})\n")
+    names = {
+        "inflation": "Inflation",
+        "real_return": "Real return (base)",
+        "safe_withdrawal_rate": "Safe withdrawal rate",
+    }
+
+    def pct(value: str) -> str:
+        return f"{Decimal(value) * 100:.2f}%"
+
+    table = Table()
+    table.add_column("Assumption")
+    table.add_column("Applied", justify="right")
+    table.add_column("From")
+    table.add_column("Default", justify="right")
+    for key, label in names.items():
+        table.add_row(
+            label, pct(applied[key]["value"]), applied[key]["origin"], pct(defaults[key]["value"])
+        )
+    console.print(table)
+    for key, label in names.items():
+        console.print(f"\n[dim]{label}:[/dim] {applied[key]['source']}")
+    console.print(
+        "\n[dim]Defaults are starting points, not forecasts. Set your own with "
+        "'salli profile update --fi-inflation 0.03' (and --fi-real-return, --fi-swr).[/dim]"
+    )
 
 
 @fi_app.command("surplus")
@@ -2182,10 +2360,38 @@ def profile_update(
     ),
     residency_status: str = typer.Option(None, "--residency-status", help="resident|non_resident"),
     employer: str = typer.Option(None, "--employer"),
-    ird_number: str = typer.Option(None, "--ird-number"),
+    tax_residency: str = typer.Option(
+        None,
+        "--tax-residency",
+        help="The country you are taxed in, as an ISO 3166-1 alpha-2 code (LK, GB, …); "
+        "'none' clears it",
+    ),
+    tax_id: list[str] = typer.Option(
+        None,
+        "--tax-id",
+        help="SCHEME=NUMBER, e.g. LK-TIN=123456789 (repeat for several); SCHEME= removes one",
+    ),
+    ird_number: str = typer.Option(None, "--ird-number", help="Sri Lankan TIN (LK-TIN)"),
+    nic: str = typer.Option(None, "--nic", help="Sri Lankan NIC (LK-NIC)"),
+    fi_inflation: str = typer.Option(
+        None, "--fi-inflation", help="Your own yearly inflation, e.g. 0.03; 'none' for the default"
+    ),
+    fi_real_return: str = typer.Option(
+        None,
+        "--fi-real-return",
+        help="Your own yearly return after inflation, e.g. 0.04; 'none' for the default",
+    ),
+    fi_swr: str = typer.Option(
+        None, "--fi-swr", help="Your own safe withdrawal rate, e.g. 0.035; 'none' for the default"
+    ),
 ):
     """Update identity fields on the fact-find profile."""
+    from decimal import Decimal, InvalidOperation
+
+    from salli.domain.jurisdiction import stored_tax_ids, with_tax_id
+
     user_id = _require_user()
+    svc = _services()
     data: dict[str, object] = {}
     if display_name is not None:
         data["display_name"] = display_name
@@ -2201,12 +2407,42 @@ def profile_update(
         data["residency_status"] = residency_status
     if employer is not None:
         data["employer"] = employer
+    if tax_residency is not None:
+        data["tax_residency"] = None if tax_residency.lower() in ("none", "") else tax_residency
     if ird_number is not None:
         data["ird_number"] = ird_number
-    if not data:
+    if nic is not None:
+        data["nic"] = nic
+    own = {"inflation": fi_inflation, "real_return": fi_real_return, "safe_withdrawal_rate": fi_swr}
+    if not data and not tax_id and all(v is None for v in own.values()):
         console.print("[yellow]Nothing to update.[/yellow]")
         raise typer.Exit(1)
-    asyncio.run(_services().profile.update_identity(user_id, data))
+
+    async def _run() -> None:
+        # One event loop for the read and the write: the services' connection
+        # pool belongs to the loop that opened it.
+        if tax_id:
+            # Each one sets or removes a scheme; the others stay as they are.
+            ids = stored_tax_ids((await svc.profile.get_profile(user_id)).get("tax_ids"))
+            for raw in tax_id:
+                scheme, sep, value = raw.partition("=")
+                if not sep:
+                    raise ValueError(f"Invalid --tax-id '{raw}'. Use SCHEME=NUMBER")
+                ids = with_tax_id(ids, scheme, value)
+            data["tax_ids"] = [t.as_dict() for t in ids]
+        if any(v is not None for v in own.values()):
+            data["fi_assumptions"] = {
+                k: (None if v.lower() == "none" else Decimal(v))
+                for k, v in own.items()
+                if v is not None
+            }
+        await svc.profile.update_identity(user_id, data)
+
+    try:
+        asyncio.run(_run())
+    except (ValueError, InvalidOperation) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1)
     emit({"updated": data})
     console.print("[green]Profile updated.[/green]")
 
@@ -3399,6 +3635,11 @@ def onboarding_complete(
         "--base-currency",
         help="ISO 4217 code to keep your ledger in (only while it is still empty)",
     ),
+    tax_residency: str = typer.Option(
+        None,
+        "--tax-residency",
+        help="The country you are taxed in, as an ISO 3166-1 alpha-2 code (LK, GB, …)",
+    ),
 ):
     """Save your profile and create a starter chart of accounts. Safe to re-run."""
     from decimal import Decimal
@@ -3419,6 +3660,7 @@ def onboarding_complete(
             {
                 "name": name,
                 "residency": residency,
+                "tax_residency": tax_residency,
                 "income_sources": [s.strip() for s in income.split(",") if s.strip()],
                 "primary_goal": primary_goal,
                 "goal_target_amount": Decimal(goal_amount),

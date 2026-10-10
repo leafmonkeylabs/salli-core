@@ -4,7 +4,7 @@ alerts (Reminder rows with alert_type/source_domain/source_id/severity set).
 
 GET  /reminders             — list reminders (optional ?status, ?alerts_only)
 POST /reminders             — create a custom reminder
-POST /reminders/seed        — seed IRD filing deadlines for the current year
+POST /reminders/seed        — seed the tax pack's filing deadlines for a tax year
 POST /reminders/sync-alerts — detect and upsert Budget/Subscription/Insurance alerts
 PATCH /reminders/{id}/done  — mark a reminder complete
 """
@@ -12,8 +12,9 @@ PATCH /reminders/{id}/done  — mark a reminder complete
 from __future__ import annotations
 
 import datetime
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from salli.interfaces.api.contract import Ref
@@ -90,9 +91,10 @@ async def create_reminder(
 async def seed_filing_calendar(
     user_id: CurrentUser,
     svc: AppServices,
-    year: str = "2025/26",
+    year: Annotated[str | None, Query(examples=["2025/26"])] = None,
 ) -> SeededReminders:
-    """Seed the IRD filing deadlines for the given year of assessment."""
+    """Seed the filing deadlines of the user's tax pack for a tax year; by
+    default the latest one Salli can compute for them."""
     created = await svc.reminders.seed_filing_calendar(user_id, year)
     return SeededReminders(created=len(created), ids=created)
 

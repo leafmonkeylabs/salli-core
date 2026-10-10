@@ -137,6 +137,11 @@ class _EmptyLedger:
         async def get_entries(user_id: str, from_date: str | None = None) -> list:
             return []
 
+    class user_profiles:  # noqa: N801
+        @staticmethod
+        async def get(user_id: str) -> None:
+            return None
+
     async def __aenter__(self):
         return self
 

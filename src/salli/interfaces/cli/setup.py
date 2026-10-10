@@ -232,6 +232,12 @@ def setup(
     currency: str = typer.Option(
         None, help="ISO 4217 code to keep your ledger in (prompted if omitted)"
     ),
+    tax_residency: str = typer.Option(
+        None,
+        "--tax-residency",
+        help="The country you are taxed in (ISO 3166-1 alpha-2, e.g. LK): your starter "
+        "accounts include its tax accounts when Salli has a tax pack for it",
+    ),
 ):
     """Set up this instance: config, database, and your owner account."""
     from salli.migrations.support import script_locations, upgrade
@@ -299,6 +305,7 @@ def setup(
             {
                 "name": name or owner_email.split("@")[0],
                 "income_sources": [s.strip() for s in income.split(",") if s.strip()],
+                "tax_residency": tax_residency,
             },
         )
     )

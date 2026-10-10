@@ -11,6 +11,7 @@ Builds the manager agent (supervisor) and the return workflow. Exposes:
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections import OrderedDict
 from collections.abc import AsyncIterator
@@ -481,6 +482,30 @@ class AgentService:
         creds = await self._credentials.resolve(user_id)
         return creds.llm if creds.llm is not None else creds.anthropic
 
+    # ── What the prompts know about the user ──────────────────────────────────
+
+    async def user_context(self, user_id: str) -> Any:
+        """The user's section of every prompt (domain/agents/jurisdiction.py):
+        today, their base currency, where they are taxed, and the tax year
+        they are in there."""
+        import datetime
+
+        from salli.domain.agents.jurisdiction import UserContext
+
+        today = datetime.date.today()
+        try:
+            where, current = await self._tax_svc.current_tax_year(user_id, today)
+        except Exception:  # noqa: BLE001 — a reply without these details beats no reply
+            logging.getLogger(__name__).warning("No prompt context for %s", user_id, exc_info=True)
+            return UserContext(today=today)
+        return UserContext(
+            today=today,
+            base_currency=where.base_currency,
+            tax_residency=where.tax_residency,
+            tax_country=where.country,
+            current=current,
+        )
+
     # ── Session management ────────────────────────────────────────────────────
 
     async def _ensure_session(self, user_id: str, thread_id: str, persona: str = "scrooge") -> None:
@@ -594,9 +619,12 @@ class AgentService:
         if thread_id is None:
             thread_id = str(uuid.uuid4())
 
+        from salli.domain.agents.jurisdiction import set_user_context
         from salli.domain.agents.tools import set_current_user
 
         set_current_user(user_id)  # tools read this, never the LLM-supplied id
+        # The prompts read this: the graph is shared, the user's details are not.
+        set_user_context(await self.user_context(user_id))
         await self._ensure_session(user_id, thread_id, persona=persona)
 
         try:
@@ -632,9 +660,11 @@ class AgentService:
         """
         from langgraph.types import Command
 
+        from salli.domain.agents.jurisdiction import set_user_context
         from salli.domain.agents.tools import set_current_user
 
         set_current_user(user_id)
+        set_user_context(await self.user_context(user_id))
         api_key = await self._credential_for(user_id, api_key)
         # Server-owned, not the request's `persona` — see _persona_for_thread.
         agent = self._get_agent(
@@ -761,12 +791,14 @@ class AgentService:
     async def prepare_return(
         self,
         user_id: str,
-        year: str = "2025/26",
+        year: str | None = None,
         thread_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Run the return workflow up to the human review gate.
-        Returns the interrupt payload (draft return for human approval).
+        Run the return workflow up to the human review gate, for `year` or the
+        latest year Salli can compute for the user.
+        Returns the interrupt payload (draft return for human approval), or the
+        reason there is none (`error`).
         """
         if thread_id is None:
             thread_id = str(uuid.uuid4())
@@ -775,12 +807,13 @@ class AgentService:
         config = {"configurable": {"thread_id": thread_id}}
 
         result = await workflow.ainvoke(
-            {"user_id": user_id, "year": year},
+            {"user_id": user_id, "year": year or ""},
             config=config,
         )
         return {
             "thread_id": thread_id,
             "draft_return": result.get("draft_return", {}),
+            "error": result.get("error", ""),
             "state": result,
         }
 

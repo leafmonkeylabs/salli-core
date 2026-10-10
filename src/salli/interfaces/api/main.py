@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from salli.application.ports import FxUnavailableError, ProfileMissing
+from salli.application.services.tax_service import NoTaxPackError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
 from salli.domain.llm import LLMError
@@ -285,6 +286,14 @@ def create_app() -> FastAPI:
             "No profile yet",
             "This account has no profile yet. Complete onboarding (POST /v1/onboarding/complete)"
             " first.",
+        )
+
+    # No tax pack can compute this user's tax: no country to go by, none for
+    # theirs, or none for a year that has begun. Before ValueError's catch-all.
+    @app.exception_handler(NoTaxPackError)
+    async def no_tax_pack_handler(request: Request, exc: NoTaxPackError) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "no-tax-pack", "No tax pack", str(exc)
         )
 
     # Asked to change the base currency once amounts are stored in it.

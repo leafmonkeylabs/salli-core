@@ -47,20 +47,17 @@ def build_finance_worker(
     time), and rebuilding them dominates graph construction cost, so the
     supervisor builds them once and shares them across both workers.
     """
-    import datetime
-
     from langgraph.prebuilt import create_react_agent
 
+    from salli.domain.agents.jurisdiction import context_section
     from salli.domain.agents.model_factory import chat_model
+    from salli.domain.agents.prompting import dynamic_prompt
     from salli.domain.agents.tools import make_read_tools
-
-    today = datetime.date.today().strftime("%A, %d %B %Y")
-    dated_prompt = f"{FINANCE_WORKER_PROMPT}\n\nToday's date is {today}."
 
     tools = make_read_tools(ledger_svc, tax_svc) if tools is None else tools
     return create_react_agent(
         model=chat_model(api_key=api_key, model=model, temperature=0, cache=True),
         tools=tools,
         name="finance_specialist",
-        prompt=dated_prompt,
+        prompt=dynamic_prompt(FINANCE_WORKER_PROMPT, context_section),
     )

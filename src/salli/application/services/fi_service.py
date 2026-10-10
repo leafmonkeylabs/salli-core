@@ -12,7 +12,7 @@ import hashlib
 import json
 import re
 from collections.abc import AsyncGenerator, Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -21,7 +21,20 @@ from salli.domain.accounting.models import Account, Direction, StoredJournalEntr
 from salli.domain.currency import quantize
 from salli.domain.fi import engine
 from salli.domain.fi.allocation import Claim, GoalFunding, compute_goal_funding
-from salli.domain.fi.models import AllocationBucket, FinancialSnapshot, FireStrategy, FiScore
+from salli.domain.fi.assumptions import (
+    FiAssumptions,
+    Overrides,
+    Returns,
+    StrategyFigures,
+    resolve,
+)
+from salli.domain.fi.models import (
+    AllocationBucket,
+    FinancialSnapshot,
+    FiPack,
+    FireStrategy,
+    FiScore,
+)
 from salli.domain.fi.packs import registry
 from salli.domain.llm import LLMError
 from salli.domain.money import from_minor, to_minor
@@ -162,6 +175,65 @@ def _money(value: Decimal, currency: str) -> str:
     return str(quantize(value, currency))
 
 
+def _overrides(profile: dict[str, Any] | None) -> Overrides:
+    """The FI assumptions the user set on their profile, from its stored row."""
+    row = profile or {}
+
+    def value(column: str) -> Decimal | None:
+        raw = row.get(column)
+        # Stored at the column's scale ("0.030000"): reported as entered.
+        return None if raw is None else Decimal(str(raw)).normalize()
+
+    return Overrides(
+        inflation=value("fi_inflation"),
+        real_return=value("fi_real_return"),
+        safe_withdrawal_rate=value("fi_safe_withdrawal_rate"),
+    )
+
+
+def _strategy_figures(strategy_data: dict[str, Any] | None) -> StrategyFigures | None:
+    """The returns and withdrawal rate a stored FIRE strategy chose. The model
+    writes floats; they become Decimals here, once. The fallbacks are for
+    strategies stored before a field existed."""
+    if strategy_data is None:
+        return None
+
+    def rate(key: str, fallback: object) -> Decimal:
+        return Decimal(str(strategy_data.get(key, fallback)))
+
+    return StrategyFigures(
+        safe_withdrawal_rate=rate("swr", registry.get_pack().safe_withdrawal_rate),
+        returns=Returns(
+            rate("return_conservative", "0.06"),
+            rate("return_base", "0.10"),
+            rate("return_growth", "0.14"),
+            "The nominal returns your FIRE strategy chose.",
+        ),
+    )
+
+
+def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
+    """The assumptions behind a figure, as the FI responses carry them."""
+
+    def one(value: Decimal, origin: str, source: str) -> dict[str, str]:
+        return {"value": str(value), "origin": origin, "source": source}
+
+    return {
+        "region": applied.region,
+        "inflation": one(
+            applied.inflation.value, applied.inflation.origin, applied.inflation.source
+        ),
+        "real_return": one(
+            applied.real_return.value, applied.real_return.origin, applied.real_return.source
+        ),
+        "safe_withdrawal_rate": one(
+            applied.safe_withdrawal_rate.value,
+            applied.safe_withdrawal_rate.origin,
+            applied.safe_withdrawal_rate.source,
+        ),
+    }
+
+
 class FiService:
     def __init__(self, uow_factory: Callable[[], Any], credentials: Any = None) -> None:
         self._uow_factory = uow_factory
@@ -289,45 +361,32 @@ class FiService:
     # ── Resolved strategy ──────────────────────────────────────────────────────
 
     @staticmethod
-    def _resolve_strategy(strategy_data: dict[str, Any] | None) -> FireStrategy:
+    def _resolve_strategy(
+        strategy_data: dict[str, Any] | None, applied: FiAssumptions
+    ) -> FireStrategy:
         """
         The single place raw strategy JSON becomes a typed, Decimal FireStrategy.
 
-        The LLM emits these as floats; they are converted once, here, so nothing
-        downstream does float arithmetic on a rate that divides money. When the
-        user has no strategy the pack's defaults stand in, so callers always get a
-        usable strategy and never have to branch.
+        Its withdrawal rate and returns are the ones that apply (`applied`):
+        the user's own where they set them, then the strategy's, then their
+        currency's defaults. So callers always get a usable strategy, never
+        have to branch, and every figure on the page is computed from one set
+        of assumptions.
         """
-        pack = registry.get_pack()
-        if strategy_data is None:
-            return FireStrategy(
-                version=0,
-                fire_style="standard",
-                swr=pack.safe_withdrawal_rate,
-                return_conservative=Decimal("0.06"),
-                return_base=Decimal("0.10"),
-                return_growth=Decimal("0.14"),
-                target_monthly_expenses=None,
-                target_age=None,
-                buckets=[],
-                ai_rationale="",
-                theories_applied=[],
-                created_at="",
-                is_initial=True,
-            )
+        data = strategy_data or {}
         return FireStrategy(
-            version=strategy_data.get("version", 1),
-            fire_style=strategy_data.get("fire_style", "standard"),
-            swr=Decimal(str(strategy_data.get("swr", pack.safe_withdrawal_rate))),
-            return_conservative=Decimal(str(strategy_data.get("return_conservative", "0.06"))),
-            return_base=Decimal(str(strategy_data.get("return_base", "0.10"))),
-            return_growth=Decimal(str(strategy_data.get("return_growth", "0.14"))),
+            version=data.get("version", 1) if strategy_data is not None else 0,
+            fire_style=data.get("fire_style", "standard"),
+            swr=applied.safe_withdrawal_rate.value,
+            return_conservative=applied.returns.conservative,
+            return_base=applied.returns.base,
+            return_growth=applied.returns.growth,
             target_monthly_expenses=(
-                Decimal(str(strategy_data["target_monthly_expenses"]))
-                if strategy_data.get("target_monthly_expenses")
+                Decimal(str(data["target_monthly_expenses"]))
+                if data.get("target_monthly_expenses")
                 else None
             ),
-            target_age=strategy_data.get("target_age"),
+            target_age=data.get("target_age"),
             buckets=[
                 AllocationBucket(
                     key=b["key"],
@@ -336,29 +395,74 @@ class FiService:
                     description=b["description"],
                     color=b["color"],
                 )
-                for b in strategy_data.get("buckets", [])
+                for b in data.get("buckets", [])
             ],
-            ai_rationale=strategy_data.get("ai_rationale", ""),
-            theories_applied=strategy_data.get("theories_applied", []),
-            created_at=strategy_data.get("created_at", ""),
-            is_initial=strategy_data.get("is_initial", True),
+            ai_rationale=data.get("ai_rationale", ""),
+            theories_applied=data.get("theories_applied", []),
+            created_at=data.get("created_at", ""),
+            is_initial=data.get("is_initial", True),
         )
 
+    async def _plan(
+        self, user_id: str, *, with_strategy: bool = True
+    ) -> tuple[FireStrategy, FiAssumptions, FiPack]:
+        """The strategy, the assumptions that apply, and the FI pack with those
+        assumptions in place: what every score, projection and purchase costing
+        is computed from. `with_strategy=False` leaves the stored strategy out
+        of the assumptions (to generate a new one)."""
+        strategy_data = await self.get_strategy(user_id) if with_strategy else None
+        async with self._uow_factory() as uow:
+            profile = await uow.user_profiles.get(user_id)
+        applied = resolve(
+            (profile or {}).get("base_currency"),
+            _overrides(profile),
+            _strategy_figures(strategy_data),
+        )
+        pack = replace(
+            registry.get_pack(),
+            safe_withdrawal_rate=applied.safe_withdrawal_rate.value,
+            expected_inflation=applied.inflation.value,
+            expected_real_return=applied.real_return.value,
+        )
+        return self._resolve_strategy(strategy_data, applied), applied, pack
+
+    async def assumptions(self, user_id: str) -> dict[str, Any]:
+        """The planning assumptions behind the user's FI figures, the defaults
+        for their currency, and what they set themselves."""
+        _, applied, _ = await self._plan(user_id)
+        async with self._uow_factory() as uow:
+            profile = await uow.user_profiles.get(user_id)
+        own = _overrides(profile)
+        defaults = resolve((profile or {}).get("base_currency"), Overrides())
+        return {
+            "applied": assumptions_dict(applied),
+            "defaults": assumptions_dict(defaults),
+            "overrides": {
+                "inflation": None if own.inflation is None else str(own.inflation),
+                "real_return": None if own.real_return is None else str(own.real_return),
+                "safe_withdrawal_rate": (
+                    None if own.safe_withdrawal_rate is None else str(own.safe_withdrawal_rate)
+                ),
+            },
+        }
+
     @staticmethod
-    def _inputs_hash(snapshot: FinancialSnapshot, strategy: FireStrategy) -> str:
+    def _inputs_hash(snapshot: FinancialSnapshot, strategy: FireStrategy, pack: FiPack) -> str:
         """
         Fingerprint of everything the score depends on.
 
-        Includes the strategy, not just the ledger snapshot: regenerating a
-        strategy with a different SWR changes the FI number, so a score computed
-        under the old one is stale even when the ledger has not moved.
+        Includes the strategy and the assumptions, not just the ledger snapshot:
+        regenerating a strategy with a different SWR, or setting one's own
+        inflation, changes the figures, so a score computed under the old ones is
+        stale even when the ledger has not moved.
         """
         payload = {
             "snapshot": asdict(snapshot),
             "swr": str(strategy.swr),
             "target_monthly_expenses": str(strategy.target_monthly_expenses),
             "return_base": str(strategy.return_base),
-            "pack": registry.get_pack().version,
+            "inflation": str(pack.expected_inflation),
+            "pack": pack.version,
         }
         return hashlib.sha256(json.dumps(payload, default=str, sort_keys=True).encode()).hexdigest()
 
@@ -366,8 +470,7 @@ class FiService:
 
     async def compute_score(self, user_id: str) -> dict[str, Any]:
         snapshot = await self.build_snapshot(user_id)
-        strategy = self._resolve_strategy(await self.get_strategy(user_id))
-        pack = registry.get_pack()
+        strategy, applied, pack = await self._plan(user_id)
 
         # Same swr / target / real return the projection uses, so the Freedom
         # Number on the card and the target on the chart are one number.
@@ -384,7 +487,8 @@ class FiService:
             projected_date = _plus_years_iso(int(score.projected_fi_years))
 
         result = _score_to_dict(score, projected_date)
-        result["inputs_hash"] = self._inputs_hash(snapshot, strategy)
+        result["assumptions"] = assumptions_dict(applied)
+        result["inputs_hash"] = self._inputs_hash(snapshot, strategy, pack)
 
         async with self._uow_factory() as uow:
             await uow.fi_scores.save(user_id, result)
@@ -407,8 +511,8 @@ class FiService:
             return await self.compute_score(user_id)
 
         snapshot = await self.build_snapshot(user_id)
-        strategy = self._resolve_strategy(await self.get_strategy(user_id))
-        if latest.get("inputs_hash") != self._inputs_hash(snapshot, strategy):
+        strategy, _, pack = await self._plan(user_id)
+        if latest.get("inputs_hash") != self._inputs_hash(snapshot, strategy, pack):
             return await self.compute_score(user_id)
         return latest
 
@@ -579,6 +683,7 @@ class FiService:
         async with self._uow_factory() as uow:
             accounts = await uow.ledger.get_accounts(user_id)
             recent_entries = await uow.ledger.get_entries(user_id, from_date=_months_ago_iso(12))
+            profile = await uow.user_profiles.get(user_id) or {}
 
         account_summary = [
             {"name": a.name, "type": a.type, "currency": a.currency} for a in accounts
@@ -603,6 +708,12 @@ class FiService:
             "total_liabilities": str(snapshot.total_liabilities),
             "net_worth": str(snapshot.total_assets - snapshot.total_liabilities),
             "currency": snapshot.currency,
+            # Where the user is taxed, or None: the strategy suggests what is
+            # available there, and assumes no country when it is not known.
+            "tax_residency": profile.get("tax_residency"),
+            # The user's own assumptions, or their currency's defaults, with
+            # where each came from: not the previous strategy's, which follows.
+            "assumptions": assumptions_dict((await self._plan(user_id, with_strategy=False))[1]),
             "income_by_source": {k: str(v) for k, v in surplus_data.income_by_source.items()},
             "expense_by_category": {k: str(v) for k, v in surplus_data.expense_by_category.items()},
             "accounts": account_summary,
@@ -653,8 +764,7 @@ class FiService:
 
     async def get_projections(self, user_id: str) -> dict[str, Any]:
         snapshot = await self.build_snapshot(user_id)
-        strategy = self._resolve_strategy(await self.get_strategy(user_id))
-        pack = registry.get_pack()
+        strategy, applied, pack = await self._plan(user_id)
 
         # The score's own FI number, from the same swr/target — not a second
         # formula. These two used to disagree whenever the strategy SWR was not 4%.
@@ -708,6 +818,8 @@ class FiService:
                 k: str(v) for k, v in engine.scenario_real_returns(strategy, pack).items()
             },
             "expected_inflation": str(pack.expected_inflation),
+            # Which assumptions these are, and where each came from.
+            "assumptions": assumptions_dict(applied),
         }
 
     # ── Purchase simulation ("can I afford this?") ────────────────────────────────
@@ -729,8 +841,7 @@ class FiService:
         above it) may present them but must not derive new ones.
         """
         snapshot = await self.build_snapshot(user_id)
-        strategy = self._resolve_strategy(await self.get_strategy(user_id))
-        pack = registry.get_pack()
+        strategy, applied, pack = await self._plan(user_id)
 
         async with self._uow_factory() as uow:
             entries = await uow.ledger.get_entries(user_id)
@@ -785,6 +896,7 @@ class FiService:
             "stale_after_days": STALE_AFTER_DAYS,
             "real_return_used": str(rates["base"]),
             "swr": str(strategy.swr),
+            "assumptions": assumptions_dict(applied),
         }
 
     # ── Surplus Breakdown ────────────────────────────────────────────────────────
