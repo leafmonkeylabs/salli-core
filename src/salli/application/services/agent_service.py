@@ -827,7 +827,7 @@ class AgentService:
             thread_id = str(uuid.uuid4())
 
         workflow = self._get_workflow()
-        config = {"configurable": {"thread_id": thread_id}}
+        config = _workflow_config(user_id, thread_id)
 
         result = await workflow.ainvoke(
             {"user_id": user_id, "year": year or ""},
@@ -842,17 +842,20 @@ class AgentService:
 
     async def resume_return(
         self,
+        user_id: str,
         thread_id: str,
         decision: str,
     ) -> dict[str, Any]:
         """
-        Resume the return workflow after human review.
+        Resume the user's return workflow after human review.
         decision: "approve" | "edit" | "reject"
         """
         from langgraph.types import Command
 
         workflow = self._get_workflow()
-        config = {"configurable": {"thread_id": thread_id}}
+        config = _workflow_config(user_id, thread_id)
+        if not await _awaiting_review(workflow, config):
+            return {"worksheet": {}, "error": "No return is waiting for review on this thread."}
 
         result = await workflow.ainvoke(Command(resume=decision), config=config)
         return {"worksheet": result.get("worksheet", {}), "error": result.get("error", "")}

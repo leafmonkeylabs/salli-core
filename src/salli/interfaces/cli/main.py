@@ -735,7 +735,7 @@ def tax_prepare_return(
             if decision not in ("approve", "edit", "reject"):
                 decision = "reject"
 
-            final = await svc.agent.resume_return(tid, decision)
+            final = await svc.agent.resume_return(user_id, tid, decision)
             if final.get("error"):
                 console.print(f"[yellow]{final['error']}[/yellow]")
             else:

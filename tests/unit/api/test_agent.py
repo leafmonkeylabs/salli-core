@@ -149,6 +149,31 @@ async def test_an_uploaded_file_comes_back_as_its_reference(client, mock_service
     }
 
 
+async def test_resuming_a_return_needs_a_signed_in_user(client, mock_services):
+    r = await client.post(
+        "/v1/agent/resume",
+        json={"thread_id": "thread-1", "decision": "approve", "workflow": "return"},
+    )
+
+    assert r.status_code == 401
+    mock_services.agent.resume_return.assert_not_awaited()
+
+
+async def test_a_return_is_resumed_as_the_signed_in_user(client, mock_services):
+    mock_services.agent.resume_return.return_value = {"worksheet": {}, "error": "x"}
+
+    r = await client.post(
+        "/v1/agent/resume",
+        json={"thread_id": "thread-1", "decision": "approve", "workflow": "return"},
+        headers=AUTH,
+    )
+
+    assert r.status_code == 200
+    mock_services.agent.resume_return.assert_awaited_once_with(
+        user_id=USER, thread_id="thread-1", decision="approve"
+    )
+
+
 def test_the_api_speaks_every_persona_the_service_can_build():
     assert set(get_args(agent_router.Persona)) == set(AgentService._PERSONA_BUILDERS)
 

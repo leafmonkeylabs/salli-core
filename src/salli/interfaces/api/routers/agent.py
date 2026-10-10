@@ -265,7 +265,7 @@ async def resume(body: ResumeRequest, user_id: CurrentUser, svc: AppServices, cr
     """
     if body.workflow == "return":
         return StreamingResponse(
-            _emit_events(_wrap_return_resume(svc, body.thread_id, body.decision)),
+            _emit_events(_wrap_return_resume(svc, user_id, body.thread_id, body.decision)),
             media_type="text/event-stream",
             headers=_SSE_HEADERS,
         )
@@ -291,9 +291,9 @@ async def resume(body: ResumeRequest, user_id: CurrentUser, svc: AppServices, cr
 
 
 async def _wrap_return_resume(
-    svc: AppServices, thread_id: str, decision: str
+    svc: AppServices, user_id: str, thread_id: str, decision: str
 ) -> AsyncIterator[tuple[str, object]]:
-    result = await svc.agent.resume_return(thread_id=thread_id, decision=decision)
+    result = await svc.agent.resume_return(user_id=user_id, thread_id=thread_id, decision=decision)
     yield ("token", json.dumps(result))
     yield ("done", None)
 

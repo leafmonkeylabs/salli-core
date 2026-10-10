@@ -86,3 +86,41 @@ async def test_resuming_a_briefing_that_was_never_prepared_runs_nothing(agent, a
     assert result["error"]
     assert advisor.gathered == []
     assert advisor.persisted == []
+
+
+# ── The return ─────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def return_agent() -> AgentService:
+    from tests.unit.agents.test_return_workflow import _make_services
+
+    # A ledger with one salaried year for "u1" and nothing for anyone else.
+    ledger_svc, tax_svc = _make_services()
+    return AgentService(ledger_svc=ledger_svc, tax_svc=tax_svc)
+
+
+async def test_a_return_thread_is_kept_under_its_owner_and_handed_back_as_sent(return_agent):
+    prepared = await return_agent.prepare_return("u1", year="2025/26", thread_id="thread-1")
+
+    assert prepared["thread_id"] == "thread-1"
+    assert prepared["draft_return"]
+    workflow = return_agent._get_workflow()
+    owned = await workflow.aget_state({"configurable": {"thread_id": "u1:thread-1"}})
+    bare = await workflow.aget_state({"configurable": {"thread_id": "thread-1"}})
+    assert owned.next == ("review",)
+    assert bare.next == ()
+
+
+async def test_another_user_resuming_a_return_thread_gets_nothing_of_the_owners(return_agent):
+    prepared = await return_agent.prepare_return("u1", year="2025/26", thread_id="thread-1")
+
+    stolen = await return_agent.resume_return("u2", "thread-1", "approve")
+
+    assert stolen["worksheet"] == {}
+    assert stolen["error"]
+
+    # The owner's draft is still waiting, and approving it is theirs.
+    mine = await return_agent.resume_return("u1", "thread-1", "approve")
+    assert mine["worksheet"]["status"] == "ready_to_submit"
+    assert mine["worksheet"]["year"] == prepared["draft_return"]["year"]
