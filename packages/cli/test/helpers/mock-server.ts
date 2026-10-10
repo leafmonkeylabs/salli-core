@@ -1069,8 +1069,8 @@ export class MockSalli {
             by: (query.get('by') ?? 'category') as Spending['by'],
             months: ['2026-08', '2026-09', '2026-10'],
             lines: [
-              { key: query.get('by') === 'account' ? uid(7) : 'rent', total: '5400.00', share: '0.7', by_month: { '2026-10': '1800.00' } },
-              { key: query.get('by') === 'account' ? uid(6) : 'groceries', total: '2312.35', share: '0.3', by_month: { '2026-10': '412.35' } },
+              { key: query.get('by') === 'account' ? 'Rent' : 'rent', total: '5400.00', share: '0.7', by_month: { '2026-10': '1800.00' } },
+              { key: query.get('by') === 'account' ? 'Groceries' : 'groceries', total: '2312.35', share: '0.3', by_month: { '2026-10': '412.35' } },
             ],
           } satisfies Spending,
         };

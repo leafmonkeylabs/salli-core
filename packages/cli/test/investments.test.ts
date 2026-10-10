@@ -28,6 +28,13 @@ describe('salli portfolio', () => {
     expect((await run(['portfolio', 'summary'])).stdout).toContain('Value');
   });
 
+  it('adds a holding to track by its transactions, with no declared figures', async () => {
+    const result = await run(['holdings', 'add', 'VXUS', '--name', 'Intl', '--class', 'equity', '--currency', 'usd']);
+    expect(result.code).toBe(0);
+    expect(lastBody('/v1/portfolio/')).toEqual({ symbol: 'VXUS', name: 'Intl', asset_class: 'equity', currency: 'USD' });
+    expect(result.stderr).toContain('salli portfolio transactions add VXUS buy');
+  });
+
   it('records transactions by symbol, every amount a decimal string', async () => {
     const buy = await run(['portfolio', 'transactions', 'add', 'vti', 'buy', '--quantity', '10', '--price', '1,240.15', '--fees', '1', '--date', '2026-10-01']);
     expect(buy.code).toBe(0);

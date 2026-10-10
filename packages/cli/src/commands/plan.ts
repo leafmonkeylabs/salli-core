@@ -54,7 +54,7 @@ import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates
 import { resolveById } from '../util/resolve';
 import { registerInvestments, resolveHolding } from './investments';
 import { renderRecord } from './records';
-import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, countArg, rateArg } from './shared';
+import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
 
 /** A field from the server, as one line of safe text. */
 const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
@@ -472,11 +472,12 @@ function registerPortfolio(program: Command, app: App): void {
   holdings
     .command('add')
     .argument('<symbol>', 'Ticker or short name, e.g. VOO')
-    .description('Add a holding')
+    .description('Add a holding: declare what it cost and is worth, or record its transactions after')
     .requiredOption('--name <name>', 'Display name')
     .requiredOption('--class <asset-class>', 'equity, bond, cash, crypto, property…')
-    .requiredOption('--invested <amount>', 'Total amount invested (cost basis)')
-    .requiredOption('--value <amount>', 'What it is worth now')
+    .option('--currency <code>', 'What it trades in (default: your base currency)')
+    .option('--invested <amount>', 'Declared: total amount invested (cost basis)')
+    .option('--value <amount>', 'Declared: what it is worth now')
     .action(async (symbol, opts) => {
       const api = await app.api();
       const created = await api.call(holdingsCreate, {
@@ -484,12 +485,16 @@ function registerPortfolio(program: Command, app: App): void {
           symbol,
           name: opts.name,
           asset_class: opts.class,
-          cost_basis: amountArg(opts.invested, '--invested'),
-          current_value: amountArg(opts.value, '--value'),
+          ...(opts.currency ? { currency: currencyArg(opts.currency) } : {}),
+          ...(opts.invested ? { cost_basis: amountArg(opts.invested, '--invested') } : {}),
+          ...(opts.value ? { current_value: amountArg(opts.value, '--value') } : {}),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
-      else app.out.success(`Added ${symbol}.`);
+      else {
+        app.out.success(`Added ${symbol}.`);
+        if (!opts.invested && !opts.value) app.out.note(`Record what you bought: salli portfolio transactions add ${symbol} buy --quantity … --price …`);
+      }
     });
 
   holdings

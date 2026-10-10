@@ -80,6 +80,13 @@ export function displayDate(value: unknown, locale?: string): string {
     const date = new Date(2000, digits(yearly[1]) - 1, digits(yearly[2]));
     return plainSpaces(new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date));
   }
+  // A moment with its offset (2026-10-09T22:30:00Z) is shown on the local calendar.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}.*(?:Z|[+-]\d{2}:?\d{2})$/.test(value)) {
+    const moment = new Date(value);
+    if (!Number.isNaN(moment.getTime())) {
+      return plainSpaces(new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(moment));
+    }
+  }
   const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (!day) return value;
   const date = new Date(digits(day[1]), digits(day[2]) - 1, digits(day[3]));

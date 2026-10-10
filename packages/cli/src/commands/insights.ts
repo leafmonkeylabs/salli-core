@@ -21,7 +21,7 @@ import type { App } from '../app';
 import type { Output } from '../output/output';
 import { plural, singleLine } from '../output/text';
 import { displayDate, displayMonth } from '../util/dates';
-import { AccountBook, countArg } from './shared';
+import { countArg } from './shared';
 
 const AXES = ['category', 'account', 'need'] as const;
 
@@ -80,10 +80,7 @@ export function registerInsights(program: Command, app: App): void {
     .addOption(new Option('--by <axis>', 'Group by').choices(AXES).default('category' as const))
     .action(async (opts) => {
       const api = await app.api();
-      const [data, book] = await Promise.all([
-        api.call(insightsSpending, { query: { by: opts.by, ...(opts.months ? { months: opts.months } : {}) } }),
-        opts.by === 'account' ? AccountBook.load(api) : Promise.resolve(undefined),
-      ]);
+      const data = await api.call(insightsSpending, { query: { by: opts.by, ...(opts.months ? { months: opts.months } : {}) } });
       app.out.emit(data, {
         records: (d) => d.lines,
         human: (d) => {
@@ -95,7 +92,7 @@ export function registerInsights(program: Command, app: App): void {
           out.line(out.colors.dim(`By ${d.by}, ${displayMonth(first, out.locale)} to ${displayMonth(last, out.locale)}, in ${cur}`));
           out.line(
             out.table(d.lines, [
-              { header: d.by.toUpperCase(), get: (l) => (book ? book.label(l.key) : l.key), shrink: true },
+              { header: d.by.toUpperCase(), get: (l) => l.key, shrink: true },
               { header: 'TOTAL', get: (l) => out.amount(l.total, cur), align: 'right' },
               { header: 'SHARE', get: (l) => (l.share === null ? '—' : out.percent(l.share)), align: 'right' },
             ]),

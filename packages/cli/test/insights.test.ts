@@ -31,7 +31,7 @@ describe('salli insights', () => {
     `);
   });
 
-  it('shows spending by category, or by account with account names', async () => {
+  it('shows spending by category, or by account', async () => {
     expect((await run(['insights', 'spending'])).stdout).toMatchInlineSnapshot(`
       "By category, Aug 2026 to Oct 2026, in USD
       CATEGORY      TOTAL  SHARE
@@ -41,7 +41,7 @@ describe('salli insights', () => {
     `);
     const byAccount = await run(['insights', 'spending', '--by', 'account', '-m', '6']);
     expect(lastQuery('spending')).toEqual({ by: 'account', months: '6' });
-    expect(byAccount.stdout).toContain('5100 Rent');
+    expect(byAccount.stdout).toContain('Rent');
     expect((await run(['insights', 'spending', '--by', 'payee'])).code).toBe(2);
   });
 

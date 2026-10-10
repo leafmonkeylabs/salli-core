@@ -13,5 +13,7 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     testTimeout: 15_000,
+    // Timestamps are shown in local time: pin it, so tests read the same everywhere.
+    env: { TZ: 'UTC' },
   },
 });
