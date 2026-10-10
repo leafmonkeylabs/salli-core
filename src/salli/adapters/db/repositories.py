@@ -762,6 +762,21 @@ class SQLStatementRepository(StatementRepository):
             for st in statements
         ]
 
+    async def set_choice(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> None:
+        row = (
+            await self._session.execute(
+                select(ParsedTransactionORM)
+                .join(StatementORM)
+                .where(StatementORM.user_id == user_id, ParsedTransactionORM.id == transaction_id)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        # A new dict, not an edit in place: the JSONB column tracks assignment.
+        row.extracted_json = {**row.extracted_json, **fields}
+        row.confidence = Decimal(1)  # decided by someone, not guessed
+        await self._session.flush()
+
     async def mark_posted(self, transaction_id: str, entry_id: str) -> None:
         stmt = select(ParsedTransactionORM).where(ParsedTransactionORM.id == transaction_id)
         result = await self._session.execute(stmt)

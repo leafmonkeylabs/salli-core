@@ -1062,6 +1062,42 @@ def parse_discard(
     console.print(f"[green]Discarded {count} transaction(s).[/green]")
 
 
+@parse_app.command("categorize")
+def parse_categorize(
+    transaction: str = typer.Argument(..., help="The pending transaction's id"),
+    account: str = typer.Argument(..., help="Where it came from or went (code or id)"),
+    category: str = typer.Option(None, "--category", help="A category tag, e.g. groceries"),
+    need: str = typer.Option(None, "--need", help="essential, discretionary or savings"),
+):
+    """Choose where a pending transaction goes before posting it."""
+    user_id = _require_user()
+
+    # One event loop for the whole command: a pooled database connection
+    # belongs to the loop that opened it, so a second asyncio.run on the same
+    # services would fail.
+    async def _run() -> list[str]:
+        svc = _services()
+        accounts = await svc.ledger.list_accounts(user_id)
+        account_id = next((a.id for a in accounts if account in (a.id, a.code)), None)
+        if account_id is None:
+            console.print(f"[red]No active account {account!r}.[/red]")
+            raise typer.Exit(1)
+        pending = [{"id": str(t.id)} for t in await svc.parsing.get_pending(user_id)]
+        transaction_id = _resolve_id(pending, transaction, "pending transaction")
+        choice = {"transaction_id": transaction_id, "account_id": account_id}
+        choice |= {k: v for k, v in (("category", category), ("need", need)) if v}
+        return await svc.parsing.categorize(user_id, [choice])
+
+    try:
+        updated = asyncio.run(_run())
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    if emit({"updated": updated}):
+        return
+    console.print("[green]Chosen.[/green] Post it with `salli parse post`.")
+
+
 @parse_app.command("list")
 def parse_list(limit: int = typer.Option(50, help="Maximum statements to show")):
     """List uploaded statements, newest first."""

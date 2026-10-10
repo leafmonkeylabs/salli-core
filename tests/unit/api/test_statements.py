@@ -224,3 +224,22 @@ async def test_discarding_in_a_statement_that_is_not_yours(client, mock_services
     mock_services.parsing.discard.return_value = None
     r = await client.post("/v1/statements/st-9/discard", json={}, headers=AUTH)
     assert r.status_code == 404
+
+
+async def test_choices_are_handed_over_and_a_bad_need_is_refused(client, mock_services):
+    mock_services.parsing.categorize.return_value = ["t1"]
+    r = await client.post(
+        "/v1/statements/categorize",
+        json={"choices": [{"transaction_id": "t1", "account_id": "food", "need": "essential"}]},
+        headers=AUTH,
+    )
+    assert (r.status_code, r.json()) == (200, {"updated": ["t1"]})
+    mock_services.parsing.categorize.assert_awaited_once_with(
+        "test-user-1", [{"transaction_id": "t1", "account_id": "food", "need": "essential"}]
+    )
+    bad = await client.post(
+        "/v1/statements/categorize",
+        json={"choices": [{"transaction_id": "t1", "account_id": "food", "need": "wants"}]},
+        headers=AUTH,
+    )
+    assert bad.status_code == 422

@@ -2793,6 +2793,63 @@
         }
       }
     },
+    "/v1/statements/categorize": {
+      "post": {
+        "tags": [
+          "statements"
+        ],
+        "summary": "Categorize",
+        "description": "Choose the other side of pending transactions before posting them:\nwhat the user decided, or an AI client of theirs (over MCP) proposed and\nthey accepted. Replaces what a rule or the model chose. Only transactions\nwaiting for review change (422 otherwise); one that is not yours is a 404.",
+        "operationId": "statements.categorize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategorizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategorizedTransactions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/reminders/": {
       "get": {
         "tags": [
@@ -10722,6 +10779,40 @@
           "updated_at"
         ],
         "title": "CategorizationRule"
+      },
+      "CategorizeRequest": {
+        "properties": {
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionChoice"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Choices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "choices"
+        ],
+        "title": "CategorizeRequest"
+      },
+      "CategorizedTransactions": {
+        "properties": {
+          "updated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "CategorizedTransactions"
       },
       "ChatAssistantMessage": {
         "properties": {
@@ -18654,6 +18745,51 @@
         ],
         "title": "TokenGrant",
         "description": "RFC 6749 §5.1."
+      },
+      "TransactionChoice": {
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "title": "Transaction Id"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "need": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "essential",
+                  "discretionary",
+                  "savings"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction_id",
+          "account_id"
+        ],
+        "title": "TransactionChoice"
       },
       "TrialBalance": {
         "properties": {

@@ -32,7 +32,7 @@ from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, BaseModel, Field
 
 from salli.application.services.mcp_oauth_service import McpOAuthService
 
@@ -76,6 +76,20 @@ async def _log_audit(ledger_svc: Any, user_id: str, action: str, params: dict[st
         pass
 
 
+class TransactionChoice(BaseModel):
+    """Where one pending transaction goes."""
+
+    transaction_id: str
+    #: An account id from get_accounts: where the money came from or went.
+    account_id: str
+    category: str | None = None
+    need: str | None = Field(default=None, description="essential, discretionary or savings")
+
+
+def _window(value: int, low: int, high: int) -> int:
+    return max(low, min(high, value))
+
+
 def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     ledger_svc = services.ledger
     tax_svc = services.tax
@@ -88,17 +102,25 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     advisor_svc = services.advisor
     documents_svc = services.documents
     reminders_svc = services.reminders
+    insights_svc = services.insights
+    parsing_svc = services.parsing
+    rules_svc = services.rules
+    fi_svc = services.fi
 
     mcp = FastMCP(
         name="Salli",
         instructions=(
-            "Access to one user's Salli financial data and account: net worth, "
+            "Access to one user's Salli financial data and account: cash flow, "
+            "spending, net worth over time, recurring payments, a cash forecast, "
             "budgets, debt payoff plans, portfolio, subscriptions, insurance coverage, "
-            "tax position, saved documents/memories, and the Wealth Advisor. Numbers "
-            "returned by read tools are authoritative. Do not recompute or adjust "
-            "them. Tools that write (create_account, create_reminder, "
-            "post_journal_entry, and the document/memory writers) take effect "
-            "immediately. The user already authorized this when they connected."
+            "tax position, transactions waiting for review, categorisation rules, "
+            "saved documents/memories, and the Wealth Advisor. Numbers returned by "
+            "read tools are authoritative and already computed by Salli: quote them, "
+            "never recompute, estimate or adjust them. Tools that write "
+            "(create_account, create_reminder, post_journal_entry, "
+            "categorize_transactions, post_transactions, discard_transactions, "
+            "create_rule, and the document/memory writers) take effect immediately: "
+            "show the user what you will do and get their go-ahead first."
         ),
         token_verifier=SalliTokenVerifier(services.mcp_oauth),
         auth=AuthSettings(
@@ -518,6 +540,227 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "post_journal_entry", params)
         return {"entry_id": entry_id, "posted": True}
 
+    # ── Insights and the forecast ────────────────────────────────────────────
+
+    @mcp.tool()
+    async def get_cash_flow(months: int = 12) -> dict[str, Any]:
+        """Income, spending, what was left and the savings rate, month by month,
+        ending with this month, in the user's base currency."""
+        return await insights_svc.cash_flow(_current_user_id(), _window(months, 1, 120))
+
+    @mcp.tool()
+    async def get_spending(months: int = 3, by: str = "category") -> dict[str, Any]:
+        """Where the money went over the last `months` months, largest first: by
+        "category", "account" or "need", with each month's figure and its share."""
+        if by not in ("category", "account", "need"):
+            return {"error": "by is category, account or need"}
+        return await insights_svc.spending(_current_user_id(), _window(months, 1, 120), by)  # type: ignore[arg-type]
+
+    @mcp.tool()
+    async def get_net_worth_history(months: int = 24) -> dict[str, Any]:
+        """What the user owns less what they owe, at the end of each month."""
+        return await insights_svc.net_worth(_current_user_id(), _window(months, 1, 600))
+
+    @mcp.tool()
+    async def get_recurring_payments() -> dict[str, Any]:
+        """Payments that keep coming back (subscriptions, rent, bills) found in
+        the ledger, when each is next expected, and whether a declared
+        subscription already tracks it."""
+        return await insights_svc.recurring(_current_user_id())
+
+    @mcp.tool()
+    async def get_cash_forecast(days: int = 60) -> dict[str, Any]:
+        """Each cash account's balance from today to `days` ahead (at most 366),
+        the total, its lowest point and the day it falls, and the expected
+        income and payments that move it. Use it to answer "can I afford…" and
+        "will I make it to payday": never estimate a future balance yourself."""
+        return await insights_svc.forecast(_current_user_id(), _window(days, 1, 366))
+
+    @mcp.tool()
+    async def simulate_purchase(
+        amount: str, term_months: int | None = None, annual_interest_rate: str = "0"
+    ) -> dict[str, Any]:
+        """What a purchase costs in months of financial freedom: paid in cash,
+        and (given term_months) in installments at annual_interest_rate (a
+        fraction: "0.18" is 18%). amount is a decimal string in the base currency."""
+        try:
+            return await fi_svc.simulate_purchase(
+                _current_user_id(),
+                Decimal(amount),
+                term_months=term_months,
+                annual_interest_rate=Decimal(annual_interest_rate),
+            )
+        except (ArithmeticError, ValueError) as exc:
+            return {"error": f"Could not simulate that purchase: {exc}"}
+
+    # ── Transactions waiting for review ──────────────────────────────────────
+
+    @mcp.tool()
+    async def list_pending_transactions(statement_id: str | None = None) -> dict[str, Any]:
+        """Transactions imported from statements or bank connections and waiting
+        for review: date, description, amount (a decimal string, always
+        positive), whether money came in, the statement's own account, the
+        accounts a rule or a model chose so far (empty when undecided), and
+        whether it may duplicate something already booked."""
+        txns = await parsing_svc.get_pending(_current_user_id(), statement_id)
+        return {
+            "transactions": [
+                {
+                    "id": t.id,
+                    "statement_id": t.statement_id,
+                    "date": t.raw.date,
+                    "description": t.raw.description,
+                    "amount": str(t.raw.amount),
+                    "currency": t.raw.currency,
+                    "money_in": t.raw.credit_flag,
+                    "statement_account_id": t.account_id or None,
+                    "debit_account_id": t.debit_account_id or None,
+                    "credit_account_id": t.credit_account_id or None,
+                    "category": t.category or None,
+                    "need": t.need or None,
+                    "decided_by_rule": bool(t.rule_id),
+                    "possible_duplicate_of": t.duplicate_of or None,
+                }
+                for t in txns
+            ]
+        }
+
+    @mcp.tool()
+    async def categorize_transactions(choices: list[TransactionChoice]) -> dict[str, Any]:
+        """Choose where pending transactions go (the account from get_accounts
+        that the money came from or went to, and optionally a category and a
+        need). The statement's own account stays the other side. Nothing is
+        booked until post_transactions. Show the user your choices first."""
+        user_id = _current_user_id()
+        try:
+            updated = await parsing_svc.categorize(
+                user_id, [c.model_dump(exclude_none=True) for c in choices]
+            )
+        except KeyError as exc:
+            return {"error": f"No pending transaction {exc}"}
+        except ValueError as exc:
+            return {"error": str(exc)}
+        await _log_audit(ledger_svc, user_id, "categorize_transactions", {"choices": len(updated)})
+        return {"updated": updated}
+
+    @mcp.tool()
+    async def post_transactions(transaction_ids: list[str]) -> dict[str, Any]:
+        """Book pending transactions as journal entries, with the accounts chosen
+        for them. Only after the user has approved exactly these. A transaction
+        with no account chosen, or already booked, is skipped."""
+        user_id = _current_user_id()
+        entry_ids = await parsing_svc.post_approved(user_id, transaction_ids)
+        await _log_audit(
+            ledger_svc, user_id, "post_transactions", {"transaction_ids": transaction_ids}
+        )
+        return {"posted": len(entry_ids), "entry_ids": entry_ids}
+
+    @mcp.tool()
+    async def discard_transactions(
+        statement_id: str, transaction_ids: list[str] | None = None
+    ) -> dict[str, Any]:
+        """Discard pending transactions of a statement (those listed, or every
+        one) that are not real: they are never booked and leave review."""
+        user_id = _current_user_id()
+        count = await parsing_svc.discard(user_id, statement_id, transaction_ids)
+        if count is None:
+            return {"error": f"No statement {statement_id}"}
+        await _log_audit(
+            ledger_svc,
+            user_id,
+            "discard_transactions",
+            {"statement_id": statement_id, "transaction_ids": transaction_ids},
+        )
+        return {"discarded": count}
+
+    # ── Rules ────────────────────────────────────────────────────────────────
+
+    @mcp.tool()
+    async def suggest_rules() -> dict[str, Any]:
+        """Rules the user's own bookkeeping implies: payees they always book to
+        the same account. Offer them; create one with create_rule if they agree."""
+        return {"suggestions": await rules_svc.suggestions(_current_user_id())}
+
+    @mcp.tool()
+    async def create_rule(
+        name: str,
+        description_contains: str,
+        account_id: str,
+        category: str | None = None,
+        need: str | None = None,
+    ) -> dict[str, Any]:
+        """Teach Salli to book every transaction whose description contains
+        `description_contains` to `account_id` (with a category and need), every
+        time, before any model is asked. Get the user's agreement first."""
+        from salli.domain.rules.engine import InvalidRule
+
+        user_id = _current_user_id()
+        actions = {"account_id": account_id, "category": category, "need": need}
+        rule = {
+            "name": name,
+            "conditions": [
+                {"field": "description", "operator": "contains", "value": description_contains}
+            ],
+            "actions": {k: v for k, v in actions.items() if v},
+            "priority": 100,
+            "match_all": True,
+            "enabled": True,
+        }
+        try:
+            rule_id = await rules_svc.create(user_id, rule)
+        except InvalidRule as exc:
+            return {"error": str(exc)}
+        await _log_audit(ledger_svc, user_id, "create_rule", {"name": name})
+        return {"rule_id": rule_id}
+
+    # ── Prompts: what a user can start with in their AI client ──────────────
+
+    @mcp.prompt()
+    def review_my_month(month: str = "") -> str:
+        """A short review of the month: what came in and went out, what
+        changed, what needs attention, and a few actions."""
+        when = f"for {month}" if month else "for this month"
+        return (
+            f"Review my finances {when} with Salli's tools: get_cash_flow, "
+            "get_spending, get_recurring_payments and get_cash_forecast. Quote Salli's "
+            "numbers exactly; never compute or estimate amounts yourself. Tell me, "
+            "briefly: how this month compares with my usual months, anything that "
+            "needs attention (a forecast low point before payday, a new or more "
+            "expensive recurring charge, a category well above usual), and at most "
+            "three concrete things I could do. Keep it short and plain."
+        )
+
+    @mcp.prompt()
+    def sort_pending_transactions() -> str:
+        """Sort what came in from statements and banks, then book what the user approves."""
+        return (
+            "Help me sort my imported transactions with Salli. Call "
+            "list_pending_transactions and get_accounts. For each transaction with no "
+            "account chosen, propose an account from my chart (never invent one), a "
+            "short category, and a need (essential, discretionary or savings). Show "
+            "me your proposals grouped by account, and point out possible duplicates. "
+            "Only after I approve: call categorize_transactions, then post_transactions "
+            "for exactly what I approved. Then offer rules for payees that keep "
+            "coming back (suggest_rules, or create_rule) so Salli books them itself "
+            "next time; create a rule only if I say yes."
+        )
+
+    @mcp.prompt()
+    def can_i_afford(amount: str, when: str = "", what: str = "") -> str:
+        """Whether a purchase fits, from the user's own forecast and plan."""
+        thing = f" for {what}" if what else ""
+        date = f" on {when}" if when else " now"
+        return (
+            f"Can I afford {amount}{thing}{date}? Use Salli: get_cash_forecast for a "
+            "window covering that date and the next payday, and simulate_purchase for "
+            "what it costs my plan in months of freedom (paid at once, and in "
+            "installments if that is an option). Answer with Salli's numbers only, "
+            "never your own arithmetic: my lowest balance afterwards and when it "
+            "falls, whether that stays above zero and above my usual buffer, and the "
+            "cost in months of freedom. Say what you assumed, and the trade-off in "
+            "one sentence."
+        )
+
     # Registered with FastMCP via the @mcp.tool() decorator above; referenced
     # here only so static analysis sees them as used.
     _ = (
@@ -545,5 +788,20 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         create_account,
         create_reminder,
         post_journal_entry,
+        get_cash_flow,
+        get_spending,
+        get_net_worth_history,
+        get_recurring_payments,
+        get_cash_forecast,
+        simulate_purchase,
+        list_pending_transactions,
+        categorize_transactions,
+        post_transactions,
+        discard_transactions,
+        suggest_rules,
+        create_rule,
+        review_my_month,
+        sort_pending_transactions,
+        can_i_afford,
     )
     return mcp

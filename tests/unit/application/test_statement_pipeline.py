@@ -784,6 +784,81 @@ async def test_a_refusing_meter_refuses_a_request_and_lets_a_sync_go_on(world, m
     assert model == [] and any("Monthly imports used up" in e for e in synced.errors)
 
 
+class _ChoosingStatements(Statements):
+    async def set_choice(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> None:
+        row = self.rows[transaction_id]
+        for key, value in fields.items():
+            setattr(row, key, value)
+        row.confidence = 1.0
+
+
+async def test_a_choice_sets_the_other_side_and_keeps_the_statements_own(world, model):
+    world.statements = _ChoosingStatements()
+    rows = [_row("WHOLE FOODS", "84.17"), _row("ACME PAYROLL", "3000", money_in=True)]
+    result = await world.service().import_rows(
+        USER, rows, bank="", account_id="checking", api_key="k"
+    )
+    groceries, pay = result.transactions
+
+    updated = await world.service().categorize(
+        USER,
+        [
+            {"transaction_id": groceries.id, "account_id": "transport", "need": "essential"},
+            {"transaction_id": pay.id, "account_id": "salary", "category": "payroll"},
+        ],
+    )
+
+    assert updated == [groceries.id, pay.id]
+    out, money_in = (world.statements.rows[t.id] for t in (groceries, pay))
+    assert (out.debit_account_id, out.credit_account_id, out.need) == (
+        "transport",
+        "checking",
+        "essential",
+    )
+    assert (money_in.debit_account_id, money_in.credit_account_id, money_in.category) == (
+        "checking",
+        "salary",
+        "payroll",
+    )
+    assert out.rule_id == "" and out.confidence == 1.0
+
+
+@pytest.mark.parametrize(
+    ("account", "status", "message"),
+    [
+        ("checking", "pending", "statement's own account"),
+        ("retired", "pending", "No active account"),
+        ("food", "posted", "only transactions waiting for review"),
+        ("food", "exact_duplicate", "only transactions waiting for review"),
+    ],
+)
+async def test_a_choice_that_cannot_be_is_refused(world, model, account, status, message):
+    world.statements = _ChoosingStatements()
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id="checking", api_key="k"
+    )
+    [txn] = result.transactions
+    world.statements.rows[txn.id].dedup_status = status
+    with pytest.raises(ValueError, match=message):
+        await world.service().categorize(USER, [{"transaction_id": txn.id, "account_id": account}])
+
+
+async def test_choosing_for_someone_elses_transaction_is_not_found(world):
+    with pytest.raises(KeyError):
+        await world.service().categorize(USER, [{"transaction_id": "nope", "account_id": "food"}])
+
+
+async def test_a_choice_needs_to_know_which_of_your_accounts_moved(world):
+    # No statement account and no model: neither side is known yet.
+    world.statements = _ChoosingStatements()
+    result = await world.service().import_rows(
+        USER, [_row("WHOLE FOODS", "84.17")], bank="", account_id=None
+    )
+    [txn] = result.transactions
+    with pytest.raises(ValueError, match="no account"):
+        await world.service().categorize(USER, [{"transaction_id": txn.id, "account_id": "food"}])
+
+
 # ── What review found ─────────────────────────────────────────────────────────
 
 

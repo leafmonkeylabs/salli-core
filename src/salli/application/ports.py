@@ -231,6 +231,12 @@ class StatementRepository(ABC):
         ...
 
     @abstractmethod
+    async def set_choice(self, user_id: str, transaction_id: str, fields: dict[str, Any]) -> None:
+        """Record what a person (or their AI) chose for a pending transaction:
+        its accounts, category and need. Nothing else about it changes."""
+        ...
+
+    @abstractmethod
     async def list_statements(self, user_id: str, limit: int = 50) -> list[Any]:
         """Every statement this user has uploaded, newest first.
 

@@ -146,6 +146,29 @@ async def test_discarded_rows_leave_review_and_history(uow_factory, chart):
     assert {t.dedup_status for t in again.transactions} == {"pending"}
 
 
+async def test_a_choice_is_stored_and_posted_as_chosen(uow_factory, chart):
+    # What an AI client sorts over MCP, or a person in the CLI, books as chosen.
+    ledger = LedgerService(uow_factory)
+    transport = await ledger.add_account("u1", "5100", "Transport", "expense")
+    parsing = ParsingService(uow_factory)
+    imported = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=chart["checking"], api_key="k"
+    )
+    target = next(t for t in imported.transactions if not t.raw.credit_flag)
+
+    assert await parsing.categorize(
+        "u1", [{"transaction_id": target.id, "account_id": transport, "need": "essential"}]
+    ) == [target.id]
+    [stored] = [t for t in await parsing.get_pending("u1") if t.id == target.id]
+    assert (stored.debit_account_id, stored.credit_account_id) == (transport, chart["checking"])
+    assert (stored.need, stored.confidence) == ("essential", 1.0)
+
+    [entry_id] = await parsing.post_approved("u1", [target.id])
+    async with uow_factory() as uow:
+        [entry] = [e for e in await uow.ledger.get_entries("u1") if e.id == entry_id]
+    assert {p.account_id for p in entry.postings} == {transport, chart["checking"]}
+
+
 async def test_two_approvals_at_once_post_each_row_once(uow_factory, chart):
     import asyncio
 
