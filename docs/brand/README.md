@@ -109,9 +109,12 @@ Never write SALLI, Salli.ai, Salli App or SalliCLI.
 ## Logo
 
 <p>
-  <img src="assets/salli-logo.svg" alt="Salli logo on paper" height="56">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/salli-logo-on-dark.svg">
+    <img src="assets/salli-logo.svg" alt="The Salli logo" height="56">
+  </picture>
   &nbsp;&nbsp;&nbsp;
-  <img src="assets/salli-icon.svg" alt="Salli app icon" height="56">
+  <img src="assets/salli-icon.svg" alt="The Salli app icon" height="56">
 </p>
 
 ### The balance
