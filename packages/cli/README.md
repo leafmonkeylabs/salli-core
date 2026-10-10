@@ -34,7 +34,7 @@ Needs attention
 
 Coming up
 ! Oct 9, 2026   Budget overspend            warning
-  Nov 30, 2026  Return due 2025/26
+  Apr 30, 2027  Return due (XA 2026)
 ```
 
 It never does arithmetic on money. Amounts arrive from the server as exact
@@ -153,7 +153,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Investments | `salli portfolio`, `salli portfolio transactions add VTI buy --quantity 10 --price 240`, `salli portfolio performance` |
 | Financial independence | `salli fi score`, `salli fi assumptions`, `salli fi afford 2400 --months 12` |
 | A review from the advisor | `salli advisor run`, or `salli advisor briefing` to approve a monthly briefing before it is saved |
-| Tax | `salli tax year`, `salli tax compute`, `salli profile set --tax-residency LK` |
+| Tax | `salli tax year`, `salli tax compute`, `salli tax explain <line>`, `salli tax return prepare`, `salli profile set --tax-residency GB` |
 | Your own tax rules | `salli tax rules list`, `salli tax rules diff "XA 2031"`, `salli tax rules activate "XA 2031"` (see below) |
 | Choose what powers the AI | `salli ai status`, `salli ai connect chatgpt`, `salli llm-keys set openai` |
 | Take your ledger elsewhere | `salli export beancount -o ledger.beancount`, `salli export hledger` |
@@ -197,14 +197,29 @@ specialists it uses. Before the AI changes anything it says what and asks; nothi
 is written unless you approve. `salli ask` asks once; without a terminal to ask in,
 a change it proposes is declined.
 
-## Tax rules
+## Tax
 
-Where Salli has no built-in rules for your country or year, you (or your AI
-agent) can write a **tax rule set**: a JSON document, `salli.tax/1`, saying how
-one jurisdiction taxes one year, citing its sources, with the authority's own
-worked examples. Salli validates it against those examples and computes with
-it; it never takes a figure from the AI. The format is in
-[docs/taxrules.md](../../docs/taxrules.md).
+Salli knows no country's tax law. You (or your AI agent) write your tax rules
+as a **tax rule set**: a JSON document, `salli.tax/1`, saying how one
+jurisdiction taxes one year, citing its sources, with the authority's own
+worked examples. Salli validates it against those examples, and once you
+activate it, computes your tax with it; it never takes a figure from the AI.
+The format is in [docs/taxrules.md](../../docs/taxrules.md).
+
+```bash
+salli tax year                                        # your current tax year: the active rules covering today
+salli tax compute                                     # every line, the net payable or refund, and the rules' version
+salli tax compute --country XA --year 2031 --answer filing_status=joint
+salli tax latest                                      # the last stored computation
+salli tax explain income_tax                          # what a line used, and the source it cites
+salli tax return prepare                              # your rules' return forms, filled in, held for review
+salli tax return review <thread>                      # show it, then approve, edit (compute again) or reject
+```
+
+Without active rules there is nothing to compute, and each command says how to
+add some. Activating a version also makes its deadlines your filing reminders.
+
+### Your own tax rules
 
 ```bash
 salli tax schema -o salli-tax.schema.json             # the JSON Schema to write against
@@ -218,6 +233,7 @@ salli tax rules validate "XA 2031"                    # exit 1 until every examp
 salli tax rules propose "XA 2031"
 salli tax rules diff "XA 2031"                        # active vs newest, with each change's source
 salli tax rules evaluate "XA 2031" --answer filing_status=joint
+salli tax rules accounts "XA 2031" --apply            # create the accounts the rules suggest (idempotent)
 salli tax rules export "XA 2031" -o xa-2031.json      # canonical: its SHA-256 is the content hash
 salli tax rules activate "XA 2031"                    # you, at your terminal
 ```

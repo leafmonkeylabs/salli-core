@@ -168,7 +168,7 @@ async function converse(
     const approved = await decide(end.approval);
     end = await renderTurn(
       app,
-      streamAgentResume(api, { thread_id: thread, decision: approved ? 'approved' : 'denied', workflow: 'chat', persona }, { signal: options.signal }),
+      streamAgentResume(api, { thread_id: thread, decision: approved ? 'approved' : 'denied', persona }, { signal: options.signal }),
       options,
     );
   }

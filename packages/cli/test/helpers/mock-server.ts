@@ -47,7 +47,6 @@ import type {
   RuleTestResult,
   RuleUpdate,
   StatementTransaction,
-  TaxPack,
 } from '@leafmonkeylabs/salli-sdk';
 import {
   ACCOUNTS,
@@ -206,7 +205,10 @@ export class MockSalli {
         paused_until: null, detail: null, readable: true, manage_usage_url: 'https://chatgpt.com/settings/usage',
       } as ChatGptConnection,
     },
-    taxYear: { country: 'LK', country_source: 'tax_residency', year: '2026/27', start: '2026-04-01', end: '2027-03-31', has_pack: false, latest_year: '2025/26' } as TaxYearStatus,
+    taxYear: {
+      country: 'XA', country_source: 'given', year: '2031', region: null, start: '2031-01-01', end: '2031-12-31',
+      rule_set_id: uid(1501), rule_set_version_id: uid(1511), version: 1, latest_year: '2031', latest_rule_set_version_id: uid(1511),
+    } as TaxYearStatus,
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
     prices: [
       { id: uid(1301), symbol: 'VTI', date: '2026-10-08', close: '281.26', currency: 'USD', source: 'user', created_at: '2026-10-08T18:00:00Z', updated_at: '2026-10-08T18:00:00Z' },
@@ -340,7 +342,6 @@ export class MockSalli {
       api_version: this.options.apiVersion ?? '1',
       server_version: '0.1.0',
       extensions: [],
-      tax_packs: [{ country: 'LK', year: '2025/26', version: '1', currency: 'LKR', period_start: '2025-04-01', period_end: '2026-03-31', withholding_kinds: [] }],
       oauth: {
         issuer: base,
         authorization_endpoint: `${base}/mcp/oauth/authorize`,
@@ -752,40 +753,6 @@ export class MockSalli {
           defaults: { ...FI_ASSUMPTIONS, safe_withdrawal_rate: { value: '0.035', origin: 'default', source: 'US research on 30-year retirements' } },
           overrides: { safe_withdrawal_rate: '0.04' },
         } satisfies FiAssumptionsReport,
-      };
-    }
-    if (method === 'GET' && path === '/v1/tax/packs') {
-      const pack: TaxPack = {
-        country: 'LK',
-        year: '2025/26',
-        version: '1',
-        currency: 'LKR',
-        period_start: '2025-04-01',
-        period_end: '2026-03-31',
-        personal_relief: '1800000.00',
-        return_due: '11-30',
-        set_due: '09-30',
-        installments: ['08-15', '11-15', '02-15'],
-        final_installment_due: '05-15',
-        withholding_kinds: [{ code: 'apit', label: 'APIT', description: 'Tax your employer withholds' }],
-        tax_roles: ['apit_credit', 'ait_credit'],
-      };
-      return { status: 200, body: [pack] };
-    }
-    if (method === 'POST' && path === '/v1/tax/compute') {
-      return {
-        status: 200,
-        body: {
-          pack_country: 'LK', pack_year: '2025/26', pack_version: '1', currency: 'LKR',
-          gross_income: '6000000.00', foreign_service_income: '0.00', regular_income: '6000000.00', personal_relief_applied: '1800000.00',
-          qp_deduction: '0.00', taxable_income: '4200000.00', fsi_tax: '0.00', tax_before_credits: '540000.00',
-          apit_credit: '400000.00', ait_credit: '0.00', foreign_tax_credit: '0.00', total_credits: '400000.00',
-          tax_payable: '140000.00', refund_due: '0.00', rounding: 'nearest_rupee',
-          band_workings: [
-            { band: 'LKR 0 – LKR 1,000,000', rate: '6%', from_amount: '0', to_amount: '1000000', rate_fraction: '0.06', taxable_in_band: '1000000.00', tax: '60000.00' },
-            { band: 'LKR 1,000,000 – LKR 1,500,000', rate: '18%', from_amount: '1000000', to_amount: '1500000', rate_fraction: '0.18', taxable_in_band: '500000.00', tax: '90000.00' },
-          ],
-        },
       };
     }
     if (method === 'GET' && path === '/v1/llm-keys') return { status: 200, body: { available: true, keys: [{ provider: 'anthropic', last4: 'Ab12', validated_at: '2026-10-01T00:00:00+00:00', readable: true }] } };

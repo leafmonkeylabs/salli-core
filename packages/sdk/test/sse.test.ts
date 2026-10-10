@@ -120,7 +120,7 @@ describe('streamAgentChat', () => {
     });
     const salli = createClient({ server: server.url, auth: 'tok' });
     const events = await collect(
-      streamAgentResume(salli, { thread_id: 't-1', decision: 'approved', workflow: 'chat' }),
+      streamAgentResume(salli, { thread_id: 't-1', decision: 'approved' }),
     );
     expect(events).toEqual([{ type: 'token', content: 'Done.' }, { type: 'done' }]);
     expect(server.requests[0]?.path).toBe('/v1/agent/resume');

@@ -20,14 +20,22 @@ const run = (args: string[], options: Partial<RunOptions> = {}) =>
 const lastBody = (path: string) => mock.data.bodies.filter((b) => b.path === path).at(-1)?.body;
 
 describe('tax residency, tax years and FI assumptions', () => {
-  it('shows the tax year, or says where you are taxed is unknown', async () => {
-    expect((await run(['tax', 'year'])).stdout).toMatchInlineSnapshot(`
-      "Country      LK (from your tax residency)
-      Tax year     2026/27 (Apr 1, 2026 – Mar 31, 2027)
-      Can compute  2025/26 (no pack for the current year yet)
+  it('shows the tax year your active rules cover, or says where you are taxed is unknown', async () => {
+    expect((await run(['tax', 'year', '--country', 'XA'])).stdout).toMatchInlineSnapshot(`
+      "Country   XA (as given)
+      Tax year  2031 (Jan 1 – Dec 31, 2031), your rules v1
+      Computes  2031 when no year is named
       "
     `);
-    mock.data.taxYear = { country: null, country_source: null, year: null, start: null, end: null, has_pack: false, latest_year: null };
+    expect(mock.requestsTo('GET', '/v1/tax/current-year')[0]?.query.get('country')).toBe('XA');
+    mock.data.taxYear = {
+      country: 'GB', country_source: 'tax_residency', year: null, region: null, start: null, end: null,
+      rule_set_id: null, rule_set_version_id: null, version: null, latest_year: null, latest_rule_set_version_id: null,
+    };
+    const none = await run(['tax', 'year']);
+    expect(none.stdout).toContain('none: no active rules of yours cover today');
+    expect(none.stderr).toContain('salli tax rules create <file>');
+    mock.data.taxYear = { ...mock.data.taxYear, country: null, country_source: null };
     expect((await run(['tax', 'year'])).stderr).toContain('salli profile set --tax-residency');
   });
 
