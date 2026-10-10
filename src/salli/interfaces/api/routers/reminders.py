@@ -4,7 +4,7 @@ alerts (Reminder rows with alert_type/source_domain/source_id/severity set).
 
 GET  /reminders             — list reminders (optional ?status, ?alerts_only)
 POST /reminders             — create a custom reminder
-POST /reminders/seed        — seed the tax pack's filing deadlines for a tax year
+POST /reminders/seed        — refresh filing deadlines from the active tax rule sets
 POST /reminders/sync-alerts — detect and upsert Budget/Subscription/Insurance alerts
 PATCH /reminders/{id}/done  — mark a reminder complete
 """
@@ -36,9 +36,11 @@ class Reminder(BaseModel):
     #: Set on a detected alert ("budget_overspend", "policy_expiring", …), as
     #: are the three fields after it; null on a plain reminder.
     alert_type: str | None
-    #: What the alert is about: "budget", "subscription" or "insurance".
+    #: What it is about: "budget", "subscription" or "insurance" for an alert;
+    #: "tax_rules" for a filing deadline from an active tax rule set.
     source_domain: str | None
-    #: Which budget line, subscription or policy it is about.
+    #: Which budget line, subscription or policy it is about; for a filing
+    #: deadline, "<rule set id>:<deadline key>".
     source_id: str | None
     #: "warning" or "critical".
     severity: str | None
@@ -50,9 +52,15 @@ class ReminderList(BaseModel):
 
 
 class SeededReminders(BaseModel):
-    #: How many deadlines were added; ones already there are skipped.
+    #: How many deadlines were added.
     created: int
+    #: The ids of the reminders added.
     ids: list[str]
+    #: Reminders whose label or date the rules changed (back to pending when
+    #: the date moved).
+    updated: list[str]
+    #: Reminders for deadlines the active rules no longer list.
+    removed: list[str]
 
 
 class SyncedAlerts(BaseModel):
@@ -91,12 +99,18 @@ async def create_reminder(
 async def seed_filing_calendar(
     user_id: CurrentUser,
     svc: AppServices,
-    year: Annotated[str | None, Query(examples=["2025/26"])] = None,
+    year: Annotated[str | None, Query(examples=["2031/32"])] = None,
 ) -> SeededReminders:
-    """Seed the filing deadlines of the user's tax pack for a tax year; by
-    default the latest one Salli can compute for them."""
-    created = await svc.reminders.seed_filing_calendar(user_id, year)
-    return SeededReminders(created=len(created), ids=created)
+    """Refresh the filing reminders from the deadlines of the user's active tax
+    rule sets (one year's, when `year` names it). Activating a version does
+    this already; this catches a calendar up. Idempotent."""
+    synced = await svc.reminders.seed_filing_calendar(user_id, year)
+    return SeededReminders(
+        created=len(synced["created"]),
+        ids=synced["created"],
+        updated=synced["updated"],
+        removed=synced["removed"],
+    )
 
 
 @router.post("/sync-alerts", status_code=201)

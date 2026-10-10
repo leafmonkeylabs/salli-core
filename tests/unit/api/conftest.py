@@ -27,9 +27,7 @@ def mock_services():
     svc.ledger = AsyncMock()
     # Routers that report amounts say which currency they are in.
     svc.ledger.base_currency.return_value = "LKR"
-    # tax.list_packs is sync (reads in-memory registry); others are async
     svc.tax = AsyncMock()
-    svc.tax.list_packs = MagicMock()
     svc.agent = AsyncMock()
     svc.fi = AsyncMock()
     svc.advisor = AsyncMock()

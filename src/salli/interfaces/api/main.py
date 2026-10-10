@@ -35,11 +35,12 @@ from salli.application.services.tax_rule_service import (
     RuleSetRateMissing,
     RuleSetStateError,
 )
-from salli.application.services.tax_service import NoTaxPackError
+from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
 from salli.domain.llm import LLMError
 from salli.domain.secrets import redact
+from salli.domain.taxrules.explain import UnknownLine
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
 from salli.interfaces.api.contract import API_PREFIX, document_problems, operation_id
@@ -310,13 +311,20 @@ def create_app() -> FastAPI:
             " first.",
         )
 
-    # No tax pack can compute this user's tax: no country to go by, none for
-    # theirs, or none for a year that has begun. Before ValueError's catch-all.
-    @app.exception_handler(NoTaxPackError)
-    async def no_tax_pack_handler(request: Request, exc: NoTaxPackError) -> JSONResponse:
+    # No active tax rules to compute this user's tax with: no country to go by,
+    # no rule set for it, or none activated. The detail says what to do (add
+    # rules with the CLI or an agent, then activate them). Before KeyError's
+    # catch-all, whose LookupError it is.
+    @app.exception_handler(NoTaxRulesError)
+    async def no_tax_rules_handler(request: Request, exc: NoTaxRulesError) -> JSONResponse:
         return problem(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, "no-tax-pack", "No tax pack", str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "no-tax-rules", "No active tax rules", str(exc)
         )
+
+    # A line to explain that the rules don't have; the detail lists those they do.
+    @app.exception_handler(UnknownLine)
+    async def unknown_line_handler(request: Request, exc: UnknownLine) -> JSONResponse:
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
 
     # Tax rule sets (application/services/tax_rule_service.py). Each before
     # the ValueError and LookupError it is a kind of.

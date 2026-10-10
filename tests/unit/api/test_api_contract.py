@@ -26,8 +26,8 @@ async def test_meta_is_public_and_describes_the_server(client):
     body = r.json()
     assert body["api_version"] == "1"
     assert body["oauth"]["token_endpoint"].endswith("/mcp/oauth/token")
-    lk = body["tax_packs"][0]
-    assert (lk["country"], lk["year"], lk["currency"]) == ("LK", "2025/26", "LKR")
+    # No country's tax is built in: a user's rule sets are theirs, not the server's.
+    assert "tax_packs" not in body
     assert len(body["default_currency"]) == 3
 
 

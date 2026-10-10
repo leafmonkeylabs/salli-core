@@ -60,7 +60,7 @@ jobs:
           src/salli/application/services/llm_credential_service.py
           src/salli/application/services/chatgpt_connection_service.py
           src/salli/interfaces/api/routers/ai.py
-          src/salli/domain/jurisdiction.py src/salli/domain/tax src/salli/domain/taxrules
+          src/salli/domain/jurisdiction.py src/salli/domain/taxrules
           src/salli/domain/agents/jurisdiction.py src/salli/domain/agents/prompting.py
           src/salli/domain/fi/assumptions.py
           src/salli/domain/portfolio/lots.py src/salli/domain/portfolio/valuation.py
@@ -69,9 +69,10 @@ jobs:
           src/salli/application/permissions.py src/salli/adapters/net
           src/salli/application/services/personal_access_token_service.py
           src/salli/interfaces/api/routers/tokens.py src/salli/interfaces/api/routers/auth.py
-          src/salli/adapters/db/tax_rule_sets.py
+          src/salli/adapters/db/tax_rule_sets.py src/salli/adapters/db/tax_computations.py
           src/salli/application/services/tax_rule_service.py
-          src/salli/interfaces/api/routers/tax_rules.py
+          src/salli/application/services/tax_service.py src/salli/application/tax_deadlines.py
+          src/salli/interfaces/api/routers/tax_rules.py src/salli/interfaces/api/routers/tax.py
       - name: Tests
         # Includes the contract tests: the OpenAPI document matches the app, and
         # salli-core carries no billing vocabulary.

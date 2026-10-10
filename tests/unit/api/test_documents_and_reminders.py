@@ -109,10 +109,14 @@ async def test_creating_a_reminder_returns_its_id(client, mock_services):
 
 
 async def test_seeding_the_filing_calendar(client, mock_services):
-    mock_services.reminders.seed_filing_calendar.return_value = ["r4", "r5"]
+    mock_services.reminders.seed_filing_calendar.return_value = {
+        "created": ["r4", "r5"],
+        "updated": [],
+        "removed": ["r1"],
+    }
     r = await client.post("/v1/reminders/seed", headers=AUTH)
     assert r.status_code == 201
-    assert r.json() == {"created": 2, "ids": ["r4", "r5"]}
+    assert r.json() == {"created": 2, "ids": ["r4", "r5"], "updated": [], "removed": ["r1"]}
 
 
 async def test_syncing_alerts_counts_them_by_type(client, mock_services):

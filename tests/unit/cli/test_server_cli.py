@@ -173,20 +173,26 @@ def test_the_bank_job_passes_the_age_and_fails_when_a_sync_failed(monkeypatch, c
 def test_the_tax_job_is_a_dry_run_unless_told_to_apply(monkeypatch, capsys):
     row = {
         "user_id": "u1aaaaaaaa",
-        "year": "2025/26",
+        "country": "XG",
+        "region": None,
+        "year": "2031/32",
+        "old_version": 1,
+        "new_version": 2,
+        "currency": "KWD",
         "changed": True,
         "applied": False,
-        "old_credits": "0.00",
-        "new_credits": "1200.00",
-        "old_tax_payable": "5000.00",
-        "new_tax_payable": "3800.00",
-        "new_refund_due": "0.00",
+        "reproduces": True,
+        "old_tax_payable": "5000.000",
+        "new_tax_payable": "3800.000",
+        "old_refund_due": "0.000",
+        "new_refund_due": "0.000",
     }
     tax = SimpleNamespace(recompute_stored=AsyncMock(return_value=[row]))
     monkeypatch.setattr(jobs, "services", lambda: SimpleNamespace(tax=tax))
     result = _run(monkeypatch, capsys, "jobs", "recompute-tax")
     assert result.exit_code == 0, result.output
     assert "Dry run: nothing written" in result.output and "--apply" in result.output
+    assert "XG" in result.output and "1 changed" in result.output
     tax.recompute_stored.assert_awaited_once_with(apply=False)
 
     assert _run(monkeypatch, capsys, "jobs", "recompute-tax", "--apply").exit_code == 0

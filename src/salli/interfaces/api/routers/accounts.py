@@ -19,17 +19,16 @@ AccountTypeStr = Literal["asset", "liability", "equity", "income", "expense"]
 # account could never carry one, so only the chart auto-built during
 # onboarding was ever visible to the engine.
 #
-# Which roles exist isn't fixed: the built-in packs declare some (GET
-# /tax/packs lists each pack's) and the user's own tax rule sets declare any
-# others (docs/taxrules.md). So the schema says only what a role looks like;
-# whether this user may use it is checked when it is set (LedgerService), a
-# 422 if not.
+# Which roles exist isn't fixed: the user's own tax rule sets declare them
+# (docs/taxrules.md); Salli has none of its own. So the schema says only what
+# a role looks like; whether this user may use it is checked when it is set
+# (LedgerService), a 422 if not.
 TaxRoleIn = Annotated[
     str,
     Field(
         pattern=r"^[a-z][a-z0-9_]{0,29}$",
         examples=["salary"],
-        description="A role a built-in tax pack or one of the user's tax rule sets declares.",
+        description="A role one of the user's tax rule sets declares.",
     ),
 ]
 TaxRoleStr = TaxRoleIn
