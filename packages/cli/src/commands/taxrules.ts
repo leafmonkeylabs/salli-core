@@ -500,7 +500,7 @@ async function explainForbidden(app: App, error: SalliApiError): Promise<CliErro
   return new CliError(`Not activated. ${why}, so it doesn't hold ${TAX_ACTIVATE}.`, {
     exitCode: ExitCode.REFUSED,
     kind: 'forbidden',
-    hint: `${hint} (The server said: ${singleLine(error.message)})`,
+    hint,
     cause: error,
   });
 }
