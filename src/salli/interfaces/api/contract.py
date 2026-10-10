@@ -141,6 +141,23 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/portfolio/"): "holdings.list",
     ("POST", "/portfolio/"): "holdings.create",
     ("GET", "/portfolio/summary"): "portfolio.summary",
+    ("GET", "/portfolio/performance"): "portfolio.performance",
+    ("GET", "/portfolio/prices"): "portfolio.prices.list",
+    ("POST", "/portfolio/prices"): "portfolio.prices.set",
+    ("DELETE", "/portfolio/prices/{quote_id}"): "portfolio.prices.delete",
+    ("GET", "/portfolio/{holding_id}/transactions"): "holdings.transactions.list",
+    ("POST", "/portfolio/{holding_id}/transactions"): "holdings.transactions.create",
+    ("GET", "/portfolio/{holding_id}/transactions/{transaction_id}"): "holdings.transactions.get",
+    (
+        "PATCH",
+        "/portfolio/{holding_id}/transactions/{transaction_id}",
+    ): "holdings.transactions.update",
+    (
+        "DELETE",
+        "/portfolio/{holding_id}/transactions/{transaction_id}",
+    ): "holdings.transactions.delete",
+    ("GET", "/portfolio/{holding_id}/lots"): "holdings.lots",
+    ("GET", "/portfolio/{holding_id}/performance"): "holdings.performance",
     ("GET", "/portfolio/{holding_id}"): "holdings.get",
     ("PATCH", "/portfolio/{holding_id}"): "holdings.update",
     ("DELETE", "/portfolio/{holding_id}"): "holdings.delete",
@@ -298,6 +315,18 @@ Amount = Annotated[
         pattern=r"^-?\d+(\.\d+)?$",
         examples=["1234.50"],
         description="Decimal string in the currency's own precision; never a float.",
+    ),
+]
+
+#: A decimal that is not money — a quantity, a unit price, an exchange rate,
+#: a rate of return — as an exact decimal string without trailing zeros
+#: ("10", "0.5", "2512.000000000000000001"). Never a JSON number.
+DecimalOut = Annotated[
+    str,
+    Field(
+        pattern=r"^-?\d+(\.\d+)?$",
+        examples=["10.5"],
+        description="Decimal string, exact; never a float.",
     ),
 ]
 

@@ -2,8 +2,9 @@
 Deterministic investment portfolio engine.
 
 Pure function: compute_summary(holdings, target_allocation, drift_threshold) ->
-PortfolioSummary. No I/O — holdings carry manually-declared cost basis and current
-value; there is no live price feed or ticker lookup in the domain.
+PortfolioSummary. No I/O — holdings carry their cost basis and current value in
+the base currency (worked out from transactions and recorded prices, or as
+declared); there is no live price feed or ticker lookup in the domain.
 
   • Allocation  — aggregates current value by asset class into percentages
   • Rebalancing — only computed when a target allocation is supplied; flags any

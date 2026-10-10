@@ -165,7 +165,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     fi = FiService(uow_factory, llm_credentials)
     budget = BudgetService(uow_factory)
     debt = DebtService(uow_factory)
-    portfolio = PortfolioService(uow_factory)
+    portfolio = PortfolioService(uow_factory, fx=fx)
     subscription = SubscriptionService(uow_factory)
     insurance = InsuranceService(uow_factory)
     profile = UserProfileService(

@@ -1,66 +1,590 @@
 """
-PortfolioService — declares manually-entered investment holdings (cost basis,
-current value) and computes allocation/rebalancing/ROI summaries via the pure
-domain engine. No market-data feed — values are only as fresh as the user's
-last update.
+PortfolioService — investment holdings, their transactions and lots, and the
+allocation/rebalancing/ROI summary.
+
+A holding has a currency of its own (a US fund in a rupee ledger is in USD)
+and a history of transactions: buys, sales, dividends, interest, splits and
+transfers in. Its lots, sales and income are worked out from that history by
+the pure domain (domain/portfolio/lots.py). Every transaction but a split
+carries the rate into the owner's base currency on its date, the one given or
+the published one, and is refused when there is neither (application/fx.py),
+exactly as a posting in the ledger is.
+
+A holding without transactions keeps the two figures the user declared, cost
+basis and current value, in the base currency. Declaring figures for a
+holding in another currency would need a rate with no date to take it on, so
+such a holding is tracked by its transactions instead.
+
+Every change to a holding's history is checked by replaying the whole of it:
+a sale of more than was held, or of a lot that was not, is refused before it
+is stored, and so is an edit or deletion that would make a later sale
+impossible.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from decimal import Decimal
-from typing import Any
+import asyncio
+import uuid
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from datetime import date
+from decimal import Context, Decimal, InvalidOperation, localcontext
+from typing import Any, cast
 
-from salli.domain.currency import quantum
+from salli.application.fx import rate_to_base
+from salli.application.market_data import StoredPriceHistory, symbol_key
+from salli.application.ports import FxRatePort, FxUnavailableError
+from salli.domain.currency import normalize_currency, quantize, quantum
 from salli.domain.money import from_minor, to_minor
-from salli.domain.portfolio import engine
+from salli.domain.portfolio import engine, performance
+from salli.domain.portfolio.lots import (
+    EXACT,
+    INCOME,
+    ONE,
+    PLACES,
+    ZERO,
+    Kind,
+    LotPick,
+    Transaction,
+    TransactionError,
+    check_amount,
+    check_number,
+    ordered,
+    plain,
+    replay,
+    validate,
+)
 from salli.domain.portfolio.models import Holding
+from salli.domain.portfolio.returns import RATE, annualised
+from salli.domain.portfolio.valuation import Close, Pricing, Valuation
 
-# Holdings are valued in the user's base currency.
+_STEP = Decimal(1).scaleb(-PLACES)
+_NUMBER_LIMIT = Decimal(10) ** 20
+
+# What each kind of transaction needs, and what else it may have. Anything else
+# is refused rather than ignored: a price on a dividend is a client's mistake.
+_FIELDS: dict[Kind, tuple[frozenset[str], frozenset[str]]] = {
+    Kind.BUY: (frozenset({"quantity", "price"}), frozenset({"fees", "fx_rate"})),
+    Kind.SELL: (frozenset({"quantity", "price"}), frozenset({"fees", "fx_rate", "lots"})),
+    Kind.TRANSFER_IN: (frozenset({"quantity", "amount"}), frozenset({"fx_rate"})),
+    Kind.DIVIDEND: (frozenset({"amount"}), frozenset({"withholding_tax", "fx_rate"})),
+    Kind.INTEREST: (frozenset({"amount"}), frozenset({"withholding_tax", "fx_rate"})),
+    Kind.SPLIT: (frozenset({"ratio"}), frozenset()),
+}
+_COMMON = frozenset({"kind", "date", "note", "fx_rate_source"})
 
 
-def _holding_view(h: dict[str, Any], currency: str) -> dict[str, Any]:
+# ── Reading what a request or the CLI sent ────────────────────────────────────
+
+
+def _decimal(name: str, value: object) -> Decimal:
+    """A number as a request or the CLI gives it: a Decimal, an int, or a
+    decimal string. Anything else, NaN and infinity included, is refused."""
+    if isinstance(value, bool):
+        raise TransactionError(f"{name} must be a decimal number, not {value!r}")
+    if isinstance(value, Decimal):
+        number = value
+    elif isinstance(value, int | float):
+        number = Decimal(str(value))
+    elif isinstance(value, str):
+        try:
+            number = Decimal(value.strip())
+        except InvalidOperation:
+            raise TransactionError(f"{name} must be a decimal number, not {value!r}") from None
+    else:
+        raise TransactionError(f"{name} must be a decimal number, not {value!r}")
+    if not number.is_finite():
+        raise TransactionError(f"{name} must be a decimal number, not {value!r}")
+    # Nothing Salli keeps is this large, or this small but not zero; refused
+    # here, before arithmetic on it could overflow.
+    if number.copy_abs() >= _NUMBER_LIMIT or (number != 0 and number.adjusted() < -60):
+        raise TransactionError(f"{name} is out of range: {value!r}")
+    return number
+
+
+def _date(value: object) -> date:
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError:
+            pass
+    raise TransactionError(f"date must be YYYY-MM-DD, not {value!r}")
+
+
+def _ratio(value: object) -> tuple[Decimal, Decimal]:
+    """A split's ratio, "new:old" or just "new" (meaning new:1)."""
+    to, _, from_ = str(value).strip().partition(":")
+    return _decimal("ratio", to), (_decimal("ratio", from_) if from_ else ONE)
+
+
+def _fields(data: dict[str, Any]) -> tuple[Kind, dict[str, Any]]:
+    """The kind, and the fields given (not None), checked against what it takes."""
+    try:
+        kind = Kind(str(data.get("kind")))
+    except ValueError:
+        kinds = ", ".join(k.value for k in Kind)
+        raise TransactionError(f"kind must be one of {kinds}, not {data.get('kind')!r}") from None
+    given = {k: v for k, v in data.items() if v is not None and k != "kind"}
+    if "date" not in given:
+        raise TransactionError("A transaction needs a date")
+    required, optional = _FIELDS[kind]
+    missing = sorted(required - set(given))
+    if missing:
+        raise TransactionError(f"A {kind.value} needs {' and '.join(missing)}")
+    extra = sorted(set(given) - required - optional - _COMMON)
+    if extra:
+        raise TransactionError(f"A {kind.value} has no {' or '.join(extra)}")
+    if "fx_rate_source" in given and "fx_rate" not in given:
+        raise TransactionError("fx_rate_source describes an fx_rate given with it")
+    return kind, given
+
+
+def _picks(value: object) -> list[dict[str, Any]]:
+    """A sale's named lots, each {"lot_id", "quantity"}; none for anything else."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise TransactionError("lots must be a list of {lot_id, quantity}")
+    picks: list[dict[str, Any]] = []
+    for pick in cast(list[object], value):
+        if not isinstance(pick, dict) or not {"lot_id", "quantity"} <= set(
+            cast(dict[str, Any], pick)
+        ):
+            raise TransactionError("Each lot named is {lot_id, quantity}")
+        picks.append(cast(dict[str, Any], pick))
+    return picks
+
+
+def _columns(
+    kind: Kind, fields: dict[str, Any], currency: str, rate: Decimal, source: str | None
+) -> dict[str, Any]:
+    """The stored columns: money in minor units of the holding's currency
+    (rounded HALF-UP, the money path's one rule), the rest exact."""
+
+    def money(name: str) -> int | None:
+        if name not in fields:
+            return None
+        amount = _decimal(name, fields[name])
+        check_amount(name, amount.copy_abs())
+        return to_minor(amount, currency)
+
+    split_to, split_from = _ratio(fields["ratio"]) if kind is Kind.SPLIT else (None, None)
     return {
-        "id": h["id"],
-        "symbol": h["symbol"],
-        "name": h["name"],
-        "asset_class": h["asset_class"],
+        "kind": kind.value,
+        "transaction_date": _date(fields["date"]).isoformat(),
+        "quantity": _decimal("quantity", fields["quantity"]) if "quantity" in fields else None,
+        "price": _decimal("price", fields["price"]) if "price" in fields else None,
+        "fees_minor": money("fees") or 0,
+        "amount_minor": money("amount"),
+        "withholding_tax_minor": money("withholding_tax") or 0,
+        "split_to": split_to,
+        "split_from": split_from,
+        "lots": [
+            {
+                "lot_id": str(pick["lot_id"]),
+                "quantity": plain(_decimal("a lot's quantity", pick["quantity"])),
+            }
+            for pick in _picks(fields.get("lots"))
+        ],
+        "fx_rate": rate,
+        "fx_rate_source": source,
+        "note": fields.get("note"),
+    }
+
+
+def _given(row: dict[str, Any], currency: str) -> dict[str, Any]:
+    """A stored transaction as the fields a request would give for it (less
+    its rate, which an update handles on its own)."""
+    kind = Kind(row["kind"])
+    fields: dict[str, Any] = {"date": row["transaction_date"], "note": row.get("note")}
+    if kind in (Kind.BUY, Kind.SELL, Kind.TRANSFER_IN):
+        fields["quantity"] = row["quantity"]
+    if kind in (Kind.BUY, Kind.SELL):
+        fields["price"] = row["price"]
+        fields["fees"] = from_minor(row["fees_minor"], currency)
+    if kind in INCOME or kind is Kind.TRANSFER_IN:
+        fields["amount"] = from_minor(row["amount_minor"], currency)
+    if kind in INCOME:
+        fields["withholding_tax"] = from_minor(row["withholding_tax_minor"], currency)
+    if kind is Kind.SELL and row.get("lots"):
+        fields["lots"] = row["lots"]
+    if kind is Kind.SPLIT:
+        fields["ratio"] = f"{plain(row['split_to'])}:{plain(row['split_from'])}"
+    return fields
+
+
+# ── Stored rows ↔ the domain ──────────────────────────────────────────────────
+
+
+def _transaction(row: dict[str, Any], currency: str, seq: int) -> Transaction:
+    def money(column: str) -> Decimal:
+        minor = row.get(column)
+        return from_minor(minor, currency) if minor is not None else ZERO
+
+    def number(column: str, default: Decimal = ZERO) -> Decimal:
+        value = row.get(column)
+        return Decimal(value) if value is not None else default
+
+    return Transaction(
+        id=row["id"],
+        kind=Kind(row["kind"]),
+        on=_date(row["transaction_date"]),
+        quantity=number("quantity"),
+        price=number("price"),
+        fees=money("fees_minor"),
+        amount=money("amount_minor"),
+        withholding_tax=money("withholding_tax_minor"),
+        split_to=number("split_to", ONE),
+        split_from=number("split_from", ONE),
+        lots=tuple(
+            LotPick(str(pick["lot_id"]), Decimal(str(pick["quantity"])))
+            for pick in _picks(row.get("lots"))
+        ),
+        fx_rate=number("fx_rate", ONE),
+        seq=seq,
+    )
+
+
+def _history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
+    """Rows in the order they were recorded, as domain transactions; their
+    position is the tie-break between transactions of one kind on one date."""
+    return [_transaction(row, currency, seq) for seq, row in enumerate(rows)]
+
+
+def _check(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
+    """Refuse a history with a malformed transaction or one that cannot have
+    happened. Returns it, as domain transactions."""
+    history = _history(rows, currency)
+    for tx in history:
+        validate(tx)
+    replay(history)
+    return history
+
+
+# ── Views ─────────────────────────────────────────────────────────────────────
+
+
+def _money(value: Decimal, currency: str) -> str:
+    """An amount as a decimal string in `currency`'s own precision."""
+    with localcontext(EXACT):
+        return str(quantize(value, currency))
+
+
+def _per_unit(value: Decimal) -> str:
+    with localcontext(EXACT):
+        return plain(value.quantize(_STEP))
+
+
+def _transaction_view(row: dict[str, Any], currency: str) -> dict[str, Any]:
+    tx = _transaction(row, currency, 0)
+    with localcontext(EXACT):
+        if tx.kind is Kind.BUY:
+            total: Decimal | None = tx.quantity * tx.price + tx.fees
+        elif tx.kind is Kind.SELL:
+            total = tx.quantity * tx.price - tx.fees
+        elif tx.kind in INCOME:
+            total = tx.amount - tx.withholding_tax
+        elif tx.kind is Kind.TRANSFER_IN:
+            total = tx.amount
+        else:
+            total = None
+    is_split = tx.kind is Kind.SPLIT
+    return {
+        "id": row["id"],
+        "holding_id": row["holding_id"],
+        "kind": tx.kind.value,
+        "date": tx.on.isoformat(),
         "currency": currency,
-        "cost_basis": str(from_minor(h["cost_basis_minor"], currency)),
-        "current_value": str(from_minor(h["current_value_minor"], currency)),
-        "is_active": h["is_active"],
-        "created_at": h.get("created_at"),
-        "updated_at": h.get("updated_at"),
+        "quantity": plain(tx.quantity) if row.get("quantity") is not None else None,
+        "price": plain(tx.price) if row.get("price") is not None else None,
+        "fees": str(from_minor(row["fees_minor"], currency)),
+        "amount": (
+            str(from_minor(row["amount_minor"], currency))
+            if row.get("amount_minor") is not None
+            else None
+        ),
+        "withholding_tax": str(from_minor(row["withholding_tax_minor"], currency)),
+        "ratio": f"{plain(tx.split_to)}:{plain(tx.split_from)}" if is_split else None,
+        "lots": [{"lot_id": p.lot_id, "quantity": plain(p.quantity)} for p in tx.lots],
+        "fx_rate": None if is_split else plain(tx.fx_rate),
+        "fx_rate_source": row.get("fx_rate_source"),
+        "total": _money(total, currency) if total is not None else None,
+        "note": row.get("note"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+def _price_view(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "symbol": row["symbol"],
+        "date": row["price_date"],
+        "close": plain(Decimal(row["close"])),
+        "currency": row["currency"],
+        "source": row["source"],
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+@dataclass
+class _Tracked:
+    """A holding with what valuing it takes: its history and its prices."""
+
+    holding: dict[str, Any]
+    transactions: list[Transaction]
+    pricing: Pricing
+    #: Closes recorded for its symbol in another currency: not its prices.
+    foreign_closes: int
+    #: The rates every one of the user's transactions carries, by currency
+    #: and day (shared by all of the user's holdings).
+    recorded: dict[tuple[str, date], Decimal]
+
+    @property
+    def currency(self) -> str:
+        return str(self.holding["currency"])
+
+    @property
+    def tracked(self) -> bool:
+        """Whether its figures come from transactions (else, as declared)."""
+        return bool(self.transactions)
+
+
+def _recorded_rates(
+    rows: Iterable[dict[str, Any]], currencies: dict[str, str]
+) -> dict[tuple[str, date], Decimal]:
+    """The rates the user's own transactions carry, by currency and day: real
+    rates for those days, so no source has to be asked for them again. From
+    every holding's, so a holding is valued the same whichever are asked for."""
+    rates: dict[tuple[str, date], Decimal] = {}
+    for row in rows:
+        currency = currencies.get(row["holding_id"])
+        if currency is not None and row["kind"] != Kind.SPLIT.value:
+            rates[currency, _date(row["transaction_date"])] = Decimal(row["fx_rate"])
+    return rates
+
+
+def _valuation_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, Any]:
+    """What a holding is worth now, in its own currency and the base one, and
+    what that rests on. `v` is None for a holding declared by value."""
+    holding, currency = t.holding, t.currency
+    symbol = symbol_key(holding["symbol"])
+    notes: list[str] = []
+    if v is None:
+        cost_base = from_minor(holding["cost_basis_minor"], base)
+        value_base = from_minor(holding["current_value_minor"], base)
+        # Declared figures are in the base currency; one in another currency
+        # cannot have any (see _check_declared).
+        cost, value = (cost_base, value_base) if currency == base else (ZERO, ZERO)
+        figures: dict[str, Any] = {
+            "quantity": None,
+            "price": None,
+            "fx_rate": None,
+            "priced": None,
+            "converted": None,
+        }
+    else:
+        cost, cost_base, value, value_base = v.cost, v.cost_base, v.value, v.value_base
+        if v.quantity > 0 and v.quote is None:
+            notes.append(f"No price for {symbol}: valued at what it cost")
+        if v.quote is not None and v.fx_rate is None:
+            notes.append(
+                f"No {currency}→{base} rate for {v.quote.on.isoformat()}: "
+                f"{symbol}'s value in {base} is carried at what it cost"
+            )
+        figures = {
+            "quantity": plain(v.quantity),
+            "price": (
+                {
+                    "date": v.quote.on.isoformat(),
+                    "close": plain(v.quote.price),
+                    "per_unit": plain(v.price) if v.price is not None else plain(v.quote.price),
+                    "source": v.quote.source,
+                }
+                if v.quote is not None
+                else None
+            ),
+            "fx_rate": plain(v.fx_rate) if v.fx_rate is not None else None,
+            "priced": v.priced,
+            "converted": v.converted,
+        }
+    if t.foreign_closes:
+        notes.append(
+            f"{t.foreign_closes} recorded price(s) for {symbol} are not in {currency}, "
+            "so are not this holding's"
+        )
+    with localcontext(EXACT):
+        return {
+            "holding_id": holding["id"],
+            "tracking": "transactions" if v is not None else "declared",
+            "currency": currency,
+            "base_currency": base,
+            **figures,
+            "value": _money(value, currency),
+            "cost": _money(cost, currency),
+            "unrealised_gain": _money(value - cost, currency),
+            "value_base": _money(value_base, base),
+            "cost_base": _money(cost_base, base),
+            "unrealised_gain_base": _money(value_base - cost_base, base),
+            "notes": notes,
+        }
+
+
+_RATE_STEP = Decimal("0.000001")
+#: Exchange rates looked up at once while valuing (see PortfolioService._rates).
+_RATE_LOOKUPS = 8
+
+
+def _rate_view(rate: Decimal | None) -> str | None:
+    """A rate of return as a fraction of one, to six places ("0.073512")."""
+    if rate is None:
+        return None
+    # Enough digits for any rate, however large a return compounds to.
+    with localcontext(Context(prec=max(RATE.prec, rate.adjusted() + 10))):
+        return str(rate.quantize(_RATE_STEP))
+
+
+def _figures_view(f: performance.Figures, currency: str, days: int) -> dict[str, Any]:
+    with localcontext(EXACT):
+        return {
+            "currency": currency,
+            "opening_value": _money(f.opening_value, currency),
+            "closing_value": _money(f.closing_value, currency),
+            "opening_cost": _money(f.opening_cost, currency),
+            "closing_cost": _money(f.closing_cost, currency),
+            "opening_unrealised_gain": _money(f.opening_unrealised, currency),
+            "unrealised_gain": _money(f.closing_unrealised, currency),
+            "realised_gain": _money(f.realised, currency),
+            "dividends": _money(f.dividends, currency),
+            "interest": _money(f.interest, currency),
+            "withholding_tax": _money(f.withholding_tax, currency),
+            "net_income": _money(f.net_income, currency),
+            "paid_in": _money(f.paid_in, currency),
+            "taken_out": _money(f.taken_out, currency),
+            "total_return": _money(f.total_return, currency),
+            "twr": _rate_view(f.twr),
+            "twr_annualised": _rate_view(annualised(f.twr, days) if f.twr is not None else None),
+            "xirr": _rate_view(f.xirr),
+        }
+
+
+def _at_cost_notes(
+    figures: performance.HoldingFigures, symbol: str, currency: str, base: str
+) -> list[str]:
+    """What a holding's valuations in the period had to carry at cost."""
+    notes: list[str] = []
+    unpriced = sorted({a.on for a in figures.at_cost if a.missing == "price"})
+    if unpriced:
+        others = f" and {len(unpriced) - 1} other day(s)" if len(unpriced) > 1 else ""
+        notes.append(
+            f"No price for {symbol} on {unpriced[0].isoformat()}{others}: valued at what it cost"
+        )
+    for price_on in sorted(
+        {a.price_on for a in figures.at_cost if a.missing == "rate" and a.price_on}
+    ):
+        notes.append(
+            f"No {currency}→{base} rate for {price_on.isoformat()}: "
+            f"{symbol}'s value in {base} is carried at what it cost"
+        )
+    return notes
+
+
+def _holding_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, Any]:
+    """A holding as `holdings.list` has always returned it, its figures in the
+    base currency — from its transactions and prices when it has
+    transactions, else as declared — and, alongside, the same in its own
+    currency and what they rest on."""
+    holding = t.holding
+    valued = _valuation_view(t, v, base)
+    return {
+        "id": holding["id"],
+        "symbol": holding["symbol"],
+        "name": holding["name"],
+        "asset_class": holding["asset_class"],
+        "currency": base,
+        "cost_basis": valued["cost_base"],
+        "current_value": valued["value_base"],
+        "is_active": holding["is_active"],
+        "created_at": holding.get("created_at"),
+        "updated_at": holding.get("updated_at"),
+        "tracking": valued["tracking"],
+        "unrealised_gain": valued["unrealised_gain_base"],
+        "native": {
+            "currency": t.currency,
+            "cost_basis": valued["cost"],
+            "current_value": valued["value"],
+            "unrealised_gain": valued["unrealised_gain"],
+        },
+        "quantity": valued["quantity"],
+        "price": valued["price"],
+        "fx_rate": valued["fx_rate"],
+        "priced": valued["priced"],
+        "converted": valued["converted"],
+        "notes": valued["notes"],
     }
 
 
 class PortfolioService:
-    def __init__(self, uow_factory: Callable[[], Any]) -> None:
+    def __init__(
+        self,
+        uow_factory: Callable[[], Any],
+        fx: FxRatePort | None = None,
+        today: Callable[[], date] = date.today,
+    ) -> None:
         self._uow_factory = uow_factory
+        # Rates into the base currency: for transactions that arrive without
+        # their own (see application/fx.py), and for valuing a holding at a
+        # close on a day none of its transactions has a rate for.
+        self._fx = fx
+        self._today = today
+
+    # ── holdings ──────────────────────────────────────────────────────────────
 
     async def add_holding(self, user_id: str, data: dict[str, Any]) -> str:
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
+            base = await uow.user_profiles.base_currency(user_id)
+            currency = normalize_currency(data.get("currency") or base)
+            cost_basis = Decimal(str(data.get("cost_basis") or 0))
+            current_value = Decimal(str(data.get("current_value") or 0))
+            _check_declared(currency, base, cost_basis, current_value)
             holding = {
                 "symbol": data["symbol"],
                 "name": data["name"],
                 "asset_class": data["asset_class"],
-                "cost_basis_minor": to_minor(Decimal(str(data["cost_basis"])), currency),
-                "current_value_minor": to_minor(Decimal(str(data["current_value"])), currency),
+                "currency": currency,
+                # Declared figures are in the base currency.
+                "cost_basis_minor": to_minor(cost_basis, base),
+                "current_value_minor": to_minor(current_value, base),
             }
             return await uow.holdings.save(user_id, holding)
 
     async def list_holdings(self, user_id: str, active_only: bool = True) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
+            base = await uow.user_profiles.base_currency(user_id)
             holdings = await uow.holdings.list(user_id, active_only)
-        return [_holding_view(h, currency) for h in holdings]
+            tracked = await self._tracked(uow, user_id, holdings)
+        valuations = await self._value_now(base, tracked)
+        return [_holding_view(t, v, base) for t, v in zip(tracked, valuations, strict=True)]
+
+    async def holding_refs(self, user_id: str) -> list[dict[str, Any]]:
+        """Every holding's id, symbol and name, active or not, without valuing
+        any: enough to find one by a short id."""
+        async with self._uow_factory() as uow:
+            holdings = await uow.holdings.list(user_id, active_only=False)
+        return [{"id": h["id"], "symbol": h["symbol"], "name": h["name"]} for h in holdings]
 
     async def get_holding(self, user_id: str, holding_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
-            h = await uow.holdings.get(user_id, holding_id)
-        return _holding_view(h, currency) if h else None
+            holding = await uow.holdings.get(user_id, holding_id)
+            if holding is None:
+                return None
+            base = await uow.user_profiles.base_currency(user_id)
+            tracked = await self._tracked(uow, user_id, [holding])
+        [valuation] = await self._value_now(base, tracked)
+        return _holding_view(tracked[0], valuation, base)
 
     async def update_holding(self, user_id: str, holding_id: str, data: dict[str, Any]) -> None:
         updates: dict[str, Any] = {}
@@ -73,21 +597,500 @@ class PortfolioService:
         if "is_active" in data:
             updates["is_active"] = data["is_active"]
         async with self._uow_factory() as uow:
-            if "cost_basis" in data or "current_value" in data:
-                currency = await uow.user_profiles.base_currency(user_id)
-                if "cost_basis" in data:
-                    updates["cost_basis_minor"] = to_minor(
-                        Decimal(str(data["cost_basis"])), currency
-                    )
-                if "current_value" in data:
-                    updates["current_value_minor"] = to_minor(
-                        Decimal(str(data["current_value"])), currency
-                    )
+            holding = await uow.holdings.get(user_id, holding_id)
+            if holding is None:
+                return
+            base = await uow.user_profiles.base_currency(user_id)
+            if ("cost_basis" in data or "current_value" in data) and (
+                await uow.holding_transactions.list(user_id, holding_id)
+            ):
+                raise ValueError(
+                    "This holding's cost basis and value come from its transactions and "
+                    "prices: record a transaction or a price instead"
+                )
+            if "cost_basis" in data:
+                updates["cost_basis_minor"] = to_minor(Decimal(str(data["cost_basis"])), base)
+            if "current_value" in data:
+                updates["current_value_minor"] = to_minor(Decimal(str(data["current_value"])), base)
+            if data.get("currency"):
+                currency = normalize_currency(data["currency"])
+                if currency != holding["currency"]:
+                    if await uow.holding_transactions.list(user_id, holding_id):
+                        raise ValueError(
+                            "A holding's currency cannot change once it has transactions: "
+                            "they are in it"
+                        )
+                    updates["currency"] = currency
+            _check_declared(
+                updates.get("currency", holding["currency"]),
+                base,
+                from_minor(updates.get("cost_basis_minor", holding["cost_basis_minor"]), base),
+                from_minor(
+                    updates.get("current_value_minor", holding["current_value_minor"]), base
+                ),
+            )
             await uow.holdings.update(user_id, holding_id, updates)
 
     async def delete_holding(self, user_id: str, holding_id: str) -> None:
         async with self._uow_factory() as uow:
             await uow.holdings.delete(user_id, holding_id)
+
+    # ── transactions ──────────────────────────────────────────────────────────
+
+    async def _holding_and_base(
+        self, user_id: str, holding_id: str
+    ) -> tuple[dict[str, Any] | None, str]:
+        async with self._uow_factory() as uow:
+            base = await uow.user_profiles.base_currency(user_id)
+            return await uow.holdings.get(user_id, holding_id), base
+
+    async def _rate(
+        self, kind: Kind, fields: dict[str, Any], currency: str, base: str
+    ) -> tuple[Decimal, str | None]:
+        """The rate into the base currency on the transaction's date: the one
+        given, else the published one, else FxUnavailableError. A split moves
+        no money, so has none."""
+        if kind is Kind.SPLIT:
+            return ONE, None
+        given = _decimal("fx_rate", fields["fx_rate"]) if "fx_rate" in fields else None
+        on = _date(fields["date"]).isoformat()
+        rate, source = await rate_to_base(self._fx, currency, base, on, given)
+        if given is not None:
+            return rate, fields.get("fx_rate_source") or source
+        # A published rate with more places than the column keeps is rounded
+        # here, so what is checked is what is stored.
+        with localcontext(EXACT):
+            return (rate.quantize(_STEP) if _places(rate) > PLACES else rate), source
+
+    async def add_transaction(
+        self, user_id: str, holding_id: str, data: dict[str, Any]
+    ) -> str | None:
+        """Record a transaction; None if there is no such holding. Raises
+        TransactionError for one that is malformed or impossible, and
+        FxUnavailableError for one in another currency with no rate."""
+        kind, fields = _fields(data)
+        holding, base = await self._holding_and_base(user_id, holding_id)
+        if holding is None:
+            return None
+        currency = holding["currency"]
+        rate, source = await self._rate(kind, fields, currency, base)
+        row = {
+            "id": str(uuid.uuid4()),
+            "holding_id": holding_id,
+            **_columns(kind, fields, currency, rate, source),
+        }
+        async with self._uow_factory() as uow:
+            # Hold the holding while its history is checked and changed, so
+            # two sales of the same units cannot both pass the check.
+            await uow.holdings.lock(user_id, holding_id)
+            rows = await uow.holding_transactions.list(user_id, holding_id)
+            _check([*rows, row], currency)
+            return await uow.holding_transactions.save(user_id, row)
+
+    async def list_transactions(self, user_id: str, holding_id: str) -> list[dict[str, Any]] | None:
+        """A holding's transactions in the order they take effect; None if
+        there is no such holding."""
+        async with self._uow_factory() as uow:
+            holding = await uow.holdings.get(user_id, holding_id)
+            if holding is None:
+                return None
+            rows = await uow.holding_transactions.list(user_id, holding_id)
+        currency = holding["currency"]
+        by_id = {row["id"]: row for row in rows}
+        return [
+            _transaction_view(by_id[tx.id], currency) for tx in ordered(_history(rows, currency))
+        ]
+
+    async def get_transaction(
+        self, user_id: str, holding_id: str, transaction_id: str
+    ) -> dict[str, Any] | None:
+        async with self._uow_factory() as uow:
+            holding = await uow.holdings.get(user_id, holding_id)
+            row = await uow.holding_transactions.get(user_id, transaction_id)
+        if holding is None or row is None or row["holding_id"] != holding_id:
+            return None
+        return _transaction_view(row, holding["currency"])
+
+    async def update_transaction(
+        self, user_id: str, holding_id: str, transaction_id: str, data: dict[str, Any]
+    ) -> bool:
+        """Change a transaction; False if there is no such transaction. Its
+        kind cannot change. Its rate is the one given; else the stored one
+        while its date stands; else the published one for the new date."""
+        holding, base = await self._holding_and_base(user_id, holding_id)
+        if holding is None:
+            return False
+        currency = holding["currency"]
+        async with self._uow_factory() as uow:
+            current = await uow.holding_transactions.get(user_id, transaction_id)
+        if current is None or current["holding_id"] != holding_id:
+            return False
+        if data.get("kind") not in (None, current["kind"]):
+            raise TransactionError(
+                "A transaction's kind cannot change: delete it and record another"
+            )
+        patch = {k: v for k, v in data.items() if v is not None and k != "kind"}
+        kind, fields = _fields({**_given(current, currency), **patch, "kind": current["kind"]})
+        if "fx_rate" in fields or _date(fields["date"]).isoformat() != current["transaction_date"]:
+            rate, source = await self._rate(kind, fields, currency, base)
+        else:
+            rate, source = Decimal(current["fx_rate"]), current.get("fx_rate_source")
+        columns = _columns(kind, fields, currency, rate, source)
+        async with self._uow_factory() as uow:
+            await uow.holdings.lock(user_id, holding_id)
+            rows = await uow.holding_transactions.list(user_id, holding_id)
+            _check([{**r, **columns} if r["id"] == transaction_id else r for r in rows], currency)
+            return await uow.holding_transactions.update(user_id, transaction_id, columns)
+
+    async def delete_transaction(self, user_id: str, holding_id: str, transaction_id: str) -> bool:
+        """Delete a transaction, unless the history would not stand without it
+        (a later sale needs the units it bought)."""
+        async with self._uow_factory() as uow:
+            holding = await uow.holdings.get(user_id, holding_id)
+            if holding is None:
+                return False
+            await uow.holdings.lock(user_id, holding_id)
+            rows = await uow.holding_transactions.list(user_id, holding_id)
+            if transaction_id not in {r["id"] for r in rows}:
+                return False
+            _check([r for r in rows if r["id"] != transaction_id], holding["currency"])
+            return await uow.holding_transactions.delete(user_id, transaction_id)
+
+    async def export_transactions(self, user_id: str) -> list[dict[str, Any]]:
+        """Every transaction of every holding, inactive ones' included, for the
+        user's data export."""
+        async with self._uow_factory() as uow:
+            holdings = await uow.holdings.list(user_id, active_only=False)
+            rows = await uow.holding_transactions.list(user_id)
+        currency = {h["id"]: h["currency"] for h in holdings}
+        return [_transaction_view(row, currency[row["holding_id"]]) for row in rows]
+
+    # ── lots ──────────────────────────────────────────────────────────────────
+
+    async def get_lots(self, user_id: str, holding_id: str) -> dict[str, Any] | None:
+        """A holding's lots, open and closed, and each sale with the lots it
+        consumed. Native figures are in the holding's currency; `*_base` ones
+        in the owner's base currency, at the rates of the days they happened."""
+        async with self._uow_factory() as uow:
+            holding = await uow.holdings.get(user_id, holding_id)
+            if holding is None:
+                return None
+            base = await uow.user_profiles.base_currency(user_id)
+            rows = await uow.holding_transactions.list(user_id, holding_id)
+        currency = holding["currency"]
+        book = replay(_history(rows, currency))
+        position = book.position
+        with localcontext(EXACT):
+            lots = [
+                {
+                    "id": lot.id,
+                    "kind": lot.kind.value,
+                    "opened_on": lot.opened_on.isoformat(),
+                    "opened_quantity": plain(lot.opened_quantity),
+                    "quantity": plain(lot.quantity),
+                    "cost": _money(lot.cost, currency),
+                    "cost_base": _money(lot.cost_base, base),
+                    "cost_per_unit": (
+                        _per_unit(lot.cost / lot.quantity) if lot.quantity > 0 else None
+                    ),
+                    "is_open": lot.is_open,
+                }
+                for lot in book.lots
+            ]
+        sales = [
+            {
+                "transaction_id": sale.transaction_id,
+                "date": sale.on.isoformat(),
+                "quantity": plain(sale.quantity),
+                "proceeds": _money(sale.proceeds, currency),
+                "fees": _money(sale.fees, currency),
+                "cost": _money(sale.cost, currency),
+                "gain": _money(sale.gain, currency),
+                "fx_rate": plain(sale.fx_rate),
+                "proceeds_base": _money(sale.proceeds_base, base),
+                "fees_base": _money(sale.fees_base, base),
+                "cost_base": _money(sale.cost_base, base),
+                "gain_base": _money(sale.gain_base, base),
+                "consumed": [
+                    {
+                        "lot_id": c.lot_id,
+                        "opened_on": c.opened_on.isoformat(),
+                        "quantity": plain(c.quantity),
+                        "cost": _money(c.cost, currency),
+                        "cost_base": _money(c.cost_base, base),
+                    }
+                    for c in sale.consumed
+                ],
+            }
+            for sale in book.sales
+        ]
+        return {
+            "holding_id": holding_id,
+            "currency": currency,
+            "base_currency": base,
+            "quantity": plain(position.quantity),
+            "cost": _money(position.cost, currency),
+            "cost_base": _money(position.cost_base, base),
+            "lots": lots,
+            "sales": sales,
+        }
+
+    # ── prices ────────────────────────────────────────────────────────────────
+
+    async def set_price(self, user_id: str, data: dict[str, Any]) -> str:
+        """Record a closing price: `symbol`, `close`, `date` (default today),
+        `currency` (default: that of the user's holdings with the symbol).
+        One already recorded for that symbol, currency and day is replaced."""
+        symbol = symbol_key(str(data.get("symbol") or ""))
+        if not symbol or len(symbol) > 20:
+            raise ValueError("A price needs the symbol it is for, of at most 20 characters")
+        close = _decimal("close", data.get("close"))
+        check_number("close", close, positive=True)
+        on = _date(data["date"]) if data.get("date") else self._today()
+        async with self._uow_factory() as uow:
+            if data.get("currency"):
+                currency = normalize_currency(data["currency"])
+            else:
+                holdings = await uow.holdings.list(user_id, active_only=False)
+                currencies = {h["currency"] for h in holdings if symbol_key(h["symbol"]) == symbol}
+                if len(currencies) != 1:
+                    held = f"in {', '.join(sorted(currencies))}" if currencies else "none"
+                    raise ValueError(
+                        f"Say which currency the price is in: of your holdings of {symbol}, {held}"
+                    )
+                currency = currencies.pop()
+            return await uow.holding_prices.upsert(
+                user_id,
+                {
+                    "symbol": symbol,
+                    "price_date": on.isoformat(),
+                    "close": close,
+                    "currency": currency,
+                    "source": "user",
+                },
+            )
+
+    async def list_prices(
+        self,
+        user_id: str,
+        symbol: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Recorded closes, newest first: one symbol's, or every one."""
+        key = symbol_key(symbol) if symbol else None
+        async with self._uow_factory() as uow:
+            rows = await uow.holding_prices.list(
+                user_id,
+                key,
+                _date(start).isoformat() if start else None,
+                _date(end).isoformat() if end else None,
+            )
+        return [_price_view(row) for row in reversed(rows)]
+
+    async def delete_price(self, user_id: str, quote_id: str) -> bool:
+        async with self._uow_factory() as uow:
+            return await uow.holding_prices.delete(user_id, quote_id)
+
+    # ── valuation ─────────────────────────────────────────────────────────────
+
+    async def _tracked(
+        self, uow: Any, user_id: str, holdings: list[dict[str, Any]]
+    ) -> list[_Tracked]:
+        """Each holding with its transactions and its recorded closes."""
+        by_holding: dict[str, list[dict[str, Any]]] = {}
+        rows = await uow.holding_transactions.list(user_id)
+        for row in rows:
+            by_holding.setdefault(row["holding_id"], []).append(row)
+        everything = await uow.holdings.list(user_id, active_only=False)
+        recorded = _recorded_rates(rows, {h["id"]: h["currency"] for h in everything})
+        market = StoredPriceHistory(uow.holding_prices, user_id)
+        quotes: dict[str, list[Any]] = {}
+        tracked: list[_Tracked] = []
+        for h in holdings:
+            key = symbol_key(h["symbol"])
+            if key not in quotes:
+                quotes[key] = await market.history(key, date.min, date.max)
+            closes = [
+                Close(q.on, q.close, q.source) for q in quotes[key] if q.currency == h["currency"]
+            ]
+            transactions = _history(by_holding.get(h["id"], []), h["currency"])
+            tracked.append(
+                _Tracked(
+                    h,
+                    transactions,
+                    Pricing(transactions, closes),
+                    len(quotes[key]) - len(closes),
+                    recorded,
+                )
+            )
+        return tracked
+
+    async def _rate_on(
+        self, currency: str, base: str, on: date, recorded: dict[tuple[str, date], Decimal]
+    ) -> Decimal | None:
+        """The rate into the base currency on `on`: 1 for the base itself; one
+        the user's own transactions carry for that day; else the published
+        one. None when there is none — never a guess."""
+        if currency == base:
+            return ONE
+        if (currency, on) in recorded:
+            return recorded[currency, on]
+        if self._fx is None:
+            return None
+        try:
+            quote = await self._fx.rate(currency, base, on.isoformat())
+        except FxUnavailableError:
+            return None
+        with localcontext(EXACT):
+            return quote.rate.quantize(_STEP) if _places(quote.rate) > PLACES else quote.rate
+
+    async def _rates(
+        self, base: str, tracked: list[_Tracked], dates: Iterable[date]
+    ) -> dict[str, dict[date, Decimal]]:
+        """For each currency, the rates valuing `tracked` on `dates` needs."""
+        dates = list(dates)
+        needed: dict[str, set[date]] = {}
+        for t in tracked:
+            if t.tracked:
+                needed.setdefault(t.currency, set()).update(t.pricing.rate_dates(dates))
+        recorded = tracked[0].recorded if tracked else {}
+        wanted = [(currency, on) for currency in sorted(needed) for on in sorted(needed[currency])]
+        # A rate source can be slow, or down; ask for several at once rather
+        # than one after another, but not for all of them at once.
+        limit = asyncio.Semaphore(_RATE_LOOKUPS)
+
+        async def look_up(currency: str, on: date) -> Decimal | None:
+            async with limit:
+                return await self._rate_on(currency, base, on, recorded)
+
+        rates = await asyncio.gather(*(look_up(currency, on) for currency, on in wanted))
+        found: dict[str, dict[date, Decimal]] = {}
+        for (currency, on), rate in zip(wanted, rates, strict=True):
+            if rate is not None:
+                found.setdefault(currency, {})[on] = rate
+        return found
+
+    async def _value_now(self, base: str, tracked: list[_Tracked]) -> list[Valuation | None]:
+        """Each holding as everything recorded says it is now, at its latest
+        price; None for one declared by value."""
+        rates = await self._rates(base, tracked, [date.max])
+        return [
+            t.pricing.value(date.max, replay(t.transactions).position, rates.get(t.currency, {}))
+            if t.tracked
+            else None
+            for t in tracked
+        ]
+
+    async def get_valuation(self, user_id: str, holding_id: str) -> dict[str, Any] | None:
+        """What a holding is worth now: quantity × its latest price, in its
+        own currency and in the base one (at the rate of the price's day), and
+        what that rests on. Reads only what is stored: no price is fetched."""
+        async with self._uow_factory() as uow:
+            holding = await uow.holdings.get(user_id, holding_id)
+            if holding is None:
+                return None
+            base = await uow.user_profiles.base_currency(user_id)
+            tracked = await self._tracked(uow, user_id, [holding])
+        [valuation] = await self._value_now(base, tracked)
+        return _valuation_view(tracked[0], valuation, base)
+
+    # ── performance ───────────────────────────────────────────────────────────
+
+    async def get_performance(
+        self,
+        user_id: str,
+        start: str | date | None = None,
+        end: str | date | None = None,
+        holding_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Gains, income and returns from `start` to `end` inclusive (a tax
+        year, say): per holding in its own currency and the base one, and for
+        the portfolio (or just `holding_id`; None if there is no such holding)
+        in the base one. With no `start`, since the first transaction; `end`
+        defaults to today (or the latest transaction or price, if later).
+
+        Every holding counts, inactive ones too: a sale's gain belongs to its
+        tax year however the holding is filed now. A holding declared by
+        value has no history to measure, so it is listed apart."""
+        async with self._uow_factory() as uow:
+            if holding_id is not None:
+                holding = await uow.holdings.get(user_id, holding_id)
+                if holding is None:
+                    return None
+                holdings = [holding]
+            else:
+                holdings = await uow.holdings.list(user_id, active_only=False)
+            base = await uow.user_profiles.base_currency(user_id)
+            tracked = await self._tracked(uow, user_id, holdings)
+
+        measured = [t for t in tracked if t.tracked]
+        first = _date(start) if start else None
+        if first == date.min:
+            # Nothing can precede the first day there is: from the start.
+            first = None
+        last = (
+            _date(end)
+            if end
+            else max(
+                [self._today()]
+                + [tx.on for t in measured for tx in t.transactions]
+                + [day for t in measured if (day := t.pricing.last_day) is not None]
+            )
+        )
+        if first is not None and first > last:
+            raise ValueError(f"The period starts ({first}) after it ends ({last})")
+
+        histories = [
+            performance.History(t.holding["id"], t.transactions, t.pricing, {}) for t in measured
+        ]
+        days = performance.valuation_days(histories, first, last)
+        rates = await self._rates(base, measured, days)
+        histories = [
+            performance.History(h.key, h.transactions, h.pricing, rates.get(t.currency, {}))
+            for h, t in zip(histories, measured, strict=True)
+        ]
+        result = performance.report(histories, first, last)
+
+        notes: list[str] = []
+        declared = [t for t in tracked if not t.tracked]
+        if declared:
+            symbols = ", ".join(symbol_key(t.holding["symbol"]) for t in declared)
+            notes.append(
+                f"Declared by value, with no transactions to measure, so not in these "
+                f"figures: {symbols}"
+            )
+        holdings_view: list[dict[str, Any]] = []
+        for t, figures in zip(measured, result.holdings, strict=True):
+            symbol = symbol_key(t.holding["symbol"])
+            # A holding's own period: from its first money, without a start.
+            own_start = first or min(
+                (tx.on for tx in t.transactions if tx.kind is not Kind.SPLIT), default=last
+            )
+            own_days = max((last - own_start).days + 1, 1)
+            holdings_view.append(
+                {
+                    "holding_id": t.holding["id"],
+                    "symbol": t.holding["symbol"],
+                    "name": t.holding["name"],
+                    "asset_class": t.holding["asset_class"],
+                    "is_active": t.holding["is_active"],
+                    "native": _figures_view(figures.native, t.currency, own_days),
+                    "base": _figures_view(figures.base, base, own_days),
+                    "notes": _at_cost_notes(figures, symbol, t.currency, base),
+                }
+            )
+        return {
+            "start": result.start.isoformat(),
+            "end": result.end.isoformat(),
+            "days": result.days,
+            "base_currency": base,
+            "portfolio": _figures_view(result.portfolio, base, result.days),
+            "holdings": holdings_view,
+            "notes": notes,
+        }
+
+    # ── summary ───────────────────────────────────────────────────────────────
 
     async def get_summary(
         self, user_id: str, target_allocation: dict[str, Decimal] | None = None
@@ -95,20 +1098,38 @@ class PortfolioService:
         async with self._uow_factory() as uow:
             currency = await uow.user_profiles.base_currency(user_id)
             holdings_data = await uow.holdings.list(user_id, active_only=True)
+            tracked = await self._tracked(uow, user_id, holdings_data)
+        valuations = await self._value_now(currency, tracked)
 
+        # In the base currency: from transactions and prices where a holding
+        # has transactions, else as declared.
         holdings = [
             Holding(
-                symbol=h["symbol"],
-                name=h["name"],
-                asset_class=h["asset_class"],
-                cost_basis=from_minor(h["cost_basis_minor"], currency),
-                current_value=from_minor(h["current_value_minor"], currency),
+                symbol=t.holding["symbol"],
+                name=t.holding["name"],
+                asset_class=t.holding["asset_class"],
+                cost_basis=(
+                    v.cost_base
+                    if v is not None
+                    else from_minor(t.holding["cost_basis_minor"], currency)
+                ),
+                current_value=(
+                    v.value_base
+                    if v is not None
+                    else from_minor(t.holding["current_value_minor"], currency)
+                ),
             )
-            for h in holdings_data
+            for t, v in zip(tracked, valuations, strict=True)
         ]
-        summary = engine.compute_summary(
-            holdings, target_allocation, money_quantum=quantum(currency)
-        )
+        with localcontext(EXACT):
+            summary = engine.compute_summary(
+                holdings, target_allocation, money_quantum=quantum(currency)
+            )
+        notes = [
+            note
+            for t, v in zip(tracked, valuations, strict=True)
+            for note in _valuation_view(t, v, currency)["notes"]
+        ]
 
         return {
             "currency": currency,
@@ -133,4 +1154,20 @@ class PortfolioService:
                 }
                 for alert in summary.alerts
             ],
+            "notes": notes,
         }
+
+
+def _places(value: Decimal) -> int:
+    exponent = value.normalize(EXACT).as_tuple().exponent
+    return -exponent if isinstance(exponent, int) and exponent < 0 else 0
+
+
+def _check_declared(currency: str, base: str, cost_basis: Decimal, current_value: Decimal) -> None:
+    """Declared figures are in the base currency; a holding in another one is
+    tracked by its transactions instead."""
+    if currency != base and (cost_basis != 0 or current_value != 0):
+        raise ValueError(
+            f"Declared figures are in your base currency ({base}); "
+            f"record this {currency} holding's transactions instead"
+        )

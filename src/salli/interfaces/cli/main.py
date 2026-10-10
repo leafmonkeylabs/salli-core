@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Callable, Coroutine
 from contextlib import asynccontextmanager
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 import typer
 from rich.markup import escape
@@ -50,7 +51,13 @@ documents_app = typer.Typer(help="Uploaded documents and memories")
 profile_app = typer.Typer(help="Fact-find profile: identity, risk, opening balances, income")
 budget_app = typer.Typer(help="Category budgets vs. actual ledger spend")
 debt_app = typer.Typer(help="Structured debts and avalanche/snowball payoff planning")
-portfolio_app = typer.Typer(help="Investment holdings, allocation, and rebalancing")
+portfolio_app = typer.Typer(
+    help="Investment holdings: transactions, lots, prices, allocation and returns"
+)
+portfolio_transactions_app = typer.Typer(
+    help="A holding's transactions: buys, sales, dividends, interest, splits, transfers in"
+)
+portfolio_prices_app = typer.Typer(help="Closing prices you record; holdings are valued at them")
 subscription_app = typer.Typer(help="Recurring subscriptions and missed-charge/price-change alerts")
 insurance_app = typer.Typer(help="Insurance policy inventory and coverage-gap analysis")
 insurance_policy_app = typer.Typer(help="Insurance policies")
@@ -83,6 +90,8 @@ app.add_typer(profile_app, name="profile")
 app.add_typer(budget_app, name="budget")
 app.add_typer(debt_app, name="debt")
 app.add_typer(portfolio_app, name="portfolio")
+portfolio_app.add_typer(portfolio_transactions_app, name="transactions")
+portfolio_app.add_typer(portfolio_prices_app, name="prices")
 app.add_typer(subscription_app, name="subscription")
 app.add_typer(insurance_app, name="insurance")
 insurance_app.add_typer(insurance_policy_app, name="policy")
@@ -2901,23 +2910,32 @@ def portfolio_list(
     if not holdings:
         console.print("[dim]No holdings found. Use 'salli portfolio add' to create one.[/dim]")
         return
+    base = holdings[0]["currency"]
     table = Table(title="Holdings")
     table.add_column("ID", style="dim")
     table.add_column("Symbol")
     table.add_column("Name")
     table.add_column("Asset Class")
-    table.add_column("Cost Basis", justify="right")
-    table.add_column("Current Value", justify="right")
+    table.add_column("Quantity", justify="right")
+    table.add_column("Own currency value", justify="right")
+    table.add_column(f"Cost Basis ({base})", justify="right")
+    table.add_column(f"Current Value ({base})", justify="right")
     for h in holdings:
+        native = h["native"]
         table.add_row(
             str(h.get("id", ""))[:8],
             h.get("symbol", ""),
             h.get("name", ""),
             h.get("asset_class", ""),
-            h.get("cost_basis", ""),
-            h.get("current_value", ""),
+            h["quantity"] or "—",
+            f"{native['currency']} {_amount(native['current_value'], native['currency'])}",
+            _amount(h["cost_basis"], base),
+            _amount(h["current_value"], base),
         )
     console.print(table)
+    for h in holdings:
+        for note in h["notes"]:
+            console.print(f"[yellow]{note}[/yellow]")
 
 
 @portfolio_app.command("add")
@@ -2925,23 +2943,26 @@ def portfolio_add(
     symbol: str = typer.Argument(..., help="Ticker or short identifier, e.g. 'VOO'"),
     name: str = typer.Option(..., "--name", help="Display name"),
     asset_class: str = typer.Option(..., "--asset-class", help="e.g. equity, bond, cash, crypto"),
-    cost_basis: str = typer.Option(..., "--cost-basis", help="Total amount invested"),
-    current_value: str = typer.Option(..., "--current-value", help="Total current worth"),
+    currency: str | None = typer.Option(
+        None, "--currency", help="ISO 4217 code it trades in (default: your base currency)"
+    ),
+    cost_basis: str | None = typer.Option(
+        None,
+        "--cost-basis",
+        help="Declared total invested, in your base currency (omit to track transactions)",
+    ),
+    current_value: str | None = typer.Option(
+        None, "--current-value", help="Declared current worth, in your base currency"
+    ),
 ):
-    """Add an investment holding (manually declared, no live pricing)."""
+    """Add an investment holding: declared by value, or tracked by its transactions."""
     user_id = _require_user()
-    holding_id = asyncio.run(
-        _services().portfolio.add_holding(
-            user_id,
-            {
-                "symbol": symbol,
-                "name": name,
-                "asset_class": asset_class,
-                "cost_basis": cost_basis,
-                "current_value": current_value,
-            },
-        )
-    )
+    data = {"symbol": symbol, "name": name, "asset_class": asset_class, "currency": currency}
+    if cost_basis is not None:
+        data["cost_basis"] = cost_basis
+    if current_value is not None:
+        data["current_value"] = current_value
+    holding_id = _in_one_loop(lambda svc: svc.portfolio.add_holding(user_id, data))
     emit({"id": holding_id, "symbol": symbol})
     console.print(f"[green]Holding created:[/green] {symbol} ({holding_id})")
 
@@ -2952,8 +2973,11 @@ def portfolio_update(
     symbol: str = typer.Option(None, "--symbol"),
     name: str = typer.Option(None, "--name"),
     asset_class: str = typer.Option(None, "--asset-class"),
-    cost_basis: str = typer.Option(None, "--cost-basis"),
-    current_value: str = typer.Option(None, "--current-value"),
+    currency: str | None = typer.Option(
+        None, "--currency", help="Only while it has no transactions"
+    ),
+    cost_basis: str = typer.Option(None, "--cost-basis", help="Only without transactions"),
+    current_value: str = typer.Option(None, "--current-value", help="Only without transactions"),
     active: bool = typer.Option(None, "--active/--inactive"),
 ):
     """Update fields on an existing holding."""
@@ -2965,6 +2989,8 @@ def portfolio_update(
         data["name"] = name
     if asset_class is not None:
         data["asset_class"] = asset_class
+    if currency is not None:
+        data["currency"] = currency
     if cost_basis is not None:
         data["cost_basis"] = cost_basis
     if current_value is not None:
@@ -2974,9 +3000,13 @@ def portfolio_update(
     if not data:
         console.print("[yellow]Nothing to update.[/yellow]")
         raise typer.Exit(1)
-    holdings = asyncio.run(_services().portfolio.list_holdings(user_id, active_only=False))
-    holding_id = _resolve_id(holdings, holding_id, "holding")
-    asyncio.run(_services().portfolio.update_holding(user_id, holding_id, data))
+
+    async def work(svc: Any) -> str:
+        full_id = await _holding_id(svc, user_id, holding_id)
+        await svc.portfolio.update_holding(user_id, full_id, data)
+        return full_id
+
+    holding_id = _in_one_loop(work)
     emit({"id": holding_id, "updated": data})
     console.print(f"[green]Holding updated:[/green] {holding_id}")
 
@@ -2985,11 +3015,15 @@ def portfolio_update(
 def portfolio_delete(
     holding_id: str = typer.Argument(...),
 ):
-    """Delete a holding."""
+    """Delete a holding, and its transactions with it."""
     user_id = _require_user()
-    holdings = asyncio.run(_services().portfolio.list_holdings(user_id, active_only=False))
-    holding_id = _resolve_id(holdings, holding_id, "holding")
-    asyncio.run(_services().portfolio.delete_holding(user_id, holding_id))
+
+    async def work(svc: Any) -> str:
+        full_id = await _holding_id(svc, user_id, holding_id)
+        await svc.portfolio.delete_holding(user_id, full_id)
+        return full_id
+
+    holding_id = _in_one_loop(work)
     emit({"id": holding_id, "deleted": True})
     console.print(f"[green]Holding deleted:[/green] {holding_id}")
 
@@ -3059,6 +3093,9 @@ def portfolio_summary(
                 f"[{style}]{drift:+.2f}%[/{style}]",
             )
         console.print(table)
+    notes: list[str] = summary.get("notes") or []
+    for note in notes:
+        console.print(f"[yellow]{note}[/yellow]")
 
 
 @portfolio_app.command("show")
@@ -3073,6 +3110,478 @@ def portfolio_show(holding_id: str = typer.Argument(...)):
         return
     for key, value in item.items():
         console.print(f"  {key}: {value}")
+
+
+def _portfolio_error(exc: Exception) -> NoReturn:
+    console.print(f"[red]Error:[/red] {exc}")
+    raise typer.Exit(1)
+
+
+def _in_one_loop[T](work: Callable[[Any], Coroutine[Any, Any, T]]) -> T:
+    """Run `work` with services built for it, in one event loop. (The CLI's
+    services are unpooled, so a second asyncio.run would also work; one
+    coroutine keeps a command's lookups and its change together.) A refusal
+    from the service (a sale of units not held, a missing rate) is printed,
+    and the command exits 1."""
+    try:
+        return asyncio.run(work(_services()))
+    except (ValueError, LookupError) as e:
+        _portfolio_error(e)
+
+
+async def _holding_id(svc: Any, user_id: str, prefix: str) -> str:
+    """A holding's full id from the short one a list shows."""
+    return _resolve_id(await svc.portfolio.holding_refs(user_id), prefix, "holding")
+
+
+async def _transaction_id(svc: Any, user_id: str, holding_id: str, prefix: str) -> str:
+    transactions: list[dict[str, Any]] = (
+        await svc.portfolio.list_transactions(user_id, holding_id) or []
+    )
+    return _resolve_id(transactions, prefix, "transaction")
+
+
+def _pct(rate: str | None) -> str:
+    """A rate of return, as a fraction of one, as a percentage for display."""
+    from decimal import Decimal
+
+    return "—" if rate is None else f"{Decimal(rate) * 100:,.2f}%"
+
+
+def _transaction_fields(
+    *,
+    date: str | None,
+    quantity: str | None,
+    price: str | None,
+    fees: str | None,
+    amount: str | None,
+    withholding_tax: str | None,
+    ratio: str | None,
+    fx_rate: str | None,
+    fx_rate_source: str | None,
+    note: str | None,
+) -> dict[str, object]:
+    given = {
+        "date": date,
+        "quantity": quantity,
+        "price": price,
+        "fees": fees,
+        "amount": amount,
+        "withholding_tax": withholding_tax,
+        "ratio": ratio,
+        "fx_rate": fx_rate,
+        "fx_rate_source": fx_rate_source,
+        "note": note,
+    }
+    return {k: v for k, v in given.items() if v is not None}
+
+
+async def _lot_picks(
+    svc: Any, user_id: str, holding_id: str, picks: list[str]
+) -> list[dict[str, str]]:
+    """LOT_ID:QUANTITY pairs, each lot id full or as short as a list shows it."""
+    book: dict[str, Any] = await svc.portfolio.get_lots(user_id, holding_id) or {}
+    lots: list[dict[str, Any]] = book.get("lots", [])
+    parsed: list[dict[str, str]] = []
+    for pick in picks:
+        lot, _, quantity = pick.rpartition(":")
+        if not lot or not quantity:
+            console.print(f"[red]Invalid lot '{pick}'. Use LOT_ID:QUANTITY[/red]")
+            raise typer.Exit(1)
+        parsed.append({"lot_id": _resolve_id(lots, lot.strip(), "lot"), "quantity": quantity})
+    return parsed
+
+
+_KIND_HELP = "buy | sell | dividend | interest | split | transfer_in"
+
+
+@portfolio_transactions_app.command("list")
+def portfolio_transactions_list(holding_id: str = typer.Argument(..., help="Holding id")):
+    """List a holding's transactions, in the order they take effect."""
+    user_id = _require_user()
+
+    async def work(svc: Any) -> list[dict[str, Any]]:
+        full_id = await _holding_id(svc, user_id, holding_id)
+        return await svc.portfolio.list_transactions(user_id, full_id) or []
+
+    transactions = _in_one_loop(work)
+    if emit(transactions):
+        return
+    if not transactions:
+        console.print(
+            "[dim]No transactions. Use 'salli portfolio transactions add' to record one.[/dim]"
+        )
+        return
+    currency = transactions[0]["currency"]
+    table = Table(title=f"Transactions ({currency})")
+    table.add_column("ID", style="dim")
+    table.add_column("Date")
+    table.add_column("Kind")
+    table.add_column("Quantity", justify="right")
+    table.add_column("Price", justify="right")
+    table.add_column("Fees / Tax", justify="right")
+    table.add_column("Total", justify="right")
+    table.add_column("FX rate", justify="right")
+    for t in transactions:
+        charges = t["withholding_tax"] if t["kind"] in ("dividend", "interest") else t["fees"]
+        table.add_row(
+            t["id"][:8],
+            t["date"],
+            t["kind"] + (f" {t['ratio']}" if t["ratio"] else ""),
+            t["quantity"] or "",
+            t["price"] or "",
+            _amount(charges, currency),
+            _amount(t["total"], currency),
+            t["fx_rate"] or "",
+        )
+    console.print(table)
+
+
+@portfolio_transactions_app.command("add")
+def portfolio_transactions_add(
+    holding_id: str = typer.Argument(..., help="Holding id"),
+    kind: str = typer.Argument(..., help=_KIND_HELP),
+    date: str = typer.Option(None, "--date", help="YYYY-MM-DD (default: today)"),
+    quantity: str = typer.Option(None, "--quantity", help="Units (buy, sell, transfer_in)"),
+    price: str = typer.Option(None, "--price", help="Per unit, in its currency (buy, sell)"),
+    fees: str = typer.Option(None, "--fees", help="Fees (buy, sell)"),
+    amount: str = typer.Option(
+        None, "--amount", help="Gross income (dividend, interest); total cost (transfer_in)"
+    ),
+    withholding_tax: str = typer.Option(None, "--withholding-tax", help="Tax withheld"),
+    ratio: str = typer.Option(None, "--ratio", help="A split's new:old units, e.g. 2:1 or 1:10"),
+    lot: list[str] = typer.Option(
+        [], "--lot", help="LOT_ID:QUANTITY a sale takes (repeat); default: oldest first"
+    ),
+    fx_rate: str = typer.Option(
+        None,
+        "--fx-rate",
+        help="Base currency per unit of the holding's on the date (default: the published rate)",
+    ),
+    fx_rate_source: str = typer.Option(None, "--fx-rate-source", help="Where --fx-rate is from"),
+    note: str = typer.Option(None, "--note"),
+):
+    """Record a transaction; refused if the history would not stand with it."""
+    import datetime
+
+    user_id = _require_user()
+    data: dict[str, object] = {
+        "kind": kind,
+        **_transaction_fields(
+            date=date or datetime.date.today().isoformat(),
+            quantity=quantity,
+            price=price,
+            fees=fees,
+            amount=amount,
+            withholding_tax=withholding_tax,
+            ratio=ratio,
+            fx_rate=fx_rate,
+            fx_rate_source=fx_rate_source,
+            note=note,
+        ),
+    }
+
+    async def work(svc: Any) -> str:
+        full_id = await _holding_id(svc, user_id, holding_id)
+        if lot:
+            data["lots"] = await _lot_picks(svc, user_id, full_id, lot)
+        return await svc.portfolio.add_transaction(user_id, full_id, data)
+
+    transaction_id = _in_one_loop(work)
+    emit({"id": transaction_id})
+    console.print(f"[green]Transaction recorded:[/green] {kind} ({transaction_id})")
+
+
+@portfolio_transactions_app.command("show")
+def portfolio_transactions_show(
+    holding_id: str = typer.Argument(..., help="Holding id"),
+    transaction_id: str = typer.Argument(..., help="Transaction id"),
+):
+    """Show one transaction."""
+    user_id = _require_user()
+
+    async def work(svc: Any) -> dict[str, Any] | None:
+        full_id = await _holding_id(svc, user_id, holding_id)
+        tx_id = await _transaction_id(svc, user_id, full_id, transaction_id)
+        return await svc.portfolio.get_transaction(user_id, full_id, tx_id)
+
+    item = _in_one_loop(work)
+    if item is None:
+        console.print(f"[red]Transaction not found:[/red] {transaction_id}")
+        raise typer.Exit(1)
+    if emit(item):
+        return
+    for key, value in item.items():
+        console.print(f"  {key}: {value}")
+
+
+@portfolio_transactions_app.command("update")
+def portfolio_transactions_update(
+    holding_id: str = typer.Argument(..., help="Holding id"),
+    transaction_id: str = typer.Argument(..., help="Transaction id"),
+    date: str = typer.Option(None, "--date", help="YYYY-MM-DD"),
+    quantity: str = typer.Option(None, "--quantity"),
+    price: str = typer.Option(None, "--price"),
+    fees: str = typer.Option(None, "--fees"),
+    amount: str = typer.Option(None, "--amount"),
+    withholding_tax: str = typer.Option(None, "--withholding-tax"),
+    ratio: str = typer.Option(None, "--ratio"),
+    lot: list[str] = typer.Option([], "--lot", help="LOT_ID:QUANTITY (repeat): the lots it sells"),
+    fifo: bool = typer.Option(False, "--fifo", help="Sell the oldest lots first, naming none"),
+    fx_rate: str = typer.Option(None, "--fx-rate"),
+    fx_rate_source: str = typer.Option(None, "--fx-rate-source"),
+    note: str = typer.Option(None, "--note"),
+):
+    """Change a transaction; refused if the history would not stand with it."""
+    user_id = _require_user()
+    data: dict[str, object] = _transaction_fields(
+        date=date,
+        quantity=quantity,
+        price=price,
+        fees=fees,
+        amount=amount,
+        withholding_tax=withholding_tax,
+        ratio=ratio,
+        fx_rate=fx_rate,
+        fx_rate_source=fx_rate_source,
+        note=note,
+    )
+    if fifo:
+        data["lots"] = []
+    if not data and not lot:
+        console.print("[yellow]Nothing to update.[/yellow]")
+        raise typer.Exit(1)
+
+    async def work(svc: Any) -> str:
+        full_id = await _holding_id(svc, user_id, holding_id)
+        tx_id = await _transaction_id(svc, user_id, full_id, transaction_id)
+        if lot:
+            data["lots"] = await _lot_picks(svc, user_id, full_id, lot)
+        await svc.portfolio.update_transaction(user_id, full_id, tx_id, data)
+        return tx_id
+
+    transaction_id = _in_one_loop(work)
+    emit({"id": transaction_id, "updated": data})
+    console.print(f"[green]Transaction updated:[/green] {transaction_id}")
+
+
+@portfolio_transactions_app.command("delete")
+def portfolio_transactions_delete(
+    holding_id: str = typer.Argument(..., help="Holding id"),
+    transaction_id: str = typer.Argument(..., help="Transaction id"),
+):
+    """Delete a transaction, unless a later sale needs it."""
+    user_id = _require_user()
+
+    async def work(svc: Any) -> str:
+        full_id = await _holding_id(svc, user_id, holding_id)
+        tx_id = await _transaction_id(svc, user_id, full_id, transaction_id)
+        await svc.portfolio.delete_transaction(user_id, full_id, tx_id)
+        return tx_id
+
+    transaction_id = _in_one_loop(work)
+    emit({"id": transaction_id, "deleted": True})
+    console.print(f"[green]Transaction deleted:[/green] {transaction_id}")
+
+
+@portfolio_app.command("lots")
+def portfolio_lots(holding_id: str = typer.Argument(..., help="Holding id")):
+    """Show a holding's lots and each sale with the lots it consumed."""
+    user_id = _require_user()
+
+    async def work(svc: Any) -> dict[str, Any] | None:
+        return await svc.portfolio.get_lots(user_id, await _holding_id(svc, user_id, holding_id))
+
+    lots = _in_one_loop(work)
+    if lots is None:
+        console.print(f"[red]Holding not found:[/red] {holding_id}")
+        raise typer.Exit(1)
+    if emit(lots):
+        return
+    cur, base = lots["currency"], lots["base_currency"]
+    console.print(
+        f"\n[bold]Held:[/bold] {lots['quantity']} units, cost {_money(lots['cost'], cur)}"
+        + (f" ({_money(lots['cost_base'], base)})" if base != cur else "")
+        + "\n"
+    )
+    if lots["lots"]:
+        table = Table(title="Lots")
+        table.add_column("ID", style="dim")
+        table.add_column("Opened")
+        table.add_column("Kind")
+        table.add_column("Held", justify="right")
+        table.add_column("Of", justify="right")
+        table.add_column(f"Cost ({cur})", justify="right")
+        table.add_column("Per unit", justify="right")
+        if base != cur:
+            table.add_column(f"Cost ({base})", justify="right")
+        for item in lots["lots"]:
+            row = [
+                item["id"][:8],
+                item["opened_on"],
+                item["kind"],
+                item["quantity"],
+                item["opened_quantity"],
+                _amount(item["cost"], cur),
+                item["cost_per_unit"] or "",
+            ]
+            if base != cur:
+                row.append(_amount(item["cost_base"], base))
+            table.add_row(*row, style=None if item["is_open"] else "dim")
+        console.print(table)
+    if lots["sales"]:
+        table = Table(title="Sales")
+        table.add_column("Date")
+        table.add_column("Quantity", justify="right")
+        table.add_column("Proceeds", justify="right")
+        table.add_column("Fees", justify="right")
+        table.add_column("Cost", justify="right")
+        table.add_column(f"Gain ({cur})", justify="right")
+        if base != cur:
+            table.add_column(f"Gain ({base})", justify="right")
+        for sale in lots["sales"]:
+            row = [
+                sale["date"],
+                sale["quantity"],
+                _amount(sale["proceeds"], cur),
+                _amount(sale["fees"], cur),
+                _amount(sale["cost"], cur),
+                _amount(sale["gain"], cur),
+            ]
+            if base != cur:
+                row.append(_amount(sale["gain_base"], base))
+            table.add_row(*row)
+        console.print(table)
+
+
+@portfolio_prices_app.command("list")
+def portfolio_prices_list(
+    symbol: str = typer.Option(None, "--symbol"),
+    from_date: str = typer.Option(None, "--from", help="YYYY-MM-DD"),
+    to_date: str = typer.Option(None, "--to", help="YYYY-MM-DD"),
+):
+    """List the closing prices you have recorded, newest first."""
+    user_id = _require_user()
+    prices = _in_one_loop(
+        lambda svc: svc.portfolio.list_prices(user_id, symbol, from_date, to_date)
+    )
+    if emit(prices):
+        return
+    if not prices:
+        console.print("[dim]No prices. Use 'salli portfolio prices set' to record one.[/dim]")
+        return
+    table = Table(title="Prices")
+    table.add_column("ID", style="dim")
+    table.add_column("Symbol")
+    table.add_column("Date")
+    table.add_column("Close", justify="right")
+    table.add_column("Currency")
+    table.add_column("Source")
+    for p in prices:
+        table.add_row(p["id"][:8], p["symbol"], p["date"], p["close"], p["currency"], p["source"])
+    console.print(table)
+
+
+@portfolio_prices_app.command("set")
+def portfolio_prices_set(
+    symbol: str = typer.Argument(..., help="The holding's symbol, e.g. VOO"),
+    close: str = typer.Argument(..., help="The closing price, per unit"),
+    date: str = typer.Option(None, "--date", help="YYYY-MM-DD (default: today)"),
+    currency: str = typer.Option(
+        None, "--currency", help="ISO 4217 (default: that of your holdings of the symbol)"
+    ),
+):
+    """Record a closing price; one already recorded for that day, in that currency, is replaced."""
+    user_id = _require_user()
+    given = {"symbol": symbol, "close": close, "date": date, "currency": currency}
+    data = {k: v for k, v in given.items() if v}
+    quote_id = _in_one_loop(lambda svc: svc.portfolio.set_price(user_id, data))
+    emit({"id": quote_id})
+    console.print(f"[green]Price recorded:[/green] {symbol.upper()} {close} ({quote_id})")
+
+
+@portfolio_prices_app.command("delete")
+def portfolio_prices_delete(
+    quote_id: str = typer.Argument(..., help="The recorded close's id"),
+):
+    """Delete a recorded price."""
+    user_id = _require_user()
+
+    async def work(svc: Any) -> str:
+        full_id = _resolve_id(await svc.portfolio.list_prices(user_id), quote_id, "price")
+        await svc.portfolio.delete_price(user_id, full_id)
+        return full_id
+
+    quote_id = _in_one_loop(work)
+    emit({"id": quote_id, "deleted": True})
+    console.print(f"[green]Price deleted:[/green] {quote_id}")
+
+
+@portfolio_app.command("performance")
+def portfolio_performance(
+    from_date: str = typer.Option(
+        None, "--from", help="First day, YYYY-MM-DD (default: since the first transaction)"
+    ),
+    to_date: str = typer.Option(None, "--to", help="Last day, YYYY-MM-DD (default: today)"),
+    holding: str = typer.Option(None, "--holding", help="Only this holding"),
+):
+    """Gains, income and returns over a period (a tax year, say)."""
+    user_id = _require_user()
+
+    async def work(svc: Any) -> dict[str, Any] | None:
+        holding_id = await _holding_id(svc, user_id, holding) if holding else None
+        return await svc.portfolio.get_performance(user_id, from_date, to_date, holding_id)
+
+    report = _in_one_loop(work)
+    if emit(report):
+        return
+    assert report is not None
+    p, base = report["portfolio"], report["base_currency"]
+    console.print(
+        f"\n[bold]Performance[/bold]  {report['start']} to {report['end']} "
+        f"({report['days']} days)\n"
+    )
+    for label, key in (
+        ("Opening value", "opening_value"),
+        ("Paid in", "paid_in"),
+        ("Taken out", "taken_out"),
+        ("Closing value", "closing_value"),
+        ("Realised gain", "realised_gain"),
+        ("Dividends", "dividends"),
+        ("Interest", "interest"),
+        ("Tax withheld", "withholding_tax"),
+        ("Unrealised gain", "unrealised_gain"),
+        ("Total return", "total_return"),
+    ):
+        console.print(f"  {label + ':':<18}{_money(p[key], base)}")
+    console.print(
+        f"  {'Time-weighted:':<18}{_pct(p['twr'])}"
+        + (f"  ({_pct(p['twr_annualised'])} a year)" if p["twr_annualised"] else "")
+    )
+    console.print(f"  {'Money-weighted:':<18}{_pct(p['xirr'])} a year\n")
+    if report["holdings"]:
+        table = Table(title="Holdings")
+        table.add_column("Symbol")
+        table.add_column("Total return", justify="right")
+        table.add_column(f"Total return ({base})", justify="right")
+        table.add_column(f"Realised ({base})", justify="right")
+        table.add_column(f"Income ({base})", justify="right")
+        table.add_column("TWR", justify="right")
+        table.add_column(f"XIRR ({base})", justify="right")
+        for h in report["holdings"]:
+            native = h["native"]
+            table.add_row(
+                h["symbol"],
+                f"{native['currency']} {_amount(native['total_return'], native['currency'])}",
+                _amount(h["base"]["total_return"], base),
+                _amount(h["base"]["realised_gain"], base),
+                _amount(h["base"]["net_income"], base),
+                _pct(native["twr"]),
+                _pct(h["base"]["xirr"]),
+            )
+        console.print(table)
+    for note in report["notes"] + [n for h in report["holdings"] for n in h["notes"]]:
+        console.print(f"[yellow]{note}[/yellow]")
 
 
 # ── subscription ──────────────────────────────────────────────────────────────

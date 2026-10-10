@@ -278,6 +278,8 @@ def _portability_service(exporters=()) -> DataPortabilityService:
     ]
     debt.list_debts.return_value = []
     portfolio.list_holdings.return_value = []
+    portfolio.export_transactions.return_value = []
+    portfolio.list_prices.return_value = []
     subscription.list_subscriptions.return_value = []
     insurance.list_policies.return_value = []
     insurance.list_targets.return_value = []
