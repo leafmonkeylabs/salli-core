@@ -10,6 +10,10 @@ on your machine, on your own data, with your own LLM key.
   services over other transports.
 - **The LLM never does the maths.** Money and tax come from deterministic
   engines; the model parses documents, explains results and drafts advice.
+- **Rules that learn.** Deterministic rules book imported and quick-added
+  transactions before any model is asked, so a payee is booked the same way
+  every time; `salli rules suggest` offers the rules your own bookkeeping
+  implies.
 - **Tax rules in versioned packs, country by country.** A computation records
   the pack it used, so a past return can be reproduced after the rules change.
 - **Works with your AI.** Connect Claude or ChatGPT over MCP, or let your own

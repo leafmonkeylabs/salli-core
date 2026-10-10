@@ -759,6 +759,30 @@ class OAuthTokenRepository(ABC):
         raise NotImplementedError
 
 
+class RuleRepository(ABC):
+    """A user's categorisation rules, as plain dicts (see domain/rules)."""
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    async def get(self, user_id: str, rule_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def save(self, user_id: str, rule: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def update(self, user_id: str, rule_id: str, fields: dict[str, Any]) -> bool: ...
+
+    @abstractmethod
+    async def delete(self, user_id: str, rule_id: str) -> bool: ...
+
+    @abstractmethod
+    async def record_hits(self, user_id: str, counts: dict[str, int], at: datetime) -> None:
+        """Add to each rule's hit count, and stamp when it last decided something."""
+        ...
+
+
 class PersonalAccessTokenRepository(ABC):
     """Long-lived tokens for scripts and CI, stored hashed."""
 

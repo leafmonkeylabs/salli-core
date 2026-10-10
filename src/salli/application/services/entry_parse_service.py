@@ -11,11 +11,13 @@ the posture of adapters/parsing/llm_classifier.py.
 from __future__ import annotations
 
 import json
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from salli.application.ports import LLMPort
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.currency import is_currency
+from salli.domain.rules.engine import Facts
 
 _DRAFT_SCHEMA: dict[str, Any] = {
     "title": "JournalEntryDraft",
@@ -133,10 +135,14 @@ class EntryParseService:
     of their own.
     """
 
-    def __init__(self, ledger: LedgerService, llm_factory: Any, credentials: Any = None) -> None:
+    def __init__(
+        self, ledger: LedgerService, llm_factory: Any, credentials: Any = None, rules: Any = None
+    ) -> None:
         self._ledger = ledger
         self._llm_factory = llm_factory
         self._credentials = credentials
+        # The user's categorisation rules, applied after the model's draft.
+        self._rules = rules
 
     @property
     def available(self) -> bool:
@@ -187,4 +193,39 @@ class EntryParseService:
         draft["currency"] = currency if is_currency(currency) else base
         if draft.get("entry_type") not in ("income", "expense", "transfer"):
             draft["entry_type"] = "expense"
+        await self._apply_rules(user_id, text, draft, valid_ids)
         return draft
+
+    async def _apply_rules(
+        self, user_id: str, text: str, draft: dict[str, Any], valid_ids: set[str]
+    ) -> None:
+        """A rule that matches the note decides where the money went, over the
+        model's guess: the user wrote the rule, the model only inferred. Matched
+        on the note itself, which says more than the model's short description."""
+        if self._rules is None:
+            return
+        try:
+            amount = Decimal(draft["amount"])
+        except (InvalidOperation, ValueError):
+            return
+        if amount <= 0:
+            return
+        facts = Facts(
+            description=text,
+            amount=amount,
+            direction="in" if draft["entry_type"] == "income" else "out",
+            currency=draft["currency"],
+        )
+        [rule] = await self._rules.decide(user_id, [facts])
+        if rule is None:
+            return
+        target = rule.actions.account_id
+        if target in valid_ids:
+            # Expenses and transfers debit where the money went; income
+            # credits where it came from.
+            side = "credit" if draft["entry_type"] == "income" else "debit"
+            draft[f"{side}_account_id"] = target
+            draft[f"{side}_account_hint"] = None
+        if rule.actions.description:
+            draft["description"] = rule.actions.description
+        draft["rule"] = rule.name

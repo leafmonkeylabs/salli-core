@@ -24,6 +24,7 @@ from salli.adapters.db.models import (
     AgentSessionORM,
     AuditLogORM,
     BudgetORM,
+    CategorizationRuleORM,
     DebtORM,
     DocumentORM,
     FireStrategyORM,
@@ -72,6 +73,7 @@ from salli.application.ports import (
     PortfolioRepository,
     RecurringSubscriptionRepository,
     ReminderRepository,
+    RuleRepository,
     StatementRepository,
     TaxComputationRepository,
     UserProfileRepository,
@@ -2142,6 +2144,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(OAuthAuthorizationCodeORM, OAuthAuthorizationCodeORM.user_id)
         await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
         await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
+        await _delete(CategorizationRuleORM, CategorizationRuleORM.user_id)
 
         # Extensions' tables have no foreign keys into Salli's, so they can go
         # at any point before the profile row.
@@ -2540,3 +2543,93 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
         if row is not None:
             row.last_used_at = at
             await self._s.flush()
+
+
+class SQLRuleRepository(RuleRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    @staticmethod
+    def _row(row: CategorizationRuleORM) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "name": row.name,
+            "priority": row.priority,
+            "match_all": row.match_all,
+            "conditions": row.conditions,
+            "actions": row.actions,
+            "enabled": row.enabled,
+            "hits": row.hits,
+            "last_hit_at": row.last_hit_at,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+
+    async def _one(self, user_id: str, rule_id: str) -> CategorizationRuleORM | None:
+        return (
+            await self._s.execute(
+                select(CategorizationRuleORM).where(
+                    CategorizationRuleORM.id == rule_id, CategorizationRuleORM.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        rows = (
+            await self._s.execute(
+                select(CategorizationRuleORM)
+                .where(CategorizationRuleORM.user_id == user_id)
+                .order_by(CategorizationRuleORM.priority, CategorizationRuleORM.name)
+            )
+        ).scalars()
+        return [self._row(r) for r in rows]
+
+    async def get(self, user_id: str, rule_id: str) -> dict[str, Any] | None:
+        row = await self._one(user_id, rule_id)
+        return self._row(row) if row else None
+
+    async def save(self, user_id: str, rule: dict[str, Any]) -> str:
+        now = datetime.now(UTC)
+        row = CategorizationRuleORM(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            name=rule["name"],
+            priority=rule["priority"],
+            match_all=rule["match_all"],
+            conditions=rule["conditions"],
+            actions=rule["actions"],
+            enabled=rule["enabled"],
+            hits=0,
+            created_at=now,
+            updated_at=now,
+        )
+        self._s.add(row)
+        await self._s.flush()
+        return row.id
+
+    async def update(self, user_id: str, rule_id: str, fields: dict[str, Any]) -> bool:
+        row = await self._one(user_id, rule_id)
+        if row is None:
+            return False
+        for key in ("name", "priority", "match_all", "conditions", "actions", "enabled"):
+            if key in fields:
+                setattr(row, key, fields[key])
+        row.updated_at = datetime.now(UTC)
+        await self._s.flush()
+        return True
+
+    async def delete(self, user_id: str, rule_id: str) -> bool:
+        row = await self._one(user_id, rule_id)
+        if row is None:
+            return False
+        await self._s.delete(row)
+        await self._s.flush()
+        return True
+
+    async def record_hits(self, user_id: str, counts: dict[str, int], at: datetime) -> None:
+        for rule_id, count in counts.items():
+            row = await self._one(user_id, rule_id)
+            if row is not None:
+                row.hits += count
+                row.last_hit_at = at
+        await self._s.flush()
