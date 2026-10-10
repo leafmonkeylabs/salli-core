@@ -385,6 +385,8 @@ async def test_another_user_can_reach_none_of_a_user_s_rule_sets(uow_factory, sv
         "diff": svc.diff(B, set_id, second["id"], version_id),
         "export": svc.export(B, version_id),
         "evaluate": svc.evaluate(B, version_id),
+        "list suggested accounts": svc.suggested_accounts(INTRUDER, set_id),
+        "apply suggested accounts": svc.suggested_accounts(INTRUDER, set_id, apply=True),
     }
     for what, attempt in attempts.items():
         with pytest.raises(RuleSetNotFound):
