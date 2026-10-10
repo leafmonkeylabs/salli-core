@@ -15,10 +15,8 @@ from pydantic import BaseModel
 
 from salli.application.services.mcp_oauth_service import CLI_CLIENT_ID
 from salli.config import get_settings
-from salli.domain.tax.packs import registry
 from salli.extensions import enabled_specs
 from salli.interfaces.api.contract import API_VERSION, CurrencyCode
-from salli.interfaces.api.routers.tax import WithholdingKind, withholding_kinds
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -28,18 +26,6 @@ def server_version() -> str:
         return version("salli-core")
     except PackageNotFoundError:  # running from a source tree without metadata
         return "0.0.0"
-
-
-class TaxPackInfo(BaseModel):
-    country: str
-    year: str
-    version: str
-    currency: CurrencyCode
-    period_start: str
-    period_end: str
-    #: The tax withheld or paid ahead that the pack credits; an account's
-    #: `tax_role` names one by its code.
-    withholding_kinds: list[WithholdingKind]
 
 
 class OAuthInfo(BaseModel):
@@ -65,7 +51,6 @@ class Meta(BaseModel):
     server_version: str
     #: Names of the extensions this deployment runs (empty for Salli as shipped).
     extensions: list[str]
-    tax_packs: list[TaxPackInfo]
     oauth: OAuthInfo
     #: The base currency a new account starts in unless it names another.
     default_currency: CurrencyCode
@@ -79,18 +64,6 @@ async def get_meta() -> Meta:
         api_version=API_VERSION,
         server_version=server_version(),
         extensions=[spec.name for spec in enabled_specs(settings)],
-        tax_packs=[
-            TaxPackInfo(
-                country=p.country,
-                year=p.year,
-                version=p.version,
-                currency=p.currency,
-                period_start=p.period_start,
-                period_end=p.period_end,
-                withholding_kinds=withholding_kinds(p),
-            )
-            for p in registry.list_packs()
-        ],
         oauth=OAuthInfo(
             issuer=base,
             authorization_endpoint=f"{base}/mcp/oauth/authorize",

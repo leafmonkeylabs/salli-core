@@ -2,7 +2,7 @@
 Default FIRE pack v1 — methodology + assumptions for the FI score.
 
 Must be reviewed by a financial planner before being presented as advice in
-production (same gate as tax packs).
+production.
 """
 
 from __future__ import annotations

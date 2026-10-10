@@ -11,13 +11,25 @@ Once connected, your AI can:
 - answer "can I afford…?" from your forecast and your FI plan;
 - sort imported transactions, then book what you approve;
 - create rules, so the next statement sorts itself;
-- run the Wealth Advisor and read budgets, debts, portfolio, insurance and tax;
+- run the Wealth Advisor and read budgets, debts, portfolio and insurance;
+- read your tax, computed by Salli from the tax rules you activated, and explain
+  each line from its expression and the source the rules cite;
 - research your country's tax rules from official sources, write them as a Salli
   rule set, check them against the authority's worked examples and propose them to
   you. It can't activate them: only you can, in Salli.
 
+Salli knows no country's tax law. Without rules you activated it computes no tax,
+and the tax tools say so and what you can do.
+
 Four ready-made prompts come with the server: **review my month**, **sort my pending
 transactions**, **can I afford** and **research tax rules** (for a country and year).
+
+### Tax tools
+
+| Tool | What it does |
+|---|---|
+| `get_tax_computation` | Your tax for a year (your current one by default), computed from your active rules and your ledger: every line with its expression and source, and the net payable or refund. Nothing is stored. |
+| `explain_tax_line` | Where one line came from: its expression, the ledger totals, answers and lines it used, any band table, the source it cites, and what uses it. |
 
 ### Tax rule tools
 
@@ -31,6 +43,7 @@ transactions**, **can I afford** and **research tax rules** (for a country and y
 | `propose_tax_rule_set` | Asks you to review a version that passes. |
 | `diff_tax_rule_set_versions` | What changed between versions, with each figure's source. |
 | `evaluate_tax_rule_set` | Runs Salli's engine on your ledger with a version's rules, line by line. Nothing is stored. |
+| `suggested_tax_accounts` | The accounts a rule set suggests and whether you have them; with `apply`, creates the missing ones (accounts you have are left alone). |
 
 There is no tool to activate rules. An agent researching tax law reads pages anyone
 can write, so activation needs a permission (`tax:activate`) that no AI connector's

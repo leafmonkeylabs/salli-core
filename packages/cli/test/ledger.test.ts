@@ -53,7 +53,7 @@ describe('salli status', () => {
 
       Coming up
       ! Oct 9, 2026   Budget overspend            warning
-        Nov 30, 2026  Return due 2025/26
+        Nov 30, 2026  Return due (XA 2026)
       "
     `);
     const statement = mock.requestsTo('GET', '/v1/ledger/income-statement')[0];
@@ -200,12 +200,12 @@ describe('salli status', () => {
             },
             {
               "id": "0000012e-5a11-4000-8000-000000000302",
-              "kind": "return_due_2025/26",
+              "kind": "Return due (XA 2026)",
               "due_date": "2026-11-30",
               "status": "pending",
               "alert_type": null,
-              "source_domain": null,
-              "source_id": null,
+              "source_domain": "tax_rules",
+              "source_id": "000005dd-5a11-4000-8000-000000001501:return",
               "severity": null,
               "created_at": "2026-04-01T09:00:00+00:00"
             }

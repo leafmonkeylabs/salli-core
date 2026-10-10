@@ -18,6 +18,7 @@ from salli.domain.accounting.models import Account, Direction, Posting, StoredJo
 from salli.domain.risk import engine as risk_engine
 from salli.domain.risk.models import RiskQuestionnaireAnswers
 from salli.interfaces.api.routers.onboarding import RiskBreakdown
+from tests.tax_views import computation_view
 
 from .conftest import AUTH
 
@@ -264,7 +265,7 @@ def _portability_service(exporters=()) -> DataPortabilityService:
             ],
         )
     ]
-    tax.get_latest_computation.return_value = {"pack_version": "1", "tax_payable": "0.00"}
+    tax.list_computations.return_value = [computation_view()]
     budget.list_budgets.return_value = [
         {
             "id": "b-1",
@@ -380,11 +381,13 @@ async def test_deleting_the_account_reports_what_went(client, app, mock_services
     assert r.json() == {"deleted": True, "counts": {"accounts": 2, "budgets": 0}}
 
 
-async def test_the_export_keeps_closed_accounts_and_every_tax_year():
+async def test_the_export_keeps_closed_accounts_and_every_tax_computation():
     service = _portability_service()
     document = await service.export_all(USER)
     # Entries refer to closed accounts too, so they must be in the document.
     service._ledger.list_accounts.assert_awaited_with(USER, include_inactive=True)
     assert "tax_role" in document["accounts"][0]
-    years = {call.args[1] for call in service._tax.get_latest_computation.await_args_list}
-    assert "2025/26" in years and isinstance(document["tax_computations"], list)
+    service._tax.list_computations.assert_awaited_once_with(USER)
+    [computation] = document["tax_computations"]
+    assert computation["rule_set_version_id"] == "version-2" and computation["lines"]
+    assert "tax_computation_2025_26" not in document

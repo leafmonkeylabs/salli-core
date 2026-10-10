@@ -188,10 +188,11 @@ def _account(role: str | None) -> tuple[str, dict]:
     )
 
 
-def test_tax_packs_decide_the_roles_and_the_database_their_shape(db):
-    """The check named Sri Lanka's five roles; a pack may declare others now."""
-    _execute(db, _account("apit_credit"), _account("paye_credit"), _account(None))
-    for bad in ("APIT", "apit credit", "1apit"):
+def test_rule_sets_decide_the_roles_and_the_database_their_shape(db):
+    """The database checks only what a role looks like: which roles exist is
+    the user's rule sets' to say."""
+    _execute(db, _account("salary"), _account("tax_withheld"), _account(None))
+    for bad in ("SALARY", "tax withheld", "1salary"):
         with pytest.raises(Exception, match="ck_accounts_tax_role"):
             _execute(db, _account(bad))
 

@@ -36,10 +36,10 @@ class OnboardingRequest(BaseModel):
     #: ISO 4217 code the ledger is kept in. Only settable while the ledger is
     #: empty — which it is, the first time onboarding runs. Omitted: unchanged.
     base_currency: str | None = None
-    #: Where the user is taxed, saved on the profile. Omitted: unchanged. The
-    #: starter accounts follow it: a resident of a country Salli has a tax pack
-    #: for also gets that pack's tax accounts (for LK, the APIT and AIT
-    #: receivables), and with no residency nothing tax-specific is opened.
+    #: Where the user is taxed, saved on the profile. Omitted: unchanged. It
+    #: decides which of their tax rule sets compute their tax; the starter
+    #: accounts are the same for everyone, and tax accounts come later from a
+    #: rule set's suggestions (`tax.ruleSets.suggestedAccounts.apply`).
     tax_residency: CountryCode | None = None
     #: A Sri Lankan NIC: saved as the "LK-NIC" tax id.
     nic: str = ""
@@ -355,7 +355,7 @@ class ExportedAccount(BaseModel):
     currency: CurrencyCode
     parent_id: str | None
     is_active: bool
-    #: What the tax pack treats the account as, if anything.
+    #: The tax role the account carries for the user's tax rules, if any.
     tax_role: str | None = None
 
 
@@ -398,11 +398,9 @@ class DataExport(BaseModel):
     accounts: list[ExportedAccount]
     """Every account, closed ones included: entries refer to them."""
     journal_entries: list[ExportedJournalEntry]
-    tax_computation_2025_26: dict[str, Any] | None
-    """The latest 2025/26 computation as the tax engine recorded it, or null.
-    Kept for tools that read it; `tax_computations` has every year."""
     tax_computations: list[dict[str, Any]] = Field(default_factory=list)
-    """The latest computation for each tax year a pack covers, as recorded."""
+    """Every stored tax computation, newest first, as `tax.latest` shows one:
+    the rule set version that computed it, its inputs and every line."""
     budgets: list[dict[str, Any]]
     """Each as in `budgets.list`."""
     debts: list[dict[str, Any]]

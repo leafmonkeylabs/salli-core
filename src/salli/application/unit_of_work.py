@@ -38,9 +38,9 @@ from salli.adapters.db.repositories import (
     SQLReminderRepository,
     SQLRuleRepository,
     SQLStatementRepository,
-    SQLTaxComputationRepository,
     SQLUserProfileRepository,
 )
+from salli.adapters.db.tax_computations import SQLTaxComputationRepository
 from salli.adapters.db.tax_rule_sets import SQLTaxRuleSetRepository
 from salli.application.ports import (
     AdvisoryRepository,

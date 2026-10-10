@@ -7,8 +7,15 @@
  * without `schema` is invalid, one without examples is a draft, an example
  * whose name contains "wrong" fails, and anything else is validated.
  * Activation needs tax:activate, as the real server's does.
+ *
+ * It also computes "your tax" from the active version (a fixed computation),
+ * explains a line, prepares a return held for review on a thread, and lists
+ * and applies the rule set's suggested accounts.
  */
 import type {
+  TaxComputation,
+  TaxLineExplanation,
+  TaxReturnDraft,
   TaxRuleChange,
   TaxRuleDiff,
   TaxRuleEvaluation,
@@ -17,6 +24,7 @@ import type {
   TaxRuleSetVersion,
   TaxRuleSetVersionSummary,
   TaxRuleValidation,
+  TaxSuggestedAccount,
 } from '@leafmonkeylabs/salli-sdk';
 import { uid } from './fixtures';
 
@@ -86,6 +94,14 @@ export class TaxRulesMock {
   readonly versions = new Map<string, TaxRuleSetVersion>();
   /** Bodies of evaluate requests, in order. */
   readonly evaluated: unknown[] = [];
+  /** Requests to compute, explain and prepare: their query and body. */
+  readonly calls: Array<{ path: string; query: Record<string, string>; body: unknown }> = [];
+  /** Whether the user has any active rules (no: every computation is a 422). */
+  hasRules = true;
+  /** Returns waiting for review, by thread. */
+  readonly returns = new Map<string, TaxReturnDraft>();
+  /** The suggested accounts the user has, by code. */
+  readonly accountCodes = new Set<string>(['1000']);
   private seq = 0;
 
   constructor() {
@@ -214,11 +230,163 @@ export class TaxRulesMock {
     return this.store(version);
   }
 
+  /** The computation of "your tax": XA 2031 with version 1's rules. */
+  computation(): TaxComputation {
+    return {
+      id: uid(1601),
+      created_at: '2031-06-01T09:00:00Z',
+      country: 'XA',
+      region: null,
+      year: '2031',
+      period_start: '2031-01-01',
+      period_end: '2031-12-31',
+      currency: 'USD',
+      base_currency: 'USD',
+      rule_set_id: uid(1501),
+      rule_set_version_id: uid(1511),
+      version: 1,
+      content_hash: HASH_V1,
+      roles: [
+        { key: 'salary', kind: 'income', label: 'Salary', total: '60000.00', postings: 12 },
+        { key: 'tax_withheld', kind: 'withholding', label: 'Tax withheld', total: '12000.00', postings: 12 },
+      ],
+      answers: {},
+      rates: [],
+      lines: [
+        { key: 'allowance', label: 'Allowance', amount: '12000', expr: 'min(12000, max(0, role.salary))', source: 'act', refundable: null },
+        { key: 'income_tax', label: 'Income tax', amount: '11200', expr: 'line.income_tax.band_1.tax + line.income_tax.band_2.tax', source: 'act', refundable: null },
+        { key: 'withholding', label: 'Tax withheld', amount: '12000.00', expr: 'role.tax_withheld', source: null, refundable: true },
+        { key: 'balance', label: 'Tax less withholding', amount: '-800.00', expr: 'line.income_tax - line.withholding', source: null, refundable: null },
+      ],
+      net: '-800.00',
+      tax_payable: '0.00',
+      refund_due: '800.00',
+      warnings: [],
+      provenance: "Computed by Salli's engine from rules you or your agent entered. Salli doesn't vouch for the law: check the rules' sources.",
+    };
+  }
+
+  draft(answers: Record<string, unknown> = {}): TaxReturnDraft {
+    const c = this.computation();
+    return {
+      country: c.country,
+      region: c.region,
+      year: c.year,
+      currency: c.currency,
+      computation_id: c.id ?? '',
+      rule_set_id: c.rule_set_id,
+      rule_set_version_id: c.rule_set_version_id,
+      version: c.version,
+      content_hash: c.content_hash,
+      net: c.net,
+      tax_payable: c.tax_payable,
+      refund_due: c.refund_due,
+      lines: c.lines,
+      answers: answers as TaxReturnDraft['answers'],
+      forms: [
+        {
+          key: 'return',
+          label: 'Annual return',
+          instructions: 'Sign in to the XA revenue portal and enter each box.',
+          url: 'https://example.org/xa/file',
+          fields: [
+            { id: 'box_1', label: 'Salary', value: '60000.00' },
+            { id: 'box_2', label: 'Income tax', value: '11200' },
+            { id: 'box_3', label: 'Claims a refund', value: true },
+          ],
+        },
+      ],
+      warnings: [],
+      note: "A worksheet Salli prepared from your own tax rules and ledger. Salli doesn't vouch for the law.",
+      provenance: c.provenance,
+    };
+  }
+
+  private noRules(): Reply {
+    return problem(
+      422,
+      'You have no tax rules for the United Kingdom. Add your tax rules with `salli tax rules create <file>` or `salli tax rules import <file|url>`, or ask your AI agent to research them; then activate them yourself.',
+      '/problems/no-tax-rules',
+    );
+  }
+
+  /** /v1/tax/compute, /latest, /explain and /returns. */
+  private routeTax(req: TaxRequest): Reply | undefined {
+    const { method, path } = req;
+    const query = Object.fromEntries(req.query.entries());
+    const body = (req.json ?? {}) as Record<string, unknown>;
+    if (method === 'POST' && path === '/v1/tax/compute') {
+      this.calls.push({ path, query, body });
+      return this.hasRules ? { status: 200, body: this.computation() } : this.noRules();
+    }
+    if (method === 'GET' && path === '/v1/tax/latest') {
+      return { status: 200, body: { result: this.hasRules ? this.computation() : null } };
+    }
+    if (method === 'POST' && path === '/v1/tax/explain') {
+      this.calls.push({ path, query, body });
+      if (!this.hasRules) return this.noRules();
+      if (body.line_key !== 'income_tax') return problem(404, `There is no line '${String(body.line_key)}' in this computation. Lines: allowance, income_tax, withholding, balance`, '/problems/not-found');
+      const explained: TaxLineExplanation = {
+        country: 'XA', region: null, year: '2031', currency: 'USD', rule_set_id: uid(1501), rule_set_version_id: uid(1511), version: 1, content_hash: HASH_V1,
+        line: { key: 'income_tax', label: 'Income tax', amount: '11200', expr: 'line.income_tax.band_1.tax + line.income_tax.band_2.tax', path: 'blocks[1]', block: 'schedule', refundable: null, source: ACT },
+        inputs: [],
+        answers: [],
+        lines: [
+          { n: 1, amount: '8000', rate: '0.2' },
+          { n: 2, amount: '3200', rate: '0.4' },
+        ].map(({ n, amount, rate }) => ({
+          key: `income_tax.band_${n}.tax`,
+          label: `Income tax: band ${n}`,
+          amount,
+          expr: `line.income_tax.band_${n}.amount * ${rate}`,
+        })),
+        tables: [],
+        used_by: ['balance'],
+        provenance: this.computation().provenance,
+      };
+      return { status: 200, body: explained };
+    }
+    if (method === 'POST' && path === '/v1/tax/returns/prepare') {
+      this.calls.push({ path, query, body });
+      const thread = typeof body.thread_id === 'string' ? body.thread_id : `thread-${++this.seq}`;
+      if (!this.hasRules) return { status: 200, body: { thread_id: thread, error: 'You have no tax rules for the United Kingdom.', draft: null } };
+      const draft = this.draft((body.answers ?? {}) as Record<string, unknown>);
+      this.returns.set(thread, draft);
+      return { status: 200, body: { thread_id: thread, error: '', draft } };
+    }
+    if (method === 'POST' && path === '/v1/tax/returns/resume') {
+      this.calls.push({ path, query, body });
+      const thread = String(body.thread_id);
+      const draft = this.returns.get(thread);
+      if (!draft) return { status: 200, body: { worksheet: null, draft: null, error: 'No return is waiting for review on this thread.' } };
+      if (body.decision === 'approve') {
+        this.returns.delete(thread);
+        return { status: 200, body: { worksheet: { ...draft, status: 'ready_to_file' }, draft: null, error: '' } };
+      }
+      if (body.decision === 'edit') {
+        const edited = this.draft({ ...draft.answers, ...((body.answers ?? {}) as Record<string, unknown>) });
+        this.returns.set(thread, edited);
+        return { status: 200, body: { worksheet: null, draft: edited, error: '' } };
+      }
+      this.returns.delete(thread);
+      return { status: 200, body: { worksheet: null, draft: null, error: `Return not approved (decision: ${String(body.decision)})` } };
+    }
+    const returned = /^\/v1\/tax\/returns\/([^/]+)$/.exec(path);
+    if (method === 'GET' && returned) {
+      const thread = decodeURIComponent(returned[1] ?? '');
+      const draft = this.returns.get(thread);
+      return { status: 200, body: { thread_id: thread, waiting: Boolean(draft), draft: draft ?? null } };
+    }
+    return undefined;
+  }
+
   route(req: TaxRequest, permissions: readonly string[]): Reply | undefined {
     const { method, path } = req;
     if (method === 'GET' && path === '/v1/tax/schema') {
       return { status: 200, body: { $schema: 'https://json-schema.org/draft/2020-12/schema', title: 'Salli tax rule set', type: 'object', required: ['schema', 'jurisdiction', 'year', 'currency', 'result'] } };
     }
+    const tax = this.routeTax(req);
+    if (tax) return tax;
     if (!path.startsWith('/v1/tax/rule-sets')) return undefined;
     const parts = path.slice('/v1/tax/rule-sets'.length).split('/').filter(Boolean);
     const body = (req.json ?? {}) as { document?: unknown; note?: string | null; url?: string };
@@ -272,6 +440,23 @@ export class TaxRulesMock {
       const sources = Object.fromEntries(((to.document.sources ?? []) as Array<{ id: string }>).map((s) => [s.id, s]));
       const diff: TaxRuleDiff = { rule_set_id: set.id, from: from ? summary(from) : null, to: summary(to), changes, sources: sources as TaxRuleDiff['sources'], examples: to.validation.examples, validation_ok: to.validation.ok };
       return { status: 200, body: diff };
+    }
+    if (parts[1] === 'suggested-accounts' && (method === 'GET' || method === 'POST')) {
+      const apply = method === 'POST';
+      const suggested: Array<Omit<TaxSuggestedAccount, 'status' | 'account_id' | 'note'>> = [
+        { code: '1000', name: 'Bank', type: 'asset', tax_role: null },
+        { code: '1450', name: 'Tax withheld', type: 'asset', tax_role: 'tax_withheld' },
+        { code: '4000', name: 'Salary', type: 'income', tax_role: 'salary' },
+      ];
+      const accounts: TaxSuggestedAccount[] = suggested.map((a) => {
+        if (this.accountCodes.has(a.code)) return { ...a, status: 'exists', account_id: `acct-${a.code}`, note: a.code === '1000' ? 'You have 1000 as \'Checking\' (asset, no tax role); it was left as it is.' : null };
+        if (apply) {
+          this.accountCodes.add(a.code);
+          return { ...a, status: 'created', account_id: `acct-${a.code}`, note: null };
+        }
+        return { ...a, status: 'missing', account_id: null, note: null };
+      });
+      return { status: 200, body: { rule_set_id: set.id, version_id: set.active_version_id ?? '', version: 1, applied: apply, accounts } };
     }
     if (parts[1] !== 'versions') return problem(404, 'Not Found');
     if (parts.length === 2 && method === 'POST') {

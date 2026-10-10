@@ -52,13 +52,13 @@ Other ids can be shortened to any unique prefix.
 | `import <file>`, `statements` | bank statements: import, then `statements pending`, `post`, `discard`, `categorize` |
 | `ledger` | `trial-balance`, `income-statement` |
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
-| `tax` | `year`, `compute`, `latest`, `packs`; `schema` (the rule-set JSON Schema) |
-| `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`; `activate` is the user's, never yours |
+| `tax` | your tax from your own active rules: `year`, `compute`, `latest`, `explain <line>`; `return prepare`, `return review <thread>`; `schema` (the rule-set JSON Schema) |
+| `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`, `accounts <set> [--apply]`; `activate` is the user's, never yours |
 | `budgets`, `debts`, `insurance`, `subscriptions` | each domain's records and reports |
 | `holdings`, `portfolio` | holdings: `holdings list`, `holdings add`; `portfolio` (summary), `portfolio transactions add <holding> buy\|sell\|dividend\|…`, `portfolio lots <holding>`, `portfolio prices set <symbol> <close>`, `portfolio performance --from --to` |
 | `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `afford`, `strategy`; `goals list`, `goals allocate` |
 | `reports` | `balance-sheet`, `net-worth`, `goal-progress`, `export` |
-| `reminders` | `list`, `add`, `sync-alerts` |
+| `reminders` | `list`, `add`, `seed` (filing deadlines from the active tax rules), `sync-alerts` |
 | `advisor` | `run`, `latest`, `reports`, `apply`, `dismiss` |
 | `profile` | the user's fact-find (`get`, `set`); `export` for all their data |
 | `rules` | rules that book transactions that look a certain way; `suggest` |

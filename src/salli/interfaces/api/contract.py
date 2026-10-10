@@ -59,10 +59,13 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/ledger/trial-balance"): "ledger.trialBalance",
     ("GET", "/ledger/income-statement"): "ledger.incomeStatement",
     # tax
-    ("GET", "/tax/packs"): "tax.packs",
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",
     ("GET", "/tax/current-year"): "tax.currentYear",
+    ("POST", "/tax/explain"): "tax.explain",
+    ("POST", "/tax/returns/prepare"): "tax.returns.prepare",
+    ("POST", "/tax/returns/resume"): "tax.returns.resume",
+    ("GET", "/tax/returns/{thread_id}"): "tax.returns.get",
     # tax rule sets: the user's own rules (docs/taxrules.md)
     ("GET", "/tax/schema"): "tax.schema",
     ("GET", "/tax/rule-sets"): "tax.ruleSets.list",
@@ -70,6 +73,14 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/tax/rule-sets/import"): "tax.ruleSets.import",
     ("GET", "/tax/rule-sets/{rule_set_id}"): "tax.ruleSets.get",
     ("GET", "/tax/rule-sets/{rule_set_id}/diff"): "tax.ruleSets.diff",
+    (
+        "GET",
+        "/tax/rule-sets/{rule_set_id}/suggested-accounts",
+    ): "tax.ruleSets.suggestedAccounts.list",
+    (
+        "POST",
+        "/tax/rule-sets/{rule_set_id}/suggested-accounts",
+    ): "tax.ruleSets.suggestedAccounts.apply",
     ("POST", "/tax/rule-sets/{rule_set_id}/versions"): "tax.ruleSets.versions.create",
     ("GET", "/tax/rule-sets/{rule_set_id}/versions/{version_id}"): "tax.ruleSets.versions.get",
     (

@@ -228,11 +228,20 @@ class TaxRuleLine(BaseModel):
 
 class TaxRuleFormField(BaseModel):
     id: str
+    label: str
+    #: The field's value: a decimal string, or true/false.
     value: DecimalOut | bool
 
 
 class TaxRuleForm(BaseModel):
+    """A return form the rules define, filled in from a result."""
+
     key: str
+    label: str
+    #: How to file it, as the rules say.
+    instructions: str | None
+    #: Where to file it.
+    url: str | None
     fields: list[TaxRuleFormField]
 
 
@@ -267,6 +276,35 @@ class TaxRuleEvaluation(BaseModel):
     warnings: list[str]
     #: Where these figures' rules came from, to show with them.
     provenance: str
+
+
+class TaxSuggestedAccount(BaseModel):
+    code: str
+    name: str
+    type: Literal["asset", "liability", "equity", "income", "expense"]
+    tax_role: str | None
+    #: "missing" (you have no account with this code), "created" (just now),
+    #: or "exists" (you have one with this code; it is left as it is).
+    status: Literal["missing", "created", "exists"]
+    #: Your account with this code, when there is one.
+    account_id: str | None
+    #: Why an existing account may not match the suggestion.
+    note: str | None
+
+
+class TaxSuggestedAccounts(BaseModel):
+    rule_set_id: str
+    #: The version whose suggestions these are.
+    version_id: str
+    version: int
+    #: Whether missing accounts were created.
+    applied: bool
+    accounts: list[TaxSuggestedAccount]
+
+
+class TaxSuggestedAccountsIn(BaseModel):
+    #: Whose suggestions: the active version if omitted, else the newest.
+    version_id: str | None = None
 
 
 def _version(v: dict[str, Any]) -> TaxRuleSetVersion:
@@ -380,6 +418,41 @@ async def diff_versions(
     """What changed between two versions, with the source behind each change
     and the `to` version's example results: the review before activating."""
     return TaxRuleDiff.model_validate(await svc.tax_rules.diff(user_id, rule_set_id, to, from_))
+
+
+@router.get("/rule-sets/{rule_set_id}/suggested-accounts")
+async def list_suggested_accounts(
+    rule_set_id: str,
+    actor: CurrentActor,
+    svc: AppServices,
+    version_id: Annotated[
+        str | None, Query(description="The version; the active one, else the newest, if omitted")
+    ] = None,
+) -> TaxSuggestedAccounts:
+    """The accounts a rule set suggests (its `suggested_accounts`), each with
+    whether you already have one with that code. Nothing is created."""
+    return TaxSuggestedAccounts.model_validate(
+        await svc.tax_rules.suggested_accounts(actor, rule_set_id, version_id=version_id)
+    )
+
+
+@router.post("/rule-sets/{rule_set_id}/suggested-accounts")
+async def apply_suggested_accounts(
+    rule_set_id: str,
+    actor: CurrentActor,
+    svc: AppServices,
+    body: TaxSuggestedAccountsIn | None = None,
+) -> TaxSuggestedAccounts:
+    """Create the accounts a rule set suggests that you don't have yet, in your
+    base currency, each with its suggested tax role. Idempotent: an account
+    whose code you already use (open or closed) is left as it is. 409 for a
+    superseded version."""
+    body = body or TaxSuggestedAccountsIn()
+    return TaxSuggestedAccounts.model_validate(
+        await svc.tax_rules.suggested_accounts(
+            actor, rule_set_id, version_id=body.version_id, apply=True
+        )
+    )
 
 
 @router.get("/rule-sets/{rule_set_id}/versions/{version_id}/export")

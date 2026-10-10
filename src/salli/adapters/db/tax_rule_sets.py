@@ -246,17 +246,37 @@ class SQLTaxRuleSetRepository(TaxRuleSetRepository):
 
     async def declared_roles(self, user_id: str) -> set[str]:
         # Only documents that matched the schema (a content hash): their role
-        # keys are known to be well formed. jsonb_array_elements of a missing
+        # keys are known to be well formed. And only versions that aren't
+        # superseded: those are history. jsonb_array_elements of a missing
         # `roles` is no rows.
         rows = await self._s.execute(
             text(
                 "SELECT DISTINCT role ->> 'key' FROM tax_rule_set_versions v"
                 " CROSS JOIN LATERAL jsonb_array_elements(v.content -> 'roles') AS role"
                 " WHERE v.user_id = :user_id AND v.content_hash IS NOT NULL"
+                " AND v.status <> 'superseded'"
             ),
             {"user_id": user_id},
         )
         return {str(key) for (key,) in rows if key}
+
+    async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
+        rows = (
+            await self._s.execute(
+                select(TaxRuleSetORM, TaxRuleSetVersionORM)
+                .join(
+                    TaxRuleSetVersionORM,
+                    (TaxRuleSetVersionORM.id == TaxRuleSetORM.active_version_id)
+                    & (TaxRuleSetVersionORM.user_id == TaxRuleSetORM.user_id),
+                )
+                .where(TaxRuleSetORM.user_id == user_id)
+                .order_by(TaxRuleSetORM.country, TaxRuleSetORM.year_label, TaxRuleSetORM.region)
+            )
+        ).all()
+        return [
+            {**_set(rule_set, []), "version": _version(version, content=True)}
+            for rule_set, version in rows
+        ]
 
     async def export(self, user_id: str) -> list[dict[str, Any]]:
         sets = (

@@ -61,8 +61,8 @@ class AccountORM(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # How the tax engine should treat this account. NULL = no tax significance.
     # See `domain.accounting.models.TaxRole` for why this is explicit rather
-    # than inferred from `name`. Tax packs declare which roles exist, so the
-    # database checks only the shape of the code.
+    # than inferred from `name`. The user's own tax rule sets declare which
+    # roles exist, so the database checks only the shape of the code.
     tax_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -261,28 +261,71 @@ class ParsedTransactionORM(Base):
 
 
 class TaxComputationORM(Base):
+    """A user's tax for one jurisdiction and year, as Salli's engine computed it
+    from the rule set version that was active (docs/taxrules.md).
+
+    Reproducible: it records the version (and that version's content hash) and
+    the inputs the engine was given (each role's total from the ledger, the
+    answers, the exchange rates), so evaluating the same version with the same
+    inputs gives the same lines again, whatever the rules or the ledger say
+    since. Rows are only ever added: a recomputation is a new row.
+
+    The amounts owed are money, so BIGINT minor units of the rule set's
+    currency (`domain/currency.py`); every line is kept exactly, as a decimal
+    string, in `lines`.
+    """
+
     __tablename__ = "tax_computations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    year: Mapped[str] = mapped_column(String(10), nullable=False)
-    pack_version: Mapped[str] = mapped_column(String(20), nullable=False)
-    inputs_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    result_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    # Phase 3 of docs/design/country-neutral-core.md: which rule-set version
-    # computed this, the content hash of its rules and every line it produced,
-    # so an old return can be reproduced after the rules change. Nothing
-    # writes them yet; the built-in pack's computations leave them empty.
-    rule_set_version_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("tax_rule_set_versions.id"), nullable=True
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    country: Mapped[str] = mapped_column(String(2), nullable=False)
+    region: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # What the rule set calls the year: "2031", "2031/32".
+    year: Mapped[str] = mapped_column(String(32), nullable=False)
+    rule_set_version_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    # Owed after every credit: positive to pay, negative to be refunded.
+    net_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    tax_payable_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    refund_due_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Every line, in order: key, label, amount (a decimal string), expr,
+    # source, refundable.
+    lines: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    # What the engine was given: role totals (decimal strings) and how many
+    # postings each came from, the answers, the base currency and the rates.
+    inputs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    warnings: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
     )
-    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    lines: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
 
-    __table_args__ = (Index("ix_tax_computations_user_year", "user_id", "year"),)
+    __table_args__ = (
+        # The version is the user's own: a computation can't name another's.
+        ForeignKeyConstraint(
+            ["rule_set_version_id", "user_id"],
+            ["tax_rule_set_versions.id", "tax_rule_set_versions.user_id"],
+            name="fk_tax_computations_version",
+        ),
+        Index(
+            "ix_tax_computations_user_jurisdiction_year",
+            "user_id",
+            "country",
+            "year",
+            "created_at",
+        ),
+        CheckConstraint("country ~ '^[A-Z]{2}$'", name="ck_tax_computations_country"),
+        CheckConstraint(
+            "tax_payable_minor >= 0 AND refund_due_minor >= 0"
+            " AND net_minor = tax_payable_minor - refund_due_minor"
+            " AND (tax_payable_minor = 0 OR refund_due_minor = 0)",
+            name="ck_tax_computations_amounts",
+        ),
+        CheckConstraint("jsonb_typeof(lines) = 'array'", name="ck_tax_computations_lines"),
+    )
 
 
 # ── Tax rule sets (user data: docs/taxrules.md) ───────────────────────────────
@@ -388,6 +431,8 @@ class TaxRuleSetVersionORM(Base):
         UniqueConstraint("rule_set_id", "version", name="uq_tax_rule_set_versions_number"),
         # What the set's active-version foreign key points at.
         UniqueConstraint("rule_set_id", "id", name="uq_tax_rule_set_versions_set_id"),
+        # What a computation's foreign key points at: a version and its owner.
+        UniqueConstraint("id", "user_id", name="uq_tax_rule_set_versions_id_user"),
         # One active version per set, whatever a caller does.
         Index(
             "uq_tax_rule_set_versions_one_active",
@@ -575,7 +620,7 @@ class UserProfileORM(Base):
     # or a missing tier means "let Salli pick from the account's models".
     ai_models: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Where the user is taxed: an ISO 3166-1 alpha-2 code, or NULL while they
-    # have not said. It decides which tax packs apply (domain/jurisdiction.py).
+    # have not said. It decides which of their tax rule sets compute their tax.
     tax_residency: Mapped[str | None] = mapped_column(String(2), nullable=True)
     # Their tax ids, [{"scheme": "LK-TIN", "value": "..."}, ...], one per scheme.
     tax_ids: Mapped[list[dict[str, str]]] = mapped_column(

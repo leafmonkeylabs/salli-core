@@ -8,7 +8,6 @@ import {
   accountExport,
   agentFilesUpload,
   authMe,
-  compareAmounts,
   documentsDelete,
   documentsGet,
   documentsList,
@@ -34,10 +33,6 @@ import {
   reportsExportCsv,
   reportsGoalProgress,
   reportsNetWorth,
-  taxCompute,
-  taxCurrentYear,
-  taxLatest,
-  taxPacks,
   toJsonText,
   type AgentDocument,
   type IncomeItem,
@@ -45,19 +40,18 @@ import {
   type ProfileIdentityRequest,
   type Reminder,
   type SalliClient,
-  type TaxComputation,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { CliError, UsageError } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
-import { displayDate, displayRange, isoDate, parseDate } from '../util/dates';
+import { displayDate, isoDate, parseDate } from '../util/dates';
 import { readUpload, textOf, writeOutput } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
 import { fieldLabel, renderRecord } from './records';
 import { humanize } from './status';
 import { amountArg, collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
-import { registerTaxRules } from './taxrules';
+import { registerTax } from './tax';
 
 /** A field from the server, as one line of safe text. */
 const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
@@ -138,12 +132,17 @@ function registerReminders(program: Command, app: App): void {
 
   reminders
     .command('seed')
-    .description('Add the tax filing deadlines for a year of assessment')
-    .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
+    .description('Refresh filing deadlines from your active tax rules (activating rules does this too)')
+    .option('--year <year>', 'Only the rules for this tax year, as they name it')
     .action(async (opts) => {
       const api = await app.api();
       const result = await api.call(remindersSeedFilingCalendar, { query: opts.year ? { year: opts.year } : {} });
-      app.out.done(result, `Added ${result.created} filing deadline${result.created === 1 ? '' : 's'}.`);
+      const changed = [
+        `${result.created} added`,
+        `${result.updated.length} updated`,
+        `${result.removed.length} removed`,
+      ].join(', ');
+      app.out.done(result, `Filing deadlines from your active tax rules: ${changed}.`);
     });
 
   reminders
@@ -269,118 +268,6 @@ function registerReports(program: Command, app: App): void {
       const csv = textOf(await api.call(reportsExportCsv, { path: { report_type: type }, parseAs: 'text' }));
       await writeOutput(app, csv, opts.out, { report: type }, `the ${type} report`);
     });
-}
-
-// ── Tax ──────────────────────────────────────────────────────────────────────
-
-function taxView(app: App, t: TaxComputation): void {
-  const out = app.out;
-  const cur = t.currency;
-  out.line(`${out.heading(`Income tax ${t.pack_year}`)} ${out.colors.dim(`${t.pack_country} pack v${t.pack_version} · not tax advice`)}`);
-  if (t.band_workings.length) {
-    out.line(
-      out.table(t.band_workings, [
-        { header: 'BAND', get: (b) => b.band },
-        { header: 'RATE', get: (b) => b.rate, align: 'right' },
-        { header: `TAXABLE (${cur})`, get: (b) => out.amount(b.taxable_in_band, cur), align: 'right' },
-        { header: `TAX (${cur})`, get: (b) => out.amount(b.tax, cur), align: 'right' },
-      ]),
-    );
-    out.line();
-  }
-  const m = (amount: string): string => out.money(amount, cur);
-  const nonzero = (amount: string): boolean => compareAmounts(amount, '0') !== 0;
-  out.line(
-    out.details([
-      ['Gross income', m(t.gross_income)],
-      nonzero(t.foreign_service_income) && ['Foreign service income', m(t.foreign_service_income)],
-      ['Personal relief', m(t.personal_relief_applied)],
-      nonzero(t.qp_deduction) && ['Qualifying payments', m(t.qp_deduction)],
-      ['Taxable income', m(t.taxable_income)],
-      nonzero(t.fsi_tax) && ['Tax on foreign income', m(t.fsi_tax)],
-      ['Tax before credits', m(t.tax_before_credits)],
-      nonzero(t.total_credits) && ['Credits (APIT, AIT, FTC)', m(t.total_credits)],
-      ['Tax payable', m(t.tax_payable), out.colors.bold],
-      nonzero(t.refund_due) && ['Refund due', m(t.refund_due), out.colors.green],
-    ]),
-  );
-}
-
-function registerTax(program: Command, app: App): void {
-  const tax = program.command('tax').description('Income tax: the built-in packs, and tax rule sets you or your agent write');
-
-  tax
-    .command('packs')
-    .description('The tax packs this server has')
-    .action(async () => {
-      const api = await app.api();
-      const packs = await api.call(taxPacks);
-      app.out.emit(packs, {
-        human: (d) => {
-          app.out.line(
-            app.out.table(d, [
-              { header: 'COUNTRY', get: (p) => p.country },
-              { header: 'YEAR', get: (p) => p.year },
-              { header: 'VERSION', get: (p) => p.version },
-              { header: 'CURRENCY', get: (p) => p.currency },
-              { header: 'PERIOD', get: (p) => displayRange(p.period_start, p.period_end, app.out.locale) },
-              { header: 'RETURN DUE', get: (p) => displayDate(p.return_due, app.out.locale) },
-            ]),
-          );
-        },
-      });
-    });
-
-  tax
-    .command('year')
-    .description('The tax year you are in today, and the latest one Salli can compute')
-    .action(async () => {
-      const api = await app.api();
-      const data = await api.call(taxCurrentYear);
-      app.out.emit(data, {
-        human: (d) => {
-          const out = app.out;
-          if (!d.country) {
-            out.warn('Salli does not know where you are taxed.');
-            out.note('Set it with `salli profile set --tax-residency <country>`, e.g. LK or GB.');
-            return;
-          }
-          const from = d.country_source === 'tax_residency' ? 'your tax residency' : 'your base currency';
-          out.line(
-            out.details([
-              ['Country', `${d.country} (from ${from})`],
-              ['Tax year', d.year ? `${d.year} (${displayRange(d.start, d.end, out.locale)})` : 'Salli has no tax pack for it yet'],
-              ['Can compute', d.latest_year ? `${d.latest_year}${d.has_pack ? '' : ' (no pack for the current year yet)'}` : 'none yet'],
-            ]),
-          );
-        },
-      });
-    });
-
-  tax
-    .command('compute')
-    .description('Compute your income tax from the ledger (and store the result)')
-    .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
-    .action(async (opts) => {
-      const api = await app.api();
-      const t = await api.call(taxCompute, { query: opts.year ? { year: opts.year } : {} });
-      app.out.emit(t, { records: (d) => d.band_workings, human: (d) => taxView(app, d) });
-    });
-
-  tax
-    .command('latest')
-    .description('The last stored computation for a year')
-    .option('--year <year>', 'Year of assessment (default: the server’s)')
-    .action(async (opts) => {
-      const api = await app.api();
-      const data = await api.call(taxLatest, { query: opts.year ? { year: opts.year } : {} });
-      if (!data.result && !app.out.machine) {
-        throw new CliError('No stored computation for that year.', { exitCode: 4, kind: 'not-found', hint: 'Run `salli tax compute`.' });
-      }
-      app.out.emit(data, { human: (d) => d.result && taxView(app, d.result) });
-    });
-
-  registerTaxRules(tax, app);
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────

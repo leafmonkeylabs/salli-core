@@ -20,15 +20,12 @@ from salli.domain.accounting.models import (
     TaxRole,
 )
 from salli.domain.currency import normalize_currency, quantize
-from salli.domain.jurisdiction import country_phrase
 from salli.domain.subscription import engine as subscription_engine
 from salli.domain.subscription.models import Subscription
-from salli.domain.tax.packs import registry
 
 
 class UnknownTaxRoleError(ValueError):
-    """A tax role neither the packs of the user's tax residency nor any of
-    their own tax rule sets declare."""
+    """A tax role none of the user's own tax rule sets declares."""
 
 
 async def tax_residency(uow: Any, user_id: str) -> str | None:
@@ -39,21 +36,16 @@ async def tax_residency(uow: Any, user_id: str) -> str | None:
     return residency if isinstance(residency, str) and residency else None
 
 
-def _role_refusal(
-    role: str, residency: str | None, packs: tuple[str, ...], own: tuple[str, ...]
-) -> str:
-    yours = (
-        f"; nor is it a role your tax rule sets declare ({', '.join(own)})"
-        if own
-        else "; nor does any tax rule set of yours declare it"
-    )
-    if residency and not packs:
+def _role_refusal(role: str, declared: tuple[str, ...]) -> str:
+    if not declared:
         return (
-            f"Salli has no tax pack for {country_phrase(residency)} yet, so {role!r} is no "
-            f"built-in tax role{yours}."
+            f"{role!r} is not a tax role: none of your tax rule sets declares any yet. "
+            "Add the role to a rule set's `roles` first (`salli tax rules`)."
         )
-    whose = f"the tax packs for {country_phrase(residency)}" if residency else "any tax pack"
-    return f"{role!r} is not a tax role {whose} use ({', '.join(packs)}){yours}."
+    return (
+        f"{role!r} is not a tax role any of your tax rule sets declares "
+        f"({', '.join(declared)}). Add it to a rule set's `roles` first."
+    )
 
 
 class LedgerService:
@@ -69,28 +61,21 @@ class LedgerService:
             return await uow.user_profiles.base_currency(user_id)
 
     async def allowed_tax_roles(self, user_id: str) -> tuple[str, ...]:
-        """The tax roles this user's accounts may carry: those of the built-in
-        packs (registry.allowed_tax_roles: their country's, or with no
-        residency any pack's), then every role their own tax rule sets declare
-        (a version that matches the schema, whatever its status, so accounts
-        can be set up while the rules are still being drafted)."""
+        """The tax roles this user's accounts may carry: every role their own
+        tax rule sets declare now (in a version that matches the schema and
+        isn't superseded, whatever its status, so accounts can be set up while
+        the rules are still being drafted). Salli has no roles of its own."""
         async with self._uow_factory() as uow:
-            packs, own = await self._tax_roles(uow, user_id)
-        return packs + tuple(r for r in own if r not in packs)
+            return await self._tax_roles(uow, user_id)
 
     @staticmethod
-    async def _tax_roles(uow: Any, user_id: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        # The built-in packs' roles stay allowed until phase 3 removes the
-        # packs (docs/design/country-neutral-core.md).
-        packs = registry.allowed_tax_roles(await tax_residency(uow, user_id))
-        own = tuple(sorted(await uow.tax_rule_sets.declared_roles(user_id)))
-        return packs, own
+    async def _tax_roles(uow: Any, user_id: str) -> tuple[str, ...]:
+        return tuple(sorted(await uow.tax_rule_sets.declared_roles(user_id)))
 
     async def _check_tax_role(self, uow: Any, user_id: str, role: str) -> None:
-        packs, own = await self._tax_roles(uow, user_id)
-        if role not in packs and role not in own:
-            residency = await tax_residency(uow, user_id)
-            raise UnknownTaxRoleError(_role_refusal(role, residency, packs, own))
+        declared = await self._tax_roles(uow, user_id)
+        if role not in declared:
+            raise UnknownTaxRoleError(_role_refusal(role, declared))
 
     async def add_account(
         self,
@@ -105,7 +90,7 @@ class LedgerService:
         """Open an account, held in `currency` — the user's base currency unless
         another is named (a USD savings account in a rupee ledger).
 
-        A `tax_role` must be one the user's tax packs declare
+        A `tax_role` must be one the user's tax rule sets declare
         (`UnknownTaxRoleError` otherwise), and a `parent_id` one of the user's
         own accounts (`AccountNotFound` otherwise)."""
         async with self._uow_factory() as uow:
@@ -302,8 +287,10 @@ class LedgerService:
         change while the account has no entries, because its postings are
         amounts in that currency.
 
-        A new `tax_role` must be one the user's tax packs declare; the role an
-        account already has may stay, so a rename never fails on it."""
+        A new `tax_role` must be one the user's tax rule sets declare; the role
+        an account already has may stay, so a rename never fails on it (even
+        when no rule set in use declares it any more: validating a rule set
+        warns about that)."""
         async with self._uow_factory() as uow:
             account = await uow.ledger.get_account(user_id, account_id)
             if account is None:

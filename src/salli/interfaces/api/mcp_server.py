@@ -15,8 +15,10 @@ token. The OAuth consent screen (mcp_oauth.py) is the approval gate: it is
 where the user authorizes this client to read *and write* their data: every
 write is still recorded to the immutable audit log.
 
-Tax rules (docs/taxrules.md): an AI client may research, draft, validate,
-propose, diff and evaluate the user's tax rule sets, and never activate one.
+Tax (docs/taxrules.md): Salli computes only from the user's own active rule
+set, and the tax tools say where each line came from. An AI client may
+research, draft, validate, propose, diff and evaluate the user's tax rule
+sets, and create the accounts one suggests, and never activate one.
 There is no activate tool, every caller here is an agent without
 `tax:activate` (application/permissions.py), and the service checks that
 permission itself, so no tool could activate even by mistake.
@@ -43,6 +45,7 @@ from pydantic import AnyHttpUrl, BaseModel, Field
 from salli.application.permissions import Actor
 from salli.application.services.mcp_oauth_service import McpOAuthService
 from salli.application.services.tax_rule_service import TaxRuleError
+from salli.domain.agents.tools import computation_for_agent
 
 
 class SalliTokenVerifier(TokenVerifier):
@@ -168,8 +171,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "create_rule, and the document/memory writers) take effect immediately: "
             "show the user what you will do and get their go-ahead first. Tax rules: you "
             "may draft, validate and propose the user's tax rule sets, citing official "
-            "sources; only the user can activate one, in Salli itself. Never compute tax "
-            "yourself: evaluate_tax_rule_set runs Salli's engine."
+            "sources; only the user can activate one, in Salli itself. Salli knows no "
+            "country's tax law: get_tax_computation computes only from the user's active "
+            "rules, and explain_tax_line says where each line came from. Never compute tax "
+            "yourself: Salli's engine does."
         ),
         token_verifier=SalliTokenVerifier(services.mcp_oauth),
         auth=AuthSettings(
@@ -223,81 +228,58 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         }
 
     @mcp.tool()
-    async def get_tax_computation(year: str | None = None) -> dict[str, Any]:
-        """Compute the user's income tax for a tax year (e.g. "2025/26") with their
-        country's tax pack; omit the year for the latest one Salli can compute."""
-        user_id = _current_user_id()
-        result = await tax_svc.compute_tax(user_id, year)
-
-        def _bw(bw: Any) -> dict[str, str]:
-            if isinstance(bw, dict):
-                d = cast("dict[str, Any]", bw)
-                return {
-                    "from": str(d.get("from_amount", "0")),
-                    "to": str(d["to_amount"]) if d.get("to_amount") else "∞",
-                    "rate": str(d.get("rate", "")),
-                    "taxable_in_band": str(d.get("taxable_in_band", "0")),
-                    "tax": str(d.get("tax", "0")),
-                }
-            return {
-                "from": str(bw.from_amount),
-                "to": str(bw.to_amount) if bw.to_amount else "∞",
-                "rate": str(bw.rate),
-                "taxable_in_band": str(bw.taxable_in_band),
-                "tax": str(bw.tax),
-            }
-
-        return {
-            "country": result.pack_country,
-            "year": result.pack_year,
-            "pack_version": result.pack_version,
-            "currency": result.currency,
-            "gross_income": str(result.gross_income),
-            "personal_relief": str(result.personal_relief_applied),
-            "taxable_income": str(result.taxable_income),
-            "tax_before_credits": str(result.tax_before_credits),
-            "apit_credit": str(result.apit_credit),
-            "ait_credit": str(result.ait_credit),
-            "foreign_tax_credit": str(result.foreign_tax_credit),
-            "tax_payable": str(result.tax_payable),
-            "band_workings": [_bw(bw) for bw in result.band_workings],
-        }
+    async def get_tax_computation(
+        year: str | None = None,
+        country: str | None = None,
+        region: str | None = None,
+        answers: dict[str, str | bool] | None = None,
+    ) -> dict[str, Any]:
+        """Compute the user's tax with their own active tax rules, from their
+        ledger (nothing is stored): every line with the expression behind it,
+        the inputs it took, and the net owed or refunded. year: as the rules
+        name it, omit for the user's current tax year; country: omit for their
+        tax residency; answers: the rules' questions, by key. Quote these
+        figures exactly; never compute tax yourself. With no active rules, the
+        answer says what the user can do."""
+        try:
+            result = await tax_svc.compute_tax(
+                _current_user_id(),
+                country=country,
+                region=region,
+                year=year,
+                answers=answers,
+                persist=False,
+            )
+        except (LookupError, ValueError) as exc:
+            return _refusal(exc)
+        return _jsonable(computation_for_agent(result))
 
     @mcp.tool()
-    def list_tax_packs() -> dict[str, Any]:
-        """List available tax packs (country, year, version)."""
-        packs = tax_svc.list_packs()
-        return {
-            "packs": [
-                {
-                    "country": p.country,
-                    "year": p.year,
-                    "version": p.version,
-                    "period_start": p.period_start,
-                    "period_end": p.period_end,
-                }
-                for p in packs
-            ]
-        }
-
-    @mcp.tool()
-    async def explain_tax_band(band_index: int, year: str | None = None) -> dict[str, Any]:
-        """Explain a band of the user's own tax pack (rate, threshold); omit the
-        year for the latest one Salli can compute."""
-        pack = await tax_svc.pack(_current_user_id(), year)
-        if band_index < 0 or band_index >= len(pack.bands):
-            return {"error": f"Band index {band_index} out of range (0–{len(pack.bands) - 1})"}
-        band = pack.bands[band_index]
-        return {
-            "country": pack.country,
-            "year": pack.year,
-            "currency": pack.currency,
-            "band_index": band_index,
-            "upto": str(band.upto) if band.upto else "unbounded",
-            "rate": str(band.rate),
-            "rate_pct": f"{float(band.rate) * 100:.0f}%",
-            "personal_relief": str(pack.personal_relief),
-        }
+    async def explain_tax_line(
+        line_key: str,
+        year: str | None = None,
+        country: str | None = None,
+        region: str | None = None,
+        answers: dict[str, str | bool] | None = None,
+    ) -> dict[str, Any]:
+        """Where one line of the user's tax came from: its amount and
+        expression, the ledger totals, answers and other lines it used (with
+        their values), any band table it applies, the source the rules cite
+        for it, and the lines that use it. line_key: a key from
+        get_tax_computation's lines. Explain from this; never invent numbers."""
+        try:
+            return _jsonable(
+                await tax_svc.explain(
+                    _current_user_id(),
+                    line_key,
+                    country=country,
+                    region=region,
+                    year=year,
+                    answers=answers,
+                )
+            )
+        except (LookupError, ValueError) as exc:
+            return _refusal(exc)
 
     @mcp.tool()
     async def get_financial_profile() -> dict[str, Any]:
@@ -913,6 +895,32 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return _refusal(exc)
         return _jsonable(result)
 
+    @mcp.tool()
+    async def suggested_tax_accounts(
+        rule_set_id: str, apply: bool = False, version_id: str | None = None
+    ) -> dict[str, Any]:
+        """The accounts a rule set suggests (from its active version, else its
+        newest), each with whether the user already has one with that code.
+        With apply=true, the missing ones are created in the user's base
+        currency with their tax roles; accounts that exist are left as they
+        are, so it is safe to repeat. Creating accounts takes effect at once:
+        show the user the list and get their go-ahead before applying."""
+        actor = await _agent()
+        try:
+            result = await tax_rules_svc.suggested_accounts(
+                actor, rule_set_id, version_id=version_id, apply=apply
+            )
+        except TaxRuleError as exc:
+            return _refusal(exc)
+        if apply:
+            await _log_audit(
+                ledger_svc,
+                actor.user_id,
+                "suggested_tax_accounts",
+                {"rule_set_id": rule_set_id, "version_id": result["version_id"]},
+            )
+        return _jsonable(result)
+
     # ── Prompts: what a user can start with in their AI client ──────────────
 
     @mcp.prompt()
@@ -988,6 +996,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "`salli tax rules activate` in my own terminal): show me what "
             "changed (diff_tax_rule_set_versions) and the source of each figure. You "
             "can't activate rules, and shouldn't ask me for anything that would. "
+            "8. Offer the accounts the rules suggest (suggested_tax_accounts), so my "
+            "ledger feeds the rules' roles; create them only if I say yes. "
             "Never compute tax yourself, not even as an estimate: Salli's engine "
             "computes (evaluate_tax_rule_set), and you quote its figures."
         )
@@ -998,8 +1008,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_trial_balance,
         get_accounts,
         get_tax_computation,
-        list_tax_packs,
-        explain_tax_band,
+        explain_tax_line,
         get_financial_profile,
         get_budget_summary,
         get_payoff_plan,
@@ -1041,6 +1050,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         propose_tax_rule_set,
         diff_tax_rule_set_versions,
         evaluate_tax_rule_set,
+        suggested_tax_accounts,
         research_tax_rules,
         review_my_month,
         sort_pending_transactions,

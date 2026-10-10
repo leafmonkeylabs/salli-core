@@ -24,6 +24,8 @@ import {
   taxRuleSetsGet,
   taxRuleSetsImport,
   taxRuleSetsList,
+  taxRuleSetsSuggestedAccountsApply,
+  taxRuleSetsSuggestedAccountsList,
   taxRuleSetsVersionsActivate,
   taxRuleSetsVersionsCreate,
   taxRuleSetsVersionsEvaluate,
@@ -791,6 +793,52 @@ Examples:
         body: { answers, ...(opts.year ? { year: opts.year } : {}) },
       });
       app.out.emit(evaluation, { records: (e) => e.lines, human: (e) => renderEvaluation(app, e) });
+    });
+
+  rules
+    .command('accounts')
+    .argument('<set>', 'Rule set id (or its start) or name')
+    .description('The accounts a rule set suggests, and whether you have them; --apply creates the missing ones')
+    .option('--version <n|id>', 'Whose suggestions (default: the active version, else the newest)')
+    .option('--apply', 'Create the accounts you don’t have yet (ones whose code you use are left alone)')
+    .action(async (query, opts) => {
+      const api = await app.api();
+      const set = await loadSet(api, query);
+      const version_id = opts.version !== undefined ? resolveVersion(set, opts.version).id : undefined;
+      const result = opts.apply
+        ? await api.call(taxRuleSetsSuggestedAccountsApply, {
+            path: { rule_set_id: set.id },
+            body: version_id ? { version_id } : {},
+          })
+        : await api.call(taxRuleSetsSuggestedAccountsList, {
+            path: { rule_set_id: set.id },
+            query: version_id ? { version_id } : {},
+          });
+      app.out.emit(result, {
+        records: (r) => r.accounts,
+        human: (r) => {
+          const out = app.out;
+          const c = out.colors;
+          if (!r.accounts.length) {
+            out.note(`${singleLine(set.name)} v${r.version} suggests no accounts.`);
+            return;
+          }
+          const status = (s: string): string =>
+            s === 'created' ? c.green('created') : s === 'missing' ? c.yellow('missing') : c.dim('you have it');
+          out.line(
+            out.table(r.accounts, [
+              { header: 'CODE', get: (a) => a.code },
+              { header: 'NAME', get: (a) => a.name, shrink: true },
+              { header: 'TYPE', get: (a) => a.type },
+              { header: 'TAX ROLE', get: (a) => a.tax_role ?? '', style: (s) => c.dim(s) },
+              { header: 'STATUS', get: (a) => a.status, style: (s) => status(s) },
+            ]),
+          );
+          for (const a of r.accounts) if (a.note) out.note(`${a.code}: ${singleLine(a.note)}`);
+          const missing = r.accounts.filter((a) => a.status === 'missing').length;
+          if (!r.applied && missing) out.note(`Create ${missing === 1 ? 'it' : `the ${missing} missing`} with \`salli tax rules accounts ${set.id.slice(0, 8)} --apply\`.`);
+        },
+      });
     });
 
   rules

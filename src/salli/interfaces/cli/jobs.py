@@ -84,16 +84,18 @@ def recompute_tax(
     apply: bool = typer.Option(
         False,
         "--apply",
-        help="Write the corrected results. Without it, only report what would change.",
+        help="Store the new results. Without it, only report what would change.",
     ),
 ) -> None:
     """
-    Re-run every stored tax computation against the current engine.
+    Recompute every user's latest stored tax with the rules active now.
 
-    The API's latest-computation route serves the most recently *saved*
-    result, so after an engine fix a user keeps seeing the old figure until
-    they recompute it themselves, and a wrong tax figure is exactly what they
-    would act on. Dry run by default: read the report, then run with --apply.
+    The API's latest-computation route serves the most recently *stored*
+    result, so a user whose ledger or active tax rules changed keeps seeing the
+    old figure until they compute again, and a wrong tax figure is exactly what
+    they would act on. Each row also says whether the stored computation still
+    reproduces from the rule set version it recorded (a check on the engine).
+    Dry run by default: read the report, then run with --apply.
     """
     report: list[dict[str, Any]] = asyncio.run(services().tax.recompute_stored(apply=apply))
     if emit(report):
@@ -105,23 +107,29 @@ def recompute_tax(
     table = Table(title="Recomputed stored tax" if apply else "Dry run: nothing written")
     for column in (
         "User",
+        "Jurisdiction",
         "Year",
-        "Credits was",
-        "Credits now",
+        "Version",
         "Payable was",
         "Payable now",
-        "Refund",
+        "Refund now",
+        "Reproduces",
         "Status",
     ):
         table.add_column(column)
 
-    changed = errored = 0
+    changed = errored = drifted = 0
     for row in report:
+        where = row["country"] + (f" {row['region']}" if row.get("region") else "")
         if "error" in row:
             errored += 1
             dashes = ["—"] * 5
             table.add_row(
-                row["user_id"][:8], row["year"], *dashes, f"[red]{escape(row['error'])}[/red]"
+                row["user_id"][:8],
+                escape(where),
+                escape(row["year"]),
+                *dashes,
+                f"[red]{escape(row['error'])}[/red]",
             )
             continue
         if row["changed"]:
@@ -129,14 +137,20 @@ def recompute_tax(
             status = "[green]applied[/green]" if row["applied"] else "[yellow]would change[/yellow]"
         else:
             status = "[dim]unchanged[/dim]"
+        if not row["reproduces"]:
+            drifted += 1
+        version = f"v{row['old_version']}" + (
+            f" → v{row['new_version']}" if row["new_version"] != row["old_version"] else ""
+        )
         table.add_row(
             row["user_id"][:8],
-            row["year"],
-            row["old_credits"],
-            row["new_credits"],
+            escape(where),
+            escape(row["year"]),
+            version,
             row["old_tax_payable"],
             row["new_tax_payable"],
             row["new_refund_due"],
+            "yes" if row["reproduces"] else "[red]no[/red]",
             status,
         )
 
@@ -144,5 +158,6 @@ def recompute_tax(
     console.print(
         f"{len(report)} stored · [bold]{changed} changed[/bold]"
         + (f" · [red]{errored} errored[/red]" if errored else "")
+        + (f" · [red]{drifted} no longer reproduce[/red]" if drifted else "")
         + ("" if apply else "  —  run again with [bold]--apply[/bold] to write")
     )

@@ -261,7 +261,15 @@ async def test_evaluating_returns_every_line(client, rules):
         "net_expr": "line.balance",
         "tax_payable": "3000",
         "refund_due": "0",
-        "forms": [{"key": "return", "fields": [{"id": "box_1", "value": "3000"}]}],
+        "forms": [
+            {
+                "key": "return",
+                "label": "Annual return",
+                "instructions": None,
+                "url": None,
+                "fields": [{"id": "box_1", "label": "Tax", "value": "3000"}],
+            }
+        ],
         "warnings": [],
         "provenance": "Computed by Salli's engine from rules you or your agent entered.",
     }

@@ -2,7 +2,8 @@
 LangGraph tool definitions for the Salli agent system.
 
 Tools are grouped:
-  - READ tools: trial balance, accounts, tax computation, tax packs (no approval)
+  - READ tools: trial balance, accounts, the tax computation and where each of its
+    lines came from (no approval)
   - WEB tools: Tavily web search (no approval)
   - DOCUMENT tools: save/read/list/update/delete documents and named memories (no approval)
   - WRITE tools: create account, post entry, create reminder (interrupt → user approval)
@@ -55,8 +56,56 @@ def _make_get_accounts_tool(ledger_svc: Any) -> Any:
     return get_accounts
 
 
+#: How to read a computation, sent with every one so the model never has to
+#: infer the arithmetic.
+_HOW_TO_READ = (
+    "Every figure here is Salli's engine applying the user's own active tax rules to their "
+    "ledger. Each line's amount comes from its expression (`expr`), which refers to ledger "
+    "totals (role.<key>), the user's answers (answer.<key>) and other lines (line.<key>). "
+    "net is what is owed after every credit: tax_payable when positive, refund_due when "
+    "negative. Quote figures exactly, refer to lines by their label, and call "
+    "explain_tax_line(key) to say what a line used and the source it cites. Never "
+    "recompute, estimate or adjust a figure, and never bring in a rate or threshold the "
+    "rules don't contain."
+)
+
+
+def computation_for_agent(c: dict[str, Any]) -> dict[str, Any]:
+    """A computation (TaxService's view) as the agents and AI clients see it."""
+    return {
+        "country": c["country"],
+        "region": c["region"],
+        "year": c["year"],
+        "period": f"{c['period_start']} to {c['period_end']}",
+        "currency": c["currency"],
+        "rule_set_version": c["version"],
+        "content_hash": c["content_hash"],
+        "inputs": [
+            {"role": r["key"], "label": r["label"], "kind": r["kind"], "total": r["total"]}
+            for r in c["roles"]
+        ],
+        "answers": c["answers"],
+        "lines": [
+            {
+                "key": ln["key"],
+                "label": ln["label"],
+                "amount": ln["amount"],
+                "expr": ln["expr"],
+                "source": ln["source"],
+            }
+            for ln in c["lines"]
+        ],
+        "net": c["net"],
+        "tax_payable": c["tax_payable"],
+        "refund_due": c["refund_due"],
+        "warnings": c["warnings"],
+        "provenance": c["provenance"],
+        "how_to_read": _HOW_TO_READ,
+    }
+
+
 def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
-    """Return the 5 read-only tools for worker agents."""
+    """Return the 4 read-only tools for worker agents."""
 
     @tool
     async def get_trial_balance(
@@ -77,133 +126,55 @@ def make_read_tools(ledger_svc: Any, tax_svc: Any) -> list[Any]:
     async def get_tax_computation(
         year: Annotated[
             str | None,
-            "Tax year as its pack names it, e.g. 2025/26; omit for the latest year "
-            "Salli can compute for the user",
+            "Tax year as the user's rules name it (e.g. 2031 or 2031/32); omit for their "
+            "current tax year",
+        ] = None,
+        country: Annotated[
+            str | None, "Country code of the rules to use; omit for the user's tax residency"
+        ] = None,
+        answers: Annotated[
+            dict[str, str | bool] | None,
+            "Answers to the rules' questions, by key, only if the user gave them",
         ] = None,
     ) -> dict[str, Any]:
         """
-        Compute the user's income tax for a year with their country's tax pack.
-        Numbers here are authoritative; narrate them, do NOT recompute or
-        adjust them.
-
-        The band table covers taxable_income only. Foreign service income is
-        taxed separately at a flat rate, so the bands will not sum to
-        tax_before_credits whenever fsi_tax is non-zero. Use band_tax, fsi_tax
-        and the how_* fields to explain the total rather than inferring where a
-        difference came from.
+        Compute the user's tax with their own active tax rules, from their
+        ledger (nothing is stored). Numbers here are authoritative: narrate
+        them line by line, do NOT recompute or adjust them. If the user has no
+        active rules, the answer says so and what they can do.
         """
         user_id = _current_user.get()
-        result = await tax_svc.compute_tax(user_id, year)
-
-        def _bw(bw: Any) -> dict[str, str]:
-            if isinstance(bw, dict):
-                return {
-                    "from": str(bw.get("from_amount", "0")),
-                    "to": str(bw["to_amount"]) if bw.get("to_amount") else "∞",
-                    "rate": str(bw.get("rate", "")),
-                    "taxable_in_band": str(bw.get("taxable_in_band", "0")),
-                    "tax": str(bw.get("tax", "0")),
-                }
-            return {
-                "from": str(bw.from_amount),
-                "to": str(bw.to_amount) if bw.to_amount else "∞",
-                "rate": str(bw.rate),
-                "taxable_in_band": str(bw.taxable_in_band),
-                "tax": str(bw.tax),
-            }
-
-        band_tax = sum((Decimal(_bw(bw)["tax"]) for bw in result.band_workings), Decimal(0))
-
-        return {
-            "country": result.pack_country,
-            "year": result.pack_year,
-            "pack_version": result.pack_version,
-            "currency": result.currency,
-            "gross_income": str(result.gross_income),
-            # Split out, because the bands only ever apply to `regular_income`.
-            # Without these the band table looks like it should reconcile to
-            # tax_before_credits, it does not, and the gap gets explained away
-            # as something else. That happened: a reply summed the bands to
-            # 9.4L against a 14.9L total and told the user "the rest comes from
-            # credits", which is wrong twice over, since credits reduce a bill
-            # rather than add to it.
-            "regular_income": str(result.regular_income),
-            "foreign_service_income": str(result.foreign_service_income),
-            "personal_relief": str(result.personal_relief_applied),
-            "qualifying_payment_deduction": str(result.qp_deduction),
-            "taxable_income": str(result.taxable_income),
-            "band_tax": str(band_tax),
-            "fsi_tax": str(result.fsi_tax),
-            "tax_before_credits": str(result.tax_before_credits),
-            # Spelled out so the arithmetic never has to be inferred from the
-            # numbers. The model narrates this computation; it does not redo it.
-            "how_tax_before_credits_is_built": (
-                "band_tax + fsi_tax = tax_before_credits. The band table applies "
-                "to taxable_income only, which is regular_income after personal "
-                "relief and qualifying payments. Foreign service income is taxed "
-                "separately at a flat rate and never appears in the bands."
-            ),
-            "apit_credit": str(result.apit_credit),
-            "ait_credit": str(result.ait_credit),
-            "foreign_tax_credit": str(result.foreign_tax_credit),
-            "total_credits": str(result.total_credits),
-            "how_tax_payable_is_built": (
-                "tax_before_credits - total_credits = tax_payable. Credits only "
-                "ever reduce the bill."
-            ),
-            "tax_payable": str(result.tax_payable),
-            "band_workings": [_bw(bw) for bw in result.band_workings],
-        }
+        try:
+            result = await tax_svc.compute_tax(
+                user_id, country=country, year=year, answers=answers, persist=False
+            )
+        except (LookupError, ValueError) as exc:
+            return {"error": str(exc)}
+        return computation_for_agent(result)
 
     @tool
-    def list_tax_packs() -> dict[str, Any]:
-        """List available tax packs (country, year, version) and the withholding
-        kinds each credits."""
-        packs = tax_svc.list_packs()
-        return {
-            "packs": [
-                {
-                    "country": p.country,
-                    "year": p.year,
-                    "version": p.version,
-                    "period_start": p.period_start,
-                    "period_end": p.period_end,
-                    "withholding_kinds": [
-                        {"code": k.code, "label": k.label, "description": k.description}
-                        for k in p.withholding_kinds
-                    ],
-                }
-                for p in packs
-            ]
-        }
-
-    @tool
-    async def explain_tax_band(
-        band_index: Annotated[int, "0-indexed band number"],
-        year: Annotated[
-            str | None, "Tax year, e.g. 2025/26; omit for the latest Salli can compute"
+    async def explain_tax_line(
+        line_key: Annotated[str, "The key of a line in the computation, e.g. income_tax"],
+        year: Annotated[str | None, "Tax year; omit for the user's current tax year"] = None,
+        country: Annotated[str | None, "Country code; omit for the user's tax residency"] = None,
+        answers: Annotated[
+            dict[str, str | bool] | None, "The same answers given to get_tax_computation"
         ] = None,
     ) -> dict[str, Any]:
         """
-        Explain a specific band of the user's own tax pack (rate, threshold).
-        Returns the band definition from the tax pack — do NOT invent numbers.
+        Where one line of the user's tax came from: its amount and expression,
+        the ledger totals, answers and other lines it used (with their values),
+        any band table it applies, the source the rules cite for it, and the
+        lines that use it. Explain from this; do NOT invent numbers.
         """
-        pack = await tax_svc.pack(_current_user.get(), year)
-        if band_index < 0 or band_index >= len(pack.bands):
-            return {"error": f"Band index {band_index} out of range (0–{len(pack.bands) - 1})"}
-        band = pack.bands[band_index]
-        return {
-            "country": pack.country,
-            "year": pack.year,
-            "currency": pack.currency,
-            "band_index": band_index,
-            "upto": str(band.upto) if band.upto else "unbounded",
-            "rate": str(band.rate),
-            "rate_pct": f"{float(band.rate) * 100:.0f}%",
-            "personal_relief": str(pack.personal_relief),
-        }
+        try:
+            return await tax_svc.explain(
+                _current_user.get(), line_key, country=country, year=year, answers=answers
+            )
+        except (LookupError, ValueError) as exc:
+            return {"error": str(exc)}
 
-    return [get_trial_balance, get_accounts, get_tax_computation, list_tax_packs, explain_tax_band]
+    return [get_trial_balance, get_accounts, get_tax_computation, explain_tax_line]
 
 
 # ── Manager tools factory (web search + documents + write with approval) ───────
@@ -251,7 +222,7 @@ def make_manager_tools(
             max_results=5,
             description=(
                 "Search the internet for current tax laws and revenue-authority guidance "
-                "(such as the circulars of the user's tax authority), "
+                "(the user's own tax authority's publications), "
                 "exchange rates, financial news, or any other real-time information. "
                 "Always cite the source URL in your response."
             ),

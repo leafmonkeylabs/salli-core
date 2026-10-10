@@ -14,9 +14,10 @@ immutable versions. Each version's lifecycle:
   pass. Also where every import lands until it is validated.
 - **validated**: it compiles and every example passes (`report.ok`).
 - **proposed**: an agent (or the user) asks the user to review it.
-- **active**: the version Salli computes with for that jurisdiction and year.
-  Activating one supersedes the set's previous active version, atomically,
-  under a lock on the set.
+- **active**: the version Salli computes with for that jurisdiction and year
+  (application/services/tax_service.py). Activating one supersedes the set's
+  previous active version, atomically, under a lock on the set, and makes its
+  deadlines the user's filing reminders (application/tax_deadlines.py).
 - **superseded**: was active once; kept, never changed, as history.
 
 Storing is never refused for being wrong: an agent iterating on a draft needs
@@ -42,6 +43,7 @@ import datetime
 import json
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
@@ -49,16 +51,20 @@ from pydantic import ValidationError
 from salli.application.fx import rate_to_base
 from salli.application.permissions import TAX_ACTIVATE, Actor
 from salli.application.ports import (
+    AccountCodeTaken,
     DocumentFetcher,
     FetchRefused,
     FxRatePort,
     FxUnavailableError,
     RuleSetExists,
 )
+from salli.application.tax_deadlines import sync_deadlines
+from salli.domain.accounting.models import Account
 from salli.domain.taxrules.arith import normalized_str
 from salli.domain.taxrules.common import Problem, RuleSetError
 from salli.domain.taxrules.diff import diff_documents
 from salli.domain.taxrules.engine import (
+    CompiledRuleSet,
     RuleSetEvaluationError,
     RuleSetResult,
     canonical_json,
@@ -66,7 +72,12 @@ from salli.domain.taxrules.engine import (
     content_hash,
 )
 from salli.domain.taxrules.engine import evaluate as evaluate_rules
-from salli.domain.taxrules.inputs import dates_needing_rates, role_postings, total_roles
+from salli.domain.taxrules.inputs import (
+    RoleTotals,
+    dates_needing_rates,
+    role_postings,
+    total_roles,
+)
 from salli.domain.taxrules.schema import Jurisdiction, RuleSet, rule_set_json_schema
 from salli.domain.taxrules.validate import (
     MAX_DOCUMENT_BYTES,
@@ -380,7 +391,13 @@ class TaxRuleService:
             version = await uow.tax_rule_sets.add_version(
                 actor.user_id, rule_set["id"], self._fields(actor, read, report, stored, note)
             )
-        return version
+            return await self._stored(uow, actor.user_id, version["id"])
+
+    async def _stored(self, uow: Any, user_id: str, version_id: str) -> dict[str, Any]:
+        """A version just written, with the ledger's warnings added to its
+        report (`_ledger_warnings`)."""
+        await self._ledger_warnings(uow, user_id, version_id)
+        return await self._version(uow, user_id, version_id, None)
 
     async def new_version(
         self,
@@ -399,9 +416,10 @@ class TaxRuleService:
             if rule_set is None:
                 raise RuleSetNotFound()
             self._same_rule_set(rule_set, read)
-            return await uow.tax_rule_sets.add_version(
+            version = await uow.tax_rule_sets.add_version(
                 actor.user_id, rule_set_id, self._fields(actor, read, report, stored, note)
             )
+            return await self._stored(uow, actor.user_id, version["id"])
 
     @staticmethod
     def _same_rule_set(rule_set: Mapping[str, Any], read: _Read) -> None:
@@ -457,11 +475,12 @@ class TaxRuleService:
                     except RuleSetExists as exists:  # created meanwhile: use it
                         rule_set = await repo.get_set(actor.user_id, exists.rule_set_id, lock=True)
                         assert rule_set is not None
-            return await repo.add_version(
+            version = await repo.add_version(
                 actor.user_id,
                 rule_set["id"],
                 self._fields(actor, read, report, stored, note, status),
             )
+            return await self._stored(uow, actor.user_id, version["id"])
 
     async def import_document(
         self, actor: Actor, document: Document, *, note: str | None = None
@@ -502,7 +521,7 @@ class TaxRuleService:
             ):
                 fields["status"] = status_after(report)
             await uow.tax_rule_sets.update_version(actor.user_id, version_id, fields)
-            return await self._version(uow, actor.user_id, version_id, None)
+            return await self._stored(uow, actor.user_id, version_id)
 
     async def propose(
         self, actor: Actor, version_id: str, rule_set_id: str | None = None
@@ -528,7 +547,7 @@ class TaxRuleService:
                 failed = _failure(report)
             # The fresh report is kept either way, so the refusal is explained.
             await uow.tax_rule_sets.update_version(actor.user_id, version_id, fields)
-            stored = await self._version(uow, actor.user_id, version_id, None)
+            stored = await self._stored(uow, actor.user_id, version_id)
         if failed:
             raise RuleSetStateError(f"Version {version['version']} can't be proposed: {failed}")
         return stored
@@ -587,6 +606,9 @@ class TaxRuleService:
                     },
                 )
                 await repo.set_active(actor.user_id, rule_set["id"], version_id)
+                # The filing calendar is the active version's: its deadlines
+                # replace the superseded version's reminders.
+                await sync_deadlines(uow, actor.user_id, rule_set, version["content"])
                 await uow.audit_log.log(
                     actor.user_id,
                     "activate_tax_rule_set",
@@ -600,10 +622,151 @@ class TaxRuleService:
                     },
                     "approved",
                 )
+            await self._ledger_warnings(uow, actor.user_id, version_id)
             stored = await self._version(uow, actor.user_id, version_id, None)
         if failed:
             raise RuleSetStateError(f"Version {version['version']} can't be activated: {failed}")
         return stored
+
+    # ── the ledger ───────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def _ledger_warnings(uow: Any, user_id: str, version_id: str) -> None:
+        """Add to the version's stored report a warning for each tax role the
+        user's accounts carry that none of their rule sets in use declares
+        any more (a superseded version declared it, say). A warning, never a
+        refusal: the accounts are fine, they just count towards no tax until
+        a rule set declares the role again or their role changes."""
+        declared = await uow.tax_rule_sets.declared_roles(user_id)
+        orphans: dict[str, list[str]] = {}
+        for account in await uow.ledger.get_accounts(user_id, include_inactive=True):
+            if account.tax_role is not None and account.tax_role not in declared:
+                orphans.setdefault(account.tax_role, []).append(account.code)
+        if not orphans:
+            return
+        version = await uow.tax_rule_sets.get_version(user_id, version_id)
+        if version is None:
+            return
+        validation = dict(version["validation"])
+        validation["warnings"] = [
+            *validation.get("warnings", []),
+            *(
+                _problem(
+                    Problem(
+                        "roles",
+                        f"Account{'s' if len(codes) > 1 else ''} {', '.join(codes)} carr"
+                        f"{'y' if len(codes) > 1 else 'ies'} the tax role {role!r}, which none "
+                        "of your rule sets in use declares any more: "
+                        f"{'they count' if len(codes) > 1 else 'it counts'} towards no tax "
+                        "until a rule set declares it again, or the tax role is changed",
+                    )
+                )
+                for role, codes in sorted(orphans.items())
+            ),
+        ]
+        await uow.tax_rule_sets.update_version(user_id, version_id, {"validation": validation})
+
+    async def suggested_accounts(
+        self,
+        actor: Actor,
+        rule_set_id: str,
+        *,
+        version_id: str | None = None,
+        apply: bool = False,
+    ) -> dict[str, Any]:
+        """The accounts a rule set suggests (`suggested_accounts`), each with
+        whether the user has one with that code; with `apply`, the missing
+        ones created, held in the base currency with the suggested tax role.
+
+        Idempotent: an account whose code is taken (active or not) is left as
+        it is, whatever its name or role, and reported so. The version is the
+        one named, else the active one, else the newest; a superseded one is
+        refused, since its roles may be ones no rule set uses any more."""
+        async with self._uow_factory() as uow:
+            rule_set = await uow.tax_rule_sets.get_set(actor.user_id, rule_set_id)
+            if rule_set is None:
+                raise RuleSetNotFound()
+            chosen = version_id or rule_set["active_version_id"] or rule_set["versions"][-1]["id"]
+            version = await self._version(uow, actor.user_id, chosen, rule_set_id)
+            if version["status"] == "superseded":
+                raise RuleSetStateError(
+                    f"Version {version['version']} was superseded; use the active version's "
+                    "suggestions"
+                )
+            try:
+                doc = RuleSet.model_validate(version["content"])
+            except ValidationError:
+                raise RuleSetStateError(
+                    f"Version {version['version']} doesn't match the schema, so its suggestions "
+                    "can't be read: validate it to see why"
+                ) from None
+            existing = {
+                a.code: a
+                for a in await uow.ledger.get_accounts(actor.user_id, include_inactive=True)
+            }
+            base = await uow.user_profiles.base_currency(actor.user_id)
+            rows: list[dict[str, Any]] = []
+            created: list[str] = []
+            for s in doc.suggested_accounts:
+                row: dict[str, Any] = {
+                    "code": s.code,
+                    "name": s.name,
+                    "type": s.type,
+                    "tax_role": s.tax_role,
+                    "account_id": None,
+                    "note": None,
+                }
+                found = existing.get(s.code)
+                if found is None and apply:
+                    try:
+                        row["account_id"] = await uow.ledger.save_account(
+                            actor.user_id,
+                            Account(
+                                id="",
+                                user_id=actor.user_id,
+                                code=s.code,
+                                name=s.name,
+                                type=s.type,
+                                currency=base,
+                                tax_role=s.tax_role,
+                            ),
+                        )
+                        row["status"] = "created"
+                        created.append(s.code)
+                    except AccountCodeTaken:  # made meanwhile
+                        row["status"] = "exists"
+                        row["note"] = "Created meanwhile; left as it is."
+                elif found is None:
+                    row["status"] = "missing"
+                else:
+                    row["status"] = "exists"
+                    row["account_id"] = found.id
+                    if (found.type, found.tax_role) != (s.type, s.tax_role):
+                        role = f"tax role {found.tax_role!r}" if found.tax_role else "no tax role"
+                        row["note"] = (
+                            f"You have {s.code} as {found.name!r} ({found.type}, {role}); "
+                            "it was left as it is."
+                        )
+                rows.append(row)
+            if created:
+                await uow.audit_log.log(
+                    actor.user_id,
+                    "create_suggested_tax_accounts",
+                    {
+                        "rule_set_id": rule_set_id,
+                        "version_id": version["id"],
+                        "codes": created,
+                        "by": actor.name or actor.kind,
+                    },
+                    "approved",
+                )
+        return {
+            "rule_set_id": rule_set_id,
+            "version_id": version["id"],
+            "version": version["version"],
+            "applied": apply,
+            "accounts": rows,
+        }
 
     # ── review and sharing ───────────────────────────────────────────────────
 
@@ -680,12 +843,27 @@ class TaxRuleService:
         year_label: str | None = None,
         rule_set_id: str | None = None,
     ) -> dict[str, Any]:
+        """Apply a version's rules to the user's own ledger, read-only (see
+        `apply`), as the API serves it."""
+        applied = await self.apply(
+            user_id, version_id, answers, year_label=year_label, rule_set_id=rule_set_id
+        )
+        return _evaluation(applied)
+
+    async def apply(
+        self,
+        user_id: str,
+        version_id: str,
+        answers: Mapping[str, str | bool] | None = None,
+        *,
+        year_label: str | None = None,
+        rule_set_id: str | None = None,
+    ) -> Applied:
         """Apply a version's rules to the user's own ledger, read-only.
 
         Each role's total is added up from the postings on the user's
         accounts whose `tax_role` is that role, within the rule set's year,
-        in each account's normal-balance direction (domain/taxrules/inputs.py:
-        the generic replacement for tax_service's `_build_ledger_view`),
+        in each account's normal-balance direction (domain/taxrules/inputs.py),
         converted into the rule set's currency at each entry date's rate when
         the ledger is kept in another. Then the engine computes every line.
         Nothing is stored. `year_label`, when given, must be the rules' own:
@@ -747,7 +925,16 @@ class TaxRuleService:
             "it is used as it is."
             for key in totals.negative
         ]
-        return _evaluation(version, doc, result, totals, base, sources, warnings)
+        return Applied(
+            version=version,
+            compiled=compiled,
+            result=result,
+            totals=totals,
+            answers=dict(answers or {}),
+            base_currency=base,
+            rates=sources,
+            warnings=warnings,
+        )
 
 
 def _failure(report: ValidationReport) -> str:
@@ -779,18 +966,80 @@ def _summary(version: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _evaluation(
-    version: Mapping[str, Any],
-    doc: RuleSet,
-    result: RuleSetResult,
-    totals: Any,
-    base: str,
-    rates: list[dict[str, str | None]],
-    warnings: list[str],
-) -> dict[str, Any]:
+@dataclass(frozen=True)
+class Applied:
+    """A version's rules applied to a user's ledger: everything the engine was
+    given and everything it produced."""
+
+    version: Mapping[str, Any]
+    compiled: CompiledRuleSet
+    result: RuleSetResult
+    totals: RoleTotals
+    #: The answers as given (a question left out took its default).
+    answers: dict[str, str | bool]
+    base_currency: str
+    #: The rates the ledger was converted at: {date, rate, source}.
+    rates: list[dict[str, str | None]]
+    warnings: list[str]
+
+    @property
+    def document(self) -> RuleSet:
+        return self.compiled.document
+
+    def role_rows(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "key": role.key,
+                "kind": role.kind,
+                "label": role.label,
+                "total": normalized_str(self.totals.totals[role.key]),
+                "postings": self.totals.postings[role.key],
+            }
+            for role in self.document.roles
+        ]
+
+
+def line_rows(result: RuleSetResult) -> list[dict[str, Any]]:
+    """Every line of a result as it is stored and served: amounts as decimal
+    strings."""
+    return [
+        {
+            "key": line.key,
+            "label": line.label,
+            "amount": normalized_str(line.amount),
+            "expr": line.expr,
+            "source": line.source,
+            "refundable": line.refundable,
+        }
+        for line in result.lines
+    ]
+
+
+def form_rows(compiled: CompiledRuleSet, result: RuleSetResult) -> list[dict[str, Any]]:
+    """Each form with its label, instructions and URL, and each field's label
+    and value (a decimal string, or true/false)."""
+
     def number(value: object) -> str | bool:
         return value if isinstance(value, bool) else normalized_str(cast(Any, value))
 
+    forms = {f.key: f for f in compiled.document.forms}
+    return [
+        {
+            "key": key,
+            "label": forms[key].label,
+            "instructions": forms[key].instructions,
+            "url": str(forms[key].url) if forms[key].url else None,
+            "fields": [
+                {"id": f.id, "label": f.label, "value": number(values[f.id])}
+                for f in forms[key].fields
+            ],
+        }
+        for key, values in result.forms.items()
+    ]
+
+
+def _evaluation(applied: Applied) -> dict[str, Any]:
+    doc, result, version = applied.document, applied.result, applied.version
     return {
         "version": _summary(version),
         "validated": bool(version["validation"].get("ok")),
@@ -800,41 +1049,16 @@ def _evaluation(
         "period_start": doc.year.start.isoformat(),
         "period_end": doc.year.end.isoformat(),
         "currency": result.currency,
-        "base_currency": base,
+        "base_currency": applied.base_currency,
         "content_hash": result.content_hash,
-        "roles": [
-            {
-                "key": role.key,
-                "kind": role.kind,
-                "label": role.label,
-                "total": normalized_str(totals.totals[role.key]),
-                "postings": totals.postings[role.key],
-            }
-            for role in doc.roles
-        ],
-        "rates": rates,
-        "lines": [
-            {
-                "key": line.key,
-                "label": line.label,
-                "amount": normalized_str(line.amount),
-                "expr": line.expr,
-                "source": line.source,
-                "refundable": line.refundable,
-            }
-            for line in result.lines
-        ],
+        "roles": applied.role_rows(),
+        "rates": applied.rates,
+        "lines": line_rows(result),
         "net": normalized_str(result.net),
         "net_expr": result.net_expr,
         "tax_payable": normalized_str(result.tax_payable),
         "refund_due": normalized_str(result.refund_due),
-        "forms": [
-            {
-                "key": key,
-                "fields": [{"id": fid, "value": number(value)} for fid, value in fields.items()],
-            }
-            for key, fields in result.forms.items()
-        ],
-        "warnings": warnings,
+        "forms": form_rows(applied.compiled, result),
+        "warnings": applied.warnings,
         "provenance": PROVENANCE,
     }

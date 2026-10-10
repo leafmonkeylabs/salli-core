@@ -5,8 +5,6 @@ Translate between ORM models and domain models via mappers below.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import uuid
 from collections.abc import Collection, Sequence
 from datetime import UTC, date, datetime
@@ -95,7 +93,6 @@ from salli.application.ports import (
     RemoteAccount,
     RuleRepository,
     StatementRepository,
-    TaxComputationRepository,
     UserProfileRepository,
 )
 from salli.domain.accounting.models import (
@@ -108,7 +105,6 @@ from salli.domain.accounting.models import (
 )
 from salli.domain.currency import exponent, is_currency
 from salli.domain.money import from_minor, to_minor
-from salli.domain.tax.models import TaxComputation
 
 if TYPE_CHECKING:
     from salli.extensions import UserDataPurger
@@ -507,76 +503,6 @@ class SQLLedgerRepository(LedgerRepository):
         result = await self._session.execute(stmt)
         row = result.scalar_one_or_none()
         return _account_from_orm(row) if row else None
-
-
-# ── TaxComputationRepository ──────────────────────────────────────────────────
-
-
-class SQLTaxComputationRepository(TaxComputationRepository):
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    def _serialize(self, computation: TaxComputation) -> dict[str, Any]:
-        import dataclasses
-
-        return json.loads(json.dumps(dataclasses.asdict(computation), default=str))
-
-    async def save(self, user_id: str, computation: TaxComputation) -> str:
-        import uuid
-
-        result_dict = self._serialize(computation)
-        # Every input the engine actually consumes. Hashing only gross+relief
-        # meant two computations with completely different credits, FSI or
-        # qualifying payments collided, so the hash could not do the one job it
-        # exists for — telling you whether a stored result is still current.
-        inputs_hash = hashlib.sha256(
-            json.dumps(
-                {
-                    "pack_version": computation.pack_version,
-                    "gross": str(computation.gross_income),
-                    "fsi": str(computation.foreign_service_income),
-                    "relief": str(computation.personal_relief_applied),
-                    "qp": str(computation.qp_deduction),
-                    "apit": str(computation.apit_credit),
-                    "ait": str(computation.ait_credit),
-                    "ftc": str(computation.foreign_tax_credit),
-                },
-                sort_keys=True,
-            ).encode()
-        ).hexdigest()
-
-        orm = TaxComputationORM(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            year=computation.pack_year,
-            pack_version=computation.pack_version,
-            inputs_hash=inputs_hash,
-            result_json=result_dict,
-        )
-        self._session.add(orm)
-        return orm.id
-
-    async def get_latest(self, user_id: str, year: str) -> TaxComputation | None:
-        stmt = (
-            select(TaxComputationORM)
-            .where(
-                TaxComputationORM.user_id == user_id,
-                TaxComputationORM.year == year,
-            )
-            .order_by(TaxComputationORM.created_at.desc())
-            .limit(1)
-        )
-        result = await self._session.execute(stmt)
-        row = result.scalar_one_or_none()
-        if row is None:
-            return None
-        # Deserialize back — used only for display/reporting, not recomputation.
-        return row.result_json  # type: ignore[return-value]
-
-    async def list_computation_keys(self) -> list[tuple[str, str]]:
-        stmt = select(TaxComputationORM.user_id, TaxComputationORM.year).distinct()
-        result = await self._session.execute(stmt)
-        return [(r[0], r[1]) for r in result.all()]
 
 
 # ── StatementRepository ───────────────────────────────────────────────────────
@@ -999,6 +925,60 @@ class SQLReminderRepository(ReminderRepository):
             )
         )
         return alert_id
+
+    async def sync_source(
+        self,
+        user_id: str,
+        source_domain: str,
+        source_prefix: str,
+        items: list[tuple[str, str, str]],
+    ) -> dict[str, list[str]]:
+        for source_id, _, _ in items:
+            if not source_id.startswith(source_prefix):
+                raise ValueError(f"{source_id!r} is not under {source_prefix!r}")
+        rows = (
+            (
+                await self._session.execute(
+                    select(ReminderORM).where(
+                        ReminderORM.user_id == user_id,
+                        ReminderORM.source_domain == source_domain,
+                        ReminderORM.source_id.startswith(source_prefix, autoescape=True),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        existing = {row.source_id: row for row in rows}
+        wanted = {source_id: (kind, due) for source_id, kind, due in items}
+        report: dict[str, list[str]] = {"created": [], "updated": [], "removed": []}
+        for source_id, row in existing.items():
+            if source_id not in wanted:
+                await self._session.delete(row)
+                report["removed"].append(row.id)
+        for source_id, (kind, due) in wanted.items():
+            row = existing.get(source_id)
+            if row is None:
+                reminder_id = str(uuid.uuid4())
+                self._session.add(
+                    ReminderORM(
+                        id=reminder_id,
+                        user_id=user_id,
+                        kind=kind,
+                        due_date=due,
+                        status="pending",
+                        source_domain=source_domain,
+                        source_id=source_id,
+                    )
+                )
+                report["created"].append(reminder_id)
+            elif (row.kind, row.due_date) != (kind, due):
+                if row.due_date != due:
+                    row.status = "pending"
+                row.kind, row.due_date = kind, due
+                report["updated"].append(row.id)
+        await self._session.flush()
+        return report
 
 
 # ── Agent Documents ────────────────────────────────────────────────────────────

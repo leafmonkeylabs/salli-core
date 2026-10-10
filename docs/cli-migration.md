@@ -67,9 +67,9 @@ with the server under `salli-server`; **3** have no replacement yet (below).
 | `salli ledger income-statement` | `salli ledger income-statement` | ledger.incomeStatement |
 | `salli ledger tags` | `salli tags` | tags.list |
 | `salli tax compute` | `salli tax compute` | tax.compute |
-| `salli tax explain` | `salli ask "explain my tax for 2025/26"` | agent.chat |
-| `salli tax prepare-return` | none | no API operation |
-| `salli tax packs` | `salli tax packs` | tax.packs |
+| `salli tax explain` | `salli tax explain <line>` | tax.explain |
+| `salli tax prepare-return` | `salli tax return prepare`, `salli tax return review <thread>` | tax.returns.prepare, tax.returns.get, tax.returns.resume |
+| `salli tax packs` | none: there are no built-in packs; your own rule sets are `salli tax rules list` | tax.ruleSets.list |
 | `salli tax recompute-stored` | `salli-server jobs recompute-tax` | every user's stored results; no API |
 | `salli tax latest` | `salli tax latest` | tax.latest |
 | `salli tax year` | `salli tax year` | tax.currentYear |
@@ -232,15 +232,6 @@ name as well as id.
 
 These had no API operation, so no client can offer them until one exists:
 
-- **`salli tax prepare-return`** — the return-preparation workflow
-  (`domain/agents/return_workflow.py`, gather → compute → map to the return's
-  cages → human review → finalize). The workflow and its service methods
-  (`AgentService.prepare_return` / `resume_return`) are still in the code; the
-  command line was its only surface. Bringing it back needs API routes shaped
-  like the monthly briefing's (`prepare`, then `resume` with the decision),
-  and then a `salli tax prepare-return` command. It is also the part most
-  affected by the planned move of tax rules and filing forms into
-  user-authored data, so it is left for that design.
 - **`salli skills list` / `install`** are now in the TypeScript CLI (with
   `uninstall`, `--project` and `--dir`). The skills live in
   [`packages/cli/skills`](../packages/cli/skills) and are bundled into the CLI

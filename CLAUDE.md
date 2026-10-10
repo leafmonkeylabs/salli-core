@@ -103,16 +103,14 @@ keeps plan/payment vocabulary out of the codebase.
 - **Double-entry entries are immutable.** Corrections use reversing entries. Never edit or delete a posted `JournalEntry`.
 - **Money is always `decimal.Decimal` in the domain; `BIGINT` minor units in the DB.** A float anywhere in the money path is a bug. Minor units are each currency's own (ISO 4217 exponent: JPY 0, USD 2, KWD 3 — `domain/currency.py`); never assume 100.
 - **Every user has a base currency** (on their profile). Postings in it have `fx_rate` 1; postings in any other currency carry the rate into it — the one given, or the published one for the entry's date — and are refused when there is neither (`application/fx.py`). The base currency cannot change once anything is stored in it.
-- **Tax packs are versioned `(country, year, version)`.** Every stored `TaxComputation` records the pack version so historical returns remain reproducible after rate changes.
-- **Nothing assumes a country.** A user's tax residency (ISO 3166-1, on their profile, with their tax ids) decides which packs compute their tax (`TaxService.jurisdiction`; with none set, the one country whose packs compute in their base currency), their tax year, the tax accounts in their starter chart, and the agents' tax framing. With no residency there is no country's framing at all.
+- **Tax rule sets are user data.** They are versioned and immutable once used. Every stored computation records the rule-set version and content hash. A rule set can't be activated until its worked examples pass, and only the user can activate one; AI connectors never hold `tax:activate`.
+- **Nothing assumes a country.** A user's tax residency (ISO 3166-1, on their profile) decides whose rules compute their tax (`TaxService.resolve`; never inferred from their currency), and their active rule set decides their tax year, their filing reminders and the agents' tax framing. With no residency, or no active rules, no tax is computed and there is no country's framing at all.
 
 ### Tax engine
 
-`domain/tax/engine.py` exports a pure function `compute(ledger_view, pack) -> TaxComputation`. It applies the pack's rate bands to taxable income **after** deducting personal relief, then subtracts credits (APIT, AIT, FTC). The engine never calls the LLM.
+salli-core carries no country's tax law. `domain/taxrules/` is a generic engine for **tax rule sets** (`salli.tax/1`, [docs/taxrules.md](docs/taxrules.md)): a JSON document of named lines, building blocks, band tables, deadlines, suggested accounts and return forms that a user (or their agent) writes, cites and checks against the authority's worked examples. `compile_rule_set` + `evaluate` are pure; the engine never calls the LLM.
 
-Tax packs live in `domain/tax/packs/`. The first pack is Sri Lanka 2025/26 (`lk_2025_26.py`): LKR 1,800,000 personal relief, bands 6/18/24/30/36%, 15% final tax on foreign service income remitted via bank, credits for APIT/AIT/FTC.
-
-A pack also declares its tax year's shape (`year_start`/`year_end`, so the registry can name the year any date falls in, and the pack for a date), its `withholding_kinds` (the `tax_role`s an account may carry for them; only kinds the engine credits, `CREDITED_KINDS`), the accounts a resident's starter chart gets (`starter_accounts`), and how the agents should talk about it (`authority`, `law`, `year_name`). Nothing hard-codes "the current year": with none named, the latest year whose pack has begun is computed.
+`TaxRuleService` stores rule sets as immutable versions through their lifecycle (activation needs `tax:activate`, and seeds the filing reminders from the version's `deadlines`). `TaxService` computes a user's tax only with their active rule set: jurisdiction from their residency (or as given), year as given or the active rule set covering today, ledger totals by account `tax_role` (`domain/taxrules/inputs.py`). An account's `tax_role` must be a role the user's own rule sets declare.
 
 ### Financial independence
 
@@ -123,7 +121,7 @@ A pack also declares its tax year's shape (`year_start`/`year_end`, so the regis
 Two distinct things in `domain/agents/`:
 
 - **`tax_agent.py`** — conversational agent (`create_agent`) with read-only tools backed by the engine. Uses `AsyncPostgresSaver` checkpointer for per-thread persistence.
-- **`return_workflow.py`** — deterministic `StateGraph` for return preparation: gather → compute → map_to_cages → review (human `interrupt()`) → finalize. The same interrupt gate will guard agent-assisted filing when/if an IRD individual-IIT API appears.
+- **`return_workflow.py`** — deterministic `StateGraph` for return preparation: compute → build_draft (the active rule set's `forms`, filled in from the result) → review (human `interrupt()`; edit computes again) → finalize. Served by `/v1/tax/returns/prepare|resume`. The same interrupt gate would guard filing on the user's behalf, should an authority ever offer a channel for it.
 
 ### Test layout
 
@@ -131,7 +129,8 @@ Two distinct things in `domain/agents/`:
 |---|---|
 | `tests/unit/` | Pure domain logic — no DB, no LLM |
 | `tests/properties/` | Hypothesis property tests for ledger invariants (trial balance nets zero, reversing restores balance, multi-currency reconciles) |
-| `tests/golden/` | IRD worked examples → expected `TaxComputation` JSON; a pack is wrong until these pass |
+| `tests/golden/` | Engines' worked examples (budget, debt, FI, portfolio, …) |
+| `tests/taxrules/` | The tax rule-set engine; `conformance/` holds fictional jurisdictions, each the structure of a real-world feature, never its law |
 | `tests/integration/` | Against a real Postgres (migrations, triggers); skipped without `SALLI_TEST_DATABASE_URL` |
 | `tests/contract/` | The committed OpenAPI document and the no-billing-vocabulary guard (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
 
@@ -139,9 +138,6 @@ Two distinct things in `domain/agents/`:
 
 All config is in `config.py` via `pydantic-settings` and reads from environment / `.env` (see `.env.example`; `salli-server setup` writes it). Required: `DATABASE_URL` and the `SUPABASE_*` auth keys. `ANTHROPIC_API_KEY` enables the AI features. `SALLI_REGISTRATION` (closed by default), `SALLI_STORAGE`, `SALLI_EXTENSIONS`.
 
-### Adding a new tax pack
+### Tax rules for a country
 
-1. Add `domain/tax/packs/<country>_<year>.py` declaring a `TaxPack` dataclass instance: its rates, its tax year (`year_start`, `year_end`; `year` named as `year_label` names it), its withholding kinds and starter accounts.
-2. Register it in `domain/tax/packs/registry.py` (`validate_pack` refuses a malformed one at import).
-3. Add golden tests in `tests/golden/` using IRD/revenue-authority worked examples.
-4. A chartered accountant must review the pack before it is used in production.
+Not in code. A country's rules are a rule set: see the schema docs ([docs/taxrules.md](docs/taxrules.md)), the conformance suite (`tests/taxrules/conformance/`), and the MCP `research_tax_rules` prompt an agent follows to draft one. Extending the engine (a new block or function) needs a new fictional jurisdiction in the conformance suite.

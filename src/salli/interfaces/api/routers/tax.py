@@ -1,100 +1,89 @@
+"""
+`/v1/tax`: the user's tax, computed by Salli's engine from the rule set they
+activated (docs/taxrules.md), and returns prepared from the forms it defines.
+
+A thin layer over TaxService and the return workflow. Each route takes the
+jurisdiction and year as given (`country`, `region`, `year`) or derives them as
+TaxService.resolve does: the user's tax residency, and their current tax year
+(the active rule set whose dates contain today) or else the latest active year
+that has begun. With nothing to compute with, a 422 `/problems/no-tax-rules`
+says what to do.
+"""
+
 from __future__ import annotations
 
-from decimal import Decimal
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from salli.domain.currency import quantize
-from salli.domain.tax.models import TaxComputation as DomainTaxComputation
-from salli.domain.tax.models import TaxPack as DomainTaxPack
-from salli.interfaces.api.contract import Amount, CountryCode, CurrencyCode
+from salli.interfaces.api.contract import Amount, CountryCode, CurrencyCode, DecimalOut
 from salli.interfaces.api.deps import AppServices, CurrentUser
+from salli.interfaces.api.routers.tax_rules import (
+    TaxRuleForm,
+    TaxRuleLine,
+    TaxRuleRate,
+    TaxRuleRoleTotal,
+)
 
 router = APIRouter(prefix="/tax", tags=["tax"])
 
-#: How a pack rounds tax to whole units: the modes the engine applies
-#: (domain/tax/engine.py `_round`), which refuses any other.
-Rounding = Literal["nearest_rupee", "truncate_rupee"]
+#: Which rules: a country (ISO 3166-1 alpha-2, or a user-assigned code such as
+#: XA for a fictional jurisdiction). Omitted: the user's tax residency.
+CountryParam = Annotated[
+    str | None, Query(pattern=r"^[A-Za-z]{2}$", examples=["XA"], description="Country code")
+]
+#: A region, for rules set per region. Omitted: the national rules, or the only ones.
+RegionParam = Annotated[str | None, Query(max_length=200)]
+#: A tax year as the rules name it. Omitted: the current tax year (see
+#: GET /tax/current-year), else the latest active year that has begun.
+YearParam = Annotated[str | None, Query(max_length=32, examples=["2031/32"])]
+
+Answers = dict[str, str | bool]
 
 
-class WithholdingKind(BaseModel):
-    """Tax withheld or paid ahead of the return that a pack credits against the bill."""
-
-    #: What an account's `tax_role` holds for it: "apit_credit".
-    code: str
-    #: Its short name: "APIT".
-    label: str
-    description: str
-
-
-def withholding_kinds(pack: DomainTaxPack) -> list[WithholdingKind]:
-    return [
-        WithholdingKind(code=k.code, label=k.label, description=k.description)
-        for k in pack.withholding_kinds
-    ]
-
-
-class TaxPack(BaseModel):
-    country: str
-    year: str
-    version: str
-    #: What the pack's amounts, and every computation made with it, are in.
-    currency: CurrencyCode
-    period_start: str
-    period_end: str
-    personal_relief: Amount
-    #: The filing calendar, as "MM-DD" dates.
-    return_due: str
-    set_due: str
-    installments: list[str]
-    final_installment_due: str
-    #: The tax withheld or paid ahead that this pack credits.
-    withholding_kinds: list[WithholdingKind]
-    #: Every `tax_role` an account may carry under this pack: the withholding
-    #: kinds' codes, then "qualifying_payment" and "fsi_income" where the pack
-    #: has those regimes.
-    tax_roles: list[str]
-
-
-class TaxBandWorking(BaseModel):
-    #: For display: "LKR 0 – LKR 1,000,000", or "LKR 2,500,000 – balance".
-    band: str
-    #: For display: "6%".
-    rate: str
-    from_amount: Amount
-    #: Null for the open-ended top band.
-    to_amount: Amount | None
-    #: The rate as a decimal fraction: "0.06".
-    rate_fraction: str
-    taxable_in_band: Amount
-    tax: Amount
+# ── computations ───────────────────────────────────────────────────────────────
 
 
 class TaxComputation(BaseModel):
-    pack_country: str
-    pack_year: str
-    pack_version: str
-    #: The pack's currency; every amount here is in it.
+    """The user's tax for one jurisdiction and year, as Salli's engine computed
+    it from their active rule set version. Reproducible: it records that
+    version, its content hash and the inputs the engine was given."""
+
+    #: Null for a computation that wasn't stored.
+    id: str | None
+    created_at: datetime | None
+    country: CountryCode
+    region: str | None
+    #: What the rules call the year.
+    year: str
+    period_start: str
+    period_end: str
+    #: The rules' currency: every amount here is in it.
     currency: CurrencyCode
-    gross_income: Amount
-    foreign_service_income: Amount
-    regular_income: Amount
-    personal_relief_applied: Amount
-    qp_deduction: Amount
-    taxable_income: Amount
-    fsi_tax: Amount
-    tax_before_credits: Amount
-    apit_credit: Amount
-    ait_credit: Amount
-    foreign_tax_credit: Amount
-    total_credits: Amount
+    #: What the ledger is kept in.
+    base_currency: CurrencyCode
+    rule_set_id: str
+    #: The version that computed it, its number and its content hash.
+    rule_set_version_id: str
+    version: int
+    content_hash: str
+    #: Each ledger total the rules take, from the accounts carrying its tax role.
+    roles: list[TaxRuleRoleTotal]
+    #: The answers to the rules' questions it was computed with.
+    answers: Answers
+    #: The exchange rates the ledger was converted at, when its currency isn't the rules'.
+    rates: list[TaxRuleRate]
+    #: Every line, each after the lines it uses, with the expression behind it.
+    lines: list[TaxRuleLine]
+    #: Owed after every credit: positive to pay, negative to be refunded.
+    net: Amount
     tax_payable: Amount
-    #: Credits in excess of the liability: what is owed back.
     refund_due: Amount
-    rounding: Rounding
-    band_workings: list[TaxBandWorking]
+    warnings: list[str]
+    #: Where these figures' rules came from, to show with them.
+    provenance: str
 
 
 class LatestTaxComputation(BaseModel):
@@ -102,233 +91,344 @@ class LatestTaxComputation(BaseModel):
     result: TaxComputation | None
 
 
-@router.get("/packs")
-async def list_packs(svc: AppServices) -> list[TaxPack]:
-    packs = svc.tax.list_packs()
-    return [
-        TaxPack(
-            country=p.country,
-            year=p.year,
-            version=p.version,
-            currency=p.currency,
-            period_start=p.period_start,
-            period_end=p.period_end,
-            personal_relief=str(quantize(p.personal_relief, p.currency)),
-            return_due=p.filing.return_due,
-            # The rest of the filing calendar was declared in the pack but never
-            # exposed, so clients hardcoded deadlines instead — and drifted. The
-            # dashboard said "due Jul 31" and mobile's hub said "Sep 30" while
-            # the pack said 30 November. Serve the whole calendar so there is
-            # one source of truth to read.
-            set_due=p.filing.set_due,
-            installments=p.filing.installments,
-            final_installment_due=p.filing.final_installment_due,
-            withholding_kinds=withholding_kinds(p),
-            tax_roles=list(p.tax_roles),
-        )
-        for p in packs
-    ]
-
-
-# ── shared formatter ────────────────────────────────────────────────────────
-
-
-def _fmt_computation(result: DomainTaxComputation | dict[str, Any]) -> dict[str, Any]:
-    """Format a TaxComputation object (dataclass) or raw stored dict into a
-    consistent API response shape.
-
-    Two input shapes exist because `get_latest` returns the stored JSONB blob
-    rather than re-hydrating it, so historical rows arrive as plain dicts whose
-    field set is whatever the engine wrote at the time.
-
-    Amounts come out at the currency's precision. The engine's figures carry
-    whatever scale their arithmetic left them with: sums of postings carry the
-    exchange rate's eight decimals on top of the amount's two
-    ("250000.0000000000"), and the qualifying-payment cap the repeating
-    digits of a third.
-    """
-    if isinstance(result, DomainTaxComputation):
-        # Live TaxComputation dataclass from the engine
-        bws = result.band_workings
-
-        currency = result.currency
-
-        def _money(amount: Decimal) -> str:
-            return str(quantize(amount, currency, strict=False))
-
-        def _band_label(bw) -> str:  # type: ignore[no-untyped-def]
-            fr = int(bw.from_amount)
-            return (
-                f"{currency} {fr:,} – {currency} {int(bw.to_amount):,}"
-                if bw.to_amount is not None
-                else f"{currency} {fr:,} – balance"
-            )
-
-        band_workings = [
-            {
-                # `band` and `rate` are pre-rendered for display. The numeric
-                # bounds below exist because mobile used to regex the label back
-                # into numbers to decide how much of a band was consumed — any
-                # change to the label's format silently broke those chips.
-                "band": _band_label(bw),
-                "rate": f"{bw.rate * 100:.0f}%",
-                "from_amount": _money(bw.from_amount),
-                "to_amount": None if bw.to_amount is None else _money(bw.to_amount),
-                "rate_fraction": str(bw.rate),
-                "taxable_in_band": _money(bw.taxable_in_band),
-                "tax": _money(bw.tax),
-            }
-            for bw in bws
-        ]
-        return {
-            "pack_country": result.pack_country,
-            "pack_year": result.pack_year,
-            "pack_version": result.pack_version,
-            "currency": currency,
-            "gross_income": _money(result.gross_income),
-            "foreign_service_income": _money(result.foreign_service_income),
-            "regular_income": _money(result.regular_income),
-            "personal_relief_applied": _money(result.personal_relief_applied),
-            "qp_deduction": _money(result.qp_deduction),
-            "taxable_income": _money(result.taxable_income),
-            "fsi_tax": _money(result.fsi_tax),
-            "tax_before_credits": _money(result.tax_before_credits),
-            "apit_credit": _money(result.apit_credit),
-            "ait_credit": _money(result.ait_credit),
-            "foreign_tax_credit": _money(result.foreign_tax_credit),
-            "total_credits": _money(result.total_credits),
-            "tax_payable": _money(result.tax_payable),
-            "refund_due": _money(result.refund_due),
-            "rounding": result.rounding,
-            "band_workings": band_workings,
-        }
-    else:
-        # Raw stored dict from JSONB (dataclasses.asdict serialised to JSON)
-        raw = result
-        # Computations stored before the currency was recorded were all LK, in LKR.
-        currency = raw.get("currency", "LKR")
-
-        def _stored_money(value: object) -> str:
-            return str(quantize(Decimal(str(value)), currency, strict=False))
-
-        band_workings = []
-        for bw in raw.get("band_workings", []):
-            fr_raw = bw.get("from_amount", "0")
-            to_raw = bw.get("to_amount")
-            fr = int(Decimal(str(fr_raw)))
-            label = (
-                f"{currency} {fr:,} – {currency} {int(Decimal(str(to_raw))):,}"
-                if to_raw is not None
-                else f"{currency} {fr:,} – balance"
-            )
-            rate_raw = Decimal(str(bw.get("rate", "0")))
-            band_workings.append(
-                {
-                    "band": label,
-                    "rate": f"{rate_raw * 100:.0f}%",
-                    "from_amount": _stored_money(fr_raw),
-                    "to_amount": None if to_raw is None else _stored_money(to_raw),
-                    "rate_fraction": str(rate_raw),
-                    "taxable_in_band": _stored_money(bw.get("taxable_in_band", "0")),
-                    "tax": _stored_money(bw.get("tax", "0")),
-                }
-            )
-
-        def _s(key: str, default: str = "0") -> str:
-            return str(raw.get(key, default))
-
-        def _m(key: str) -> str:
-            return _stored_money(raw.get(key, "0"))
-
-        return {
-            "pack_country": _s("pack_country", "LK"),
-            "pack_year": _s("pack_year", ""),
-            "pack_version": _s("pack_version", ""),
-            "currency": currency,
-            "gross_income": _m("gross_income"),
-            "foreign_service_income": _m("foreign_service_income"),
-            "regular_income": _m("regular_income"),
-            "personal_relief_applied": _m("personal_relief_applied"),
-            "qp_deduction": _m("qp_deduction"),
-            "taxable_income": _m("taxable_income"),
-            "fsi_tax": _m("fsi_tax"),
-            "tax_before_credits": _m("tax_before_credits"),
-            "apit_credit": _m("apit_credit"),
-            "ait_credit": _m("ait_credit"),
-            "foreign_tax_credit": _m("foreign_tax_credit"),
-            "total_credits": _m("total_credits"),
-            "tax_payable": _m("tax_payable"),
-            # Rows stored before `refund_due` existed have no such key; "0" is
-            # the correct reading for them, since the old engine floored at zero
-            # and never recorded an overpayment either way.
-            "refund_due": _m("refund_due"),
-            "rounding": _s("rounding", "nearest_rupee"),
-            "band_workings": band_workings,
-        }
-
-
-# ── routes ────────────────────────────────────────────────────────────────────
-
-
-#: A tax year by its pack's name: "2025/26". Omitted: the latest year Salli can
-#: compute for the user (GET /tax/current-year says which).
-TaxYearParam = Annotated[str | None, Query(examples=["2025/26"])]
+class TaxComputeIn(BaseModel):
+    #: Answers to the rules' questions, by key: a decimal string, a choice, or
+    #: true/false. A question left out takes its default.
+    answers: Answers = Field(default_factory=Answers)
 
 
 @router.post("/compute")
 async def compute_tax(
-    user_id: CurrentUser, svc: AppServices, year: TaxYearParam = None
+    user_id: CurrentUser,
+    svc: AppServices,
+    body: TaxComputeIn | None = None,
+    country: CountryParam = None,
+    region: RegionParam = None,
+    year: YearParam = None,
 ) -> TaxComputation:
-    """Compute the user's income tax for a year with their country's pack.
-
-    Their country is their tax residency or, while they have not set one, the
-    one country whose packs compute in their base currency. 422
-    (/problems/no-tax-pack) when Salli has no pack that can compute it.
-    """
-    result = await svc.tax.compute_tax(user_id, year)
-    return TaxComputation.model_validate(_fmt_computation(result))
+    """Compute the user's tax with their active rule set, from their ledger, and
+    store it. 422 (/problems/no-tax-rules) when they have no active rules for
+    it: the detail says what to do."""
+    body = body or TaxComputeIn()
+    result = await svc.tax.compute_tax(
+        user_id, country=country, region=region, year=year, answers=body.answers
+    )
+    return TaxComputation.model_validate(result)
 
 
 @router.get("/latest")
 async def get_latest(
-    user_id: CurrentUser, svc: AppServices, year: TaxYearParam = None
+    user_id: CurrentUser,
+    svc: AppServices,
+    country: CountryParam = None,
+    region: RegionParam = None,
+    year: YearParam = None,
 ) -> LatestTaxComputation:
-    result = await svc.tax.get_latest_computation(user_id, year)
+    """The last computation stored for the jurisdiction and year."""
+    result = await svc.tax.get_latest_computation(
+        user_id, country=country, region=region, year=year
+    )
     if result is None:
         return LatestTaxComputation(result=None)
-    return LatestTaxComputation(result=TaxComputation.model_validate(_fmt_computation(result)))
+    return LatestTaxComputation(result=TaxComputation.model_validate(result))
 
 
 class TaxYearStatus(BaseModel):
-    """The tax year the user is in today, and the latest one Salli can compute."""
+    """The tax year the user is in today, and the one a computation uses when
+    no year is named."""
 
-    #: Whose tax packs compute the user's tax; null when Salli cannot tell.
+    #: Whose rules: the country asked for, or the user's tax residency; null
+    #: when there is neither.
     country: CountryCode | None
-    #: "tax_residency" when the user set it; "base_currency" while they have
-    #: not, and one country's packs compute in their base currency.
-    country_source: Literal["tax_residency", "base_currency"] | None
-    #: The country's tax year today falls in ("2026/27"), with its first and
-    #: last day (YYYY-MM-DD). Null when Salli has no pack for the country.
+    #: "given" or "tax_residency"; null with neither.
+    country_source: Literal["given", "tax_residency"] | None
+    #: The current tax year: the year of the user's active rule set whose
+    #: dates contain today ("2031/32"), with its first and last day; null when
+    #: no active rule set covers today.
     year: str | None
+    region: str | None
     start: str | None
     end: str | None
-    #: Whether Salli has a pack for that year.
-    has_pack: bool
-    #: The latest year Salli can compute for the user: what /tax/compute and
-    #: /tax/latest use when no year is given. Null when there is none.
+    #: The active version that covers today.
+    rule_set_id: str | None
+    rule_set_version_id: str | None
+    version: int | None
+    #: What /tax/compute uses with no year: the current year, else the latest
+    #: active year that has begun. Null when there is none.
     latest_year: str | None
+    latest_rule_set_version_id: str | None
 
 
 @router.get("/current-year")
-async def get_current_year(user_id: CurrentUser, svc: AppServices) -> TaxYearStatus:
-    """The tax year the user is in today, in their country."""
-    where, current = await svc.tax.current_tax_year(user_id)
+async def get_current_year(
+    user_id: CurrentUser,
+    svc: AppServices,
+    country: CountryParam = None,
+    region: RegionParam = None,
+) -> TaxYearStatus:
+    """The tax year the user is in today: the year of their active rule set
+    whose dates contain today, or none."""
+    status = await svc.tax.status(user_id, country=country, region=region)
+    current, latest = status.current, status.latest
     return TaxYearStatus(
-        country=where.country,
-        country_source=where.source,
-        year=current.year.label if current else None,
-        start=current.year.start.isoformat() if current else None,
-        end=current.year.end.isoformat() if current else None,
-        has_pack=bool(current and current.pack),
-        latest_year=current.latest.year if current and current.latest else None,
+        country=status.jurisdiction.country,
+        country_source=status.jurisdiction.source,
+        year=current.year if current else None,
+        region=current.region if current else None,
+        start=current.start.isoformat() if current else None,
+        end=current.end.isoformat() if current else None,
+        rule_set_id=current.rule_set["id"] if current else None,
+        rule_set_version_id=current.version["id"] if current else None,
+        version=current.version["version"] if current else None,
+        latest_year=latest.year if latest else None,
+        latest_rule_set_version_id=latest.version["id"] if latest else None,
+    )
+
+
+# ── explanations ───────────────────────────────────────────────────────────────
+
+
+class TaxSourceRef(BaseModel):
+    id: str
+    url: str
+    title: str
+    retrieved: str | None
+
+
+class TaxExplainedLine(BaseModel):
+    key: str
+    label: str
+    amount: DecimalOut
+    expr: str
+    #: Where in the rules it is written: `lines[2].expr`, or `blocks[1]`.
+    path: str
+    #: The building block it was compiled from, or null for a declared line.
+    block: str | None
+    refundable: bool | None
+    source: TaxSourceRef | None
+
+
+class TaxExplainedInput(BaseModel):
+    """A ledger total the line used: the accounts carrying the tax role `key`."""
+
+    key: str
+    label: str
+    kind: str
+    total: DecimalOut
+
+
+class TaxExplainedAnswer(BaseModel):
+    key: str
+    label: str
+    value: str | bool
+    #: True when the user gave no answer and the question's default was used.
+    default: bool
+
+
+class TaxExplainedLineRef(BaseModel):
+    key: str
+    label: str
+    amount: DecimalOut
+    expr: str
+
+
+class TaxExplainedBand(BaseModel):
+    #: The band's ceiling, counted from zero; null for the last band.
+    upto: DecimalOut | None
+    rate: DecimalOut
+
+
+class TaxExplainedTable(BaseModel):
+    key: str
+    label: str | None
+    bands: list[TaxExplainedBand]
+    source: TaxSourceRef | None
+
+
+class TaxLineExplanation(BaseModel):
+    """Where one line of the user's tax came from, read off their rules and
+    the result: never worked out."""
+
+    country: CountryCode
+    region: str | None
+    year: str
+    currency: CurrencyCode
+    rule_set_id: str
+    rule_set_version_id: str
+    version: int
+    content_hash: str
+    line: TaxExplainedLine
+    #: The ledger totals it used.
+    inputs: list[TaxExplainedInput]
+    #: The answers it used.
+    answers: list[TaxExplainedAnswer]
+    #: The other lines it used.
+    lines: list[TaxExplainedLineRef]
+    #: The band tables it applies.
+    tables: list[TaxExplainedTable]
+    #: The lines (and `result.net`) that use it.
+    used_by: list[str]
+    provenance: str
+
+
+class TaxExplainIn(BaseModel):
+    #: The line's key, as a computation lists it (dotted for a block's lines).
+    line_key: Annotated[str, Field(min_length=1, max_length=200)]
+    answers: Answers = Field(default_factory=Answers)
+
+
+@router.post("/explain")
+async def explain_line(
+    body: TaxExplainIn,
+    user_id: CurrentUser,
+    svc: AppServices,
+    country: CountryParam = None,
+    region: RegionParam = None,
+    year: YearParam = None,
+) -> TaxLineExplanation:
+    """Where one line of the user's tax came from: its expression, the inputs
+    and lines it used with their values, any band table, and the source the
+    rules cite. Computed now with the active rules; nothing is stored. 404 for
+    a line the rules don't have."""
+    return TaxLineExplanation.model_validate(
+        await svc.tax.explain(
+            user_id, body.line_key, country=country, region=region, year=year, answers=body.answers
+        )
+    )
+
+
+# ── returns ────────────────────────────────────────────────────────────────────
+
+
+class TaxReturnDraft(BaseModel):
+    """A return, prepared for review: each form the rules define, filled in
+    from a stored computation, with its filing instructions and URL."""
+
+    country: CountryCode
+    region: str | None
+    year: str
+    currency: CurrencyCode
+    #: The stored computation the figures come from.
+    computation_id: str
+    rule_set_id: str
+    rule_set_version_id: str
+    version: int
+    content_hash: str
+    net: Amount
+    tax_payable: Amount
+    refund_due: Amount
+    lines: list[TaxRuleLine]
+    answers: Answers
+    forms: list[TaxRuleForm]
+    warnings: list[str]
+    note: str
+    provenance: str
+
+
+class TaxReturnWorksheet(TaxReturnDraft):
+    """An approved return: the draft, ready to file with the authority."""
+
+    status: Literal["ready_to_file"]
+
+
+class TaxReturnPrepareIn(BaseModel):
+    #: Name the review thread; a new one is made if omitted.
+    thread_id: Annotated[str | None, Field(max_length=200)] = None
+    year: Annotated[str | None, Field(max_length=32)] = None
+    country: Annotated[str | None, Field(pattern=r"^[A-Za-z]{2}$")] = None
+    region: Annotated[str | None, Field(max_length=200)] = None
+    answers: Answers = Field(default_factory=Answers)
+
+
+class TaxReturnPrepared(BaseModel):
+    """A return held for review under `thread_id`."""
+
+    thread_id: str
+    #: Why there is no draft (no active rules, no forms in them, an answer the
+    #: rules need); empty when there is one.
+    error: str
+    draft: TaxReturnDraft | None
+
+
+class TaxReturnResumeIn(BaseModel):
+    thread_id: Annotated[str, Field(min_length=1, max_length=200)]
+    #: approve (the worksheet, ready to file), reject, or edit: compute again
+    #: (after fixing the ledger, or with new `answers`) and review again.
+    decision: Literal["approve", "edit", "reject"]
+    #: With edit: answers to change, merged into the return's.
+    answers: Answers = Field(default_factory=Answers)
+
+
+class TaxReturnResumed(BaseModel):
+    """The outcome of a review."""
+
+    #: The approved worksheet; null otherwise.
+    worksheet: TaxReturnWorksheet | None
+    #: After an edit: the new draft, waiting for review on the same thread.
+    draft: TaxReturnDraft | None
+    #: Why there is neither (rejected, nothing waiting for review on the thread,
+    #: or the recomputation failed); empty otherwise.
+    error: str
+
+
+def _draft(raw: dict[str, Any]) -> TaxReturnDraft | None:
+    return TaxReturnDraft.model_validate(raw) if raw else None
+
+
+@router.post("/returns/prepare")
+async def prepare_return(
+    body: TaxReturnPrepareIn, user_id: CurrentUser, svc: AppServices
+) -> TaxReturnPrepared:
+    """Prepare a return from the user's active rules up to the review gate:
+    compute (and store) their tax, fill in each form the rules define, and
+    hold the draft for review under a thread of the user's own. Resume it with
+    `tax.returns.resume`."""
+    prepared = await svc.agent.prepare_return(
+        user_id,
+        year=body.year,
+        country=body.country,
+        region=body.region,
+        answers=body.answers,
+        thread_id=body.thread_id,
+    )
+    return TaxReturnPrepared(
+        thread_id=prepared["thread_id"],
+        error=prepared["error"],
+        draft=_draft(prepared["draft_return"]),
+    )
+
+
+class TaxReturnPending(BaseModel):
+    thread_id: str
+    #: Whether a return of the caller's is waiting for review on this thread.
+    waiting: bool
+    #: The draft waiting for review; null when there is none.
+    draft: TaxReturnDraft | None
+
+
+@router.get("/returns/{thread_id}")
+async def get_return(thread_id: str, user_id: CurrentUser, svc: AppServices) -> TaxReturnPending:
+    """The caller's return waiting for review on a thread, to show before
+    deciding. Another user's thread reads as nothing waiting."""
+    pending = await svc.agent.get_return(user_id, thread_id)
+    return TaxReturnPending(
+        thread_id=thread_id, waiting=pending["waiting"], draft=_draft(pending["draft_return"])
+    )
+
+
+@router.post("/returns/resume")
+async def resume_return(
+    body: TaxReturnResumeIn, user_id: CurrentUser, svc: AppServices
+) -> TaxReturnResumed:
+    """Resume the caller's return after review: approve, edit (compute again
+    and review again) or reject. Only a thread of the caller's own that is
+    waiting for review can be resumed."""
+    resumed = await svc.agent.resume_return(
+        user_id=user_id, thread_id=body.thread_id, decision=body.decision, answers=body.answers
+    )
+    worksheet = resumed["worksheet"]
+    return TaxReturnResumed(
+        worksheet=TaxReturnWorksheet.model_validate(worksheet) if worksheet else None,
+        draft=_draft(resumed["draft_return"]),
+        error=resumed["error"],
     )

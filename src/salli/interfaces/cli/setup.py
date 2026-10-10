@@ -235,8 +235,8 @@ def setup(
     tax_residency: str = typer.Option(
         None,
         "--tax-residency",
-        help="The country you are taxed in (ISO 3166-1 alpha-2, e.g. LK): your starter "
-        "accounts include its tax accounts when Salli has a tax pack for it",
+        help="The country you are taxed in (ISO 3166-1 alpha-2, e.g. GB): which of your "
+        "tax rule sets compute your tax",
     ),
 ):
     """Set up this instance: config, database, and your owner account."""
