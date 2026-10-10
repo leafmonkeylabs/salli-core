@@ -27,7 +27,8 @@ from salli.domain.tax.packs import registry
 
 
 class UnknownTaxRoleError(ValueError):
-    """A tax role the packs of the user's tax residency do not declare."""
+    """A tax role neither the packs of the user's tax residency nor any of
+    their own tax rule sets declare."""
 
 
 async def tax_residency(uow: Any, user_id: str) -> str | None:
@@ -38,14 +39,21 @@ async def tax_residency(uow: Any, user_id: str) -> str | None:
     return residency if isinstance(residency, str) and residency else None
 
 
-def _role_refusal(role: str, residency: str | None, allowed: tuple[str, ...]) -> str:
-    if residency and not allowed:
+def _role_refusal(
+    role: str, residency: str | None, packs: tuple[str, ...], own: tuple[str, ...]
+) -> str:
+    yours = (
+        f"; nor is it a role your tax rule sets declare ({', '.join(own)})"
+        if own
+        else "; nor does any tax rule set of yours declare it"
+    )
+    if residency and not packs:
         return (
-            f"Salli has no tax pack for {country_phrase(residency)} yet, so an account "
-            "there has no tax role to carry."
+            f"Salli has no tax pack for {country_phrase(residency)} yet, so {role!r} is no "
+            f"built-in tax role{yours}."
         )
     whose = f"the tax packs for {country_phrase(residency)}" if residency else "any tax pack"
-    return f"{role!r} is not a tax role {whose} use: {', '.join(allowed)}"
+    return f"{role!r} is not a tax role {whose} use ({', '.join(packs)}){yours}."
 
 
 class LedgerService:
@@ -61,16 +69,28 @@ class LedgerService:
             return await uow.user_profiles.base_currency(user_id)
 
     async def allowed_tax_roles(self, user_id: str) -> tuple[str, ...]:
-        """The tax roles this user's accounts may carry (registry.allowed_tax_roles):
-        their country's packs decide, and with no residency any pack's role will do."""
+        """The tax roles this user's accounts may carry: those of the built-in
+        packs (registry.allowed_tax_roles: their country's, or with no
+        residency any pack's), then every role their own tax rule sets declare
+        (a version that matches the schema, whatever its status, so accounts
+        can be set up while the rules are still being drafted)."""
         async with self._uow_factory() as uow:
-            return registry.allowed_tax_roles(await tax_residency(uow, user_id))
+            packs, own = await self._tax_roles(uow, user_id)
+        return packs + tuple(r for r in own if r not in packs)
+
+    @staticmethod
+    async def _tax_roles(uow: Any, user_id: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        # The built-in packs' roles stay allowed until phase 3 removes the
+        # packs (docs/design/country-neutral-core.md).
+        packs = registry.allowed_tax_roles(await tax_residency(uow, user_id))
+        own = tuple(sorted(await uow.tax_rule_sets.declared_roles(user_id)))
+        return packs, own
 
     async def _check_tax_role(self, uow: Any, user_id: str, role: str) -> None:
-        residency = await tax_residency(uow, user_id)
-        allowed = registry.allowed_tax_roles(residency)
-        if role not in allowed:
-            raise UnknownTaxRoleError(_role_refusal(role, residency, allowed))
+        packs, own = await self._tax_roles(uow, user_id)
+        if role not in packs and role not in own:
+            residency = await tax_residency(uow, user_id)
+            raise UnknownTaxRoleError(_role_refusal(role, residency, packs, own))
 
     async def add_account(
         self,

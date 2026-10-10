@@ -186,7 +186,7 @@ class DataPortabilityService:
         """Every tax rule set the user (or their agent) wrote, with every
         version's document, status and validation report."""
         async with self._uow_factory() as uow:
-            return await uow.tax_rule_sets.export(user_id)
+            return list(await uow.tax_rule_sets.export(user_id))
 
     async def _bank_connections(self, user_id: str) -> list[dict[str, Any]]:
         """Each bank connection with its accounts, their mappings and the

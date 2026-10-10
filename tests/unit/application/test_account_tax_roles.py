@@ -1,5 +1,6 @@
 """
-An account's tax role must be one its owner's tax packs declare.
+An account's tax role must be one its owner's tax packs declare, or one their
+own tax rule sets do.
 
 LedgerService checks it where a role is set: on a new account, and on an edit
 that changes it. An edit that keeps the role it has never fails on it, so a
@@ -52,7 +53,17 @@ class _Profiles:
         return "LKR"
 
 
-def _service(residency: str | None) -> tuple[LedgerService, _Ledger, _Profiles]:
+class _RuleSets:
+    def __init__(self, roles: set[str]) -> None:
+        self.roles = roles
+
+    async def declared_roles(self, user_id: str) -> set[str]:
+        return set(self.roles) if user_id == USER else set()
+
+
+def _service(
+    residency: str | None, own_roles: set[str] | None = None
+) -> tuple[LedgerService, _Ledger, _Profiles]:
     ledger, profiles = _Ledger(), _Profiles(residency)
 
     class _UoW:
@@ -61,6 +72,7 @@ def _service(residency: str | None) -> tuple[LedgerService, _Ledger, _Profiles]:
     uow = _UoW()
     uow.ledger = ledger  # type: ignore[attr-defined]
     uow.user_profiles = profiles  # type: ignore[attr-defined]
+    uow.tax_rule_sets = _RuleSets(own_roles or set())  # type: ignore[attr-defined]
 
     @asynccontextmanager
     async def factory():
@@ -94,6 +106,17 @@ async def test_with_no_residency_any_pack_s_role_will_do():
     with pytest.raises(UnknownTaxRoleError, match="any tax pack"):
         await svc.add_account(USER, "1", "x", "asset", tax_role="paye_credit")
     assert await svc.allowed_tax_roles(USER) == LK_2025_26.tax_roles
+
+
+async def test_a_role_the_user_s_own_rule_set_declares_is_allowed_anywhere():
+    svc, ledger, _ = _service("GB", own_roles={"paye_withheld", "salary"})
+    account_id = await svc.add_account(USER, "1450", "PAYE", "asset", tax_role="paye_withheld")
+    assert ledger.accounts[account_id].tax_role == "paye_withheld"
+    with pytest.raises(UnknownTaxRoleError, match="your tax rule sets declare"):
+        await svc.add_account(USER, "1", "x", "asset", tax_role="national_insurance")
+    # The packs' roles first, then the user's own.
+    svc, _, _ = _service(None, own_roles={"salary"})
+    assert await svc.allowed_tax_roles(USER) == (*LK_2025_26.tax_roles, "salary")
 
 
 async def test_an_account_without_a_role_needs_no_pack():
