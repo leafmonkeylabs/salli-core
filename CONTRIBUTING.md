@@ -9,8 +9,13 @@ fixes are all welcome.
   request. See [below](#contributor-license-agreement).
 - **Keep the rules in `CLAUDE.md`.** The LLM never computes money or tax;
   posted entries are never edited; money is `Decimal`; tax packs are versioned.
-- **CLI-first.** A new API route needs a `salli` command (and a line in
-  `src/salli/interfaces/parity.py`), and new commands support `--json`.
+- **CLI-first.** A new API route needs a `salli` command in `packages/cli`
+  (TypeScript, over the API), or a line in `EXEMPT` in
+  `packages/cli/test/api-coverage.test.ts` saying why a person never calls
+  it; that test fails otherwise. Commands print the API's JSON with `--json`,
+  and amounts stay decimal strings. `salli-server` (Python) is only for what
+  must run on the server's own machine: setup, serving, migrations, members,
+  health and jobs across every user.
 - **The API contract is committed.** A new route also needs its operation id in
   `src/salli/interfaces/api/contract.py` (it becomes a function name in every
   generated client), and `openapi/openapi.json` regenerated:
@@ -18,7 +23,8 @@ fixes are all welcome.
 - **Tests pass.** `uv run ruff check src tests`, `uv run ruff format --check
   src tests`, and `uv run pytest`. Migration tests need a Postgres:
   `SALLI_TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres uv run pytest`
-  works against `supabase start`.
+  works against `supabase start`. For `packages/`: `npm ci`, then
+  `npm run typecheck`, `npm run lint`, `npm test` and `npm run check:generated`.
 
 ## Contributor License Agreement
 

@@ -3,8 +3,8 @@ OnboardingService — the all-in-one first-run flow: profile facts saved as agen
 memories, a starter chart of accounts built from the user's income sources, an
 optional first goal, and the seeded `need` tags.
 
-Shared by `POST /onboarding/complete`, `salli onboarding complete` and
-`salli setup`, so every surface creates the same starting ledger. Idempotent.
+Shared by `POST /onboarding/complete` (which `salli onboarding complete`
+calls) and `salli-server setup`, so every surface creates the same starting ledger. Idempotent.
 """
 
 from __future__ import annotations

@@ -33,15 +33,16 @@ jobs:
         run: |
           uv run ruff check src tests
           uv run ruff format --check src tests
-      - name: Type-check the extension seam and the money path
+      - name: Type-check the extension seam, salli-server and the money path
         # The rest of the codebase predates strict typing; these modules are
-        # held to it so the seam extensions build on, and the code every
-        # amount and exchange rate passes through, stay precise.
+        # held to it so the seam extensions build on (salli-server's commands
+        # among it), and the code every amount and exchange rate passes
+        # through, stay precise.
         run: >-
           uv run pyright
           src/salli/extensions.py src/salli/application/defaults.py
           src/salli/domain/usage.py src/salli/migrations/support.py
-          src/salli/interfaces/cli/support.py
+          src/salli/interfaces/cli
           src/salli/domain/currency.py src/salli/domain/money.py
           src/salli/application/fx.py src/salli/adapters/fx
           src/salli/domain/dedup
@@ -58,7 +59,7 @@ jobs:
           src/salli/domain/llm.py src/salli/domain/model_choice.py src/salli/adapters/llm
           src/salli/application/services/llm_credential_service.py
           src/salli/application/services/chatgpt_connection_service.py
-          src/salli/interfaces/api/routers/ai.py src/salli/interfaces/cli/ai.py
+          src/salli/interfaces/api/routers/ai.py
           src/salli/domain/jurisdiction.py src/salli/domain/tax
           src/salli/domain/agents/jurisdiction.py src/salli/domain/agents/prompting.py
           src/salli/domain/fi/assumptions.py
@@ -66,7 +67,7 @@ jobs:
           src/salli/domain/portfolio/returns.py src/salli/domain/portfolio/performance.py
           src/salli/application/market_data.py
       - name: Tests
-        # Includes the contract tests: every API route has a CLI command, and
+        # Includes the contract tests: the OpenAPI document matches the app, and
         # salli-core carries no billing vocabulary.
         run: uv run pytest -q
 
@@ -86,6 +87,8 @@ jobs:
         # Includes the money guard: no Number()/parseFloat() on an amount.
         run: npm run lint
       - name: Tests
+        # Includes the API coverage test: every operation in openapi/openapi.json
+        # is reached by a salli command, or exempt with a reason.
         run: npm test
       - name: Build
         run: |

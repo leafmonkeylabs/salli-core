@@ -2,8 +2,10 @@
  * Financial independence (score, projections, purchases, strategy), goals
  * and the wealth advisor.
  */
-import type { Command } from '@commander-js/extra-typings';
+import { Option, type Command } from '@commander-js/extra-typings';
 import {
+  advisorBriefingPrepare,
+  advisorBriefingResume,
   advisorDailyBriefingGet,
   advisorDailyBriefingSet,
   advisorRecommendationsApply,
@@ -30,6 +32,7 @@ import {
   SalliApiError,
   streamStrategyGeneration,
   type AdvisoryReport,
+  type BriefingPrepared,
   type FiScore,
   type FireStrategy,
   type Goal,
@@ -603,6 +606,77 @@ function registerAdvisor(program: Command, app: App): void {
       const state = await api.call(advisorDailyBriefingGet);
       app.out.emit(state, { human: (s) => app.out.line(`Daily briefing: ${s.enabled ? 'on' : 'off'}`) });
     });
+
+  advisor
+    .command('briefing')
+    .description('The monthly briefing: the AI drafts it, you approve it before it is saved as a report')
+    .addOption(new Option('--decision <decision>', 'Decide without being asked (for scripts)').choices(['approve', 'reject']))
+    .option('--thread <id>', 'Decide on a draft prepared earlier, without drafting again (needs --decision)')
+    .action(async (opts) => {
+      if (opts.thread && !opts.decision) throw new UsageError('--thread decides on an earlier draft: pass --decision too.');
+      const api = await app.api();
+      let thread = opts.thread;
+      if (!thread) {
+        const spinner = app.prompter.spinner();
+        spinner.start('Drafting your briefing');
+        let prepared: BriefingPrepared;
+        try {
+          prepared = await api.call(advisorBriefingPrepare, { body: {}, timeoutMs: 5 * 60_000 });
+        } finally {
+          spinner.stop();
+        }
+        if (prepared.error) throw new CliError(`The briefing could not be drafted: ${singleLine(prepared.error)}`);
+        // Without a decision, a script gets the draft and its thread to decide
+        // on later; a person is shown it and asked.
+        if (!opts.decision && (app.out.machine || !app.prompter.interactive)) {
+          app.out.emit(prepared, {
+            records: (p) => p.briefing.recommendations,
+            human: (p) => {
+              briefingView(app, p);
+              app.out.note(`Save it with: salli advisor briefing --thread ${p.thread_id} --decision approve`);
+            },
+          });
+          return;
+        }
+        if (!app.out.machine) briefingView(app, prepared);
+        thread = prepared.thread_id;
+      }
+      const decision =
+        opts.decision ??
+        (await app.prompter.select({
+          message: 'Save this briefing as an advisor report?',
+          options: [
+            { value: 'approve', label: 'Save it' },
+            { value: 'reject', label: 'Discard it' },
+          ],
+        }));
+      const result = await api.call(advisorBriefingResume, { body: { thread_id: thread, decision } });
+      if (decision === 'approve' && !result.report.id) {
+        throw new CliError(`The briefing was not saved: ${singleLine(result.error || 'unknown reason')}`);
+      }
+      app.out.done(
+        result,
+        result.report.id ? `Saved as advisor report ${str(result.report.id).slice(0, 8)}: see it with salli advisor latest.` : 'Discarded the briefing.',
+      );
+    });
+}
+
+function briefingView(app: App, prepared: BriefingPrepared): void {
+  const out = app.out;
+  const { briefing } = prepared;
+  out.line(out.heading('Monthly briefing'));
+  if (briefing.summary) out.line(singleLine(briefing.summary));
+  if (briefing.fire_tier_assessment) out.line(out.colors.dim(singleLine(briefing.fire_tier_assessment)));
+  if (briefing.recommendations.length) {
+    out.line();
+    out.line(
+      out.table(briefing.recommendations, [
+        { header: 'PRIORITY', get: (r) => r.priority, align: 'right' },
+        { header: 'RECOMMENDATION', get: (r) => str(r.title), shrink: true },
+        { header: 'AREA', get: (r) => str(r.category) },
+      ]),
+    );
+  }
 }
 
 export function registerPlanningAhead(program: Command, app: App): void {

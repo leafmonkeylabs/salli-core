@@ -24,50 +24,72 @@ uv run ruff format src/ tests/
 uv run pyright src/
 
 # Migrate the database (Salli's history, then any enabled extension's)
-uv run salli db upgrade
+uv run salli-server db upgrade
 
 # New migration after editing adapters/db/models.py
 uv run alembic revision --autogenerate -m "description"
 
-# First-time setup of a local instance (after `supabase start`)
-uv run salli setup
+# First-time setup of a local instance (after `supabase start`), then serve it
+uv run salli-server setup
+uv run salli-server serve
+uv run salli-server doctor      # config, database, migrations; prints no secrets
+uv run salli-server --help
 
-uv run salli --help
+# The TypeScript SDK and the `salli` CLI (packages/)
+npm ci
+npm run typecheck && npm run lint && npm test
+npm run check:generated         # packages/sdk/src/generated matches openapi/openapi.json
+npm run build && node packages/cli/dist/salli.js --help
+
+# After changing a route: regenerate the API document, then the SDK
+uv run python -m salli.interfaces.api.spec > openapi/openapi.json
+npm run generate
 ```
 
 ## Architecture
 
 ### Hexagonal (ports & adapters)
 
-The domain core has **no I/O and no framework imports**. Everything external is hidden behind *ports* (abstract interfaces in `application/ports.py`). *Adapters* implement those ports. The CLI, the FastAPI app and the MCP server are thin *interface adapters* that construct the same services via `composition.py`.
+The domain core has **no I/O and no framework imports**. Everything external is hidden behind *ports* (abstract interfaces in `application/ports.py`). *Adapters* implement those ports. The FastAPI app, the MCP server and the `salli-server` operator CLI are thin *interface adapters* that construct the same services via `composition.py`.
 
 ```
 domain/       pure Python — no sqlalchemy, no fastapi, no httpx
 application/  use-cases (services) + port interfaces
 adapters/     concrete implementations of ports (db, llm, storage, fx, parsing)
-interfaces/   cli/, api/ (incl. the MCP server) — thin wrappers over services
-migrations/   Alembic history, shipped in the package (`salli db upgrade`)
-skills/       Claude Code skills for driving the CLI (`salli skills install`)
+interfaces/   api/ (incl. the MCP server), cli/ (salli-server) — thin wrappers over services
+migrations/   Alembic history, shipped in the package (`salli-server db upgrade`)
 composition.py  single place adapters are bound to ports
 extensions.py   how a deployment adds a usage meter, routes, commands, tables
 config.py       pydantic-settings, env-driven
 ```
 
-The CLI and the API both call `build_services(settings)` from `composition.py`, so the core is exercised identically from both surfaces.
+`salli-server` and the API both call `build_services(settings)` from `composition.py`, so the core is exercised identically from both surfaces.
+
+Outside `src/`: `packages/sdk` is the TypeScript SDK, generated from `openapi/openapi.json`, and `packages/cli` is the `salli` command line (npm `@leafmonkeylabs/salli`), a client of the API built on it.
 
 ### CLI-first
 
-Every route has a `salli` command — `interfaces/parity.py` maps them and
-`tests/contract/test_cli_api_parity.py` fails on a route without one. Every
-non-interactive command takes `--json` (data on stdout, messages on stderr);
-use `emit(data)` from `interfaces/cli/support.py` in new commands.
+Everything a person does goes through the API, and every API operation has a
+`salli` command in `packages/cli`: `packages/cli/test/api-coverage.test.ts`
+fails on an operation that no command reaches and that is not in its `EXEMPT`
+table with a reason (OAuth plumbing, cron, health checks). Commands print the
+API's JSON with `--json` (data on stdout, messages on stderr) and keep amounts
+as decimal strings; the CLI never does arithmetic on money.
+
+`salli-server` (`interfaces/cli/`) is only for what must run where the server
+runs: `setup`, `serve`, `doctor`, `db`, `members`, and `jobs` that act on every
+user. Never add a per-user feature there: add the route, then the `salli`
+command. Every `salli-server` command takes `--json`; use `emit(data)` from
+`interfaces/cli/support.py`. `support`'s helpers (`console`, `emit`,
+`require_user`, `services`, `leaf_commands`) and `main.app` / `main.cli()` are
+the stable surface extensions build on: keep their names and behaviour.
 
 ### Extensions
 
 Salli has no billing, plans or metering. A deployment that needs them supplies
 an extension (`extensions.py`): a `UsageMeter` that may refuse an AI action
 (`domain/usage.py`), an `EntitlementPolicy` that may shape a surface, plus
-routes, CLI groups, services, tables (own metadata, own migration history and
+routes, `salli-server` command groups, services, tables (own metadata, own migration history and
 version table) and per-user purgers/exporters. The defaults —
 `application/defaults.py` — meter nothing and show everything. Call
 `services.usage.charge(...)` before any new AI action and
@@ -111,11 +133,11 @@ Two distinct things in `domain/agents/`:
 | `tests/properties/` | Hypothesis property tests for ledger invariants (trial balance nets zero, reversing restores balance, multi-currency reconciles) |
 | `tests/golden/` | IRD worked examples → expected `TaxComputation` JSON; a pack is wrong until these pass |
 | `tests/integration/` | Against a real Postgres (migrations, triggers); skipped without `SALLI_TEST_DATABASE_URL` |
-| `tests/contract/` | CLI/API parity and the no-billing-vocabulary guard |
+| `tests/contract/` | The committed OpenAPI document and the no-billing-vocabulary guard (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
 
 ### Configuration
 
-All config is in `config.py` via `pydantic-settings` and reads from environment / `.env` (see `.env.example`; `salli setup` writes it). Required: `DATABASE_URL` and the `SUPABASE_*` auth keys. `ANTHROPIC_API_KEY` enables the AI features. `SALLI_REGISTRATION` (closed by default), `SALLI_STORAGE`, `SALLI_EXTENSIONS`.
+All config is in `config.py` via `pydantic-settings` and reads from environment / `.env` (see `.env.example`; `salli-server setup` writes it). Required: `DATABASE_URL` and the `SUPABASE_*` auth keys. `ANTHROPIC_API_KEY` enables the AI features. `SALLI_REGISTRATION` (closed by default), `SALLI_STORAGE`, `SALLI_EXTENSIONS`.
 
 ### Adding a new tax pack
 

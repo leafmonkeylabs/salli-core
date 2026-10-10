@@ -1,7 +1,12 @@
 """
-What a CLI command needs: the console, the current user, the services, and id
-resolution. Public so an extension's command groups (salli/extensions.py) can
-use the same plumbing as Salli's own commands without importing cli/main.
+What a `salli-server` command needs: the console, --json output, the acting
+user, the services, and id resolution.
+
+This module is the stable surface for an extension's command groups
+(salli/extensions.py): `console`, `emit`, `json_mode`, `require_user`,
+`services`, `leaf_commands`, `with_json_option`, `resolve_id`, `money` and
+`amount` keep their names and behaviour, so a deployment's commands can use
+the same plumbing as Salli's own without importing cli/main.
 """
 
 from __future__ import annotations
@@ -31,16 +36,9 @@ console = Console()
 # parseable and exit codes still say whether it worked.
 
 #: Commands that hold a conversation or a review prompt open. They have no
-#: single result to print, so --json is not offered.
-INTERACTIVE_COMMANDS = frozenset(
-    {
-        ("agent", "chat"),
-        ("agent", "resume"),
-        ("tax", "explain"),
-        ("tax", "prepare-return"),
-        ("advisor", "briefing"),
-    }
-)
+#: single result to print, so --json is not offered. None of the server's
+#: own commands do (setup asks questions, but can be answered by flags).
+INTERACTIVE_COMMANDS: frozenset[tuple[str, ...]] = frozenset()
 
 _json_mode = False
 
@@ -124,15 +122,18 @@ def with_json_option(root: Any) -> Any:
 
 
 def require_user() -> str:
-    """The user the CLI acts as: SALLI_USER_ID, from the environment or .env
-    (`salli setup` writes it). Refuses rather than guessing: acting as a
+    """The user a command acts as: SALLI_USER_ID, from the environment or .env
+    (`salli-server setup` writes it: the instance's owner). For an extension's
+    commands that act on one user. Refuses rather than guessing: acting as a
     made-up user would quietly put someone's records in an account no one
     can sign in to."""
     from salli.config import get_settings
 
     user_id = os.environ.get("SALLI_USER_ID") or get_settings().salli_user_id
     if not user_id:
-        console.print("[red]No user set.[/red] Run [bold]salli setup[/bold], or set SALLI_USER_ID.")
+        console.print(
+            "[red]No user set.[/red] Run [bold]salli-server setup[/bold], or set SALLI_USER_ID."
+        )
         raise typer.Exit(1)
     return user_id
 

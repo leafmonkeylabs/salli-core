@@ -1,4 +1,4 @@
-"""The first-run flow every surface shares (API, `salli onboarding`, `salli setup`)."""
+"""The first-run flow every surface shares (the API, which `salli onboarding` calls, and `salli-server setup`)."""
 
 from __future__ import annotations
 

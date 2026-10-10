@@ -10,7 +10,7 @@ An extension is a Python package that registers an `ExtensionSpec` under the
 A spec has two halves, because they are needed at different times:
 
 - Static parts — API routers and CLI command groups. They are mounted when the
-  FastAPI app or the `salli` CLI is created, before any service exists; their
+  FastAPI app or the `salli-server` CLI is created, before any service exists; their
   handlers reach services through the usual request/command plumbing.
 - `build(ctx)` — returns an `Extension` with the runtime parts: a `UsageMeter`,
   an `EntitlementPolicy`, a `ChatGPTPlanPolicy` (whether users may use their
@@ -91,11 +91,11 @@ class ExtensionSpec:
     build: Callable[[ExtensionContext], Extension]
     #: FastAPI `APIRouter`s, mounted after Salli's own routers.
     api_routers: tuple[Any, ...] = ()
-    #: (name, typer.Typer) pairs, added to the `salli` CLI as sub-commands.
+    #: (name, typer.Typer) pairs, added to the `salli-server` CLI as sub-commands.
     cli_groups: tuple[tuple[str, Any], ...] = ()
     #: The extension's own Alembic script directory, if it owns tables. Its
     #: env.py must use its own version table (see salli.migrations.support).
-    #: `salli db upgrade` runs it after Salli's.
+    #: `salli-server db upgrade` runs it after Salli's.
     migrations: str | None = None
 
 

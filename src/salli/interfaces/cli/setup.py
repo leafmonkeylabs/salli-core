@@ -1,8 +1,8 @@
 """
-`salli setup`, `salli serve` and `salli members` — standing up a self-hosted
+`salli-server setup`, `serve` and `members` — standing up a self-hosted
 instance and deciding who may use it.
 
-`salli setup` is the one command between `supabase start` and a working
+`salli-server setup` is the one command between `supabase start` and a working
 Salli. It is idempotent: every step checks before it acts, so it can be re-run
 after a failure, or to add what a later version needs.
 
@@ -12,7 +12,7 @@ after a failure, or to add what a later version needs.
 3. Ask for an Anthropic API key, if there is none.
 4. Migrate the database.
 5. Create the owner's login in Supabase Auth and their Salli profile, kept in
-   the currency they choose, and point the CLI at them (SALLI_USER_ID).
+   the currency they choose, and record them as the owner (SALLI_USER_ID).
 6. Seed the starter chart of accounts.
 
 Nothing here prints a secret.
@@ -316,11 +316,10 @@ def setup(
     emit({"user_id": user_id, "email": owner_email, "env_written": sorted(written), **result})
 
     console.print(
-        "\n[bold]Done.[/bold] Try:\n"
-        "  uv run salli accounts list\n"
-        "  uv run salli entry add --date 2026-10-01 --desc 'Lunch' "
-        "--debit <expense-id>:1500 --credit <cash-id>:1500\n"
-        "  uv run salli serve            # the HTTP API and MCP server on :8000\n"
+        "\n[bold]Done.[/bold] Next:\n"
+        "  salli-server serve                         # the API and MCP server on :8000\n"
+        "  npm install --global @leafmonkeylabs/salli  # the salli command line\n"
+        "  salli login --server http://127.0.0.1:8000  # sign in with the email above\n"
     )
 
 
@@ -354,4 +353,4 @@ def members_add(
     asyncio.run(_add_member(user_id, email, currency))
     emit({"user_id": user_id, "email": email})
     console.print(f"[green]Member added:[/green] {email} ({user_id})")
-    console.print(f"  They use the CLI with SALLI_USER_ID={user_id}")
+    console.print("  They sign in with that email and password: salli login, or any client.")
