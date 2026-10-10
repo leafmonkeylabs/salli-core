@@ -70,6 +70,30 @@ jobs:
         # salli-core carries no billing vocabulary.
         run: uv run pytest -q
 
+  cli:
+    # The TypeScript SDK and the `salli` command line (packages/).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npm run typecheck
+      - name: Lint
+        # Includes the money guard: no Number()/parseFloat() on an amount.
+        run: npm run lint
+      - name: Tests
+        run: npm test
+      - name: Build
+        run: |
+          npm run build
+          node packages/cli/dist/salli.js --version
+      - name: The generated SDK matches openapi/openapi.json
+        run: npm run check:generated
+
   cla-bot:
     runs-on: ubuntu-latest
     steps:
