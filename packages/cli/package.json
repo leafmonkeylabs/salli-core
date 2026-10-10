@@ -1,5 +1,5 @@
 {
-  "name": "@leafmonkeylabs/salli",
+  "name": "salli",
   "version": "0.1.0",
   "description": "salli: your personal finances from the terminal. A client for a Salli server.",
   "license": "Apache-2.0",

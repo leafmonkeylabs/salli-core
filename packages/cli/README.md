@@ -47,7 +47,7 @@ conversions are the server's.
 With Node.js 22.12 or later:
 
 ```bash
-npm install --global @leafmonkeylabs/salli
+npm install --global salli
 salli --version
 ```
 
