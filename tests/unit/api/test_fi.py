@@ -36,21 +36,28 @@ def _impact() -> dict:
         "is_stale": False,
         "data_as_of": "2026-07-23",
         "stale_after_days": 45,
-        "real_return_used": "0.0462962962962962962962962963",
+        "real_return_used": "0.04",
         "swr": "0.04",
         "assumptions": {
-            "region": "LKR",
-            "inflation": {"value": "0.05", "origin": "default", "source": "CBSL target"},
+            "status": "placeholder",
+            "placeholders": ["real_return"],
+            "message": "Using placeholder assumptions for the real return.",
             "real_return": {
-                "value": "0.0462962962962962962962962963",
-                "origin": "strategy",
-                "source": "The nominal returns your FIRE strategy chose.",
+                "value": "0.04",
+                "origin": "placeholder",
+                "source": "Placeholder: a round 4% a year after inflation.",
+                "note": None,
             },
             "safe_withdrawal_rate": {
                 "value": "0.04",
                 "origin": "strategy",
                 "source": "The rate your FIRE strategy chose.",
+                "note": None,
             },
+            "inflation": None,
+            "nominal_return": None,
+            "real_returns": {"conservative": "0.02", "base": "0.04", "growth": "0.06"},
+            "nominal_returns": None,
         },
     }
 
@@ -218,13 +225,22 @@ def _projections(currency: str) -> dict:
         "fire_year_base": 17,
         "fire_year_growth": 14,
         "current_portfolio": "1200000",
-        "real_returns": {"conservative": "0.0094", "base": "0.0472", "growth": "0.0849"},
-        "expected_inflation": "0.05",
+        "real_returns": {"conservative": "0.02", "base": "0.04", "growth": "0.06"},
+        "terms": "real_and_nominal",
+        "inflation": "0.02",
+        "nominal_returns": {"conservative": "0.0404", "base": "0.0608", "growth": "0.0812"},
     }
 
 
 async def test_projections_are_at_the_currency_precision(client, mock_services):
-    mock_services.fi.get_projections.return_value = _projections("JPY")
+    data = _projections("JPY")
+    data["points"][1]["nominal"] = {
+        "conservative": "1530000.00",
+        "base": "1560600.00",
+        "growth": "1591200.00",
+        "fi_number": "30600000.00",
+    }
+    mock_services.fi.get_projections.return_value = data
 
     body = (await client.get("/v1/fi/projections", headers=AUTH)).json()
 
@@ -234,7 +250,16 @@ async def test_projections_are_at_the_currency_precision(client, mock_services):
         "conservative": "1500000",
         "base": "1530000",
         "growth": "1560000",
+        # In that year's money, from the user's inflation, at the same precision.
+        "nominal": {
+            "conservative": "1530000",
+            "base": "1560600",
+            "growth": "1591200",
+            "fi_number": "30600000",
+        },
     }
+    assert body["terms"] == "real_and_nominal"
+    assert body["inflation"] == "0.02"
 
 
 class _WithholdingView:

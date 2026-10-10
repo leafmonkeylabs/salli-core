@@ -746,16 +746,15 @@ class UserProfileRepository(ABC):
         *,
         tax_residency: str | None,
         tax_ids: list[dict[str, str]],
-        ird_number: str | None,
     ) -> None:
         """Write the tax residency (None clears it) and the tax ids exactly as
-        given, with `ird_number`, the legacy column the "LK-TIN" id mirrors.
-        `ProfileMissing` if there is no profile."""
+        given. `ProfileMissing` if there is no profile."""
         raise NotImplementedError
 
-    async def set_fi_assumptions(self, user_id: str, values: dict[str, Any]) -> None:
-        """Write the user's own FI assumptions present in `values` ("inflation",
-        "real_return", "safe_withdrawal_rate"); None returns one to the default."""
+    async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
+        """Replace the user's own FI assumptions with `stored`, as
+        `OwnAssumptions.as_stored()` writes them. `ProfileMissing` if there is
+        no profile."""
         raise NotImplementedError
 
 

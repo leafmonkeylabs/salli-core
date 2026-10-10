@@ -254,7 +254,7 @@ class Recurring:
     #: is on the 30th in a short month, and the 31st again after it.
     anchor_days: tuple[int, ...] = ()
     #: The typical amount on `money_account_id`, in that account's currency
-    #: (a USD salary into an LKR account, in rupees); None when it can't be
+    #: (a USD salary into a EUR account, in euros); None when it can't be
     #: known (no rate into the account's currency) or wasn't asked for.
     money_amount: Decimal | None = None
     #: The same for the other side, when it is another account of the

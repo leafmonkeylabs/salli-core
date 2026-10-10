@@ -10,7 +10,7 @@ Both formats get the same account names: the five Beancount roots (Assets,
 Liabilities, Equity, Income, Expenses), then the account's parents and its own
 name as CamelCase components, so `Bank Account` under `Savings` becomes
 `Assets:Savings:BankAccount`. A posting in a currency other than the base
-carries its exchange rate as a price (`100.00 USD @ 302.50 LKR`), so the entry
+carries its exchange rate as a price (`100.00 USD @ 0.92 EUR`), so the entry
 balances in the base currency exactly as it does in Salli. Pure: no I/O.
 """
 

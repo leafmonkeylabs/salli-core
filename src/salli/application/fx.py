@@ -5,7 +5,7 @@ A posting in the owner's base currency has a rate of 1, always. A posting in any
 other currency needs a rate into the base: the one the caller gives (the rate
 the bank actually used, from a statement or a receipt) or, failing that, the
 published rate for the entry's date. If there is neither, the entry is refused
-with FxUnavailableError. Booking 100 USD at a rate of 1 into a rupee ledger
+with FxUnavailableError. Booking 100 USD at a rate of 1 into a yen ledger
 would put a number in it that is wrong by the exchange rate, and nothing would
 ever flag it.
 """

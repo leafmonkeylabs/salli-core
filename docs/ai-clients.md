@@ -9,6 +9,9 @@ Once connected, your AI can:
 - read your cash flow, spending, net worth over time, recurring payments and your
   cash forecast;
 - answer "can I afford…?" from your forecast and your FI plan;
+- show your financial-independence projections, in today's money, and research
+  your own planning assumptions (inflation, returns, withdrawal rate) from
+  citable sources, setting them once you agree;
 - sort imported transactions, then book what you approve;
 - create rules, so the next statement sorts itself;
 - run the Wealth Advisor and read budgets, debts, portfolio and insurance;
@@ -21,8 +24,24 @@ Once connected, your AI can:
 Salli knows no country's tax law. Without rules you activated it computes no tax,
 and the tax tools say so and what you can do.
 
-Four ready-made prompts come with the server: **review my month**, **sort my pending
-transactions**, **can I afford** and **research tax rules** (for a country and year).
+Five ready-made prompts come with the server: **review my month**, **sort my pending
+transactions**, **can I afford**, **set planning assumptions** and **research tax
+rules** (for a country and year).
+
+### Financial independence tools
+
+| Tool | What it does |
+|---|---|
+| `get_fi_projections` | Your investable assets projected under conservative, base and growth real-return scenarios, the FI number and the years to it, in today's money (and each year's own money once you set inflation). |
+| `get_fi_assumptions` | The planning assumptions behind those figures: which apply and where each came from, what you set, and the placeholders. |
+| `set_fi_assumption` | Sets (or clears) one of your figures, with its source. A write: the AI shows you the figure and its source first. |
+| `simulate_purchase` | What a purchase costs in months of freedom, cash against instalments. |
+
+FI figures are in real terms. Where you have set no return or withdrawal rate, a
+round placeholder (4%) stands in, and every result says so (`assumptions.status`
+is `placeholder`): it is no forecast and no country's figure. Salli keeps no
+table of figures by country; your own, with their sources, replace the
+placeholders.
 
 ### Tax tools
 

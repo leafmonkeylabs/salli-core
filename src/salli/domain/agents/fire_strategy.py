@@ -39,9 +39,9 @@ FIRE strategy using these seven foundational theories:
    bucket first, then stability, then growth. Monthly contributions flow in this sequence.
 
 5. **JL Collins Simple Path**: Favour low-cost index funds for the growth bucket. Suggest
-   what is available where the user lives (the end of this prompt says what is known about
-   that), and for the international portion, broad index ETFs, via a foreign account where
-   needed.
+   the kinds of fund to look for where the user lives (the end of this prompt says what is
+   known about that), and for the international portion, broad index ETFs, via a foreign
+   account where needed.
 
 6. **Currency Diversification**: If the user has foreign income or multi-currency accounts,
    create a dedicated foreign currency / hedge bucket. Home-currency depreciation risk is
@@ -56,15 +56,17 @@ FIRE strategy using these seven foundational theories:
 Generate allocation buckets appropriate to this user, not a generic template. The bucket
 count, names, and target percentages should reflect their actual financial profile.
 
-Planning assumptions: the data's `assumptions` gives the inflation, the base scenario's real
-return and the safe withdrawal rate Salli applies for this user. Each has an `origin`: `user`
-when they set it on their profile, `default` when it is the default for their currency
-(`region`), with its `source`. Use them:
-- Choose nominal returns consistent with that inflation: after inflation, your base return
-  should be near the real return given, or say in ai_rationale why it is not
+Planning assumptions: Salli plans in REAL terms (after inflation, in today's money). The
+data's `assumptions` gives the base scenario's real return and the safe withdrawal rate Salli
+applies for this user, and their inflation if they set one. Each has an `origin`: `user` when
+they (or their agent) set it, with the `source` they cited, or `placeholder` when it is
+Salli's neutral stand-in, a round figure that is no forecast and no country's figure.
+`status` is `placeholder` while any is one. Use them:
+- Choose three REAL yearly returns (conservative, base, growth), after inflation: never
+  nominal ones. Your base should be near the real return given, or say in ai_rationale why not
 - Keep to any assumption whose origin is `user`: Salli applies theirs over yours
-- In ai_rationale, say which assumptions you built on and where each came from. Call defaults
-  what they are, round starting points the user can change on their profile, never forecasts
+- In ai_rationale, say which assumptions you built on and where each came from. Call a
+  placeholder what it is, and suggest the user set their own figures, with sources
 
 Rules:
 - Target percentages across all buckets must sum to 100%
@@ -109,14 +111,20 @@ class FireStrategySchema(BaseModel):
         le=0.06,
         description="Safe withdrawal rate as a FRACTION, e.g. 0.04 for 4%, never 4",
     )
-    return_conservative: float = Field(
-        ge=-0.5, le=0.5, description="Conservative annual NOMINAL return as a FRACTION, e.g. 0.06"
+    real_return_conservative: float = Field(
+        ge=-0.05,
+        le=0.15,
+        description="Conservative yearly REAL return (after inflation) as a FRACTION, e.g. 0.02",
     )
-    return_base: float = Field(
-        ge=-0.5, le=0.5, description="Base annual NOMINAL return as a FRACTION, e.g. 0.10"
+    real_return_base: float = Field(
+        ge=-0.05,
+        le=0.15,
+        description="Base yearly REAL return (after inflation) as a FRACTION, e.g. 0.04",
     )
-    return_growth: float = Field(
-        ge=-0.5, le=0.5, description="Growth annual NOMINAL return as a FRACTION, e.g. 0.14"
+    real_return_growth: float = Field(
+        ge=-0.05,
+        le=0.15,
+        description="Growth yearly REAL return (after inflation) as a FRACTION, e.g. 0.06",
     )
     target_monthly_expenses: float | None = Field(
         default=None,
@@ -159,10 +167,11 @@ class FireStrategySchema(BaseModel):
     @model_validator(mode="after")
     def _returns_ordered(self) -> FireStrategySchema:
         """Conservative <= base <= growth, or the three scenarios are meaningless."""
-        if not (self.return_conservative <= self.return_base <= self.return_growth):
+        if not (self.real_return_conservative <= self.real_return_base <= self.real_return_growth):
             raise ValueError(
                 "returns must be ordered conservative <= base <= growth, got "
-                f"{self.return_conservative}, {self.return_base}, {self.return_growth}"
+                f"{self.real_return_conservative}, {self.real_return_base}, "
+                f"{self.real_return_growth}"
             )
         return self
 
@@ -190,11 +199,11 @@ async def generate_strategy(
         else "Generate a comprehensive, personalised FIRE strategy for this user based on their actual financial data."
     )
 
-    from salli.domain.agents.jurisdiction import market_notes
+    from salli.domain.agents.jurisdiction import investing_context
 
-    # What is known about where the user invests: nothing country-specific when
-    # their tax residency is not known.
-    system = f"{FIRE_SYSTEM_PROMPT}\n\n{market_notes(context.get('tax_residency'))}"
+    # Where the user invests, and nothing else about it: Salli keeps no notes
+    # on any country's products, so the strategy suggests kinds, not names.
+    system = f"{FIRE_SYSTEM_PROMPT}\n\n{investing_context(context.get('tax_residency'))}"
     text = await llm.generate(
         instructions=system,
         input=f"Here is the user's financial profile:\n\n{payload}\n\nTask: {task}",

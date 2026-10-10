@@ -31,6 +31,28 @@ server.
 5. **Money is a string.** Amounts come back as strings like `"1500.00"`. Keep
    them as strings; pass amounts as plain numbers (`1500`, `1500.50`), no
    currency symbols.
+6. **Say when a figure rests on a placeholder.** FI figures are in real terms
+   (today's money). Where the user has set no return or withdrawal rate, a
+   round placeholder stands in: when a result's `assumptions.status` is
+   `"placeholder"`, tell the user, quoting `assumptions.message`, and offer to
+   set their own (below). Salli knows no country's figures, and neither should
+   you invent one.
+
+## Planning assumptions
+
+The user's own figures, each with where it comes from:
+
+    salli fi assumptions --json                      # what applies; which are placeholders
+    salli fi assumptions set real-return 5% --source "<url or publication>" --json
+    salli fi assumptions set swr 3.5% --source "<…>" --json
+    salli fi assumptions set inflation 3% --source "<…>" --json   # adds future-money figures
+    salli fi assumptions clear inflation --json
+
+`real-return` is after inflation; or set `nominal-return` together with
+`inflation`, not both. Research a figure from a citable source (a statistics
+office or central bank for inflation, long-run studies for returns), show the
+user the figure and its source, and set it only once they agree. Projections
+show nominal (future-money) figures only once inflation is set.
 
 ## Running it
 
@@ -56,7 +78,7 @@ Other ids can be shortened to any unique prefix.
 | `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`, `accounts <set> [--apply]`; `activate` is the user's, never yours |
 | `budgets`, `debts`, `insurance`, `subscriptions` | each domain's records and reports |
 | `holdings`, `portfolio` | holdings: `holdings list`, `holdings add`; `portfolio` (summary), `portfolio transactions add <holding> buy\|sell\|dividend\|…`, `portfolio lots <holding>`, `portfolio prices set <symbol> <close>`, `portfolio performance --from --to` |
-| `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `afford`, `strategy`; `goals list`, `goals allocate` |
+| `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `afford`, `strategy`, `assumptions` (`set`, `clear`); `goals list`, `goals allocate` |
 | `reports` | `balance-sheet`, `net-worth`, `goal-progress`, `export` |
 | `reminders` | `list`, `add`, `seed` (filing deadlines from the active tax rules), `sync-alerts` |
 | `advisor` | `run`, `latest`, `reports`, `apply`, `dismiss` |

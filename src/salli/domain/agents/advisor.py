@@ -35,7 +35,7 @@ FIRE-Tier mentoring focus:
 FIRE Strategy Alignment (when strategy is present):
 - Reference the user's specific allocation buckets by name and key
 - If a bucket's target_pct is unmet (surplus not being routed there), flag it specifically
-- Reference actual return assumptions from the strategy (conservative/base/growth rates)
+- Reference actual return assumptions from the strategy (conservative/base/growth real rates)
 - Reference the projected years-to-FIRE and which scenario the user is tracking toward
 - Reference theories applied (e.g. "As your Barbell Strategy specifies...")
 
@@ -51,9 +51,11 @@ Mentoring framework (apply in this priority order):
 
 Rules:
 - NEVER recompute or invent numbers, reference provided figures exactly
-- The projections' `assumptions` say which inflation, return and withdrawal rate applied and
-  where each came from. Never present a default as a forecast; where a recommendation rests
-  on one, say the user can set their own
+- Projections are in real terms (today's money). Their `assumptions` say which return and
+  withdrawal rate applied, and the user's inflation if they set one, with where each came from.
+  When `assumptions.status` is `placeholder`, say plainly that the projections use placeholder
+  figures (round stand-ins, not forecasts) and suggest the user set their own, with sources.
+  Never present a placeholder as a forecast
 - Each rationale: 1–2 sentences, specific to THIS person's data and strategy
 - If the recommendation relates to a specific strategy bucket, set bucket_key to that bucket's key
 - Produce 4–7 recommendations ordered by priority (1 = highest)

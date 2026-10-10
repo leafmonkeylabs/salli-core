@@ -14,6 +14,7 @@ import {
   advisorReportsList,
   advisorRun,
   fiAssumptions,
+  fiAssumptionsSet,
   fiProjections,
   fiScoreGet,
   fiScoreHistory,
@@ -33,6 +34,8 @@ import {
   streamStrategyGeneration,
   type AdvisoryReport,
   type BriefingPrepared,
+  type FiAssumptions,
+  type FiAssumptionsUpdate,
   type FiScore,
   type FireStrategy,
   type Goal,
@@ -47,6 +50,42 @@ import { AccountBook, amountArg, confirmAction, countArg, rateArg } from './shar
 
 /** A field from the server, as one line of safe text. */
 const str = (v: unknown): string => (typeof v === 'string' ? singleLine(v) : v === null || v === undefined ? '' : String(v));
+
+// ── Planning assumptions ─────────────────────────────────────────────────────
+//
+// FI figures are in real terms (today's money). Where you have set no figure,
+// a neutral placeholder stands in, and every command that shows a figure built
+// on one says so.
+
+/** The assumptions you can set, by the name you type, and the API's name. */
+const ASSUMPTIONS = {
+  'real-return': { key: 'real_return', label: 'Real return' },
+  'nominal-return': { key: 'nominal_return', label: 'Nominal return' },
+  inflation: { key: 'inflation', label: 'Inflation' },
+  swr: { key: 'safe_withdrawal_rate', label: 'Safe withdrawal rate' },
+} as const;
+type AssumptionName = keyof typeof ASSUMPTIONS;
+const ASSUMPTION_NAMES = Object.keys(ASSUMPTIONS) as AssumptionName[];
+
+function assumptionName(value: string): AssumptionName {
+  const name = value.trim().toLowerCase().replace(/_/g, '-');
+  const known = name === 'safe-withdrawal-rate' ? 'swr' : name;
+  if (!(ASSUMPTION_NAMES as string[]).includes(known)) {
+    throw new UsageError(`Unknown assumption "${value}".`, `They are: ${ASSUMPTION_NAMES.join(', ')}.`);
+  }
+  return known as AssumptionName;
+}
+
+const PLACEHOLDER_LABELS: Record<string, string> = { real_return: 'real return', safe_withdrawal_rate: 'safe withdrawal rate' };
+
+/** Says, on stderr, when figures rest on placeholders, and how to set your own. */
+function assumptionsNote(app: App, assumptions: FiAssumptions | null | undefined): void {
+  if (!assumptions || assumptions.status !== 'placeholder') return;
+  const names = assumptions.placeholders.map((p) => PLACEHOLDER_LABELS[p] ?? p).join(' and the ');
+  app.out.note(
+    `Using placeholder assumptions for the ${names}: round figures, not forecasts. Set yours with \`salli fi assumptions set real-return 5% --source <where it comes from>\` (and swr).`,
+  );
+}
 
 // ── FI score and the rest of `salli fi` ──────────────────────────────────────
 
@@ -88,9 +127,9 @@ function strategyView(app: App, s: FireStrategy): void {
     out.details([
       ['Safe withdrawal', has(s.swr) ? out.percent(s.swr, 2) : undefined],
       [
-        'Returns',
-        has(s.return_conservative) && has(s.return_base) && has(s.return_growth)
-          ? `${out.percent(s.return_conservative, 1)} / ${out.percent(s.return_base, 1)} / ${out.percent(s.return_growth, 1)} (conservative / base / growth)`
+        'Real returns',
+        has(s.real_return_conservative) && has(s.real_return_base) && has(s.real_return_growth)
+          ? `${out.percent(s.real_return_conservative, 1)} / ${out.percent(s.real_return_base, 1)} / ${out.percent(s.real_return_growth, 1)} (conservative / base / growth, after inflation)`
           : undefined,
       ],
       // A JSON number in the API (unlike every other amount), shown as sent.
@@ -124,36 +163,89 @@ function registerFi(program: Command, app: App): void {
     .action(async (opts) => {
       const api = await app.api();
       const score = await (opts.recompute ? api.call(fiScoreRecompute) : api.call(fiScoreGet));
-      app.out.emit(score, { records: (s) => s.components, human: (s) => scoreView(app, s) });
+      app.out.emit(score, {
+        records: (s) => s.components,
+        human: (s) => {
+          scoreView(app, s);
+          assumptionsNote(app, s.assumptions);
+        },
+      });
     });
 
-  fi.command('assumptions')
-    .description('The planning assumptions behind your FI figures, and where each came from')
+  const assumptions = fi
+    .command('assumptions')
+    .description('The planning assumptions behind your FI figures (in real terms): which apply, where each came from, and setting your own');
+
+  assumptions
+    .command('show', { isDefault: true })
+    .description('Which assumptions apply, where each came from, and which are placeholders')
     .action(async () => {
       const api = await app.api();
       const report = await api.call(fiAssumptions);
       app.out.emit(report, {
         human: (r) => {
           const out = app.out;
-          const names = [
-            ['inflation', 'Inflation'],
-            ['real_return', 'Real return'],
-            ['safe_withdrawal_rate', 'Safe withdrawal rate'],
-          ] as const;
-          out.line(`${out.heading('FI assumptions')} ${out.colors.dim(`defaults for ${singleLine(r.applied.region)}`)}`);
+          const a = r.applied;
+          const rows = ASSUMPTION_NAMES.map((name) => ({ name, ...ASSUMPTIONS[name], applied: a[ASSUMPTIONS[name].key] }));
+          const from = (origin: string): string => (origin === 'user' ? 'you' : origin === 'strategy' ? 'your strategy' : 'placeholder');
+          out.line(`${out.heading('FI assumptions')} ${out.colors.dim('real terms: after inflation, in today’s money')}`);
           out.line(
-            out.table(
-              names.map(([key, label]) => ({ key, label })),
-              [
-                { header: 'ASSUMPTION', get: (n) => n.label },
-                { header: 'APPLIED', get: (n) => out.percent(r.applied[n.key].value, 2), align: 'right' },
-                { header: 'FROM', get: (n) => (r.applied[n.key].origin === 'user' ? 'you' : r.applied[n.key].origin) },
-                { header: 'DEFAULT', get: (n) => out.percent(r.defaults[n.key].value, 2), align: 'right' },
-                { header: 'SOURCE', get: (n) => r.applied[n.key].source, shrink: true },
-              ],
+            out.table(rows, [
+              { header: 'ASSUMPTION', get: (n) => n.label },
+              { header: 'APPLIED', get: (n) => (n.applied ? out.percent(n.applied.value, 2) : 'not set'), align: 'right' },
+              { header: 'FROM', get: (n) => (n.applied ? from(n.applied.origin) : ''), style: (t) => (t === 'placeholder' ? out.colors.yellow(t) : t) },
+              { header: 'SOURCE', get: (n) => (n.applied ? singleLine(n.applied.source) : ''), shrink: true },
+            ]),
+          );
+          out.line(
+            out.colors.dim(
+              `Scenarios (real): ${out.percent(a.real_returns.conservative, 1)} / ${out.percent(a.real_returns.base, 1)} / ${out.percent(a.real_returns.growth, 1)} (conservative / base / growth)`,
             ),
           );
-          out.note('Defaults are starting points, not forecasts. Set your own with `salli profile set --fi-inflation 3%` (and --fi-real-return, --fi-swr).');
+          out.note(singleLine(a.message));
+          if (a.status === 'placeholder') {
+            out.note('Set your own with `salli fi assumptions set <name> <rate> --source <where it comes from>`.');
+          }
+        },
+      });
+    });
+
+  assumptions
+    .command('set')
+    .argument('<name>', `Which: ${ASSUMPTION_NAMES.join(', ')}`)
+    .argument('<rate>', 'A yearly rate: 0.03 or 3%')
+    .option('--source <source>', 'Where the figure comes from: a URL, or a publication and its date')
+    .option('--note <note>', 'Anything else worth keeping with it')
+    .description('Set one of your own planning assumptions, with its source')
+    .action(async (nameText, rateText, opts) => {
+      const name = assumptionName(nameText);
+      const { key, label } = ASSUMPTIONS[name];
+      const value = rateArg(rateText, '<rate>');
+      const body: FiAssumptionsUpdate = { [key]: { value, source: opts.source ?? null, note: opts.note ?? null } };
+      const api = await app.api();
+      const report = await api.call(fiAssumptionsSet, { body });
+      app.out.emit(report, {
+        human: (r) => {
+          app.out.success(`${label} set to ${app.out.percent(value, 2)}${opts.source ? ` (source: ${singleLine(opts.source)})` : ''}.`);
+          if (!opts.source) app.out.warn('No source given: add one with --source, so you can check the figure later.');
+          app.out.note(singleLine(r.applied.message));
+        },
+      });
+    });
+
+  assumptions
+    .command('clear')
+    .argument('<names...>', `Which: ${ASSUMPTION_NAMES.join(', ')}`)
+    .description('Clear your own figures: your strategy’s, or a placeholder, stands in again')
+    .action(async (names) => {
+      const keys = names.map((n) => ASSUMPTIONS[assumptionName(n)].key);
+      const body: FiAssumptionsUpdate = Object.fromEntries(keys.map((k) => [k, null]));
+      const api = await app.api();
+      const report = await api.call(fiAssumptionsSet, { body });
+      app.out.emit(report, {
+        human: (r) => {
+          app.out.success(`Cleared: ${names.join(', ')}.`);
+          app.out.note(singleLine(r.applied.message));
         },
       });
     });
@@ -190,6 +282,7 @@ function registerFi(program: Command, app: App): void {
           const currency = d.currency ?? '';
           const points = d.points ?? [];
           const years = (n: number | null | undefined): string => (typeof n === 'number' ? plural(n, 'year') : 'not in reach');
+          const future = d.terms === 'real_and_nominal';
           out.line(
             out.details([
               ['FI number', out.money(d.fi_number, currency)],
@@ -197,17 +290,29 @@ function registerFi(program: Command, app: App): void {
               ['FI in', `${years(d.fire_year_conservative)} / ${years(d.fire_year_base)} / ${years(d.fire_year_growth)} (conservative / base / growth)`],
             ]),
           );
-          if (!points.length) return;
-          out.line();
-          out.line(
-            out.table(points, [
-              { header: 'YEAR', get: (pt) => pt.year, align: 'right' },
-              { header: 'CONSERVATIVE', get: (pt) => out.amount(pt.conservative, currency), align: 'right' },
-              { header: 'BASE', get: (pt) => out.amount(pt.base, currency), align: 'right' },
-              { header: 'GROWTH', get: (pt) => out.amount(pt.growth, currency), align: 'right' },
-            ]),
+          if (points.length) {
+            out.line();
+            out.line(
+              out.table(points, [
+                { header: 'YEAR', get: (pt) => pt.year, align: 'right' },
+                { header: 'CONSERVATIVE', get: (pt) => out.amount(pt.conservative, currency), align: 'right' },
+                { header: 'BASE', get: (pt) => out.amount(pt.base, currency), align: 'right' },
+                { header: 'GROWTH', get: (pt) => out.amount(pt.growth, currency), align: 'right' },
+                ...(future
+                  ? [
+                      { header: 'BASE (THEN)', get: (pt: (typeof points)[number]) => (pt.nominal ? out.amount(pt.nominal.base, currency) : ''), align: 'right' as const },
+                      { header: 'FI NUMBER (THEN)', get: (pt: (typeof points)[number]) => (pt.nominal ? out.amount(pt.nominal.fi_number, currency) : ''), align: 'right' as const },
+                    ]
+                  : []),
+              ]),
+            );
+          }
+          out.note(
+            future
+              ? `Amounts in ${singleLine(currency)}, in today’s money; the THEN columns are in each year’s own money, at your inflation of ${out.percent(d.inflation, 2)}.`
+              : `Amounts in ${singleLine(currency)}, in today’s money. Set your inflation to see them in future money too: salli fi assumptions set inflation 3% --source <where it comes from>.`,
           );
-          out.note(`Amounts in ${singleLine(currency)}, in today’s money.`);
+          assumptionsNote(app, d.assumptions);
         },
       });
     });
@@ -282,6 +387,7 @@ function registerFi(program: Command, app: App): void {
           out.note(`Amounts in ${d.currency}.`);
           if (!d.payable_from_liquid) out.warn('Paying cash would use more than your liquid savings.');
           if (d.is_stale) out.warn(`Your ledger’s latest entry is from ${displayDate(d.data_as_of, out.locale)}: add recent entries for a truer answer.`);
+          assumptionsNote(app, d.assumptions);
         },
       });
     });

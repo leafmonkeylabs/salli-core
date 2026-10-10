@@ -34,6 +34,27 @@ export function currencyArg(value: string): string {
   return code;
 }
 
+/** An ISO 3166-1 alpha-2 country code someone typed, upper-cased. */
+export function countryArg(value: string, flag = '--tax-residency'): string {
+  const code = value.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) throw new UsageError(`${flag} takes a two-letter country code like DE or KE (got "${value}").`);
+  return code;
+}
+
+/**
+ * A tax id typed as SCHEME=NUMBER: the scheme is the country's code, a hyphen
+ * and the kind of number ("XX-TIN"). Salli knows no country's schemes; the
+ * server checks the shape again. An empty number (SCHEME=) means "remove it".
+ */
+export function taxIdArg(raw: string): { scheme: string; value: string } {
+  const at = raw.indexOf('=');
+  const scheme = at > 0 ? raw.slice(0, at).trim().toUpperCase() : '';
+  if (!/^[A-Z]{2}-[A-Z0-9]+$/.test(scheme)) {
+    throw new UsageError(`--tax-id takes SCHEME=NUMBER, the scheme a country code, a hyphen and a name, like XX-TIN=123456789 (got "${raw}").`);
+  }
+  return { scheme, value: raw.slice(at + 1).trim() };
+}
+
 /** The chart of accounts, for naming and finding accounts. */
 export class AccountBook {
   readonly accounts: Account[];

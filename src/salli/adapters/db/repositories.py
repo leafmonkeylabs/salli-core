@@ -802,8 +802,9 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         amount=Decimal(str(j["amount"])),
         credit_flag=j["credit_flag"],
         bank_ref=j.get("bank_ref", ""),
-        # Rows saved before the currency was recorded were all rupees.
-        currency=j.get("currency", "LKR"),
+        # Every row records its currency when it is saved: there is no default
+        # currency to fall back on.
+        currency=j["currency"],
         ref_kind=j.get("ref_kind", "id"),
         ref_source=j.get("ref_source", ""),
         source_account=j.get("source_account", ""),
@@ -1211,7 +1212,6 @@ class SQLUserProfileRepository(UserProfileRepository):
             "residency_status": row.residency_status,
             "employer": row.employer,
             "employment_type": row.employment_type,
-            "ird_number": row.ird_number,
             "risk_score": row.risk_score,
             "risk_category": row.risk_category,
             "life_stage": row.life_stage,
@@ -1220,29 +1220,19 @@ class SQLUserProfileRepository(UserProfileRepository):
             "preferred_model": row.preferred_model,
             "tax_residency": row.tax_residency,
             "tax_ids": list(row.tax_ids or []),
-            "fi_inflation": row.fi_inflation,
-            "fi_real_return": row.fi_real_return,
-            "fi_safe_withdrawal_rate": row.fi_safe_withdrawal_rate,
+            "fi_assumptions": dict(row.fi_assumptions or {}),
         }
 
-    async def set_fi_assumptions(self, user_id: str, values: dict[str, Decimal | None]) -> None:
-        """Write the user's own FI assumptions present in `values`; None returns
-        one to the default. Keys are "inflation", "real_return" and
-        "safe_withdrawal_rate": nothing else can be written through this."""
-        columns = {
-            "inflation": "fi_inflation",
-            "real_return": "fi_real_return",
-            "safe_withdrawal_rate": "fi_safe_withdrawal_rate",
-        }
-        unknown = set(values) - set(columns)
-        if unknown:
-            raise ValueError(f"Not FI assumptions: {sorted(unknown)}")
+    async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
+        """Replace the user's own FI assumptions with `stored` (as
+        `OwnAssumptions.as_stored()` writes them: the service validates)."""
+        if not isinstance(stored, dict):
+            raise ValueError("FI assumptions are stored as an object")
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            raise LookupError(f"User {user_id} has no profile")
-        for key, value in values.items():
-            setattr(row, columns[key], value)
+            raise ProfileMissing(user_id)
+        row.fi_assumptions = stored
         await self._s.flush()
 
     async def set_tax_identity(
@@ -1251,13 +1241,11 @@ class SQLUserProfileRepository(UserProfileRepository):
         *,
         tax_residency: str | None,
         tax_ids: list[dict[str, str]],
-        ird_number: str | None,
     ) -> None:
         """Write where the user is taxed and their tax ids, exactly as given.
 
         `upsert` skips None, so it could never clear a residency; this writes
-        NULL too. `ird_number` is the legacy column, which the caller keeps
-        equal to the "LK-TIN" tax id.
+        NULL too.
         """
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
@@ -1265,7 +1253,6 @@ class SQLUserProfileRepository(UserProfileRepository):
             raise ProfileMissing(user_id)
         row.tax_residency = tax_residency
         row.tax_ids = tax_ids
-        row.ird_number = ird_number
         await self._s.flush()
 
     async def upsert(self, user_id: str, fields: dict[str, Any]) -> None:

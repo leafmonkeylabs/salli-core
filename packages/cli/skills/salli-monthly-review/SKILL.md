@@ -34,6 +34,11 @@ one fails, say what is missing rather than estimating.
        salli fi score --json
        salli insights forecast --json
 
+   FI figures are in today's money. If the score's `assumptions.status` is
+   `"placeholder"`, say the FI date rests on placeholder assumptions (round
+   figures, not forecasts), and offer to set the user's own with sources
+   (`salli fi assumptions`, in the `salli-cli` skill).
+
 5. **One next step.** Optionally run the advisor (an AI step) and present its
    top recommendation:
 

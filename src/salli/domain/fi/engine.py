@@ -24,28 +24,46 @@ by having parallel implementations:
   2. ONE compounding routine (`_fv_after_months`) backs both the projected series
      and years-to-FI, so "13 years" always agrees with where the chart crosses.
 
-Projections run in REAL terms (today's rupees): nominal return assumptions are
-converted via the Fisher relation, which keeps the flat FI target line valid and
-stops years-to-FI being flattered by inflation.
+Projections run in REAL terms (today's money): every return is after
+inflation, which keeps the flat FI target line valid and stops years-to-FI being
+flattered by inflation. Callers pass the withdrawal rate and real returns
+explicitly (domain/fi/assumptions.py decides them); the pack holds none. When
+the user set an inflation figure, the same projection is also shown in each
+year's own money (`in_future_money`), from the real walk, so the two never
+disagree about when FI is reached.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from salli.domain.fi.assumptions import nominal_return, real_return
 from salli.domain.fi.models import (
     FiComponent,
     FinancialSnapshot,
     FiPack,
-    FireStrategy,
     FiScore,
+    NominalPoint,
     ProjectionPoint,
     PurchaseImpact,
     PurchaseOption,
     SurplusBreakdown,
 )
+
+__all__ = [
+    "compute",
+    "compute_surplus_breakdown",
+    "fi_asset_base",
+    "in_future_money",
+    "installment_payment",
+    "nominal_return",
+    "project_portfolio",
+    "real_return",
+    "simulate_purchase",
+    "years_to_target",
+]
 
 _HUNDRED = Decimal(100)
 _MAX_PROJECTION_YEARS = 100
@@ -71,11 +89,10 @@ def _grade(score: Decimal) -> str:
     return "Just starting"
 
 
-def real_return(nominal: Decimal, inflation: Decimal) -> Decimal:
-    """Fisher relation: strip inflation out of a nominal annual return."""
-    if inflation <= Decimal(-1):
-        return nominal
-    return (Decimal(1) + nominal) / (Decimal(1) + inflation) - Decimal(1)
+def in_future_money(value: Decimal, inflation: Decimal, years: int) -> Decimal:
+    """`value` in today's money, in the money of `years` from now at a yearly
+    `inflation`, to the cent. Only ever applied with the user's own figure."""
+    return _q2(value * (Decimal(1) + inflation) ** years)
 
 
 def _fv_after_months(
@@ -199,9 +216,9 @@ def simulate_purchase(
     pack: FiPack,
     amount: Decimal,
     *,
-    swr: Decimal | None = None,
+    swr: Decimal,
+    annual_real_return: Decimal,
     target_monthly_expenses: Decimal | None = None,
-    annual_real_return: Decimal | None = None,
     term_months: int | None = None,
     annual_interest_rate: Decimal = Decimal(0),
     data_as_of: str | None = None,
@@ -226,7 +243,7 @@ def simulate_purchase(
     and must be passed the same values, or the FI target this measures against
     will differ from the one on the user's dashboard.
     """
-    swr_eff = swr if (swr is not None and swr > 0) else pack.safe_withdrawal_rate
+    swr_eff = swr
     expenses = snapshot.monthly_expenses
     target_expenses = (
         target_monthly_expenses
@@ -236,7 +253,7 @@ def simulate_purchase(
     annual_expenses = target_expenses * 12
     fi_number = (annual_expenses / swr_eff) if annual_expenses > 0 and swr_eff > 0 else Decimal(0)
 
-    rate = annual_real_return if annual_real_return is not None else pack.expected_real_return
+    rate = annual_real_return
     base = fi_asset_base(snapshot)
     surplus = snapshot.monthly_income - expenses
 
@@ -326,18 +343,18 @@ def compute(
     snapshot: FinancialSnapshot,
     pack: FiPack,
     *,
-    swr: Decimal | None = None,
+    swr: Decimal,
+    annual_real_return: Decimal,
     target_monthly_expenses: Decimal | None = None,
-    annual_real_return: Decimal | None = None,
 ) -> FiScore:
     """
     Score a snapshot.
 
-    `swr`, `target_monthly_expenses` and `annual_real_return` come from the user's
-    FIRE strategy when they have one; each falls back to the pack. They are
-    parameters rather than pack lookups precisely so the projection path cannot
-    diverge from this one — pass the same values to `project_portfolio` and every
-    figure on the page reconciles.
+    `swr` and `annual_real_return` (the base scenario's) are the assumptions
+    that apply to the user; `target_monthly_expenses` comes from their FIRE
+    strategy when it names one. They are parameters, never pack lookups,
+    precisely so the projection path cannot diverge from this one — pass the
+    same values to `project_portfolio` and every figure on the page reconciles.
 
     Note `target_monthly_expenses` moves the FI *target* only. Contributions stay
     at the actual surplus, because aspiring to spend less in retirement does not
@@ -348,7 +365,7 @@ def compute(
     surplus = income - expenses
     savings_rate = (surplus / income) if income > 0 else Decimal(0)
 
-    swr_eff = swr if (swr is not None and swr > 0) else pack.safe_withdrawal_rate
+    swr_eff = swr
     target_expenses = (
         target_monthly_expenses
         if (target_monthly_expenses is not None and target_monthly_expenses > 0)
@@ -416,8 +433,7 @@ def compute(
         )
 
     overall = _q2(_clamp(overall))
-    rr = annual_real_return if annual_real_return is not None else pack.expected_real_return
-    projected_years = years_to_target(asset_base, surplus, rr, fi_number)
+    projected_years = years_to_target(asset_base, surplus, annual_real_return, fi_number)
 
     return FiScore(
         pack_version=pack.version,
@@ -441,31 +457,29 @@ def compute(
     )
 
 
-def scenario_real_returns(strategy: FireStrategy, pack: FiPack) -> dict[str, Decimal]:
-    """The strategy's three nominal assumptions, converted to real terms once."""
-    return {
-        "conservative": real_return(strategy.return_conservative, pack.expected_inflation),
-        "base": real_return(strategy.return_base, pack.expected_inflation),
-        "growth": real_return(strategy.return_growth, pack.expected_inflation),
-    }
-
-
 def project_portfolio(
     snapshot: FinancialSnapshot,
-    strategy: FireStrategy,
-    pack: FiPack,
+    real_returns: Mapping[str, Decimal],
     horizon_years: int = 15,
+    *,
+    inflation: Decimal | None = None,
 ) -> list[ProjectionPoint]:
     """
-    Project the FI asset base forward under three REAL return scenarios.
+    Project the FI asset base forward under three REAL return scenarios
+    (`real_returns`: conservative, base and growth, after inflation).
 
-    Real, not nominal: the FI target is expressed in today's rupees, so growing the
+    Real, not nominal: the FI target is expressed in today's money, so growing the
     portfolio at nominal rates against it would cross years too early. Starts from
-    `fi_asset_base` — the same base `compute()` measures progress against.
+    `fi_asset_base` — the same base `compute()` measures progress against. The
+    monthly contribution is today's surplus, held level in real terms.
+
+    With the user's `inflation`, each point also carries the same values in that
+    year's money (`in_future_money`), derived from the real walk, never walked
+    separately.
     """
     starting = fi_asset_base(snapshot)
     monthly_contribution = snapshot.monthly_income - snapshot.monthly_expenses
-    rates = scenario_real_returns(strategy, pack)
+    rates = {name: real_returns[name] for name in ("conservative", "base", "growth")}
 
     start = _q2(starting)
     points: list[ProjectionPoint] = [
@@ -494,7 +508,22 @@ def project_portfolio(
             )
         )
 
-    return points
+    if inflation is None:
+        return points
+    return [
+        ProjectionPoint(
+            year=p.year,
+            conservative=p.conservative,
+            base=p.base,
+            growth=p.growth,
+            nominal=NominalPoint(
+                conservative=in_future_money(p.conservative, inflation, p.year),
+                base=in_future_money(p.base, inflation, p.year),
+                growth=in_future_money(p.growth, inflation, p.year),
+            ),
+        )
+        for p in points
+    ]
 
 
 def compute_surplus_breakdown(

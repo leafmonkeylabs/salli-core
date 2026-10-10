@@ -200,7 +200,7 @@ def _is_negative(prefix: str, suffix: str, text: str) -> bool:
     or CR/DR (credit/debit) as many statements print. Anything else — another
     number, a stray decimal mark — means this is not one amount.
     """
-    # ".50" or "12.": a decimal mark outside the number. "Rs.12" is fine.
+    # ".50" or "12.": a decimal mark outside the number. "Fr.12" is fine.
     if (prefix[-1:] in (".", ",") and not prefix[-2:-1].isalpha()) or suffix[:1] in (".", ","):
         raise ValueError(f"{text!r} is not an amount")
     before, after = _signs(prefix), _signs(suffix)

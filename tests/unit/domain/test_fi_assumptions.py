@@ -1,10 +1,11 @@
 """
-FI planning assumptions follow the base currency, say where they come from,
-and give way to the user's own.
+FI planning assumptions are in real terms, with one neutral placeholder that is
+always labelled as one, and give way to what the user (or their agent) sets,
+each figure with its source.
 
-The defaults are round and conservative: each central bank's own inflation
-target, one round real return below the long-run record, and the 4% rule. Sri
-Lanka keeps exactly the figures Salli always used.
+There is no table by country or currency: whatever the user's currency or
+residency, the placeholders are the same round figures, and inflation has none
+at all.
 """
 
 from __future__ import annotations
@@ -13,123 +14,155 @@ from decimal import Decimal
 
 import pytest
 
+import salli.domain.fi.assumptions as assumptions
 from salli.domain.fi.assumptions import (
-    FALLBACK,
-    OTHER,
-    REGIONAL_DEFAULTS,
-    SPREAD,
-    Overrides,
-    Returns,
+    NAMES,
+    PLACEHOLDERS,
+    SCENARIO_SPREAD,
+    OwnAssumptions,
+    OwnFigure,
+    Scenarios,
     StrategyFigures,
-    check_override,
+    check_consistent,
+    check_value,
+    nominal_return,
+    own_figure,
     real_return,
-    regional_defaults,
     resolve,
 )
-from salli.domain.fi.packs.default_v1 import DEFAULT_V1
 
 D = Decimal
 
 
-def test_sri_lanka_keeps_the_figures_salli_always_used():
-    lk = REGIONAL_DEFAULTS["LKR"]
-    assert lk.inflation.value == DEFAULT_V1.expected_inflation == D("0.05")
-    assert lk.safe_withdrawal_rate.value == DEFAULT_V1.safe_withdrawal_rate == D("0.04")
-    returns = lk.returns(lk.inflation.value)
-    assert (returns.conservative, returns.base, returns.growth) == (
-        D("0.06"),
-        D("0.10"),
-        D("0.14"),
+def _own(**figures: str) -> OwnAssumptions:
+    return OwnAssumptions(
+        **{name: own_figure(name, value, f"source of {name}") for name, value in figures.items()}
     )
-    assert "Central Bank of Sri Lanka" in lk.inflation.source
 
 
-@pytest.mark.parametrize(
-    ("currency", "inflation"),
-    [
-        ("USD", "0.02"),
-        ("EUR", "0.02"),
-        ("GBP", "0.02"),
-        ("JPY", "0.02"),
-        ("CAD", "0.02"),
-        ("AUD", "0.025"),
-        ("NZD", "0.02"),
-        ("INR", "0.04"),
-    ],
-)
-def test_other_currencies_take_their_central_banks_target(currency, inflation):
-    row = regional_defaults(currency)
-    assert row.region == currency
-    assert row.inflation.value == D(inflation)
-    # The base scenario is the round 4% real return, exactly, at that inflation,
-    # with the other two 4 points either side of it, nominal.
-    returns = row.returns(row.inflation.value)
-    assert real_return(returns.base, row.inflation.value) == D("0.04")
-    assert returns.growth - returns.base == returns.base - returns.conservative == SPREAD
-    assert row.safe_withdrawal_rate.value == D("0.04")
+# ── The placeholders ─────────────────────────────────────────────────────────
 
 
-def test_every_figure_says_where_it_comes_from():
-    for row in [*REGIONAL_DEFAULTS.values(), FALLBACK]:
-        returns = row.returns(row.inflation.value)
-        for source in (row.inflation.source, returns.source, row.safe_withdrawal_rate.source):
-            assert len(source) > 40
-            assert "—" not in source  # read by people, and by the agents
-    assert "Bengen" in FALLBACK.safe_withdrawal_rate.source
-    assert "Dimson" in REGIONAL_DEFAULTS["USD"].returns(D("0.02")).source
+def test_there_is_no_table_by_country_or_currency():
+    names = {name.upper() for name in vars(assumptions)}
+    assert not names & {"REGIONAL_DEFAULTS", "FALLBACK", "OTHER", "RETURNS", "OVERRIDES"}
+    # Only the real return and the withdrawal rate have a placeholder.
+    assert set(PLACEHOLDERS) == {"real_return", "safe_withdrawal_rate"}
 
 
-def test_a_currency_without_figures_gets_cautious_placeholders():
-    assert regional_defaults("THB") is FALLBACK
-    assert regional_defaults(None) is FALLBACK
-    assert FALLBACK.region == OTHER
-    # Higher than every target in the table: inflation that errs high makes
-    # the same nominal return worth less.
-    assert FALLBACK.inflation.value == D("0.05")
-    assert "Set your own" in FALLBACK.inflation.source
+def test_the_placeholders_are_round_neutral_and_say_they_are_placeholders():
+    assert PLACEHOLDERS["real_return"].value == D("0.04")
+    assert PLACEHOLDERS["safe_withdrawal_rate"].value == D("0.04")
+    for placeholder in PLACEHOLDERS.values():
+        assert placeholder.source.startswith("Placeholder:")
+        assert "Set your own" in placeholder.source
+        assert "—" not in placeholder.source  # read by people, and by the agents
 
 
-def test_the_currencys_defaults_apply_when_nothing_else_does():
-    applied = resolve("usd", Overrides())
-    assert applied.region == "USD"
-    assert {applied.inflation.origin, applied.real_return.origin} == {"default"}
-    assert applied.safe_withdrawal_rate.origin == "default"
+def test_with_nothing_set_placeholders_stand_in_and_say_so():
+    applied = resolve(OwnAssumptions())
+    assert applied.status == "placeholder"
+    assert applied.placeholders == ("real_return", "safe_withdrawal_rate")
+    assert applied.real_return.origin == applied.safe_withdrawal_rate.origin == "placeholder"
     assert applied.real_return.value == D("0.04")
+    assert applied.safe_withdrawal_rate.value == D("0.04")
+    # No inflation is ever assumed: everything is in today's money.
+    assert applied.inflation is None
+    assert applied.nominal_returns is None
+    assert "placeholder assumptions for the real return and the safe withdrawal rate" in (
+        applied.message
+    )
+    assert "today's money" in applied.message
 
 
-def test_a_strategy_s_returns_and_rate_come_before_the_defaults():
-    strategy = StrategyFigures(D("0.035"), Returns(D("0.05"), D("0.09"), D("0.12"), "theirs"))
-    applied = resolve("LKR", Overrides(), strategy)
+def test_the_scenarios_sit_a_spread_either_side_of_the_base_in_real_terms():
+    applied = resolve(OwnAssumptions())
+    assert applied.real_returns == Scenarios(D("0.02"), D("0.04"), D("0.06"))
+    assert D("0.02") == SCENARIO_SPREAD
+
+
+# ── The user's own ───────────────────────────────────────────────────────────
+
+
+def test_the_users_own_figures_come_first_with_their_sources():
+    strategy = StrategyFigures(D("0.035"), Scenarios(D("0.01"), D("0.03"), D("0.05")))
+    own = OwnAssumptions(
+        real_return=own_figure("real_return", "0.035", "https://example.org/returns", "a note"),
+        safe_withdrawal_rate=own_figure("safe_withdrawal_rate", "0.03"),
+    )
+    applied = resolve(own, strategy)
+    assert applied.status == "user"
+    assert applied.placeholders == ()
+    assert applied.real_return.value == D("0.035")
+    assert applied.real_return.origin == "user"
+    assert applied.real_return.source == "https://example.org/returns"
+    assert applied.real_return.note == "a note"
+    # A figure set without a source says so, rather than inventing one.
+    assert applied.safe_withdrawal_rate.source == "Set by you; no source given."
+    assert applied.real_returns == Scenarios(D("0.015"), D("0.035"), D("0.055"))
+    assert applied.message.startswith("Using your own assumptions.")
+
+
+def test_setting_only_one_figure_leaves_the_other_a_placeholder():
+    applied = resolve(_own(real_return="0.05"))
+    assert applied.status == "placeholder"
+    assert applied.placeholders == ("safe_withdrawal_rate",)
+    assert "for the safe withdrawal rate:" in applied.message
+
+
+def test_inflation_brings_nominal_figures_and_leaves_the_real_return_real():
+    """4% after inflation is 4% after inflation: setting one's own inflation
+    adds nominal figures, and never quietly changes the real ones."""
+    applied = resolve(_own(inflation="0.03"))
+    assert applied.real_return.value == D("0.04")
+    assert applied.real_return.origin == "placeholder"
+    assert applied.inflation is not None and applied.inflation.value == D("0.03")
+    # (1.04 × 1.03) − 1 = 0.0712, and likewise for the other two.
+    assert applied.nominal_returns == Scenarios(D("0.0506"), D("0.0712"), D("0.0918"))
+    assert "today's money" not in applied.message
+
+
+def test_a_nominal_return_becomes_real_with_the_users_inflation():
+    applied = resolve(_own(nominal_return="0.07", inflation="0.02"))
+    # (1.07 / 1.02) − 1
+    assert applied.real_return.value == D("1.07") / D("1.02") - 1
+    assert applied.real_return.origin == "user"
+    assert "nominal return of 0.07 less your inflation of 0.02" in applied.real_return.source
+    assert "source of nominal_return" in applied.real_return.source
+    assert applied.nominal_return is not None and applied.nominal_return.value == D("0.07")
+    assert applied.nominal_returns is not None
+    assert applied.nominal_returns.base == nominal_return(applied.real_return.value, D("0.02"))
+
+
+def test_a_nominal_return_without_inflation_is_never_used():
+    """check_consistent keeps it from being stored; were it there anyway, the
+    placeholder stands in rather than a guessed inflation."""
+    applied = resolve(OwnAssumptions(nominal_return=OwnFigure(D("0.07"))))
+    assert applied.real_return.origin == "placeholder"
+    assert applied.nominal_return is None
+
+
+def test_a_strategy_s_figures_come_before_the_placeholders():
+    strategy = StrategyFigures(D("0.035"), Scenarios(D("0.01"), D("0.03"), D("0.05")), version=3)
+    applied = resolve(OwnAssumptions(), strategy)
+    assert applied.status == "user"
     assert (applied.safe_withdrawal_rate.value, applied.safe_withdrawal_rate.origin) == (
         D("0.035"),
         "strategy",
     )
-    assert applied.returns.base == D("0.09") and applied.real_return.origin == "strategy"
-    # Inflation is never the strategy's.
-    assert applied.inflation.origin == "default"
+    assert applied.real_returns == strategy.real_returns
+    assert applied.real_return.origin == "strategy"
+    assert "version 3" in applied.real_return.source
 
 
-def test_the_users_own_figures_come_first():
-    strategy = StrategyFigures(D("0.035"), Returns(D("0.05"), D("0.09"), D("0.12"), "theirs"))
-    own = Overrides(inflation=D("0.03"), real_return=D("0.035"), safe_withdrawal_rate=D("0.03"))
-    applied = resolve("LKR", own, strategy)
-    assert {
-        applied.inflation.origin,
-        applied.real_return.origin,
-        applied.safe_withdrawal_rate.origin,
-    } == {"user"}
-    assert applied.inflation.value == D("0.03")
-    assert applied.safe_withdrawal_rate.value == D("0.03")
-    # Their real return is the base scenario's, exactly; the others sit around it.
-    assert applied.real_return.value == D("0.035")
-    assert applied.returns.base - applied.returns.conservative == SPREAD
+def test_a_strategy_without_real_returns_gives_only_its_withdrawal_rate():
+    applied = resolve(OwnAssumptions(), StrategyFigures(D("0.035")))
+    assert applied.safe_withdrawal_rate.origin == "strategy"
+    assert applied.real_return.origin == "placeholder"
+    assert applied.placeholders == ("real_return",)
 
 
-def test_the_users_inflation_turns_the_strategys_returns_real():
-    strategy = StrategyFigures(D("0.04"), Returns(D("0.06"), D("0.10"), D("0.14"), "theirs"))
-    applied = resolve("LKR", Overrides(inflation=D("0.10")), strategy)
-    assert applied.real_return.value == D(0)
-    assert applied.scenario_real_returns["base"] == D(0)
+# ── Checking what the user sets ──────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -137,6 +170,7 @@ def test_the_users_inflation_turns_the_strategys_returns_real():
     [
         ("inflation", "5"),
         ("inflation", "-0.5"),
+        ("nominal_return", "7"),
         ("real_return", "4"),
         ("real_return", "0.2"),
         ("safe_withdrawal_rate", "4"),
@@ -145,35 +179,82 @@ def test_the_users_inflation_turns_the_strategys_returns_real():
 )
 def test_a_percentage_typed_for_a_fraction_is_refused(name, value):
     with pytest.raises(ValueError, match="yearly fraction"):
-        check_override(name, D(value))
+        check_value(name, value)
 
 
-def test_plausible_figures_are_kept():
-    assert check_override("inflation", D("0.03")) == D("0.03")
-    assert check_override("real_return", D("-0.01")) == D("-0.01")
-    assert check_override("safe_withdrawal_rate", D("0.035")) == D("0.035")
-    assert check_override("inflation", None) is None
+@pytest.mark.parametrize("value", [0.03, True, "three", "NaN", "Infinity", None])
+def test_anything_but_a_decimal_is_refused(value):
+    with pytest.raises(ValueError):
+        check_value("inflation", value)
 
 
-def test_a_default_real_return_stays_real_whatever_inflation_the_user_sets():
-    """4% after inflation is 4% after inflation: setting one's own inflation
-    must not quietly lower it."""
-    applied = resolve("USD", Overrides(inflation=D("0.03")))
-    assert applied.real_return.value == D("0.04")
-    assert applied.real_return.origin == "default"
+def test_plausible_figures_are_kept_exactly():
+    assert check_value("inflation", "0.0325") == D("0.0325")
+    assert check_value("real_return", "-0.01") == D("-0.01")
+    assert check_value("safe_withdrawal_rate", "0.0350") == D("0.035")
+    assert check_value("inflation", "0") == D(0)
+    with pytest.raises(ValueError, match="Not an FI assumption"):
+        check_value("region", "0.03")
 
 
-def test_sri_lankas_nominal_defaults_turn_real_at_the_inflation_that_applies():
-    """Its defaults are nominal, like a strategy's: a different inflation
-    changes what they are worth."""
-    applied = resolve("LKR", Overrides(inflation=D("0.10")))
-    assert applied.returns.base == D("0.10")
-    assert applied.real_return.value == D(0)
+def test_a_source_and_a_note_are_tidied_and_bounded():
+    figure = own_figure("inflation", "0.03", "  https://example.org/cpi \n", "  ")
+    assert (figure.source, figure.note) == ("https://example.org/cpi", None)
+    with pytest.raises(ValueError, match="source"):
+        own_figure("inflation", "0.03", "x" * 501)
+    with pytest.raises(ValueError, match="note"):
+        own_figure("inflation", "0.03", None, "x" * 1001)
 
 
-def test_a_region_has_either_a_real_return_or_nominal_returns():
-    from salli.domain.fi.assumptions import RegionalDefaults
-
-    figure = REGIONAL_DEFAULTS["USD"].inflation
+def test_real_and_nominal_returns_are_not_set_together():
     with pytest.raises(ValueError, match="not both"):
-        RegionalDefaults("XXX", "x", figure, figure)
+        check_consistent(_own(real_return="0.04", nominal_return="0.06", inflation="0.02"))
+    with pytest.raises(ValueError, match="needs your inflation"):
+        check_consistent(_own(nominal_return="0.06"))
+    check_consistent(_own(nominal_return="0.06", inflation="0.02"))
+
+
+def test_changes_apply_and_clear_and_are_checked_together():
+    own = _own(inflation="0.02")
+    updated = own.changed({"nominal_return": own_figure("nominal_return", "0.06")})
+    assert updated.nominal_return is not None and updated.inflation is not None
+    # Clearing inflation would orphan the nominal return.
+    with pytest.raises(ValueError, match="needs your inflation"):
+        updated.changed({"inflation": None})
+    assert updated.changed({"nominal_return": None, "inflation": None}) == OwnAssumptions()
+    with pytest.raises(ValueError, match="Not FI assumptions"):
+        own.changed({"region": None})
+
+
+def test_stored_figures_round_trip_and_are_read_leniently():
+    own = OwnAssumptions(
+        inflation=own_figure("inflation", "0.025", "https://example.org", "target", "2026-10-11"),
+        real_return=own_figure("real_return", "0.035"),
+    )
+    stored = own.as_stored()
+    assert stored == {
+        "real_return": {"value": "0.035"},
+        "inflation": {
+            "value": "0.025",
+            "source": "https://example.org",
+            "note": "target",
+            "set_at": "2026-10-11",
+        },
+    }
+    assert OwnAssumptions.from_stored(stored) == own
+    # A malformed entry is left out rather than making the rest unreadable.
+    assert (
+        OwnAssumptions.from_stored(
+            {"inflation": {"value": "5"}, "real_return": "0.03", "region": {"value": "0.02"}}
+        )
+        == OwnAssumptions()
+    )
+    assert OwnAssumptions.from_stored(None) == OwnAssumptions()
+    assert set(NAMES) == {"real_return", "nominal_return", "inflation", "safe_withdrawal_rate"}
+
+
+def test_the_fisher_relation_both_ways():
+    assert real_return(D("0.10"), D("0.05")).quantize(D("0.0001")) == D("0.0476")
+    assert real_return(D("0.10"), D("0")) == D("0.10")
+    assert nominal_return(D("0.04"), D("0.03")) == D("0.0712")
+    assert real_return(nominal_return(D("0.04"), D("0.03")), D("0.03")) == D("0.04")

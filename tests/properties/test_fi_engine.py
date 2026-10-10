@@ -7,6 +7,10 @@ balance nets zero, total_gain == value − cost), which holds at *any* scale and
 cannot catch a units error. Multiplying every money input by k must leave the
 dimensionless outputs — savings rate, progress, scores — completely unchanged.
 A ×100 slip anywhere in the ratio path breaks that immediately.
+
+The engine works in real terms, and takes the withdrawal rate and real returns
+explicitly (the pack holds none). These properties hold for any such figures;
+the round ones below stand in for whatever applies to a user.
 """
 
 from decimal import Decimal
@@ -16,14 +20,11 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from salli.domain.fi import engine
-from salli.domain.fi.models import FinancialSnapshot, FiPack, FireStrategy
+from salli.domain.fi.models import FinancialSnapshot, FiPack
 
 PACK = FiPack(
     version="prop-1",
-    safe_withdrawal_rate=Decimal("0.04"),
     emergency_fund_target_months=6,
-    expected_real_return=Decimal("0.05"),
-    expected_inflation=Decimal("0.05"),
     savings_rate_for_full_score=Decimal("0.50"),
     weights={
         "savings_rate": Decimal("0.25"),
@@ -33,6 +34,21 @@ PACK = FiPack(
         "goals": Decimal("0.15"),
     },
 )
+
+SWR = Decimal("0.04")
+REAL = Decimal("0.05")
+RATES = {"conservative": Decimal("0.03"), "base": REAL, "growth": Decimal("0.07")}
+
+
+def _score(s: FinancialSnapshot, **over: Any):
+    return engine.compute(s, PACK, **{"swr": SWR, "annual_real_return": REAL, **over})
+
+
+def _impact(s: FinancialSnapshot, amount: Decimal, **over: Any):
+    return engine.simulate_purchase(
+        s, PACK, amount, **{"swr": SWR, "annual_real_return": REAL, **over}
+    )
+
 
 money = st.decimals(
     min_value=Decimal("0"),
@@ -66,7 +82,7 @@ def snapshot(draw: Any) -> FinancialSnapshot:
         total_assets=liquid + investments,
         total_liabilities=liabilities,
         goal_progress=None,
-        currency="LKR",
+        currency="EUR",
     )
 
 
@@ -79,7 +95,7 @@ def _scaled(s: FinancialSnapshot, k: Decimal) -> FinancialSnapshot:
         total_assets=s.total_assets * k,
         total_liabilities=s.total_liabilities * k,
         goal_progress=s.goal_progress,
-        currency="LKR",
+        currency="EUR",
     )
 
 
@@ -90,8 +106,8 @@ def _scaled(s: FinancialSnapshot, k: Decimal) -> FinancialSnapshot:
 @settings(max_examples=100, deadline=None)
 def test_dimensionless_outputs_are_scale_invariant(s: FinancialSnapshot, k: Decimal) -> None:
     """Scaling all money by k must not move any ratio or score."""
-    a = engine.compute(s, PACK)
-    b = engine.compute(_scaled(s, k), PACK)
+    a = _score(s)
+    b = _score(_scaled(s, k))
 
     assert a.savings_rate == b.savings_rate
     assert a.debt_to_asset == b.debt_to_asset
@@ -105,8 +121,8 @@ def test_dimensionless_outputs_are_scale_invariant(s: FinancialSnapshot, k: Deci
 @settings(max_examples=50, deadline=None)
 def test_money_outputs_scale_linearly(s: FinancialSnapshot, k: Decimal) -> None:
     """The converse: money outputs must scale exactly with the inputs."""
-    a = engine.compute(s, PACK)
-    b = engine.compute(_scaled(s, k), PACK)
+    a = _score(s)
+    b = _score(_scaled(s, k))
 
     assert b.fi_number == a.fi_number * k
     assert b.net_worth == a.net_worth * k
@@ -120,7 +136,7 @@ def test_money_outputs_scale_linearly(s: FinancialSnapshot, k: Decimal) -> None:
 @given(snapshot())
 @settings(max_examples=100, deadline=None)
 def test_ratios_stay_in_fraction_range(s: FinancialSnapshot) -> None:
-    score = engine.compute(s, PACK)
+    score = _score(s)
     # savings_rate: expenses <= income by construction, so 0..1.
     assert Decimal(0) <= score.savings_rate <= Decimal(1)
     assert Decimal(0) <= score.debt_to_asset
@@ -130,7 +146,7 @@ def test_ratios_stay_in_fraction_range(s: FinancialSnapshot) -> None:
 @given(snapshot())
 @settings(max_examples=100, deadline=None)
 def test_scores_stay_in_percent_range(s: FinancialSnapshot) -> None:
-    score = engine.compute(s, PACK)
+    score = _score(s)
     assert Decimal(0) <= score.overall_score <= Decimal(100)
     for c in score.components:
         assert Decimal(0) <= c.score <= Decimal(100)
@@ -139,7 +155,7 @@ def test_scores_stay_in_percent_range(s: FinancialSnapshot) -> None:
 @given(snapshot())
 @settings(max_examples=100, deadline=None)
 def test_effective_weights_always_sum_to_one(s: FinancialSnapshot) -> None:
-    score = engine.compute(s, PACK)
+    score = _score(s)
     total = sum((c.weight for c in score.components), Decimal(0))
     # Quantised to 2dp per component, so allow a rounding cent.
     assert abs(total - Decimal(1)) <= Decimal("0.01")
@@ -161,7 +177,7 @@ def test_fi_number_rises_with_expenses(a: Decimal, b: Decimal) -> None:
         total_assets=Decimal(0),
         total_liabilities=Decimal(0),
         goal_progress=None,
-        currency="LKR",
+        currency="EUR",
     )
     s_hi = FinancialSnapshot(
         monthly_income=income,
@@ -171,9 +187,9 @@ def test_fi_number_rises_with_expenses(a: Decimal, b: Decimal) -> None:
         total_assets=Decimal(0),
         total_liabilities=Decimal(0),
         goal_progress=None,
-        currency="LKR",
+        currency="EUR",
     )
-    assert engine.compute(s_lo, PACK).fi_number <= engine.compute(s_hi, PACK).fi_number
+    assert _score(s_lo).fi_number <= _score(s_hi).fi_number
 
 
 @given(
@@ -192,9 +208,9 @@ def test_lower_swr_means_a_larger_target(a: Decimal, b: Decimal) -> None:
         total_assets=Decimal(0),
         total_liabilities=Decimal(0),
         goal_progress=None,
-        currency="LKR",
+        currency="EUR",
     )
-    assert engine.compute(s, PACK, swr=lo).fi_number >= engine.compute(s, PACK, swr=hi).fi_number
+    assert _score(s, swr=lo).fi_number >= _score(s, swr=hi).fi_number
 
 
 @given(
@@ -235,29 +251,30 @@ def test_real_return_never_exceeds_nominal_under_positive_inflation(
 @given(snapshot())
 @settings(max_examples=50, deadline=None)
 def test_projection_crossing_matches_the_solver(s: FinancialSnapshot) -> None:
-    strat = FireStrategy(
-        version=1,
-        fire_style="standard",
-        swr=Decimal("0.04"),
-        return_conservative=Decimal("0.06"),
-        return_base=Decimal("0.10"),
-        return_growth=Decimal("0.14"),
-        target_monthly_expenses=None,
-        target_age=None,
-        buckets=[],
-        ai_rationale="",
-        theories_applied=[],
-        created_at="",
-        is_initial=True,
-    )
-    rates = engine.scenario_real_returns(strat, PACK)
-    score = engine.compute(s, PACK, swr=strat.swr, annual_real_return=rates["base"])
+    score = _score(s, annual_real_return=RATES["base"])
     if score.fi_number <= 0 or score.projected_fi_years is None:
         return
     horizon = int(score.projected_fi_years) + 1
-    points = engine.project_portfolio(s, strat, PACK, horizon_years=horizon)
+    points = engine.project_portfolio(s, RATES, horizon_years=horizon)
     crossing = next((p.year for p in points if p.base >= score.fi_number), None)
     assert crossing == int(score.projected_fi_years)
+
+
+@given(snapshot(), st.decimals(min_value=Decimal("0"), max_value=Decimal("0.30"), places=4))
+@settings(max_examples=50, deadline=None)
+def test_inflation_never_moves_the_real_projection(
+    s: FinancialSnapshot, inflation: Decimal
+) -> None:
+    """The user's inflation only adds future-money figures: the real walk, and
+    so the year FI is reached, is exactly the same with it as without."""
+    real = engine.project_portfolio(s, RATES, horizon_years=20)
+    both = engine.project_portfolio(s, RATES, horizon_years=20, inflation=inflation)
+    for r, b in zip(real, both, strict=True):
+        assert (r.conservative, r.base, r.growth) == (b.conservative, b.base, b.growth)
+        assert b.nominal is not None
+        if r.base >= 0:
+            # Positive inflation never makes a future amount less money.
+            assert b.nominal.base >= r.base.quantize(Decimal("0.01"))
 
 
 # ── simulate_purchase: costing a decision in months of freedom ────────────────
@@ -280,7 +297,7 @@ purchase = st.decimals(
 @settings(max_examples=100, deadline=None)
 def test_zero_purchase_costs_nothing(s: FinancialSnapshot) -> None:
     """A purchase of nothing must not move the FI date. Guards off-by-one drift."""
-    impact = engine.simulate_purchase(s, PACK, Decimal("0"))
+    impact = _impact(s, Decimal("0"))
     cash = impact.options[0]
     assert cash.months_to_fi == impact.baseline_months_to_fi
     if impact.baseline_months_to_fi is not None:
@@ -291,7 +308,7 @@ def test_zero_purchase_costs_nothing(s: FinancialSnapshot) -> None:
 @settings(max_examples=100, deadline=None)
 def test_a_purchase_never_brings_fi_closer(s: FinancialSnapshot, amount: Decimal) -> None:
     """Spending money cannot accelerate financial independence."""
-    impact = engine.simulate_purchase(s, PACK, amount)
+    impact = _impact(s, amount)
     for option in impact.options:
         if option.months_delay is not None:
             assert option.months_delay >= 0
@@ -304,8 +321,8 @@ def test_bigger_purchases_cost_at_least_as_much(
 ) -> None:
     """Monotonicity: a larger purchase never delays FI by fewer months."""
     small, large = min(a, b), max(a, b)
-    d_small = engine.simulate_purchase(s, PACK, small).options[0].months_delay
-    d_large = engine.simulate_purchase(s, PACK, large).options[0].months_delay
+    d_small = _impact(s, small).options[0].months_delay
+    d_large = _impact(s, large).options[0].months_delay
     if d_small is not None and d_large is not None:
         assert d_large >= d_small
 
@@ -324,8 +341,8 @@ def test_months_of_freedom_are_scale_invariant(
     year's end, and no scaling preserves rounding, so a value that lands within
     a cent of the target can cross a month apart. A unit slip moves it by years.
     """
-    a = engine.simulate_purchase(s, PACK, amount).options[0].months_delay
-    b = engine.simulate_purchase(_scaled(s, k), PACK, amount * k).options[0].months_delay
+    a = _impact(s, amount).options[0].months_delay
+    b = _impact(_scaled(s, k), amount * k).options[0].months_delay
     assert (a is None) == (b is None)
     if a is not None and b is not None:
         assert abs(a - b) <= 1
@@ -343,7 +360,7 @@ def test_month_answer_reconciles_with_the_year_solver(
     boundaries; if that ever drifts the two surfaces would quote FI dates a year
     apart for the same user — the exact failure the FI audit fixed once already.
     """
-    impact = engine.simulate_purchase(s, PACK, amount)
+    impact = _impact(s, amount)
     if impact.fi_number <= 0:
         return
     surplus = s.monthly_income - s.monthly_expenses
@@ -352,9 +369,7 @@ def test_month_answer_reconciles_with_the_year_solver(
         (base, impact.baseline_months_to_fi),
         (base - amount, impact.options[0].months_to_fi),
     ):
-        years = engine.years_to_target(
-            starting, surplus, PACK.expected_real_return, impact.fi_number
-        )
+        years = engine.years_to_target(starting, surplus, REAL, impact.fi_number)
         if months is None or years is None:
             continue
         assert -(-months // 12) == int(years)
@@ -388,11 +403,9 @@ def test_zero_interest_is_never_reported_as_negative(amount: Decimal, term: int)
         total_assets=Decimal("1000000"),
         total_liabilities=Decimal("0"),
         goal_progress=None,
-        currency="LKR",
+        currency="EUR",
     )
-    impact = engine.simulate_purchase(
-        snap, PACK, amount, term_months=term, annual_interest_rate=Decimal("0")
-    )
+    impact = _impact(snap, amount, term_months=term, annual_interest_rate=Decimal("0"))
     interest = impact.options[1].interest_cost
     assert interest == 0
     assert not str(interest).startswith("-")
@@ -418,10 +431,8 @@ def test_interest_makes_installments_strictly_dearer(
 def test_installments_never_beat_cash_on_total_cost(
     s: FinancialSnapshot, amount: Decimal, term: int
 ) -> None:
-    """Financing is never cheaper in absolute rupees than paying outright."""
-    impact = engine.simulate_purchase(
-        s, PACK, amount, term_months=term, annual_interest_rate=Decimal("0.18")
-    )
+    """Financing is never cheaper in absolute money than paying outright."""
+    impact = _impact(s, amount, term_months=term, annual_interest_rate=Decimal("0.18"))
     cash, installments = impact.options[0], impact.options[1]
     assert installments.total_cost > cash.total_cost
     assert installments.interest_cost > 0

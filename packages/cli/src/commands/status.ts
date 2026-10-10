@@ -142,7 +142,11 @@ export function registerStatus(program: Command, app: App): void {
             const progress = out.percent(fi.progress_to_fi);
             lines.push(`${label(c.bold('FI score'))}${singleLine(fi.overall_score)} (${singleLine(fi.grade)}) · ${progress} of the way to financial independence`);
             lines.push(`${label('Savings rate', 2)}${out.percent(fi.savings_rate)} of income`);
-            if (fi.projected_fi_date) lines.push(`${label('FI by', 2)}${displayDate(fi.projected_fi_date, out.locale)}`);
+            if (fi.projected_fi_date) {
+              // A date resting on a placeholder return or withdrawal rate says so.
+              const placeholder = fi.assumptions?.status === 'placeholder' ? ` ${c.dim('(placeholder assumptions: salli fi assumptions)')}` : '';
+              lines.push(`${label('FI by', 2)}${displayDate(fi.projected_fi_date, out.locale)}${placeholder}`);
+            }
             lines.push('');
           }
 

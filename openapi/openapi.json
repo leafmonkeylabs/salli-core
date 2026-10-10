@@ -4619,7 +4619,7 @@
           "financial-independence"
         ],
         "summary": "Get Assumptions",
-        "description": "The planning assumptions behind the user's FI figures, and where each came from.",
+        "description": "The planning assumptions behind the user's FI figures: which apply and\nwhere each came from, what the user set, and the placeholders.",
         "operationId": "fi.assumptions",
         "responses": {
           "200": {
@@ -4628,6 +4628,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FiAssumptionsReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Set Assumptions",
+        "description": "Set or clear the user's own planning assumptions, each with its source.\nA figure out of range, or a set that can't be used together, is a 422 and\nchanges nothing.",
+        "operationId": "fi.assumptions.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FiAssumptionsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiAssumptionsReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5078,7 +5133,7 @@
           "financial-independence"
         ],
         "summary": "Get Projections",
-        "description": "15-year portfolio projections across conservative/base/growth scenarios.",
+        "description": "Projections across conservative/base/growth real-return scenarios\n(15 years, or as far as FI is reached, up to 40), with placeholders\nstanding in for assumptions the user has not set.",
         "operationId": "fi.projections",
         "responses": {
           "200": {
@@ -15518,13 +15573,24 @@
             "enum": [
               "user",
               "strategy",
-              "default"
+              "placeholder"
             ],
             "title": "Origin"
           },
           "source": {
             "type": "string",
             "title": "Source"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           }
         },
         "type": "object",
@@ -15534,146 +15600,400 @@
           "source"
         ],
         "title": "FiAssumption",
-        "description": "One planning assumption, and where it came from."
-      },
-      "FiAssumptionOverrides": {
-        "properties": {
-          "inflation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inflation"
-          },
-          "real_return": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Real Return"
-          },
-          "safe_withdrawal_rate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Safe Withdrawal Rate"
-          }
-        },
-        "type": "object",
-        "title": "FiAssumptionOverrides",
-        "description": "The planning assumptions the user set themselves; null where they use\nthe default for their currency. Yearly fractions in decimal strings."
-      },
-      "FiAssumptionOverridesIn": {
-        "properties": {
-          "inflation": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "examples": [
-                  "0.05"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inflation"
-          },
-          "real_return": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "examples": [
-                  "0.05"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Real Return"
-          },
-          "safe_withdrawal_rate": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "examples": [
-                  "0.05"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Safe Withdrawal Rate"
-          }
-        },
-        "type": "object",
-        "title": "FiAssumptionOverridesIn",
-        "description": "Set the user's own planning assumptions, as yearly fractions (\"0.03\" is\n3%). Only the fields sent change; an explicit null returns one to the\ndefault for their currency."
+        "description": "One planning assumption a figure was computed with, and where it came from."
       },
       "FiAssumptions": {
         "properties": {
-          "region": {
+          "status": {
             "type": "string",
-            "title": "Region"
+            "enum": [
+              "placeholder",
+              "user"
+            ],
+            "title": "Status"
           },
-          "inflation": {
-            "$ref": "#/components/schemas/FiAssumption"
+          "placeholders": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "real_return",
+                "safe_withdrawal_rate"
+              ]
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
           },
           "real_return": {
             "$ref": "#/components/schemas/FiAssumption"
           },
           "safe_withdrawal_rate": {
             "$ref": "#/components/schemas/FiAssumption"
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nominal_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "real_returns": {
+            "$ref": "#/components/schemas/FiScenarioReturns"
+          },
+          "nominal_returns": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiScenarioReturns"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
-          "region",
-          "inflation",
+          "status",
+          "placeholders",
+          "message",
           "real_return",
-          "safe_withdrawal_rate"
+          "safe_withdrawal_rate",
+          "real_returns"
         ],
         "title": "FiAssumptions",
-        "description": "The assumptions these figures were computed with. Defaults are round,\nconservative starting points to adjust, never forecasts."
+        "description": "The assumptions these figures were computed with, in real terms.\n\nCheck `status`: \"placeholder\" means at least one figure (`placeholders`\nsays which) is a neutral stand-in, not a forecast and not any country's\nfigure; set your own with `PATCH /v1/fi/assumptions`."
       },
       "FiAssumptionsReport": {
         "properties": {
           "applied": {
             "$ref": "#/components/schemas/FiAssumptions"
           },
-          "defaults": {
-            "$ref": "#/components/schemas/FiAssumptions"
+          "own": {
+            "$ref": "#/components/schemas/FiOwnAssumptions"
           },
-          "overrides": {
-            "$ref": "#/components/schemas/FiAssumptionOverrides"
+          "placeholder_values": {
+            "$ref": "#/components/schemas/FiPlaceholderValues"
+          },
+          "scenario_spread": {
+            "type": "string",
+            "title": "Scenario Spread"
           }
         },
         "type": "object",
         "required": [
           "applied",
-          "defaults",
-          "overrides"
+          "own",
+          "placeholder_values",
+          "scenario_spread"
         ],
         "title": "FiAssumptionsReport",
-        "description": "The assumptions the user's FI figures use, the defaults for their\ncurrency, and what they set themselves."
+        "description": "The assumptions the user's FI figures use, what they set themselves,\nand the placeholders that stand in for the rest."
+      },
+      "FiAssumptionsUpdate": {
+        "properties": {
+          "real_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nominal_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FiAssumptionsUpdate",
+        "description": "Set the user's own planning assumptions. Only the fields sent change;\nan explicit null clears one (a placeholder, or the FIRE strategy's figure,\nstands in again). Set a real return or a nominal one, not both; a nominal\nreturn needs inflation."
+      },
+      "FiNominalPoint": {
+        "properties": {
+          "conservative": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conservative"
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "growth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth"
+          },
+          "fi_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fi Number"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FiNominalPoint",
+        "description": "A year's projected values in that year's own money, from the user's inflation."
+      },
+      "FiOwnAssumption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "set_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "FiOwnAssumption",
+        "description": "A planning assumption the user (or their agent) set."
+      },
+      "FiOwnAssumptionIn": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value",
+            "examples": [
+              "0.05"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "FiOwnAssumptionIn",
+        "description": "One planning assumption to set."
+      },
+      "FiOwnAssumptions": {
+        "properties": {
+          "real_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nominal_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FiOwnAssumptions",
+        "description": "What the user set themselves; null where they have not."
+      },
+      "FiPlaceholder": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "source"
+        ],
+        "title": "FiPlaceholder",
+        "description": "The neutral stand-in used where the user has set nothing."
+      },
+      "FiPlaceholderValues": {
+        "properties": {
+          "real_return": {
+            "$ref": "#/components/schemas/FiPlaceholder"
+          },
+          "safe_withdrawal_rate": {
+            "$ref": "#/components/schemas/FiPlaceholder"
+          }
+        },
+        "type": "object",
+        "required": [
+          "real_return",
+          "safe_withdrawal_rate"
+        ],
+        "title": "FiPlaceholderValues"
       },
       "FiProjectionPoint": {
         "properties": {
@@ -15735,6 +16055,16 @@
               }
             ],
             "title": "Growth"
+          },
+          "nominal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiNominalPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": true,
@@ -15759,6 +16089,21 @@
               }
             ],
             "title": "Currency"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "real",
+                  "real_and_nominal"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms"
           },
           "points": {
             "anyOf": [
@@ -15860,7 +16205,7 @@
               }
             ]
           },
-          "expected_inflation": {
+          "inflation": {
             "anyOf": [
               {
                 "type": "string"
@@ -15869,7 +16214,17 @@
                 "type": "null"
               }
             ],
-            "title": "Expected Inflation"
+            "title": "Inflation"
+          },
+          "nominal_returns": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiScenarioReturns"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "assumptions": {
             "anyOf": [
@@ -15885,7 +16240,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "FiProjections",
-        "description": "The FI asset base projected forward under three return scenarios, in today's money.\n\nA deployment's entitlement policy may withhold parts of this and add fields\nof its own, so every field is optional."
+        "description": "The FI asset base projected forward under three real-return scenarios,\nin today's money, and in each year's own money when the user set their\ninflation. Never waits for assumptions: `assumptions.status` says when a\nplaceholder stands in.\n\nA deployment's entitlement policy may withhold parts of this and add fields\nof its own, so every field is optional."
       },
       "FiScenarioReturns": {
         "properties": {
@@ -15926,7 +16281,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "FiScenarioReturns",
-        "description": "Real (after-inflation) yearly returns per scenario, as fractions in decimal strings."
+        "description": "Yearly returns per scenario, as fractions in decimal strings."
       },
       "FiScore": {
         "properties": {
@@ -16406,7 +16761,7 @@
             ],
             "title": "Swr"
           },
-          "return_conservative": {
+          "real_return_conservative": {
             "anyOf": [
               {
                 "type": "number"
@@ -16415,9 +16770,9 @@
                 "type": "null"
               }
             ],
-            "title": "Return Conservative"
+            "title": "Real Return Conservative"
           },
-          "return_base": {
+          "real_return_base": {
             "anyOf": [
               {
                 "type": "number"
@@ -16426,9 +16781,9 @@
                 "type": "null"
               }
             ],
-            "title": "Return Base"
+            "title": "Real Return Base"
           },
-          "return_growth": {
+          "real_return_growth": {
             "anyOf": [
               {
                 "type": "number"
@@ -16437,7 +16792,7 @@
                 "type": "null"
               }
             ],
-            "title": "Return Growth"
+            "title": "Real Return Growth"
           },
           "target_monthly_expenses": {
             "anyOf": [
@@ -16515,7 +16870,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "FireStrategy",
-        "description": "A version of the user's AI-generated FIRE strategy.\n\nRates are fractions (0.04 is 4%), and the returns are nominal and yearly.\nEvery field is optional: a strategy stored by an earlier version can lack\nsome, and a deployment's entitlement policy may withhold parts of it and\nadd fields of its own."
+        "description": "A version of the user's AI-generated FIRE strategy.\n\nRates are fractions (0.04 is 4%), and the returns are yearly and real\n(after inflation).\nEvery field is optional: a strategy stored by an earlier version can lack\nsome, and a deployment's entitlement policy may withhold parts of it and\nadd fields of its own."
       },
       "FireStrategyBucket": {
         "properties": {
@@ -19532,10 +19887,12 @@
             ],
             "title": "Tax Residency"
           },
-          "nic": {
-            "type": "string",
-            "title": "Nic",
-            "default": ""
+          "tax_ids": {
+            "items": {
+              "$ref": "#/components/schemas/TaxId"
+            },
+            "type": "array",
+            "title": "Tax Ids"
           },
           "residency": {
             "type": "string",
@@ -19550,11 +19907,6 @@
           "employment_type": {
             "type": "string",
             "title": "Employment Type",
-            "default": ""
-          },
-          "ird_number": {
-            "type": "string",
-            "title": "Ird Number",
             "default": ""
           },
           "income_sources": {
@@ -20825,17 +21177,6 @@
             ],
             "title": "Employment Type"
           },
-          "ird_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ird Number"
-          },
           "risk_score": {
             "anyOf": [
               {
@@ -20910,20 +21251,6 @@
             },
             "type": "array",
             "title": "Tax Ids"
-          },
-          "nic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nic"
-          },
-          "fi_assumptions": {
-            "$ref": "#/components/schemas/FiAssumptionOverrides"
           }
         },
         "type": "object",
@@ -20938,7 +21265,6 @@
           "residency_status",
           "employer",
           "employment_type",
-          "ird_number",
           "risk_score",
           "risk_category",
           "life_stage",
@@ -21057,38 +21383,6 @@
               }
             ],
             "title": "Tax Ids"
-          },
-          "ird_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ird Number"
-          },
-          "nic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nic"
-          },
-          "fi_assumptions": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FiAssumptionOverridesIn"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "base_currency": {
             "anyOf": [
@@ -24275,7 +24569,7 @@
             "pattern": "^[A-Z]{2}-[A-Z0-9]+$",
             "title": "Scheme",
             "examples": [
-              "LK-TIN"
+              "XX-TIN"
             ]
           },
           "value": {

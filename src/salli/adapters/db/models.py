@@ -589,9 +589,6 @@ class UserProfileORM(Base):
     residency_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     employer: Mapped[str | None] = mapped_column(String(200), nullable=True)
     employment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # The Sri Lankan TIN from before `tax_ids`: kept, and kept equal to the
-    # "LK-TIN" tax id, for anything that still reads the column.
-    ird_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
     risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     risk_category: Mapped[str | None] = mapped_column(String(16), nullable=True)
     life_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -622,16 +619,19 @@ class UserProfileORM(Base):
     # Where the user is taxed: an ISO 3166-1 alpha-2 code, or NULL while they
     # have not said. It decides which of their tax rule sets compute their tax.
     tax_residency: Mapped[str | None] = mapped_column(String(2), nullable=True)
-    # Their tax ids, [{"scheme": "LK-TIN", "value": "..."}, ...], one per scheme.
+    # Their tax ids, [{"scheme": "XX-TIN", "value": "..."}, ...], one per scheme.
     tax_ids: Mapped[list[dict[str, str]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
 
-    # The user's own FI planning assumptions, as yearly fractions ("0.03" is
-    # 3%). NULL uses the default for their base currency (domain/fi/assumptions.py).
-    fi_inflation: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
-    fi_real_return: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
-    fi_safe_withdrawal_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    # The user's own FI planning assumptions, each with where it comes from:
+    # {"inflation": {"value": "0.03", "source": "...", "note": "...",
+    # "set_at": "..."}, ...}, values as decimal strings. One that is missing
+    # uses the FIRE strategy's figure, or a labelled placeholder
+    # (domain/fi/assumptions.py).
+    fi_assumptions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -647,6 +647,9 @@ class UserProfileORM(Base):
             name="ck_user_profiles_tax_residency",
         ),
         CheckConstraint("jsonb_typeof(tax_ids) = 'array'", name="ck_user_profiles_tax_ids"),
+        CheckConstraint(
+            "jsonb_typeof(fi_assumptions) = 'object'", name="ck_user_profiles_fi_assumptions"
+        ),
     )
 
 
@@ -955,7 +958,7 @@ class HoldingORM(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(40), nullable=False)
     # ISO 4217: what it trades in, its transactions' money and its prices.
-    # Not necessarily the owner's base currency (a US fund in a rupee ledger).
+    # Not necessarily the owner's base currency (a US fund in a euro ledger).
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     # Declared, in the base currency; ignored once there are transactions.
     cost_basis_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)

@@ -155,8 +155,8 @@ def recurring_flows(
     account. `cash` is account id → its currency.
 
     Each side moves by its typical amount in its own account's currency
-    (`Recurring.money_amount`, `counter_amount`): a USD salary into a rupee
-    account in rupees. A side whose amount can't be known in its account's
+    (`Recurring.money_amount`, `counter_amount`): a USD salary into a euro
+    account in euros. A side whose amount can't be known in its account's
     currency is left out, and said in `notes`."""
     flows: list[Flow] = []
     for r in found:

@@ -8,7 +8,8 @@ for the tax conformance suite, and fixes are all welcome.
 - **Accept the Contributor License Agreement** — once, on your first pull
   request. See [below](#contributor-license-agreement).
 - **Keep the rules in `CLAUDE.md`.** The LLM never computes money or tax;
-  posted entries are never edited; money is `Decimal`; tax rules are user data.
+  posted entries are never edited; money is `Decimal`; tax rules are user data;
+  nothing country-specific lives in the code (see [below](#local-knowledge)).
 - **CLI-first.** A new API route needs a `salli` command in `packages/cli`
   (TypeScript, over the API), or a line in `EXEMPT` in
   `packages/cli/test/api-coverage.test.ts` saying why a person never calls
@@ -70,6 +71,22 @@ blocks, the schema and validator. A change to them needs a conformance test:
 a fictional jurisdiction in `tests/taxrules/conformance/` that copies the
 *structure* of the real-world feature, never its law, with the arithmetic
 behind every worked example written out in `tests/taxrules/test_conformance.py`.
+
+## Local knowledge
+
+The same goes for everything else that differs by country. Planning
+assumptions (inflation, returns, withdrawal rates) are the user's, set with
+their sources; where there are none, a neutral placeholder stands in, always
+labelled as one. Tax ids are generic `{scheme, value}` pairs. Investment
+products, providers and rates are for the user's agent to research, citing
+sources. So salli-core takes no table of any country's figures, schemes or
+products, and no example that reads as one: use varied currencies and
+countries in examples and tests.
+
+`tests/contract/test_no_country_knowledge.py` keeps it that way: it fails on
+one country's terms in `src/`, the CLI, the SDK, the API document, the skills
+and the docs. The ISO 3166 and ISO 4217 tables (data about every country
+alike) and the historical migrations are its only, commented, exceptions.
 
 ## Reporting a security issue
 

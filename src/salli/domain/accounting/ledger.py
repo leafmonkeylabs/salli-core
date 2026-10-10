@@ -139,7 +139,7 @@ def native_signed(posting: Posting, account_currency: str, base_currency: str) -
     A posting in the account's currency is that amount. A posting in another
     currency to an account kept in the base currency is its base equivalent
     (amount × fx_rate). Anything else — euros posted to a dollar account in a
-    rupee ledger — has no rate into the account's currency, so None.
+    euro ledger — has no rate into the account's currency, so None.
     """
     if posting.currency == account_currency:
         amount = posting.amount
