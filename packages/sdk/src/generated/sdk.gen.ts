@@ -991,9 +991,10 @@ export const advisorBriefingPrepare = <ThrowOnError extends boolean = false>(opt
 /**
  * Resume Briefing
  *
- * Resume the briefing workflow after human review and persist if approved.
+ * Resume the caller's briefing workflow after human review and persist if approved.
  */
 export const advisorBriefingResume = <ThrowOnError extends boolean = false>(options: Options<AdvisorBriefingResumeData, ThrowOnError>): RequestResult<AdvisorBriefingResumeResponses, AdvisorBriefingResumeErrors, ThrowOnError> => (options.client ?? client).post<AdvisorBriefingResumeResponses, AdvisorBriefingResumeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/advisor/briefing/resume',
     ...options,
     headers: {
