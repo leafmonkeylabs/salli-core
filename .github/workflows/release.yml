@@ -221,21 +221,31 @@ jobs:
       - name: Draft the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ needs.verify.outputs.package }}
           NAME: ${{ needs.verify.outputs.name }}
           VERSION: ${{ needs.verify.outputs.version }}
           DIST_TAG: ${{ needs.verify.outputs.dist_tag }}
         run: |
           prerelease=""
           [ "$DIST_TAG" = next ] && prerelease="--prerelease"
+          # Written for when the draft is published: after npm approval.
+          if [ "$PACKAGE" = cli ]; then
+            install="npm install --global $NAME@$VERSION"
+            extra="Without Node.js, use the standalone binary for your platform below; check it against \`SHA256SUMS\`. The macOS and Windows binaries aren't code-signed yet."
+          else
+            install="npm install $NAME@$VERSION"
+            extra=""
+          fi
           cat > notes.md <<NOTES
-          \`$NAME\` $VERSION, staged on npm: it installs once a maintainer approves it.
+          \`$NAME\` $VERSION.
 
           \`\`\`bash
-          npm install --global $NAME@$VERSION
+          $install
           \`\`\`
 
+          Needs Node.js 22.12 or later. $extra
+
           Built and published from this repository by GitHub Actions, with npm provenance.
-          Standalone binaries (CLI releases) are listed below. Check them against \`SHA256SUMS\`.
           NOTES
           gh release create "$GITHUB_REF_NAME" assets/* \
             --repo "$GITHUB_REPOSITORY" --verify-tag --draft $prerelease \
