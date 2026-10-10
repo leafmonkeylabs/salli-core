@@ -242,3 +242,7 @@ commenting on their first pull request. Security issues:
 
 [GNU Affero General Public License v3.0](LICENSE). If you run a modified
 Salli as a network service, you must offer its source to its users.
+
+The TypeScript SDK and CLI in [`packages/sdk`](packages/sdk) and
+[`packages/cli`](packages/cli) are [Apache-2.0](packages/sdk/LICENSE), so other
+apps and integrations can embed the SDK without taking on the AGPL.

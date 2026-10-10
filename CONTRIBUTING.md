@@ -22,7 +22,8 @@ fixes are all welcome.
 
 ## Contributor License Agreement
 
-Salli is open source under the AGPL-3.0. Leaf Monkey Labs, which maintains it,
+Salli is open source under the AGPL-3.0; its TypeScript SDK and CLI
+(`packages/`) are under Apache-2.0. Leaf Monkey Labs, which maintains it,
 also runs Salli as a hosted service that is not open source. The
 [Contributor License Agreement](CLA.md) lets Leaf Monkey Labs use your
 contribution in both: you keep the copyright and can use your work however you
