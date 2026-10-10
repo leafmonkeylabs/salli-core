@@ -18,6 +18,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -268,11 +269,147 @@ class TaxComputationORM(Base):
     pack_version: Mapped[str] = mapped_column(String(20), nullable=False)
     inputs_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     result_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    # Phase 3 of docs/design/country-neutral-core.md: which rule-set version
+    # computed this, the content hash of its rules and every line it produced,
+    # so an old return can be reproduced after the rules change. Nothing
+    # writes them yet; the built-in pack's computations leave them empty.
+    rule_set_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("tax_rule_set_versions.id"), nullable=True
+    )
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lines: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
 
     __table_args__ = (Index("ix_tax_computations_user_year", "user_id", "year"),)
+
+
+# ── Tax rule sets (user data: docs/taxrules.md) ───────────────────────────────
+
+#: A version's lifecycle (application/services/tax_rule_service.py).
+RULE_SET_STATUSES = ("draft", "validated", "proposed", "active", "superseded", "invalid")
+
+
+class TaxRuleSetORM(Base):
+    """One jurisdiction's tax for one year, as a user (or their agent) wrote
+    it: a named series of immutable versions, at most one of them active.
+
+    One per user, country, region and year. `region` is part of that key even
+    when NULL (a country-wide rule set), which a plain UNIQUE constraint would
+    not enforce, so the key is an index over COALESCE(region, '') (a region is
+    never empty). The active version must be one of this set's own: the
+    composite foreign key says so, not just the service.
+    """
+
+    __tablename__ = "tax_rule_sets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    country: Mapped[str] = mapped_column(String(2), nullable=False)
+    region: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    year_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    active_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint("country ~ '^[A-Z]{2}$'", name="ck_tax_rule_sets_country"),
+        CheckConstraint("region IS NULL OR region <> ''", name="ck_tax_rule_sets_region"),
+        # What versions' composite foreign key points at.
+        UniqueConstraint("id", "user_id", name="uq_tax_rule_sets_id_user"),
+        Index(
+            "uq_tax_rule_sets_jurisdiction_year",
+            "user_id",
+            "country",
+            text("COALESCE(region, '')"),
+            "year_label",
+            unique=True,
+        ),
+        ForeignKeyConstraint(
+            ["id", "active_version_id"],
+            ["tax_rule_set_versions.rule_set_id", "tax_rule_set_versions.id"],
+            name="fk_tax_rule_sets_active_version",
+            use_alter=True,
+        ),
+    )
+
+
+class TaxRuleSetVersionORM(Base):
+    """One version of a rule set: the document, its validation report and its
+    place in the lifecycle.
+
+    `content` and `content_hash` never change once written: an edit is a new
+    version. The repository has no way to update them, and a trigger
+    (core_0010) refuses an UPDATE that would, as defence in depth. Status and
+    its timestamps, and the stored report, do change as the version moves
+    through its lifecycle.
+
+    `user_id` is the set's owner, repeated so every query can filter on it
+    directly; the composite foreign key keeps it equal to the set's.
+    """
+
+    __tablename__ = "tax_rule_set_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    rule_set_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The document as it was submitted (parsed JSON; decimals are strings in it).
+    content: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    # The rule set's content hash (docs/taxrules.md); NULL for a document that
+    # doesn't match the schema, which has none.
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    # The last validation: errors, warnings and each example's result.
+    validation: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    author_kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    author_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    change_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    proposed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["rule_set_id", "user_id"],
+            ["tax_rule_sets.id", "tax_rule_sets.user_id"],
+            name="fk_tax_rule_set_versions_rule_set",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("rule_set_id", "version", name="uq_tax_rule_set_versions_number"),
+        # What the set's active-version foreign key points at.
+        UniqueConstraint("rule_set_id", "id", name="uq_tax_rule_set_versions_set_id"),
+        # One active version per set, whatever a caller does.
+        Index(
+            "uq_tax_rule_set_versions_one_active",
+            "rule_set_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+        CheckConstraint("version > 0", name="ck_tax_rule_set_versions_version"),
+        CheckConstraint(
+            "status IN (" + ",".join(f"'{s}'" for s in RULE_SET_STATUSES) + ")",
+            name="ck_tax_rule_set_versions_status",
+        ),
+        CheckConstraint(
+            "author_kind IN ('user','agent')", name="ck_tax_rule_set_versions_author_kind"
+        ),
+        CheckConstraint(
+            "(status <> 'active' OR activated_at IS NOT NULL)"
+            " AND (status <> 'superseded' OR superseded_at IS NOT NULL)"
+            " AND (status <> 'proposed' OR proposed_at IS NOT NULL)",
+            name="ck_tax_rule_set_versions_timestamps",
+        ),
+    )
 
 
 # ── Documents ─────────────────────────────────────────────────────────────────

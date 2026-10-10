@@ -132,6 +132,89 @@ class TaxComputationRepository(ABC):
         ...
 
 
+class RuleSetExists(ValueError):
+    """The user already has a tax rule set for this jurisdiction and year."""
+
+    def __init__(self, rule_set_id: str) -> None:
+        super().__init__(
+            f"A tax rule set for this jurisdiction and year already exists: {rule_set_id}"
+        )
+        self.rule_set_id = rule_set_id
+
+
+class TaxRuleSetRepository(ABC):
+    """A user's tax rule sets and their versions, as plain dicts.
+
+    Every method takes the owner's id and touches nothing of anyone else's: a
+    set or version of another user's is indistinguishable from one that does
+    not exist. A version's `content` and `content_hash` are written once, by
+    `add_version`, and there is no way here to change them (core_0010's
+    trigger refuses it too): an edit is a new version.
+    """
+
+    @abstractmethod
+    async def list_sets(self, user_id: str) -> list[dict[str, Any]]:
+        """The user's rule sets, each with `versions`: a summary of every
+        version (no content), oldest first."""
+        ...
+
+    @abstractmethod
+    async def get_set(
+        self, user_id: str, rule_set_id: str, *, lock: bool = False
+    ) -> dict[str, Any] | None:
+        """One set with its version summaries. `lock` holds the set's row until
+        the unit of work ends (SELECT … FOR UPDATE), so versions can be
+        numbered and activated one at a time."""
+        ...
+
+    @abstractmethod
+    async def find_set(
+        self, user_id: str, country: str, region: str | None, year_label: str, *, lock: bool = False
+    ) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def create_set(
+        self, user_id: str, country: str, region: str | None, year_label: str, name: str
+    ) -> dict[str, Any]:
+        """RuleSetExists when the user has one for this jurisdiction and year."""
+        ...
+
+    @abstractmethod
+    async def get_version(self, user_id: str, version_id: str) -> dict[str, Any] | None:
+        """One version, with its content and validation report."""
+        ...
+
+    @abstractmethod
+    async def add_version(
+        self, user_id: str, rule_set_id: str, fields: dict[str, Any]
+    ) -> dict[str, Any]:
+        """A new version of the set, numbered one past its latest. The caller
+        holds the set's lock (`get_set(…, lock=True)`). `fields`: content,
+        content_hash, status, validation, author_kind, author_name,
+        change_note."""
+        ...
+
+    @abstractmethod
+    async def update_version(self, user_id: str, version_id: str, fields: dict[str, Any]) -> bool:
+        """Change a version's lifecycle fields (status, validation, proposed_at,
+        activated_at, superseded_at); ValueError for any other field."""
+        ...
+
+    @abstractmethod
+    async def set_active(self, user_id: str, rule_set_id: str, version_id: str | None) -> None: ...
+
+    @abstractmethod
+    async def declared_roles(self, user_id: str) -> set[str]:
+        """Every role key a version of the user's rule sets declares, among the
+        versions whose document matches the schema."""
+        ...
+
+    @abstractmethod
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every set with every version in full, for the user's data export."""
+        ...
+
+
 class ReminderRepository(ABC):
     @abstractmethod
     async def list_reminders(self, user_id: str, status: str | None = None) -> list[Any]: ...

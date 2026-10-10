@@ -41,6 +41,7 @@ from salli.adapters.db.repositories import (
     SQLTaxComputationRepository,
     SQLUserProfileRepository,
 )
+from salli.adapters.db.tax_rule_sets import SQLTaxRuleSetRepository
 from salli.application.ports import (
     AdvisoryRepository,
     AgentDocumentRepository,
@@ -70,6 +71,7 @@ from salli.application.ports import (
     RuleRepository,
     StatementRepository,
     TaxComputationRepository,
+    TaxRuleSetRepository,
     UserProfileRepository,
 )
 
@@ -80,6 +82,7 @@ if TYPE_CHECKING:
 class UnitOfWork:
     ledger: LedgerRepository
     tax_computations: TaxComputationRepository
+    tax_rule_sets: TaxRuleSetRepository
     statements: StatementRepository
     reminders: ReminderRepository
     agent_documents: AgentDocumentRepository
@@ -121,6 +124,7 @@ class UnitOfWork:
         self._session = self._factory()
         self.ledger = SQLLedgerRepository(self._session)
         self.tax_computations = SQLTaxComputationRepository(self._session)
+        self.tax_rule_sets = SQLTaxRuleSetRepository(self._session)
         self.statements = SQLStatementRepository(self._session)
         self.reminders = SQLReminderRepository(self._session)
         self.agent_documents = SQLAgentDocumentRepository(self._session)

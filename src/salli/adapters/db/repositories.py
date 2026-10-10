@@ -57,6 +57,8 @@ from salli.adapters.db.models import (
     StatementORM,
     TagORM,
     TaxComputationORM,
+    TaxRuleSetORM,
+    TaxRuleSetVersionORM,
     UserLlmCredentialORM,
     UserProfileORM,
 )
@@ -2747,6 +2749,12 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(PolicyORM, PolicyORM.user_id)
         await _delete(InsuranceTargetORM, InsuranceTargetORM.user_id)
         await _delete(TaxComputationORM, TaxComputationORM.user_id)
+        # After tax_computations, which may point at a version. A set is
+        # deleted before its versions (its active version points back at it),
+        # which cascade from it; deleting them by owner after is then a no-op,
+        # kept so nothing depends on the cascade alone.
+        await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
+        await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
         await _delete(AuditLogORM, AuditLogORM.user_id)
         await _delete(OAuthRefreshTokenORM, OAuthRefreshTokenORM.user_id)
         await _delete(OAuthAccessTokenORM, OAuthAccessTokenORM.user_id)
