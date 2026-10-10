@@ -30,7 +30,9 @@ pytestmark = pytest.mark.asyncio
 
 def _projections() -> dict[str, Any]:
     return {
-        "points": [{"year": 1, "conservative": "100", "base": "110", "growth": "120"}],
+        # As the service sends them: in a currency, with its decimals.
+        "currency": "LKR",
+        "points": [{"year": 1, "conservative": "100.00", "base": "110.00", "growth": "120.00"}],
         "fire_year_conservative": 14,
         "fire_year_base": 12,
         "fire_year_growth": 10,
@@ -165,7 +167,8 @@ async def test_a_refusal_reaches_the_client_as_the_meter_shaped_it(client, mock_
         )
         r = await send(client)
         assert r.status_code == 402, action
-        assert r.json() == {"detail": detail}, action
+        # The meter's detail passes through untouched, inside problem details.
+        assert r.json() == _refusal(402, detail), action
         downstream().assert_not_called()
 
 
@@ -176,7 +179,7 @@ async def test_a_refusal_without_a_status_is_a_429(client, mock_services):
     )
     r = await client.post("/fi/strategy/generate", headers=AUTH)
     assert r.status_code == 429
-    assert r.json() == {"detail": {"error": "Slow down."}}
+    assert r.json() == _refusal(429, {"error": "Slow down."})
 
 
 async def test_the_advisor_meters_inside_the_service_and_still_maps(client, mock_services):
@@ -187,7 +190,16 @@ async def test_the_advisor_meters_inside_the_service_and_still_maps(client, mock
     )
     r = await client.post("/advisor/run", headers=AUTH)
     assert r.status_code == 402
-    assert r.json() == {"detail": {"error": "x"}}
+    assert r.json() == _refusal(402, {"error": "x"})
+
+
+def _refusal(status: int, detail: dict) -> dict:
+    return {
+        "type": "/problems/usage-limit",
+        "title": "Usage limit reached",
+        "status": status,
+        "detail": detail,
+    }
 
 
 async def test_the_daily_run_skips_a_refused_user_and_carries_on():

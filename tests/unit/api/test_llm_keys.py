@@ -46,6 +46,18 @@ async def test_get_reports_stored_keys_without_the_key(client, creds):
     assert "ciphertext" not in r.text
 
 
+async def test_a_field_the_service_adds_never_reaches_the_client(client, creds):
+    """The response model names what may be returned; anything else the
+    service hands back — key material included — is dropped, not sent."""
+    status = {"provider": "anthropic", "last4": "6789", "validated_at": None, "readable": True}
+    creds.status.return_value = [{**status, "key": KEY, "ciphertext": "sealed"}]
+    r = await client.get("/llm-keys", headers=AUTH)
+
+    assert r.json() == {"available": True, "keys": [status]}
+    assert KEY not in r.text
+    assert "sealed" not in r.text
+
+
 async def test_get_reports_unavailable_so_the_ui_can_hide_the_section(client, creds):
     creds.available = False
     creds.status.return_value = []
@@ -154,14 +166,47 @@ async def test_deleting_requires_auth(client, creds):
 # ── The key must not appear in the OpenAPI schema either ──────────────────────
 
 
+def _field_names(schema: dict, node: object) -> set[str]:
+    """Every property name reachable from `node`, following `$ref`s."""
+    names: set[str] = set()
+    seen: set[str] = set()
+
+    def walk(n: object) -> None:
+        if isinstance(n, list):
+            for item in n:
+                walk(item)
+        elif isinstance(n, dict):
+            ref = n.get("$ref")
+            if isinstance(ref, str) and ref not in seen:
+                seen.add(ref)
+                walk(schema["components"]["schemas"][ref.rsplit("/", 1)[-1]])
+            names.update(n.get("properties", {}))
+            for value in n.values():
+                walk(value)
+
+    walk(node)
+    return names
+
+
 async def test_the_schema_documents_the_route_without_exposing_a_key_field(client, creds):
     """The generated clients are built from this schema, so a `key` in a
-    *response* model would propagate a readback path into both apps."""
-    schema = (await client.get("/openapi.json")).json()
-    assert "/llm-keys" in schema["paths"]
+    *response* model would propagate a readback path into both apps.
 
-    get_response = schema["paths"]["/llm-keys"]["get"]["responses"]["200"]
-    assert "key" not in str(get_response).lower().replace("llm-keys", "")
+    Every field the response can carry is listed here, read through the
+    response model's references, so adding one is a decision made in this test.
+    """
+    schema = (await client.get("/openapi.json")).json()
+    assert "/v1/llm-keys" in schema["paths"]
+
+    get_response = schema["paths"]["/v1/llm-keys"]["get"]["responses"]["200"]
+    assert _field_names(schema, get_response) == {
+        "available",
+        "keys",
+        "provider",
+        "last4",
+        "validated_at",
+        "readable",
+    }
 
 
 def test_the_router_never_returns_the_service_save_result():

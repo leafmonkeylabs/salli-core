@@ -10,10 +10,15 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from typing import Any, Literal
 
-from fastapi import FastAPI, Request, status
+from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from salli.application.ports import FxUnavailableError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
@@ -21,6 +26,7 @@ from salli.config import get_settings
 from salli.domain.secrets import redact
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
+from salli.interfaces.api.contract import API_PREFIX, operation_id
 from salli.interfaces.api.deps import get_services
 from salli.interfaces.api.request_context import RequestContextMiddleware
 from salli.interfaces.api.routers import (
@@ -38,6 +44,7 @@ from salli.interfaces.api.routers import (
     llm_keys,
     mcp_consent_page,
     mcp_oauth,
+    meta,
     onboarding,
     portfolio,
     reminders,
@@ -106,6 +113,39 @@ async def lifespan(app: FastAPI):
             pass
 
 
+class Health(BaseModel):
+    """`GET /healthz`: the process is up and serving."""
+
+    status: Literal["ok"]
+    #: The server's version (salli-core's).
+    version: str
+
+
+def problem(
+    status_code: int, kind: str | None, title: str, detail: Any, **headers: str
+) -> JSONResponse:
+    """An RFC 9457 problem-details response (see contract.Problem)."""
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "type": f"/problems/{kind}" if kind else "about:blank",
+            "title": title,
+            "status": status_code,
+            "detail": detail,
+        },
+        media_type="application/problem+json",
+        headers=headers or None,
+    )
+
+
+async def _deprecated_path(request: Request, response: Response) -> None:
+    """Marks a response served at a pre-/v1 path (RFC 9745 `Deprecation`), and
+    names where it lives now. Responses an endpoint builds itself (streams,
+    files) go out without it; the path still works."""
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = f'<{API_PREFIX}{request.url.path}>; rel="successor-version"'
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
 
@@ -120,7 +160,10 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Salli API",
         description="Privacy-first personal finance, tax and financial independence",
-        version="0.1.0",
+        version=meta.server_version(),
+        # Stable, deliberate operation ids: they are the function names of every
+        # client generated from this API's schema (see contract.py).
+        generate_unique_id_function=operation_id,
         docs_url="/docs" if settings.environment != "production" else None,
         redoc_url="/redoc" if settings.environment != "production" else None,
         lifespan=lifespan,
@@ -147,52 +190,64 @@ def create_app() -> FastAPI:
     )
 
     # ── Routers ───────────────────────────────────────────────────────────────
-    app.include_router(auth.router)
-    app.include_router(accounts.router)
-    app.include_router(entries.router)
-    app.include_router(ledger.router)
-    app.include_router(tags.router)
-    app.include_router(tax.router)
-    app.include_router(agent.router)
-    app.include_router(documents.router)
-    app.include_router(onboarding.router)
-    app.include_router(statements.router)
-    app.include_router(reminders.router)
-    app.include_router(fi.router)
-    app.include_router(advisor.router)
-    app.include_router(budget.router)
-    app.include_router(debt.router)
-    app.include_router(portfolio.router)
-    app.include_router(subscriptions.router)
-    app.include_router(insurance.router)
-    app.include_router(reports.router)
-    app.include_router(llm_keys.router)
+    # The REST API lives under /v1 (see contract.py). Each router is also
+    # served at its old unversioned path, outside the schema and marked
+    # deprecated, so clients written before /v1 keep working while they move.
+    rest = [
+        auth.router,
+        accounts.router,
+        entries.router,
+        ledger.router,
+        tags.router,
+        tax.router,
+        agent.router,
+        documents.router,
+        onboarding.router,
+        statements.router,
+        reminders.router,
+        fi.router,
+        advisor.router,
+        budget.router,
+        debt.router,
+        portfolio.router,
+        subscriptions.router,
+        insurance.router,
+        reports.router,
+        llm_keys.router,
+        mcp_oauth.connections_router,
+    ]
+    # Routers contributed by enabled extensions (salli/extensions.py), after
+    # Salli's own, so an extension adds paths but cannot shadow one of Salli's.
+    rest += [router for spec in enabled_specs(settings) for router in spec.api_routers]
+    for router in rest:
+        app.include_router(router, prefix=API_PREFIX)
+        app.include_router(
+            router, include_in_schema=False, dependencies=[Depends(_deprecated_path)]
+        )
+    app.include_router(meta.router, prefix=API_PREFIX)
+    # OAuth and the MCP consent page keep the paths their protocols fix.
     app.include_router(mcp_oauth.router)
-    app.include_router(mcp_oauth.connections_router)
-    app.include_router(mcp_consent_page.router)
-
-    # Routers contributed by enabled extensions (salli/extensions.py). Mounted
-    # last, so an extension adds paths but cannot shadow one of Salli's.
-    for spec in enabled_specs(settings):
-        for extension_router in spec.api_routers:
-            app.include_router(extension_router)
+    # A server-rendered page for people, not an API operation: kept out of the schema.
+    app.include_router(mcp_consent_page.router, include_in_schema=False)
 
     # ── Exception handlers ────────────────────────────────────────────────────
-    # Both handlers echo the exception text, so both are redacted: a provider
-    # SDK error (or our own validation of a user-supplied API key) can carry the
-    # key itself, and these are catch-alls for *any* uncaught ValueError/KeyError.
+    # Every error is RFC 9457 problem details (contract.Problem). `detail` keeps
+    # the value it always had, so clients written before this shape still work.
+    #
+    # The ValueError and KeyError handlers echo the exception text, so they are
+    # redacted: a provider SDK error (or our own validation of a user-supplied
+    # API key) can carry the key itself, and these are catch-alls for *any*
+    # uncaught ValueError/KeyError.
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"detail": redact(str(exc))},
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid", "Invalid request", redact(str(exc))
         )
 
     @app.exception_handler(KeyError)
     async def key_error_handler(request: Request, exc: KeyError) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": redact(f"Not found: {exc}")},
+        return problem(
+            status.HTTP_404_NOT_FOUND, "not-found", "Not found", redact(f"Not found: {exc}")
         )
 
     # No exchange rate for a posting in another currency. Before ValueError's
@@ -200,9 +255,11 @@ def create_app() -> FastAPI:
     # sending the rate it has, so it is a 422 that says so, not a 500.
     @app.exception_handler(FxUnavailableError)
     async def fx_unavailable_handler(request: Request, exc: FxUnavailableError) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"detail": f"{exc}. Send the exchange rate (fx_rate) with the amount."},
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "fx-rate-unavailable",
+            "No exchange rate",
+            f"{exc}. Send the exchange rate (fx_rate) with the amount.",
         )
 
     # Asked to change the base currency once amounts are stored in it.
@@ -210,22 +267,50 @@ def create_app() -> FastAPI:
     async def base_currency_locked_handler(
         request: Request, exc: BaseCurrencyLockedError
     ) -> JSONResponse:
-        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+        return problem(
+            status.HTTP_409_CONFLICT, "base-currency-locked", "Base currency is fixed", str(exc)
+        )
 
     # The usage meter refused an AI action. The meter chose the status and the
-    # body, so they pass through untouched — clients of a metered deployment
+    # detail, so they pass through untouched — clients of a metered deployment
     # branch on them. Raised before any stream opens, so this is always a plain
     # JSON response rather than an SSE error event.
     @app.exception_handler(UsageLimitReached)
     async def usage_limit_handler(request: Request, exc: UsageLimitReached) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        return problem(exc.status_code, "usage-limit", "Usage limit reached", exc.detail)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        return problem(
+            exc.status_code, None, _status_title(exc.status_code), exc.detail, **(exc.headers or {})
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "validation",
+            "Request validation failed",
+            jsonable_encoder(exc.errors()),
+        )
 
     # ── Health ────────────────────────────────────────────────────────────────
     @app.get("/healthz", tags=["meta"])
-    async def health():
-        return {"status": "ok", "version": app.version}
+    async def health() -> Health:
+        return Health(status="ok", version=app.version)
 
     return app
+
+
+def _status_title(code: int) -> str:
+    from http import HTTPStatus
+
+    try:
+        return HTTPStatus(code).phrase
+    except ValueError:
+        return "Error"
 
 
 app = create_app()
