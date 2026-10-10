@@ -25,7 +25,7 @@ from salli.domain.agents.jurisdiction import (
     TaxRulesContext,
     UserContext,
     context_section,
-    market_notes,
+    investing_context,
     set_user_context,
     tax_specialist_section,
     user_context,
@@ -47,7 +47,19 @@ def _no_context_leaks_between_tests():
 
 
 #: Words that would mean a country's law crept into a prompt.
-COUNTRY_SPECIFIC = ("Sri Lanka", "LKR", "IRD", "Inland Revenue", "APIT", "AIT", "RAMIS", "FSI")
+COUNTRY_SPECIFIC = (
+    "Sri Lanka",
+    "LKR",
+    "IRD",
+    "Inland Revenue",
+    "APIT",
+    "AIT",
+    "RAMIS",
+    "FSI",
+    "CSE",
+    "ASPI",
+    "rupee",
+)
 
 REMITLAND_2031 = TaxRulesContext(
     country="GB",
@@ -127,7 +139,7 @@ def test_no_section_uses_an_em_dash():
     for ctx in (WITH_RULES, BETWEEN_YEARS, NOBODY_KNOWS, NO_RULES):
         assert "—" not in tax_specialist_section(ctx)
     for residency in ("LK", "DE", None):
-        assert "—" not in market_notes(residency)
+        assert "—" not in investing_context(residency)
 
 
 # ── The fixed prompts know no country ────────────────────────────────────────
@@ -224,15 +236,47 @@ def test_without_a_context_the_prompt_knows_only_the_date():
     assert ctx == UserContext(today=datetime.date.today())
 
 
-# ── The FIRE strategy suggests what is available where the user is ──────────
+# ── Local market knowledge is researched, never built in ────────────────────
 
 
-def test_market_notes_follow_the_residency():
-    assert "CSE index funds" in market_notes("LK")
-    assert "Germany (DE)" in market_notes("DE")
-    neutral = market_notes(None)
+def test_salli_keeps_no_market_notes_for_any_country():
+    from salli.domain.agents import jurisdiction
+
+    assert not hasattr(jurisdiction, "_MARKETS")
+    assert not hasattr(jurisdiction, "market_notes")
+
+
+@pytest.mark.parametrize("residency", ["LK", "DE", "KE", "BR"])
+def test_every_residency_gets_the_same_neutral_guidance(residency):
+    """Where the user is (the country's ISO name), and that local products are
+    theirs to check: otherwise the same words for every country, naming none
+    of its products."""
+    from salli.domain.jurisdiction import country_phrase
+
+    place = f"{country_phrase(residency)} ({residency})"
+    text = investing_context(residency)
+    assert place in text
+    generic = text.replace(place, "<place>")
+    assert generic == investing_context("DE").replace("Germany (DE)", "<place>")
+    assert "no built-in notes" in generic
+    assert "by type rather than by product or provider name" in generic
+    assert "official sources" in generic
+    assert _says(generic, *COUNTRY_SPECIFIC) == []
+
+
+def test_an_unknown_residency_assumes_no_country():
+    neutral = investing_context(None)
     assert "assume no country" in neutral
     assert _says(neutral, *COUNTRY_SPECIFIC) == []
+
+
+def test_agents_with_web_search_research_local_markets_and_cite_them():
+    from salli.domain.agents.buddy_agent import BUDDY_SYSTEM_PROMPT
+    from salli.domain.agents.manager_agent import MANAGER_SYSTEM_PROMPT
+
+    for prompt in (MANAGER_SYSTEM_PROMPT, BUDDY_SYSTEM_PROMPT):
+        assert "no built-in notes on any country's investment products" in prompt
+        assert "research it with web_search, cite your sources" in prompt
 
 
 async def test_the_fire_strategy_is_asked_with_the_users_market():
@@ -246,7 +290,7 @@ async def test_the_fire_strategy_is_asked_with_the_users_market():
             await fire_strategy.generate_strategy({"tax_residency": residency}, llm=llm)
 
     lk, unknown = (request["instructions"] for request in llm.requests)
-    assert "CSE index funds" in lk
+    assert "Sri Lanka (LK)" in lk and "no built-in notes" in lk
     assert "assume no country" in unknown and "Sri Lanka" not in unknown
 
 

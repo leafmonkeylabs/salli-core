@@ -161,31 +161,24 @@ def tax_specialist_section(ctx: UserContext) -> str:
     return section
 
 
-# ── FIRE strategy: what to suggest where ─────────────────────────────────────
-
-#: Where an investment suggestion needs local knowledge, by tax residency.
-_MARKETS: dict[str, str] = {
-    "LK": (
-        "In Sri Lanka, CSE index funds (tracking the ASPI) and unit trusts are the local "
-        "low-cost options; for the international portion, broad index ETFs through a "
-        "foreign account where needed. The LKR's depreciation risk is real: weight a "
-        "currency-hedge bucket accordingly."
-    ),
-}
+# ── Investing: local knowledge is researched, never built in ─────────────────
 
 
-def market_notes(tax_residency: str | None) -> str:
-    """What the FIRE strategy should know about where the user invests."""
+def investing_context(tax_residency: str | None) -> str:
+    """What the FIRE strategy should know about where the user invests: only
+    where that is, and that local products are theirs to check. The strategy is
+    one model call with no web access, so it suggests kinds of product, never
+    named local ones."""
     if tax_residency is None:
         return (
             "Where the user is tax resident is not known: keep investment suggestions to "
             "broad, low-cost index funds, and assume no country's products or tax rules."
         )
-    known = _MARKETS.get(tax_residency)
-    if known:
-        return f"The user is tax resident in {_place(tax_residency)}. {known}"
     return (
-        f"The user is tax resident in {_place(tax_residency)}: suggest the low-cost index "
-        "funds and tax-advantaged accounts available there, by type rather than by "
-        "product name if unsure."
+        f"The user is tax resident in {_place(tax_residency)}. Salli has no built-in notes "
+        "on any country's investment products or rates, and you have no way to look them "
+        "up here: suggest the kinds of low-cost index funds and tax-advantaged accounts to "
+        "look for there, by type rather than by product or provider name, and say in "
+        "ai_rationale that the user (or their AI agent) should check what is available "
+        "locally against current, official sources."
     )
