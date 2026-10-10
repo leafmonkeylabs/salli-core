@@ -52,8 +52,10 @@ the AI you already pay for.
 
 ## Where Salli is today
 
-Salli is for anyone, anywhere. It started in Sri Lanka, and that is still
-where it does the most:
+Salli is for anyone, anywhere. It started in Sri Lanka, but its code knows no
+country: what differs from one country to the next (tax rules, planning
+figures, tax ids, local products) is your data, which you or your agent add
+with sources.
 
 - **Tax:** any country, from rules you or your agent write
   (`salli tax rules create|import`, or an AI client's `research_tax_rules`
@@ -63,16 +65,16 @@ where it does the most:
   country. Rule sets can be exported and shared as files, but salli-core
   ships none: see [CONTRIBUTING.md](CONTRIBUTING.md#tax-rules).
 - **Imports:** OFX/QFX, QIF, camt.053, MT940, CSV and Excel statements from
-  any bank. PDF statements vary the most, and have mostly been tried with Sri
-  Lankan banks' so far.
-- **Financial independence:** the default assumptions follow your base
-  currency: its central bank's inflation target (5% for the rupee, 2% for the
-  US dollar, euro and pound, and so on), a round 4% real return (Sri Lanka keeps
-  Salli's original 6/10/14% nominal scenarios) and the 4% rule, each with its
-  source. Currencies without figures of their own get cautious placeholders.
-  They are starting points, not forecasts: `salli fi assumptions` shows what
-  applies and why, and `salli profile set --fi-inflation 3%` (with
-  `--fi-real-return` and `--fi-swr`) sets your own.
+  any bank. PDF statements vary the most from bank to bank, so check a PDF
+  import's transactions closely before you post them.
+- **Financial independence:** projections are in real terms, in today's money.
+  Where you have set no figures of your own, a neutral placeholder stands in (a
+  4% real return and a 4% withdrawal rate), always labelled as one: not a
+  forecast, and not any country's figure. Set your own, with their sources
+  (`salli fi assumptions set real-return 5% --source <where it comes from>`,
+  likewise `swr`, `nominal-return` and `inflation`), or have your AI agent
+  research them. Once you set inflation, projections show future money too.
+  `salli fi assumptions` shows what applies and why.
 
 Everything else — the ledger, budgets, debts, investments, insurance,
 subscriptions and reports — follows no country's rules.

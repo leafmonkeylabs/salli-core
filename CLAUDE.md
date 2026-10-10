@@ -104,7 +104,9 @@ keeps plan/payment vocabulary out of the codebase.
 - **Money is always `decimal.Decimal` in the domain; `BIGINT` minor units in the DB.** A float anywhere in the money path is a bug. Minor units are each currency's own (ISO 4217 exponent: JPY 0, USD 2, KWD 3 — `domain/currency.py`); never assume 100.
 - **Every user has a base currency** (on their profile). Postings in it have `fx_rate` 1; postings in any other currency carry the rate into it — the one given, or the published one for the entry's date — and are refused when there is neither (`application/fx.py`). The base currency cannot change once anything is stored in it.
 - **Tax rule sets are user data.** They are versioned and immutable once used. Every stored computation records the rule-set version and content hash. A rule set can't be activated until its worked examples pass, and only the user can activate one; AI connectors never hold `tax:activate`.
-- **Nothing assumes a country.** A user's tax residency (ISO 3166-1, on their profile) decides whose rules compute their tax (`TaxService.resolve`; never inferred from their currency), and their active rule set decides their tax year, their filing reminders and the agents' tax framing. With no residency, or no active rules, no tax is computed and there is no country's framing at all.
+- **Nothing assumes a country.** A user's tax residency (ISO 3166-1, on their profile) decides whose rules compute their tax (`TaxService.resolve`; never inferred from their currency or a tax id), and their active rule set decides their tax year, their filing reminders and the agents' tax framing. With no residency, or no active rules, no tax is computed and there is no country's framing at all.
+- **Nothing country-specific lives in the code.** Tax rules, planning assumptions, tax-id schemes and local market knowledge are user data, written by the user or their agent with sources. Tax ids are generic `{scheme, value}` pairs ("XX-KIND"). The code holds generic engines, neutral placeholders that are always labelled as such, and the ISO 3166/4217 tables, which treat every country alike. `tests/contract/test_no_country_knowledge.py` fails on one country's terms in code, skills or docs; its allowlist is the ISO tables and the historical migrations. Examples and tests use varied countries and currencies.
+- **Planning assumptions are user data, in real terms.** FI projections run after inflation. The real return and the withdrawal rate fall back to a neutral 4% placeholder; inflation has none, and nominal figures appear only once the user sets it. Projections never block on missing assumptions, and every FI response says which figures are placeholders (`assumptions.status`, `assumptions.placeholders`).
 
 ### Tax engine
 
@@ -114,7 +116,7 @@ salli-core carries no country's tax law. `domain/taxrules/` is a generic engine 
 
 ### Financial independence
 
-`domain/fi/engine.py` is the pure FI engine; `domain/fi/assumptions.py` holds its planning assumptions. Defaults follow the base currency (a small table: each central bank's inflation target, a round real return, the 4% rule, each with its source; Sri Lanka keeps Salli's original figures). The user's own figures on their profile win, then their FIRE strategy's, then the defaults, and every FI response says which applied and where it came from.
+`domain/fi/engine.py` is the pure FI engine: Decimal throughout, in real terms, with the withdrawal rate and the real returns passed in explicitly (the FI pack, `domain/fi/packs/`, is only the scoring method). `domain/fi/assumptions.py` decides which figures apply: the user's own (a real return, or a nominal one with their inflation; inflation; a withdrawal rate, each with a `source` and `note`, stored as `user_profiles.fi_assumptions`), then their FIRE strategy's real returns and withdrawal rate, then the labelled placeholders (`PLACEHOLDERS`: a 4% real return and a 4% withdrawal rate). There is no table by currency or country. With the user's inflation, projections add each year's own money, derived from the real walk so the FI year never moves. `PATCH /v1/fi/assumptions` (`salli fi assumptions set`, MCP `set_fi_assumption`) sets them; every FI response carries `assumptions` with its `status`, `placeholders` and `message`.
 
 ### Agents (LangGraph)
 
@@ -122,6 +124,8 @@ Two distinct things in `domain/agents/`:
 
 - **`tax_agent.py`** — conversational agent (`create_agent`) with read-only tools backed by the engine. Uses `AsyncPostgresSaver` checkpointer for per-thread persistence.
 - **`return_workflow.py`** — deterministic `StateGraph` for return preparation: compute → build_draft (the active rule set's `forms`, filled in from the result) → review (human `interrupt()`; edit computes again) → finalize. Served by `/v1/tax/returns/prepare|resume`. The same interrupt gate would guard filing on the user's behalf, should an authority ever offer a channel for it.
+
+Every prompt ends with a section about the user (`jurisdiction.py`: date, base currency, tax residency, active rules) and knows no country. The agents carry no notes on any country's markets: the ones with web search research local products and rates when they need them, citing sources; the FIRE strategy (one call, no web) suggests kinds of product, never named local ones.
 
 ### Test layout
 
@@ -132,12 +136,12 @@ Two distinct things in `domain/agents/`:
 | `tests/golden/` | Engines' worked examples (budget, debt, FI, portfolio, …) |
 | `tests/taxrules/` | The tax rule-set engine; `conformance/` holds fictional jurisdictions, each the structure of a real-world feature, never its law |
 | `tests/integration/` | Against a real Postgres (migrations, triggers); skipped without `SALLI_TEST_DATABASE_URL` |
-| `tests/contract/` | The committed OpenAPI document and the no-billing-vocabulary guard (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
+| `tests/contract/` | The committed OpenAPI document, the no-billing-vocabulary guard, and the no-country-knowledge guard (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
 
 ### Configuration
 
 All config is in `config.py` via `pydantic-settings` and reads from environment / `.env` (see `.env.example`; `salli-server setup` writes it). Required: `DATABASE_URL` and the `SUPABASE_*` auth keys. `ANTHROPIC_API_KEY` enables the AI features. `SALLI_REGISTRATION` (closed by default), `SALLI_STORAGE`, `SALLI_EXTENSIONS`.
 
-### Tax rules for a country
+### Tax rules for a country: rule-set authoring
 
-Not in code. A country's rules are a rule set: see the schema docs ([docs/taxrules.md](docs/taxrules.md)), the conformance suite (`tests/taxrules/conformance/`), and the MCP `research_tax_rules` prompt an agent follows to draft one. Extending the engine (a new block or function) needs a new fictional jurisdiction in the conformance suite.
+There are no tax packs, and nothing to add to the code for a new country. A country's rules are a rule set: see the schema docs ([docs/taxrules.md](docs/taxrules.md)), the conformance suite (`tests/taxrules/conformance/`), and the MCP `research_tax_rules` prompt an agent follows to draft one. Extending the engine (a new block or function) needs a new fictional jurisdiction in the conformance suite.
