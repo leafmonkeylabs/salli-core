@@ -117,7 +117,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Salli API",
-        description="Privacy-first personal finance & tax for Sri Lanka",
+        description="Privacy-first personal finance, tax and financial independence",
         version="0.1.0",
         docs_url="/docs" if settings.environment != "production" else None,
         redoc_url="/redoc" if settings.environment != "production" else None,

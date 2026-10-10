@@ -236,7 +236,8 @@ def make_manager_tools(
         web_search = TavilySearchResults(
             max_results=5,
             description=(
-                "Search the internet for current Sri Lanka tax laws, IRD circulars, "
+                "Search the internet for current tax laws and revenue-authority guidance "
+                "(such as Sri Lanka's IRD circulars), "
                 "exchange rates, financial news, or any other real-time information. "
                 "Always cite the source URL in your response."
             ),

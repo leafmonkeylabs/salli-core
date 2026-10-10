@@ -1,6 +1,6 @@
 ---
 name: salli-cli
-description: Operate a self-hosted Salli (personal finance, Sri Lankan tax, FIRE) through its `salli` CLI. Use whenever the user asks about their accounts, spending, budgets, debts, investments, insurance, subscriptions, tax, net worth or financial independence, or asks you to record, import or change anything in their Salli ledger.
+description: Operate a self-hosted Salli (personal finance, tax, FIRE) through its `salli` CLI. Use whenever the user asks about their accounts, spending, budgets, debts, investments, insurance, subscriptions, tax, net worth or financial independence, or asks you to record, import or change anything in their Salli ledger.
 ---
 
 # Driving Salli from the command line

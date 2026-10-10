@@ -23,7 +23,7 @@ from salli.interfaces.cli.support import services as _services
 
 app = typer.Typer(
     name="salli",
-    help="Salli — personal finance & tax preparation for Sri Lanka",
+    help="Salli — self-hosted personal finance, tax and financial independence",
     no_args_is_help=True,
 )
 

@@ -1,6 +1,6 @@
 ---
 name: salli-tax
-description: Answer questions about the user's Sri Lankan income tax position from their Salli ledger — estimated tax, bands, credits (APIT, AIT, foreign tax), and what they still owe. Use for "how much tax will I pay", "what's my APIT credit", or preparing a return.
+description: Answer questions about the user's income tax position from their Salli ledger — estimated tax, bands, credits and what they still owe — in countries Salli has a tax pack for (so far Sri Lanka: APIT, AIT, foreign tax credits). Use for "how much tax will I pay", "what's my APIT credit", or preparing a return.
 ---
 
 # Tax
