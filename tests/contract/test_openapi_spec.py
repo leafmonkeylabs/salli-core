@@ -73,20 +73,14 @@ def test_the_rest_api_is_versioned_and_protocols_keep_their_paths():
 #: Operations whose success response has no schema yet, so generated clients
 #: get `unknown` for them. Typing one means deleting its line; nothing may be
 #: added. Grouped so work on different areas does not collide.
-UNTYPED = {
-    # OAuth
-    "oauth.authorizationServerMetadata",
-    "oauth.authorize",
-    "oauth.consent",
-    "oauth.consentInfo",
-    "oauth.protectedResourceMetadata",
-    "oauth.register",
-    "oauth.token",
-}
+UNTYPED: set[str] = set()
 
 
 def _is_typed(op: dict) -> bool:
-    for code, response in op.get("responses", {}).items():
+    codes = op.get("responses", {})
+    if not any(c.startswith("2") for c in codes) and any(c.startswith("3") for c in codes):
+        return True  # a redirect: there is no body to type
+    for code, response in codes.items():
         if not code.startswith("2"):
             continue
         content = response.get("content")

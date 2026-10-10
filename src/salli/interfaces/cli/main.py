@@ -54,6 +54,7 @@ reports_app = typer.Typer(help="Exportable statements: balance sheet, net worth,
 db_app = typer.Typer(help="Database migrations")
 onboarding_app = typer.Typer(help="First-run setup of your profile and starter accounts")
 llm_keys_app = typer.Typer(help="Your own LLM API keys, stored encrypted")
+tokens_app = typer.Typer(help="Personal access tokens, for scripts and remote clients")
 mcp_app = typer.Typer(help="AI clients (Claude, ChatGPT) connected over MCP")
 
 app.add_typer(accounts_app, name="accounts")
@@ -81,6 +82,7 @@ app.add_typer(reports_app, name="reports")
 app.add_typer(db_app, name="db")
 app.add_typer(onboarding_app, name="onboarding")
 app.add_typer(llm_keys_app, name="llm-keys")
+app.add_typer(tokens_app, name="tokens")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(members_app, name="members")
 app.add_typer(skills_app, name="skills")
@@ -3263,6 +3265,60 @@ def llm_keys_delete(provider: str = typer.Argument("anthropic", help="anthropic"
         raise typer.Exit(1)
     emit({"provider": provider, "deleted": True})
     console.print(f"[green]Removed your {provider} key.[/green]")
+
+
+# ── tokens ────────────────────────────────────────────────────────────────────
+
+
+@tokens_app.command("create")
+def tokens_create(
+    name: str = typer.Argument(..., help="What it is for, e.g. 'laptop CLI' or 'backup job'"),
+    expires_in_days: int = typer.Option(None, "--expires-in-days", help="Default: never"),
+):
+    """Make a personal access token. It is shown once — store it now."""
+    user_id = _require_user()
+    created = asyncio.run(_services().tokens.create(user_id, name, expires_in_days))
+    if emit(created):
+        return
+    console.print(f"[green]Token created:[/green] {created['name']} ({created['id']})")
+    console.print(f"\n  {created['token']}\n")
+    console.print("[yellow]This is the only time it is shown.[/yellow] Use it as SALLI_TOKEN.")
+
+
+@tokens_app.command("list")
+def tokens_list():
+    """Your personal access tokens (never the tokens themselves)."""
+    user_id = _require_user()
+    rows = asyncio.run(_services().tokens.list(user_id))
+    if emit(rows):
+        return
+    table = Table(title="Personal access tokens")
+    for column in ("ID", "Name", "Token", "Created", "Expires", "Last used"):
+        table.add_column(column)
+    for t in rows:
+        table.add_row(
+            t["id"][:8],
+            t["name"],
+            f"{t['prefix']}…",
+            str(t["created_at"])[:10],
+            str(t["expires_at"])[:10] if t["expires_at"] else "never",
+            str(t["last_used_at"])[:16] if t["last_used_at"] else "never",
+        )
+    console.print(table)
+
+
+@tokens_app.command("revoke")
+def tokens_revoke(token_id: str = typer.Argument(..., help="Token id (or a unique prefix)")):
+    """Revoke a token; anything using it stops working immediately."""
+    user_id = _require_user()
+    svc = _services()
+    rows = asyncio.run(svc.tokens.list(user_id))
+    full_id = _resolve_id(rows, token_id, "token")
+    if not asyncio.run(svc.tokens.revoke(user_id, full_id)):
+        console.print(f"[red]No such token:[/red] {token_id}")
+        raise typer.Exit(1)
+    emit({"id": full_id, "revoked": True})
+    console.print(f"[green]Revoked[/green] {full_id}")
 
 
 # ── mcp ───────────────────────────────────────────────────────────────────────

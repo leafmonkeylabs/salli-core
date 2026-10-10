@@ -65,28 +65,70 @@ def _page(body: str, status_code: int = 200) -> HTMLResponse:
     )
 
 
-def _form(rt: str, client: str, scope: str, dev: bool, error: str = "") -> str:
-    e = html.escape
-    who = (
-        "<label for=user_id>User id</label><input id=user_id name=user_id required autofocus>"
-        if dev
-        else "<label for=email>Email</label>"
-        "<input id=email name=email type=email autocomplete=username required autofocus>"
+def _who(dev: bool, autofocus: bool = True) -> str:
+    focus = " autofocus" if autofocus else ""
+    if dev:
+        return f"<label for=user_id>User id</label><input id=user_id name=user_id required{focus}>"
+    return (
+        "<label for=email>Email</label>"
+        f"<input id=email name=email type=email autocomplete=username required{focus}>"
         "<label for=password>Password</label>"
         "<input id=password name=password type=password autocomplete=current-password required>"
     )
+
+
+def _asking(client: str, audience: str, scope: str) -> str:
+    """What the client wants, in words: an AI client acting on your data over
+    MCP, or one of your own Salli clients (the CLI) signing in as you."""
+    e = html.escape
+    if audience == "api":
+        return f"{e(client)} is asking to sign in to your Salli account as you."
     return (
-        f"<h1>Connect {e(client)} to your Salli?</h1>"
-        f"<p>{e(client)} is asking to read your Salli data and act on it for you"
+        f"{e(client)} is asking to read your Salli data and act on it for you"
         + (f" (scope: <code>{e(scope)}</code>)" if scope else "")
-        + ". You can disconnect it at any time.</p>"
+        + ". You can disconnect it at any time."
+    )
+
+
+def _form(
+    rt: str, client: str, scope: str, dev: bool, error: str = "", audience: str = "mcp"
+) -> str:
+    e = html.escape
+    title = (
+        f"Sign in to {e(client)}?" if audience == "api" else f"Connect {e(client)} to your Salli?"
+    )
+    return (
+        f"<h1>{title}</h1><p>{_asking(client, audience, scope)}</p>"
         "<form method=post>"
-        f'<input type=hidden name=rt value="{e(rt)}">{who}'
+        f'<input type=hidden name=rt value="{e(rt)}">{_who(dev)}'
         "<div class=row><button name=decision value=allow>Allow</button>"
         "<button name=decision value=deny formnovalidate>Deny</button></div>"
         + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
         + "<p class=muted>Sign in with the account you use for Salli.</p></form>"
     )
+
+
+async def _signed_in(
+    svc: Any, settings: Settings, email: str, password: str, user_id: str
+) -> tuple[str, str | None] | str:
+    """(user id, email) for these credentials, or the error to show."""
+    if insecure_dev_auth(settings):
+        if not user_id:
+            return "Enter a user id."
+        caller, caller_email = user_id, None
+    else:
+        token = await _sign_in(settings, email, password)
+        if token is None:
+            return "That email and password didn't match."
+        try:
+            caller, caller_email = _decode_jwt(token, settings)
+        except HTTPException:
+            return "Couldn't verify your sign-in. Try again."
+    if not await svc.profile.ensure_user(
+        caller, caller_email, may_create=settings.salli_registration == "open"
+    ):
+        return "This account is not a member of this Salli instance."
+    return caller, caller_email
 
 
 async def _sign_in(settings: Settings, email: str, password: str) -> str | None:
@@ -112,7 +154,15 @@ async def consent_page(
         info = await svc.mcp_oauth.get_consent_info(rt, user_id="")
     except ConsentError as exc:
         return _page(f"<h1>Can't connect</h1><p>{html.escape(str(exc))}</p>", 400)
-    return _page(_form(rt, info["client_name"], info["scope"], insecure_dev_auth(settings)))
+    return _page(
+        _form(
+            rt,
+            info["client_name"],
+            info["scope"],
+            insecure_dev_auth(settings),
+            audience=info.get("audience", "mcp"),
+        )
+    )
 
 
 @router.post("/mcp/oauth/consent-page", response_class=HTMLResponse)
@@ -132,29 +182,28 @@ async def consent_page_decision(
     dev = insecure_dev_auth(settings)
 
     def again(error: str) -> HTMLResponse:
-        return _page(_form(rt, info["client_name"], info["scope"], dev, error), 401)
+        return _page(
+            _form(
+                rt,
+                info["client_name"],
+                info["scope"],
+                dev,
+                error,
+                audience=info.get("audience", "mcp"),
+            ),
+            401,
+        )
 
     approve = decision == "allow"
     if approve:
-        if dev:
-            if not user_id:
-                return again("Enter a user id.")
-            caller = user_id
-            caller_email = None
-        else:
-            token = await _sign_in(settings, email, password)
-            if token is None:
-                return again("That email and password didn't match.")
-            try:
-                caller, caller_email = _decode_jwt(token, settings)
-            except HTTPException:
-                return again("Couldn't verify your sign-in. Try again.")
-        if not await svc.profile.ensure_user(
-            caller, caller_email, may_create=settings.salli_registration == "open"
-        ):
-            return again("This account is not a member of this Salli instance.")
-        # Connecting from here is consent to connect, so switch MCP on for them.
-        await svc.mcp_oauth.set_mcp_enabled(caller, True)
+        who = await _signed_in(svc, settings, email, password, user_id)
+        if isinstance(who, str):
+            return again(who)
+        caller, _ = who
+        # Connecting an AI client from here is consent to MCP, so switch it on
+        # for them. Signing in the CLI is not, and leaves MCP as it was.
+        if info.get("audience", "mcp") == "mcp":
+            await svc.mcp_oauth.set_mcp_enabled(caller, True)
     else:
         # Denying needs no sign-in: it grants nothing, and the client learns
         # only that access was refused.
@@ -165,3 +214,76 @@ async def consent_page_decision(
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ── Device sign-in (RFC 8628) ───────────────────────────────────────────────
+
+
+def _device_form(user_code: str, dev: bool, error: str = "", client: str = "") -> str:
+    e = html.escape
+    what = (
+        f"<p>{e(client)} on another device is waiting to be signed in.</p>"
+        if client
+        else "<p>Enter the code your other device shows to sign it in.</p>"
+    )
+    return (
+        "<h1>Sign in a device</h1>" + what + "<form method=post>"
+        "<label for=user_code>Code</label>"
+        f'<input id=user_code name=user_code value="{e(user_code)}" required '
+        'autocomplete=off autocapitalize=characters spellcheck=false placeholder="ABCD-EFGH">'
+        + _who(dev, autofocus=bool(user_code))
+        + "<div class=row><button name=decision value=allow>Allow</button>"
+        "<button name=decision value=deny formnovalidate>Deny</button></div>"
+        + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
+        + "<p class=muted>Only approve a code you asked for, on a device you are using.</p>"
+        "</form>"
+    )
+
+
+@router.get("/mcp/oauth/device", response_class=HTMLResponse)
+async def device_page(
+    svc: AppServices, settings: Annotated[Settings, Depends(get_settings)], user_code: str = ""
+):
+    info = await svc.mcp_oauth.device_request(user_code) if user_code else None
+    client = info["client_name"] if info else ""
+    return _page(_device_form(user_code, insecure_dev_auth(settings), client=client))
+
+
+@router.post("/mcp/oauth/device", response_class=HTMLResponse)
+async def device_page_decision(
+    svc: AppServices,
+    settings: Annotated[Settings, Depends(get_settings)],
+    user_code: Annotated[str, Form()],
+    decision: Annotated[str, Form()],
+    email: Annotated[str, Form()] = "",
+    password: Annotated[str, Form()] = "",
+    user_id: Annotated[str, Form()] = "",
+):
+    dev = insecure_dev_auth(settings)
+    info = await svc.mcp_oauth.device_request(user_code)
+    if info is None:
+        return _page(
+            _device_form(user_code, dev, "That code is not valid, or it has expired."), 400
+        )
+
+    def again(error: str) -> HTMLResponse:
+        return _page(_device_form(user_code, dev, error, client=info["client_name"]), 401)
+
+    approve = decision == "allow"
+    caller = ""
+    if approve:
+        who = await _signed_in(svc, settings, email, password, user_id)
+        if isinstance(who, str):
+            return again(who)
+        caller, _ = who
+        if info.get("audience", "mcp") == "mcp":
+            await svc.mcp_oauth.set_mcp_enabled(caller, True)
+    try:
+        await svc.mcp_oauth.decide_device(user_code, caller, approve)
+    except ConsentError as exc:
+        return again(str(exc))
+    if not approve:
+        return _page("<h1>Declined</h1><p>The device was not signed in.</p>")
+    return _page(
+        "<h1>Signed in</h1><p>You can close this page and go back to your other device.</p>"
+    )

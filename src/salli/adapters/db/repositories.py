@@ -36,8 +36,10 @@ from salli.adapters.db.models import (
     OAuthAccessTokenORM,
     OAuthAuthorizationCodeORM,
     OAuthClientORM,
+    OAuthDeviceCodeORM,
     OAuthRefreshTokenORM,
     ParsedTransactionORM,
+    PersonalAccessTokenORM,
     PolicyORM,
     PostingORM,
     PostingTagORM,
@@ -65,6 +67,7 @@ from salli.application.ports import (
     LlmCredentialRepository,
     OAuthClientRepository,
     OAuthTokenRepository,
+    PersonalAccessTokenRepository,
     PolicyRepository,
     PortfolioRepository,
     RecurringSubscriptionRepository,
@@ -2137,6 +2140,8 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(OAuthRefreshTokenORM, OAuthRefreshTokenORM.user_id)
         await _delete(OAuthAccessTokenORM, OAuthAccessTokenORM.user_id)
         await _delete(OAuthAuthorizationCodeORM, OAuthAuthorizationCodeORM.user_id)
+        await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
+        await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
 
         # Extensions' tables have no foreign keys into Salli's, so they can go
         # at any point before the profile row.
@@ -2347,7 +2352,9 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             row.revoked_at = datetime.now(UTC)
             await self._s.flush()
 
-    async def list_active_connections(self, user_id: str) -> list[dict[str, Any]]:
+    async def list_active_connections(
+        self, user_id: str, resource: str | None = None
+    ) -> list[dict[str, Any]]:
         stmt = (
             select(OAuthAccessTokenORM, OAuthClientORM)
             .join(OAuthClientORM, OAuthClientORM.client_id == OAuthAccessTokenORM.client_id)
@@ -2358,6 +2365,8 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             )
             .order_by(OAuthAccessTokenORM.created_at.desc())
         )
+        if resource is not None:
+            stmt = stmt.where(OAuthAccessTokenORM.resource == resource)
         rows = (await self._s.execute(stmt)).all()
         return [
             {
@@ -2369,3 +2378,165 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             }
             for token, client in rows
         ]
+
+    async def save_device_code(
+        self,
+        device_code_hash: str,
+        user_code: str,
+        client_id: str,
+        scope: str,
+        resource: str | None,
+        interval_seconds: int,
+        expires_at: datetime,
+    ) -> None:
+        self._s.add(
+            OAuthDeviceCodeORM(
+                device_code_hash=device_code_hash,
+                user_code=user_code,
+                client_id=client_id,
+                scope=scope,
+                resource=resource,
+                status="pending",
+                interval_seconds=interval_seconds,
+                expires_at=expires_at,
+            )
+        )
+        await self._s.flush()
+
+    @staticmethod
+    def _device(row: OAuthDeviceCodeORM) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "user_code": row.user_code,
+            "client_id": row.client_id,
+            "scope": row.scope,
+            "resource": row.resource,
+            "status": row.status,
+            "user_id": row.user_id,
+            "interval_seconds": row.interval_seconds,
+            "last_polled_at": row.last_polled_at,
+            "expires_at": row.expires_at,
+        }
+
+    async def get_device_code(self, device_code_hash: str) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                select(OAuthDeviceCodeORM).where(
+                    OAuthDeviceCodeORM.device_code_hash == device_code_hash
+                )
+            )
+        ).scalar_one_or_none()
+        return self._device(row) if row else None
+
+    async def get_device_code_by_user_code(self, user_code: str) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                select(OAuthDeviceCodeORM).where(
+                    OAuthDeviceCodeORM.user_code == user_code,
+                    OAuthDeviceCodeORM.status == "pending",
+                    OAuthDeviceCodeORM.expires_at > datetime.now(UTC),
+                )
+            )
+        ).scalar_one_or_none()
+        return self._device(row) if row else None
+
+    async def update_device_code(self, device_id: str, **fields: Any) -> None:
+        row = (
+            await self._s.execute(
+                select(OAuthDeviceCodeORM).where(OAuthDeviceCodeORM.id == device_id)
+            )
+        ).scalar_one()
+        for key in ("status", "user_id", "last_polled_at"):
+            if key in fields:
+                setattr(row, key, fields[key])
+        await self._s.flush()
+
+
+class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    @staticmethod
+    def _row(row: PersonalAccessTokenORM) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "user_id": row.user_id,
+            "name": row.name,
+            "prefix": row.prefix,
+            "expires_at": row.expires_at,
+            "last_used_at": row.last_used_at,
+            "created_at": row.created_at,
+        }
+
+    async def create(
+        self,
+        user_id: str,
+        name: str,
+        token_hash: str,
+        prefix: str,
+        expires_at: datetime | None,
+    ) -> dict[str, Any]:
+        row = PersonalAccessTokenORM(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            name=name,
+            token_hash=token_hash,
+            prefix=prefix,
+            expires_at=expires_at,
+            created_at=datetime.now(UTC),
+        )
+        self._s.add(row)
+        await self._s.flush()
+        return self._row(row)
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        rows = (
+            await self._s.execute(
+                select(PersonalAccessTokenORM)
+                .where(
+                    PersonalAccessTokenORM.user_id == user_id,
+                    PersonalAccessTokenORM.revoked_at.is_(None),
+                )
+                .order_by(PersonalAccessTokenORM.created_at.desc())
+            )
+        ).scalars()
+        return [self._row(r) for r in rows]
+
+    async def get_active(self, token_hash: str) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                select(PersonalAccessTokenORM).where(
+                    PersonalAccessTokenORM.token_hash == token_hash,
+                    PersonalAccessTokenORM.revoked_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None or (row.expires_at is not None and row.expires_at < datetime.now(UTC)):
+            return None
+        return self._row(row)
+
+    async def revoke(self, user_id: str, token_id: str) -> bool:
+        row = (
+            await self._s.execute(
+                select(PersonalAccessTokenORM).where(
+                    PersonalAccessTokenORM.id == token_id,
+                    PersonalAccessTokenORM.user_id == user_id,
+                    PersonalAccessTokenORM.revoked_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        row.revoked_at = datetime.now(UTC)
+        await self._s.flush()
+        return True
+
+    async def touch(self, token_id: str, at: datetime) -> None:
+        row = (
+            await self._s.execute(
+                select(PersonalAccessTokenORM).where(PersonalAccessTokenORM.id == token_id)
+            )
+        ).scalar_one_or_none()
+        if row is not None:
+            row.last_used_at = at
+            await self._s.flush()

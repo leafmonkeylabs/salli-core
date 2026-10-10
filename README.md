@@ -111,6 +111,13 @@ JSON numbers), with the currency alongside, and errors are
 `GET /v1/meta` describes the server: its version, tax packs and sign-in
 endpoints.
 
+Clients other than a browser sign in with OAuth 2.1: PKCE with a loopback
+redirect on any port, or a device code (approved at `/mcp/oauth/device`) on a
+machine without a browser. Tokens are issued for the REST API (`resource=…/v1`)
+or for MCP, and each accepts only its own. For scripts and CI, make a personal
+access token (`salli tokens create`, or `POST /v1/tokens`) and send it as a
+bearer token.
+
 To connect Claude (or any MCP client), add `http://localhost:8000/mcp` as a
 custom connector. You'll approve it on Salli's own consent page with your
 email and password. `salli mcp connections` lists what's connected;

@@ -5,12 +5,15 @@ Uses the same composition.py the CLI uses — the core never knows which surface
 
 from __future__ import annotations
 
-from typing import Annotated
+from dataclasses import dataclass
+from typing import Annotated, Literal
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from salli.application.services.llm_credential_service import ResolvedCredentials
+from salli.application.services.mcp_oauth_service import API
+from salli.application.services.personal_access_token_service import is_personal_access_token
 from salli.composition import Services, build_services
 from salli.config import Settings, get_settings
 
@@ -124,29 +127,98 @@ def _decode_jwt(token: str, settings: Settings) -> tuple[str, str | None]:
         ) from exc
 
 
-async def get_current_user(
+@dataclass(frozen=True)
+class Principal:
+    """Who is calling, and how they signed in.
+
+    `session`: a Supabase access token (the web and mobile apps).
+    `oauth`: a Salli OAuth token issued for the REST API (the `salli` CLI).
+    `pat`: a personal access token (scripts, CI).
+    `dev`: the local-development fallback where the token is the user id.
+    """
+
+    user_id: str
+    email: str | None
+    method: Literal["session", "oauth", "pat", "dev"]
+
+
+def _looks_like_jwt(token: str) -> bool:
+    # Three dot-separated segments. Salli's own tokens never contain a dot.
+    return token.count(".") == 2
+
+
+async def get_principal(
     creds: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    services: Annotated[Services, Depends(get_services)],
+) -> Principal:
+    """Verify the bearer token, whichever kind it is.
+
+    Personal access tokens and Salli's own OAuth tokens are checked against
+    this database, so they work with or without Supabase. An OAuth token is
+    only accepted if it was issued for the REST API: one an AI client holds
+    for MCP is refused here, as an API token would be refused by MCP.
+    """
+    token = creds.credentials
+    if is_personal_access_token(token):
+        user_id = await services.tokens.verify(token)
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="This token is invalid, expired, or has been revoked.",
+            )
+        return Principal(user_id, None, "pat")
+    if (
+        not settings.supabase_url
+        and not settings.supabase_jwt_secret
+        and insecure_dev_auth(settings)
+    ):
+        return Principal(token, None, "dev")
+    if _looks_like_jwt(token):
+        user_id, email = _decode_jwt(token, settings)
+        return Principal(user_id, email, "session")
+    record = await services.mcp_oauth.verify_access_token(token, audience=API)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate token"
+        )
+    return Principal(str(record["user_id"]), None, "oauth")
+
+
+CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
+
+
+async def get_current_user(
+    principal: CurrentPrincipal,
     settings: Annotated[Settings, Depends(get_settings)],
     services: Annotated[Services, Depends(get_services)],
 ) -> str:
     """The verified caller, provisioned on first contact if this instance is
-    open to sign-ups, and refused if it is not and they are not a member."""
-    user_id, email = _decode_jwt(creds.credentials, settings)
+    open to sign-ups, and refused if it is not and they are not a member.
+
+    Only a sign-in (or the local-dev fallback) can create an account: a token
+    is only ever issued to someone who already has one."""
     if not await services.profile.ensure_user(
-        user_id, email, may_create=settings.salli_registration == "open"
+        principal.user_id,
+        principal.email,
+        may_create=settings.salli_registration == "open" and principal.method in ("session", "dev"),
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account is not a member of this Salli instance.",
         )
-    return user_id
+    return principal.user_id
 
 
-def get_current_email(
-    creds: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
-    settings: Annotated[Settings, Depends(get_settings)],
+async def get_current_email(
+    principal: CurrentPrincipal,
+    services: Annotated[Services, Depends(get_services)],
 ) -> str | None:
-    return _decode_jwt(creds.credentials, settings)[1]
+    if principal.email or principal.method in ("session", "dev"):
+        return principal.email
+    # A token carries no email; the profile has the one they signed up with.
+    profile = await services.profile.get_profile(principal.user_id)
+    return profile.get("email")
 
 
 async def get_credentials(

@@ -874,3 +874,59 @@ class OAuthRefreshTokenORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+
+
+class OAuthDeviceCodeORM(Base):
+    """A pending device authorization (RFC 8628): a machine without a browser
+    shows `user_code`, the person approves it on another device, and the
+    machine, polling with `device_code`, then receives tokens. The device code
+    is stored hashed, like every other token."""
+
+    __tablename__ = "oauth_device_codes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    device_code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    user_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    client_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("oauth_clients.client_id"), nullable=False
+    )
+    scope: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    resource: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # pending → approved | denied; approved → consumed once tokens are issued.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','approved','denied','consumed')",
+            name="ck_oauth_device_codes_status",
+        ),
+    )
+
+
+class PersonalAccessTokenORM(Base):
+    """A long-lived token a person creates for scripts and CI (`salli_pat_…`).
+
+    Stored as a SHA-256 hash; the plaintext is shown once, at creation. `prefix`
+    is the first characters of the token, kept so a list can show which token
+    is which without revealing it."""
+
+    __tablename__ = "personal_access_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    prefix: Mapped[str] = mapped_column(String(20), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )

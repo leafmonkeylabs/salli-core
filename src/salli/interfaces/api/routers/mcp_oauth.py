@@ -7,7 +7,10 @@ MCP OAuth router — the authorization-server half of MCP support.
                                        browser to the web app's consent screen
 - GET  /mcp/oauth/consent-info      — (authenticated) what's being requested
 - POST /mcp/oauth/consent           — (authenticated) Allow/Deny
-- POST /mcp/oauth/token             — authorization_code / refresh_token grants
+- POST /mcp/oauth/device_authorization — RFC 8628, sign-in for a device
+                                       without a browser (the CLI over SSH)
+- POST /mcp/oauth/token             — authorization_code / refresh_token /
+                                       device_code grants
 - POST /mcp/oauth/revoke            — RFC 7009, client-presented token revocation
 - GET/DELETE /mcp/connections       — (authenticated) Settings UI surface
 
@@ -17,13 +20,17 @@ The actual MCP protocol endpoint (/mcp) lives in mcp_server.py.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Form, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from salli.application.services.mcp_oauth_service import ConsentError, OAuthError
+from salli.application.services.mcp_oauth_service import (
+    DEVICE_GRANT_TYPE,
+    ConsentError,
+    OAuthError,
+)
 from salli.config import get_settings
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
@@ -37,14 +44,40 @@ def _issuer() -> str:
 # ── Discovery metadata ───────────────────────────────────────────────────────
 
 
+class AuthorizationServerMetadata(BaseModel):
+    """RFC 8414 §2."""
+
+    issuer: str
+    authorization_endpoint: str
+    token_endpoint: str
+    registration_endpoint: str
+    revocation_endpoint: str
+    device_authorization_endpoint: str
+    response_types_supported: list[str]
+    grant_types_supported: list[str]
+    code_challenge_methods_supported: list[str]
+    token_endpoint_auth_methods_supported: list[str]
+
+
+class ProtectedResourceMetadata(BaseModel):
+    """RFC 9728 §2."""
+
+    resource: str
+    authorization_servers: list[str]
+
+
 @router.get("/.well-known/oauth-authorization-server")
-async def authorization_server_metadata(svc: AppServices):
-    return svc.mcp_oauth.authorization_server_metadata(_issuer())
+async def authorization_server_metadata(svc: AppServices) -> AuthorizationServerMetadata:
+    return AuthorizationServerMetadata.model_validate(
+        svc.mcp_oauth.authorization_server_metadata(_issuer())
+    )
 
 
 @router.get("/.well-known/oauth-protected-resource")
-async def protected_resource_metadata(svc: AppServices):
-    return svc.mcp_oauth.protected_resource_metadata(_issuer())
+async def protected_resource_metadata(svc: AppServices) -> ProtectedResourceMetadata:
+    return ProtectedResourceMetadata.model_validate(
+        svc.mcp_oauth.protected_resource_metadata(_issuer())
+    )
 
 
 # ── Dynamic Client Registration ──────────────────────────────────────────────
@@ -74,11 +107,26 @@ class RegisterClientRequest(BaseModel):
     redirect_uris: list[str]
 
 
+class RegisteredClient(BaseModel):
+    """RFC 7591 §3.2.1: a public client, which proves itself with PKCE."""
+
+    client_id: str
+    client_name: str | None
+    redirect_uris: list[str]
+    token_endpoint_auth_method: str
+    grant_types: list[str]
+    response_types: list[str]
+
+
 @router.post("/mcp/oauth/register", status_code=201)
-async def register_client(body: RegisterClientRequest, request: Request, svc: AppServices):
+async def register_client(
+    body: RegisterClientRequest, request: Request, svc: AppServices
+) -> RegisteredClient:
     _check_register_rate_limit(request.client.host if request.client else "unknown")
     try:
-        return await svc.mcp_oauth.register_client(body.client_name, body.redirect_uris)
+        return RegisteredClient.model_validate(
+            await svc.mcp_oauth.register_client(body.client_name, body.redirect_uris)
+        )
     except OAuthError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -86,7 +134,12 @@ async def register_client(body: RegisterClientRequest, request: Request, svc: Ap
 # ── Authorize → consent handoff ──────────────────────────────────────────────
 
 
-@router.get("/mcp/oauth/authorize")
+@router.get(
+    "/mcp/oauth/authorize",
+    response_class=RedirectResponse,
+    status_code=status.HTTP_302_FOUND,
+    responses={302: {"description": "To the consent page, which asks the person"}},
+)
 async def authorize(
     svc: AppServices,
     response_type: str,
@@ -119,10 +172,20 @@ async def authorize(
     return RedirectResponse(consent_url, status_code=status.HTTP_302_FOUND)
 
 
+class ConsentInfo(BaseModel):
+    """What the consent page shows the person before they decide."""
+
+    client_name: str
+    scope: str
+    resource: str | None
+    #: What the client is asking for: the MCP server, or the REST API.
+    audience: Literal["mcp", "api"]
+
+
 @router.get("/mcp/oauth/consent-info")
-async def consent_info(rt: str, user_id: CurrentUser, svc: AppServices):
+async def consent_info(rt: str, user_id: CurrentUser, svc: AppServices) -> ConsentInfo:
     try:
-        return await svc.mcp_oauth.get_consent_info(rt, user_id)
+        return ConsentInfo.model_validate(await svc.mcp_oauth.get_consent_info(rt, user_id))
     except ConsentError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -132,13 +195,20 @@ class ConsentDecisionRequest(BaseModel):
     approve: bool
 
 
+class ConsentDecision(BaseModel):
+    #: Back to the client, with `code` (approved) or `error=access_denied`.
+    redirect_url: str
+
+
 @router.post("/mcp/oauth/consent")
-async def consent(body: ConsentDecisionRequest, user_id: CurrentUser, svc: AppServices):
+async def consent(
+    body: ConsentDecisionRequest, user_id: CurrentUser, svc: AppServices
+) -> ConsentDecision:
     try:
         redirect_url = await svc.mcp_oauth.complete_consent(body.rt, user_id, body.approve)
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    return {"redirect_url": redirect_url}
+    return ConsentDecision(redirect_url=redirect_url)
 
 
 # ── Token endpoint ────────────────────────────────────────────────────────
@@ -150,7 +220,66 @@ def _oauth_error_response(error: str, description: str, http_status: int = 400) 
     )
 
 
-@router.post("/mcp/oauth/token")
+class OAuthErrorBody(BaseModel):
+    """RFC 6749 §5.2."""
+
+    error: str
+    error_description: str
+
+
+class TokenGrant(BaseModel):
+    """RFC 6749 §5.1."""
+
+    access_token: str
+    token_type: Literal["Bearer"]
+    #: Seconds the access token lasts.
+    expires_in: int
+    refresh_token: str
+    scope: str
+
+
+class DeviceAuthorization(BaseModel):
+    """RFC 8628 §3.2."""
+
+    device_code: str
+    user_code: str
+    verification_uri: str
+    verification_uri_complete: str
+    expires_in: int
+    interval: int
+
+
+@router.post(
+    "/mcp/oauth/device_authorization",
+    response_model=DeviceAuthorization,
+    responses={400: {"model": OAuthErrorBody, "description": "`invalid_client`"}},
+)
+async def device_authorization(
+    svc: AppServices,
+    client_id: str = Form(...),
+    scope: str = Form(""),
+    resource: str | None = Form(None),
+) -> DeviceAuthorization | JSONResponse:
+    """Start a device sign-in (RFC 8628 §3.1): a code the person approves on
+    the device page, and the device code the client polls the token endpoint with."""
+    try:
+        started = await svc.mcp_oauth.start_device_authorization(client_id, scope, resource)
+    except OAuthError as exc:
+        return _oauth_error_response("invalid_client", str(exc))
+    return DeviceAuthorization.model_validate(started)
+
+
+@router.post(
+    "/mcp/oauth/token",
+    response_model=TokenGrant,
+    responses={
+        400: {
+            "model": OAuthErrorBody,
+            "description": "An OAuth error; for the device grant, `authorization_pending` "
+            "and `slow_down` mean keep polling (RFC 8628 §3.5)",
+        }
+    },
+)
 async def token(
     svc: AppServices,
     grant_type: str = Form(...),
@@ -159,9 +288,14 @@ async def token(
     client_id: str = Form(...),
     code_verifier: str | None = Form(None),
     refresh_token: str | None = Form(None),
+    device_code: str | None = Form(None),
 ):
     try:
-        if grant_type == "authorization_code":
+        if grant_type == DEVICE_GRANT_TYPE:
+            if not device_code:
+                return _oauth_error_response("invalid_request", "device_code is required")
+            result = await svc.mcp_oauth.exchange_device_code(device_code, client_id)
+        elif grant_type == "authorization_code":
             if not (code and redirect_uri and code_verifier):
                 return _oauth_error_response(
                     "invalid_request", "code, redirect_uri, and code_verifier are required"
@@ -179,17 +313,21 @@ async def token(
         else:
             return _oauth_error_response("unsupported_grant_type", grant_type)
     except OAuthError as exc:
-        return _oauth_error_response("invalid_grant", str(exc))
-    return result
-
-
-class RevokeRequest(BaseModel):
-    token: str
+        return _oauth_error_response(exc.error, str(exc))
+    return TokenGrant.model_validate(result)
 
 
 @router.post("/mcp/oauth/revoke")
-async def revoke(body: RevokeRequest, svc: AppServices) -> dict[str, Any]:
-    await svc.mcp_oauth.revoke_token_by_value(body.token)
+async def revoke(request: Request, svc: AppServices) -> dict[str, Any]:
+    """RFC 7009 says form-encoded; older clients of this endpoint sent JSON.
+    Both are accepted."""
+    if request.headers.get("content-type", "").startswith("application/json"):
+        body: Any = await request.json()
+    else:
+        body = await request.form()
+    token = body.get("token") if hasattr(body, "get") else None
+    if isinstance(token, str) and token:
+        await svc.mcp_oauth.revoke_token_by_value(token)
     return {}  # RFC 7009: always 200, whether or not the token existed
 
 

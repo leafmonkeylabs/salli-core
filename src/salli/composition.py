@@ -26,6 +26,7 @@ from salli.application.services.llm_credential_service import LlmCredentialServi
 from salli.application.services.mcp_oauth_service import McpOAuthService
 from salli.application.services.onboarding_service import OnboardingService
 from salli.application.services.parsing_service import ParsingService
+from salli.application.services.personal_access_token_service import PersonalAccessTokenService
 from salli.application.services.portfolio_service import PortfolioService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
@@ -67,6 +68,7 @@ class Services:
     data_portability: DataPortabilityService
     mcp_oauth: McpOAuthService
     llm_credentials: LlmCredentialService
+    tokens: PersonalAccessTokenService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
     # The extension seams. Salli's own defaults unless an enabled extension
@@ -180,14 +182,16 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
     reports = ReportService(ledger, fi)
+    public_url = settings.mcp_public_base_url.rstrip("/")
     mcp_oauth = McpOAuthService(
         uow_factory,
         signing_secret=settings.mcp_signing_secret
         or settings.supabase_jwt_secret
         or "dev-insecure-secret",
-        mcp_resource_url=f"{settings.mcp_public_base_url.rstrip('/')}/mcp",
-        consent_url=settings.mcp_consent_url
-        or f"{settings.mcp_public_base_url.rstrip('/')}/mcp/oauth/consent-page",
+        mcp_resource_url=f"{public_url}/mcp",
+        api_resource_url=f"{public_url}/v1",
+        device_verification_url=f"{public_url}/mcp/oauth/device",
+        consent_url=settings.mcp_consent_url or f"{public_url}/mcp/oauth/consent-page",
         art_ttl_seconds=settings.mcp_art_ttl_seconds,
         auth_code_ttl_seconds=settings.mcp_auth_code_ttl_seconds,
         access_token_ttl_seconds=settings.mcp_access_token_ttl_seconds,
@@ -232,6 +236,7 @@ def build_services(settings: Settings, checkpointer: Any = None) -> Services:
         data_portability=data_portability,
         mcp_oauth=mcp_oauth,
         llm_credentials=llm_credentials,
+        tokens=PersonalAccessTokenService(uow_factory),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,
         entitlements=extensions.entitlements,
