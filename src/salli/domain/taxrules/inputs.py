@@ -2,11 +2,9 @@
 A rule set's role totals, read from a ledger.
 
 A rule set's roles are what the ledger supplies: for each role key, the total
-of the postings on accounts whose `tax_role` is that key. This is the generic
-replacement for the built-in engine's `_build_ledger_view`
-(application/services/tax_service.py), which knew six Sri Lankan buckets by
-name. Here nothing is known about any role: a rule set declares its keys, an
-account names one, and the postings are added up.
+of the postings on accounts whose `tax_role` is that key. Nothing is known
+about any role: a rule set declares its keys, an account names one, and the
+postings are added up.
 
 How each posting counts:
 

@@ -5,13 +5,10 @@ a unit, and progressive band tables.
 Everything here runs inside `decimal_context()`, never the ambient context, so a
 result cannot depend on what some other code set `decimal.getcontext()` to.
 
-Precision is 28 significant digits. That is Python's default context, which is
-what `salli.domain.tax` (the built-in engine this package replaces) has always
-computed with. Phase 1 must reproduce that engine's figures exactly, and the two
-differ in the one place a pack has a fraction that doesn't terminate: Sri
-Lanka's qualifying-payment cap multiplies by 1/3, and `taxable × 0.333…` keeps
-more digits at 34 than at 28. Twenty-eight digits is still far beyond any amount
-of money (a trillion with four decimals is 17 digits), and a literal or figure
+Precision is 28 significant digits: Python's default context, fixed here so
+that a fraction that doesn't terminate (a cap of one third of income, say)
+always keeps the same digits. Twenty-eight digits is far beyond any amount of
+money (a trillion with four decimals is 17 digits), and a literal or figure
 with more significant digits than that is refused rather than rounded.
 """
 
@@ -148,7 +145,7 @@ class Band:
 class BandTable:
     """A progressive schedule. When `rounding` is set, each band's tax is
     rounded on its own before the bands are added up, which is how some
-    authorities print their tables (and what Sri Lanka's built-in pack does)."""
+    authorities print their tables."""
 
     bands: tuple[Band, ...]
     rounding: Rounding | None = None

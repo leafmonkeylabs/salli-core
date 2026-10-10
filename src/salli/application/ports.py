@@ -116,19 +116,39 @@ class LedgerRepository(ABC):
 
 
 class TaxComputationRepository(ABC):
-    @abstractmethod
-    async def save(self, user_id: str, computation: Any) -> str: ...
+    """A user's stored tax computations, as plain dicts. Rows are only added;
+    each read comes back with the rule set version's `rule_set_id` and
+    `version` number joined in."""
 
     @abstractmethod
-    async def get_latest(self, user_id: str, year: str) -> Any | None: ...
+    async def save(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        """Store a computation: country, region, year, rule_set_version_id (one
+        of the user's own), content_hash, currency, net_minor,
+        tax_payable_minor, refund_due_minor, lines, inputs, warnings."""
+        ...
 
     @abstractmethod
-    async def list_computation_keys(self) -> list[tuple[str, str]]:
-        """Every (user_id, year) that has at least one stored computation.
+    async def get(self, user_id: str, computation_id: str) -> dict[str, Any] | None: ...
 
-        Admin-only. Used to re-run stored computations after an engine fix, so
-        users are not left looking at a number the engine no longer agrees with.
-        """
+    @abstractmethod
+    async def get_latest(
+        self, user_id: str, country: str, region: str | None, year: str
+    ) -> dict[str, Any] | None:
+        """The newest computation for this jurisdiction and year."""
+        ...
+
+    @abstractmethod
+    async def list_for_user(self, user_id: str) -> list[dict[str, Any]]:
+        """Every computation of the user's, newest first (their data export)."""
+        ...
+
+    @abstractmethod
+    async def latest_of_each(self) -> list[dict[str, Any]]:
+        """Every user's newest computation for each jurisdiction and year.
+
+        Operator-only: recomputing stored results (`salli-server jobs
+        recompute-tax`), so nobody is left looking at a figure their ledger
+        and active rules no longer give."""
         ...
 
 
@@ -205,8 +225,16 @@ class TaxRuleSetRepository(ABC):
 
     @abstractmethod
     async def declared_roles(self, user_id: str) -> set[str]:
-        """Every role key a version of the user's rule sets declares, among the
-        versions whose document matches the schema."""
+        """Every role key the user's rule sets declare now: in a version whose
+        document matches the schema and that hasn't been superseded (an
+        active version, or one still being worked on). A superseded version is
+        history, so a role only it declared is declared no longer."""
+        ...
+
+    @abstractmethod
+    async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
+        """Every rule set of the user's that has an active version: the set's
+        fields with `version`, that version in full (content included)."""
         ...
 
     @abstractmethod
@@ -246,6 +274,22 @@ class ReminderRepository(ABC):
         against the same still-active condition updates the existing row
         (kind/due_date/severity, and resets status to "pending" if it had been
         dismissed) rather than creating a duplicate."""
+        ...
+
+    @abstractmethod
+    async def sync_source(
+        self,
+        user_id: str,
+        source_domain: str,
+        source_prefix: str,
+        items: list[tuple[str, str, str]],
+    ) -> dict[str, list[str]]:
+        """Make the user's reminders from one source exactly `items`, each
+        (source_id, kind, due_date), every source_id starting with
+        `source_prefix`: add the new ones, update the changed ones (back to
+        pending when the date moves; a done reminder whose date stands stays
+        done), and delete those under the prefix that are no longer listed.
+        Returns the ids `created`, `updated` and `removed`."""
         ...
 
 

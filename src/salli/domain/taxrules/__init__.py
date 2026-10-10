@@ -14,9 +14,10 @@ it. Nothing in here knows any country's law.
 - `validate` everything an author needs to hear about a document, examples included
 - `diff`     what changed between two versions, for the review before activating
 - `inputs`   a rule set's role totals, added up from a ledger's postings
+- `explain`  where one line of a result came from: its expression, what it used
 
-Pure domain: no I/O, no database, no HTTP. Storage, the API and the MCP tools
-are phase 2 (application/services/tax_rule_service.py); the old
-`salli.domain.tax` package is still what `/v1/tax/compute` uses until phase 3
-of docs/design/country-neutral-core.md.
+Pure domain: no I/O, no database, no HTTP. Storage and the lifecycle are
+application/services/tax_rule_service.py; computing a user's tax with their
+active rule set is application/services/tax_service.py. This is the only tax
+engine Salli has: no country's law is built in.
 """
