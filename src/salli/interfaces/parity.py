@@ -149,6 +149,8 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/llm-keys"): "llm-keys list",
     ("PUT", "/llm-keys/{provider}"): "llm-keys set",
     ("DELETE", "/llm-keys/{provider}"): "llm-keys delete",
+    ("GET", "/export/beancount"): "export beancount",
+    ("GET", "/export/hledger"): "export hledger",
     ("GET", "/rules"): "rules list",
     ("POST", "/rules"): "rules add",
     ("POST", "/rules/test"): "rules test",

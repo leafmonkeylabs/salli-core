@@ -38,6 +38,7 @@ from salli.interfaces.api.routers import (
     debt,
     documents,
     entries,
+    exports,
     fi,
     insurance,
     ledger,
@@ -219,6 +220,7 @@ def create_app() -> FastAPI:
         mcp_oauth.connections_router,
         tokens.router,
         rules.router,
+        exports.router,
     ]
     # Routers contributed by enabled extensions (salli/extensions.py), after
     # Salli's own, so an extension adds paths but cannot shadow one of Salli's.

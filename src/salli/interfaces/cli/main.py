@@ -8,6 +8,7 @@ The CLI and the FastAPI layer share the same services via composition.py.
 from __future__ import annotations
 
 import asyncio
+import sys
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -56,6 +57,7 @@ onboarding_app = typer.Typer(help="First-run setup of your profile and starter a
 llm_keys_app = typer.Typer(help="Your own LLM API keys, stored encrypted")
 tokens_app = typer.Typer(help="Personal access tokens, for scripts and remote clients")
 rules_app = typer.Typer(help="Rules that book transactions that look a certain way")
+export_app = typer.Typer(help="Your whole ledger as plain-text accounting")
 mcp_app = typer.Typer(help="AI clients (Claude, ChatGPT) connected over MCP")
 
 app.add_typer(accounts_app, name="accounts")
@@ -85,6 +87,7 @@ app.add_typer(onboarding_app, name="onboarding")
 app.add_typer(llm_keys_app, name="llm-keys")
 app.add_typer(tokens_app, name="tokens")
 app.add_typer(rules_app, name="rules")
+app.add_typer(export_app, name="export")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(members_app, name="members")
 app.add_typer(skills_app, name="skills")
@@ -3321,6 +3324,37 @@ def tokens_revoke(token_id: str = typer.Argument(..., help="Token id (or a uniqu
         raise typer.Exit(1)
     emit({"id": full_id, "revoked": True})
     console.print(f"[green]Revoked[/green] {full_id}")
+
+
+# ── export ────────────────────────────────────────────────────────────────────
+
+
+def _export_plaintext(fmt: str, output: str | None) -> None:
+    import pathlib
+
+    user_id = _require_user()
+    text = asyncio.run(_services().data_portability.export_plaintext(user_id, fmt))
+    if output:
+        pathlib.Path(output).write_text(text)
+        console.print(f"[green]Wrote[/green] {output}")
+    else:
+        sys.stdout.write(text)
+
+
+@export_app.command("beancount")
+def export_beancount(
+    output: str = typer.Option(None, "--output", "-o", help="Write to a file instead of stdout"),
+):
+    """Every account and entry as a Beancount file (check it with bean-check)."""
+    _export_plaintext("beancount", output)
+
+
+@export_app.command("hledger")
+def export_hledger(
+    output: str = typer.Option(None, "--output", "-o", help="Write to a file instead of stdout"),
+):
+    """Every account and entry as an hledger journal (Ledger reads it too)."""
+    _export_plaintext("hledger", output)
 
 
 # ── rules ─────────────────────────────────────────────────────────────────────

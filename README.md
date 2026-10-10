@@ -16,6 +16,9 @@ on your machine, on your own data, with your own LLM key.
   implies.
 - **Tax rules in versioned packs, country by country.** A computation records
   the pack it used, so a past return can be reproduced after the rules change.
+- **Your books, in plain text.** `salli export beancount` or `salli export hledger`
+  writes every account and entry as a Beancount file or an hledger journal, so
+  you can leave with your whole ledger at any time, or use Fava alongside.
 - **Works with your AI.** Connect Claude or ChatGPT over MCP, or let your own
   agent drive the CLI with the bundled skills.
 

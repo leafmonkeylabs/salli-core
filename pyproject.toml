@@ -69,6 +69,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "pyright>=1.1",
+    "beancount>=3.2.3",
 ]
 
 [project.scripts]

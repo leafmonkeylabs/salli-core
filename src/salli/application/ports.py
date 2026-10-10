@@ -42,7 +42,7 @@ class LedgerRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_accounts(self, user_id: str) -> list[Any]:
+    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
         """Return Account list for the user."""
         ...
 
