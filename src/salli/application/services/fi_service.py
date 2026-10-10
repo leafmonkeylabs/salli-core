@@ -212,8 +212,10 @@ def _strategy_figures(strategy_data: dict[str, Any] | None) -> StrategyFigures |
 
 
 def _rate(value: Decimal) -> str:
-    """A yearly fraction as a plain decimal string, never in exponent form."""
-    return f"{value:f}"
+    """A yearly fraction as a plain decimal string, never in exponent form,
+    without the trailing zeros a computed rate carries ("0.09", not
+    "0.0900000000000000000000000000")."""
+    return f"{value.normalize():f}"
 
 
 def _applied_dict(applied: Applied | None) -> dict[str, Any] | None:

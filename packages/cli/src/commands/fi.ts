@@ -81,7 +81,7 @@ const PLACEHOLDER_LABELS: Record<string, string> = { real_return: 'real return',
 /** Says, on stderr, when figures rest on placeholders, and how to set your own. */
 function assumptionsNote(app: App, assumptions: FiAssumptions | null | undefined): void {
   if (!assumptions || assumptions.status !== 'placeholder') return;
-  const names = assumptions.placeholders.map((p) => PLACEHOLDER_LABELS[p] ?? p).join(' and ');
+  const names = assumptions.placeholders.map((p) => PLACEHOLDER_LABELS[p] ?? p).join(' and the ');
   app.out.note(
     `Using placeholder assumptions for the ${names}: round figures, not forecasts. Set yours with \`salli fi assumptions set real-return 5% --source <where it comes from>\` (and swr).`,
   );
