@@ -16,7 +16,9 @@ from rich.table import Table
 
 from salli.interfaces.cli.setup import members_app, serve, setup
 from salli.interfaces.cli.skills import skills_app
+from salli.interfaces.cli.support import amount as _amount
 from salli.interfaces.cli.support import console, emit, json_mode, with_json_option
+from salli.interfaces.cli.support import money as _money
 from salli.interfaces.cli.support import require_user as _require_user
 from salli.interfaces.cli.support import resolve_id as _resolve_id
 from salli.interfaces.cli.support import services as _services
@@ -138,7 +140,9 @@ def accounts_add(
     code: str = typer.Argument(..., help="Account code, e.g. 1001"),
     name: str = typer.Argument(..., help="Account name"),
     type: str = typer.Argument(..., help="asset|liability|equity|income|expense"),
-    currency: str = typer.Option("LKR", help="ISO currency code"),
+    currency: str = typer.Option(
+        None, help="ISO 4217 code the account is held in (default: your base currency)"
+    ),
 ):
     """Add an account to the chart of accounts."""
     user_id = _require_user()
@@ -148,9 +152,14 @@ def accounts_add(
             f"[red]Invalid type '{type}'. Must be one of: {', '.join(sorted(valid_types))}[/red]"
         )
         raise typer.Exit(1)
-    account_id = asyncio.run(
-        _services().ledger.add_account(user_id, code, name, type, currency)  # type: ignore[arg-type]
-    )
+    svc = _services()
+
+    async def _run() -> tuple[str, str]:
+        held_in = currency or await svc.ledger.base_currency(user_id)
+        new_id = await svc.ledger.add_account(user_id, code, name, type, held_in)  # type: ignore[arg-type]
+        return new_id, held_in
+
+    account_id, currency = asyncio.run(_run())
     emit({"id": account_id, "code": code, "name": name, "type": type, "currency": currency})
     console.print(f"[green]Account created:[/green] {code} — {name} ({account_id})")
 
@@ -162,7 +171,6 @@ def accounts_show(
     to_date: str = typer.Option(None, "--to", help="YYYY-MM-DD"),
 ):
     """Show an account's detail, current balance, and transaction history."""
-    from decimal import Decimal
 
     user_id = _require_user()
     overview = asyncio.run(
@@ -179,22 +187,33 @@ def accounts_show(
         f"\n[bold]{acc['code']} — {acc['name']}[/bold]  ({acc['type']}, {acc['currency']})"
     )
     status_label = "active" if acc["is_active"] else "[red]inactive[/red]"
+    base = overview["base_currency"]
     console.print(f"  Status:          {status_label}")
-    console.print(f"  Current balance: LKR {Decimal(overview['current_balance']):>16,.2f}\n")
+    if acc["currency"] != base:
+        # Held in another currency: what the bank shows, then its book value
+        # in the ledger's own currency (at the rates its entries recorded).
+        console.print(f"  Balance:         {_money(overview['balance'], acc['currency'])}")
+        console.print(f"  Book value:      {_money(overview['current_balance'], base)}\n")
+    else:
+        console.print(f"  Current balance: {_money(overview['current_balance'], base)}\n")
 
     transactions = overview.get("transactions") or []
     if transactions:
+        native = acc["currency"] != base and all(
+            t.get("running_balance_native") is not None for t in transactions
+        )
+        shown_in = acc["currency"] if native else base
         table = Table(title="Transactions")
         table.add_column("Date")
         table.add_column("Description")
         table.add_column("Source")
-        table.add_column("Running Balance", justify="right")
+        table.add_column(f"Running Balance ({shown_in})", justify="right")
         for t in transactions:
             table.add_row(
                 t["entry_date"],
                 t["description"],
                 t["source"],
-                f"{Decimal(t['running_balance']):,.2f}",
+                _amount(t["running_balance_native" if native else "running_balance"], shown_in),
             )
         console.print(table)
     else:
@@ -207,7 +226,9 @@ def accounts_update(
     code: str = typer.Option(..., "--code"),
     name: str = typer.Option(..., "--name"),
     type: str = typer.Option(..., "--type", help="asset|liability|equity|income|expense"),
-    currency: str = typer.Option("LKR", "--currency"),
+    currency: str = typer.Option(
+        None, "--currency", help="ISO 4217 (default: unchanged; only while it has no entries)"
+    ),
 ):
     """Update an account's code, name, type, and currency."""
     user_id = _require_user()
@@ -256,6 +277,14 @@ def entry_add(
     receipt: str = typer.Option(
         None, "--receipt", help="Document ID of an attached receipt/file (source stays 'manual')"
     ),
+    currency: str = typer.Option(
+        None, "--currency", help="ISO 4217 code of the amounts (default: your base currency)"
+    ),
+    fx_rate: str = typer.Option(
+        None,
+        "--fx-rate",
+        help="Units of your base currency per unit of --currency (default: the published rate)",
+    ),
 ):
     """Add a balanced journal entry (ACCOUNT_ID:AMOUNT pairs)."""
     from decimal import Decimal
@@ -274,7 +303,8 @@ def entry_add(
                         "account_id": account_id.strip(),
                         "direction": direction,
                         "amount": Decimal(amount_str.strip()),
-                        "currency": "LKR",
+                        "currency": currency,
+                        "fx_rate": Decimal(fx_rate) if fx_rate else None,
                     }
                 )
             except ValueError:
@@ -439,15 +469,16 @@ def trial_balance_cmd(
 
     from decimal import Decimal
 
+    base = asyncio.run(_services().ledger.base_currency(user_id))
     table = Table(title="Trial Balance")
     table.add_column("Account ID")
-    table.add_column("Balance (LKR)", justify="right")
+    table.add_column(f"Balance ({base})", justify="right")
     total = Decimal(0)
     for acc_id, bal in sorted(balances.items()):
-        table.add_row(acc_id, f"{bal:,.2f}")
+        table.add_row(acc_id, _amount(bal, base))
         total += bal
     table.add_section()
-    table.add_row("[bold]NET[/bold]", f"[bold]{total:,.2f}[/bold]")
+    table.add_row("[bold]NET[/bold]", f"[bold]{_amount(total, base)}[/bold]")
     console.print(table)
 
 
@@ -462,24 +493,25 @@ def income_statement(
     user_id = _require_user()
     svc = _services()
 
-    async def _run() -> Decimal | None:
+    async def _run() -> tuple[Decimal | None, str]:
+        base = await svc.ledger.base_currency(user_id)
         accounts = await svc.ledger.list_accounts(user_id)
         income_ids = {a.id for a in accounts if a.type == "income"}
         expense_ids = {a.id for a in accounts if a.type == "expense"}
         if not income_ids and not expense_ids:
-            return None
+            return None, base
         return await svc.ledger.get_income_statement(
             user_id, from_date, to_date, income_ids, expense_ids
-        )
+        ), base
 
-    net_income = asyncio.run(_run())
-    if emit({"from": from_date, "to": to_date, "net_income": net_income}):
+    net_income, base = asyncio.run(_run())
+    if emit({"from": from_date, "to": to_date, "net_income": net_income, "currency": base}):
         return
     if net_income is None:
         console.print("[dim]No income/expense accounts found.[/dim]")
         return
     console.print(f"\n[bold]Income Statement[/bold]  {from_date} → {to_date}\n")
-    console.print(f"  [bold]Net income:  LKR {net_income:>16,.2f}[/bold]\n")
+    console.print(f"  [bold]Net income:  {_money(net_income, base)}[/bold]\n")
 
 
 @ledger_app.command("tags")
@@ -520,29 +552,30 @@ def tax_compute(
 
     console.print(f"\n[bold]Tax Computation — {result.pack_year} (v{result.pack_version})[/bold]\n")
 
+    cur = result.currency
     table = Table(title="Band Workings")
     table.add_column("Band")
-    table.add_column("Taxable in Band (LKR)", justify="right")
+    table.add_column(f"Taxable in Band ({cur})", justify="right")
     table.add_column("Rate")
-    table.add_column("Tax (LKR)", justify="right")
+    table.add_column(f"Tax ({cur})", justify="right")
     for i, bw in enumerate(result.band_workings, 1):
         upto = f"{bw.to_amount:,.0f}" if bw.to_amount else "∞"
         table.add_row(
             f"{i} (up to {upto})",
-            f"{bw.taxable_in_band:,.2f}",
+            _amount(bw.taxable_in_band, cur),
             f"{bw.rate * 100:.0f}%",
-            f"{bw.tax:,.2f}",
+            _amount(bw.tax, cur),
         )
     console.print(table)
 
-    console.print(f"\n  Gross income:        LKR {result.gross_income:>16,.2f}")
-    console.print(f"  Personal relief:     LKR {result.personal_relief_applied:>16,.2f}")
-    console.print(f"  Taxable income:      LKR {result.taxable_income:>16,.2f}")
-    console.print(f"  Tax before credits:  LKR {result.tax_before_credits:>16,.2f}")
-    console.print(f"  APIT credit:         LKR {result.apit_credit:>16,.2f}")
-    console.print(f"  AIT credit:          LKR {result.ait_credit:>16,.2f}")
-    console.print(f"  Foreign tax credit:  LKR {result.foreign_tax_credit:>16,.2f}")
-    console.print(f"\n[bold]  Tax payable:         LKR {result.tax_payable:>16,.2f}[/bold]\n")
+    console.print(f"\n  Gross income:        {_money(result.gross_income, cur)}")
+    console.print(f"  Personal relief:     {_money(result.personal_relief_applied, cur)}")
+    console.print(f"  Taxable income:      {_money(result.taxable_income, cur)}")
+    console.print(f"  Tax before credits:  {_money(result.tax_before_credits, cur)}")
+    console.print(f"  APIT credit:         {_money(result.apit_credit, cur)}")
+    console.print(f"  AIT credit:          {_money(result.ait_credit, cur)}")
+    console.print(f"  Foreign tax credit:  {_money(result.foreign_tax_credit, cur)}")
+    console.print(f"\n[bold]  Tax payable:         {_money(result.tax_payable, cur)}[/bold]\n")
 
 
 @tax_app.command("explain")
@@ -721,6 +754,9 @@ def tax_latest(year: str = typer.Option("2025/26", help="Year of assessment")):
 def parse_upload(
     file: str = typer.Argument(..., help="Path to bank statement (PDF, XLSX, or CSV)"),
     bank: str = typer.Option("unknown", "--bank", help="Bank name hint (e.g. 'ComBank', 'HNB')"),
+    currency: str = typer.Option(
+        None, "--currency", help="ISO 4217 code of the statement (default: your base currency)"
+    ),
 ):
     """
     Parse a bank statement and queue transactions for review.
@@ -741,7 +777,9 @@ def parse_upload(
     svc = _services()
 
     console.print(f"[dim]Parsing {filename} …[/dim]")
-    result = asyncio.run(svc.parsing.parse_statement(user_id, filename, data, bank))
+    result = asyncio.run(
+        svc.parsing.parse_statement(user_id, filename, data, bank, currency=currency)
+    )
     if emit(result):
         return
 
@@ -1019,12 +1057,13 @@ def fi_score(
     console.print(
         f"  Overall score:        {score.get('overall_score')}  (grade {score.get('grade')})"
     )
-    console.print(f"  Monthly income:       LKR {score.get('monthly_income')}")
-    console.print(f"  Monthly expenses:     LKR {score.get('monthly_expenses')}")
-    console.print(f"  Monthly surplus:      LKR {score.get('monthly_surplus')}")
+    cur = score["currency"]
+    console.print(f"  Monthly income:       {_money(score.get('monthly_income'), cur)}")
+    console.print(f"  Monthly expenses:     {_money(score.get('monthly_expenses'), cur)}")
+    console.print(f"  Monthly surplus:      {_money(score.get('monthly_surplus'), cur)}")
     console.print(f"  Savings rate:         {score.get('savings_rate')}")
-    console.print(f"  FI number:            LKR {score.get('fi_number')}")
-    console.print(f"  Net worth:            LKR {score.get('net_worth')}")
+    console.print(f"  FI number:            {_money(score.get('fi_number'), cur)}")
+    console.print(f"  Net worth:            {_money(score.get('net_worth'), cur)}")
     console.print(f"  Progress to FI:       {score.get('progress_to_fi')}")
     console.print(f"  Emergency fund:       {score.get('emergency_fund_months')} months")
     console.print(f"  Projected FI date:    {score.get('projected_fi_date')}\n")
@@ -1075,15 +1114,18 @@ def fi_projections():
     if emit(proj):
         return
 
-    console.print(f"\n[bold]FI Projections[/bold]  (FI number: LKR {proj.get('fi_number')})\n")
+    cur = proj["currency"]
+    console.print(
+        f"\n[bold]FI Projections[/bold]  (FI number: {_money(proj.get('fi_number'), cur, 0)})\n"
+    )
     console.print(f"  FIRE year (conservative): {proj.get('fire_year_conservative')}")
     console.print(f"  FIRE year (base):         {proj.get('fire_year_base')}")
     console.print(f"  FIRE year (growth):       {proj.get('fire_year_growth')}")
-    console.print(f"  Current portfolio:        LKR {proj.get('current_portfolio')}\n")
+    console.print(f"  Current portfolio:        {_money(proj.get('current_portfolio'), cur)}\n")
 
     points = proj.get("points") or []
     if points:
-        table = Table(title="Projection by Year")
+        table = Table(title=f"Projection by Year ({cur})")
         table.add_column("Year", justify="right")
         table.add_column("Conservative", justify="right")
         table.add_column("Base", justify="right")
@@ -1091,9 +1133,9 @@ def fi_projections():
         for p in points:
             table.add_row(
                 str(p.get("year")),
-                p.get("conservative", ""),
-                p.get("base", ""),
-                p.get("growth", ""),
+                _amount(p.get("conservative"), cur),
+                _amount(p.get("base"), cur),
+                _amount(p.get("growth"), cur),
             )
         console.print(table)
 
@@ -1107,9 +1149,14 @@ def fi_surplus():
         return
 
     console.print("\n[bold]Surplus Breakdown[/bold]\n")
-    console.print(f"  Gross monthly income:    LKR {breakdown.get('gross_monthly_income')}")
-    console.print(f"  Gross monthly expenses:  LKR {breakdown.get('gross_monthly_expenses')}")
-    console.print(f"  Monthly surplus:         LKR {breakdown.get('monthly_surplus')}")
+    cur = breakdown["currency"]
+    console.print(
+        f"  Gross monthly income:    {_money(breakdown.get('gross_monthly_income'), cur)}"
+    )
+    console.print(
+        f"  Gross monthly expenses:  {_money(breakdown.get('gross_monthly_expenses'), cur)}"
+    )
+    console.print(f"  Monthly surplus:         {_money(breakdown.get('monthly_surplus'), cur)}")
     console.print(f"  Savings rate:            {breakdown.get('savings_rate')}\n")
 
     income_by_source = breakdown.get("income_by_source") or {}
@@ -2173,9 +2220,10 @@ def budget_summary(
             f"[{style}]{variance:,.2f}[/{style}]",
         )
     console.print(table)
-    console.print(f"\n  Total limit:    LKR {Decimal(summary['total_limit']):>16,.2f}")
-    console.print(f"  Total actual:   LKR {Decimal(summary['total_actual']):>16,.2f}")
-    console.print(f"  Total variance: LKR {Decimal(summary['total_variance']):>16,.2f}\n")
+    cur = summary["currency"]
+    console.print(f"\n  Total limit:    {_money(summary['total_limit'], cur)}")
+    console.print(f"  Total actual:   {_money(summary['total_actual'], cur)}")
+    console.print(f"  Total variance: {_money(summary['total_variance'], cur)}\n")
 
 
 @budget_app.command("delete")
@@ -2362,7 +2410,9 @@ def debt_payoff_plan(
     months_str = str(months) if months is not None else "not within horizon"
     console.print(f"\n[bold]Payoff Plan[/bold]  ({plan['strategy']})\n")
     console.print(f"  Months to payoff:     {months_str}")
-    console.print(f"  Total interest paid:  LKR {Decimal(plan['total_interest_paid']):>16,.2f}\n")
+    console.print(
+        f"  Total interest paid:  {_money(plan['total_interest_paid'], plan['currency'])}\n"
+    )
 
     schedule = plan.get("schedule") or []
     if schedule:
@@ -2535,9 +2585,10 @@ def portfolio_summary(
         return
 
     console.print("\n[bold]Portfolio Summary[/bold]\n")
-    console.print(f"  Total value:       LKR {Decimal(summary['total_value']):>16,.2f}")
-    console.print(f"  Total cost basis:  LKR {Decimal(summary['total_cost_basis']):>16,.2f}")
-    console.print(f"  Total gain:        LKR {Decimal(summary['total_gain']):>16,.2f}")
+    cur = summary["currency"]
+    console.print(f"  Total value:       {_money(summary['total_value'], cur)}")
+    console.print(f"  Total cost basis:  {_money(summary['total_cost_basis'], cur)}")
+    console.print(f"  Total gain:        {_money(summary['total_gain'], cur)}")
     console.print(f"  Total gain %:      {float(summary['total_gain_pct']) * 100:.2f}%\n")
 
     allocation = summary.get("allocation") or []
@@ -3132,24 +3183,37 @@ def onboarding_complete(
         help="financial_independence | retirement | home | emergency_fund | debt_free | "
         "wealth_growth",
     ),
-    goal_amount: float = typer.Option(0, help="Target amount for that goal (LKR)"),
+    goal_amount: str = typer.Option("0", help="Target amount for that goal, in your base currency"),
     goal_year: str = typer.Option("", help="Target year, YYYY"),
+    base_currency: str = typer.Option(
+        None,
+        "--base-currency",
+        help="ISO 4217 code to keep your ledger in (only while it is still empty)",
+    ),
 ):
     """Save your profile and create a starter chart of accounts. Safe to re-run."""
+    from decimal import Decimal
+
     user_id = _require_user()
-    result = asyncio.run(
-        _services().onboarding.complete(
+    svc = _services()
+
+    async def _run() -> dict:
+        # Before any account exists: accounts open in the base currency.
+        if base_currency:
+            await svc.profile.set_base_currency(user_id, base_currency)
+        return await svc.onboarding.complete(
             user_id,
             {
                 "name": name,
                 "residency": residency,
                 "income_sources": [s.strip() for s in income.split(",") if s.strip()],
                 "primary_goal": primary_goal,
-                "goal_target_amount": goal_amount,
+                "goal_target_amount": Decimal(goal_amount),
                 "goal_target_year": goal_year,
             },
         )
-    )
+
+    result = asyncio.run(_run())
     if emit(result):
         return
     console.print(f"[green]Accounts created:[/green] {len(result['accounts_created'])}")

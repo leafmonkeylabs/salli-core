@@ -668,7 +668,9 @@ def make_manager_tools(
         code: Annotated[str, "Account code, e.g. '1010'"],
         name: Annotated[str, "Account name, e.g. 'Cash (BOC)'"],
         account_type: Annotated[str, "One of: asset, liability, equity, income, expense"],
-        currency: Annotated[str, "Currency code, e.g. 'LKR'"] = "LKR",
+        currency: Annotated[
+            str, "ISO currency code the account is held in; empty for the user's base currency"
+        ] = "",
     ) -> str:
         """
         Create a new account in the chart of accounts.
@@ -677,6 +679,7 @@ def make_manager_tools(
         from langgraph.types import interrupt
 
         user_id = _current_user.get()
+        currency = currency or await ledger_svc.base_currency(user_id)
         params = {"code": code, "name": name, "type": account_type, "currency": currency}
         decision = interrupt(
             {
@@ -688,16 +691,16 @@ def make_manager_tools(
         )
         await _log_audit(user_id, "create_account", params, decision)
         if decision == "approved":
-            from salli.domain.accounting.models import Account
-
-            account = Account(
-                id="",
-                code=code,
-                name=name,
-                type=account_type,  # type: ignore[arg-type]
-                currency=currency,
-            )
-            acct_id = await ledger_svc.add_account(user_id, account)
+            try:
+                acct_id = await ledger_svc.add_account(
+                    user_id,
+                    code,
+                    name,
+                    account_type,  # type: ignore[arg-type]
+                    currency=currency,
+                )
+            except ValueError as exc:
+                return f"Could not create the account: {exc}"
             return f"Account created: {name} ({code}), id={acct_id}"
         return "Action cancelled by user."
 
@@ -738,7 +741,7 @@ def make_manager_tools(
         debit_account_id: Annotated[str, "Account ID to debit"],
         credit_account_id: Annotated[str, "Account ID to credit"],
         amount: Annotated[str, "Amount as a decimal string, e.g. '10000.00'"],
-        currency: Annotated[str, "Currency code"] = "LKR",
+        currency: Annotated[str, "ISO currency code; empty for the user's base currency"] = "",
     ) -> str:
         """
         Post a double-entry journal entry to the ledger.
@@ -747,6 +750,7 @@ def make_manager_tools(
         from langgraph.types import interrupt
 
         user_id = _current_user.get()
+        currency = currency or await ledger_svc.base_currency(user_id)
         params = {
             "entry_date": entry_date,
             "description": description,
@@ -790,7 +794,9 @@ def make_manager_tools(
                 entry_id = await ledger_svc.add_entry(
                     user_id, entry_date, description, "manual", postings_data
                 )
-            except ValueError as exc:
+            except (ValueError, LookupError) as exc:
+                # LookupError covers FxUnavailableError: no rate for that
+                # currency on that date, so the user has to give one.
                 return f"Could not post entry: {exc}"
             return f"Journal entry posted: id={entry_id}"
         return "Action cancelled by user."

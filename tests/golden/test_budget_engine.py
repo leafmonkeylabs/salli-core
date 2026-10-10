@@ -8,10 +8,16 @@ from salli.domain.accounting.models import Account, Direction, Posting, StoredJo
 from salli.domain.budget.engine import compute
 from salli.domain.budget.models import BudgetLineDef
 
-_CASH = Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset")
-_GROCERIES = Account(id="groceries", user_id="u1", code="5100", name="Groceries", type="expense")
-_TRANSPORT = Account(id="transport", user_id="u1", code="5200", name="Transport", type="expense")
-_SALARY = Account(id="salary", user_id="u1", code="4100", name="Salary", type="income")
+_CASH = Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset", currency="LKR")
+_GROCERIES = Account(
+    id="groceries", user_id="u1", code="5100", name="Groceries", type="expense", currency="LKR"
+)
+_TRANSPORT = Account(
+    id="transport", user_id="u1", code="5200", name="Transport", type="expense", currency="LKR"
+)
+_SALARY = Account(
+    id="salary", user_id="u1", code="4100", name="Salary", type="income", currency="LKR"
+)
 
 
 def _expense_entry(account_id: str, amount: str, entry_id: str) -> StoredJournalEntry:

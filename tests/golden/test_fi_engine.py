@@ -39,6 +39,7 @@ def _snapshot(**over) -> FinancialSnapshot:
         total_assets=Decimal("300000"),
         total_liabilities=Decimal("0"),
         goal_progress=None,
+        currency="LKR",
     )
     base.update(over)
     return FinancialSnapshot(**base)  # type: ignore[arg-type]
@@ -314,6 +315,7 @@ def _buyer(**over) -> FinancialSnapshot:
         total_assets=Decimal("1500000"),
         total_liabilities=Decimal("400000"),
         goal_progress=None,
+        currency="LKR",
     )
     base.update(over)
     return FinancialSnapshot(**base)  # type: ignore[arg-type]

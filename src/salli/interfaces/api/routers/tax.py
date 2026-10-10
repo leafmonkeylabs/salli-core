@@ -51,12 +51,14 @@ def _fmt_computation(result: TaxComputation | dict[str, Any]) -> dict[str, Any]:
         # Live TaxComputation dataclass from the engine
         bws = result.band_workings
 
+        currency = result.currency
+
         def _band_label(bw) -> str:  # type: ignore[no-untyped-def]
             fr = int(bw.from_amount)
             return (
-                f"LKR {fr:,} – LKR {int(bw.to_amount):,}"
+                f"{currency} {fr:,} – {currency} {int(bw.to_amount):,}"
                 if bw.to_amount is not None
-                else f"LKR {fr:,} – balance"
+                else f"{currency} {fr:,} – balance"
             )
 
         band_workings = [
@@ -79,6 +81,7 @@ def _fmt_computation(result: TaxComputation | dict[str, Any]) -> dict[str, Any]:
             "pack_country": result.pack_country,
             "pack_year": result.pack_year,
             "pack_version": result.pack_version,
+            "currency": currency,
             "gross_income": str(result.gross_income),
             "foreign_service_income": str(result.foreign_service_income),
             "regular_income": str(result.regular_income),
@@ -99,15 +102,17 @@ def _fmt_computation(result: TaxComputation | dict[str, Any]) -> dict[str, Any]:
     else:
         # Raw stored dict from JSONB (dataclasses.asdict serialised to JSON)
         raw: dict = result  # type: ignore[assignment]
+        # Computations stored before the currency was recorded were all LK, in LKR.
+        currency = raw.get("currency", "LKR")
         band_workings = []
         for bw in raw.get("band_workings", []):
             fr_raw = bw.get("from_amount", "0")
             to_raw = bw.get("to_amount")
             fr = int(Decimal(str(fr_raw)))
             label = (
-                f"LKR {fr:,} – LKR {int(Decimal(str(to_raw))):,}"
+                f"{currency} {fr:,} – {currency} {int(Decimal(str(to_raw))):,}"
                 if to_raw is not None
-                else f"LKR {fr:,} – balance"
+                else f"{currency} {fr:,} – balance"
             )
             rate_raw = Decimal(str(bw.get("rate", "0")))
             band_workings.append(
@@ -129,6 +134,7 @@ def _fmt_computation(result: TaxComputation | dict[str, Any]) -> dict[str, Any]:
             "pack_country": _s("pack_country", "LK"),
             "pack_year": _s("pack_year", ""),
             "pack_version": _s("pack_version", ""),
+            "currency": currency,
             "gross_income": _s("gross_income"),
             "foreign_service_income": _s("foreign_service_income"),
             "regular_income": _s("regular_income"),

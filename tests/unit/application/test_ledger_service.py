@@ -10,6 +10,7 @@ import pytest
 
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.accounting.models import Account, Direction, StoredJournalEntry
+from tests.fakes import FakeProfiles
 
 # ── In-memory fakes ────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ class FakeUoW:
     def __init__(self, ledger_repo: FakeLedgerRepo, tax_repo: FakeTaxComputationRepo):
         self.ledger = ledger_repo
         self.tax_computations = tax_repo
+        self.user_profiles = FakeProfiles()
 
     async def __aenter__(self):
         return self

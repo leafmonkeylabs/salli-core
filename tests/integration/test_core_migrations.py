@@ -39,8 +39,11 @@ def test_a_foreign_table_is_never_claimed(core_db):
     command.check(alembic_config(CORE_SCRIPT_LOCATION))
 
 
-def test_the_version_is_the_baseline(core_db):
-    assert scalar(core_db, "select version_num from alembic_version") == "core_0001_baseline"
+def test_the_version_is_the_head(core_db):
+    from alembic.script import ScriptDirectory
+
+    head = ScriptDirectory.from_config(alembic_config(CORE_SCRIPT_LOCATION)).get_current_head()
+    assert scalar(core_db, "select version_num from alembic_version") == head
 
 
 def test_an_unbalanced_entry_cannot_commit(core_db):

@@ -11,8 +11,8 @@ after a failure, or to add what a later version needs.
    secret, cron secret).
 3. Ask for an Anthropic API key, if there is none.
 4. Migrate the database.
-5. Create the owner's login in Supabase Auth and their Salli profile, and point
-   the CLI at them (SALLI_USER_ID).
+5. Create the owner's login in Supabase Auth and their Salli profile, kept in
+   the currency they choose, and point the CLI at them (SALLI_USER_ID).
 6. Seed the starter chart of accounts.
 
 Nothing here prints a secret.
@@ -175,12 +175,46 @@ def create_login(settings: Any, email: str, password: str | None) -> str:
     raise AuthAdminError(f"Supabase Auth refused to create {email}: HTTP {resp.status_code}")
 
 
-async def _add_member(user_id: str, email: str) -> None:
+async def _add_member(user_id: str, email: str, base_currency: str | None = None) -> None:
     from salli.composition import build_services
     from salli.config import get_settings
 
     svc = build_services(get_settings())
-    await svc.profile.ensure_user(user_id, email, may_create=True)
+    await svc.profile.ensure_user(user_id, email, may_create=True, base_currency=base_currency)
+
+
+def detect_currency() -> str:
+    """The currency this machine's locale uses (EUR for de_DE, JPY for ja_JP),
+    or USD when the locale says nothing. Only ever a default to confirm."""
+    import locale
+
+    from salli.domain.currency import is_currency
+
+    try:
+        locale.setlocale(locale.LC_MONETARY, "")
+        code = str(locale.localeconv().get("int_curr_symbol", "")).strip()
+    except locale.Error:
+        code = ""
+    return code.upper() if is_currency(code) else "USD"
+
+
+def choose_currency(given: str | None) -> str:
+    from salli.domain.currency import UnknownCurrencyError, normalize_currency
+
+    if given:
+        return normalize_currency(given)
+    while True:
+        answer = typer.prompt(
+            "Which currency do you keep your money in? (ISO code — your ledger is measured "
+            "in it, and it can't change once you have entries)",
+            default=detect_currency(),
+        )
+        try:
+            return normalize_currency(answer)
+        except UnknownCurrencyError:
+            console.print(
+                f"[red]{answer!r} is not an ISO 4217 currency code (e.g. USD, EUR).[/red]"
+            )
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────
@@ -195,6 +229,9 @@ def setup(
         "employment,freelance,rental,interest,foreign,dividends",
     ),
     skip_llm_key: bool = typer.Option(False, help="Do not ask for an Anthropic API key"),
+    currency: str = typer.Option(
+        None, help="ISO 4217 code to keep your ledger in (prompted if omitted)"
+    ),
 ):
     """Set up this instance: config, database, and your owner account."""
     from salli.migrations.support import script_locations, upgrade
@@ -243,13 +280,19 @@ def setup(
             console.print(f"[red]{exc}[/red]")
             raise typer.Exit(1) from exc
         add_to_env({"SALLI_USER_ID": user_id})
-    asyncio.run(_add_member(user_id, owner_email))
-    console.print(f"[green]✓[/green] Owner account ready ({owner_email})")
-
-    # 6. Starter ledger.
     from salli.composition import build_services
 
     svc = build_services(settings)
+    try:
+        existing = asyncio.run(svc.profile.get_base_currency(user_id))
+    except LookupError:
+        existing = None
+    # A re-run keeps the currency the ledger already has.
+    base_currency = existing or choose_currency(currency)
+    asyncio.run(_add_member(user_id, owner_email, base_currency))
+    console.print(f"[green]✓[/green] Owner account ready ({owner_email}, in {base_currency})")
+
+    # 6. Starter ledger.
     result = asyncio.run(
         svc.onboarding.complete(
             user_id,
@@ -288,6 +331,9 @@ def serve(
 @members_app.command("add")
 def members_add(
     email: str = typer.Argument(..., help="Their email; they sign in with it"),
+    currency: str = typer.Option(
+        None, help="ISO 4217 code their ledger is kept in (default: the instance's)"
+    ),
 ):
     """Let someone else (a partner, a household member) use this instance."""
     from salli.config import get_settings
@@ -298,7 +344,7 @@ def members_add(
     except AuthAdminError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
-    asyncio.run(_add_member(user_id, email))
+    asyncio.run(_add_member(user_id, email, currency))
     emit({"user_id": user_id, "email": email})
     console.print(f"[green]Member added:[/green] {email} ({user_id})")
     console.print(f"  They use the CLI with SALLI_USER_ID={user_id}")

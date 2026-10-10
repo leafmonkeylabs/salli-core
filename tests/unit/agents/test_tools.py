@@ -12,6 +12,7 @@ from salli.application.services.ledger_service import LedgerService
 from salli.application.services.tax_service import TaxService
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
 from salli.domain.agents.tools import make_tools, set_current_user
+from tests.fakes import FakeProfiles
 
 
 @pytest.fixture(autouse=True)
@@ -64,6 +65,7 @@ class FakeUoW:
     def __init__(self, ledger_repo, tax_repo):
         self.ledger = ledger_repo
         self.tax_computations = tax_repo
+        self.user_profiles = FakeProfiles()
 
     async def __aenter__(self):
         return self
@@ -79,6 +81,7 @@ def _make_services_with_income(income: Decimal = Decimal("3_000_000")):
         code="4001",
         name="Employment Income",
         type="income",
+        currency="LKR",
     )
     entry = StoredJournalEntry(
         id=str(uuid.uuid4()),

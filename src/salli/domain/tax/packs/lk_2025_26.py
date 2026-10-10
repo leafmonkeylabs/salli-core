@@ -23,6 +23,7 @@ LK_2025_26 = TaxPack(
     country="LK",
     year="2025/26",
     version="1.0.0",
+    currency="LKR",
     period_start="2025-04-01",
     period_end="2026-03-31",
     #

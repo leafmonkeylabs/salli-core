@@ -12,16 +12,21 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from salli.domain.money import to_minor
+from salli.domain.currency import quantize
+from salli.domain.money import from_minor, to_minor
 from salli.domain.subscription import engine
 from salli.domain.subscription.models import Subscription
 
+# Subscription amounts are kept in the user's base currency, like the ledger
+# entries they are matched against.
 
-def _subscription_view(s: dict[str, Any]) -> dict[str, Any]:
+
+def _subscription_view(s: dict[str, Any], currency: str) -> dict[str, Any]:
     return {
         "id": s["id"],
         "name": s["name"],
-        "amount": str(Decimal(s["amount_minor"]) / 100),
+        "amount": str(from_minor(s["amount_minor"], currency)),
+        "currency": currency,
         "frequency": s["frequency"],
         "next_due_date": s["next_due_date"],
         "account_id": s["account_id"],
@@ -33,10 +38,10 @@ def _subscription_view(s: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _to_domain(s: dict[str, Any]) -> Subscription:
+def _to_domain(s: dict[str, Any], currency: str) -> Subscription:
     return Subscription(
         name=s["name"],
-        amount=Decimal(s["amount_minor"]) / 100,
+        amount=from_minor(s["amount_minor"], currency),
         frequency=s["frequency"],
         next_due_date=s["next_due_date"],
         account_id=s["account_id"],
@@ -45,22 +50,24 @@ def _to_domain(s: dict[str, Any]) -> Subscription:
     )
 
 
-def _report_view(subscription: dict[str, Any], report: Any) -> dict[str, Any]:
+def _report_view(subscription: dict[str, Any], report: Any, currency: str) -> dict[str, Any]:
+    def money(amount: Decimal | None) -> str | None:
+        return None if amount is None else str(quantize(amount, currency))
+
     return {
         "subscription_id": subscription["id"],
         "name": subscription["name"],
+        "currency": currency,
         "matches": [
-            {"entry_id": m.entry_id, "entry_date": m.entry_date, "amount": str(m.amount)}
+            {"entry_id": m.entry_id, "entry_date": m.entry_date, "amount": money(m.amount)}
             for m in report.matches
         ],
         "alerts": [
             {
                 "kind": a.kind,
                 "message": a.message,
-                "expected_amount": str(a.expected_amount)
-                if a.expected_amount is not None
-                else None,
-                "actual_amount": str(a.actual_amount) if a.actual_amount is not None else None,
+                "expected_amount": money(a.expected_amount),
+                "actual_amount": money(a.actual_amount),
             }
             for a in report.alerts
         ],
@@ -72,29 +79,32 @@ class SubscriptionService:
         self._uow_factory = uow_factory
 
     async def add_subscription(self, user_id: str, data: dict[str, Any]) -> str:
-        subscription = {
-            "name": data["name"],
-            "amount_minor": to_minor(Decimal(str(data["amount"]))),
-            "frequency": data["frequency"],
-            "next_due_date": data["next_due_date"],
-            "account_id": data.get("account_id"),
-            "grace_days": data.get("grace_days", 5),
-            "amount_tolerance_pct": str(Decimal(str(data.get("amount_tolerance_pct", "0.05")))),
-        }
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
+            subscription = {
+                "name": data["name"],
+                "amount_minor": to_minor(Decimal(str(data["amount"])), currency),
+                "frequency": data["frequency"],
+                "next_due_date": data["next_due_date"],
+                "account_id": data.get("account_id"),
+                "grace_days": data.get("grace_days", 5),
+                "amount_tolerance_pct": str(Decimal(str(data.get("amount_tolerance_pct", "0.05")))),
+            }
             return await uow.recurring_subscriptions.save(user_id, subscription)
 
     async def list_subscriptions(
         self, user_id: str, active_only: bool = True
     ) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             subscriptions = await uow.recurring_subscriptions.list(user_id, active_only)
-        return [_subscription_view(s) for s in subscriptions]
+        return [_subscription_view(s, currency) for s in subscriptions]
 
     async def get_subscription(self, user_id: str, subscription_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             s = await uow.recurring_subscriptions.get(user_id, subscription_id)
-        return _subscription_view(s) if s else None
+        return _subscription_view(s, currency) if s else None
 
     async def update_subscription(
         self, user_id: str, subscription_id: str, data: dict[str, Any]
@@ -102,8 +112,6 @@ class SubscriptionService:
         updates: dict[str, Any] = {}
         if "name" in data:
             updates["name"] = data["name"]
-        if "amount" in data:
-            updates["amount_minor"] = to_minor(Decimal(str(data["amount"])))
         if "frequency" in data:
             updates["frequency"] = data["frequency"]
         if "next_due_date" in data:
@@ -117,6 +125,9 @@ class SubscriptionService:
         if "is_active" in data:
             updates["is_active"] = data["is_active"]
         async with self._uow_factory() as uow:
+            if "amount" in data:
+                currency = await uow.user_profiles.base_currency(user_id)
+                updates["amount_minor"] = to_minor(Decimal(str(data["amount"])), currency)
             await uow.recurring_subscriptions.update(user_id, subscription_id, updates)
 
     async def delete_subscription(self, user_id: str, subscription_id: str) -> None:
@@ -130,20 +141,24 @@ class SubscriptionService:
             subscription = await uow.recurring_subscriptions.get(user_id, subscription_id)
             if subscription is None:
                 return None
+            currency = await uow.user_profiles.base_currency(user_id)
             accounts = await uow.ledger.get_accounts(user_id)
             entries = await uow.ledger.get_entries(user_id)
 
-        report = engine.compute_report(_to_domain(subscription), entries, accounts, today)
-        return _report_view(subscription, report)
+        report = engine.compute_report(_to_domain(subscription, currency), entries, accounts, today)
+        return _report_view(subscription, report, currency)
 
     async def get_all_reports(self, user_id: str, today: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             subscriptions = await uow.recurring_subscriptions.list(user_id, active_only=True)
             accounts = await uow.ledger.get_accounts(user_id)
             entries = await uow.ledger.get_entries(user_id)
 
         reports: list[dict[str, Any]] = []
         for subscription in subscriptions:
-            report = engine.compute_report(_to_domain(subscription), entries, accounts, today)
-            reports.append(_report_view(subscription, report))
+            report = engine.compute_report(
+                _to_domain(subscription, currency), entries, accounts, today
+            )
+            reports.append(_report_view(subscription, report, currency))
         return reports

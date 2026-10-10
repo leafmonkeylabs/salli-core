@@ -38,6 +38,7 @@ class TaxPack:
     country: str
     year: str
     version: str
+    currency: str  # ISO 4217 — what every amount in the pack is in, and the ledger must be
     period_start: str  # YYYY-MM-DD
     period_end: str  # YYYY-MM-DD
     personal_relief: Decimal
@@ -71,6 +72,7 @@ class TaxComputation:
     pack_country: str
     pack_year: str
     pack_version: str
+    currency: str  # the pack's: every amount below is in it
 
     # Inputs (snapshot)
     gross_income: Decimal

@@ -120,6 +120,10 @@ def _fmt_money(value: object) -> str:
     return f"{d:f}"
 
 
+class TaxPackCurrencyError(ValueError):
+    """The user's ledger is not in the currency their tax pack computes in."""
+
+
 class TaxService:
     def __init__(self, uow_factory: Callable[[], Any]) -> None:
         self._uow_factory = uow_factory
@@ -132,6 +136,15 @@ class TaxService:
         """
         pack = registry.get_pack("LK", year)
         async with self._uow_factory() as uow:
+            base = await uow.user_profiles.base_currency(user_id)
+            if base != pack.currency:
+                # A pack's bands, reliefs and caps are amounts in its own
+                # currency. Applied to a ledger kept in another, every one of
+                # them would be wrong by the exchange rate.
+                raise TaxPackCurrencyError(
+                    f"The {pack.country} {pack.year} tax pack computes in {pack.currency}, "
+                    f"but this ledger is kept in {base}. Salli has no tax pack for it yet."
+                )
             entries = await uow.ledger.get_entries(
                 user_id,
                 from_date=pack.period_start,

@@ -22,7 +22,7 @@ AccountSeed = tuple[str, str, str, "str | None"]
 
 BASE_ACCOUNTS: list[AccountSeed] = [
     ("1100", "Cash", "asset", None),
-    ("1200", "Bank Account (LKR)", "asset", None),
+    ("1200", "Bank Account", "asset", None),
     ("3000", "Opening Equity", "equity", None),
     ("5000", "General Expenses", "expense", None),
     # Without this account there is nowhere to post a donation, so the
@@ -188,7 +188,6 @@ class OnboardingService:
                     code=code,
                     name=name,
                     type=acct_type,  # type: ignore[arg-type]
-                    currency="LKR",
                     tax_role=tax_role,  # type: ignore[arg-type]
                 )
                 created.append(f"{code} {name}")

@@ -15,6 +15,7 @@ from typing import Any
 
 from salli.application.ports import LLMPort
 from salli.application.services.ledger_service import LedgerService
+from salli.domain.currency import is_currency
 
 _DRAFT_SCHEMA: dict[str, Any] = {
     "title": "JournalEntryDraft",
@@ -76,7 +77,10 @@ _DRAFT_SCHEMA: dict[str, Any] = {
             },
             "required": ["name", "type"],
         },
-        "currency": {"type": "string", "description": "ISO code; default LKR."},
+        "currency": {
+            "type": "string",
+            "description": "ISO 4217 code; the user's base currency unless the note names another.",
+        },
         "confidence": {
             "type": "number",
             "description": "0.0–1.0 confidence that the account mapping is correct.",
@@ -111,7 +115,7 @@ Rules:
 - Choose accounts ONLY from the chart above, and ONLY when the user's note clearly points to one. Match on the account's name/purpose (e.g. "groceries" → the groceries expense account; "commercial bank" → that bank asset account).
 - If the user did NOT indicate an account for a side — no bank/cash source named, or the category is unclear/ambiguous — return null for that side and lower the confidence. A null account is the correct, expected answer when the user omitted that detail. NEVER guess, and NEVER fall back to a "default" or "main" account. The user will pick it in the form.
 - When a side's account id is null because nothing in the chart matches, but the transaction clearly implies what KIND of new account is needed (e.g. "Uber Eats" clearly implies a new expense account, even though no such account exists yet), populate that side's *_account_hint with a suggested name and type. Only do this when a real account is genuinely missing — never hint if an existing account already matches well enough, and never populate a hint for a side whose id is non-null. If you can't confidently suggest one, leave the hint null too.
-- currency defaults to LKR unless the user clearly says otherwise.
+- currency is {base_currency} (the user's own) unless the note clearly names another; each account above says which currency it is held in.
 - Keep the description short and human.
 
 User's note:
@@ -146,8 +150,16 @@ class EntryParseService:
 
     async def parse_draft(self, user_id: str, text: str) -> dict[str, Any]:
         accounts = [a for a in await self._ledger.list_accounts(user_id) if a.is_active]
-        chart = [{"id": a.id, "code": a.code, "name": a.name, "type": a.type} for a in accounts]
-        prompt = _PROMPT.format(accounts=json.dumps(chart, ensure_ascii=False), text=text.strip())
+        base = await self._ledger.base_currency(user_id)
+        chart = [
+            {"id": a.id, "code": a.code, "name": a.name, "type": a.type, "currency": a.currency}
+            for a in accounts
+        ]
+        prompt = _PROMPT.format(
+            accounts=json.dumps(chart, ensure_ascii=False),
+            text=text.strip(),
+            base_currency=base,
+        )
 
         llm = await self._llm_for(user_id)
         draft = await llm.extract_structured(prompt, _DRAFT_SCHEMA, model_tier="fast")
@@ -170,7 +182,9 @@ class EntryParseService:
         # Normalise the amount to a plain number string (strip commas / currency noise).
         amount = str(draft.get("amount") or "").replace(",", "").strip()
         draft["amount"] = amount
-        draft["currency"] = (draft.get("currency") or "LKR").upper()
+        # Only a real ISO code survives; anything else becomes the base currency.
+        currency = str(draft.get("currency") or "").strip().upper()
+        draft["currency"] = currency if is_currency(currency) else base
         if draft.get("entry_type") not in ("income", "expense", "transfer"):
             draft["entry_type"] = "expense"
         return draft

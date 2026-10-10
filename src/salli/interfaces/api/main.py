@@ -15,6 +15,8 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from salli.application.ports import FxUnavailableError
+from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
 from salli.domain.secrets import redact
 from salli.domain.usage import UsageLimitReached
@@ -192,6 +194,23 @@ def create_app() -> FastAPI:
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": redact(f"Not found: {exc}")},
         )
+
+    # No exchange rate for a posting in another currency. Before ValueError's
+    # catch-all would see it (it is a LookupError): the client can fix this by
+    # sending the rate it has, so it is a 422 that says so, not a 500.
+    @app.exception_handler(FxUnavailableError)
+    async def fx_unavailable_handler(request: Request, exc: FxUnavailableError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": f"{exc}. Send the exchange rate (fx_rate) with the amount."},
+        )
+
+    # Asked to change the base currency once amounts are stored in it.
+    @app.exception_handler(BaseCurrencyLockedError)
+    async def base_currency_locked_handler(
+        request: Request, exc: BaseCurrencyLockedError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
 
     # The usage meter refused an AI action. The meter chose the status and the
     # body, so they pass through untouched — clients of a metered deployment

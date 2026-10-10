@@ -11,6 +11,7 @@ import pytest
 from salli.application.services.tax_service import TaxService, _build_ledger_view
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
 from salli.domain.tax.models import TaxComputation
+from tests.fakes import FakeProfiles
 
 # ── In-memory fakes ────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ class FakeUoW:
     def __init__(self, ledger_repo, tax_repo):
         self.ledger = ledger_repo
         self.tax_computations = tax_repo
+        self.user_profiles = FakeProfiles()
 
     async def __aenter__(self):
         return self
@@ -87,6 +89,7 @@ def _make_account(
         name=name,
         type=acc_type,
         tax_role=tax_role,  # type: ignore[arg-type]
+        currency="LKR",
     )
 
 

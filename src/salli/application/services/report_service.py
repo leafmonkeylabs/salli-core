@@ -11,6 +11,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from salli.domain.currency import quantize
+
 
 class ReportService:
     def __init__(self, ledger_svc: Any, fi_svc: Any) -> None:
@@ -20,6 +22,11 @@ class ReportService:
     async def get_balance_sheet(self, user_id: str) -> dict[str, Any]:
         accounts = await self._ledger.list_accounts(user_id)
         balances = await self._ledger.get_trial_balance(user_id)
+        # Every balance is the account's value in the base currency.
+        currency = await self._ledger.base_currency(user_id)
+
+        def money(amount: Decimal) -> str:
+            return str(quantize(amount, currency))
 
         assets: list[dict[str, Any]] = []
         liabilities: list[dict[str, Any]] = []
@@ -32,27 +39,28 @@ class ReportService:
             bal = balances.get(acc.id, Decimal(0))
             line = {"account_id": acc.id, "code": acc.code, "name": acc.name}
             if acc.type == "asset":
-                assets.append({**line, "balance": str(bal)})
+                assets.append({**line, "balance": money(bal)})
                 total_assets += bal
             elif acc.type == "liability":
                 # Liabilities are credit-normal (negative in trial_balance) —
                 # display the magnitude owed, matching ledger_ops.net_worth's convention.
                 magnitude = -bal
-                liabilities.append({**line, "balance": str(magnitude)})
+                liabilities.append({**line, "balance": money(magnitude)})
                 total_liabilities += magnitude
             elif acc.type == "equity":
                 magnitude = -bal
-                equity.append({**line, "balance": str(magnitude)})
+                equity.append({**line, "balance": money(magnitude)})
                 total_equity += magnitude
 
         return {
+            "currency": currency,
             "assets": assets,
             "liabilities": liabilities,
             "equity": equity,
-            "total_assets": str(total_assets),
-            "total_liabilities": str(total_liabilities),
-            "total_equity": str(total_equity),
-            "net_worth": str(total_assets - total_liabilities),
+            "total_assets": money(total_assets),
+            "total_liabilities": money(total_liabilities),
+            "total_equity": money(total_equity),
+            "net_worth": money(total_assets - total_liabilities),
         }
 
     async def get_net_worth_statement(self, user_id: str) -> dict[str, Any]:
@@ -67,6 +75,7 @@ class ReportService:
             if h.get("net_worth") is not None
         ]
         return {
+            "currency": latest.get("currency"),
             "current_net_worth": latest.get("net_worth"),
             "as_of": trend[-1]["date"] if trend else None,
             "trend": trend,

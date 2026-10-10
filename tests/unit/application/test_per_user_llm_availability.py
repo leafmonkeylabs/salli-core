@@ -39,6 +39,9 @@ class FakeLedger:
     async def list_accounts(self, user_id: str) -> list[Any]:
         return []
 
+    async def base_currency(self, user_id: str) -> str:
+        return "LKR"
+
 
 class FakeLLM:
     def __init__(self, api_key: Any) -> None:

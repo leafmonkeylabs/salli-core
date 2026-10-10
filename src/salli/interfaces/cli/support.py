@@ -165,3 +165,25 @@ def resolve_id(items: list[dict[str, Any]], prefix: str, label: str = "item") ->
         )
         raise typer.Exit(1)
     return matches[0]
+
+
+def money(amount: Decimal | str | None, currency: str, width: int = 16) -> str:
+    """`EUR         1,234.50`: the ISO code, then the amount right-aligned in
+    `width` with exactly the currency's decimals (none for JPY, three for KWD).
+    For display only — the amount is never parsed back."""
+    from salli.domain.currency import exponent, quantize
+
+    if amount is None or amount == "":
+        return f"{currency} {'—':>{width}}"
+    value = quantize(Decimal(str(amount)), currency, strict=False)
+    return f"{currency} {value:>{width},.{exponent(currency, strict=False)}f}"
+
+
+def amount(value: Decimal | str | None, currency: str) -> str:
+    """A table cell: the amount with the currency's decimals, no code."""
+    from salli.domain.currency import exponent, quantize
+
+    if value is None or value == "":
+        return ""
+    rounded = quantize(Decimal(str(value)), currency, strict=False)
+    return f"{rounded:,.{exponent(currency, strict=False)}f}"

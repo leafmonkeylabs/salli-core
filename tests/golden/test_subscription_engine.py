@@ -8,9 +8,13 @@ from salli.domain.accounting.models import Account, Direction, Posting, StoredJo
 from salli.domain.subscription.engine import compute_report, find_matches
 from salli.domain.subscription.models import Subscription
 
-_CASH = Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset")
-_NETFLIX = Account(id="netflix", user_id="u1", code="5200", name="Netflix", type="expense")
-_OTHER_EXPENSE = Account(id="other", user_id="u1", code="5300", name="Other", type="expense")
+_CASH = Account(id="cash", user_id="u1", code="1100", name="Cash", type="asset", currency="LKR")
+_NETFLIX = Account(
+    id="netflix", user_id="u1", code="5200", name="Netflix", type="expense", currency="LKR"
+)
+_OTHER_EXPENSE = Account(
+    id="other", user_id="u1", code="5300", name="Other", type="expense", currency="LKR"
+)
 
 
 def _charge(

@@ -12,19 +12,23 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from salli.domain.currency import quantize
 from salli.domain.insurance import engine
 from salli.domain.insurance.models import CoverageTarget, Policy
-from salli.domain.money import to_minor
+from salli.domain.money import from_minor, to_minor
+
+# Coverage, premiums and targets are kept in the user's base currency.
 
 
-def _policy_view(p: dict[str, Any]) -> dict[str, Any]:
+def _policy_view(p: dict[str, Any], currency: str) -> dict[str, Any]:
     return {
         "id": p["id"],
         "name": p["name"],
         "policy_type": p["policy_type"],
         "provider": p["provider"],
-        "coverage_amount": str(Decimal(p["coverage_amount_minor"]) / 100),
-        "premium_amount": str(Decimal(p["premium_amount_minor"]) / 100),
+        "currency": currency,
+        "coverage_amount": str(from_minor(p["coverage_amount_minor"], currency)),
+        "premium_amount": str(from_minor(p["premium_amount_minor"], currency)),
         "premium_frequency": p["premium_frequency"],
         "expiry_date": p["expiry_date"],
         "is_active": p["is_active"],
@@ -33,30 +37,31 @@ def _policy_view(p: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _target_view(t: dict[str, Any]) -> dict[str, Any]:
+def _target_view(t: dict[str, Any], currency: str) -> dict[str, Any]:
     return {
         "id": t["id"],
         "policy_type": t["policy_type"],
-        "target_amount": str(Decimal(t["target_amount_minor"]) / 100),
+        "currency": currency,
+        "target_amount": str(from_minor(t["target_amount_minor"], currency)),
     }
 
 
-def _to_domain_policy(p: dict[str, Any]) -> Policy:
+def _to_domain_policy(p: dict[str, Any], currency: str) -> Policy:
     return Policy(
         name=p["name"],
         policy_type=p["policy_type"],
         provider=p["provider"],
-        coverage_amount=Decimal(p["coverage_amount_minor"]) / 100,
-        premium_amount=Decimal(p["premium_amount_minor"]) / 100,
+        coverage_amount=from_minor(p["coverage_amount_minor"], currency),
+        premium_amount=from_minor(p["premium_amount_minor"], currency),
         premium_frequency=p["premium_frequency"],
         expiry_date=p["expiry_date"],
         is_active=p["is_active"],
     )
 
 
-def _to_domain_target(t: dict[str, Any]) -> CoverageTarget:
+def _to_domain_target(t: dict[str, Any], currency: str) -> CoverageTarget:
     return CoverageTarget(
-        policy_type=t["policy_type"], target_amount=Decimal(t["target_amount_minor"]) / 100
+        policy_type=t["policy_type"], target_amount=from_minor(t["target_amount_minor"], currency)
     )
 
 
@@ -65,27 +70,30 @@ class InsuranceService:
         self._uow_factory = uow_factory
 
     async def add_policy(self, user_id: str, data: dict[str, Any]) -> str:
-        policy = {
-            "name": data["name"],
-            "policy_type": data["policy_type"],
-            "provider": data["provider"],
-            "coverage_amount_minor": to_minor(Decimal(str(data["coverage_amount"]))),
-            "premium_amount_minor": to_minor(Decimal(str(data["premium_amount"]))),
-            "premium_frequency": data["premium_frequency"],
-            "expiry_date": data["expiry_date"],
-        }
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
+            policy = {
+                "name": data["name"],
+                "policy_type": data["policy_type"],
+                "provider": data["provider"],
+                "coverage_amount_minor": to_minor(Decimal(str(data["coverage_amount"])), currency),
+                "premium_amount_minor": to_minor(Decimal(str(data["premium_amount"])), currency),
+                "premium_frequency": data["premium_frequency"],
+                "expiry_date": data["expiry_date"],
+            }
             return await uow.policies.save(user_id, policy)
 
     async def list_policies(self, user_id: str, active_only: bool = True) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             policies = await uow.policies.list(user_id, active_only)
-        return [_policy_view(p) for p in policies]
+        return [_policy_view(p, currency) for p in policies]
 
     async def get_policy(self, user_id: str, policy_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             p = await uow.policies.get(user_id, policy_id)
-        return _policy_view(p) if p else None
+        return _policy_view(p, currency) if p else None
 
     async def update_policy(self, user_id: str, policy_id: str, data: dict[str, Any]) -> None:
         updates: dict[str, Any] = {}
@@ -95,10 +103,6 @@ class InsuranceService:
             updates["policy_type"] = data["policy_type"]
         if "provider" in data:
             updates["provider"] = data["provider"]
-        if "coverage_amount" in data:
-            updates["coverage_amount_minor"] = to_minor(Decimal(str(data["coverage_amount"])))
-        if "premium_amount" in data:
-            updates["premium_amount_minor"] = to_minor(Decimal(str(data["premium_amount"])))
         if "premium_frequency" in data:
             updates["premium_frequency"] = data["premium_frequency"]
         if "expiry_date" in data:
@@ -106,6 +110,16 @@ class InsuranceService:
         if "is_active" in data:
             updates["is_active"] = data["is_active"]
         async with self._uow_factory() as uow:
+            if "coverage_amount" in data or "premium_amount" in data:
+                currency = await uow.user_profiles.base_currency(user_id)
+                if "coverage_amount" in data:
+                    updates["coverage_amount_minor"] = to_minor(
+                        Decimal(str(data["coverage_amount"])), currency
+                    )
+                if "premium_amount" in data:
+                    updates["premium_amount_minor"] = to_minor(
+                        Decimal(str(data["premium_amount"])), currency
+                    )
             await uow.policies.update(user_id, policy_id, updates)
 
     async def delete_policy(self, user_id: str, policy_id: str) -> None:
@@ -114,12 +128,16 @@ class InsuranceService:
 
     async def set_target(self, user_id: str, policy_type: str, target_amount: Decimal) -> str:
         async with self._uow_factory() as uow:
-            return await uow.insurance_targets.upsert(user_id, policy_type, to_minor(target_amount))
+            currency = await uow.user_profiles.base_currency(user_id)
+            return await uow.insurance_targets.upsert(
+                user_id, policy_type, to_minor(target_amount, currency)
+            )
 
     async def list_targets(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             targets = await uow.insurance_targets.list(user_id)
-        return [_target_view(t) for t in targets]
+        return [_target_view(t, currency) for t in targets]
 
     async def delete_target(self, user_id: str, policy_type: str) -> None:
         async with self._uow_factory() as uow:
@@ -127,21 +145,23 @@ class InsuranceService:
 
     async def get_report(self, user_id: str, today: str) -> dict[str, Any]:
         async with self._uow_factory() as uow:
+            currency = await uow.user_profiles.base_currency(user_id)
             policies = await uow.policies.list(user_id, active_only=True)
             targets = await uow.insurance_targets.list(user_id)
 
         report = engine.compute_report(
-            [_to_domain_policy(p) for p in policies],
-            [_to_domain_target(t) for t in targets],
+            [_to_domain_policy(p, currency) for p in policies],
+            [_to_domain_target(t, currency) for t in targets],
             today,
         )
         return {
+            "currency": currency,
             "lines": [
                 {
                     "policy_type": line.policy_type,
-                    "target_amount": str(line.target_amount),
-                    "actual_coverage": str(line.actual_coverage),
-                    "gap": str(line.gap),
+                    "target_amount": str(quantize(line.target_amount, currency)),
+                    "actual_coverage": str(quantize(line.actual_coverage, currency)),
+                    "gap": str(quantize(line.gap, currency)),
                 }
                 for line in report.lines
             ],

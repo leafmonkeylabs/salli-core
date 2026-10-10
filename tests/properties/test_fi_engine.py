@@ -66,6 +66,7 @@ def snapshot(draw: Any) -> FinancialSnapshot:
         total_assets=liquid + investments,
         total_liabilities=liabilities,
         goal_progress=None,
+        currency="LKR",
     )
 
 
@@ -78,6 +79,7 @@ def _scaled(s: FinancialSnapshot, k: Decimal) -> FinancialSnapshot:
         total_assets=s.total_assets * k,
         total_liabilities=s.total_liabilities * k,
         goal_progress=s.goal_progress,
+        currency="LKR",
     )
 
 
@@ -159,6 +161,7 @@ def test_fi_number_rises_with_expenses(a: Decimal, b: Decimal) -> None:
         total_assets=Decimal(0),
         total_liabilities=Decimal(0),
         goal_progress=None,
+        currency="LKR",
     )
     s_hi = FinancialSnapshot(
         monthly_income=income,
@@ -168,6 +171,7 @@ def test_fi_number_rises_with_expenses(a: Decimal, b: Decimal) -> None:
         total_assets=Decimal(0),
         total_liabilities=Decimal(0),
         goal_progress=None,
+        currency="LKR",
     )
     assert engine.compute(s_lo, PACK).fi_number <= engine.compute(s_hi, PACK).fi_number
 
@@ -188,6 +192,7 @@ def test_lower_swr_means_a_larger_target(a: Decimal, b: Decimal) -> None:
         total_assets=Decimal(0),
         total_liabilities=Decimal(0),
         goal_progress=None,
+        currency="LKR",
     )
     assert engine.compute(s, PACK, swr=lo).fi_number >= engine.compute(s, PACK, swr=hi).fi_number
 
@@ -377,6 +382,7 @@ def test_zero_interest_is_never_reported_as_negative(amount: Decimal, term: int)
         total_assets=Decimal("1000000"),
         total_liabilities=Decimal("0"),
         goal_progress=None,
+        currency="LKR",
     )
     impact = engine.simulate_purchase(
         snap, PACK, amount, term_months=term, annual_interest_rate=Decimal("0")

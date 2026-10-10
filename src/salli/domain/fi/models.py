@@ -154,7 +154,7 @@ class FinancialSnapshot:
     total_assets: Decimal
     total_liabilities: Decimal  # positive magnitude
     goal_progress: Decimal | None  # 0..1 weighted across active goals; None if none
-    currency: str = "LKR"
+    currency: str  # the owner's base currency, which every figure above is in
 
 
 @dataclass(frozen=True)

@@ -11,11 +11,13 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from salli.application.fx import rate_to_base
 from salli.application.services.document_service import DocumentService
 from salli.application.services.fi_service import FiService
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.accounting.models import AccountType, Direction
 from salli.domain.ai_models import DEFAULT_MODEL
+from salli.domain.currency import normalize_currency
 from salli.domain.risk import engine as risk_engine
 from salli.domain.risk.life_stage import derive_life_stage
 from salli.domain.risk.models import RiskQuestionnaireAnswers
@@ -25,11 +27,12 @@ _OPENING_EQUITY_NAME = "Opening Equity"
 _OPENING_EQUITY_TYPE: AccountType = "equity"
 
 _DEFAULT_DEPOSIT_CODE = "1200"
-#: What postings are measured in. Matches `Settings.base_currency`; declared
-#: here rather than imported so the domain-facing service keeps no dependency
-#: on the settings object.
-_BASE_CURRENCY = "LKR"
 _DEFAULT_DEPOSIT_NAME = "Bank Account"
+
+
+class BaseCurrencyLockedError(ValueError):
+    """The base currency cannot change once anything is stored in it."""
+
 
 # Legacy onboarding stored these as free-text agent_documents "memories" (namespace
 # "memories"). Best-effort, self-healing backfill into the structured columns the
@@ -61,20 +64,30 @@ class UserProfileService:
         fi_service: FiService,
         document_service: DocumentService,
         fx_service: Any = None,
+        default_currency: str = "USD",
     ) -> None:
         self._uow_factory = uow_factory
         self._ledger = ledger_service
         self._fi = fi_service
         self._documents = document_service
-        # Optional so existing call sites and tests keep working. Without it a
-        # foreign-currency declaration falls back to a rate of 1, which is
-        # wrong but visible, rather than silently booking dollars as rupees.
+        # Converts declarations made in another currency into the base one.
+        # Optional so call sites that never declare foreign amounts need not
+        # build one; without it such a declaration must carry its own fx_rate.
         self._fx = fx_service
+        # The base currency a profile is created with when the caller names none.
+        self._default_currency = normalize_currency(default_currency)
         self._members: set[str] = set()
 
     # ── Membership ───────────────────────────────────────────────────────────
 
-    async def ensure_user(self, user_id: str, email: str | None, *, may_create: bool) -> bool:
+    async def ensure_user(
+        self,
+        user_id: str,
+        email: str | None,
+        *,
+        may_create: bool,
+        base_currency: str | None = None,
+    ) -> bool:
         """Make sure an authenticated caller has a profile row; report whether
         they may use this instance.
 
@@ -82,6 +95,9 @@ class UserProfileService:
         when `may_create` — an instance open to sign-ups — and refused
         otherwise, so a self-hosted instance answers only the people its owner
         set up, whatever else the auth provider would vouch for.
+
+        A new profile is created in `base_currency`, or the instance's default.
+        An existing one keeps its own; use `set_base_currency` to change it.
 
         Members are remembered per process, so this is one read on a caller's
         first request rather than one per request.
@@ -93,7 +109,10 @@ class UserProfileService:
             if profile is None:
                 if not may_create:
                     return False
-                await uow.user_profiles.upsert(user_id, {"email": email})
+                currency = (
+                    normalize_currency(base_currency) if base_currency else self._default_currency
+                )
+                await uow.user_profiles.upsert(user_id, {"email": email, "base_currency": currency})
             elif email and not profile.get("email"):
                 await uow.user_profiles.upsert(user_id, {"email": email})
         self._members.add(user_id)
@@ -102,6 +121,34 @@ class UserProfileService:
     def forget(self, user_id: str) -> None:
         """Drop a deleted account from the membership cache."""
         self._members.discard(user_id)
+
+    # ── Base currency ────────────────────────────────────────────────────────
+
+    async def get_base_currency(self, user_id: str) -> str:
+        async with self._uow_factory() as uow:
+            return await uow.user_profiles.base_currency(user_id)
+
+    async def set_base_currency(self, user_id: str, currency: str) -> str:
+        """Change the currency the ledger is measured in — only while it is empty.
+
+        Every stored amount (postings' base amounts, budgets, debts, holdings,
+        goals, policies) is a number in the base currency. Changing the
+        currency under them would silently reinterpret all of it, so once there
+        is any, it is refused (`BaseCurrencyLockedError`). Setting the currency
+        it already has is always fine.
+        """
+        code = normalize_currency(currency)
+        async with self._uow_factory() as uow:
+            current = await uow.user_profiles.base_currency(user_id)
+            if code == current:
+                return code
+            if await uow.user_profiles.has_financial_data(user_id):
+                raise BaseCurrencyLockedError(
+                    f"Your amounts are kept in {current}, so the base currency can no longer "
+                    "change. Accounts can still be held in any currency."
+                )
+            await uow.user_profiles.upsert(user_id, {"base_currency": code})
+        return code
 
     # ── Profile ──────────────────────────────────────────────────────────────
 
@@ -226,8 +273,14 @@ class UserProfileService:
     async def declare_opening_balances(
         self, user_id: str, balances: list[dict[str, Any]]
     ) -> list[str]:
-        """balances: [{"code", "name", "type": "asset"|"liability", "amount"}]."""
+        """balances: [{"code", "name", "type": "asset"|"liability", "amount",
+        "currency"?, "fx_rate"?}].
+
+        Amounts are in the base currency unless an item names another, in which
+        case it is converted at `fx_rate`, or today's rate when none is given.
+        """
         today = datetime.date.today().isoformat()
+        base = await self._ledger.base_currency(user_id)
         cache = {a.code: a.id for a in await self._ledger.list_accounts(user_id)}
         entry_ids: list[str] = []
 
@@ -235,6 +288,10 @@ class UserProfileService:
             amount = Decimal(str(item["amount"]))
             if amount == 0:
                 continue
+            currency = normalize_currency(item.get("currency") or base)
+            fx_rate, fx_source = await self._rate_to_base(
+                currency, base, today, item.get("fx_rate")
+            )
             acc_type = item["type"]
             if acc_type not in ("asset", "liability"):
                 raise ValueError(f"Unsupported opening-balance account type: {acc_type}")
@@ -255,13 +312,17 @@ class UserProfileService:
                     "account_id": debit_id,
                     "direction": Direction.DEBIT,
                     "amount": amount,
-                    "currency": "LKR",
+                    "currency": currency,
+                    "fx_rate": fx_rate,
+                    "fx_rate_source": fx_source,
                 },
                 {
                     "account_id": credit_id,
                     "direction": Direction.CREDIT,
                     "amount": amount,
-                    "currency": "LKR",
+                    "currency": currency,
+                    "fx_rate": fx_rate,
+                    "fx_rate_source": fx_source,
                 },
             ]
             entry_id = await self._ledger.add_entry(
@@ -270,29 +331,25 @@ class UserProfileService:
             entry_ids.append(entry_id)
         return entry_ids
 
-    async def _income_fx_rate(self, currency: str, on_date: str) -> Decimal:
-        """The rate that converts `currency` into the base currency.
-
-        Both postings of a declared income entry carry the same rate, so the
-        entry balances in base terms whatever the currency. A failure here is
-        deliberately not fatal: onboarding should not dead-end because an
-        exchange-rate service is down, and a rate of 1 is a visibly wrong number
-        the user can correct later rather than a lost entry.
-        """
-        if currency == _BASE_CURRENCY or self._fx is None:
-            return Decimal(1)
-        try:
-            return await self._fx.get_buying_rate(currency, on_date)
-        except Exception:
-            return Decimal(1)
+    async def _rate_to_base(
+        self, currency: str, base: str, on_date: str, given: Any = None
+    ) -> tuple[Decimal, str | None]:
+        """Both postings of a declared entry carry the same rate, so the entry
+        balances in base terms whatever the currency. See application/fx.py:
+        no rate means FxUnavailableError, never a rate of 1."""
+        return await rate_to_base(self._fx, currency, base, on_date, given)
 
     async def declare_income(self, user_id: str, incomes: list[dict[str, Any]]) -> list[str]:
-        """incomes: [{"code", "name", "amount", "deposit_account_code"?, "deposit_account_name"?}].
+        """incomes: [{"code", "name", "amount", "currency"?, "fx_rate"?,
+        "deposit_account_code"?, "deposit_account_name"?}].
 
         Posts one representative monthly entry per income source so FI/cash-flow
         calculations have real data to work from immediately after onboarding.
+        An amount in another currency is converted at `fx_rate`, or today's
+        rate when none is given.
         """
         today = datetime.date.today().isoformat()
+        base = await self._ledger.base_currency(user_id)
         cache = {a.code: a.id for a in await self._ledger.list_accounts(user_id)}
         entry_ids: list[str] = []
 
@@ -300,12 +357,13 @@ class UserProfileService:
             amount = Decimal(str(item["amount"]))
             if amount == 0:
                 continue
-            # Foreign remittances are the reason this exists. They are the one
-            # source that routinely arrives in something other than rupees, and
-            # booking them at face value as LKR overstated income by roughly the
-            # exchange rate: a $2,000 remittance became Rs. 2,000.
-            currency = str(item.get("currency") or _BASE_CURRENCY).upper()
-            fx_rate = await self._income_fx_rate(currency, today)
+            # Foreign income is the reason this exists. Booking it at face value
+            # in the base currency misstates it by the exchange rate: a $2,000
+            # remittance into a rupee ledger became Rs. 2,000.
+            currency = normalize_currency(item.get("currency") or base)
+            fx_rate, fx_source = await self._rate_to_base(
+                currency, base, today, item.get("fx_rate")
+            )
             income_id = await self._ensure_account(
                 user_id, cache, item["code"], item["name"], "income"
             )
@@ -322,6 +380,7 @@ class UserProfileService:
                     "amount": amount,
                     "currency": currency,
                     "fx_rate": fx_rate,
+                    "fx_rate_source": fx_source,
                 },
                 {
                     "account_id": income_id,
@@ -329,6 +388,7 @@ class UserProfileService:
                     "amount": amount,
                     "currency": currency,
                     "fx_rate": fx_rate,
+                    "fx_rate_source": fx_source,
                 },
             ]
             entry_id = await self._ledger.add_entry(

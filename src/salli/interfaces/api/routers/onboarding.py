@@ -26,6 +26,9 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 class OnboardingRequest(BaseModel):
     name: str
+    #: ISO 4217 code the ledger is kept in. Only settable while the ledger is
+    #: empty — which it is, the first time onboarding runs. Omitted: unchanged.
+    base_currency: str | None = None
     nic: str = ""
     residency: str = "resident"  # "resident" | "non_resident"
     employer: str = ""
@@ -36,7 +39,7 @@ class OnboardingRequest(BaseModel):
     ] = []  # ["employment","freelance","rental","interest","foreign","dividends"]
     # Goals & motivation (powers the Wealth Advisor)
     primary_goal: str = ""  # financial_independence | retirement | home | emergency_fund | debt_free | wealth_growth
-    goal_target_amount: float = 0  # optional total target (LKR)
+    goal_target_amount: Decimal = Decimal(0)  # optional total target, in the base currency
     goal_target_year: str = ""  # optional YYYY
     risk_appetite: str = ""  # conservative | balanced | aggressive
     motivation: str = ""  # free text — why this matters to them
@@ -58,7 +61,10 @@ async def complete_onboarding(body: OnboardingRequest, user_id: CurrentUser, svc
     Save profile as agent memories and create a starter chart of accounts.
     Idempotent — safe to call again if the user re-runs onboarding.
     """
-    return await svc.onboarding.complete(user_id, body.model_dump())
+    # Before any account exists, since accounts are opened in the base currency.
+    if body.base_currency:
+        await svc.profile.set_base_currency(user_id, body.base_currency)
+    return await svc.onboarding.complete(user_id, body.model_dump(exclude={"base_currency"}))
 
 
 # ── Focused fact-find steps (Phase 1 redo) ─────────────────────────────────────
@@ -73,6 +79,8 @@ class ProfileIdentityRequest(BaseModel):
     residency_status: str | None = None  # resident|non_resident
     employer: str | None = None
     ird_number: str | None = None
+    #: ISO 4217. Changes only while the ledger is empty (409 otherwise).
+    base_currency: str | None = None
 
 
 @router.get("/profile")
@@ -83,7 +91,11 @@ async def get_profile(user_id: CurrentUser, svc: AppServices):
 
 @router.patch("/profile")
 async def update_profile(body: ProfileIdentityRequest, user_id: CurrentUser, svc: AppServices):
-    await svc.profile.update_identity(user_id, body.model_dump(exclude_none=True))
+    if body.base_currency:
+        await svc.profile.set_base_currency(user_id, body.base_currency)
+    await svc.profile.update_identity(
+        user_id, body.model_dump(exclude_none=True, exclude={"base_currency"})
+    )
     return {"updated": True}
 
 
@@ -97,6 +109,10 @@ class OpeningBalanceItem(BaseModel):
     # exact decimal string should have it stay exact, and the contract should
     # say what the project's own money invariant requires.
     amount: Decimal
+    #: Defaults to the base currency. Another currency is converted at
+    #: `fx_rate` (units of base per unit), or today's rate when omitted.
+    currency: str | None = None
+    fx_rate: Decimal | None = None
 
 
 class BalanceSheetRequest(BaseModel):
@@ -107,7 +123,7 @@ class BalanceSheetRequest(BaseModel):
 async def declare_balance_sheet(body: BalanceSheetRequest, user_id: CurrentUser, svc: AppServices):
     """Post real opening-balance journal entries so net worth is non-zero immediately."""
     entry_ids = await svc.profile.declare_opening_balances(
-        user_id, [b.model_dump() for b in body.balances]
+        user_id, [b.model_dump(exclude_none=True) for b in body.balances]
     )
     return {"entries_created": entry_ids}
 
@@ -116,11 +132,12 @@ class IncomeItem(BaseModel):
     code: str
     name: str
     amount: Decimal
-    #: What `amount` is denominated in. Defaults to the base currency, so every
-    #: existing caller keeps its meaning. Foreign remittances are the case that
-    #: needs it: they arrive in USD, EUR or GBP, and booking them at face value
-    #: as rupees overstated income by the exchange rate.
-    currency: str = "LKR"
+    #: What `amount` is denominated in; defaults to the base currency. Foreign
+    #: income is the case that needs it: booking it at face value in the base
+    #: currency misstates it by the exchange rate. Converted at `fx_rate`
+    #: (units of base per unit), or today's rate when omitted.
+    currency: str | None = None
+    fx_rate: Decimal | None = None
     deposit_account_code: str | None = None
     deposit_account_name: str | None = None
 

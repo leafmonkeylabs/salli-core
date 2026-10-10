@@ -25,11 +25,16 @@ async def upload_statement(
     email: CurrentEmail,
     svc: AppServices,
     bank: str = "",
+    currency: str | None = None,
 ):
     """
     Parse a bank statement file. Returns the statement_id and extracted transactions.
     Transactions have LLM-assigned accounts and dedup status; review before posting.
     Passes the deployment's usage meter before any parsing starts.
+
+    `currency` is the statement's ISO 4217 code (default: the user's base
+    currency). Posting a statement in another currency converts each
+    transaction at the published rate for its date.
     """
     if file.filename is None:
         raise HTTPException(status_code=400, detail="filename required")
@@ -45,6 +50,7 @@ async def upload_statement(
         filename=file.filename,
         file_bytes=data,
         bank=bank,
+        currency=currency,
     )
 
     if result.errors and not result.transactions:

@@ -50,7 +50,7 @@ class AccountORM(Base):
     code: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="LKR")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
     parent_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("accounts.id"), nullable=True
     )
@@ -123,10 +123,11 @@ class PostingORM(Base):
     # Transaction currency amount (minor units, e.g. cents)
     amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    # FX to base currency (LKR); stored as high-precision decimal
+    # Units of the owner's base currency per unit of `currency`; high-precision decimal
     fx_rate: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False, default=1)
     fx_rate_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # Base-currency amount (minor units); DB constraint enforces balance
+    # Base-currency amount, in the base currency's minor units; the balance
+    # trigger checks these sum to zero per entry. Nothing reads them back.
     base_amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     entry: Mapped[JournalEntryORM] = relationship("JournalEntryORM", back_populates="postings")
@@ -380,6 +381,11 @@ class UserProfileORM(Base):
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
+    # ISO 4217 code every posting is measured in (see Posting.fx_rate). Chosen
+    # when the profile is created and fixed once the user has financial data:
+    # changing it later would silently reinterpret every stored amount.
+    base_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+
     # Fact-find (Phase 1 onboarding redo) — all nullable: unanswered until the user
     # completes the corresponding step.
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -414,6 +420,10 @@ class UserProfileORM(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint("base_currency ~ '^[A-Z]{3}$'", name="ck_user_profiles_base_currency"),
     )
 
 

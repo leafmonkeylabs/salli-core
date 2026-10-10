@@ -6,6 +6,7 @@ Adapters (in salli/adapters/) implement these; the domain never imports adapters
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -224,10 +225,32 @@ class StoragePort(ABC):
     async def download(self, key: str) -> bytes: ...
 
 
+@dataclass(frozen=True)
+class FxQuote:
+    """An exchange rate and where it came from.
+
+    `rate` is units of the target currency per one unit of the source currency.
+    `as_of` is the date the rate is actually for, which can be earlier than the
+    one asked about: a central bank publishes nothing on a Sunday, so Sunday's
+    rate is Friday's. `source` is recorded on every posting converted with it.
+    """
+
+    rate: Decimal
+    source: str
+    as_of: str
+
+
+class FxUnavailableError(LookupError):
+    """No source could give this rate. Never answered with a made-up number."""
+
+
 class FxRatePort(ABC):
     @abstractmethod
-    async def get_buying_rate(self, currency: str, date: str) -> Decimal:
-        """Return the CBSL buying rate for the given currency on the given date."""
+    async def rate(self, from_currency: str, to_currency: str, on_date: str) -> FxQuote:
+        """How many `to_currency` one `from_currency` bought on `on_date` (YYYY-MM-DD).
+
+        Raises FxUnavailableError when there is no such rate.
+        """
         ...
 
 
@@ -341,6 +364,17 @@ class UserProfileRepository(ABC):
     async def list_daily_briefing_optins(self) -> list[dict[str, Any]]:
         """Users who opted in to the scheduled daily advisor run."""
         ...
+
+    async def base_currency(self, user_id: str) -> str:
+        """The ISO code the user's amounts are kept in. `LookupError` if no profile."""
+        profile = await self.get(user_id)
+        if not profile or not profile.get("base_currency"):
+            raise LookupError(f"User {user_id} has no profile")
+        return str(profile["base_currency"])
+
+    async def has_financial_data(self, user_id: str) -> bool:
+        """Whether anything is stored in the user's base currency yet."""
+        raise NotImplementedError
 
 
 class LlmCredentialRepository(ABC):

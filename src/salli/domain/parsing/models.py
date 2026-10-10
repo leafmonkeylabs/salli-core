@@ -31,7 +31,7 @@ class RawRow:
     description: str  # raw description text from the statement
     amount: Decimal  # always positive
     credit_flag: bool  # True = credit (money in), False = debit (money out)
-    currency: str = "LKR"
+    currency: str  # ISO 4217 — the statement's, which the importer is told
     bank_ref: str = ""  # reference / transaction ID from the bank
     source_page: int = 0
 

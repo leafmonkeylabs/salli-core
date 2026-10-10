@@ -26,8 +26,13 @@ from salli.domain.portfolio.models import (
 _DEFAULT_DRIFT_THRESHOLD = Decimal("0.05")
 
 
-def _q2(value: Decimal) -> Decimal:
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+#: Money is rounded to a cent by default, or to the currency's own smallest
+#: unit when the caller passes it (1 for JPY, 0.001 for KWD).
+_CENT = Decimal("0.01")
+
+
+def _money(value: Decimal, quantum: Decimal) -> Decimal:
+    return value.quantize(quantum, rounding=ROUND_HALF_UP)
 
 
 def _q4(value: Decimal) -> Decimal:
@@ -38,6 +43,7 @@ def compute_summary(
     holdings: list[Holding],
     target_allocation: dict[str, Decimal] | None = None,
     drift_threshold: Decimal = _DEFAULT_DRIFT_THRESHOLD,
+    money_quantum: Decimal = _CENT,
 ) -> PortfolioSummary:
     total_value = sum((h.current_value for h in holdings), Decimal(0))
     total_cost_basis = sum((h.cost_basis for h in holdings), Decimal(0))
@@ -51,7 +57,7 @@ def compute_summary(
     allocation = [
         AllocationSlice(
             asset_class=asset_class,
-            current_value=_q2(value),
+            current_value=_money(value, money_quantum),
             pct_of_portfolio=_q4(value / total_value) if total_value > 0 else Decimal(0),
         )
         for asset_class, value in by_class.items()
@@ -75,9 +81,9 @@ def compute_summary(
                 )
 
     return PortfolioSummary(
-        total_value=_q2(total_value),
-        total_cost_basis=_q2(total_cost_basis),
-        total_gain=_q2(total_gain),
+        total_value=_money(total_value, money_quantum),
+        total_cost_basis=_money(total_cost_basis, money_quantum),
+        total_gain=_money(total_gain, money_quantum),
         total_gain_pct=_q4(total_gain_pct),
         allocation=allocation,
         alerts=alerts,

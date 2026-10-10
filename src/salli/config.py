@@ -101,10 +101,14 @@ class Settings(BaseSettings):
     # installed stops startup rather than being skipped.
     salli_extensions: str = ""
 
+    # The base currency a new account is given when nothing else says which —
+    # `salli setup` asks, and onboarding can change it while the ledger is
+    # still empty. Existing users keep theirs; this only applies to new ones.
+    salli_default_currency: str = "USD"
+
     # App
     environment: str = "development"
     log_level: str = "INFO"
-    base_currency: str = "LKR"
 
 
 _settings: Settings | None = None
