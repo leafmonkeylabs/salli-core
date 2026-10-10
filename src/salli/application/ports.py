@@ -491,6 +491,29 @@ class FxRatePort(ABC):
         ...
 
 
+class FetchRefused(ValueError):
+    """A URL Salli won't fetch (not https, not on the public internet), or a
+    response it won't read (too large, too slow, not text, a redirect it won't
+    follow). The message is safe to show: it never describes the network."""
+
+
+@dataclass(frozen=True)
+class FetchedDocument:
+    #: Where the text finally came from, after any redirects followed.
+    url: str
+    text: str
+
+
+class DocumentFetcher(ABC):
+    """Fetches a text document from a URL a user gave, guarded against
+    server-side request forgery (adapters/net)."""
+
+    @abstractmethod
+    async def fetch_text(self, url: str) -> FetchedDocument:
+        """The document at `url`, or FetchRefused."""
+        ...
+
+
 @dataclass(frozen=True)
 class PriceQuote:
     """A closing price: what one unit of `symbol` closed at on `on`, in
@@ -1068,11 +1091,14 @@ class DataPortabilityRepository(ABC):
 class OAuthClientRepository(ABC):
     @abstractmethod
     async def register(self, client_name: str | None, redirect_uris: list[str]) -> dict[str, Any]:
-        """Dynamic Client Registration (RFC 7591). Returns the new client's record."""
+        """Dynamic Client Registration (RFC 7591). Returns the new client's
+        record. A client that registers itself is never first party."""
         ...
 
     @abstractmethod
-    async def get(self, client_id: str) -> dict[str, Any] | None: ...
+    async def get(self, client_id: str) -> dict[str, Any] | None:
+        """{client_id, client_name, redirect_uris, first_party}, or None."""
+        ...
 
 
 class McpConnectionRow(TypedDict):
@@ -1143,7 +1169,8 @@ class OAuthTokenRepository(ABC):
 
     @abstractmethod
     async def get_access_token(self, token_hash: str) -> dict[str, Any] | None:
-        """None if missing, expired, or revoked."""
+        """None if missing, expired, or revoked. Includes the holding client's
+        `client_name` and whether it is first party (`client_first_party`)."""
         ...
 
     @abstractmethod
