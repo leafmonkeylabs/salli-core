@@ -3,8 +3,6 @@ refuses a role the caller's own packs do not."""
 
 from __future__ import annotations
 
-import json
-
 from salli.application.services.ledger_service import UnknownTaxRoleError
 from salli.domain.tax.packs.lk_2025_26 import LK_2025_26
 from salli.interfaces.api.main import create_app
@@ -40,10 +38,10 @@ async def test_meta_lists_the_kinds_too(client):
     ]
 
 
-async def test_a_role_no_pack_declares_is_refused_before_the_service(client, mock_services):
+async def test_a_role_that_is_not_shaped_like_one_never_reaches_the_service(client, mock_services):
     r = await client.post(
         "/v1/accounts/",
-        json={"code": "1", "name": "x", "type": "asset", "tax_role": "paye_credit"},
+        json={"code": "1", "name": "x", "type": "asset", "tax_role": "PAYE Credit"},
         headers=AUTH,
     )
     assert r.status_code == 422
@@ -69,21 +67,12 @@ async def test_an_account_reads_back_its_role(client, mock_services):
     assert r.json()["tax_role"] == "fsi_income"
 
 
-def test_the_contract_lists_the_roles_the_packs_declare():
-    """Generated clients keep the same enum: it is built from the packs now,
-    and they declare what the old fixed list held, in its order."""
+def test_the_contract_describes_a_role_rather_than_listing_them():
+    """Roles come from the packs and from each user's own rule sets, so no
+    fixed list can be the contract: a role is a key, checked per user."""
     schemas = create_app().openapi()["components"]["schemas"]
     for name in ("AddAccountRequest", "UpdateAccountRequest", "Account"):
-        role = schemas[name]["properties"]["tax_role"]
-        assert json.dumps(role["anyOf"][0]) == json.dumps(
-            {
-                "type": "string",
-                "enum": [
-                    "apit_credit",
-                    "ait_credit",
-                    "foreign_tax_credit",
-                    "qualifying_payment",
-                    "fsi_income",
-                ],
-            }
-        )
+        role = schemas[name]["properties"]["tax_role"]["anyOf"][0]
+        assert role["type"] == "string"
+        assert role["pattern"] == "^[a-z][a-z0-9_]{0,29}$"
+        assert "enum" not in role

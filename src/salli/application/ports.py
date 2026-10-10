@@ -132,6 +132,89 @@ class TaxComputationRepository(ABC):
         ...
 
 
+class RuleSetExists(ValueError):
+    """The user already has a tax rule set for this jurisdiction and year."""
+
+    def __init__(self, rule_set_id: str) -> None:
+        super().__init__(
+            f"A tax rule set for this jurisdiction and year already exists: {rule_set_id}"
+        )
+        self.rule_set_id = rule_set_id
+
+
+class TaxRuleSetRepository(ABC):
+    """A user's tax rule sets and their versions, as plain dicts.
+
+    Every method takes the owner's id and touches nothing of anyone else's: a
+    set or version of another user's is indistinguishable from one that does
+    not exist. A version's `content` and `content_hash` are written once, by
+    `add_version`, and there is no way here to change them (core_0010's
+    trigger refuses it too): an edit is a new version.
+    """
+
+    @abstractmethod
+    async def list_sets(self, user_id: str) -> list[dict[str, Any]]:
+        """The user's rule sets, each with `versions`: a summary of every
+        version (no content), oldest first."""
+        ...
+
+    @abstractmethod
+    async def get_set(
+        self, user_id: str, rule_set_id: str, *, lock: bool = False
+    ) -> dict[str, Any] | None:
+        """One set with its version summaries. `lock` holds the set's row until
+        the unit of work ends (SELECT … FOR UPDATE), so versions can be
+        numbered and activated one at a time."""
+        ...
+
+    @abstractmethod
+    async def find_set(
+        self, user_id: str, country: str, region: str | None, year_label: str, *, lock: bool = False
+    ) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def create_set(
+        self, user_id: str, country: str, region: str | None, year_label: str, name: str
+    ) -> dict[str, Any]:
+        """RuleSetExists when the user has one for this jurisdiction and year."""
+        ...
+
+    @abstractmethod
+    async def get_version(self, user_id: str, version_id: str) -> dict[str, Any] | None:
+        """One version, with its content and validation report."""
+        ...
+
+    @abstractmethod
+    async def add_version(
+        self, user_id: str, rule_set_id: str, fields: dict[str, Any]
+    ) -> dict[str, Any]:
+        """A new version of the set, numbered one past its latest. The caller
+        holds the set's lock (`get_set(…, lock=True)`). `fields`: content,
+        content_hash, status, validation, author_kind, author_name,
+        change_note."""
+        ...
+
+    @abstractmethod
+    async def update_version(self, user_id: str, version_id: str, fields: dict[str, Any]) -> bool:
+        """Change a version's lifecycle fields (status, validation, proposed_at,
+        activated_at, superseded_at); ValueError for any other field."""
+        ...
+
+    @abstractmethod
+    async def set_active(self, user_id: str, rule_set_id: str, version_id: str | None) -> None: ...
+
+    @abstractmethod
+    async def declared_roles(self, user_id: str) -> set[str]:
+        """Every role key a version of the user's rule sets declares, among the
+        versions whose document matches the schema."""
+        ...
+
+    @abstractmethod
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every set with every version in full, for the user's data export."""
+        ...
+
+
 class ReminderRepository(ABC):
     @abstractmethod
     async def list_reminders(self, user_id: str, status: str | None = None) -> list[Any]: ...
@@ -405,6 +488,29 @@ class FxRatePort(ABC):
 
         Raises FxUnavailableError when there is no such rate.
         """
+        ...
+
+
+class FetchRefused(ValueError):
+    """A URL Salli won't fetch (not https, not on the public internet), or a
+    response it won't read (too large, too slow, not text, a redirect it won't
+    follow). The message is safe to show: it never describes the network."""
+
+
+@dataclass(frozen=True)
+class FetchedDocument:
+    #: Where the text finally came from, after any redirects followed.
+    url: str
+    text: str
+
+
+class DocumentFetcher(ABC):
+    """Fetches a text document from a URL a user gave, guarded against
+    server-side request forgery (adapters/net)."""
+
+    @abstractmethod
+    async def fetch_text(self, url: str) -> FetchedDocument:
+        """The document at `url`, or FetchRefused."""
         ...
 
 
@@ -985,11 +1091,14 @@ class DataPortabilityRepository(ABC):
 class OAuthClientRepository(ABC):
     @abstractmethod
     async def register(self, client_name: str | None, redirect_uris: list[str]) -> dict[str, Any]:
-        """Dynamic Client Registration (RFC 7591). Returns the new client's record."""
+        """Dynamic Client Registration (RFC 7591). Returns the new client's
+        record. A client that registers itself is never first party."""
         ...
 
     @abstractmethod
-    async def get(self, client_id: str) -> dict[str, Any] | None: ...
+    async def get(self, client_id: str) -> dict[str, Any] | None:
+        """{client_id, client_name, redirect_uris, first_party}, or None."""
+        ...
 
 
 class McpConnectionRow(TypedDict):
@@ -1060,7 +1169,8 @@ class OAuthTokenRepository(ABC):
 
     @abstractmethod
     async def get_access_token(self, token_hash: str) -> dict[str, Any] | None:
-        """None if missing, expired, or revoked."""
+        """None if missing, expired, or revoked. Includes the holding client's
+        `client_name` and whether it is first party (`client_first_party`)."""
         ...
 
     @abstractmethod

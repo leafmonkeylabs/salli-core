@@ -334,6 +334,7 @@ export class MockSalli {
         device_authorization_endpoint: `${base}/mcp/oauth/device_authorization`,
         api_resource: this.options.apiResource ?? `${base}/v1`,
         device_verification_uri: `${base}/mcp/oauth/device`,
+        cli_client_id: 'salli-cli',
       },
       default_currency: 'USD',
     };

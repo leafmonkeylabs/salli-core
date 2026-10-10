@@ -101,7 +101,9 @@ def _constant(name: str) -> Any:
     raise ValueError(f"{name} is not a number JSON allows")
 
 
-def _read(doc_json: str) -> tuple[Any, list[Problem]]:
+def read_json(doc_json: str) -> tuple[Any, list[Problem]]:
+    """`doc_json` parsed strictly (a key twice in one object, NaN or Infinity,
+    or more than MAX_DOCUMENT_BYTES are refused), or the problems with it."""
     if len(doc_json.encode("utf-8", errors="replace")) > MAX_DOCUMENT_BYTES:
         return None, [Problem("$", f"The document is larger than {MAX_DOCUMENT_BYTES} bytes")]
     try:
@@ -121,7 +123,7 @@ def validate(doc_json: str | Mapping[str, Any]) -> ValidationReport:
     """Check a document (JSON text, or already-parsed JSON) and run its examples."""
     data: Any = doc_json
     if isinstance(doc_json, str):
-        data, problems = _read(doc_json)
+        data, problems = read_json(doc_json)
         if problems:
             return ValidationReport(tuple(problems), (), ())
     if not isinstance(data, Mapping):

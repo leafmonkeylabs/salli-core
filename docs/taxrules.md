@@ -6,11 +6,12 @@ Salli's engine applies it. The agent may *write* rules; only the engine
 *computes* with them. This is the format and the language, for authors and for
 agents. The design behind it is `docs/design/country-neutral-core.md`.
 
-> **Status: phase 1.** The engine, the language, the schema and the validator
-> exist (`src/salli/domain/taxrules/`), proven by a conformance suite of
-> fictional jurisdictions. Nothing in the app uses them yet: tax is still
-> computed by the built-in pack in `salli.domain.tax`. Storage, the API, MCP
-> tools and activation come in phase 2.
+> **Status: phase 2a.** The engine, language, schema and validator
+> (`src/salli/domain/taxrules/`, proven by a conformance suite of fictional
+> jurisdictions) now have storage, a lifecycle, an API and MCP tools: see
+> [Lifecycle](#lifecycle) and [Interfaces](#interfaces). `/v1/tax/compute`
+> still uses the built-in pack in `salli.domain.tax` until phase 3; the
+> `salli tax rules` commands come in phase 2b.
 
 ## The document
 
@@ -297,3 +298,125 @@ example in `tests/taxrules/test_conformance.py`:
 | `formulaland.json` | a formula tariff in zones, rounded down to whole units |
 | `rebateland.json` | a rebate with marginal relief at its threshold |
 | `remitland.json` | final-rate foreign income, a capped foreign tax credit, and refundable withholding |
+
+## Lifecycle
+
+A user's rule sets are stored per jurisdiction and year: one rule set per
+country, region and year label, holding a series of **versions**. A version's
+document never changes once stored (the database refuses it): an edit is a
+new version, with a note saying why. Each version has a status:
+
+| Status | Meaning |
+|---|---|
+| `invalid` | The document doesn't compile (schema, references, types, cycles). |
+| `draft` | It compiles, but its worked examples are missing or don't all pass. Every import lands here (or as `invalid`) until it is validated. |
+| `validated` | It compiles and every example passes: the report is **ok**. |
+| `proposed` | Someone (usually an agent) asks the user to review and activate it. Needs an ok report. |
+| `active` | What Salli computes with for that jurisdiction and year. At most one per rule set. |
+| `superseded` | Was active; kept unchanged as history. |
+
+- **Storing never fails for being wrong**, so an agent can iterate: a draft
+  with mistakes is stored with its report. Refused outright: anything that
+  isn't a JSON object, more than 1 MiB, or a document whose
+  `jurisdiction.country` and `year.label` can't be read.
+- **Validate** runs the validator again and stores the report; a draft,
+  invalid, validated or proposed version moves to what the report says.
+- **Propose** and **activate** run validation again rather than trust the
+  stored report, and refuse (409) a version that isn't ok.
+- **Activate** supersedes the rule set's active version in one transaction,
+  under a lock on the rule set, and is written to the audit log.
+- **Diff** compares two versions (by default the active one with another):
+  each change has a path that survives reordering
+  (`blocks[key=allowance].amount`), figures are compared as numbers (`"0.150"`
+  is `"0.15"`), and each change names the source it cites, with that source's
+  URL. With the `to` version's example results, that is the review before
+  activating.
+- **Export** gives the canonical JSON, so the file's SHA-256 is its content
+  hash. **Import** takes a document or an https URL and lands as a draft.
+- **Evaluate** applies a version to the user's own ledger, read-only (below).
+
+### Who may activate: `tax:activate`
+
+An agent researching tax law reads arbitrary web pages, any of which can carry
+instructions planted to trick it, and "the user said yes" relayed through the
+agent is only as trustworthy as the agent. So activation needs the
+`tax:activate` permission, derived from how the caller signed in
+(`application/permissions.py`), never stored or requested:
+
+| Sign-in | `tax:activate` |
+|---|---|
+| The web or mobile app (a Supabase session) | yes |
+| A personal access token | yes |
+| The local-development sign-in | yes |
+| OAuth for the REST API, as Salli's own CLI (`salli-cli`, a first-party client the server knows) | yes |
+| OAuth for the REST API, as a client that registered itself | no |
+| OAuth for MCP (an AI connector), any client | never |
+
+A client that registers itself (RFC 7591) can call itself anything, so only a
+client the server seeded as first party counts; `/v1/meta` names the CLI's
+(`oauth.cli_client_id`). An MCP token is refused by the REST API altogether,
+the MCP server has no activate tool, and the service checks the permission
+itself, so no route or tool that forgot to could activate. What a caller
+without it writes is recorded as written by an `agent`, with the client's
+name.
+
+### Evaluating against the ledger
+
+For each role the rule set declares, Salli adds up the postings on the user's
+accounts whose `tax_role` is that role's key, dated within `year.start` to
+`year.end` (both included):
+
+- in the account's normal-balance direction (debits add on asset and expense
+  accounts, credits on income, liability and equity ones), so income and tax
+  withheld come out positive;
+- signed, so a reversing entry cancels the entry it reverses;
+- never clamped: a negative total is used as it is, with a warning;
+- in the rule set's currency: the base-currency amounts when they are the
+  same, otherwise a posting already in the rule set's currency at its own
+  amount and any other at the published rate for its entry's date (refused,
+  never guessed, when there is no rate); each total is then rounded to the
+  currency's minor units.
+
+Then the engine computes every line. This is the generic replacement for the
+built-in engine's Sri Lankan `_build_ledger_view`. Limits for now: an
+account counts towards one role (its `tax_role`); amounts come only from the
+ledger and the user's answers (no portfolio lots, so no capital gains yet);
+and conversion is always at each entry date's rate, never an annual average.
+
+An account's `tax_role` may be any role one of the user's own rule sets
+declares (in a version that matches the schema, whatever its status), as well
+as the built-in packs' roles until phase 3.
+
+## Interfaces
+
+**API** (`/v1`, typed, errors as RFC 9457 problems):
+
+| | |
+|---|---|
+| `GET /tax/schema` | The JSON Schema. |
+| `GET /tax/rule-sets` | The user's rule sets, with their versions. |
+| `POST /tax/rule-sets` | A new rule set from `{document, note?}` (the document as JSON text, read strictly, or as JSON). 409 if one exists for that jurisdiction and year. |
+| `GET /tax/rule-sets/{id}` | One rule set. |
+| `POST /tax/rule-sets/{id}/versions` | A new version. |
+| `GET /tax/rule-sets/{id}/versions/{version_id}` | The document and its report. |
+| `POST …/validate`, `…/propose`, `…/activate` | The lifecycle. Activate needs `tax:activate` (403 otherwise). |
+| `GET /tax/rule-sets/{id}/diff?to=&from=` | The review diff (`from` defaults to the active version). |
+| `GET …/export` | `{filename, content_hash, canonical, text}`. |
+| `POST /tax/rule-sets/import` | `{document}` or `{url}`; lands as a draft. |
+| `POST …/evaluate` | `{answers?, year?}`: the line-by-line result from the ledger. |
+
+Another user's rule set or version is a 404, exactly like one that doesn't
+exist.
+
+**URL import** goes through Salli's SSRF guard (`adapters/net`): https only,
+no credentials in the URL, every address the host resolves to public (not
+loopback, private, link-local, shared, unique local, multicast or reserved,
+nor an IPv6 address embedding one), the connection made to the address that
+was checked, at most three redirects each checked again, 1 MiB at most and
+15 seconds for the whole exchange.
+
+**MCP** (see [ai-clients.md](ai-clients.md)): `get_tax_rule_schema`,
+`list_tax_rule_sets`, `get_tax_rule_set`, `draft_tax_rule_set`,
+`validate_tax_rule_set`, `propose_tax_rule_set`, `diff_tax_rule_set_versions`
+and `evaluate_tax_rule_set`, and the `research_tax_rules(country, year)`
+prompt. No activate tool.

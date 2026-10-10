@@ -67,6 +67,10 @@ _LOOPBACK_HOSTS = ("127.0.0.1", "[::1]", "localhost")
 MCP = "mcp"
 API = "api"
 
+#: The `salli` CLI's client: first party, seeded by core_0011, never
+#: registered. Advertised in /v1/meta so the CLI signs in as it.
+CLI_CLIENT_ID = "salli-cli"
+
 # Recognisable prefixes, like personal access tokens' `salli_pat_`: secret
 # scanners can spot a leaked one, and the API's development fallback can tell
 # a Salli token from a user id without a lookup. Tokens issued before the
@@ -415,6 +419,13 @@ class McpOAuthService:
         if not await self._may_use(record["user_id"], audience):
             return None
         return record
+
+    async def client_name(self, client_id: str) -> str | None:
+        """The name a client registered with: recorded as the author of
+        what an AI connector writes."""
+        async with self._uow_factory() as uow:
+            client: dict[str, Any] | None = await uow.oauth_clients.get(client_id)
+        return (client or {}).get("client_name") or None
 
     async def is_salli_token(self, token: str) -> bool:
         """Whether this server ever issued `token`, as an access or a refresh

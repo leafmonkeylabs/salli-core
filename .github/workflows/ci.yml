@@ -66,6 +66,10 @@ jobs:
           src/salli/domain/portfolio/lots.py src/salli/domain/portfolio/valuation.py
           src/salli/domain/portfolio/returns.py src/salli/domain/portfolio/performance.py
           src/salli/application/market_data.py
+          src/salli/application/permissions.py src/salli/adapters/net
+          src/salli/adapters/db/tax_rule_sets.py
+          src/salli/application/services/tax_rule_service.py
+          src/salli/interfaces/api/routers/tax_rules.py
       - name: Tests
         # Includes the contract tests: the OpenAPI document matches the app, and
         # salli-core carries no billing vocabulary.

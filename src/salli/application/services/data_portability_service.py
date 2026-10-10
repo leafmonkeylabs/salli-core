@@ -164,6 +164,7 @@ class DataPortabilityService:
             "documents": await self._documents.list_documents(user_id),
             "statements": await self._statements(user_id),
             "bank_connections": await self._bank_connections(user_id),
+            "tax_rule_sets": await self._tax_rule_sets(user_id),
         }
         for export in self._exporters:
             data.update(await export(user_id))
@@ -180,6 +181,12 @@ class DataPortabilityService:
             {**st, "transactions": [transaction_view(t) for t in st["transactions"]]}
             for st in statements
         ]
+
+    async def _tax_rule_sets(self, user_id: str) -> list[dict[str, Any]]:
+        """Every tax rule set the user (or their agent) wrote, with every
+        version's document, status and validation report."""
+        async with self._uow_factory() as uow:
+            return list(await uow.tax_rule_sets.export(user_id))
 
     async def _bank_connections(self, user_id: str) -> list[dict[str, Any]]:
         """Each bank connection with its accounts, their mappings and the

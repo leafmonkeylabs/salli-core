@@ -12,8 +12,11 @@ it. Nothing in here knows any country's law.
 - `schema`   the document's pydantic models and its JSON Schema
 - `engine`   compile a document into an ordered line graph, then evaluate it
 - `validate` everything an author needs to hear about a document, examples included
+- `diff`     what changed between two versions, for the review before activating
+- `inputs`   a rule set's role totals, added up from a ledger's postings
 
-Pure domain: no I/O, no database, no HTTP. Phase 1 of
-docs/design/country-neutral-core.md: the old `salli.domain.tax` package is
-untouched and is still what the app computes with.
+Pure domain: no I/O, no database, no HTTP. Storage, the API and the MCP tools
+are phase 2 (application/services/tax_rule_service.py); the old
+`salli.domain.tax` package is still what `/v1/tax/compute` uses until phase 3
+of docs/design/country-neutral-core.md.
 """

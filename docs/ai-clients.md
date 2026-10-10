@@ -11,10 +11,32 @@ Once connected, your AI can:
 - answer "can I afford…?" from your forecast and your FI plan;
 - sort imported transactions, then book what you approve;
 - create rules, so the next statement sorts itself;
-- run the Wealth Advisor and read budgets, debts, portfolio, insurance and tax.
+- run the Wealth Advisor and read budgets, debts, portfolio, insurance and tax;
+- research your country's tax rules from official sources, write them as a Salli
+  rule set, check them against the authority's worked examples and propose them to
+  you. It can't activate them: only you can, in Salli.
 
-Three ready-made prompts come with the server: **review my month**, **sort my pending
-transactions** and **can I afford**.
+Four ready-made prompts come with the server: **review my month**, **sort my pending
+transactions**, **can I afford** and **research tax rules** (for a country and year).
+
+### Tax rule tools
+
+| Tool | What it does |
+|---|---|
+| `get_tax_rule_schema` | The rule-set format's JSON Schema, to write against. |
+| `list_tax_rule_sets` | Your rule sets, their versions and which is active. |
+| `get_tax_rule_set` | One rule set; or one version's document and validation report. |
+| `draft_tax_rule_set` | Stores a document as a new version (of a set, or of the one for its jurisdiction and year), even with mistakes; recorded as the agent's. |
+| `validate_tax_rule_set` | Validates a version again: errors with their paths, and each worked example's figures that differ, with the expression behind them. |
+| `propose_tax_rule_set` | Asks you to review a version that passes. |
+| `diff_tax_rule_set_versions` | What changed between versions, with each figure's source. |
+| `evaluate_tax_rule_set` | Runs Salli's engine on your ledger with a version's rules, line by line. Nothing is stored. |
+
+There is no tool to activate rules. An agent researching tax law reads pages anyone
+can write, so activation needs a permission (`tax:activate`) that no AI connector's
+token ever holds: you activate from the app, the `salli` CLI or a personal access
+token, after reviewing the changes, sources and examples. See
+[docs/taxrules.md](taxrules.md#lifecycle).
 
 Before connecting anything:
 - **The switch:** MCP must be on for your account (`salli mcp enable`), and you approve

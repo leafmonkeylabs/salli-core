@@ -13,6 +13,7 @@ import pytest
 from salli.domain.taxrules.common import RuleSetError
 from salli.domain.taxrules.engine import (
     RuleSetEvaluationError,
+    canonical_json,
     compile_rule_set,
     content_hash,
     evaluate,
@@ -221,6 +222,16 @@ def test_the_content_hash_changes_with_the_rules():
     changed = minimal()
     changed["band_tables"]["main"]["bands"][0]["rate"] = "0.11"
     assert content_hash(changed) != content_hash(minimal())
+
+
+def test_the_canonical_json_is_what_the_content_hash_is_of():
+    import hashlib
+
+    text = canonical_json(minimal())
+    assert hashlib.sha256(text.encode()).hexdigest() == content_hash(minimal())
+    assert json.loads(text)["jurisdiction"] == {"country": "XZ", "region": None}
+    # Sorted, compact: writing it out again changes nothing.
+    assert text == json.dumps(json.loads(text), sort_keys=True, separators=(",", ":"))
 
 
 def test_a_result_carries_its_rule_sets_content_hash():

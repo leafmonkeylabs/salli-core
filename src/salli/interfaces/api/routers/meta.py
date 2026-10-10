@@ -13,6 +13,7 @@ from importlib.metadata import PackageNotFoundError, version
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from salli.application.services.mcp_oauth_service import CLI_CLIENT_ID
 from salli.config import get_settings
 from salli.domain.tax.packs import registry
 from salli.extensions import enabled_specs
@@ -53,6 +54,10 @@ class OAuthInfo(BaseModel):
     api_resource: str
     #: Where a person approves a device sign-in.
     device_verification_uri: str
+    #: The client id the `salli` CLI signs in as. Salli's own client, known to
+    #: the server rather than registered, so its sessions may do what only the
+    #: user's own sign-ins may (activate a tax rule set).
+    cli_client_id: str
 
 
 class Meta(BaseModel):
@@ -95,6 +100,7 @@ async def get_meta() -> Meta:
             device_authorization_endpoint=f"{base}/mcp/oauth/device_authorization",
             api_resource=f"{base}/v1",
             device_verification_uri=f"{base}/mcp/oauth/device",
+            cli_client_id=CLI_CLIENT_ID,
         ),
         default_currency=settings.salli_default_currency.upper(),
     )

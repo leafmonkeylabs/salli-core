@@ -14,7 +14,7 @@ from salli.application.services.data_portability_service import DataPortabilityS
 pytestmark = pytest.mark.asyncio
 
 
-def _service(exporters=(), statements=(), banks=()):
+def _service(exporters=(), statements=(), banks=(), rule_sets=()):
     # profile, ledger, tax, budget, debt, portfolio, subscription, insurance,
     # fi, advisor, documents, reminders
     from contextlib import asynccontextmanager
@@ -29,6 +29,7 @@ def _service(exporters=(), statements=(), banks=()):
         yield SimpleNamespace(
             statements=SimpleNamespace(export=AsyncMock(return_value=statements)),
             bank_connections=SimpleNamespace(list=AsyncMock(return_value=banks)),
+            tax_rule_sets=SimpleNamespace(export=AsyncMock(return_value=rule_sets)),
         )
 
     return DataPortabilityService(uow, *svcs, exporters=exporters)
@@ -81,3 +82,9 @@ async def test_bank_connections_are_exported_without_credentials():
         "balance": "12.5",
     }
     assert "credential_sealed" not in exported
+
+
+async def test_tax_rule_sets_are_exported_with_every_version():
+    rule_set = {"id": "rs1", "versions": [{"id": "v1", "content": {"schema": "salli.tax/1"}}]}
+    data = await _service(rule_sets=[rule_set]).export_all("u1")
+    assert data["tax_rule_sets"] == [rule_set]
