@@ -27,8 +27,14 @@ the AI you already pay for.
   transactions before any model is asked, so a payee is booked the same way
   every time; `salli rules suggest` offers the rules your own bookkeeping
   implies.
-- **Tax rules in versioned packs, country by country.** A computation records
-  the pack it used, so a past return can be reproduced after the rules change.
+- **Tax rules are yours, as data.** Salli knows no country's tax law: you, or
+  your AI agent, write your country's rules as a versioned, cited rule set
+  (`salli.tax/1`), checked against the authority's own worked examples, and
+  only you can activate it. Salli's engine computes with it, explains every
+  line, prepares your return from the rules' forms and reminds you of their
+  deadlines; each computation records the exact rules that produced it, so a
+  past return can be reproduced after the rules change
+  ([docs/taxrules.md](docs/taxrules.md)).
 - **Your books, in plain text.** `salli export beancount` or `salli export hledger`
   writes every account and entry as a Beancount file or an hledger journal, so
   you can leave with your whole ledger at any time, or use Fava alongside.
@@ -40,21 +46,22 @@ the AI you already pay for.
   Or let your own agent drive the CLI with the skills in
   [`packages/cli/skills`](packages/cli/skills).
 
-> **Not tax advice.** Salli estimates tax from your own records using each
-> tax pack's rules as we read them. No pack has yet been reviewed by a
-> chartered accountant.
+> **Not tax advice.** Salli computes tax from your own records with the rules
+> you (or your agent) entered and you activated. It doesn't vouch for the
+> law: the rules' sources do.
 
 ## Where Salli is today
 
 Salli is for anyone, anywhere. It started in Sri Lanka, and that is still
 where it does the most:
 
-- **Tax:** one pack so far, Sri Lanka 2025/26 (APIT, AIT and foreign service
-  income included). Your tax residency (`salli profile set --tax-residency
-  LK`) decides which country's packs compute your tax, the tax year, and the
-  tax accounts in your starter chart; with none set, nothing assumes a country.
-  Packs for other countries are welcome — see
-  [CONTRIBUTING.md](CONTRIBUTING.md#tax-packs).
+- **Tax:** any country, from rules you or your agent write
+  (`salli tax rules create|import`, or an AI client's `research_tax_rules`
+  prompt) and you activate. Your tax residency (`salli profile set
+  --tax-residency GB`) decides whose rules compute your tax, and the year is
+  the one your active rules cover today; with none set, nothing assumes a
+  country. Rule sets can be exported and shared as files, but salli-core
+  ships none: see [CONTRIBUTING.md](CONTRIBUTING.md#tax-rules).
 - **Imports:** OFX/QFX, QIF, camt.053, MT940, CSV and Excel statements from
   any bank. PDF statements vary the most, and have mostly been tried with Sri
   Lankan banks' so far.
@@ -148,8 +155,7 @@ The REST API lives under `/v1`; its OpenAPI document is committed in
 from it. Amounts are decimal strings in their currency's own precision (never
 JSON numbers), with the currency alongside, and errors are
 [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details.
-`GET /v1/meta` describes the server: its version, tax packs and sign-in
-endpoints.
+`GET /v1/meta` describes the server: its version and sign-in endpoints.
 
 Clients other than a browser sign in with OAuth 2.1: PKCE with a loopback
 redirect on any port, or a device code (approved at `/mcp/oauth/device`) on a
@@ -221,7 +227,7 @@ Database migrations: `salli-server db upgrade` (setup runs it for you).
 
 ## How it's built
 
-Hexagonal: a pure domain core (`domain/` — ledger, tax engine and packs, FI,
+Hexagonal: a pure domain core (`domain/` — ledger, the tax rule-set engine, FI,
 budgets, debts, portfolio, insurance, risk, reports), application services
 behind ports (`application/`), adapters for Postgres, Anthropic, FX and
 document parsing (`adapters/`), and thin interfaces over the same services —

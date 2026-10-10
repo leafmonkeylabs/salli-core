@@ -6,12 +6,12 @@ Salli's engine applies it. The agent may *write* rules; only the engine
 *computes* with them. This is the format and the language, for authors and for
 agents. The design behind it is `docs/design/country-neutral-core.md`.
 
-> **Status: phase 2b.** The engine, language, schema and validator
-> (`src/salli/domain/taxrules/`, proven by a conformance suite of fictional
-> jurisdictions) have storage, a lifecycle, an API, MCP tools and the
-> `salli tax rules` commands: see [Lifecycle](#lifecycle) and
-> [Interfaces](#interfaces). `/v1/tax/compute` still uses the built-in pack in
-> `salli.domain.tax` until phase 3.
+Salli knows no country's tax law. A user's tax is computed only from the rule
+set they activated (see [Computing a user's tax](#computing-a-users-tax)):
+without one, there is nothing to compute. The engine, language, schema and
+validator live in `src/salli/domain/taxrules/`, proven by a conformance suite
+of fictional jurisdictions; storage, the lifecycle, the API, the MCP tools and
+the `salli tax` commands are described below.
 
 ## The document
 
@@ -164,7 +164,7 @@ numbers; form fields may be numbers or booleans.
 ### Arithmetic
 
 Everything is exact decimal arithmetic to 28 significant digits (Python's
-default context, which the built-in engine has always used), installed fresh
+default context), installed fresh
 for every evaluation so nothing outside can change a result. Division by zero,
 an undefined result (`0 / 0`) and an overflow are errors, never NaN or
 infinity. The same document and inputs always give the same figures.
@@ -261,7 +261,9 @@ error, never ignored.
    a `final_rate` or `capped_share` block with no source; any other block, or a
    line, whose expressions contain a figure (a number other than 0 or 1) but
    which has no source; a role, question or band table that is never used; a
-   non-refundable credit with no cap.
+   non-refundable credit with no cap. When Salli stores a version it adds one
+   more: each tax role the user's accounts carry that none of their rule sets
+   in use declares any more ([below](#evaluating-against-the-ledger)).
 4. **Examples.** Each runs through the engine. Every figure it expects (the
    `payable` amount, the `refund`, and any `lines` by key, dotted keys
    included) must match exactly. A mismatch names the figure, what was expected,
@@ -401,15 +403,105 @@ accounts whose `tax_role` is that role's key, dated within `year.start` to
   never guessed, when there is no rate); each total is then rounded to the
   currency's minor units.
 
-Then the engine computes every line. This is the generic replacement for the
-built-in engine's Sri Lankan `_build_ledger_view`. Limits for now: an
-account counts towards one role (its `tax_role`); amounts come only from the
-ledger and the user's answers (no portfolio lots, so no capital gains yet);
-and conversion is always at each entry date's rate, never an annual average.
+Then the engine computes every line. Limits for now: an account counts
+towards one role (its `tax_role`); amounts come only from the ledger and the
+user's answers (no portfolio lots, so no capital gains yet); and conversion is
+always at each entry date's rate, never an annual average.
 
-An account's `tax_role` may be any role one of the user's own rule sets
-declares (in a version that matches the schema, whatever its status), as well
-as the built-in packs' roles until phase 3.
+An account's `tax_role` must be a role one of the user's own rule sets
+declares now: in a version that matches the schema and hasn't been superseded
+(whatever else its status, so accounts can be set up while the rules are
+still a draft). Salli has no roles of its own. An account keeps its role when
+the version that declared it is superseded (an edit that keeps a role never
+fails on it), but then counts towards no tax: validating, proposing or
+activating any version of the user's rules warns about each such role and
+the accounts that carry it (path `roles`), never refuses.
+
+## Computing a user's tax
+
+`TaxService` (application/services/tax_service.py) computes a user's tax with
+their **active** rule set, and nothing else.
+
+**Whose rules.** The jurisdiction is the country asked for (`country`, which
+may be a user-assigned code such as `XA`), or else the user's tax residency
+from their profile: never their currency. With neither, nothing is computed.
+Within it:
+
+- **the year** is the one asked for (`year`, as the rules name it); or, with
+  none, the **current tax year**: the year of the user's active rule set
+  whose dates contain today. When today is in no such year (the year has
+  ended and next year's rules aren't in yet, say), it is the latest active
+  year that has begun. Active rules only for years that haven't begun need
+  the year named.
+- **the region**, for rules set per region, is the one asked for; without
+  one, the national rule set (no region), or the only one there is. Two
+  regional rule sets and no national one need the region named.
+
+Anything missing is a 422 problem, `/problems/no-tax-rules`, whose detail
+says what is missing (no residency, no rule set for the jurisdiction and
+year, one not activated yet, a year that hasn't begun, a region to choose)
+and what to do: add rules with `salli tax rules create|import`, or have an
+AI agent research them (the MCP `research_tax_rules` prompt), then activate
+them yourself.
+
+**Computing.** The active version's rules are applied to the ledger exactly
+as [evaluating](#evaluating-against-the-ledger) does, with the user's answers
+to the rules' questions. A computation is stored (`POST /tax/compute`) with:
+
+| Field | |
+|---|---|
+| `rule_set_version_id`, `version`, `content_hash` | The exact version that computed it, and its content hash. |
+| `country`, `region`, `year`, `currency` | The jurisdiction and year, and the rules' currency. |
+| `lines` | Every line: key, label, amount (an exact decimal string), the expression, its source, whether a credit is refundable. |
+| `net`, `tax_payable`, `refund_due` | What is owed: stored as integer minor units of the currency. |
+| `inputs` | What the engine was given: each role's total (and how many postings it came from), the answers, the base currency, the exchange rates. |
+| `warnings` | Negative role totals; a version that hasn't passed its examples; a net finer than the currency's smallest unit. |
+
+The amount owed is money, so it is kept in the currency's minor units. When
+the rules leave the net finer than that (no `result.round`, say), it is
+rounded half-up to the minor unit, and the computation says so: give the
+rules a `result.round` saying how the authority rounds.
+
+**Reproducing.** A stored computation always reproduces: evaluating the very
+version it recorded (versions never change) with the inputs it recorded gives
+the same lines and the same amount owed, whatever the rules or the ledger say
+since (`TaxService.reproduce`). `salli-server jobs recompute-tax` recomputes
+every user's latest computation for each jurisdiction and year with the
+rules active now and the ledger as it is now (storing it with `--apply` when
+anything moved), and says for each whether it still reproduces from its own
+version.
+
+**Explaining.** `POST /tax/explain` computes with the active rules (nothing
+stored) and reads one line off the result: its amount and expression, where
+in the rules it is written (and the block it came from), the source it
+cites, every role total, answer and other line it uses with their values,
+any band table it applies, and the lines that use it. Nothing is worked out:
+every figure is the engine's.
+
+**Returns.** A rule set's `forms` are the user's return. `POST
+/tax/returns/prepare` computes (and stores) the tax and fills in each form's
+fields from the result, with the form's filing instructions and URL, and
+holds the draft for review on a thread of the user's own
+(`<user>:return:<thread>`). `GET /tax/returns/{thread}` reads the draft back;
+`POST /tax/returns/resume` takes the user's decision: `approve` gives the
+worksheet, ready to file; `reject` ends it; `edit` computes again (after the
+ledger is fixed, or with new `answers`) and comes back to review. Nobody
+edits a figure, and Salli files nothing. Rules without forms have no return
+to prepare (the computation is still stored).
+
+**Filing reminders** are the active version's `deadlines`. Activating a
+version seeds them, and replaces the reminders of the version it supersedes:
+a deadline it keeps stays as it was (still done, if it was done and its date
+hasn't moved), a moved one is updated and goes back to pending, a new one is
+added and a dropped one removed. Reminders the user made are never touched.
+`POST /reminders/seed` refreshes them on demand.
+
+**Suggested accounts.** Onboarding opens no tax accounts: no rule set exists
+then. `GET /tax/rule-sets/{id}/suggested-accounts` lists the accounts a rule
+set suggests (from its active version, else its newest) and whether the user
+has one with each code; `POST` creates the missing ones, in the base
+currency, with their tax roles. Idempotent: an account whose code is taken
+(open or closed) is left as it is, and reported with how it differs.
 
 ## Interfaces
 
@@ -428,6 +520,14 @@ as the built-in packs' roles until phase 3.
 | `GET …/export` | `{filename, content_hash, canonical, text}`. |
 | `POST /tax/rule-sets/import` | `{document}` or `{url}`; lands as a draft. |
 | `POST …/evaluate` | `{answers?, year?}`: the line-by-line result from the ledger. |
+| `GET\|POST /tax/rule-sets/{id}/suggested-accounts` | The accounts the rules suggest; `POST` creates the missing ones. |
+| `POST /tax/compute?country=&region=&year=` | `{answers?}`: the user's tax with their active rules, stored. |
+| `GET /tax/latest?country=&region=&year=` | The last stored computation, or `{result: null}`. |
+| `GET /tax/current-year?country=&region=` | The current tax year, and the year computing defaults to. |
+| `POST /tax/explain?country=&region=&year=` | `{line_key, answers?}`: where one line came from. 404 for a line the rules don't have. |
+| `POST /tax/returns/prepare` | `{thread_id?, year?, country?, region?, answers?}`: a return held for review. |
+| `GET /tax/returns/{thread_id}` | The draft waiting for review on the thread. |
+| `POST /tax/returns/resume` | `{thread_id, decision: approve\|edit\|reject, answers?}`. |
 
 Another user's rule set or version is a 404, exactly like one that doesn't
 exist.
@@ -439,7 +539,19 @@ nor an IPv6 address embedding one), the connection made to the address that
 was checked, at most three redirects each checked again, 1 MiB at most and
 15 seconds for the whole exchange.
 
-**CLI** (`packages/cli`, see its README): `salli tax schema [-o file]`, and
+**CLI** (`packages/cli`, see its README): `salli tax schema [-o file]`;
+the user's tax:
+
+| | |
+|---|---|
+| `salli tax year [--country] [--region]` | The current tax year, and the year computing defaults to. |
+| `salli tax compute [--year] [--country] [--region] [--answer key=value]…` | Every line, then net, payable or refund, and the rules' version. |
+| `salli tax latest [--year] [--country] [--region]` | The last stored computation. |
+| `salli tax explain <line> [--year] [--country] [--answer]…` | What a line used, and its source. |
+| `salli tax return prepare [--year] [--country] [--answer]… [--thread]` | The rules' forms filled in, held for review. |
+| `salli tax return review <thread> [--approve\|--edit\|--reject] [--answer]…` | Shows the draft, then the decision (asked at a terminal); an edit computes again and comes back to review. |
+
+and the rule sets:
 
 | | |
 |---|---|
@@ -453,6 +565,7 @@ was checked, at most three redirects each checked again, 1 MiB at most and
 | `salli tax rules propose <set> [--version]` | |
 | `salli tax rules diff <set> [--from] [--to]` | Active against newest by default; each changed figure with its source's title and URL. |
 | `salli tax rules evaluate <set> [--version] [--answer key=value]…` | Line by line, then net, payable or refund. |
+| `salli tax rules accounts <set> [--version] [--apply]` | The accounts the rules suggest; `--apply` creates the missing ones. |
 | `salli tax rules activate <set> [--version]` | For a person at a terminal only (below). |
 
 `<set>` is a rule set's id, a unique start of it, or its name (`XA 2031`);
@@ -475,8 +588,12 @@ flow alike), the client `/v1/meta` names as `oauth.cli_client_id`, so its
 sign-ins hold `tax:activate`. Against a server that names none it registers
 a client for itself, which doesn't; `salli doctor` says so.
 
-**MCP** (see [ai-clients.md](ai-clients.md)): `get_tax_rule_schema`,
-`list_tax_rule_sets`, `get_tax_rule_set`, `draft_tax_rule_set`,
-`validate_tax_rule_set`, `propose_tax_rule_set`, `diff_tax_rule_set_versions`
-and `evaluate_tax_rule_set`, and the `research_tax_rules(country, year)`
-prompt. No activate tool.
+**MCP** (see [ai-clients.md](ai-clients.md)): `get_tax_computation` and
+`explain_tax_line` (the user's tax from their active rules, read-only);
+`get_tax_rule_schema`, `list_tax_rule_sets`, `get_tax_rule_set`,
+`draft_tax_rule_set`, `validate_tax_rule_set`, `propose_tax_rule_set`,
+`diff_tax_rule_set_versions`, `evaluate_tax_rule_set` and
+`suggested_tax_accounts`; and the `research_tax_rules(country, year)` prompt.
+No activate tool. Salli's own agents have `get_tax_computation` and
+`explain_tax_line` too, and are told the user's residency and which rules are
+active, never a figure: those reach the user only through the engine.

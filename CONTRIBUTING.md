@@ -1,14 +1,14 @@
 # Contributing to Salli
 
-Thanks for helping. Bug reports, tax-rule corrections, new tax packs, and
-fixes are all welcome.
+Thanks for helping. Bug reports, engine fixes, new fictional jurisdictions
+for the tax conformance suite, and fixes are all welcome.
 
 ## Before you open a pull request
 
 - **Accept the Contributor License Agreement** — once, on your first pull
   request. See [below](#contributor-license-agreement).
 - **Keep the rules in `CLAUDE.md`.** The LLM never computes money or tax;
-  posted entries are never edited; money is `Decimal`; tax packs are versioned.
+  posted entries are never edited; money is `Decimal`; tax rules are user data.
 - **CLI-first.** A new API route needs a `salli` command in `packages/cli`
   (TypeScript, over the API), or a line in `EXEMPT` in
   `packages/cli/test/api-coverage.test.ts` saying why a person never calls
@@ -57,12 +57,19 @@ version changes.
   pull request, and the version of the agreement, on the
   [`cla-signatures`](../../tree/cla-signatures) branch.
 
-## Tax packs
+## Tax rules
 
-A pack is wrong until it passes golden tests built from the revenue
-authority's own worked examples (`tests/golden/`). Cite the source in the
-test. A pack is not used in production until a chartered accountant has
-reviewed it.
+salli-core carries no country's tax law, and won't take a pull request that
+adds one: a country's rules are user data, a rule set (`salli.tax/1`,
+[docs/taxrules.md](docs/taxrules.md)) that its user or their agent writes,
+cites and checks against the authority's own worked examples. Share one as a
+file (`salli tax rules export`); anyone can import it as a draft.
+
+What belongs here is the engine: the expression language, the building
+blocks, the schema and validator. A change to them needs a conformance test:
+a fictional jurisdiction in `tests/taxrules/conformance/` that copies the
+*structure* of the real-world feature, never its law, with the arithmetic
+behind every worked example written out in `tests/taxrules/test_conformance.py`.
 
 ## Reporting a security issue
 
