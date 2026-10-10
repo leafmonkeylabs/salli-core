@@ -113,7 +113,7 @@ export function registerDoctor(program: Command, app: App): void {
             name: 'Server',
             status: 'fail',
             detail: reason,
-            hint: 'Is the server running (`uv run salli serve`)? Check the address with `salli context current`.',
+            hint: 'Is the server running (`salli-server serve`)? Check the address with `salli context current`.',
           },
           ExitCode.NETWORK,
         );

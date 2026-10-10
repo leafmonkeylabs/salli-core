@@ -64,7 +64,7 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-# Salli seeds a new account with `salli setup`, not with SQL.
+# Salli seeds a new account with `salli-server setup`, not with SQL.
 enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
@@ -173,7 +173,7 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Off: a self-hosted Salli answers only the accounts you create with
-# `salli setup` and `salli members add` (they use the admin API).
+# `salli-server setup` and `salli-server members add` (they use the admin API).
 enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
