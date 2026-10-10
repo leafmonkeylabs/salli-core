@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from salli.application.ports import FxUnavailableError, ProfileMissing
+from salli.application.ports import AccountNotFound, FxUnavailableError, ProfileMissing
 from salli.application.services.tax_service import NoTaxPackError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
@@ -257,6 +257,12 @@ def create_app() -> FastAPI:
         return problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid", "Invalid request", redact(str(exc))
         )
+
+    # A posting on an account that is not the caller's (missing, or another
+    # user's: they look the same). Before KeyError's catch-all, to say which.
+    @app.exception_handler(AccountNotFound)
+    async def account_not_found_handler(request: Request, exc: AccountNotFound) -> JSONResponse:
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
 
     @app.exception_handler(KeyError)
     async def key_error_handler(request: Request, exc: KeyError) -> JSONResponse:
