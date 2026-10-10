@@ -18,6 +18,7 @@ import { registerInsights } from './commands/insights';
 import { registerPlanningAhead } from './commands/fi';
 import { registerLedger } from './commands/ledger';
 import { registerMore, registerYourData } from './commands/more';
+import { registerOnboarding } from './commands/onboarding';
 import { registerPlanning } from './commands/plan';
 import { registerQuickAdd } from './commands/quickadd';
 import { registerRules } from './commands/rules';
@@ -62,6 +63,7 @@ Start with:  salli login   then   salli status`,
   registerAuth(program, app);
   registerStatus(program, app);
   registerDoctor(program, app);
+  registerOnboarding(program, app);
 
   program.commandsGroup('Your ledger:');
   registerQuickAdd(program, app);

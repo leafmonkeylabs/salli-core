@@ -4,8 +4,10 @@
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
+  accountDelete,
   accountExport,
   agentFilesUpload,
+  authMe,
   compareAmounts,
   documentsDelete,
   documentsGet,
@@ -17,6 +19,9 @@ import {
   mcpConnectionsRevoke,
   mcpEnabledGet,
   mcpEnabledSet,
+  onboardingBalanceSheet,
+  onboardingIncome,
+  onboardingRiskQuestionnaire,
   profileGet,
   profileUpdate,
   remindersCreate,
@@ -35,6 +40,8 @@ import {
   taxPacks,
   toJsonText,
   type AgentDocument,
+  type IncomeItem,
+  type OpeningBalanceItem,
   type ProfileIdentityRequest,
   type Reminder,
   type SalliClient,
@@ -47,9 +54,9 @@ import { displayDate, displayRange, isoDate, parseDate } from '../util/dates';
 import { readUpload, textOf, writeOutput } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
-import { renderRecord } from './records';
+import { fieldLabel, renderRecord } from './records';
 import { humanize } from './status';
-import { collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
+import { amountArg, collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
 
 /** A field from the server, as one line of safe text. */
 const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
@@ -561,6 +568,108 @@ function registerProfile(program: Command, app: App): void {
       const data = await api.call(accountExport, { timeoutMs: 5 * 60_000 });
       const text = `${toJsonText(data)}\n`;
       await writeOutput(app, text, opts.out ?? `salli-export-${isoDate(app.runtime.now())}.json`, {}, 'your data', { private: true });
+    });
+
+  profile
+    .command('balance-sheet')
+    .description('Record what you own and owe today, as opening-balance entries (net worth starts right)')
+    .requiredOption('--balance <code:name:type:amount>', 'One account, e.g. 1100:Checking:asset:2500 or 2100:Car loan:liability:8400 (repeatable)', collect)
+    .action(async (opts) => {
+      const balances: OpeningBalanceItem[] = opts.balance.map((raw) => {
+        const [code, name, type, amount, ...rest] = raw.split(':');
+        if (!code?.trim() || !name?.trim() || !type || amount === undefined || rest.length) {
+          throw new UsageError(`--balance takes CODE:NAME:TYPE:AMOUNT, e.g. 1100:Checking:asset:2500 (got "${raw}").`);
+        }
+        const kind = type.trim().toLowerCase();
+        if (kind !== 'asset' && kind !== 'liability') {
+          throw new UsageError(`An opening balance is an asset or a liability (got "${type}" in "${raw}").`);
+        }
+        return { code: code.trim(), name: name.trim(), type: kind, amount: amountArg(amount, '--balance') };
+      });
+      const api = await app.api();
+      const result = await api.call(onboardingBalanceSheet, { body: { balances } });
+      const n = result.entries_created.length;
+      app.out.done(result, `Posted ${n} opening-balance ${n === 1 ? 'entry' : 'entries'}.`);
+    });
+
+  profile
+    .command('income')
+    .description('Record what you earn: one representative monthly entry per income source')
+    .requiredOption('--income <code:name:amount>', 'One source a month, e.g. 4100:Salary:5000 (repeatable)', collect)
+    .option('--deposit-code <code>', 'The account it is paid into (default: the server’s bank account, 1200)')
+    .option('--deposit-name <name>', 'That account’s name, if it has to be opened')
+    .action(async (opts) => {
+      const incomes: IncomeItem[] = opts.income.map((raw) => {
+        const [code, name, amount, ...rest] = raw.split(':');
+        if (!code?.trim() || !name?.trim() || amount === undefined || rest.length) {
+          throw new UsageError(`--income takes CODE:NAME:AMOUNT, e.g. 4100:Salary:5000 (got "${raw}").`);
+        }
+        return {
+          code: code.trim(),
+          name: name.trim(),
+          amount: amountArg(amount, '--income'),
+          ...(opts.depositCode ? { deposit_account_code: opts.depositCode } : {}),
+          ...(opts.depositName ? { deposit_account_name: opts.depositName } : {}),
+        };
+      });
+      const api = await app.api();
+      const result = await api.call(onboardingIncome, { body: { incomes } });
+      const n = result.entries_created.length;
+      app.out.done(result, `Posted ${n} income ${n === 1 ? 'entry' : 'entries'}.`);
+    });
+
+  profile
+    .command('risk-questionnaire')
+    .alias('risk')
+    .description('Answer the risk-tolerance questions; the server scores them and saves the result')
+    .requiredOption('--horizon <years>', 'Years until you need the money', countArg('--horizon'))
+    .addOption(new Option('--drawdown <reaction>', 'What you would do if your investments fell 20%').choices(['sell_all', 'sell_some', 'hold', 'buy_more']).makeOptionMandatory())
+    .addOption(new Option('--income-stability <level>', 'How steady your income is').choices(['unstable', 'moderate', 'stable']).makeOptionMandatory())
+    .addOption(new Option('--experience <level>', 'Your investing experience').choices(['none', 'some', 'experienced']).makeOptionMandatory())
+    .option('--dependents <n>', 'People who depend on your income', countArg('--dependents'), 0)
+    .action(async (opts) => {
+      const api = await app.api();
+      const result = await api.call(onboardingRiskQuestionnaire, {
+        body: {
+          time_horizon_years: opts.horizon,
+          drawdown_reaction: opts.drawdown,
+          income_stability: opts.incomeStability,
+          investment_experience: opts.experience,
+          dependents_count: opts.dependents,
+        },
+      });
+      app.out.emit(result, {
+        human: (r) => {
+          app.out.line(`${app.out.heading(`Risk score ${r.score}`)} ${app.out.colors.dim(`(${singleLine(r.category)})`)}`);
+          app.out.line(app.out.details(Object.entries(r.breakdown).map(([part, points]) => [fieldLabel(part), String(points)] as const)));
+        },
+      });
+    });
+
+  profile
+    .command('delete-account')
+    .description('Delete your account and everything Salli stores about you. This cannot be undone')
+    .option('--confirm-email <email>', 'Your account’s email, typed out: confirms without asking (for scripts)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const me = await api.call(authMe);
+      if (!me.email) throw new CliError('This account has no email to confirm with, so the server cannot delete it from here.');
+      let typed = opts.confirmEmail;
+      if (typed === undefined) {
+        if (!app.prompter.interactive) {
+          throw new UsageError('Deleting your account needs confirmation.', 'Pass --confirm-email with your account’s email.');
+        }
+        app.out.warn(`This permanently deletes every record of ${singleLine(me.email)}: ledger, documents, plans, keys.`);
+        typed = await app.prompter.text({ message: 'Type your email to confirm' });
+      }
+      // The server compares the email too; checking here first means a typo
+      // is a clear "did not match" rather than a refusal from the server.
+      if (typed.trim().toLowerCase() !== me.email.toLowerCase()) {
+        throw new UsageError('That is not this account’s email: nothing was deleted.');
+      }
+      const result = await api.call(accountDelete, { body: { confirm_email: typed.trim() } });
+      const total = Object.values(result.counts).reduce((sum, n) => sum + n, 0);
+      app.out.done(result, `Deleted your account (${total} record${total === 1 ? '' : 's'}).`);
     });
 }
 

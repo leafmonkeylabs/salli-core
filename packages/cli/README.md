@@ -126,6 +126,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 
 | You want to… | Run |
 |---|---|
+| Start out | `salli onboarding complete --name Sam --income employment`, then `salli profile balance-sheet --balance 1100:Checking:asset:2500` |
 | See where you stand | `salli status` |
 | Record a transaction, in your words | `salli add "lunch 12.50 cash"` |
 | Record one exactly | `salli entries add --desc Lunch --debit groceries:12.50 --credit cash:12.50` |
@@ -141,10 +142,11 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Budgets, debts | `salli budgets summary <id>`, `salli debts payoff-plan` |
 | Investments | `salli portfolio`, `salli portfolio transactions add VTI buy --quantity 10 --price 240`, `salli portfolio performance` |
 | Financial independence | `salli fi score`, `salli fi assumptions`, `salli fi afford 2400 --months 12` |
+| A review from the advisor | `salli advisor run`, or `salli advisor briefing` to approve a monthly briefing before it is saved |
 | Tax | `salli tax year`, `salli tax compute`, `salli profile set --tax-residency LK` |
 | Choose what powers the AI | `salli ai status`, `salli ai connect chatgpt`, `salli llm-keys set openai` |
 | Take your ledger elsewhere | `salli export beancount -o ledger.beancount`, `salli export hledger` |
-| Everything Salli keeps about you | `salli profile export` (JSON, readable only by you) |
+| Everything Salli keeps about you | `salli profile export` (JSON, readable only by you); `salli profile delete-account` deletes it |
 | Everything else | `salli --help`, and `--help` on any command |
 
 Accounts are named by code (`1000`), name (`Cash`, or any unique start of it) or
