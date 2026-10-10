@@ -111,15 +111,17 @@ def _worker_from_event(event: dict) -> str | None:
     return None
 
 
-def _workflow_config(user_id: str, thread_id: str) -> dict[str, Any]:
+def _workflow_config(user_id: str, workflow: str, thread_id: str) -> dict[str, Any]:
     """
     The checkpoint config for a review workflow's thread.
 
     The client names the thread, so the checkpoint key carries the user too, as
     chat's does: another user sending the same thread id reaches their own
-    (empty) thread, never this one.
+    (empty) thread, never this one. It carries the workflow as well, because
+    chat and both workflows share one checkpointer: the same id used for a chat
+    and a briefing must not land on one thread.
     """
-    return {"configurable": {"thread_id": f"{user_id}:{thread_id}"}}
+    return {"configurable": {"thread_id": f"{user_id}:{workflow}:{thread_id}"}}
 
 
 async def _awaiting_review(workflow: Any, config: dict[str, Any]) -> bool:
@@ -827,7 +829,7 @@ class AgentService:
             thread_id = str(uuid.uuid4())
 
         workflow = self._get_workflow()
-        config = _workflow_config(user_id, thread_id)
+        config = _workflow_config(user_id, "return", thread_id)
 
         result = await workflow.ainvoke(
             {"user_id": user_id, "year": year or ""},
@@ -853,7 +855,7 @@ class AgentService:
         from langgraph.types import Command
 
         workflow = self._get_workflow()
-        config = _workflow_config(user_id, thread_id)
+        config = _workflow_config(user_id, "return", thread_id)
         if not await _awaiting_review(workflow, config):
             return {"worksheet": {}, "error": "No return is waiting for review on this thread."}
 
@@ -875,7 +877,7 @@ class AgentService:
             thread_id = str(uuid.uuid4())
 
         workflow = self._get_briefing_workflow()
-        config = _workflow_config(user_id, thread_id)
+        config = _workflow_config(user_id, "briefing", thread_id)
 
         result = await workflow.ainvoke(
             {"user_id": user_id, "email": email},
@@ -907,7 +909,7 @@ class AgentService:
         from langgraph.types import Command
 
         workflow = self._get_briefing_workflow()
-        config = _workflow_config(user_id, thread_id)
+        config = _workflow_config(user_id, "briefing", thread_id)
         if not await _awaiting_review(workflow, config):
             return {"report": {}, "error": "No briefing is waiting for review on this thread."}
 

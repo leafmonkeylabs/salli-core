@@ -54,7 +54,7 @@ async def test_a_briefing_thread_is_kept_under_its_owner_and_handed_back_as_sent
 
     assert prepared["thread_id"] == "thread-1"
     workflow = agent._get_briefing_workflow()
-    owned = await workflow.aget_state({"configurable": {"thread_id": "user-a:thread-1"}})
+    owned = await workflow.aget_state({"configurable": {"thread_id": "user-a:briefing:thread-1"}})
     bare = await workflow.aget_state({"configurable": {"thread_id": "thread-1"}})
     assert owned.next == ("review",)
     assert bare.next == ()
@@ -106,7 +106,7 @@ async def test_a_return_thread_is_kept_under_its_owner_and_handed_back_as_sent(r
     assert prepared["thread_id"] == "thread-1"
     assert prepared["draft_return"]
     workflow = return_agent._get_workflow()
-    owned = await workflow.aget_state({"configurable": {"thread_id": "u1:thread-1"}})
+    owned = await workflow.aget_state({"configurable": {"thread_id": "u1:return:thread-1"}})
     bare = await workflow.aget_state({"configurable": {"thread_id": "thread-1"}})
     assert owned.next == ("review",)
     assert bare.next == ()
@@ -124,3 +124,13 @@ async def test_another_user_resuming_a_return_thread_gets_nothing_of_the_owners(
     mine = await return_agent.resume_return("u1", "thread-1", "approve")
     assert mine["worksheet"]["status"] == "ready_to_submit"
     assert mine["worksheet"]["year"] == prepared["draft_return"]["year"]
+
+
+async def test_a_workflow_thread_and_a_chat_thread_with_one_id_stay_apart(return_agent):
+    # Chat and the workflows share one checkpointer; the same client id used
+    # for both must not land on one thread.
+    await return_agent.prepare_return("u1", year="2025/26", thread_id="thread-1")
+
+    workflow = return_agent._get_workflow()
+    as_chat = await workflow.aget_state({"configurable": {"thread_id": "u1:thread-1"}})
+    assert as_chat.next == ()
