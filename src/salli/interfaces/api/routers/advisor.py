@@ -239,10 +239,14 @@ async def prepare_briefing(
 # The report is an empty object unless the briefing was approved: its absent
 # fields stay absent rather than coming back as null.
 @router.post("/briefing/resume", response_model_exclude_unset=True)
-async def resume_briefing(body: BriefingResumeRequest, svc: AppServices) -> BriefingResumed:
-    """Resume the briefing workflow after human review and persist if approved."""
+async def resume_briefing(
+    body: BriefingResumeRequest, user_id: CurrentUser, svc: AppServices
+) -> BriefingResumed:
+    """Resume the caller's briefing workflow after human review and persist if approved."""
     return BriefingResumed.model_validate(
-        await svc.agent.resume_briefing(thread_id=body.thread_id, decision=body.decision)
+        await svc.agent.resume_briefing(
+            user_id=user_id, thread_id=body.thread_id, decision=body.decision
+        )
     )
 
 

@@ -352,6 +352,20 @@ async def test_the_original_file_is_kept(world):
     )
 
 
+@pytest.mark.parametrize(
+    ("filename", "stored_as"),
+    [("../../../october.csv", "october.csv"), ("..\\u2\\october.csv", "october.csv")],
+)
+async def test_a_statement_is_kept_under_its_safe_name(world, filename, stored_as):
+    storage = Storage()
+
+    result = await world.service(storage=storage).parse_statement(
+        USER, filename, _fixture("us_checking.csv"), account_id="checking", api_key="k"
+    )
+
+    assert [key for _, key, _ in storage.uploads] == [f"{result.statement_id}/{stored_as}"]
+
+
 async def test_nothing_to_import(world):
     result = await world.service().import_rows(USER, [], bank="", account_id=None)
     assert (result.statement_id, result.errors) == ("", ["No transactions to import"])
