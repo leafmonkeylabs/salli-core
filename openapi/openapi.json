@@ -1096,48 +1096,13 @@
         }
       }
     },
-    "/v1/tax/packs": {
-      "get": {
-        "tags": [
-          "tax"
-        ],
-        "summary": "List Packs",
-        "operationId": "tax.packs",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TaxPack"
-                  },
-                  "type": "array",
-                  "title": "Response Tax.Packs"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/tax/compute": {
       "post": {
         "tags": [
           "tax"
         ],
         "summary": "Compute Tax",
-        "description": "Compute the user's income tax for a year with their country's pack.\n\nTheir country is their tax residency or, while they have not set one, the\none country whose packs compute in their base currency. 422\n(/problems/no-tax-pack) when Salli has no pack that can compute it.",
+        "description": "Compute the user's tax with their active rule set, from their ledger, and\nstore it. 422 (/problems/no-tax-rules) when they have no active rules for\nit: the detail says what to do.",
         "operationId": "tax.compute",
         "security": [
           {
@@ -1146,25 +1111,82 @@
         ],
         "parameters": [
           {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Country code",
+              "examples": [
+                "XA"
+              ],
+              "title": "Country"
+            },
+            "description": "Country code"
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
             "name": "year",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 32
                 },
                 {
                   "type": "null"
                 }
               ],
               "examples": [
-                "2025/26"
+                "2031/32"
               ],
               "title": "Year"
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaxComputeIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1205,6 +1227,7 @@
           "tax"
         ],
         "summary": "Get Latest",
+        "description": "The last computation stored for the jurisdiction and year.",
         "operationId": "tax.latest",
         "security": [
           {
@@ -1213,20 +1236,60 @@
         ],
         "parameters": [
           {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Country code",
+              "examples": [
+                "XA"
+              ],
+              "title": "Country"
+            },
+            "description": "Country code"
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
             "name": "year",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 32
                 },
                 {
                   "type": "null"
                 }
               ],
               "examples": [
-                "2025/26"
+                "2031/32"
               ],
               "title": "Year"
             }
@@ -1272,8 +1335,54 @@
           "tax"
         ],
         "summary": "Get Current Year",
-        "description": "The tax year the user is in today, in their country.",
+        "description": "The tax year the user is in today: the year of their active rule set\nwhose dates contain today, or none.",
         "operationId": "tax.currentYear",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Country code",
+              "examples": [
+                "XA"
+              ],
+              "title": "Country"
+            },
+            "description": "Country code"
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1281,6 +1390,186 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaxYearStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/explain": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Explain Line",
+        "description": "Where one line of the user's tax came from: its expression, the inputs\nand lines it used with their values, any band table, and the source the\nrules cite. Computed now with the active rules; nothing is stored. 404 for\na line the rules don't have.",
+        "operationId": "tax.explain",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Country code",
+              "examples": [
+                "XA"
+              ],
+              "title": "Country"
+            },
+            "description": "Country code"
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2031/32"
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxExplainIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxLineExplanation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/returns/prepare": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Prepare Return",
+        "description": "Prepare a return from the user's active rules up to the review gate:\ncompute (and store) their tax, fill in each form the rules define, and\nhold the draft for review under a thread of the user's own. Resume it with\n`tax.returns.resume`.",
+        "operationId": "tax.returns.prepare",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxReturnPrepareIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxReturnPrepared"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1303,6 +1592,1091 @@
         ]
       }
     },
+    "/v1/tax/returns/{thread_id}": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Return",
+        "description": "The caller's return waiting for review on a thread, to show before\ndeciding. Another user's thread reads as nothing waiting.",
+        "operationId": "tax.returns.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxReturnPending"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/returns/resume": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Resume Return",
+        "description": "Resume the caller's return after review: approve, edit (compute again\nand review again) or reject. Only a thread of the caller's own that is\nwaiting for review can be resumed.",
+        "operationId": "tax.returns.resume",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxReturnResumeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxReturnResumed"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tax/schema": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Schema",
+        "description": "The rule-set document's JSON Schema (Draft 2020-12), to write one\nagainst. The validator checks more than the schema can say (unique keys,\ndeclared sources, expressions that compile, examples that pass).",
+        "operationId": "tax.schema",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/JsonValue"
+                  },
+                  "type": "object",
+                  "title": "Response Tax.Schema"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tax/rule-sets": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "List Rule Sets",
+        "operationId": "tax.ruleSets.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaxRuleSet"
+                  },
+                  "type": "array",
+                  "title": "Response Tax.Rulesets.List"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Create Rule Set",
+        "description": "A new rule set with the document as version 1, stored whatever its\nvalidation finds (the report says what). 409 when the user already has\none for that jurisdiction and year: add a version to it instead.",
+        "operationId": "tax.ruleSets.create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRuleDocumentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tax/rule-sets/import": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Import Rule Set",
+        "description": "A rule set from a document or a URL, as a new version of the user's\nrule set for its jurisdiction and year (created if there is none). It\nlands as a draft (or invalid), never further: validate it, review it,\nactivate it.",
+        "operationId": "tax.ruleSets.import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRuleImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Rule Set",
+        "operationId": "tax.ruleSets.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Add Version",
+        "description": "A new version: an edit never changes an existing one. Its jurisdiction\nand year must be the rule set's.",
+        "operationId": "tax.ruleSets.versions.create",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxRuleDocumentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Version",
+        "operationId": "tax.ruleSets.versions.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/validate": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Validate Version",
+        "operationId": "tax.ruleSets.versions.validate",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/propose": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Propose Version",
+        "description": "Ask for the user's review. 409 unless it passes validation (run again).",
+        "operationId": "tax.ruleSets.versions.propose",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/activate": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Activate Version",
+        "description": "Make this the version Salli computes with for its jurisdiction and\nyear, superseding the active one. Needs `tax:activate`, which only the\nuser's own sign-ins hold (the app, the salli CLI, and a personal access\ntoken made with it): 403 for an AI connector, any other application, or\na token made without it. 409 unless it passes validation (run again).",
+        "operationId": "tax.ruleSets.versions.activate",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/diff": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Diff Versions",
+        "description": "What changed between two versions, with the source behind each change\nand the `to` version's example results: the review before activating.",
+        "operationId": "tax.ruleSets.diff",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The version to compare to",
+              "title": "To"
+            },
+            "description": "The version to compare to"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The version to compare from; the active one if omitted",
+              "title": "From"
+            },
+            "description": "The version to compare from; the active one if omitted"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleDiff"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/suggested-accounts": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "List Suggested Accounts",
+        "description": "The accounts a rule set suggests (its `suggested_accounts`), each with\nwhether you already have one with that code. Nothing is created.",
+        "operationId": "tax.ruleSets.suggestedAccounts.list",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The version; the active one, else the newest, if omitted",
+              "title": "Version Id"
+            },
+            "description": "The version; the active one, else the newest, if omitted"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxSuggestedAccounts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Apply Suggested Accounts",
+        "description": "Create the accounts a rule set suggests that you don't have yet, in your\nbase currency, each with its suggested tax role. Idempotent: an account\nwhose code you already use (open or closed) is left as it is. 409 for a\nsuperseded version.",
+        "operationId": "tax.ruleSets.suggestedAccounts.apply",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaxSuggestedAccountsIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxSuggestedAccounts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/export": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Export Version",
+        "operationId": "tax.ruleSets.versions.export",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleExport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/evaluate": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Evaluate Version",
+        "description": "Apply this version's rules to the user's own ledger, read-only: each\nrole's total from the accounts carrying it, within the rules' year,\nconverted into their currency where needed; then every line.",
+        "operationId": "tax.ruleSets.versions.evaluate",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Set Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaxRuleEvaluateIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxRuleEvaluation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/agent/chat": {
       "post": {
         "tags": [
@@ -1323,7 +2697,7 @@
         },
         "responses": {
           "200": {
-            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).\n- `done`: the last event, always sent.\n\nA refusal from the deployment's usage meter comes before the stream opens, as an error response rather than an event, and so does an AI provider that cannot run at all (a ChatGPT plan paused at its limit, or needing a new sign-in).",
+            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).\n- `done`: the last event, always sent.\n\nA refusal from the deployment's usage meter comes before the stream opens, as an error response rather than an event, and so does an AI provider that cannot run at all (a ChatGPT plan paused at its limit, or needing a new sign-in).",
             "content": {
               "text/event-stream": {}
             }
@@ -1419,7 +2793,7 @@
           "agent"
         ],
         "summary": "Resume",
-        "description": "Resume an interrupted agent.\n- workflow=\"chat\": resumes a write-tool approval gate (decision: \"approved\"|\"denied\")\n- workflow=\"return\": resumes the return-preparation workflow (decision: \"approve\"|\"reject\")",
+        "description": "Resume a chat agent paused at a write-tool approval gate (decision:\n\"approved\" or \"denied\"). A return is reviewed with `tax.returns.resume`.",
         "operationId": "agent.resume",
         "requestBody": {
           "content": {
@@ -1433,7 +2807,7 @@
         },
         "responses": {
           "200": {
-            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: \"chat\"`, `decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).\n- `done`: the last event, always sent.\n\nWith `workflow: \"return\"` the stream is instead a single `token` whose `content` is the JSON-encoded result of the return workflow (`{worksheet, error}`), then `done`.",
+            "description": "Server-sent events. Each is one `data:` line holding a JSON object whose `type` says what it is:\n\n- `token` `{content}`: text from the agent.\n- `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.\n- `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.\n- `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`decision: \"approved\"` or `\"denied\"`).\n- `interrupt` `{data}`: any other pause.\n- `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).\n- `done`: the last event, always sent.",
             "content": {
               "text/event-stream": {}
             }
@@ -3040,7 +4414,7 @@
           "reminders"
         ],
         "summary": "Seed Filing Calendar",
-        "description": "Seed the filing deadlines of the user's tax pack for a tax year; by\ndefault the latest one Salli can compute for them.",
+        "description": "Refresh the filing reminders from the deadlines of the user's active tax\nrule sets (one year's, when `year` names it). Activating a version does\nthis already; this catches a calendar up. Idempotent.",
         "operationId": "reminders.seedFilingCalendar",
         "security": [
           {
@@ -3062,7 +4436,7 @@
                 }
               ],
               "examples": [
-                "2025/26"
+                "2031/32"
               ],
               "title": "Year"
             }
@@ -3245,7 +4619,7 @@
           "financial-independence"
         ],
         "summary": "Get Assumptions",
-        "description": "The planning assumptions behind the user's FI figures, and where each came from.",
+        "description": "The planning assumptions behind the user's FI figures: which apply and\nwhere each came from, what the user set, and the placeholders.",
         "operationId": "fi.assumptions",
         "responses": {
           "200": {
@@ -3254,6 +4628,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FiAssumptionsReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Set Assumptions",
+        "description": "Set or clear the user's own planning assumptions, each with its source.\nA figure out of range, or a set that can't be used together, is a 422 and\nchanges nothing.",
+        "operationId": "fi.assumptions.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FiAssumptionsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiAssumptionsReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3704,7 +5133,7 @@
           "financial-independence"
         ],
         "summary": "Get Projections",
-        "description": "15-year portfolio projections across conservative/base/growth scenarios.",
+        "description": "Projections across conservative/base/growth real-return scenarios\n(15 years, or as far as FI is reached, up to 40), with placeholders\nstanding in for assumptions the user has not set.",
         "operationId": "fi.projections",
         "responses": {
           "200": {
@@ -4342,7 +5771,7 @@
           "advisor"
         ],
         "summary": "Resume Briefing",
-        "description": "Resume the briefing workflow after human review and persist if approved.",
+        "description": "Resume the caller's briefing workflow after human review and persist if approved.",
         "operationId": "advisor.briefing.resume",
         "requestBody": {
           "content": {
@@ -4385,7 +5814,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/advisor/cron/run-due": {
@@ -9863,12 +11297,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "apit_credit",
-                  "ait_credit",
-                  "foreign_tax_credit",
-                  "qualifying_payment",
-                  "fsi_income"
+                "pattern": "^[a-z][a-z0-9_]{0,29}$",
+                "description": "A role one of the user's tax rule sets declares.",
+                "examples": [
+                  "salary"
                 ]
               },
               {
@@ -10195,12 +11627,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "apit_credit",
-                  "ait_credit",
-                  "foreign_tax_credit",
-                  "qualifying_payment",
-                  "fsi_income"
+                "pattern": "^[a-z][a-z0-9_]{0,29}$",
+                "description": "A role one of the user's tax rule sets declares.",
+                "examples": [
+                  "salary"
                 ]
               },
               {
@@ -11047,12 +12477,21 @@
               "dev"
             ],
             "title": "Method"
+          },
+          "permissions": {
+            "items": {
+              "type": "string",
+              "const": "tax:activate"
+            },
+            "type": "array",
+            "title": "Permissions"
           }
         },
         "type": "object",
         "required": [
           "user_id",
-          "method"
+          "method",
+          "permissions"
         ],
         "title": "AuthIdentity"
       },
@@ -13204,6 +14643,15 @@
               }
             ],
             "title": "Expires In Days"
+          },
+          "permissions": {
+            "items": {
+              "type": "string",
+              "const": "tax:activate"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Permissions"
           }
         },
         "type": "object",
@@ -13262,19 +14710,6 @@
             "type": "array",
             "title": "Journal Entries"
           },
-          "tax_computation_2025_26": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tax Computation 2025 26",
-            "description": "The latest 2025/26 computation as the tax engine recorded it, or null.\nKept for tools that read it; `tax_computations` has every year."
-          },
           "tax_computations": {
             "items": {
               "additionalProperties": true,
@@ -13282,7 +14717,7 @@
             },
             "type": "array",
             "title": "Tax Computations",
-            "description": "The latest computation for each tax year a pack covers, as recorded."
+            "description": "Every stored tax computation, newest first, as `tax.latest` shows one:\nthe rule set version that computed it, its inputs and every line."
           },
           "budgets": {
             "items": {
@@ -13427,7 +14862,6 @@
           "profile",
           "accounts",
           "journal_entries",
-          "tax_computation_2025_26",
           "budgets",
           "debts",
           "holdings",
@@ -14139,13 +15573,24 @@
             "enum": [
               "user",
               "strategy",
-              "default"
+              "placeholder"
             ],
             "title": "Origin"
           },
           "source": {
             "type": "string",
             "title": "Source"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           }
         },
         "type": "object",
@@ -14155,146 +15600,400 @@
           "source"
         ],
         "title": "FiAssumption",
-        "description": "One planning assumption, and where it came from."
-      },
-      "FiAssumptionOverrides": {
-        "properties": {
-          "inflation": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inflation"
-          },
-          "real_return": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Real Return"
-          },
-          "safe_withdrawal_rate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Safe Withdrawal Rate"
-          }
-        },
-        "type": "object",
-        "title": "FiAssumptionOverrides",
-        "description": "The planning assumptions the user set themselves; null where they use\nthe default for their currency. Yearly fractions in decimal strings."
-      },
-      "FiAssumptionOverridesIn": {
-        "properties": {
-          "inflation": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "examples": [
-                  "0.05"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inflation"
-          },
-          "real_return": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "examples": [
-                  "0.05"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Real Return"
-          },
-          "safe_withdrawal_rate": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "examples": [
-                  "0.05"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Safe Withdrawal Rate"
-          }
-        },
-        "type": "object",
-        "title": "FiAssumptionOverridesIn",
-        "description": "Set the user's own planning assumptions, as yearly fractions (\"0.03\" is\n3%). Only the fields sent change; an explicit null returns one to the\ndefault for their currency."
+        "description": "One planning assumption a figure was computed with, and where it came from."
       },
       "FiAssumptions": {
         "properties": {
-          "region": {
+          "status": {
             "type": "string",
-            "title": "Region"
+            "enum": [
+              "placeholder",
+              "user"
+            ],
+            "title": "Status"
           },
-          "inflation": {
-            "$ref": "#/components/schemas/FiAssumption"
+          "placeholders": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "real_return",
+                "safe_withdrawal_rate"
+              ]
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
           },
           "real_return": {
             "$ref": "#/components/schemas/FiAssumption"
           },
           "safe_withdrawal_rate": {
             "$ref": "#/components/schemas/FiAssumption"
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nominal_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "real_returns": {
+            "$ref": "#/components/schemas/FiScenarioReturns"
+          },
+          "nominal_returns": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiScenarioReturns"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
-          "region",
-          "inflation",
+          "status",
+          "placeholders",
+          "message",
           "real_return",
-          "safe_withdrawal_rate"
+          "safe_withdrawal_rate",
+          "real_returns"
         ],
         "title": "FiAssumptions",
-        "description": "The assumptions these figures were computed with. Defaults are round,\nconservative starting points to adjust, never forecasts."
+        "description": "The assumptions these figures were computed with, in real terms.\n\nCheck `status`: \"placeholder\" means at least one figure (`placeholders`\nsays which) is a neutral stand-in, not a forecast and not any country's\nfigure; set your own with `PATCH /v1/fi/assumptions`."
       },
       "FiAssumptionsReport": {
         "properties": {
           "applied": {
             "$ref": "#/components/schemas/FiAssumptions"
           },
-          "defaults": {
-            "$ref": "#/components/schemas/FiAssumptions"
+          "own": {
+            "$ref": "#/components/schemas/FiOwnAssumptions"
           },
-          "overrides": {
-            "$ref": "#/components/schemas/FiAssumptionOverrides"
+          "placeholder_values": {
+            "$ref": "#/components/schemas/FiPlaceholderValues"
+          },
+          "scenario_spread": {
+            "type": "string",
+            "title": "Scenario Spread"
           }
         },
         "type": "object",
         "required": [
           "applied",
-          "defaults",
-          "overrides"
+          "own",
+          "placeholder_values",
+          "scenario_spread"
         ],
         "title": "FiAssumptionsReport",
-        "description": "The assumptions the user's FI figures use, the defaults for their\ncurrency, and what they set themselves."
+        "description": "The assumptions the user's FI figures use, what they set themselves,\nand the placeholders that stand in for the rest."
+      },
+      "FiAssumptionsUpdate": {
+        "properties": {
+          "real_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nominal_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FiAssumptionsUpdate",
+        "description": "Set the user's own planning assumptions. Only the fields sent change;\nan explicit null clears one (a placeholder, or the FIRE strategy's figure,\nstands in again). Set a real return or a nominal one, not both; a nominal\nreturn needs inflation."
+      },
+      "FiNominalPoint": {
+        "properties": {
+          "conservative": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conservative"
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "growth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth"
+          },
+          "fi_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fi Number"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "FiNominalPoint",
+        "description": "A year's projected values in that year's own money, from the user's inflation."
+      },
+      "FiOwnAssumption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "set_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "FiOwnAssumption",
+        "description": "A planning assumption the user (or their agent) set."
+      },
+      "FiOwnAssumptionIn": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value",
+            "examples": [
+              "0.05"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "FiOwnAssumptionIn",
+        "description": "One planning assumption to set."
+      },
+      "FiOwnAssumptions": {
+        "properties": {
+          "real_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nominal_return": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FiOwnAssumptions",
+        "description": "What the user set themselves; null where they have not."
+      },
+      "FiPlaceholder": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "source"
+        ],
+        "title": "FiPlaceholder",
+        "description": "The neutral stand-in used where the user has set nothing."
+      },
+      "FiPlaceholderValues": {
+        "properties": {
+          "real_return": {
+            "$ref": "#/components/schemas/FiPlaceholder"
+          },
+          "safe_withdrawal_rate": {
+            "$ref": "#/components/schemas/FiPlaceholder"
+          }
+        },
+        "type": "object",
+        "required": [
+          "real_return",
+          "safe_withdrawal_rate"
+        ],
+        "title": "FiPlaceholderValues"
       },
       "FiProjectionPoint": {
         "properties": {
@@ -14356,6 +16055,16 @@
               }
             ],
             "title": "Growth"
+          },
+          "nominal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiNominalPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": true,
@@ -14380,6 +16089,21 @@
               }
             ],
             "title": "Currency"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "real",
+                  "real_and_nominal"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms"
           },
           "points": {
             "anyOf": [
@@ -14481,7 +16205,7 @@
               }
             ]
           },
-          "expected_inflation": {
+          "inflation": {
             "anyOf": [
               {
                 "type": "string"
@@ -14490,7 +16214,17 @@
                 "type": "null"
               }
             ],
-            "title": "Expected Inflation"
+            "title": "Inflation"
+          },
+          "nominal_returns": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiScenarioReturns"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "assumptions": {
             "anyOf": [
@@ -14506,7 +16240,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "FiProjections",
-        "description": "The FI asset base projected forward under three return scenarios, in today's money.\n\nA deployment's entitlement policy may withhold parts of this and add fields\nof its own, so every field is optional."
+        "description": "The FI asset base projected forward under three real-return scenarios,\nin today's money, and in each year's own money when the user set their\ninflation. Never waits for assumptions: `assumptions.status` says when a\nplaceholder stands in.\n\nA deployment's entitlement policy may withhold parts of this and add fields\nof its own, so every field is optional."
       },
       "FiScenarioReturns": {
         "properties": {
@@ -14547,7 +16281,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "FiScenarioReturns",
-        "description": "Real (after-inflation) yearly returns per scenario, as fractions in decimal strings."
+        "description": "Yearly returns per scenario, as fractions in decimal strings."
       },
       "FiScore": {
         "properties": {
@@ -15027,7 +16761,7 @@
             ],
             "title": "Swr"
           },
-          "return_conservative": {
+          "real_return_conservative": {
             "anyOf": [
               {
                 "type": "number"
@@ -15036,9 +16770,9 @@
                 "type": "null"
               }
             ],
-            "title": "Return Conservative"
+            "title": "Real Return Conservative"
           },
-          "return_base": {
+          "real_return_base": {
             "anyOf": [
               {
                 "type": "number"
@@ -15047,9 +16781,9 @@
                 "type": "null"
               }
             ],
-            "title": "Return Base"
+            "title": "Real Return Base"
           },
-          "return_growth": {
+          "real_return_growth": {
             "anyOf": [
               {
                 "type": "number"
@@ -15058,7 +16792,7 @@
                 "type": "null"
               }
             ],
-            "title": "Return Growth"
+            "title": "Real Return Growth"
           },
           "target_monthly_expenses": {
             "anyOf": [
@@ -15136,7 +16870,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "FireStrategy",
-        "description": "A version of the user's AI-generated FIRE strategy.\n\nRates are fractions (0.04 is 4%), and the returns are nominal and yearly.\nEvery field is optional: a strategy stored by an earlier version can lack\nsome, and a deployment's entitlement policy may withhold parts of it and\nadd fields of its own."
+        "description": "A version of the user's AI-generated FIRE strategy.\n\nRates are fractions (0.04 is 4%), and the returns are yearly and real\n(after inflation).\nEvery field is optional: a strategy stored by an earlier version can lack\nsome, and a deployment's entitlement policy may withhold parts of it and\nadd fields of its own."
       },
       "FireStrategyBucket": {
         "properties": {
@@ -17331,6 +19065,7 @@
         ],
         "title": "JournalEntry"
       },
+      "JsonValue": {},
       "LatestTaxComputation": {
         "properties": {
           "result": {
@@ -17618,13 +19353,6 @@
             "type": "array",
             "title": "Extensions"
           },
-          "tax_packs": {
-            "items": {
-              "$ref": "#/components/schemas/TaxPackInfo"
-            },
-            "type": "array",
-            "title": "Tax Packs"
-          },
           "oauth": {
             "$ref": "#/components/schemas/OAuthInfo"
           },
@@ -17643,7 +19371,6 @@
           "api_version",
           "server_version",
           "extensions",
-          "tax_packs",
           "oauth",
           "default_currency"
         ],
@@ -17915,6 +19642,14 @@
             "type": "string",
             "title": "Prefix"
           },
+          "permissions": {
+            "items": {
+              "type": "string",
+              "const": "tax:activate"
+            },
+            "type": "array",
+            "title": "Permissions"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -17954,6 +19689,7 @@
           "id",
           "name",
           "prefix",
+          "permissions",
           "created_at",
           "expires_at",
           "last_used_at",
@@ -18051,6 +19787,10 @@
           "device_verification_uri": {
             "type": "string",
             "title": "Device Verification Uri"
+          },
+          "cli_client_id": {
+            "type": "string",
+            "title": "Cli Client Id"
           }
         },
         "type": "object",
@@ -18062,7 +19802,8 @@
           "revocation_endpoint",
           "device_authorization_endpoint",
           "api_resource",
-          "device_verification_uri"
+          "device_verification_uri",
+          "cli_client_id"
         ],
         "title": "OAuthInfo"
       },
@@ -18146,10 +19887,12 @@
             ],
             "title": "Tax Residency"
           },
-          "nic": {
-            "type": "string",
-            "title": "Nic",
-            "default": ""
+          "tax_ids": {
+            "items": {
+              "$ref": "#/components/schemas/TaxId"
+            },
+            "type": "array",
+            "title": "Tax Ids"
           },
           "residency": {
             "type": "string",
@@ -18164,11 +19907,6 @@
           "employment_type": {
             "type": "string",
             "title": "Employment Type",
-            "default": ""
-          },
-          "ird_number": {
-            "type": "string",
-            "title": "Ird Number",
             "default": ""
           },
           "income_sources": {
@@ -18781,6 +20519,14 @@
             "type": "string",
             "title": "Prefix"
           },
+          "permissions": {
+            "items": {
+              "type": "string",
+              "const": "tax:activate"
+            },
+            "type": "array",
+            "title": "Permissions"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -18816,6 +20562,7 @@
           "id",
           "name",
           "prefix",
+          "permissions",
           "created_at",
           "expires_at",
           "last_used_at"
@@ -19430,17 +21177,6 @@
             ],
             "title": "Employment Type"
           },
-          "ird_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ird Number"
-          },
           "risk_score": {
             "anyOf": [
               {
@@ -19515,20 +21251,6 @@
             },
             "type": "array",
             "title": "Tax Ids"
-          },
-          "nic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nic"
-          },
-          "fi_assumptions": {
-            "$ref": "#/components/schemas/FiAssumptionOverrides"
           }
         },
         "type": "object",
@@ -19543,7 +21265,6 @@
           "residency_status",
           "employer",
           "employment_type",
-          "ird_number",
           "risk_score",
           "risk_category",
           "life_stage",
@@ -19662,38 +21383,6 @@
               }
             ],
             "title": "Tax Ids"
-          },
-          "ird_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ird Number"
-          },
-          "nic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nic"
-          },
-          "fi_assumptions": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FiAssumptionOverridesIn"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "base_currency": {
             "anyOf": [
@@ -20704,23 +22393,6 @@
             "type": "string",
             "title": "Decision"
           },
-          "workflow": {
-            "type": "string",
-            "title": "Workflow",
-            "default": "chat"
-          },
-          "edits": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Edits"
-          },
           "persona": {
             "type": "string",
             "enum": [
@@ -21339,12 +23011,28 @@
             },
             "type": "array",
             "title": "Ids"
+          },
+          "updated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed"
           }
         },
         "type": "object",
         "required": [
           "created",
-          "ids"
+          "ids",
+          "updated",
+          "removed"
         ],
         "title": "SeededReminders"
       },
@@ -22378,89 +24066,62 @@
         ],
         "title": "TargetRequest"
       },
-      "TaxBandWorking": {
+      "TaxComputation": {
         "properties": {
-          "band": {
-            "type": "string",
-            "title": "Band"
-          },
-          "rate": {
-            "type": "string",
-            "title": "Rate"
-          },
-          "from_amount": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "From Amount",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "to_amount": {
+          "id": {
             "anyOf": [
               {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string in the currency's own precision; never a float.",
-                "examples": [
-                  "1234.50"
-                ]
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "To Amount"
+            "title": "Id"
           },
-          "rate_fraction": {
-            "type": "string",
-            "title": "Rate Fraction"
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
           },
-          "taxable_in_band": {
+          "country": {
             "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Taxable In Band",
-            "description": "Decimal string in the currency's own precision; never a float.",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
             "examples": [
-              "1234.50"
+              "LK"
             ]
           },
-          "tax": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Tax",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "band",
-          "rate",
-          "from_amount",
-          "to_amount",
-          "rate_fraction",
-          "taxable_in_band",
-          "tax"
-        ],
-        "title": "TaxBandWorking"
-      },
-      "TaxComputation": {
-        "properties": {
-          "pack_country": {
-            "type": "string",
-            "title": "Pack Country"
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           },
-          "pack_year": {
+          "year": {
             "type": "string",
-            "title": "Pack Year"
+            "title": "Year"
           },
-          "pack_version": {
+          "period_start": {
             "type": "string",
-            "title": "Pack Version"
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
           },
           "currency": {
             "type": "string",
@@ -22471,109 +24132,70 @@
               "USD"
             ]
           },
-          "gross_income": {
+          "base_currency": {
             "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Gross Income",
-            "description": "Decimal string in the currency's own precision; never a float.",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Base Currency",
+            "description": "ISO 4217 currency code",
             "examples": [
-              "1234.50"
+              "USD"
             ]
           },
-          "foreign_service_income": {
+          "rule_set_id": {
             "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Foreign Service Income",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+            "title": "Rule Set Id"
           },
-          "regular_income": {
+          "rule_set_version_id": {
             "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Regular Income",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+            "title": "Rule Set Version Id"
           },
-          "personal_relief_applied": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Personal Relief Applied",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+          "version": {
+            "type": "integer",
+            "title": "Version"
           },
-          "qp_deduction": {
+          "content_hash": {
             "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Qp Deduction",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+            "title": "Content Hash"
           },
-          "taxable_income": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Taxable Income",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleRoleTotal"
+            },
+            "type": "array",
+            "title": "Roles"
           },
-          "fsi_tax": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Fsi Tax",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
           },
-          "tax_before_credits": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Tax Before Credits",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleRate"
+            },
+            "type": "array",
+            "title": "Rates"
           },
-          "apit_credit": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Apit Credit",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleLine"
+            },
+            "type": "array",
+            "title": "Lines"
           },
-          "ait_credit": {
+          "net": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Ait Credit",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "foreign_tax_credit": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Foreign Tax Credit",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "total_credits": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Total Credits",
+            "title": "Net",
             "description": "Decimal string in the currency's own precision; never a float.",
             "examples": [
               "1234.50"
@@ -22597,46 +24219,348 @@
               "1234.50"
             ]
           },
-          "rounding": {
-            "type": "string",
-            "enum": [
-              "nearest_rupee",
-              "truncate_rupee"
-            ],
-            "title": "Rounding"
-          },
-          "band_workings": {
+          "warnings": {
             "items": {
-              "$ref": "#/components/schemas/TaxBandWorking"
+              "type": "string"
             },
             "type": "array",
-            "title": "Band Workings"
+            "title": "Warnings"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance"
           }
         },
         "type": "object",
         "required": [
-          "pack_country",
-          "pack_year",
-          "pack_version",
+          "id",
+          "created_at",
+          "country",
+          "region",
+          "year",
+          "period_start",
+          "period_end",
           "currency",
-          "gross_income",
-          "foreign_service_income",
-          "regular_income",
-          "personal_relief_applied",
-          "qp_deduction",
-          "taxable_income",
-          "fsi_tax",
-          "tax_before_credits",
-          "apit_credit",
-          "ait_credit",
-          "foreign_tax_credit",
-          "total_credits",
+          "base_currency",
+          "rule_set_id",
+          "rule_set_version_id",
+          "version",
+          "content_hash",
+          "roles",
+          "answers",
+          "rates",
+          "lines",
+          "net",
           "tax_payable",
           "refund_due",
-          "rounding",
-          "band_workings"
+          "warnings",
+          "provenance"
         ],
-        "title": "TaxComputation"
+        "title": "TaxComputation",
+        "description": "The user's tax for one jurisdiction and year, as Salli's engine computed\nit from their active rule set version. Reproducible: it records that\nversion, its content hash and the inputs the engine was given."
+      },
+      "TaxComputeIn": {
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "title": "TaxComputeIn"
+      },
+      "TaxExplainIn": {
+        "properties": {
+          "line_key": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Line Key"
+          },
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "line_key"
+        ],
+        "title": "TaxExplainIn"
+      },
+      "TaxExplainedAnswer": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "title": "Value"
+          },
+          "default": {
+            "type": "boolean",
+            "title": "Default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "value",
+          "default"
+        ],
+        "title": "TaxExplainedAnswer"
+      },
+      "TaxExplainedBand": {
+        "properties": {
+          "upto": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upto"
+          },
+          "rate": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Rate",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "upto",
+          "rate"
+        ],
+        "title": "TaxExplainedBand"
+      },
+      "TaxExplainedInput": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "kind",
+          "total"
+        ],
+        "title": "TaxExplainedInput",
+        "description": "A ledger total the line used: the accounts carrying the tax role `key`."
+      },
+      "TaxExplainedLine": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "expr": {
+            "type": "string",
+            "title": "Expr"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "block": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block"
+          },
+          "refundable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundable"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxSourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "amount",
+          "expr",
+          "path",
+          "block",
+          "refundable",
+          "source"
+        ],
+        "title": "TaxExplainedLine"
+      },
+      "TaxExplainedLineRef": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "expr": {
+            "type": "string",
+            "title": "Expr"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "amount",
+          "expr"
+        ],
+        "title": "TaxExplainedLineRef"
+      },
+      "TaxExplainedTable": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/TaxExplainedBand"
+            },
+            "type": "array",
+            "title": "Bands"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxSourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "bands",
+          "source"
+        ],
+        "title": "TaxExplainedTable"
       },
       "TaxId": {
         "properties": {
@@ -22645,7 +24569,7 @@
             "pattern": "^[A-Z]{2}-[A-Z0-9]+$",
             "title": "Scheme",
             "examples": [
-              "LK-TIN"
+              "XX-TIN"
             ]
           },
           "value": {
@@ -22663,19 +24587,31 @@
         "title": "TaxId",
         "description": "A number a tax authority knows the user by."
       },
-      "TaxPack": {
+      "TaxLineExplanation": {
         "properties": {
           "country": {
             "type": "string",
-            "title": "Country"
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           },
           "year": {
             "type": "string",
             "title": "Year"
-          },
-          "version": {
-            "type": "string",
-            "title": "Version"
           },
           "currency": {
             "type": "string",
@@ -22686,88 +24622,463 @@
               "USD"
             ]
           },
-          "period_start": {
+          "rule_set_id": {
             "type": "string",
-            "title": "Period Start"
+            "title": "Rule Set Id"
           },
-          "period_end": {
+          "rule_set_version_id": {
             "type": "string",
-            "title": "Period End"
+            "title": "Rule Set Version Id"
           },
-          "personal_relief": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "line": {
+            "$ref": "#/components/schemas/TaxExplainedLine"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/TaxExplainedInput"
+            },
+            "type": "array",
+            "title": "Inputs"
+          },
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/TaxExplainedAnswer"
+            },
+            "type": "array",
+            "title": "Answers"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TaxExplainedLineRef"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/TaxExplainedTable"
+            },
+            "type": "array",
+            "title": "Tables"
+          },
+          "used_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Used By"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "region",
+          "year",
+          "currency",
+          "rule_set_id",
+          "rule_set_version_id",
+          "version",
+          "content_hash",
+          "line",
+          "inputs",
+          "answers",
+          "lines",
+          "tables",
+          "used_by",
+          "provenance"
+        ],
+        "title": "TaxLineExplanation",
+        "description": "Where one line of the user's tax came from, read off their rules and\nthe result: never worked out."
+      },
+      "TaxReturnDraft": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "computation_id": {
+            "type": "string",
+            "title": "Computation Id"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "rule_set_version_id": {
+            "type": "string",
+            "title": "Rule Set Version Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "net": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Personal Relief",
+            "title": "Net",
             "description": "Decimal string in the currency's own precision; never a float.",
             "examples": [
               "1234.50"
             ]
           },
-          "return_due": {
+          "tax_payable": {
             "type": "string",
-            "title": "Return Due"
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Tax Payable",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
-          "set_due": {
+          "refund_due": {
             "type": "string",
-            "title": "Set Due"
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Refund Due",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
           },
-          "installments": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "forms": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleForm"
+            },
+            "type": "array",
+            "title": "Forms"
+          },
+          "warnings": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Installments"
+            "title": "Warnings"
           },
-          "final_installment_due": {
+          "note": {
             "type": "string",
-            "title": "Final Installment Due"
+            "title": "Note"
           },
-          "withholding_kinds": {
-            "items": {
-              "$ref": "#/components/schemas/WithholdingKind"
-            },
-            "type": "array",
-            "title": "Withholding Kinds"
-          },
-          "tax_roles": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tax Roles"
+          "provenance": {
+            "type": "string",
+            "title": "Provenance"
           }
         },
         "type": "object",
         "required": [
           "country",
+          "region",
           "year",
-          "version",
           "currency",
-          "period_start",
-          "period_end",
-          "personal_relief",
-          "return_due",
-          "set_due",
-          "installments",
-          "final_installment_due",
-          "withholding_kinds",
-          "tax_roles"
+          "computation_id",
+          "rule_set_id",
+          "rule_set_version_id",
+          "version",
+          "content_hash",
+          "net",
+          "tax_payable",
+          "refund_due",
+          "lines",
+          "answers",
+          "forms",
+          "warnings",
+          "note",
+          "provenance"
         ],
-        "title": "TaxPack"
+        "title": "TaxReturnDraft",
+        "description": "A return, prepared for review: each form the rules define, filled in\nfrom a stored computation, with its filing instructions and URL."
       },
-      "TaxPackInfo": {
+      "TaxReturnPending": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "waiting": {
+            "type": "boolean",
+            "title": "Waiting"
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxReturnDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "waiting",
+          "draft"
+        ],
+        "title": "TaxReturnPending"
+      },
+      "TaxReturnPrepareIn": {
+        "properties": {
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z]{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "title": "TaxReturnPrepareIn"
+      },
+      "TaxReturnPrepared": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxReturnDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "error",
+          "draft"
+        ],
+        "title": "TaxReturnPrepared",
+        "description": "A return held for review under `thread_id`."
+      },
+      "TaxReturnResumeIn": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Thread Id"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "edit",
+              "reject"
+            ],
+            "title": "Decision"
+          },
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "decision"
+        ],
+        "title": "TaxReturnResumeIn"
+      },
+      "TaxReturnResumed": {
+        "properties": {
+          "worksheet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxReturnWorksheet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxReturnDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "type": "string",
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "worksheet",
+          "draft",
+          "error"
+        ],
+        "title": "TaxReturnResumed",
+        "description": "The outcome of a review."
+      },
+      "TaxReturnWorksheet": {
         "properties": {
           "country": {
             "type": "string",
-            "title": "Country"
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           },
           "year": {
             "type": "string",
             "title": "Year"
-          },
-          "version": {
-            "type": "string",
-            "title": "Version"
           },
           "currency": {
             "type": "string",
@@ -22778,6 +25089,332 @@
               "USD"
             ]
           },
+          "computation_id": {
+            "type": "string",
+            "title": "Computation Id"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "rule_set_version_id": {
+            "type": "string",
+            "title": "Rule Set Version Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "tax_payable": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Tax Payable",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "refund_due": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Refund Due",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "forms": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleForm"
+            },
+            "type": "array",
+            "title": "Forms"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance"
+          },
+          "status": {
+            "type": "string",
+            "const": "ready_to_file",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "region",
+          "year",
+          "currency",
+          "computation_id",
+          "rule_set_id",
+          "rule_set_version_id",
+          "version",
+          "content_hash",
+          "net",
+          "tax_payable",
+          "refund_due",
+          "lines",
+          "answers",
+          "forms",
+          "warnings",
+          "note",
+          "provenance",
+          "status"
+        ],
+        "title": "TaxReturnWorksheet",
+        "description": "An approved return: the draft, ready to file with the authority."
+      },
+      "TaxRuleChange": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "title": "Kind"
+          },
+          "before": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "after": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "figure": {
+            "type": "boolean",
+            "title": "Figure"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "figure",
+          "source"
+        ],
+        "title": "TaxRuleChange"
+      },
+      "TaxRuleDiff": {
+        "properties": {
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleChange"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "sources": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Sources"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleExampleResult"
+            },
+            "type": "array",
+            "title": "Examples"
+          },
+          "validation_ok": {
+            "type": "boolean",
+            "title": "Validation Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_set_id",
+          "from",
+          "to",
+          "changes",
+          "sources",
+          "examples",
+          "validation_ok"
+        ],
+        "title": "TaxRuleDiff"
+      },
+      "TaxRuleDocumentIn": {
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              }
+            ],
+            "title": "Document"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document"
+        ],
+        "title": "TaxRuleDocumentIn"
+      },
+      "TaxRuleEvaluateIn": {
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "type": "object",
+        "title": "TaxRuleEvaluateIn"
+      },
+      "TaxRuleEvaluation": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+          },
+          "validated": {
+            "type": "boolean",
+            "title": "Validated"
+          },
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
           "period_start": {
             "type": "string",
             "title": "Period Start"
@@ -22786,25 +25423,1100 @@
             "type": "string",
             "title": "Period End"
           },
-          "withholding_kinds": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "base_currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Base Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "roles": {
             "items": {
-              "$ref": "#/components/schemas/WithholdingKind"
+              "$ref": "#/components/schemas/TaxRuleRoleTotal"
             },
             "type": "array",
-            "title": "Withholding Kinds"
+            "title": "Roles"
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleRate"
+            },
+            "type": "array",
+            "title": "Rates"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "net_expr": {
+            "type": "string",
+            "title": "Net Expr"
+          },
+          "tax_payable": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Tax Payable",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "refund_due": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Refund Due",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "forms": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleForm"
+            },
+            "type": "array",
+            "title": "Forms"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance"
           }
         },
         "type": "object",
         "required": [
-          "country",
-          "year",
           "version",
-          "currency",
+          "validated",
+          "country",
+          "region",
+          "year",
           "period_start",
           "period_end",
-          "withholding_kinds"
+          "currency",
+          "base_currency",
+          "content_hash",
+          "roles",
+          "rates",
+          "lines",
+          "net",
+          "net_expr",
+          "tax_payable",
+          "refund_due",
+          "forms",
+          "warnings",
+          "provenance"
         ],
-        "title": "TaxPackInfo"
+        "title": "TaxRuleEvaluation",
+        "description": "A version's rules applied to the user's ledger. Nothing is stored."
+      },
+      "TaxRuleExampleResult": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "mismatches": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleMismatch"
+            },
+            "type": "array",
+            "title": "Mismatches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "passed",
+          "error",
+          "mismatches"
+        ],
+        "title": "TaxRuleExampleResult"
+      },
+      "TaxRuleExport": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "canonical": {
+            "type": "boolean",
+            "title": "Canonical"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "content_hash",
+          "canonical",
+          "text"
+        ],
+        "title": "TaxRuleExport"
+      },
+      "TaxRuleForm": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleFormField"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "instructions",
+          "url",
+          "fields"
+        ],
+        "title": "TaxRuleForm",
+        "description": "A return form the rules define, filled in from a result."
+      },
+      "TaxRuleFormField": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "value"
+        ],
+        "title": "TaxRuleFormField"
+      },
+      "TaxRuleImportIn": {
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "TaxRuleImportIn",
+        "description": "A rule set to import, from a document or an https URL (one of them)."
+      },
+      "TaxRuleLine": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "expr": {
+            "type": "string",
+            "title": "Expr"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "refundable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "amount",
+          "expr",
+          "source",
+          "refundable"
+        ],
+        "title": "TaxRuleLine"
+      },
+      "TaxRuleMismatch": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "expected": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expected",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "got": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Got",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "expr": {
+            "type": "string",
+            "title": "Expr"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "expected",
+          "got",
+          "expr",
+          "message"
+        ],
+        "title": "TaxRuleMismatch"
+      },
+      "TaxRuleProblem": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "message"
+        ],
+        "title": "TaxRuleProblem"
+      },
+      "TaxRuleRate": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "rate": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Rate",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "rate",
+          "source"
+        ],
+        "title": "TaxRuleRate"
+      },
+      "TaxRuleRoleTotal": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "income",
+              "deduction",
+              "withholding",
+              "other"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "postings": {
+            "type": "integer",
+            "title": "Postings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "label",
+          "total",
+          "postings"
+        ],
+        "title": "TaxRuleRoleTotal"
+      },
+      "TaxRuleSet": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year_label": {
+            "type": "string",
+            "title": "Year Label"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "active_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleSetVersionSummary"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "country",
+          "region",
+          "year_label",
+          "name",
+          "active_version_id",
+          "created_at",
+          "updated_at",
+          "versions"
+        ],
+        "title": "TaxRuleSet"
+      },
+      "TaxRuleSetVersion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "validated",
+              "proposed",
+              "active",
+              "superseded",
+              "invalid"
+            ],
+            "title": "Status"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "author_kind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "agent"
+            ],
+            "title": "Author Kind"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "change_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "proposed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed At"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          },
+          "document": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Document"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/TaxRuleValidation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule_set_id",
+          "version",
+          "status",
+          "content_hash",
+          "author_kind",
+          "author_name",
+          "change_note",
+          "created_at",
+          "proposed_at",
+          "activated_at",
+          "superseded_at",
+          "document",
+          "validation"
+        ],
+        "title": "TaxRuleSetVersion"
+      },
+      "TaxRuleSetVersionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "validated",
+              "proposed",
+              "active",
+              "superseded",
+              "invalid"
+            ],
+            "title": "Status"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "author_kind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "agent"
+            ],
+            "title": "Author Kind"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "change_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "proposed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed At"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule_set_id",
+          "version",
+          "status",
+          "content_hash",
+          "author_kind",
+          "author_name",
+          "change_note",
+          "created_at",
+          "proposed_at",
+          "activated_at",
+          "superseded_at"
+        ],
+        "title": "TaxRuleSetVersionSummary"
+      },
+      "TaxRuleValidation": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "validated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Validated At"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleProblem"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleProblem"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleExampleResult"
+            },
+            "type": "array",
+            "title": "Examples"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "content_hash",
+          "validated_at",
+          "errors",
+          "warnings",
+          "examples"
+        ],
+        "title": "TaxRuleValidation",
+        "description": "The validator's report (docs/taxrules.md, \"Validation\"). `ok` only with\nno errors, at least one worked example, and every example passing."
+      },
+      "TaxSourceRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "retrieved": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "title",
+          "retrieved"
+        ],
+        "title": "TaxSourceRef"
+      },
+      "TaxSuggestedAccount": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "income",
+              "expense"
+            ],
+            "title": "Type"
+          },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "created",
+              "exists"
+            ],
+            "title": "Status"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "type",
+          "tax_role",
+          "status",
+          "account_id",
+          "note"
+        ],
+        "title": "TaxSuggestedAccount"
+      },
+      "TaxSuggestedAccounts": {
+        "properties": {
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "applied": {
+            "type": "boolean",
+            "title": "Applied"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/TaxSuggestedAccount"
+            },
+            "type": "array",
+            "title": "Accounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_set_id",
+          "version_id",
+          "version",
+          "applied",
+          "accounts"
+        ],
+        "title": "TaxSuggestedAccounts"
+      },
+      "TaxSuggestedAccountsIn": {
+        "properties": {
+          "version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "type": "object",
+        "title": "TaxSuggestedAccountsIn"
       },
       "TaxYearStatus": {
         "properties": {
@@ -22829,8 +26541,8 @@
               {
                 "type": "string",
                 "enum": [
-                  "tax_residency",
-                  "base_currency"
+                  "given",
+                  "tax_residency"
                 ]
               },
               {
@@ -22849,6 +26561,17 @@
               }
             ],
             "title": "Year"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           },
           "start": {
             "anyOf": [
@@ -22872,9 +26595,38 @@
             ],
             "title": "End"
           },
-          "has_pack": {
-            "type": "boolean",
-            "title": "Has Pack"
+          "rule_set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Set Id"
+          },
+          "rule_set_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Set Version Id"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           },
           "latest_year": {
             "anyOf": [
@@ -22886,6 +26638,17 @@
               }
             ],
             "title": "Latest Year"
+          },
+          "latest_rule_set_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Rule Set Version Id"
           }
         },
         "type": "object",
@@ -22893,13 +26656,17 @@
           "country",
           "country_source",
           "year",
+          "region",
           "start",
           "end",
-          "has_pack",
-          "latest_year"
+          "rule_set_id",
+          "rule_set_version_id",
+          "version",
+          "latest_year",
+          "latest_rule_set_version_id"
         ],
         "title": "TaxYearStatus",
-        "description": "The tax year the user is in today, and the latest one Salli can compute."
+        "description": "The tax year the user is in today, and the one a computation uses when\nno year is named."
       },
       "TokenGrant": {
         "properties": {
@@ -23058,12 +26825,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "apit_credit",
-                  "ait_credit",
-                  "foreign_tax_credit",
-                  "qualifying_payment",
-                  "fsi_income"
+                "pattern": "^[a-z][a-z0-9_]{0,29}$",
+                "description": "A role one of the user's tax rule sets declares.",
+                "examples": [
+                  "salary"
                 ]
               },
               {
@@ -23094,30 +26859,6 @@
         ],
         "title": "Updated",
         "description": "What the updates that predate `Ref` return instead of an id."
-      },
-      "WithholdingKind": {
-        "properties": {
-          "code": {
-            "type": "string",
-            "title": "Code"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          }
-        },
-        "type": "object",
-        "required": [
-          "code",
-          "label",
-          "description"
-        ],
-        "title": "WithholdingKind",
-        "description": "Tax withheld or paid ahead of the return that a pack credits against the bill."
       },
       "deviceAuthorization": {
         "properties": {

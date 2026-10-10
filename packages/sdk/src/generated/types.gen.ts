@@ -41,7 +41,7 @@ export type Account = {
     /**
      * Tax Role
      */
-    tax_role?: 'apit_credit' | 'ait_credit' | 'foreign_tax_credit' | 'qualifying_payment' | 'fsi_income' | null;
+    tax_role?: string | null;
 };
 
 /**
@@ -223,7 +223,7 @@ export type AddAccountRequest = {
     /**
      * Tax Role
      */
-    tax_role?: 'apit_credit' | 'ait_credit' | 'foreign_tax_credit' | 'qualifying_payment' | 'fsi_income' | null;
+    tax_role?: string | null;
 };
 
 /**
@@ -696,6 +696,10 @@ export type AuthIdentity = {
      * Method
      */
     method: 'session' | 'oauth' | 'pat' | 'dev';
+    /**
+     * Permissions
+     */
+    permissions: Array<'tax:activate'>;
 };
 
 /**
@@ -1998,6 +2002,10 @@ export type CreateTokenRequest = {
      * Expires In Days
      */
     expires_in_days?: number | null;
+    /**
+     * Permissions
+     */
+    permissions?: Array<'tax:activate'>;
 };
 
 /**
@@ -2046,18 +2054,10 @@ export type DataExport = {
      */
     journal_entries: Array<ExportedJournalEntry>;
     /**
-     * Tax Computation 2025 26
-     *
-     * The latest 2025/26 computation as the tax engine recorded it, or null.
-     * Kept for tools that read it; `tax_computations` has every year.
-     */
-    tax_computation_2025_26: {
-        [key: string]: unknown;
-    } | null;
-    /**
      * Tax Computations
      *
-     * The latest computation for each tax year a pack covers, as recorded.
+     * Every stored tax computation, newest first, as `tax.latest` shows one:
+     * the rule set version that computed it, its inputs and every line.
      */
     tax_computations?: Array<{
         [key: string]: unknown;
@@ -2585,7 +2585,7 @@ export type ExportedPosting = {
 /**
  * FiAssumption
  *
- * One planning assumption, and where it came from.
+ * One planning assumption a figure was computed with, and where it came from.
  */
 export type FiAssumption = {
     /**
@@ -2595,7 +2595,169 @@ export type FiAssumption = {
     /**
      * Origin
      */
-    origin: 'user' | 'strategy' | 'default';
+    origin: 'user' | 'strategy' | 'placeholder';
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * FiAssumptions
+ *
+ * The assumptions these figures were computed with, in real terms.
+ *
+ * Check `status`: "placeholder" means at least one figure (`placeholders`
+ * says which) is a neutral stand-in, not a forecast and not any country's
+ * figure; set your own with `PATCH /v1/fi/assumptions`.
+ */
+export type FiAssumptions = {
+    /**
+     * Status
+     */
+    status: 'placeholder' | 'user';
+    /**
+     * Placeholders
+     */
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate'>;
+    /**
+     * Message
+     */
+    message: string;
+    real_return: FiAssumption;
+    safe_withdrawal_rate: FiAssumption;
+    inflation?: FiAssumption | null;
+    nominal_return?: FiAssumption | null;
+    real_returns: FiScenarioReturns;
+    nominal_returns?: FiScenarioReturns | null;
+};
+
+/**
+ * FiAssumptionsReport
+ *
+ * The assumptions the user's FI figures use, what they set themselves,
+ * and the placeholders that stand in for the rest.
+ */
+export type FiAssumptionsReport = {
+    applied: FiAssumptions;
+    own: FiOwnAssumptions;
+    placeholder_values: FiPlaceholderValues;
+    /**
+     * Scenario Spread
+     */
+    scenario_spread: string;
+};
+
+/**
+ * FiAssumptionsUpdate
+ *
+ * Set the user's own planning assumptions. Only the fields sent change;
+ * an explicit null clears one (a placeholder, or the FIRE strategy's figure,
+ * stands in again). Set a real return or a nominal one, not both; a nominal
+ * return needs inflation.
+ */
+export type FiAssumptionsUpdate = {
+    real_return?: FiOwnAssumptionIn | null;
+    nominal_return?: FiOwnAssumptionIn | null;
+    inflation?: FiOwnAssumptionIn | null;
+    safe_withdrawal_rate?: FiOwnAssumptionIn | null;
+};
+
+/**
+ * FiNominalPoint
+ *
+ * A year's projected values in that year's own money, from the user's inflation.
+ */
+export type FiNominalPoint = {
+    /**
+     * Conservative
+     */
+    conservative?: string | null;
+    /**
+     * Base
+     */
+    base?: string | null;
+    /**
+     * Growth
+     */
+    growth?: string | null;
+    /**
+     * Fi Number
+     */
+    fi_number?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * FiOwnAssumption
+ *
+ * A planning assumption the user (or their agent) set.
+ */
+export type FiOwnAssumption = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Set At
+     */
+    set_at?: string | null;
+};
+
+/**
+ * FiOwnAssumptionIn
+ *
+ * One planning assumption to set.
+ */
+export type FiOwnAssumptionIn = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * FiOwnAssumptions
+ *
+ * What the user set themselves; null where they have not.
+ */
+export type FiOwnAssumptions = {
+    real_return?: FiOwnAssumption | null;
+    nominal_return?: FiOwnAssumption | null;
+    inflation?: FiOwnAssumption | null;
+    safe_withdrawal_rate?: FiOwnAssumption | null;
+};
+
+/**
+ * FiPlaceholder
+ *
+ * The neutral stand-in used where the user has set nothing.
+ */
+export type FiPlaceholder = {
+    /**
+     * Value
+     */
+    value: string;
     /**
      * Source
      */
@@ -2603,74 +2765,11 @@ export type FiAssumption = {
 };
 
 /**
- * FiAssumptionOverrides
- *
- * The planning assumptions the user set themselves; null where they use
- * the default for their currency. Yearly fractions in decimal strings.
+ * FiPlaceholderValues
  */
-export type FiAssumptionOverrides = {
-    /**
-     * Inflation
-     */
-    inflation?: string | null;
-    /**
-     * Real Return
-     */
-    real_return?: string | null;
-    /**
-     * Safe Withdrawal Rate
-     */
-    safe_withdrawal_rate?: string | null;
-};
-
-/**
- * FiAssumptionOverridesIn
- *
- * Set the user's own planning assumptions, as yearly fractions ("0.03" is
- * 3%). Only the fields sent change; an explicit null returns one to the
- * default for their currency.
- */
-export type FiAssumptionOverridesIn = {
-    /**
-     * Inflation
-     */
-    inflation?: string | null;
-    /**
-     * Real Return
-     */
-    real_return?: string | null;
-    /**
-     * Safe Withdrawal Rate
-     */
-    safe_withdrawal_rate?: string | null;
-};
-
-/**
- * FiAssumptions
- *
- * The assumptions these figures were computed with. Defaults are round,
- * conservative starting points to adjust, never forecasts.
- */
-export type FiAssumptions = {
-    /**
-     * Region
-     */
-    region: string;
-    inflation: FiAssumption;
-    real_return: FiAssumption;
-    safe_withdrawal_rate: FiAssumption;
-};
-
-/**
- * FiAssumptionsReport
- *
- * The assumptions the user's FI figures use, the defaults for their
- * currency, and what they set themselves.
- */
-export type FiAssumptionsReport = {
-    applied: FiAssumptions;
-    defaults: FiAssumptions;
-    overrides: FiAssumptionOverrides;
+export type FiPlaceholderValues = {
+    real_return: FiPlaceholder;
+    safe_withdrawal_rate: FiPlaceholder;
 };
 
 /**
@@ -2695,13 +2794,17 @@ export type FiProjectionPoint = {
      * Growth
      */
     growth?: string | null;
+    nominal?: FiNominalPoint | null;
     [key: string]: unknown;
 };
 
 /**
  * FiProjections
  *
- * The FI asset base projected forward under three return scenarios, in today's money.
+ * The FI asset base projected forward under three real-return scenarios,
+ * in today's money, and in each year's own money when the user set their
+ * inflation. Never waits for assumptions: `assumptions.status` says when a
+ * placeholder stands in.
  *
  * A deployment's entitlement policy may withhold parts of this and add fields
  * of its own, so every field is optional.
@@ -2711,6 +2814,10 @@ export type FiProjections = {
      * Currency
      */
     currency?: string | null;
+    /**
+     * Terms
+     */
+    terms?: 'real' | 'real_and_nominal' | null;
     /**
      * Points
      */
@@ -2741,9 +2848,10 @@ export type FiProjections = {
     current_portfolio?: string | null;
     real_returns?: FiScenarioReturns | null;
     /**
-     * Expected Inflation
+     * Inflation
      */
-    expected_inflation?: string | null;
+    inflation?: string | null;
+    nominal_returns?: FiScenarioReturns | null;
     assumptions?: FiAssumptions | null;
     [key: string]: unknown;
 };
@@ -2751,7 +2859,7 @@ export type FiProjections = {
 /**
  * FiScenarioReturns
  *
- * Real (after-inflation) yearly returns per scenario, as fractions in decimal strings.
+ * Yearly returns per scenario, as fractions in decimal strings.
  */
 export type FiScenarioReturns = {
     /**
@@ -3006,7 +3114,8 @@ export type FinanceSignals = {
  *
  * A version of the user's AI-generated FIRE strategy.
  *
- * Rates are fractions (0.04 is 4%), and the returns are nominal and yearly.
+ * Rates are fractions (0.04 is 4%), and the returns are yearly and real
+ * (after inflation).
  * Every field is optional: a strategy stored by an earlier version can lack
  * some, and a deployment's entitlement policy may withhold parts of it and
  * add fields of its own.
@@ -3029,17 +3138,17 @@ export type FireStrategy = {
      */
     swr?: number | null;
     /**
-     * Return Conservative
+     * Real Return Conservative
      */
-    return_conservative?: number | null;
+    real_return_conservative?: number | null;
     /**
-     * Return Base
+     * Real Return Base
      */
-    return_base?: number | null;
+    real_return_base?: number | null;
     /**
-     * Return Growth
+     * Real Return Growth
      */
-    return_growth?: number | null;
+    real_return_growth?: number | null;
     /**
      * Target Monthly Expenses
      */
@@ -4199,6 +4308,8 @@ export type JournalEntry = {
     postings: Array<Posting>;
 };
 
+export type JsonValue = unknown;
+
 /**
  * LatestTaxComputation
  */
@@ -4401,10 +4512,6 @@ export type Meta = {
      * Extensions
      */
     extensions: Array<string>;
-    /**
-     * Tax Packs
-     */
-    tax_packs: Array<TaxPackInfo>;
     oauth: OAuthInfo;
     /**
      * Default Currency
@@ -4581,6 +4688,10 @@ export type NewPersonalAccessToken = {
      */
     prefix: string;
     /**
+     * Permissions
+     */
+    permissions: Array<'tax:activate'>;
+    /**
      * Created At
      */
     created_at: string;
@@ -4676,6 +4787,10 @@ export type OAuthInfo = {
      * Device Verification Uri
      */
     device_verification_uri: string;
+    /**
+     * Cli Client Id
+     */
+    cli_client_id: string;
 };
 
 /**
@@ -4721,9 +4836,9 @@ export type OnboardingRequest = {
      */
     tax_residency?: string | null;
     /**
-     * Nic
+     * Tax Ids
      */
-    nic?: string;
+    tax_ids?: Array<TaxId>;
     /**
      * Residency
      */
@@ -4736,10 +4851,6 @@ export type OnboardingRequest = {
      * Employment Type
      */
     employment_type?: string;
-    /**
-     * Ird Number
-     */
-    ird_number?: string;
     /**
      * Income Sources
      */
@@ -5089,6 +5200,10 @@ export type PersonalAccessToken = {
      */
     prefix: string;
     /**
+     * Permissions
+     */
+    permissions: Array<'tax:activate'>;
+    /**
      * Created At
      */
     created_at: string;
@@ -5435,10 +5550,6 @@ export type Profile = {
      */
     employment_type: string | null;
     /**
-     * Ird Number
-     */
-    ird_number: string | null;
-    /**
      * Risk Score
      */
     risk_score: number | null;
@@ -5470,11 +5581,6 @@ export type Profile = {
      * Tax Ids
      */
     tax_ids?: Array<TaxId>;
-    /**
-     * Nic
-     */
-    nic?: string | null;
-    fi_assumptions?: FiAssumptionOverrides;
 };
 
 /**
@@ -5517,15 +5623,6 @@ export type ProfileIdentityRequest = {
      * Tax Ids
      */
     tax_ids?: Array<TaxId> | null;
-    /**
-     * Ird Number
-     */
-    ird_number?: string | null;
-    /**
-     * Nic
-     */
-    nic?: string | null;
-    fi_assumptions?: FiAssumptionOverridesIn | null;
     /**
      * Base Currency
      */
@@ -6142,16 +6239,6 @@ export type ResumeRequest = {
      */
     decision: string;
     /**
-     * Workflow
-     */
-    workflow?: string;
-    /**
-     * Edits
-     */
-    edits?: {
-        [key: string]: unknown;
-    } | null;
-    /**
      * Persona
      */
     persona?: 'scrooge' | 'buddy';
@@ -6515,6 +6602,14 @@ export type SeededReminders = {
      * Ids
      */
     ids: Array<string>;
+    /**
+     * Updated
+     */
+    updated: Array<string>;
+    /**
+     * Removed
+     */
+    removed: Array<string>;
 };
 
 /**
@@ -7104,61 +7199,43 @@ export type TargetRequest = {
 };
 
 /**
- * TaxBandWorking
- */
-export type TaxBandWorking = {
-    /**
-     * Band
-     */
-    band: string;
-    /**
-     * Rate
-     */
-    rate: string;
-    /**
-     * From Amount
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    from_amount: string;
-    /**
-     * To Amount
-     */
-    to_amount: string | null;
-    /**
-     * Rate Fraction
-     */
-    rate_fraction: string;
-    /**
-     * Taxable In Band
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    taxable_in_band: string;
-    /**
-     * Tax
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    tax: string;
-};
-
-/**
  * TaxComputation
+ *
+ * The user's tax for one jurisdiction and year, as Salli's engine computed
+ * it from their active rule set version. Reproducible: it records that
+ * version, its content hash and the inputs the engine was given.
  */
 export type TaxComputation = {
     /**
-     * Pack Country
+     * Id
      */
-    pack_country: string;
+    id: string | null;
     /**
-     * Pack Year
+     * Created At
      */
-    pack_year: string;
+    created_at: string | null;
     /**
-     * Pack Version
+     * Country
+     *
+     * ISO 3166-1 alpha-2 country code
      */
-    pack_version: string;
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
     /**
      * Currency
      *
@@ -7166,77 +7243,51 @@ export type TaxComputation = {
      */
     currency: string;
     /**
-     * Gross Income
+     * Base Currency
      *
-     * Decimal string in the currency's own precision; never a float.
+     * ISO 4217 currency code
      */
-    gross_income: string;
+    base_currency: string;
     /**
-     * Foreign Service Income
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Rule Set Id
      */
-    foreign_service_income: string;
+    rule_set_id: string;
     /**
-     * Regular Income
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Rule Set Version Id
      */
-    regular_income: string;
+    rule_set_version_id: string;
     /**
-     * Personal Relief Applied
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Version
      */
-    personal_relief_applied: string;
+    version: number;
     /**
-     * Qp Deduction
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Content Hash
      */
-    qp_deduction: string;
+    content_hash: string;
     /**
-     * Taxable Income
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Roles
      */
-    taxable_income: string;
+    roles: Array<TaxRuleRoleTotal>;
     /**
-     * Fsi Tax
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Answers
      */
-    fsi_tax: string;
+    answers: {
+        [key: string]: string | boolean;
+    };
     /**
-     * Tax Before Credits
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Rates
      */
-    tax_before_credits: string;
+    rates: Array<TaxRuleRate>;
     /**
-     * Apit Credit
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Lines
      */
-    apit_credit: string;
+    lines: Array<TaxRuleLine>;
     /**
-     * Ait Credit
+     * Net
      *
      * Decimal string in the currency's own precision; never a float.
      */
-    ait_credit: string;
-    /**
-     * Foreign Tax Credit
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    foreign_tax_credit: string;
-    /**
-     * Total Credits
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    total_credits: string;
+    net: string;
     /**
      * Tax Payable
      *
@@ -7250,13 +7301,185 @@ export type TaxComputation = {
      */
     refund_due: string;
     /**
-     * Rounding
+     * Warnings
      */
-    rounding: 'nearest_rupee' | 'truncate_rupee';
+    warnings: Array<string>;
     /**
-     * Band Workings
+     * Provenance
      */
-    band_workings: Array<TaxBandWorking>;
+    provenance: string;
+};
+
+/**
+ * TaxComputeIn
+ */
+export type TaxComputeIn = {
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: string | boolean;
+    };
+};
+
+/**
+ * TaxExplainIn
+ */
+export type TaxExplainIn = {
+    /**
+     * Line Key
+     */
+    line_key: string;
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: string | boolean;
+    };
+};
+
+/**
+ * TaxExplainedAnswer
+ */
+export type TaxExplainedAnswer = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value: string | boolean;
+    /**
+     * Default
+     */
+    default: boolean;
+};
+
+/**
+ * TaxExplainedBand
+ */
+export type TaxExplainedBand = {
+    /**
+     * Upto
+     */
+    upto: string | null;
+    /**
+     * Rate
+     *
+     * Decimal string, exact; never a float.
+     */
+    rate: string;
+};
+
+/**
+ * TaxExplainedInput
+ *
+ * A ledger total the line used: the accounts carrying the tax role `key`.
+ */
+export type TaxExplainedInput = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Total
+     *
+     * Decimal string, exact; never a float.
+     */
+    total: string;
+};
+
+/**
+ * TaxExplainedLine
+ */
+export type TaxExplainedLine = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Amount
+     *
+     * Decimal string, exact; never a float.
+     */
+    amount: string;
+    /**
+     * Expr
+     */
+    expr: string;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Block
+     */
+    block: string | null;
+    /**
+     * Refundable
+     */
+    refundable: boolean | null;
+    source: TaxSourceRef | null;
+};
+
+/**
+ * TaxExplainedLineRef
+ */
+export type TaxExplainedLineRef = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Amount
+     *
+     * Decimal string, exact; never a float.
+     */
+    amount: string;
+    /**
+     * Expr
+     */
+    expr: string;
+};
+
+/**
+ * TaxExplainedTable
+ */
+export type TaxExplainedTable = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string | null;
+    /**
+     * Bands
+     */
+    bands: Array<TaxExplainedBand>;
+    source: TaxSourceRef | null;
 };
 
 /**
@@ -7276,21 +7499,26 @@ export type TaxId = {
 };
 
 /**
- * TaxPack
+ * TaxLineExplanation
+ *
+ * Where one line of the user's tax came from, read off their rules and
+ * the result: never worked out.
  */
-export type TaxPack = {
+export type TaxLineExplanation = {
     /**
      * Country
+     *
+     * ISO 3166-1 alpha-2 country code
      */
     country: string;
+    /**
+     * Region
+     */
+    region: string | null;
     /**
      * Year
      */
     year: string;
-    /**
-     * Version
-     */
-    version: string;
     /**
      * Currency
      *
@@ -7298,67 +7526,444 @@ export type TaxPack = {
      */
     currency: string;
     /**
-     * Period Start
+     * Rule Set Id
      */
-    period_start: string;
+    rule_set_id: string;
     /**
-     * Period End
+     * Rule Set Version Id
      */
-    period_end: string;
+    rule_set_version_id: string;
     /**
-     * Personal Relief
-     *
-     * Decimal string in the currency's own precision; never a float.
+     * Version
      */
-    personal_relief: string;
+    version: number;
     /**
-     * Return Due
+     * Content Hash
      */
-    return_due: string;
+    content_hash: string;
+    line: TaxExplainedLine;
     /**
-     * Set Due
+     * Inputs
      */
-    set_due: string;
+    inputs: Array<TaxExplainedInput>;
     /**
-     * Installments
+     * Answers
      */
-    installments: Array<string>;
+    answers: Array<TaxExplainedAnswer>;
     /**
-     * Final Installment Due
+     * Lines
      */
-    final_installment_due: string;
+    lines: Array<TaxExplainedLineRef>;
     /**
-     * Withholding Kinds
+     * Tables
      */
-    withholding_kinds: Array<WithholdingKind>;
+    tables: Array<TaxExplainedTable>;
     /**
-     * Tax Roles
+     * Used By
      */
-    tax_roles: Array<string>;
+    used_by: Array<string>;
+    /**
+     * Provenance
+     */
+    provenance: string;
 };
 
 /**
- * TaxPackInfo
+ * TaxReturnDraft
+ *
+ * A return, prepared for review: each form the rules define, filled in
+ * from a stored computation, with its filing instructions and URL.
  */
-export type TaxPackInfo = {
+export type TaxReturnDraft = {
     /**
      * Country
+     *
+     * ISO 3166-1 alpha-2 country code
      */
     country: string;
+    /**
+     * Region
+     */
+    region: string | null;
     /**
      * Year
      */
     year: string;
-    /**
-     * Version
-     */
-    version: string;
     /**
      * Currency
      *
      * ISO 4217 currency code
      */
     currency: string;
+    /**
+     * Computation Id
+     */
+    computation_id: string;
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Rule Set Version Id
+     */
+    rule_set_version_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Net
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net: string;
+    /**
+     * Tax Payable
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    tax_payable: string;
+    /**
+     * Refund Due
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    refund_due: string;
+    /**
+     * Lines
+     */
+    lines: Array<TaxRuleLine>;
+    /**
+     * Answers
+     */
+    answers: {
+        [key: string]: string | boolean;
+    };
+    /**
+     * Forms
+     */
+    forms: Array<TaxRuleForm>;
+    /**
+     * Warnings
+     */
+    warnings: Array<string>;
+    /**
+     * Note
+     */
+    note: string;
+    /**
+     * Provenance
+     */
+    provenance: string;
+};
+
+/**
+ * TaxReturnPending
+ */
+export type TaxReturnPending = {
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Waiting
+     */
+    waiting: boolean;
+    draft: TaxReturnDraft | null;
+};
+
+/**
+ * TaxReturnPrepareIn
+ */
+export type TaxReturnPrepareIn = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Year
+     */
+    year?: string | null;
+    /**
+     * Country
+     */
+    country?: string | null;
+    /**
+     * Region
+     */
+    region?: string | null;
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: string | boolean;
+    };
+};
+
+/**
+ * TaxReturnPrepared
+ *
+ * A return held for review under `thread_id`.
+ */
+export type TaxReturnPrepared = {
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Error
+     */
+    error: string;
+    draft: TaxReturnDraft | null;
+};
+
+/**
+ * TaxReturnResumeIn
+ */
+export type TaxReturnResumeIn = {
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Decision
+     */
+    decision: 'approve' | 'edit' | 'reject';
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: string | boolean;
+    };
+};
+
+/**
+ * TaxReturnResumed
+ *
+ * The outcome of a review.
+ */
+export type TaxReturnResumed = {
+    worksheet: TaxReturnWorksheet | null;
+    draft: TaxReturnDraft | null;
+    /**
+     * Error
+     */
+    error: string;
+};
+
+/**
+ * TaxReturnWorksheet
+ *
+ * An approved return: the draft, ready to file with the authority.
+ */
+export type TaxReturnWorksheet = {
+    /**
+     * Country
+     *
+     * ISO 3166-1 alpha-2 country code
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Computation Id
+     */
+    computation_id: string;
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Rule Set Version Id
+     */
+    rule_set_version_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Net
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net: string;
+    /**
+     * Tax Payable
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    tax_payable: string;
+    /**
+     * Refund Due
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    refund_due: string;
+    /**
+     * Lines
+     */
+    lines: Array<TaxRuleLine>;
+    /**
+     * Answers
+     */
+    answers: {
+        [key: string]: string | boolean;
+    };
+    /**
+     * Forms
+     */
+    forms: Array<TaxRuleForm>;
+    /**
+     * Warnings
+     */
+    warnings: Array<string>;
+    /**
+     * Note
+     */
+    note: string;
+    /**
+     * Provenance
+     */
+    provenance: string;
+    /**
+     * Status
+     */
+    status: 'ready_to_file';
+};
+
+/**
+ * TaxRuleChange
+ */
+export type TaxRuleChange = {
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Kind
+     */
+    kind: 'added' | 'removed' | 'changed';
+    before?: JsonValue;
+    after?: JsonValue;
+    /**
+     * Figure
+     */
+    figure: boolean;
+    /**
+     * Source
+     */
+    source: string | null;
+};
+
+/**
+ * TaxRuleDiff
+ */
+export type TaxRuleDiff = {
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    from: TaxRuleSetVersionSummary | null;
+    to: TaxRuleSetVersionSummary;
+    /**
+     * Changes
+     */
+    changes: Array<TaxRuleChange>;
+    /**
+     * Sources
+     */
+    sources: {
+        [key: string]: {
+            [key: string]: JsonValue;
+        };
+    };
+    /**
+     * Examples
+     */
+    examples: Array<TaxRuleExampleResult>;
+    /**
+     * Validation Ok
+     */
+    validation_ok: boolean;
+};
+
+/**
+ * TaxRuleDocumentIn
+ */
+export type TaxRuleDocumentIn = {
+    /**
+     * Document
+     */
+    document: string | {
+        [key: string]: JsonValue;
+    };
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * TaxRuleEvaluateIn
+ */
+export type TaxRuleEvaluateIn = {
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: string | boolean;
+    };
+    /**
+     * Year
+     */
+    year?: string | null;
+};
+
+/**
+ * TaxRuleEvaluation
+ *
+ * A version's rules applied to the user's ledger. Nothing is stored.
+ */
+export type TaxRuleEvaluation = {
+    version: TaxRuleSetVersionSummary;
+    /**
+     * Validated
+     */
+    validated: boolean;
+    /**
+     * Country
+     *
+     * ISO 3166-1 alpha-2 country code
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
     /**
      * Period Start
      */
@@ -7368,15 +7973,598 @@ export type TaxPackInfo = {
      */
     period_end: string;
     /**
-     * Withholding Kinds
+     * Currency
+     *
+     * ISO 4217 currency code
      */
-    withholding_kinds: Array<WithholdingKind>;
+    currency: string;
+    /**
+     * Base Currency
+     *
+     * ISO 4217 currency code
+     */
+    base_currency: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Roles
+     */
+    roles: Array<TaxRuleRoleTotal>;
+    /**
+     * Rates
+     */
+    rates: Array<TaxRuleRate>;
+    /**
+     * Lines
+     */
+    lines: Array<TaxRuleLine>;
+    /**
+     * Net
+     *
+     * Decimal string, exact; never a float.
+     */
+    net: string;
+    /**
+     * Net Expr
+     */
+    net_expr: string;
+    /**
+     * Tax Payable
+     *
+     * Decimal string, exact; never a float.
+     */
+    tax_payable: string;
+    /**
+     * Refund Due
+     *
+     * Decimal string, exact; never a float.
+     */
+    refund_due: string;
+    /**
+     * Forms
+     */
+    forms: Array<TaxRuleForm>;
+    /**
+     * Warnings
+     */
+    warnings: Array<string>;
+    /**
+     * Provenance
+     */
+    provenance: string;
+};
+
+/**
+ * TaxRuleExampleResult
+ */
+export type TaxRuleExampleResult = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Passed
+     */
+    passed: boolean;
+    /**
+     * Error
+     */
+    error: string | null;
+    /**
+     * Mismatches
+     */
+    mismatches: Array<TaxRuleMismatch>;
+};
+
+/**
+ * TaxRuleExport
+ */
+export type TaxRuleExport = {
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string | null;
+    /**
+     * Canonical
+     */
+    canonical: boolean;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * TaxRuleForm
+ *
+ * A return form the rules define, filled in from a result.
+ */
+export type TaxRuleForm = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Instructions
+     */
+    instructions: string | null;
+    /**
+     * Url
+     */
+    url: string | null;
+    /**
+     * Fields
+     */
+    fields: Array<TaxRuleFormField>;
+};
+
+/**
+ * TaxRuleFormField
+ */
+export type TaxRuleFormField = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value: string | boolean;
+};
+
+/**
+ * TaxRuleImportIn
+ *
+ * A rule set to import, from a document or an https URL (one of them).
+ */
+export type TaxRuleImportIn = {
+    /**
+     * Document
+     */
+    document?: string | {
+        [key: string]: JsonValue;
+    } | null;
+    /**
+     * Url
+     */
+    url?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * TaxRuleLine
+ */
+export type TaxRuleLine = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Amount
+     *
+     * Decimal string, exact; never a float.
+     */
+    amount: string;
+    /**
+     * Expr
+     */
+    expr: string;
+    /**
+     * Source
+     */
+    source: string | null;
+    /**
+     * Refundable
+     */
+    refundable: boolean | null;
+};
+
+/**
+ * TaxRuleMismatch
+ */
+export type TaxRuleMismatch = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Expected
+     *
+     * Decimal string, exact; never a float.
+     */
+    expected: string;
+    /**
+     * Got
+     *
+     * Decimal string, exact; never a float.
+     */
+    got: string;
+    /**
+     * Expr
+     */
+    expr: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * TaxRuleProblem
+ */
+export type TaxRuleProblem = {
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Snippet
+     */
+    snippet?: string | null;
+};
+
+/**
+ * TaxRuleRate
+ */
+export type TaxRuleRate = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Rate
+     *
+     * Decimal string, exact; never a float.
+     */
+    rate: string;
+    /**
+     * Source
+     */
+    source: string | null;
+};
+
+/**
+ * TaxRuleRoleTotal
+ */
+export type TaxRuleRoleTotal = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Kind
+     */
+    kind: 'income' | 'deduction' | 'withholding' | 'other';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Total
+     *
+     * Decimal string, exact; never a float.
+     */
+    total: string;
+    /**
+     * Postings
+     */
+    postings: number;
+};
+
+/**
+ * TaxRuleSet
+ */
+export type TaxRuleSet = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Country
+     *
+     * ISO 3166-1 alpha-2 country code
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year Label
+     */
+    year_label: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Active Version Id
+     */
+    active_version_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Versions
+     */
+    versions: Array<TaxRuleSetVersionSummary>;
+};
+
+/**
+ * TaxRuleSetVersion
+ */
+export type TaxRuleSetVersion = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Status
+     */
+    status: 'draft' | 'validated' | 'proposed' | 'active' | 'superseded' | 'invalid';
+    /**
+     * Content Hash
+     */
+    content_hash: string | null;
+    /**
+     * Author Kind
+     */
+    author_kind: 'user' | 'agent';
+    /**
+     * Author Name
+     */
+    author_name: string | null;
+    /**
+     * Change Note
+     */
+    change_note: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Proposed At
+     */
+    proposed_at: string | null;
+    /**
+     * Activated At
+     */
+    activated_at: string | null;
+    /**
+     * Superseded At
+     */
+    superseded_at: string | null;
+    /**
+     * Document
+     */
+    document: {
+        [key: string]: JsonValue;
+    };
+    validation: TaxRuleValidation;
+};
+
+/**
+ * TaxRuleSetVersionSummary
+ */
+export type TaxRuleSetVersionSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Status
+     */
+    status: 'draft' | 'validated' | 'proposed' | 'active' | 'superseded' | 'invalid';
+    /**
+     * Content Hash
+     */
+    content_hash: string | null;
+    /**
+     * Author Kind
+     */
+    author_kind: 'user' | 'agent';
+    /**
+     * Author Name
+     */
+    author_name: string | null;
+    /**
+     * Change Note
+     */
+    change_note: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Proposed At
+     */
+    proposed_at: string | null;
+    /**
+     * Activated At
+     */
+    activated_at: string | null;
+    /**
+     * Superseded At
+     */
+    superseded_at: string | null;
+};
+
+/**
+ * TaxRuleValidation
+ *
+ * The validator's report (docs/taxrules.md, "Validation"). `ok` only with
+ * no errors, at least one worked example, and every example passing.
+ */
+export type TaxRuleValidation = {
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Content Hash
+     */
+    content_hash: string | null;
+    /**
+     * Validated At
+     */
+    validated_at: string;
+    /**
+     * Errors
+     */
+    errors: Array<TaxRuleProblem>;
+    /**
+     * Warnings
+     */
+    warnings: Array<TaxRuleProblem>;
+    /**
+     * Examples
+     */
+    examples: Array<TaxRuleExampleResult>;
+};
+
+/**
+ * TaxSourceRef
+ */
+export type TaxSourceRef = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Retrieved
+     */
+    retrieved: string | null;
+};
+
+/**
+ * TaxSuggestedAccount
+ */
+export type TaxSuggestedAccount = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Type
+     */
+    type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+    /**
+     * Tax Role
+     */
+    tax_role: string | null;
+    /**
+     * Status
+     */
+    status: 'missing' | 'created' | 'exists';
+    /**
+     * Account Id
+     */
+    account_id: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+};
+
+/**
+ * TaxSuggestedAccounts
+ */
+export type TaxSuggestedAccounts = {
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version Id
+     */
+    version_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Applied
+     */
+    applied: boolean;
+    /**
+     * Accounts
+     */
+    accounts: Array<TaxSuggestedAccount>;
+};
+
+/**
+ * TaxSuggestedAccountsIn
+ */
+export type TaxSuggestedAccountsIn = {
+    /**
+     * Version Id
+     */
+    version_id?: string | null;
 };
 
 /**
  * TaxYearStatus
  *
- * The tax year the user is in today, and the latest one Salli can compute.
+ * The tax year the user is in today, and the one a computation uses when
+ * no year is named.
  */
 export type TaxYearStatus = {
     /**
@@ -7386,11 +8574,15 @@ export type TaxYearStatus = {
     /**
      * Country Source
      */
-    country_source: 'tax_residency' | 'base_currency' | null;
+    country_source: 'given' | 'tax_residency' | null;
     /**
      * Year
      */
     year: string | null;
+    /**
+     * Region
+     */
+    region: string | null;
     /**
      * Start
      */
@@ -7400,13 +8592,25 @@ export type TaxYearStatus = {
      */
     end: string | null;
     /**
-     * Has Pack
+     * Rule Set Id
      */
-    has_pack: boolean;
+    rule_set_id: string | null;
+    /**
+     * Rule Set Version Id
+     */
+    rule_set_version_id: string | null;
+    /**
+     * Version
+     */
+    version: number | null;
     /**
      * Latest Year
      */
     latest_year: string | null;
+    /**
+     * Latest Rule Set Version Id
+     */
+    latest_rule_set_version_id: string | null;
 };
 
 /**
@@ -7506,7 +8710,7 @@ export type UpdateAccountRequest = {
     /**
      * Tax Role
      */
-    tax_role?: 'apit_credit' | 'ait_credit' | 'foreign_tax_credit' | 'qualifying_payment' | 'fsi_income' | null;
+    tax_role?: string | null;
 };
 
 /**
@@ -7519,26 +8723,6 @@ export type Updated = {
      * Updated
      */
     updated: boolean;
-};
-
-/**
- * WithholdingKind
- *
- * Tax withheld or paid ahead of the return that a pack credits against the bill.
- */
-export type WithholdingKind = {
-    /**
-     * Code
-     */
-    code: string;
-    /**
-     * Label
-     */
-    label: string;
-    /**
-     * Description
-     */
-    description: string;
 };
 
 /**
@@ -8230,37 +9414,23 @@ export type TagsListResponses = {
 
 export type TagsListResponse = TagsListResponses[keyof TagsListResponses];
 
-export type TaxPacksData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/tax/packs';
-};
-
-export type TaxPacksErrors = {
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type TaxPacksError = TaxPacksErrors[keyof TaxPacksErrors];
-
-export type TaxPacksResponses = {
-    /**
-     * Response Tax.Packs
-     *
-     * Successful Response
-     */
-    200: Array<TaxPack>;
-};
-
-export type TaxPacksResponse = TaxPacksResponses[keyof TaxPacksResponses];
-
 export type TaxComputeData = {
-    body?: never;
+    /**
+     * Body
+     */
+    body?: TaxComputeIn | null;
     path?: never;
     query?: {
+        /**
+         * Country
+         *
+         * Country code
+         */
+        country?: string | null;
+        /**
+         * Region
+         */
+        region?: string | null;
         /**
          * Year
          */
@@ -8296,6 +9466,16 @@ export type TaxLatestData = {
     path?: never;
     query?: {
         /**
+         * Country
+         *
+         * Country code
+         */
+        country?: string | null;
+        /**
+         * Region
+         */
+        region?: string | null;
+        /**
          * Year
          */
         year?: string | null;
@@ -8328,11 +9508,26 @@ export type TaxLatestResponse = TaxLatestResponses[keyof TaxLatestResponses];
 export type TaxCurrentYearData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Country
+         *
+         * Country code
+         */
+        country?: string | null;
+        /**
+         * Region
+         */
+        region?: string | null;
+    };
     url: '/v1/tax/current-year';
 };
 
 export type TaxCurrentYearErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
     /**
      * An error, as RFC 9457 problem details
      */
@@ -8349,6 +9544,680 @@ export type TaxCurrentYearResponses = {
 };
 
 export type TaxCurrentYearResponse = TaxCurrentYearResponses[keyof TaxCurrentYearResponses];
+
+export type TaxExplainData = {
+    body: TaxExplainIn;
+    path?: never;
+    query?: {
+        /**
+         * Country
+         *
+         * Country code
+         */
+        country?: string | null;
+        /**
+         * Region
+         */
+        region?: string | null;
+        /**
+         * Year
+         */
+        year?: string | null;
+    };
+    url: '/v1/tax/explain';
+};
+
+export type TaxExplainErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxExplainError = TaxExplainErrors[keyof TaxExplainErrors];
+
+export type TaxExplainResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxLineExplanation;
+};
+
+export type TaxExplainResponse = TaxExplainResponses[keyof TaxExplainResponses];
+
+export type TaxReturnsPrepareData = {
+    body: TaxReturnPrepareIn;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/returns/prepare';
+};
+
+export type TaxReturnsPrepareErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnsPrepareError = TaxReturnsPrepareErrors[keyof TaxReturnsPrepareErrors];
+
+export type TaxReturnsPrepareResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxReturnPrepared;
+};
+
+export type TaxReturnsPrepareResponse = TaxReturnsPrepareResponses[keyof TaxReturnsPrepareResponses];
+
+export type TaxReturnsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Thread Id
+         */
+        thread_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/returns/{thread_id}';
+};
+
+export type TaxReturnsGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnsGetError = TaxReturnsGetErrors[keyof TaxReturnsGetErrors];
+
+export type TaxReturnsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxReturnPending;
+};
+
+export type TaxReturnsGetResponse = TaxReturnsGetResponses[keyof TaxReturnsGetResponses];
+
+export type TaxReturnsResumeData = {
+    body: TaxReturnResumeIn;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/returns/resume';
+};
+
+export type TaxReturnsResumeErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxReturnsResumeError = TaxReturnsResumeErrors[keyof TaxReturnsResumeErrors];
+
+export type TaxReturnsResumeResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxReturnResumed;
+};
+
+export type TaxReturnsResumeResponse = TaxReturnsResumeResponses[keyof TaxReturnsResumeResponses];
+
+export type TaxSchemaData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/schema';
+};
+
+export type TaxSchemaErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxSchemaError = TaxSchemaErrors[keyof TaxSchemaErrors];
+
+export type TaxSchemaResponses = {
+    /**
+     * Response Tax.Schema
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: JsonValue;
+    };
+};
+
+export type TaxSchemaResponse = TaxSchemaResponses[keyof TaxSchemaResponses];
+
+export type TaxRuleSetsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/rule-sets';
+};
+
+export type TaxRuleSetsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsListError = TaxRuleSetsListErrors[keyof TaxRuleSetsListErrors];
+
+export type TaxRuleSetsListResponses = {
+    /**
+     * Response Tax.Rulesets.List
+     *
+     * Successful Response
+     */
+    200: Array<TaxRuleSet>;
+};
+
+export type TaxRuleSetsListResponse = TaxRuleSetsListResponses[keyof TaxRuleSetsListResponses];
+
+export type TaxRuleSetsCreateData = {
+    body: TaxRuleDocumentIn;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/rule-sets';
+};
+
+export type TaxRuleSetsCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsCreateError = TaxRuleSetsCreateErrors[keyof TaxRuleSetsCreateErrors];
+
+export type TaxRuleSetsCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaxRuleSetVersion;
+};
+
+export type TaxRuleSetsCreateResponse = TaxRuleSetsCreateResponses[keyof TaxRuleSetsCreateResponses];
+
+export type TaxRuleSetsImportData = {
+    body: TaxRuleImportIn;
+    path?: never;
+    query?: never;
+    url: '/v1/tax/rule-sets/import';
+};
+
+export type TaxRuleSetsImportErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsImportError = TaxRuleSetsImportErrors[keyof TaxRuleSetsImportErrors];
+
+export type TaxRuleSetsImportResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaxRuleSetVersion;
+};
+
+export type TaxRuleSetsImportResponse = TaxRuleSetsImportResponses[keyof TaxRuleSetsImportResponses];
+
+export type TaxRuleSetsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}';
+};
+
+export type TaxRuleSetsGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsGetError = TaxRuleSetsGetErrors[keyof TaxRuleSetsGetErrors];
+
+export type TaxRuleSetsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleSet;
+};
+
+export type TaxRuleSetsGetResponse = TaxRuleSetsGetResponses[keyof TaxRuleSetsGetResponses];
+
+export type TaxRuleSetsVersionsCreateData = {
+    body: TaxRuleDocumentIn;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions';
+};
+
+export type TaxRuleSetsVersionsCreateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsVersionsCreateError = TaxRuleSetsVersionsCreateErrors[keyof TaxRuleSetsVersionsCreateErrors];
+
+export type TaxRuleSetsVersionsCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaxRuleSetVersion;
+};
+
+export type TaxRuleSetsVersionsCreateResponse = TaxRuleSetsVersionsCreateResponses[keyof TaxRuleSetsVersionsCreateResponses];
+
+export type TaxRuleSetsVersionsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+        /**
+         * Version Id
+         */
+        version_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}';
+};
+
+export type TaxRuleSetsVersionsGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsVersionsGetError = TaxRuleSetsVersionsGetErrors[keyof TaxRuleSetsVersionsGetErrors];
+
+export type TaxRuleSetsVersionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleSetVersion;
+};
+
+export type TaxRuleSetsVersionsGetResponse = TaxRuleSetsVersionsGetResponses[keyof TaxRuleSetsVersionsGetResponses];
+
+export type TaxRuleSetsVersionsValidateData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+        /**
+         * Version Id
+         */
+        version_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/validate';
+};
+
+export type TaxRuleSetsVersionsValidateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsVersionsValidateError = TaxRuleSetsVersionsValidateErrors[keyof TaxRuleSetsVersionsValidateErrors];
+
+export type TaxRuleSetsVersionsValidateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleSetVersion;
+};
+
+export type TaxRuleSetsVersionsValidateResponse = TaxRuleSetsVersionsValidateResponses[keyof TaxRuleSetsVersionsValidateResponses];
+
+export type TaxRuleSetsVersionsProposeData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+        /**
+         * Version Id
+         */
+        version_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/propose';
+};
+
+export type TaxRuleSetsVersionsProposeErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsVersionsProposeError = TaxRuleSetsVersionsProposeErrors[keyof TaxRuleSetsVersionsProposeErrors];
+
+export type TaxRuleSetsVersionsProposeResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleSetVersion;
+};
+
+export type TaxRuleSetsVersionsProposeResponse = TaxRuleSetsVersionsProposeResponses[keyof TaxRuleSetsVersionsProposeResponses];
+
+export type TaxRuleSetsVersionsActivateData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+        /**
+         * Version Id
+         */
+        version_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/activate';
+};
+
+export type TaxRuleSetsVersionsActivateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsVersionsActivateError = TaxRuleSetsVersionsActivateErrors[keyof TaxRuleSetsVersionsActivateErrors];
+
+export type TaxRuleSetsVersionsActivateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleSetVersion;
+};
+
+export type TaxRuleSetsVersionsActivateResponse = TaxRuleSetsVersionsActivateResponses[keyof TaxRuleSetsVersionsActivateResponses];
+
+export type TaxRuleSetsDiffData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+    };
+    query: {
+        /**
+         * To
+         *
+         * The version to compare to
+         */
+        to: string;
+        /**
+         * From
+         *
+         * The version to compare from; the active one if omitted
+         */
+        from?: string | null;
+    };
+    url: '/v1/tax/rule-sets/{rule_set_id}/diff';
+};
+
+export type TaxRuleSetsDiffErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsDiffError = TaxRuleSetsDiffErrors[keyof TaxRuleSetsDiffErrors];
+
+export type TaxRuleSetsDiffResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleDiff;
+};
+
+export type TaxRuleSetsDiffResponse = TaxRuleSetsDiffResponses[keyof TaxRuleSetsDiffResponses];
+
+export type TaxRuleSetsSuggestedAccountsListData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+    };
+    query?: {
+        /**
+         * Version Id
+         *
+         * The version; the active one, else the newest, if omitted
+         */
+        version_id?: string | null;
+    };
+    url: '/v1/tax/rule-sets/{rule_set_id}/suggested-accounts';
+};
+
+export type TaxRuleSetsSuggestedAccountsListErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsSuggestedAccountsListError = TaxRuleSetsSuggestedAccountsListErrors[keyof TaxRuleSetsSuggestedAccountsListErrors];
+
+export type TaxRuleSetsSuggestedAccountsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxSuggestedAccounts;
+};
+
+export type TaxRuleSetsSuggestedAccountsListResponse = TaxRuleSetsSuggestedAccountsListResponses[keyof TaxRuleSetsSuggestedAccountsListResponses];
+
+export type TaxRuleSetsSuggestedAccountsApplyData = {
+    /**
+     * Body
+     */
+    body?: TaxSuggestedAccountsIn | null;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/suggested-accounts';
+};
+
+export type TaxRuleSetsSuggestedAccountsApplyErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsSuggestedAccountsApplyError = TaxRuleSetsSuggestedAccountsApplyErrors[keyof TaxRuleSetsSuggestedAccountsApplyErrors];
+
+export type TaxRuleSetsSuggestedAccountsApplyResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxSuggestedAccounts;
+};
+
+export type TaxRuleSetsSuggestedAccountsApplyResponse = TaxRuleSetsSuggestedAccountsApplyResponses[keyof TaxRuleSetsSuggestedAccountsApplyResponses];
+
+export type TaxRuleSetsVersionsExportData = {
+    body?: never;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+        /**
+         * Version Id
+         */
+        version_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/export';
+};
+
+export type TaxRuleSetsVersionsExportErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsVersionsExportError = TaxRuleSetsVersionsExportErrors[keyof TaxRuleSetsVersionsExportErrors];
+
+export type TaxRuleSetsVersionsExportResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleExport;
+};
+
+export type TaxRuleSetsVersionsExportResponse = TaxRuleSetsVersionsExportResponses[keyof TaxRuleSetsVersionsExportResponses];
+
+export type TaxRuleSetsVersionsEvaluateData = {
+    /**
+     * Body
+     */
+    body?: TaxRuleEvaluateIn | null;
+    path: {
+        /**
+         * Rule Set Id
+         */
+        rule_set_id: string;
+        /**
+         * Version Id
+         */
+        version_id: string;
+    };
+    query?: never;
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/evaluate';
+};
+
+export type TaxRuleSetsVersionsEvaluateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type TaxRuleSetsVersionsEvaluateError = TaxRuleSetsVersionsEvaluateErrors[keyof TaxRuleSetsVersionsEvaluateErrors];
+
+export type TaxRuleSetsVersionsEvaluateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaxRuleEvaluation;
+};
+
+export type TaxRuleSetsVersionsEvaluateResponse = TaxRuleSetsVersionsEvaluateResponses[keyof TaxRuleSetsVersionsEvaluateResponses];
 
 export type AgentChatData = {
     body: ChatRequest;
@@ -8377,7 +10246,7 @@ export type AgentChatResponses = {
      * - `token` `{content}`: text from the agent.
      * - `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.
      * - `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.
-     * - `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: "chat"`, `decision: "approved"` or `"denied"`).
+     * - `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`decision: "approved"` or `"denied"`).
      * - `interrupt` `{data}`: any other pause.
      * - `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).
      * - `done`: the last event, always sent.
@@ -8443,12 +10312,10 @@ export type AgentResumeResponses = {
      * - `token` `{content}`: text from the agent.
      * - `subagent_start` `{agent}`, `subagent_token` `{agent, content}`, `subagent_end` `{agent}`: a specialist (`tax_specialist`, `finance_specialist`) at work, and what it writes.
      * - `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool used by the agent, or by the specialist named in `agent`.
-     * - `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`workflow: "chat"`, `decision: "approved"` or `"denied"`).
+     * - `approval_required` `{action: {type, action, description, params}}`: a write waiting for the user. Answer it with `agent.resume` (`decision: "approved"` or `"denied"`).
      * - `interrupt` `{data}`: any other pause.
      * - `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT plan reached its usage limit for Salli; `ai_sign_in_required`: sign in with ChatGPT again) and `link` is where the user can fix it (ChatGPT's usage settings).
      * - `done`: the last event, always sent.
-     *
-     * With `workflow: "return"` the stream is instead a single `token` whose `content` is the JSON-encoded result of the return workflow (`{worksheet, error}`), then `done`.
      */
     200: unknown;
 };
@@ -9432,6 +11299,35 @@ export type FiAssumptionsResponses = {
 };
 
 export type FiAssumptionsResponse = FiAssumptionsResponses[keyof FiAssumptionsResponses];
+
+export type FiAssumptionsSetData = {
+    body: FiAssumptionsUpdate;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/assumptions';
+};
+
+export type FiAssumptionsSetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiAssumptionsSetError = FiAssumptionsSetErrors[keyof FiAssumptionsSetErrors];
+
+export type FiAssumptionsSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiAssumptionsReport;
+};
+
+export type FiAssumptionsSetResponse = FiAssumptionsSetResponses[keyof FiAssumptionsSetResponses];
 
 export type FiScoreGetData = {
     body?: never;

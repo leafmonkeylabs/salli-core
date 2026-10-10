@@ -43,7 +43,7 @@ describe('salli status', () => {
 
       FI score        72.5 (B) · 1.9% of the way to financial independence
         Savings rate  55.8% of income
-        FI by         Oct 9, 2040
+        FI by         Oct 9, 2040 (placeholder assumptions: salli fi assumptions)
 
       Needs attention
         ! Checking runs short on Nov 2
@@ -53,7 +53,7 @@ describe('salli status', () => {
 
       Coming up
       ! Oct 9, 2026   Budget overspend            warning
-        Nov 30, 2026  Return due 2025/26
+        Nov 30, 2026  Return due (XA 2026)
       "
     `);
     const statement = mock.requestsTo('GET', '/v1/ledger/income-statement')[0];
@@ -183,6 +183,33 @@ describe('salli status', () => {
             }
           ],
           "projected_fi_date": "2040-10-09",
+          "assumptions": {
+            "status": "placeholder",
+            "placeholders": [
+              "real_return"
+            ],
+            "message": "Using placeholder assumptions for the real return: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+            "real_return": {
+              "value": "0.04",
+              "origin": "placeholder",
+              "source": "Placeholder: a round 4% a year after inflation.",
+              "note": null
+            },
+            "safe_withdrawal_rate": {
+              "value": "0.035",
+              "origin": "user",
+              "source": "https://example.org/withdrawal-study",
+              "note": null
+            },
+            "inflation": null,
+            "nominal_return": null,
+            "real_returns": {
+              "conservative": "0.02",
+              "base": "0.04",
+              "growth": "0.06"
+            },
+            "nominal_returns": null
+          },
           "inputs_hash": "abc"
         },
         "reminders": {
@@ -200,12 +227,12 @@ describe('salli status', () => {
             },
             {
               "id": "0000012e-5a11-4000-8000-000000000302",
-              "kind": "return_due_2025/26",
+              "kind": "Return due (XA 2026)",
               "due_date": "2026-11-30",
               "status": "pending",
               "alert_type": null,
-              "source_domain": null,
-              "source_id": null,
+              "source_domain": "tax_rules",
+              "source_id": "000005dd-5a11-4000-8000-000000001501:return",
               "severity": null,
               "created_at": "2026-04-01T09:00:00+00:00"
             }

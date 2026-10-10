@@ -1,8 +1,10 @@
 """
 Financial Independence domain models — pure, frozen dataclasses, Decimal money.
 
-Mirrors the tax domain: a versioned `FiPack` (the methodology + assumptions), an
-aggregated input `FinancialSnapshot`, and a fully-recorded `FiScore` output. No I/O.
+A versioned `FiPack` (the scoring method), an aggregated input
+`FinancialSnapshot`, and a fully-recorded `FiScore` output. The planning
+assumptions (returns, withdrawal rate, inflation) are not the pack's: they are
+the user's, or labelled placeholders (domain/fi/assumptions.py). No I/O.
 """
 
 from __future__ import annotations
@@ -29,9 +31,10 @@ class FireStrategy:
     version: int
     fire_style: str  # "lean" | "standard" | "fat" | "coast"
     swr: Decimal  # safe withdrawal rate, e.g. Decimal("0.04")
-    return_conservative: Decimal
-    return_base: Decimal
-    return_growth: Decimal
+    # Yearly returns AFTER inflation, per scenario.
+    real_return_conservative: Decimal
+    real_return_base: Decimal
+    real_return_growth: Decimal
     target_monthly_expenses: Decimal | None  # None = use actual from ledger
     target_age: int | None
     buckets: list[AllocationBucket]
@@ -42,13 +45,25 @@ class FireStrategy:
 
 
 @dataclass(frozen=True)
+class NominalPoint:
+    """A year's projected values in the money of that year: the real ones
+    grown by the user's inflation. Only ever computed from their own figure."""
+
+    conservative: Decimal
+    base: Decimal
+    growth: Decimal
+
+
+@dataclass(frozen=True)
 class ProjectionPoint:
-    """A single year's projected portfolio value under each return scenario."""
+    """A single year's projected portfolio value under each return scenario,
+    in today's money; and in that year's money when the user set inflation."""
 
     year: int
     conservative: Decimal
     base: Decimal
     growth: Decimal
+    nominal: NominalPoint | None = None
 
 
 @dataclass(frozen=True)
@@ -57,7 +72,7 @@ class PurchaseOption:
 
     key: str  # "cash" | "installments"
     label: str
-    total_cost: Decimal  # total rupees handed over across the whole term
+    total_cost: Decimal  # total money handed over across the whole term
     interest_cost: Decimal  # total_cost − purchase amount (0 for cash)
     monthly_payment: Decimal | None  # None for cash
     term_months: int | None  # None for cash
@@ -121,20 +136,12 @@ class SurplusBreakdown:
 
 @dataclass(frozen=True)
 class FiPack:
-    """Versioned FIRE methodology + assumptions (reviewable, like a tax pack)."""
+    """Versioned FIRE scoring method, reviewable. Holds no planning
+    assumption: the withdrawal rate and returns are passed to the engine from
+    domain/fi/assumptions.py, so one set of them drives every figure."""
 
     version: str
-    # Fallback 4% rule → FI number = annual_expenses / safe_withdrawal_rate (= ×25
-    # at 0.04). Used only when the user has no FIRE strategy of their own; when
-    # they do, the strategy's validated SWR wins so one rate drives every figure.
-    safe_withdrawal_rate: Decimal
     emergency_fund_target_months: int
-    # Annual real (post-inflation) return assumed for the FI-date projection
-    expected_real_return: Decimal
-    # Assumed long-run annual inflation, used to convert the strategy's NOMINAL
-    # return assumptions to real terms. Projections run in today's rupees, so the
-    # FI target stays flat and comparable to the projected balances.
-    expected_inflation: Decimal
     # Savings rate that earns a full component score (e.g. 0.50 = 50%)
     savings_rate_for_full_score: Decimal
     # Component weights — must sum to 1. Keys: savings_rate, emergency_fund,
@@ -172,7 +179,7 @@ class FiScore:
     overall_score: Decimal  # 0..100
     grade: str
 
-    # Figures (all recorded for transparency, like TaxComputation.band_workings)
+    # Figures (all recorded for transparency, as a tax computation's lines are)
     monthly_income: Decimal
     monthly_expenses: Decimal
     monthly_surplus: Decimal
@@ -190,4 +197,4 @@ class FiScore:
     projected_fi_years: Decimal | None  # None = not reachable / not yet knowable
     currency: str
 
-    components: list[FiComponent] = field(default_factory=list)
+    components: list[FiComponent] = field(default_factory=list[FiComponent])

@@ -4,9 +4,10 @@
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
+  accountDelete,
   accountExport,
   agentFilesUpload,
-  compareAmounts,
+  authMe,
   documentsDelete,
   documentsGet,
   documentsList,
@@ -17,6 +18,9 @@ import {
   mcpConnectionsRevoke,
   mcpEnabledGet,
   mcpEnabledSet,
+  onboardingBalanceSheet,
+  onboardingIncome,
+  onboardingRiskQuestionnaire,
   profileGet,
   profileUpdate,
   remindersCreate,
@@ -29,27 +33,25 @@ import {
   reportsExportCsv,
   reportsGoalProgress,
   reportsNetWorth,
-  taxCompute,
-  taxCurrentYear,
-  taxLatest,
-  taxPacks,
   toJsonText,
   type AgentDocument,
+  type IncomeItem,
+  type OpeningBalanceItem,
   type ProfileIdentityRequest,
   type Reminder,
   type SalliClient,
-  type TaxComputation,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { CliError, UsageError } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
-import { displayDate, displayRange, isoDate, parseDate } from '../util/dates';
+import { displayDate, isoDate, parseDate } from '../util/dates';
 import { readUpload, textOf, writeOutput } from '../util/files';
 import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
-import { renderRecord } from './records';
+import { fieldLabel, renderRecord } from './records';
 import { humanize } from './status';
-import { collect, confirmAction, countArg, currencyArg, rateArg } from './shared';
+import { amountArg, collect, confirmAction, countArg, countryArg, currencyArg, taxIdArg } from './shared';
+import { registerTax } from './tax';
 
 /** A field from the server, as one line of safe text. */
 const str = (v: string | null | undefined): string => (v ? singleLine(v) : '');
@@ -130,12 +132,17 @@ function registerReminders(program: Command, app: App): void {
 
   reminders
     .command('seed')
-    .description('Add the tax filing deadlines for a year of assessment')
-    .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
+    .description('Refresh filing deadlines from your active tax rules (activating rules does this too)')
+    .option('--year <year>', 'Only the rules for this tax year, as they name it')
     .action(async (opts) => {
       const api = await app.api();
       const result = await api.call(remindersSeedFilingCalendar, { query: opts.year ? { year: opts.year } : {} });
-      app.out.done(result, `Added ${result.created} filing deadline${result.created === 1 ? '' : 's'}.`);
+      const changed = [
+        `${result.created} added`,
+        `${result.updated.length} updated`,
+        `${result.removed.length} removed`,
+      ].join(', ');
+      app.out.done(result, `Filing deadlines from your active tax rules: ${changed}.`);
     });
 
   reminders
@@ -263,116 +270,6 @@ function registerReports(program: Command, app: App): void {
     });
 }
 
-// ── Tax ──────────────────────────────────────────────────────────────────────
-
-function taxView(app: App, t: TaxComputation): void {
-  const out = app.out;
-  const cur = t.currency;
-  out.line(`${out.heading(`Income tax ${t.pack_year}`)} ${out.colors.dim(`${t.pack_country} pack v${t.pack_version} · not tax advice`)}`);
-  if (t.band_workings.length) {
-    out.line(
-      out.table(t.band_workings, [
-        { header: 'BAND', get: (b) => b.band },
-        { header: 'RATE', get: (b) => b.rate, align: 'right' },
-        { header: `TAXABLE (${cur})`, get: (b) => out.amount(b.taxable_in_band, cur), align: 'right' },
-        { header: `TAX (${cur})`, get: (b) => out.amount(b.tax, cur), align: 'right' },
-      ]),
-    );
-    out.line();
-  }
-  const m = (amount: string): string => out.money(amount, cur);
-  const nonzero = (amount: string): boolean => compareAmounts(amount, '0') !== 0;
-  out.line(
-    out.details([
-      ['Gross income', m(t.gross_income)],
-      nonzero(t.foreign_service_income) && ['Foreign service income', m(t.foreign_service_income)],
-      ['Personal relief', m(t.personal_relief_applied)],
-      nonzero(t.qp_deduction) && ['Qualifying payments', m(t.qp_deduction)],
-      ['Taxable income', m(t.taxable_income)],
-      nonzero(t.fsi_tax) && ['Tax on foreign income', m(t.fsi_tax)],
-      ['Tax before credits', m(t.tax_before_credits)],
-      nonzero(t.total_credits) && ['Credits (APIT, AIT, FTC)', m(t.total_credits)],
-      ['Tax payable', m(t.tax_payable), out.colors.bold],
-      nonzero(t.refund_due) && ['Refund due', m(t.refund_due), out.colors.green],
-    ]),
-  );
-}
-
-function registerTax(program: Command, app: App): void {
-  const tax = program.command('tax').description('Income tax, by the versioned rules of your country’s tax pack');
-
-  tax
-    .command('packs')
-    .description('The tax packs this server has')
-    .action(async () => {
-      const api = await app.api();
-      const packs = await api.call(taxPacks);
-      app.out.emit(packs, {
-        human: (d) => {
-          app.out.line(
-            app.out.table(d, [
-              { header: 'COUNTRY', get: (p) => p.country },
-              { header: 'YEAR', get: (p) => p.year },
-              { header: 'VERSION', get: (p) => p.version },
-              { header: 'CURRENCY', get: (p) => p.currency },
-              { header: 'PERIOD', get: (p) => displayRange(p.period_start, p.period_end, app.out.locale) },
-              { header: 'RETURN DUE', get: (p) => displayDate(p.return_due, app.out.locale) },
-            ]),
-          );
-        },
-      });
-    });
-
-  tax
-    .command('year')
-    .description('The tax year you are in today, and the latest one Salli can compute')
-    .action(async () => {
-      const api = await app.api();
-      const data = await api.call(taxCurrentYear);
-      app.out.emit(data, {
-        human: (d) => {
-          const out = app.out;
-          if (!d.country) {
-            out.warn('Salli does not know where you are taxed.');
-            out.note('Set it with `salli profile set --tax-residency <country>`, e.g. LK or GB.');
-            return;
-          }
-          const from = d.country_source === 'tax_residency' ? 'your tax residency' : 'your base currency';
-          out.line(
-            out.details([
-              ['Country', `${d.country} (from ${from})`],
-              ['Tax year', d.year ? `${d.year} (${displayRange(d.start, d.end, out.locale)})` : 'Salli has no tax pack for it yet'],
-              ['Can compute', d.latest_year ? `${d.latest_year}${d.has_pack ? '' : ' (no pack for the current year yet)'}` : 'none yet'],
-            ]),
-          );
-        },
-      });
-    });
-
-  tax
-    .command('compute')
-    .description('Compute your income tax from the ledger (and store the result)')
-    .option('--year <year>', 'Year of assessment, e.g. 2025/26 (default: the server’s)')
-    .action(async (opts) => {
-      const api = await app.api();
-      const t = await api.call(taxCompute, { query: opts.year ? { year: opts.year } : {} });
-      app.out.emit(t, { records: (d) => d.band_workings, human: (d) => taxView(app, d) });
-    });
-
-  tax
-    .command('latest')
-    .description('The last stored computation for a year')
-    .option('--year <year>', 'Year of assessment (default: the server’s)')
-    .action(async (opts) => {
-      const api = await app.api();
-      const data = await api.call(taxLatest, { query: opts.year ? { year: opts.year } : {} });
-      if (!data.result && !app.out.machine) {
-        throw new CliError('No stored computation for that year.', { exitCode: 4, kind: 'not-found', hint: 'Run `salli tax compute`.' });
-      }
-      app.out.emit(data, { human: (d) => d.result && taxView(app, d.result) });
-    });
-}
-
 // ── Documents ────────────────────────────────────────────────────────────────
 
 function registerDocuments(program: Command, app: App): void {
@@ -468,14 +365,10 @@ function registerProfile(program: Command, app: App): void {
       app.out.emit(data, {
         human: (d) => {
           const ids = d.tax_ids ?? [];
-          const own = Object.entries(d.fi_assumptions ?? {}).filter(([, v]) => v !== null && v !== undefined);
           app.out.line(
             renderRecord(app, d, {
-              hide: ['tax_ids', 'fi_assumptions'],
-              extra: [
-                ['Tax ids', ids.length ? ids.map((t) => `${t.scheme} ${t.value}`).join(', ') : undefined],
-                ['FI assumptions', own.length ? own.map(([k, v]) => `${k.replace(/_/g, ' ')} ${app.out.percent(v, 2)}`).join(', ') : undefined],
-              ],
+              hide: ['tax_ids'],
+              extra: [['Tax ids', ids.length ? ids.map((t) => `${t.scheme} ${t.value}`).join(', ') : undefined]],
             }),
           );
         },
@@ -493,32 +386,11 @@ function registerProfile(program: Command, app: App): void {
     .addOption(new Option('--employment-type <type>', 'Employment type').choices(['permanent', 'contract', 'self_employed', 'other']))
     .addOption(new Option('--residency <status>', 'Tax residency').choices(['resident', 'non_resident']))
     .option('--employer <name>', 'Employer')
-    .option('--tax-residency <country>', 'The country you are taxed in, as a code (LK, GB, US…); "none" clears it')
-    .option('--tax-id <scheme=number>', 'A tax id, e.g. LK-TIN=123456789 (repeatable); SCHEME= removes one', collect)
-    .option('--ird-number <number>', 'Your Sri Lankan taxpayer number (LK-TIN)')
-    .option('--nic <number>', 'Your Sri Lankan national identity card number (LK-NIC)')
-    .option('--fi-inflation <rate>', 'Your own yearly inflation for FI plans, e.g. 3%; "none" for the default')
-    .option('--fi-real-return <rate>', 'Your own yearly return after inflation, e.g. 4%; "none" for the default')
-    .option('--fi-swr <rate>', 'Your own safe withdrawal rate, e.g. 3.5%; "none" for the default')
+    .option('--tax-residency <country>', 'The country you are taxed in, as a two-letter code (DE, KE, BR…); "none" clears it')
+    .option('--tax-id <scheme=number>', 'A tax id as SCHEME=NUMBER, the scheme your country\'s code and the kind of number, e.g. XX-TIN=123456789 (repeatable); SCHEME= removes one', collect)
     .action(async (opts) => {
-      const rate = (value: string | undefined, flag: string): string | null | undefined =>
-        value === undefined ? undefined : value.trim().toLowerCase() === 'none' ? null : rateArg(value, flag);
-      const own = Object.fromEntries(
-        Object.entries({
-          inflation: rate(opts.fiInflation, '--fi-inflation'),
-          real_return: rate(opts.fiRealReturn, '--fi-real-return'),
-          safe_withdrawal_rate: rate(opts.fiSwr, '--fi-swr'),
-        }).filter(([, v]) => v !== undefined),
-      );
       const residency = opts.taxResidency?.trim();
-      if (residency && residency.toLowerCase() !== 'none' && !/^[A-Za-z]{2}$/.test(residency)) {
-        throw new UsageError(`A country is a two-letter code like LK or GB (got "${opts.taxResidency}").`);
-      }
-      const idChanges = (opts.taxId ?? []).map((raw) => {
-        const at = raw.indexOf('=');
-        if (at <= 0) throw new UsageError(`--tax-id takes SCHEME=NUMBER, e.g. LK-TIN=123456789 (got "${raw}").`);
-        return { scheme: raw.slice(0, at).trim().toUpperCase(), value: raw.slice(at + 1).trim() };
-      });
+      const idChanges = (opts.taxId ?? []).map(taxIdArg);
       const body: ProfileIdentityRequest = Object.fromEntries(
         Object.entries({
           display_name: opts.name,
@@ -529,10 +401,7 @@ function registerProfile(program: Command, app: App): void {
           employment_type: opts.employmentType,
           residency_status: opts.residency,
           employer: opts.employer,
-          tax_residency: residency === undefined ? undefined : residency.toLowerCase() === 'none' ? null : residency.toUpperCase(),
-          ird_number: opts.irdNumber,
-          nic: opts.nic,
-          fi_assumptions: Object.keys(own).length ? own : undefined,
+          tax_residency: residency === undefined ? undefined : residency.toLowerCase() === 'none' ? null : countryArg(residency),
         }).filter(([, v]) => v !== undefined),
       );
       if (!Object.keys(body).length && !idChanges.length) {
@@ -561,6 +430,108 @@ function registerProfile(program: Command, app: App): void {
       const data = await api.call(accountExport, { timeoutMs: 5 * 60_000 });
       const text = `${toJsonText(data)}\n`;
       await writeOutput(app, text, opts.out ?? `salli-export-${isoDate(app.runtime.now())}.json`, {}, 'your data', { private: true });
+    });
+
+  profile
+    .command('balance-sheet')
+    .description('Record what you own and owe today, as opening-balance entries (net worth starts right)')
+    .requiredOption('--balance <code:name:type:amount>', 'One account, e.g. 1100:Checking:asset:2500 or 2100:Car loan:liability:8400 (repeatable)', collect)
+    .action(async (opts) => {
+      const balances: OpeningBalanceItem[] = opts.balance.map((raw) => {
+        const [code, name, type, amount, ...rest] = raw.split(':');
+        if (!code?.trim() || !name?.trim() || !type || amount === undefined || rest.length) {
+          throw new UsageError(`--balance takes CODE:NAME:TYPE:AMOUNT, e.g. 1100:Checking:asset:2500 (got "${raw}").`);
+        }
+        const kind = type.trim().toLowerCase();
+        if (kind !== 'asset' && kind !== 'liability') {
+          throw new UsageError(`An opening balance is an asset or a liability (got "${type}" in "${raw}").`);
+        }
+        return { code: code.trim(), name: name.trim(), type: kind, amount: amountArg(amount, '--balance') };
+      });
+      const api = await app.api();
+      const result = await api.call(onboardingBalanceSheet, { body: { balances } });
+      const n = result.entries_created.length;
+      app.out.done(result, `Posted ${n} opening-balance ${n === 1 ? 'entry' : 'entries'}.`);
+    });
+
+  profile
+    .command('income')
+    .description('Record what you earn: one representative monthly entry per income source')
+    .requiredOption('--income <code:name:amount>', 'One source a month, e.g. 4100:Salary:5000 (repeatable)', collect)
+    .option('--deposit-code <code>', 'The account it is paid into (default: the server’s bank account, 1200)')
+    .option('--deposit-name <name>', 'That account’s name, if it has to be opened')
+    .action(async (opts) => {
+      const incomes: IncomeItem[] = opts.income.map((raw) => {
+        const [code, name, amount, ...rest] = raw.split(':');
+        if (!code?.trim() || !name?.trim() || amount === undefined || rest.length) {
+          throw new UsageError(`--income takes CODE:NAME:AMOUNT, e.g. 4100:Salary:5000 (got "${raw}").`);
+        }
+        return {
+          code: code.trim(),
+          name: name.trim(),
+          amount: amountArg(amount, '--income'),
+          ...(opts.depositCode ? { deposit_account_code: opts.depositCode } : {}),
+          ...(opts.depositName ? { deposit_account_name: opts.depositName } : {}),
+        };
+      });
+      const api = await app.api();
+      const result = await api.call(onboardingIncome, { body: { incomes } });
+      const n = result.entries_created.length;
+      app.out.done(result, `Posted ${n} income ${n === 1 ? 'entry' : 'entries'}.`);
+    });
+
+  profile
+    .command('risk-questionnaire')
+    .alias('risk')
+    .description('Answer the risk-tolerance questions; the server scores them and saves the result')
+    .requiredOption('--horizon <years>', 'Years until you need the money', countArg('--horizon'))
+    .addOption(new Option('--drawdown <reaction>', 'What you would do if your investments fell 20%').choices(['sell_all', 'sell_some', 'hold', 'buy_more']).makeOptionMandatory())
+    .addOption(new Option('--income-stability <level>', 'How steady your income is').choices(['unstable', 'moderate', 'stable']).makeOptionMandatory())
+    .addOption(new Option('--experience <level>', 'Your investing experience').choices(['none', 'some', 'experienced']).makeOptionMandatory())
+    .option('--dependents <n>', 'People who depend on your income', countArg('--dependents'), 0)
+    .action(async (opts) => {
+      const api = await app.api();
+      const result = await api.call(onboardingRiskQuestionnaire, {
+        body: {
+          time_horizon_years: opts.horizon,
+          drawdown_reaction: opts.drawdown,
+          income_stability: opts.incomeStability,
+          investment_experience: opts.experience,
+          dependents_count: opts.dependents,
+        },
+      });
+      app.out.emit(result, {
+        human: (r) => {
+          app.out.line(`${app.out.heading(`Risk score ${r.score}`)} ${app.out.colors.dim(`(${singleLine(r.category)})`)}`);
+          app.out.line(app.out.details(Object.entries(r.breakdown).map(([part, points]) => [fieldLabel(part), String(points)] as const)));
+        },
+      });
+    });
+
+  profile
+    .command('delete-account')
+    .description('Delete your account and everything Salli stores about you. This cannot be undone')
+    .option('--confirm-email <email>', 'Your account’s email, typed out: confirms without asking (for scripts)')
+    .action(async (opts) => {
+      const api = await app.api();
+      const me = await api.call(authMe);
+      if (!me.email) throw new CliError('This account has no email to confirm with, so the server cannot delete it from here.');
+      let typed = opts.confirmEmail;
+      if (typed === undefined) {
+        if (!app.prompter.interactive) {
+          throw new UsageError('Deleting your account needs confirmation.', 'Pass --confirm-email with your account’s email.');
+        }
+        app.out.warn(`This permanently deletes every record of ${singleLine(me.email)}: ledger, documents, plans, keys.`);
+        typed = await app.prompter.text({ message: 'Type your email to confirm' });
+      }
+      // The server compares the email too; checking here first means a typo
+      // is a clear "did not match" rather than a refusal from the server.
+      if (typed.trim().toLowerCase() !== me.email.toLowerCase()) {
+        throw new UsageError('That is not this account’s email: nothing was deleted.');
+      }
+      const result = await api.call(accountDelete, { body: { confirm_email: typed.trim() } });
+      const total = Object.values(result.counts).reduce((sum, n) => sum + n, 0);
+      app.out.done(result, `Deleted your account (${total} record${total === 1 ? '' : 's'}).`);
     });
 }
 

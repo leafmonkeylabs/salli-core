@@ -14,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from salli.application.services.personal_access_token_service import (
     PREFIX,
     PersonalAccessTokenService,
+    VerifiedToken,
     is_personal_access_token,
 )
 from salli.config import Settings
@@ -25,13 +26,14 @@ class Store:
         self.rows: dict[str, dict[str, Any]] = {}
         self.touches = 0
 
-    async def create(self, user_id, name, token_hash, prefix, expires_at):
+    async def create(self, user_id, name, token_hash, prefix, expires_at, permissions):
         row = {
             "id": f"p{len(self.rows) + 1}",
             "user_id": user_id,
             "name": name,
             "token_hash": token_hash,
             "prefix": prefix,
+            "permissions": permissions,
             "expires_at": expires_at,
             "last_used_at": None,
             "created_at": datetime.now(UTC),
@@ -88,7 +90,7 @@ async def test_a_token_is_shown_once_and_only_its_hash_is_kept(tokens):
 async def test_a_token_verifies_until_revoked(tokens):
     service, _ = tokens
     created = await service.create("u1", "ci")
-    assert await service.verify(created["token"]) == "u1"
+    assert (await service.verify(created["token"])).user_id == "u1"
     assert await service.revoke("u1", created["id"])
     assert await service.verify(created["token"]) is None
     assert not await service.revoke("u1", created["id"])
@@ -98,7 +100,7 @@ async def test_someone_elses_token_cannot_be_revoked(tokens):
     service, _ = tokens
     created = await service.create("u1", "ci")
     assert not await service.revoke("u2", created["id"])
-    assert await service.verify(created["token"]) == "u1"
+    assert (await service.verify(created["token"])).user_id == "u1"
 
 
 async def test_an_expired_token_is_refused(tokens):
@@ -114,6 +116,19 @@ async def test_use_is_recorded_at_most_once_a_minute(tokens):
     for _ in range(5):
         await service.verify(created["token"])
     assert store.touches == 1
+
+
+async def test_a_token_holds_only_what_it_was_made_with(tokens):
+    service, _ = tokens
+    plain = await service.create("u1", "backup job")
+    trusted = await service.create("u1", "laptop", permissions=["tax:activate", "tax:activate"])
+    assert plain["permissions"] == [] and trusted["permissions"] == ["tax:activate"]
+    assert await service.verify(plain["token"]) == VerifiedToken("u1", "backup job", frozenset())
+    assert await service.verify(trusted["token"]) == VerifiedToken(
+        "u1", "laptop", frozenset({"tax:activate"})
+    )
+    with pytest.raises(ValueError, match="Unknown permission: admin"):
+        await service.create("u1", "x", permissions=["admin"])
 
 
 async def test_a_token_needs_a_name_and_a_sane_lifetime(tokens):
@@ -151,6 +166,11 @@ async def test_a_personal_access_token_authenticates_as_its_owner(tokens):
     services = SimpleNamespace(tokens=service, mcp_oauth=_OAuth(None))
     principal = await get_principal(_creds(created["token"]), _settings(), services)
     assert (principal.user_id, principal.method) == ("u1", "pat")
+    assert (principal.client_name, principal.permissions) == ("ci", frozenset())
+
+    trusted = await service.create("u1", "laptop", permissions=["tax:activate"])
+    principal = await get_principal(_creds(trusted["token"]), _settings(), services)
+    assert principal.permissions == frozenset({"tax:activate"})
 
     await service.revoke("u1", created["id"])
     with pytest.raises(HTTPException) as refused:

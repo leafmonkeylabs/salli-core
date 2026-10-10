@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import hmac
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from salli.application.permissions import Actor, permissions_for
 from salli.application.services.llm_credential_service import ResolvedCredentials
 from salli.application.services.mcp_oauth_service import API, has_salli_prefix
 from salli.application.services.personal_access_token_service import is_personal_access_token
@@ -129,14 +130,44 @@ class Principal:
     """Who is calling, and how they signed in.
 
     `session`: a Supabase access token (the web and mobile apps).
-    `oauth`: a Salli OAuth token issued for the REST API (the `salli` CLI).
+    `oauth`: a Salli OAuth token issued for the REST API (the `salli` CLI, or
+    another client: `first_party_client` says which).
     `pat`: a personal access token (scripts, CI).
     `dev`: the local-development fallback where the token is the user id.
+
+    What the caller may do beyond reading and writing the user's data follows
+    from how they signed in (application/permissions.py), and is derived
+    there and nowhere else: for a personal access token, from the permissions
+    it stores (`granted`); for any other sign-in, from the method and client.
+    There is no way to build a Principal whose permissions disagree with its
+    sign-in.
     """
 
     user_id: str
     email: str | None
     method: Literal["session", "oauth", "pat", "dev"]
+    #: For `oauth`: whether the token's client is one of Salli's own.
+    first_party_client: bool = False
+    #: For `oauth`: the client's name; for `pat`, the token's. Recorded as the
+    #: author of what it writes.
+    client_name: str | None = None
+    #: For `pat`: the permissions the token was made with. Ignored otherwise.
+    granted: frozenset[str] = frozenset()
+
+    @property
+    def permissions(self) -> frozenset[str]:
+        return permissions_for(
+            self.method, first_party_client=self.first_party_client, granted=self.granted
+        )
+
+    def actor(self) -> Actor:
+        return Actor.signed_in(
+            self.user_id,
+            self.method,
+            first_party_client=self.first_party_client,
+            name=self.client_name,
+            granted=self.granted,
+        )
 
 
 def _looks_like_jwt(token: str) -> bool:
@@ -158,20 +189,32 @@ async def get_principal(
     """
     token = creds.credentials
     if is_personal_access_token(token):
-        user_id = await services.tokens.verify(token)
-        if user_id is None:
+        verified = await services.tokens.verify(token)
+        if verified is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="This token is invalid, expired, or has been revoked.",
             )
-        return Principal(user_id, None, "pat")
+        return Principal(
+            verified.user_id,
+            None,
+            "pat",
+            client_name=verified.name,
+            granted=verified.permissions,
+        )
     # Salli's own tokens before the development fallback: under it, a CLI
     # signed in with the device flow was taken to be the user whose id is
     # its access token.
     if not _looks_like_jwt(token):
         record = await services.mcp_oauth.verify_access_token(token, audience=API)
         if record is not None:
-            return Principal(str(record["user_id"]), None, "oauth")
+            return Principal(
+                str(record["user_id"]),
+                None,
+                "oauth",
+                first_party_client=bool(record.get("client_first_party")),
+                client_name=record.get("client_name"),
+            )
     if dev_auth_fallback_live(settings):
         # A Salli token that did not verify (expired, revoked, issued for MCP,
         # or a refresh token) is refused, never taken to be a user's id.
@@ -226,6 +269,41 @@ async def get_current_email(
     return profile.get("email")
 
 
+async def get_actor(
+    principal: CurrentPrincipal,
+    user_id: Annotated[str, Depends(get_current_user)],
+) -> Actor:
+    """The caller as the services see them: whose data, which author to
+    record, and what they may do (application/permissions.py). Depends on
+    get_current_user, so the caller is a member before anything is written."""
+    return principal.actor()
+
+
+def require_permission(permission: str) -> Any:
+    """A dependency refusing (403) a caller whose sign-in doesn't carry
+    `permission`. The service checks it again: this only refuses earlier, and
+    says why in a way a client can show."""
+
+    async def check(principal: CurrentPrincipal) -> None:
+        if permission in principal.permissions:
+            return
+        if principal.method == "pat":
+            why = (
+                f"This personal access token wasn't made with {permission}. Make one that "
+                f"is (`salli tokens create <name> --allow {permission}`), or sign in "
+                "yourself (`salli login`, or the app)."
+            )
+        else:
+            why = (
+                f"This sign-in doesn't hold {permission}. Only your own sign-in to Salli "
+                "(the app, or the salli CLI) can do this, or a personal access token you "
+                "made with it; AI connectors and other applications never can."
+            )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=why)
+
+    return Depends(check)
+
+
 async def get_credentials(
     user_id: Annotated[str, Depends(get_current_user)],
     services: Annotated[Services, Depends(get_services)],
@@ -258,6 +336,7 @@ def require_cron_secret(
 
 # Convenient type aliases for route parameters
 CurrentUser = Annotated[str, Depends(get_current_user)]
+CurrentActor = Annotated[Actor, Depends(get_actor)]
 CurrentEmail = Annotated["str | None", Depends(get_current_email)]
 AppServices = Annotated[Services, Depends(get_services)]
 Credentials = Annotated[ResolvedCredentials, Depends(get_credentials)]

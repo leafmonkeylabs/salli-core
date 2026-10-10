@@ -1,11 +1,10 @@
 """
-Where a user is taxed, and their tax ids, through UserProfileService.
+Where a user is taxed, and their tax ids, through UserProfileService and
+onboarding.
 
-The legacy fields `ird_number` and `nic` are how the web and mobile apps write
-Sri Lankan numbers. They now land in the tax ids ("LK-TIN", "LK-NIC"), the
-`ird_number` column keeps mirroring the TIN, and a Sri Lankan number given to a
-profile with no residency makes it LK, the rule migration core_0008 applied to
-existing users.
+Tax ids are generic only: `{scheme, value}`, the scheme "XX-KIND". Salli knows
+no country's schemes, and neither a tax id nor a currency ever implies a tax
+residency: the residency is only what the user said.
 """
 
 from __future__ import annotations
@@ -31,10 +30,9 @@ class _Profiles:
     def __init__(self, **row: Any) -> None:
         self.row: dict[str, Any] = {
             "id": USER,
-            "base_currency": "LKR",
+            "base_currency": "EUR",
             "tax_residency": None,
             "tax_ids": [],
-            "ird_number": None,
             **row,
         }
 
@@ -44,8 +42,8 @@ class _Profiles:
     async def upsert(self, user_id: str, fields: dict[str, Any]) -> None:
         self.row.update({k: v for k, v in fields.items() if v is not None})
 
-    async def set_tax_identity(self, user_id, *, tax_residency, tax_ids, ird_number) -> None:
-        self.row.update(tax_residency=tax_residency, tax_ids=tax_ids, ird_number=ird_number)
+    async def set_tax_identity(self, user_id, *, tax_residency, tax_ids) -> None:
+        self.row.update(tax_residency=tax_residency, tax_ids=tax_ids)
 
 
 def _service(**row: Any) -> tuple[UserProfileService, _Profiles]:
@@ -63,138 +61,130 @@ def _service(**row: Any) -> tuple[UserProfileService, _Profiles]:
     return UserProfileService(factory, AsyncMock(), AsyncMock(), documents), profiles
 
 
-async def test_an_ird_number_becomes_the_lk_tin_and_makes_the_user_sri_lankan():
+async def test_tax_ids_are_stored_generically_and_imply_no_residency():
     svc, profiles = _service()
-    await svc.update_identity(USER, {"ird_number": " 123456789 "})
-    assert profiles.row["tax_ids"] == [{"scheme": "LK-TIN", "value": "123456789"}]
-    assert profiles.row["ird_number"] == "123456789"  # the column mirrors it
-    assert profiles.row["tax_residency"] == "LK"
-
-
-async def test_a_nic_becomes_the_lk_nic():
-    svc, profiles = _service()
-    await svc.update_identity(USER, {"nic": "200012345678"})
-    assert profiles.row["tax_ids"] == [{"scheme": "LK-NIC", "value": "200012345678"}]
-    assert profiles.row["tax_residency"] == "LK"
-
-
-async def test_a_residency_the_user_gave_is_never_overridden():
-    svc, profiles = _service(tax_residency="GB")
-    await svc.update_identity(USER, {"ird_number": "123456789"})
-    assert profiles.row["tax_residency"] == "GB"
-
-    svc, profiles = _service()
-    await svc.update_identity(USER, {"ird_number": "123456789", "tax_residency": "IN"})
-    assert profiles.row["tax_residency"] == "IN"
-
-    # Clearing it in the same request is honoured too.
-    svc, profiles = _service(tax_residency="LK")
-    await svc.update_identity(USER, {"ird_number": "123456789", "tax_residency": None})
+    await svc.update_identity(
+        USER,
+        {"tax_ids": [{"scheme": "ke-pin", "value": " A001 "}, {"scheme": "DE-IDNR", "value": "7"}]},
+    )
+    assert profiles.row["tax_ids"] == [
+        {"scheme": "KE-PIN", "value": "A001"},
+        {"scheme": "DE-IDNR", "value": "7"},
+    ]
     assert profiles.row["tax_residency"] is None
 
 
-async def test_a_number_given_through_tax_ids_implies_no_residency():
-    """Only the legacy fields carry the Sri Lankan rule; the new API is explicit."""
+async def test_the_residency_is_only_what_the_user_said():
     svc, profiles = _service()
-    await svc.update_identity(USER, {"tax_ids": [{"scheme": "LK-TIN", "value": "1"}]})
+    await svc.update_identity(USER, {"tax_residency": "nz"})
+    assert profiles.row["tax_residency"] == "NZ"
+
+    # Clearing it is honoured, and leaves the tax ids alone.
+    svc, profiles = _service(tax_residency="NZ", tax_ids=[{"scheme": "NZ-X", "value": "1"}])
+    await svc.update_identity(USER, {"tax_residency": None})
     assert profiles.row["tax_residency"] is None
-    assert profiles.row["ird_number"] == "1"
+    assert profiles.row["tax_ids"] == [{"scheme": "NZ-X", "value": "1"}]
 
 
-async def test_tax_ids_replace_the_list_and_the_column_follows():
+async def test_tax_ids_replace_the_list():
     svc, profiles = _service(
-        tax_ids=[{"scheme": "LK-TIN", "value": "1"}, {"scheme": "LK-NIC", "value": "2"}],
-        ird_number="1",
+        tax_ids=[{"scheme": "BR-CPF", "value": "1"}, {"scheme": "BR-X", "value": "2"}]
     )
     await svc.update_identity(USER, {"tax_ids": [{"scheme": "gb-utr", "value": "3"}]})
     assert profiles.row["tax_ids"] == [{"scheme": "GB-UTR", "value": "3"}]
-    assert profiles.row["ird_number"] is None
 
-
-async def test_a_blank_legacy_field_removes_its_number():
-    svc, profiles = _service(tax_ids=[{"scheme": "LK-TIN", "value": "1"}], ird_number="1")
-    await svc.update_identity(USER, {"ird_number": ""})
+    await svc.update_identity(USER, {"tax_ids": []})
     assert profiles.row["tax_ids"] == []
-    assert profiles.row["ird_number"] is None
 
 
-async def test_a_number_only_the_column_held_survives_an_unrelated_change():
-    """A server that predates tax ids writes only the column; changing the
-    residency must not clear what it wrote."""
-    svc, profiles = _service(ird_number="777")
-    await svc.update_identity(USER, {"tax_residency": "lk"})
-    assert profiles.row["tax_residency"] == "LK"
-    assert profiles.row["tax_ids"] == [{"scheme": "LK-TIN", "value": "777"}]
-    assert profiles.row["ird_number"] == "777"
+async def test_an_unrelated_change_keeps_the_tax_ids():
+    svc, profiles = _service(tax_ids=[{"scheme": "JP-MN", "value": "9"}])
+    await svc.update_identity(USER, {"tax_residency": "JP"})
+    assert profiles.row["tax_ids"] == [{"scheme": "JP-MN", "value": "9"}]
+
+
+async def test_the_legacy_fields_are_gone():
+    """`ird_number` and `nic` were one country's numbers: they are no longer
+    read, written or served."""
+    svc, profiles = _service()
+    await svc.update_identity(USER, {"ird_number": "123456789", "nic": "200012345678"})
+    assert profiles.row["tax_ids"] == []
+    assert profiles.row["tax_residency"] is None
+    profile = await svc.get_profile(USER)
+    assert "ird_number" not in profile
+    assert "nic" not in profile
 
 
 async def test_nothing_is_written_when_something_does_not_validate():
     svc, profiles = _service()
     before = dict(profiles.row)
     with pytest.raises(UnknownCountryError):
-        await svc.update_identity(USER, {"tax_residency": "XX", "ird_number": "1"})
-    with pytest.raises(InvalidTaxIdError, match="disagree"):
+        await svc.update_identity(
+            USER, {"tax_residency": "XX", "tax_ids": [{"scheme": "FR-SPI", "value": "1"}]}
+        )
+    with pytest.raises(InvalidTaxIdError, match="more than once"):
         await svc.update_identity(
             USER,
-            {"tax_ids": [{"scheme": "LK-TIN", "value": "1"}], "ird_number": "2"},
+            {"tax_ids": [{"scheme": "FR-SPI", "value": "1"}, {"scheme": "fr-spi", "value": "2"}]},
         )
     with pytest.raises(InvalidTaxIdError):
         await svc.update_identity(USER, {"tax_ids": [{"scheme": "TIN", "value": "1"}]})
     assert profiles.row == before
 
 
-async def test_the_profile_reads_the_legacy_fields_from_the_tax_ids():
+async def test_the_profile_reads_clean_tax_ids():
     svc, _ = _service(
-        tax_residency="LK",
-        tax_ids=[{"scheme": "LK-TIN", "value": "1"}, {"scheme": "LK-NIC", "value": "2"}, "bad"],
-        ird_number="1",
+        tax_residency="MX",
+        tax_ids=[{"scheme": "MX-RFC", "value": "1"}, {"scheme": "MX-CURP", "value": "2"}, "bad"],
     )
     profile = await svc.get_profile(USER)
-    assert profile["tax_residency"] == "LK"
+    assert profile["tax_residency"] == "MX"
     assert profile["tax_ids"] == [
-        {"scheme": "LK-TIN", "value": "1"},
-        {"scheme": "LK-NIC", "value": "2"},
+        {"scheme": "MX-RFC", "value": "1"},
+        {"scheme": "MX-CURP", "value": "2"},
     ]
-    assert (profile["ird_number"], profile["nic"]) == ("1", "2")
 
 
-async def test_the_column_stands_in_for_a_missing_tin():
-    svc, _ = _service(ird_number=" 555 ")
-    profile = await svc.get_profile(USER)
-    assert profile["ird_number"] == "555"
-    assert profile["tax_ids"] == []
+# ── Onboarding asks for both explicitly ──────────────────────────────────────
 
 
-# ── Onboarding writes the numbers it collects ────────────────────────────────
-
-
-def _onboarding() -> tuple[OnboardingService, AsyncMock]:
+def _onboarding() -> tuple[OnboardingService, AsyncMock, AsyncMock]:
     documents, fi, ledger, profile = AsyncMock(), AsyncMock(), AsyncMock(), AsyncMock()
     ledger.list_accounts.return_value = []
-    profile.get_tax_residency.return_value = None
-    return OnboardingService(documents, fi, ledger, profile), profile
+    documents.get_memory.return_value = None
+    return OnboardingService(documents, fi, ledger, profile), profile, documents
 
 
-async def test_onboarding_puts_the_numbers_and_the_residency_on_the_profile():
-    svc, profile = _onboarding()
+async def test_onboarding_puts_the_residency_and_tax_ids_on_the_profile():
+    svc, profile, documents = _onboarding()
     await svc.complete(
         USER,
-        {"name": "Asha", "ird_number": "123456789", "nic": "200012345678", "tax_residency": "LK"},
+        {
+            "name": "Asha",
+            "tax_residency": "ca",
+            "tax_ids": [{"scheme": "ca-sin", "value": "123 456 789"}],
+        },
     )
     profile.update_identity.assert_awaited_once_with(
-        USER, {"tax_residency": "LK", "ird_number": "123456789", "nic": "200012345678"}
+        USER,
+        {"tax_residency": "CA", "tax_ids": [{"scheme": "CA-SIN", "value": "123 456 789"}]},
     )
+    # Tax ids live on the profile only, never as memories.
+    slugs = {call.kwargs["slug"] for call in documents.save_memory.await_args_list}
+    assert not slugs & {"ird_number", "nic_number", "tax_ids"}
 
 
-async def test_onboarding_keeps_a_number_it_cannot_store_as_a_memory_only():
-    """The legacy flow always took any text: a NIC too long to be one must not
-    fail the whole onboarding."""
-    svc, profile = _onboarding()
-    await svc.complete(USER, {"name": "Asha", "nic": "x" * 40})
+async def test_onboarding_refuses_a_bad_tax_id_before_saving_anything():
+    svc, profile, documents = _onboarding()
+    with pytest.raises(InvalidTaxIdError):
+        await svc.complete(USER, {"name": "Asha", "tax_ids": [{"scheme": "TIN", "value": "1"}]})
+    with pytest.raises(UnknownCountryError):
+        await svc.complete(USER, {"name": "Asha", "tax_residency": "XX"})
     profile.update_identity.assert_not_awaited()
+    documents.save_memory.assert_not_awaited()
 
 
 async def test_onboarding_without_tax_answers_leaves_the_profile_alone():
-    svc, profile = _onboarding()
+    svc, profile, _ = _onboarding()
     await svc.complete(USER, {"name": "Asha"})
     profile.update_identity.assert_not_awaited()

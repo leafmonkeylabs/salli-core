@@ -2,19 +2,27 @@
 Return preparation workflow — deterministic StateGraph with a human approval gate.
 
 Nodes:
-  gather        → pull ledger views and account breakdown for the tax year
-  compute       → call the deterministic tax engine (NOT the LLM)
-  map_to_cages  → map engine output to RAMIS return cages/schedules
-  review        → interrupt() — human approves, edits, or rejects the draft
-  finalize      → produce the pre-filled return worksheet
+  compute      → the user's tax with their active rule set (Salli's engine, NOT
+                 the LLM), stored, with each return form the rules define filled
+                 in from the result
+  build_draft  → the worksheet: every form's fields, its filing instructions and
+                 URL, and the computation behind them
+  review       → interrupt(): the user approves, edits or rejects the draft
+  finalize     → the worksheet, ready to file
 
 The LLM is NOT invoked in this graph. It is pure Python orchestration.
-The interrupt() gate is where "agent files for you" would slot in when/if
-an IRD filing channel is available; for now it just gates the worksheet.
 
-The year is the user's: their country's pack for the year asked, or the latest
-year Salli can compute for them. The worksheet itself is a return form's, so it
-exists only for the forms it has been mapped to (`_RETURN_FORMS`).
+Forms are the rule set's (`forms` in docs/taxrules.md): Salli knows no
+country's return. A rule set without forms has no return to prepare; its
+computation is still stored. Every figure on the worksheet is a form field's
+value as the engine computed it: nobody edits a figure. "edit" means the
+inputs change: the user may fix their ledger, or send new answers to the
+rules' questions, and the workflow computes again and comes back to review.
+
+The year, jurisdiction and answers are the user's: as asked, or derived as
+TaxService.resolve derives them, and kept on the thread so a recomputation
+after an edit is for the same return. The same interrupt gate is where filing
+on the user's behalf would go, if an authority ever offers a channel for it.
 """
 
 from __future__ import annotations
@@ -27,33 +35,33 @@ from langgraph.types import interrupt
 
 from salli.domain.secrets import error_label
 
-# ── State ──────────────────────────────────────────────────────────────────────
+DECISIONS = ("approve", "edit", "reject")
 
-
-#: The return forms the worksheet is mapped to: Sri Lanka's individual return
-#: in RAMIS, as the cages stood for 2025/26. Cage numbers can change from year
-#: to year, so a new year needs its form checked and added here rather than
-#: inheriting a mapping that may no longer be right.
-_RETURN_FORMS = {("LK", "2025/26")}
+_NOTE = (
+    "A worksheet Salli prepared from your own tax rules and ledger. Salli doesn't vouch "
+    "for the law: check every figure, and the rules' sources, before you file. This is not "
+    "tax advice."
+)
 
 
 @dataclass
 class ReturnState:
     user_id: str = ""
-    # The tax year; empty for the latest one Salli can compute for the user.
+    # As asked; "" for derived. Filled in by compute with what was used.
+    country: str = ""
+    region: str = ""
     year: str = ""
-
-    # Populated by gather
-    ledger_entries: list[Any] = field(default_factory=list)
-    accounts: list[Any] = field(default_factory=list)
+    # Answers to the rules' questions, by key.
+    answers: dict[str, Any] = field(default_factory=dict)
 
     # Populated by compute
-    tax_computation: Any = None
+    computation: dict[str, Any] = field(default_factory=dict)
+    forms: list[dict[str, Any]] = field(default_factory=list)
 
-    # Populated by map_to_cages
+    # Populated by build_draft
     draft_return: dict[str, Any] = field(default_factory=dict)
 
-    # Set by review node
+    # Set by the review node
     review_decision: str = ""  # "approve" | "edit" | "reject"
 
     # Final output
@@ -64,88 +72,79 @@ class ReturnState:
 # ── Nodes ──────────────────────────────────────────────────────────────────────
 
 
-async def _gather(state: ReturnState, ledger_svc: Any, tax_svc: Any) -> dict[str, Any]:
-    try:
-        pack = await tax_svc.pack(state.user_id, state.year or None)
-    except (KeyError, ValueError) as e:
-        # Raised by the pack lookup, which is pure: the message is Salli's own
-        # (a country, a year), never a provider's, so it is safe to keep in the
-        # checkpoint where error_label keeps only the class name.
-        return {"error": str(e.args[0]) if e.args else error_label(e)}
-    if (pack.country, pack.year) not in _RETURN_FORMS:
-        return {
-            "error": (
-                f"Salli has no return worksheet for {pack.country} {pack.year} yet: "
-                "your computation is still available."
-            )
-        }
-    accounts = await ledger_svc.list_accounts(state.user_id)
-    entries = await ledger_svc.get_entries(
-        state.user_id,
-        from_date=pack.period_start,
-        to_date=pack.period_end,
-    )
-    return {"accounts": accounts, "ledger_entries": entries, "year": pack.year}
-
-
 async def _compute(state: ReturnState, tax_svc: Any) -> dict[str, Any]:
     try:
-        computation = await tax_svc.compute_tax(state.user_id, state.year)
-        return {"tax_computation": computation}
-    except Exception as e:
+        prepared = await tax_svc.prepare_return(
+            state.user_id,
+            country=state.country or None,
+            region=state.region or None,
+            year=state.year or None,
+            answers=state.answers,
+        )
+    except Exception as e:  # noqa: BLE001 — anything else is unexpected: keep only its class
         return {"error": error_label(e)}
+    if prepared.get("error"):
+        return {"error": prepared["error"], "computation": prepared.get("computation") or {}}
+    return {
+        "error": "",
+        "country": prepared["country"],
+        "region": prepared["region"] or "",
+        "year": prepared["year"],
+        "computation": prepared["computation"],
+        "forms": prepared["forms"],
+    }
 
 
-def _map_to_cages(state: ReturnState) -> dict[str, Any]:
-    """
-    Map the engine's TaxComputation output to RAMIS return cages.
-    RAMIS is the IRD's online return system. Cage numbers may change each year;
-    this mapping is for the forms in `_RETURN_FORMS`.
-    """
-    if state.tax_computation is None:
-        return {"error": "No tax computation available to map"}
-
-    tc = state.tax_computation
+def _build_draft(state: ReturnState) -> dict[str, Any]:
+    c = state.computation
     draft = {
-        # Part 1 — Income
-        "cage_1a_employment_income": str(tc.gross_income),
-        # Part 2 — Deductions / relief
-        "cage_2a_personal_relief": str(tc.personal_relief_applied),
-        # Part 3 — Tax computation
-        "cage_3a_taxable_income": str(tc.taxable_income),
-        "cage_3b_tax_before_credits": str(tc.tax_before_credits),
-        # Part 4 — Credits
-        "cage_4a_apit_withheld": str(tc.apit_credit),
-        "cage_4b_ait_withheld": str(tc.ait_credit),
-        "cage_4c_foreign_tax_credit": str(tc.foreign_tax_credit),
-        # Part 5 — Balance
-        "cage_5a_tax_payable": str(tc.tax_payable),
-        # Metadata
-        "pack_version": tc.pack_version,
-        "year": tc.pack_year,
-        "note": (
-            "This is a pre-filled worksheet generated by Salli. "
-            "Review all figures before submitting via RAMIS. "
-            "This is not formal tax advice."
-        ),
+        "country": c["country"],
+        "region": c["region"],
+        "year": c["year"],
+        "currency": c["currency"],
+        "computation_id": c["id"],
+        "rule_set_id": c["rule_set_id"],
+        "rule_set_version_id": c["rule_set_version_id"],
+        "version": c["version"],
+        "content_hash": c["content_hash"],
+        "net": c["net"],
+        "tax_payable": c["tax_payable"],
+        "refund_due": c["refund_due"],
+        "lines": c["lines"],
+        "answers": c.get("answers") or {},
+        "forms": state.forms,
+        "warnings": c.get("warnings") or [],
+        "note": _NOTE,
+        "provenance": c.get("provenance", ""),
     }
     return {"draft_return": draft}
 
 
 def _review(state: ReturnState) -> dict[str, Any]:
     """
-    Human-in-the-loop gate. The graph pauses here and surfaces the draft to the user.
-    In Phase 1 (CLI), the caller reads the interrupt payload and resumes with a Command.
-    In Phase 2 (FastAPI), the SSE stream surfaces the __interrupt__ event to the client.
+    Human-in-the-loop gate. The graph pauses before this node; the caller
+    shows the draft and resumes with Command(resume=...): a decision, or
+    {"decision": "edit", "answers": {...}} to compute again with new answers.
     """
-    decision = interrupt(
+    resumed = interrupt(
         {
             "draft_return": state.draft_return,
-            "message": "Please review the draft return. Reply with 'approve', 'edit', or 'reject'.",
-            "allowed_decisions": ["approve", "edit", "reject"],
+            "message": "Review the draft return: approve it, edit (new answers, or after "
+            "fixing your ledger: Salli computes again), or reject it.",
+            "allowed_decisions": list(DECISIONS),
         }
     )
-    return {"review_decision": decision}
+    answers: dict[str, Any] | None = None
+    if isinstance(resumed, dict):
+        decision = str(resumed.get("decision", ""))
+        given = resumed.get("answers")
+        answers = dict(given) if isinstance(given, dict) else None
+    else:
+        decision = str(resumed)
+    out: dict[str, Any] = {"review_decision": decision}
+    if decision == "edit" and answers is not None:
+        out["answers"] = {**state.answers, **answers}
+    return out
 
 
 def _finalize(state: ReturnState) -> dict[str, Any]:
@@ -154,77 +153,56 @@ def _finalize(state: ReturnState) -> dict[str, Any]:
             "worksheet": {},
             "error": f"Return not approved (decision: {state.review_decision})",
         }
-    year = state.draft_return.get("year") or state.year
-    worksheet = {
-        **state.draft_return,
-        "status": "ready_to_submit",
-        "instructions": (
-            "Log in to RAMIS (ramis.ird.gov.lk), navigate to Individual Return → "
-            f"{year}, and enter the values from this worksheet. "
-            "Keep a copy with your supporting documents."
-        ),
-    }
-    return {"worksheet": worksheet}
+    return {"worksheet": {**state.draft_return, "status": "ready_to_file"}}
 
 
-def _should_finalize(state: ReturnState) -> str:
-    if state.error:
-        return "error"
-    return "finalize"
+def _after_compute(state: ReturnState) -> str:
+    return "error" if state.error else "build_draft"
+
+
+def _after_review(state: ReturnState) -> str:
+    return "compute" if state.review_decision == "edit" else "finalize"
 
 
 # ── Graph construction ─────────────────────────────────────────────────────────
 
 
-def build_return_workflow(ledger_svc, tax_svc, checkpointer=None):
+def build_return_workflow(ledger_svc: Any, tax_svc: Any, checkpointer: Any = None) -> Any:
     """
     Build and compile the return preparation StateGraph.
 
     The returned compiled graph is invoked with:
         await workflow.ainvoke(
-            {"user_id": user_id, "year": year},  # "" for the latest year
+            {"user_id": user_id, "year": year, "country": "", "region": "", "answers": {}},
             config={"configurable": {"thread_id": thread_id}},
         )
-    And resumed (after review interrupt) with:
+    And resumed (after the review interrupt) with:
         from langgraph.types import Command
         await workflow.ainvoke(
-            Command(resume="approve"),
+            Command(resume="approve"),  # or {"decision": "edit", "answers": {...}}
             config={"configurable": {"thread_id": thread_id}},
         )
+    `ledger_svc` is unused (the computation reads the ledger) and kept for the
+    builders' common signature.
     """
     from langgraph.checkpoint.memory import MemorySaver
 
     if checkpointer is None:
         checkpointer = MemorySaver()
 
-    # Bind services into closures
-    async def gather(state: ReturnState) -> dict[str, Any]:
-        return await _gather(state, ledger_svc, tax_svc)
-
     async def compute(state: ReturnState) -> dict[str, Any]:
         return await _compute(state, tax_svc)
 
-    def map_to_cages(state: ReturnState) -> dict[str, Any]:
-        return _map_to_cages(state)
-
-    def review(state: ReturnState) -> dict[str, Any]:
-        return _review(state)
-
-    def finalize(state: ReturnState) -> dict[str, Any]:
-        return _finalize(state)
-
     g = StateGraph(ReturnState)
-    g.add_node("gather", gather)
     g.add_node("compute", compute)
-    g.add_node("map_to_cages", map_to_cages)
-    g.add_node("review", review)
-    g.add_node("finalize", finalize)
+    g.add_node("build_draft", _build_draft)
+    g.add_node("review", _review)
+    g.add_node("finalize", _finalize)
 
-    g.add_edge(START, "gather")
-    g.add_conditional_edges("gather", _should_finalize, {"finalize": "compute", "error": END})
-    g.add_conditional_edges("compute", _should_finalize, {"finalize": "map_to_cages", "error": END})
-    g.add_edge("map_to_cages", "review")
-    g.add_edge("review", "finalize")
+    g.add_edge(START, "compute")
+    g.add_conditional_edges("compute", _after_compute, {"build_draft": "build_draft", "error": END})
+    g.add_edge("build_draft", "review")
+    g.add_conditional_edges("review", _after_review, {"compute": "compute", "finalize": "finalize"})
     g.add_edge("finalize", END)
 
     return g.compile(checkpointer=checkpointer, interrupt_before=["review"])

@@ -13,8 +13,8 @@ Stream protocol (newline-delimited JSON events):
   {"type": "done"}                                          Stream complete
   {"type": "error",            "message": "..."}            Unrecoverable error
 
-Clients resume an interrupted chat agent by POSTing to /agent/resume with
-workflow: "chat". Return-workflow resume uses workflow: "return".
+Clients resume an interrupted chat agent by POSTing to /agent/resume. A
+prepared return is reviewed through /tax/returns/resume (routers/tax.py).
 """
 
 from __future__ import annotations
@@ -106,8 +106,7 @@ a specialist (`tax_specialist`, `finance_specialist`) at work, and what it write
 - `tool_call` `{name, input, agent?}` and `tool_result` `{name, output, agent?}`: a tool \
 used by the agent, or by the specialist named in `agent`.
 - `approval_required` `{action: {type, action, description, params}}`: a write waiting \
-for the user. Answer it with `agent.resume` (`workflow: "chat"`, `decision: "approved"` \
-or `"denied"`).
+for the user. Answer it with `agent.resume` (`decision: "approved"` or `"denied"`).
 - `interrupt` `{data}`: any other pause.
 - `error` `{message, code?, link?}`: the turn failed; `message` is a sentence to show. \
 For an AI provider's own error, `code` names it (`chatgpt_usage_limit`: the user's ChatGPT \
@@ -121,11 +120,7 @@ _CHAT_EVENTS = (
     "cannot run at all (a ChatGPT plan paused at its limit, or needing a new sign-in)."
 )
 
-_RESUME_EVENTS = (
-    _EVENTS + '\n\nWith `workflow: "return"` the stream is instead a single `token` whose '
-    "`content` is the JSON-encoded result of the return workflow (`{worksheet, error}`), "
-    "then `done`."
-)
+_RESUME_EVENTS = _EVENTS
 
 
 def _event_stream(description: str) -> dict[int | str, dict[str, Any]]:
@@ -250,25 +245,16 @@ async def upload_file(
 # utterances, not long dictation, so this is well above any legitimate use.
 class ResumeRequest(BaseModel):
     thread_id: str
-    decision: str  # "approved"|"denied" (chat) or "approve"|"edit"|"reject" (return)
-    workflow: str = "chat"  # "chat" | "return"
-    edits: dict | None = None
+    decision: str  # "approved" | "denied"
     persona: Persona = "scrooge"
 
 
 @router.post("/resume", response_class=StreamingResponse, responses=_event_stream(_RESUME_EVENTS))
 async def resume(body: ResumeRequest, user_id: CurrentUser, svc: AppServices, creds: Credentials):
     """
-    Resume an interrupted agent.
-    - workflow="chat": resumes a write-tool approval gate (decision: "approved"|"denied")
-    - workflow="return": resumes the return-preparation workflow (decision: "approve"|"reject")
+    Resume a chat agent paused at a write-tool approval gate (decision:
+    "approved" or "denied"). A return is reviewed with `tax.returns.resume`.
     """
-    if body.workflow == "return":
-        return StreamingResponse(
-            _emit_events(_wrap_return_resume(svc, body.thread_id, body.decision)),
-            media_type="text/event-stream",
-            headers=_SSE_HEADERS,
-        )
     return StreamingResponse(
         _emit_events(
             svc.agent.resume_chat(
@@ -288,14 +274,6 @@ async def resume(body: ResumeRequest, user_id: CurrentUser, svc: AppServices, cr
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
-
-
-async def _wrap_return_resume(
-    svc: AppServices, thread_id: str, decision: str
-) -> AsyncIterator[tuple[str, object]]:
-    result = await svc.agent.resume_return(thread_id=thread_id, decision=decision)
-    yield ("token", json.dumps(result))
-    yield ("done", None)
 
 
 # ── History ───────────────────────────────────────────────────────────────────

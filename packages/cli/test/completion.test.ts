@@ -54,7 +54,7 @@ describe('salli completion', () => {
       await writeFile(script, zsh.stdout);
       expect(spawnSync('zsh', ['-n', script]).status).toBe(0);
     }
-    expect(zsh.stdout).toContain('== (--attach|--out|-o) ]]');
+    expect(zsh.stdout).toContain('== (--attach|--out|-o|--dir) ]]');
     const fish = await runCli(['completion', 'fish'], { configDir: dir });
     expect(fish.stdout).toContain("complete -c salli -n \"contains -- (__salli_path) ''\" -a 'accounts'");
     expect(fish.stdout).toContain("-s o -r -F -d 'Write it to this file (default: stdout)'");

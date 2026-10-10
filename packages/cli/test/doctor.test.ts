@@ -33,11 +33,41 @@ describe('salli doctor', () => {
       'API version': 'ok',
       Clock: 'ok',
       'Signed in': 'ok',
+      'Tax rules': 'info', // a token made without tax:activate
       Credentials: 'warn', // tests keep credentials in a file
     });
     const human = await runCli(['doctor'], { configDir: dir, env, now: new Date() });
     expect(human.stdout).toMatch(/✓ Server +http:\/\/127\.0\.0\.1:\d+ answered in \d+ ms \(Salli 0\.1\.0\)/);
     expect(human.stdout).toContain('✓ Signed in    as user-123 (SALLI_TOKEN)');
+  });
+
+  it('says, once, whether this sign-in may activate tax rule sets, and what would', async () => {
+    const run = (args: string[], env: Record<string, string> = {}) => runCli(args, { configDir: dir, env, now: new Date() });
+    const taxLine = (stdout: string) => stdout.split('\n').filter((l) => l.includes('Tax rules') || l.includes('activate')).join('\n');
+
+    // A token made without tax:activate: fine, and how to get one that may.
+    mock = await MockSalli.start();
+    const pat = await run(['doctor'], { SALLI_SERVER: mock.url, SALLI_TOKEN: 'pat-valid' });
+    expect(taxLine(pat.stdout)).toContain('this personal access token cannot activate tax rule sets');
+    expect(taxLine(pat.stdout)).toContain('salli tokens create <name> --allow tax:activate');
+
+    // Signed in as the CLI's own client: it may.
+    expect((await run(['login', '--server', mock.url])).code).toBe(0);
+    const own = await run(['doctor']);
+    expect(own.code).toBe(0);
+    expect(own.stdout).toContain('✓ Tax rules    this sign-in may activate tax rule sets (after you review them)');
+    await mock.close();
+
+    // A server naming no CLI client: salli registered its own, which may not.
+    mock = await MockSalli.start({ cliClient: false });
+    expect((await run(['login', '--server', mock.url])).code).toBe(0);
+    const registered = await run(['doctor', '--json']);
+    expect(registered.code).toBe(0);
+    const check = (JSON.parse(registered.stdout) as Checks).checks.find((c) => c.name === 'Tax rules');
+    expect(check).toMatchObject({ status: 'info' });
+    expect(check?.detail).toBe('this server names no first-party CLI client, so salli registered its own: that sign-in cannot activate tax rule sets');
+    const human = await run(['doctor']);
+    expect(human.stdout.match(/cannot activate tax rule sets/g)).toHaveLength(1);
   });
 
   it('notices a clock that has drifted', async () => {

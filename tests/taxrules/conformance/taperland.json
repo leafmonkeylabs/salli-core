@@ -1,0 +1,101 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XA", "region": null },
+  "year": { "label": "2031", "start": "2031-01-01", "end": "2031-12-31" },
+  "currency": "USD",
+  "sources": [
+    { "id": "act", "url": "https://example.org/taperland/income-tax-act", "title": "Taperland Income Tax Act (fictional)", "retrieved": "2031-02-01" }
+  ],
+  "roles": [
+    { "key": "employment_income", "kind": "income", "label": "Employment income" },
+    { "key": "other_income", "kind": "income", "label": "Other income" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Tax withheld by employers" }
+  ],
+  "band_tables": {
+    "main": {
+      "label": "Rates on taxable income",
+      "bands": [
+        { "upto": "40000", "rate": "0.20" },
+        { "upto": "110000", "rate": "0.40" },
+        { "upto": null, "rate": "0.45" }
+      ],
+      "source": "act"
+    }
+  },
+  "blocks": [
+    {
+      "type": "relief", "key": "personal_allowance", "label": "Personal allowance",
+      "of": "line.total_income", "amount": "line.allowance"
+    },
+    { "type": "schedule", "key": "income_tax", "label": "Income tax", "of": "line.personal_allowance.remaining", "table": "main" },
+    { "type": "credit", "key": "withholding", "label": "Tax withheld", "of": "role.tax_withheld", "refundable": true }
+  ],
+  "lines": [
+    { "key": "total_income", "label": "Total income", "expr": "role.employment_income + role.other_income" },
+    {
+      "key": "allowance", "label": "Allowance after the taper",
+      "expr": "max(0, 12000 - max(0, line.total_income - 100000) / 2)", "source": "act"
+    },
+    { "key": "balance", "label": "Tax less withholding", "expr": "line.income_tax - line.withholding" }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "nearest", "unit": "0.01" } },
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2032-04-30", "source": "act" }],
+  "suggested_accounts": [
+    { "code": "1450", "name": "Tax withheld", "type": "asset", "tax_role": "tax_withheld" }
+  ],
+  "forms": [
+    {
+      "key": "return", "label": "Annual return",
+      "fields": [
+        { "id": "box_1", "label": "Total income", "value": "line.total_income" },
+        { "id": "box_2", "label": "Allowance", "value": "line.personal_allowance" },
+        { "id": "box_3", "label": "Tax", "value": "line.income_tax" }
+      ],
+      "instructions": "Copy each box into the fictional Taperland return.",
+      "url": "https://example.org/taperland/return"
+    }
+  ],
+  "examples": [
+    {
+      "name": "Below the taper", "source": "act",
+      "inputs": { "employment_income": "30000" },
+      "expected": { "payable": "3600", "lines": { "allowance": "12000", "personal_allowance.remaining": "18000" } }
+    },
+    {
+      "name": "At the taper threshold", "source": "act",
+      "inputs": { "employment_income": "100000" },
+      "expected": { "payable": "27200", "lines": { "allowance": "12000", "personal_allowance.remaining": "88000" } }
+    },
+    {
+      "name": "One above the threshold", "source": "act",
+      "inputs": { "employment_income": "100001" },
+      "expected": {
+        "payable": "27200.60",
+        "lines": { "allowance": "11999.5", "personal_allowance.remaining": "88001.5", "income_tax": "27200.6" }
+      }
+    },
+    {
+      "name": "Allowance exactly used up", "source": "act",
+      "inputs": { "employment_income": "124000" },
+      "expected": {
+        "payable": "42300",
+        "lines": { "allowance": "0", "income_tax.band_3.amount": "14000", "income_tax": "42300" }
+      }
+    },
+    {
+      "name": "Well past the taper, with withholding", "source": "act",
+      "inputs": { "employment_income": "120000", "other_income": "30000", "tax_withheld": "50000" },
+      "expected": { "payable": "4000", "refund": "0", "lines": { "allowance": "0", "income_tax": "54000" } }
+    },
+    {
+      "name": "Withholding above the tax", "source": "act",
+      "inputs": { "employment_income": "30000", "tax_withheld": "4000" },
+      "expected": { "payable": "0", "refund": "400" }
+    },
+    {
+      "name": "No income", "source": "act",
+      "inputs": {},
+      "expected": { "payable": "0", "refund": "0", "lines": { "personal_allowance": "0" } }
+    }
+  ]
+}

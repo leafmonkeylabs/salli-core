@@ -1,24 +1,23 @@
 """
-An account's tax role must be one its owner's tax packs declare.
+An account's tax role must be one the user's own tax rule sets declare.
 
-LedgerService checks it where a role is set: on a new account, and on an edit
-that changes it. An edit that keeps the role it has never fails on it, so a
-user who moves country can still rename their old accounts.
+Salli has no roles of its own: a rule set's `roles` are what its accounts may
+carry. LedgerService checks it where a role is set: on a new account, and on an
+edit that changes it. An edit that keeps the role an account has never fails on
+it, so an account whose role no rule set in use declares any more (its version
+was superseded) can still be renamed; validating a rule set warns about it
+instead (tests/integration/test_tax_rule_service.py).
 """
 
 from __future__ import annotations
 
-import uuid
 from contextlib import asynccontextmanager
-from decimal import Decimal
 from typing import Any
 
 import pytest
 
 from salli.application.services.ledger_service import LedgerService, UnknownTaxRoleError
-from salli.application.services.tax_service import _build_ledger_view
-from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
-from salli.domain.tax.packs.lk_2025_26 import LK_2025_26
+from salli.domain.accounting.models import Account
 
 USER = "u1"
 
@@ -46,124 +45,79 @@ class _Profiles:
         self.residency = residency
 
     async def get(self, user_id: str) -> dict[str, Any]:
-        return {"id": user_id, "base_currency": "LKR", "tax_residency": self.residency}
+        return {"id": user_id, "base_currency": "EUR", "tax_residency": self.residency}
 
     async def base_currency(self, user_id: str) -> str:
-        return "LKR"
+        return "EUR"
 
 
-def _service(residency: str | None) -> tuple[LedgerService, _Ledger, _Profiles]:
-    ledger, profiles = _Ledger(), _Profiles(residency)
+class _RuleSets:
+    def __init__(self, roles: set[str]) -> None:
+        self.roles = roles
+
+    async def declared_roles(self, user_id: str) -> set[str]:
+        return set(self.roles) if user_id == USER else set()
+
+
+def _service(
+    own_roles: set[str] | None = None, residency: str | None = "GB"
+) -> tuple[LedgerService, _Ledger, _RuleSets]:
+    ledger, rule_sets = _Ledger(), _RuleSets(own_roles or set())
 
     class _UoW:
         pass
 
     uow = _UoW()
     uow.ledger = ledger  # type: ignore[attr-defined]
-    uow.user_profiles = profiles  # type: ignore[attr-defined]
+    uow.user_profiles = _Profiles(residency)  # type: ignore[attr-defined]
+    uow.tax_rule_sets = rule_sets  # type: ignore[attr-defined]
 
     @asynccontextmanager
     async def factory():
         yield uow
 
-    return LedgerService(factory), ledger, profiles
+    return LedgerService(factory), ledger, rule_sets
 
 
-async def test_a_sri_lankan_resident_may_use_sri_lankan_roles():
-    svc, ledger, _ = _service("LK")
-    for role in ("apit_credit", "ait_credit", "foreign_tax_credit", "qualifying_payment"):
-        account_id = await svc.add_account(USER, role, role, "asset", tax_role=role)
-        assert ledger.accounts[account_id].tax_role == role
+async def test_a_role_the_users_rule_sets_declare_is_allowed_wherever_they_live():
+    for residency in ("GB", None):
+        svc, ledger, _ = _service({"paye_withheld", "salary"}, residency)
+        account_id = await svc.add_account(USER, "1450", "PAYE", "asset", tax_role="paye_withheld")
+        assert ledger.accounts[account_id].tax_role == "paye_withheld"
+        assert await svc.allowed_tax_roles(USER) == ("paye_withheld", "salary")
 
 
-async def test_a_role_another_country_or_no_pack_declares_is_refused():
-    svc, ledger, _ = _service("GB")
-    with pytest.raises(UnknownTaxRoleError, match="no tax pack for the United Kingdom"):
-        await svc.add_account(USER, "4110", "APIT Receivable", "asset", tax_role="apit_credit")
+async def test_any_other_role_is_refused_saying_which_there_are():
+    svc, ledger, _ = _service({"salary"})
+    with pytest.raises(UnknownTaxRoleError, match=r"'apit_credit' .* \(salary\)"):
+        await svc.add_account(USER, "4110", "Withheld", "asset", tax_role="apit_credit")
     assert ledger.accounts == {}
 
-    svc, _, _ = _service("LK")
-    with pytest.raises(UnknownTaxRoleError, match="tax packs for Sri Lanka"):
-        await svc.add_account(USER, "1", "x", "asset", tax_role="paye_credit")
+
+async def test_with_no_rule_sets_there_are_no_roles_at_all():
+    """Salli has none of its own: what used to be built in is gone."""
+    svc, _, _ = _service(set())
+    assert await svc.allowed_tax_roles(USER) == ()
+    for role in ("apit_credit", "fsi_income", "qualifying_payment"):
+        with pytest.raises(UnknownTaxRoleError, match="none of your tax rule sets declares any"):
+            await svc.add_account(USER, "1", "x", "asset", tax_role=role)
 
 
-async def test_with_no_residency_any_pack_s_role_will_do():
-    """The roles such a user could always use; no country is assumed for them."""
-    svc, _, _ = _service(None)
-    await svc.add_account(USER, "4110", "APIT Receivable", "asset", tax_role="apit_credit")
-    with pytest.raises(UnknownTaxRoleError, match="any tax pack"):
-        await svc.add_account(USER, "1", "x", "asset", tax_role="paye_credit")
-    assert await svc.allowed_tax_roles(USER) == LK_2025_26.tax_roles
-
-
-async def test_an_account_without_a_role_needs_no_pack():
-    svc, ledger, _ = _service("US")
+async def test_an_account_without_a_role_needs_no_rule_set():
+    svc, ledger, _ = _service(set())
     account_id = await svc.add_account(USER, "1100", "Cash", "asset")
     assert ledger.accounts[account_id].tax_role is None
 
 
 async def test_an_edit_that_keeps_the_role_never_fails_on_it():
-    svc, ledger, profiles = _service("LK")
-    account_id = await svc.add_account(USER, "4110", "APIT", "asset", tax_role="apit_credit")
+    svc, ledger, rule_sets = _service({"salary", "withheld"})
+    account_id = await svc.add_account(USER, "1450", "Withheld", "asset", tax_role="withheld")
 
-    profiles.residency = "GB"  # they moved
+    rule_sets.roles = {"salary"}  # the version declaring it was superseded
     await svc.update_account(
-        USER, account_id, "4110", "APIT Receivable (old job)", "asset", tax_role="apit_credit"
+        USER, account_id, "1450", "Withheld (old job)", "asset", tax_role="withheld"
     )
-    assert ledger.accounts[account_id].name == "APIT Receivable (old job)"
+    assert ledger.accounts[account_id].name == "Withheld (old job)"
 
     with pytest.raises(UnknownTaxRoleError):
-        await svc.update_account(
-            USER, account_id, "4110", "APIT", "asset", tax_role="foreign_tax_credit"
-        )
-
-
-# ── The engine reads only the roles the computing pack declares ──────────────
-
-
-def _entry(debit: str, credit: str, amount: str) -> StoredJournalEntry:
-    return StoredJournalEntry(
-        id=str(uuid.uuid4()),
-        user_id=USER,
-        entry_date="2025-06-01",
-        description="",
-        source="manual",
-        postings=[
-            Posting(
-                account_id=debit,
-                direction=Direction.DEBIT,
-                amount=Decimal(amount),
-                currency="LKR",
-            ),
-            Posting(
-                account_id=credit,
-                direction=Direction.CREDIT,
-                amount=Decimal(amount),
-                currency="LKR",
-            ),
-        ],
-    )
-
-
-def test_a_role_the_pack_does_not_declare_is_not_credited():
-    from dataclasses import replace
-
-    salary = Account(id="s", user_id=USER, code="4100", name="S", type="income", currency="LKR")
-    apit = Account(
-        id="a",
-        user_id=USER,
-        code="4110",
-        name="A",
-        type="asset",
-        currency="LKR",
-        tax_role="apit_credit",
-    )
-    entries = [_entry("bank", "s", "3000000"), _entry("a", "clearing", "100000")]
-
-    assert _build_ledger_view(entries, [salary, apit], LK_2025_26).apit_withheld == Decimal(
-        "100000"
-    )
-    without_apit = replace(LK_2025_26, withholding_kinds=LK_2025_26.withholding_kinds[1:])
-    assert _build_ledger_view(entries, [salary, apit], without_apit).apit_withheld == 0
-    # With no pack to ask, every role the engine knows counts, as before.
-    assert _build_ledger_view(entries, [salary, apit]).apit_withheld == Decimal("100000")
+        await svc.update_account(USER, account_id, "1450", "Withheld", "asset", tax_role="other")

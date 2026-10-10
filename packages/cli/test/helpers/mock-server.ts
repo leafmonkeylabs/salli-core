@@ -47,7 +47,6 @@ import type {
   RuleTestResult,
   RuleUpdate,
   StatementTransaction,
-  TaxPack,
 } from '@leafmonkeylabs/salli-sdk';
 import {
   ACCOUNTS,
@@ -62,6 +61,7 @@ import {
   TRIAL_BALANCE,
   uid,
 } from './fixtures';
+import { TaxRulesMock } from './taxrules';
 
 export interface RecordedRequest {
   method: string;
@@ -89,7 +89,15 @@ export interface MockOptions {
   consent?: boolean;
   /** The resource indicator for the REST API. Default: `<url>/v1`. */
   apiResource?: string;
+  /**
+   * Advertise Salli's own CLI client (`salli-cli`, seeded, first party) in
+   * /v1/meta. Default true; false is a server from before first-party clients.
+   */
+  cliClient?: boolean;
 }
+
+/** The first-party CLI client a real server seeds (core_0011). */
+export const CLI_CLIENT_ID = 'salli-cli';
 
 type Reply = { status: number; body?: unknown; headers?: Record<string, string>; raw?: string };
 type Handler = (req: RecordedRequest, params: Record<string, string>, res: http.ServerResponse) => Reply | undefined | Promise<Reply | undefined>;
@@ -111,13 +119,17 @@ export class MockSalli {
   url = '';
   readonly options: MockOptions;
   readonly requests: RecordedRequest[] = [];
-  readonly clients = new Map<string, { redirect_uris: string[]; client_name?: string }>();
+  readonly clients = new Map<string, { redirect_uris: string[]; client_name?: string; first_party?: boolean }>();
   readonly codes = new Map<string, { client_id: string; redirect_uri: string; challenge: string; resource?: string }>();
-  readonly accessTokens = new Map<string, { expires_at: number }>();
+  readonly accessTokens = new Map<string, { expires_at: number; client_id?: string }>();
   readonly refreshTokens = new Map<string, { client_id: string }>();
+  /** Permissions each personal access token was made with (none if absent). */
+  readonly patPermissions = new Map<string, string[]>();
   readonly revoked: string[] = [];
   readonly pats = new Set<string>(['pat-valid']);
   user: { user_id: string; email: string | null } = { user_id: 'user-123', email: null };
+  /** Tax rule sets (`/v1/tax/schema`, `/v1/tax/rule-sets`). */
+  readonly taxRules = new TaxRulesMock();
   data = {
     accounts: clone(ACCOUNTS),
     entries: clone(ENTRIES),
@@ -193,7 +205,12 @@ export class MockSalli {
         paused_until: null, detail: null, readable: true, manage_usage_url: 'https://chatgpt.com/settings/usage',
       } as ChatGptConnection,
     },
-    taxYear: { country: 'LK', country_source: 'tax_residency', year: '2026/27', start: '2026-04-01', end: '2027-03-31', has_pack: false, latest_year: '2025/26' } as TaxYearStatus,
+    taxYear: {
+      country: 'XA', country_source: 'given', year: '2031', region: null, start: '2031-01-01', end: '2031-12-31',
+      rule_set_id: uid(1501), rule_set_version_id: uid(1511), version: 1, latest_year: '2031', latest_rule_set_version_id: uid(1511),
+    } as TaxYearStatus,
+    /** The inflation the user set (`PATCH /v1/fi/assumptions`), as a rate string. */
+    fiInflation: undefined as string | undefined,
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
     prices: [
       { id: uid(1301), symbol: 'VTI', date: '2026-10-08', close: '281.26', currency: 'USD', source: 'user', created_at: '2026-10-08T18:00:00Z', updated_at: '2026-10-08T18:00:00Z' },
@@ -240,7 +257,7 @@ export class MockSalli {
       },
     ] as CategorizationRule[],
     tokens: [
-      { id: uid(701), name: 'backup job', prefix: 'salli_pat_bk7Q', created_at: '2026-09-01T09:00:00Z', expires_at: null, last_used_at: '2026-10-08T03:00:00Z' },
+      { id: uid(701), name: 'backup job', prefix: 'salli_pat_bk7Q', permissions: [], created_at: '2026-09-01T09:00:00Z', expires_at: null, last_used_at: '2026-10-08T03:00:00Z' },
     ] as PersonalAccessToken[],
     bodies: [] as Array<{ method: string; path: string; body: unknown }>,
   };
@@ -274,6 +291,9 @@ export class MockSalli {
   private constructor(options: MockOptions) {
     this.options = options;
     this.deviceSteps = [...(options.deviceSteps ?? ['authorization_pending', 'approve'])];
+    if (options.cliClient !== false) {
+      this.clients.set(CLI_CLIENT_ID, { redirect_uris: ['http://127.0.0.1/callback'], client_name: 'Salli CLI', first_party: true });
+    }
   }
 
   static async start(options: MockOptions = {}): Promise<MockSalli> {
@@ -306,11 +326,11 @@ export class MockSalli {
   }
 
   /** Issues a token pair, as a sign-in would. */
-  issueTokens(ttl = this.options.accessTokenTtl ?? 3600): { access_token: string; refresh_token: string; expires_in: number } {
+  issueTokens(ttl = this.options.accessTokenTtl ?? 3600, clientId = CLI_CLIENT_ID): { access_token: string; refresh_token: string; expires_in: number } {
     const access = `at-${b64url(randomBytes(9))}`;
     const refresh = `rt-${b64url(randomBytes(9))}`;
-    this.accessTokens.set(access, { expires_at: Date.now() / 1000 + ttl });
-    this.refreshTokens.set(refresh, { client_id: 'seeded' });
+    this.accessTokens.set(access, { expires_at: Date.now() / 1000 + ttl, client_id: clientId });
+    this.refreshTokens.set(refresh, { client_id: clientId });
     return { access_token: access, refresh_token: refresh, expires_in: ttl };
   }
 
@@ -324,7 +344,6 @@ export class MockSalli {
       api_version: this.options.apiVersion ?? '1',
       server_version: '0.1.0',
       extensions: [],
-      tax_packs: [{ country: 'LK', year: '2025/26', version: '1', currency: 'LKR', period_start: '2025-04-01', period_end: '2026-03-31', withholding_kinds: [] }],
       oauth: {
         issuer: base,
         authorization_endpoint: `${base}/mcp/oauth/authorize`,
@@ -334,9 +353,14 @@ export class MockSalli {
         device_authorization_endpoint: `${base}/mcp/oauth/device_authorization`,
         api_resource: this.options.apiResource ?? `${base}/v1`,
         device_verification_uri: `${base}/mcp/oauth/device`,
+        cli_client_id: CLI_CLIENT_ID,
       },
       default_currency: 'USD',
     };
+    if (this.options.cliClient === false) {
+      const { cli_client_id: _cli, ...oauth } = meta.oauth;
+      meta.oauth = oauth as Meta['oauth'];
+    }
     if (this.options.device === false) {
       // A server from before device sign-in.
       const { device_authorization_endpoint: _endpoint, device_verification_uri: _page, ...oauth } = meta.oauth;
@@ -349,6 +373,18 @@ export class MockSalli {
   private tokenOf(req: RecordedRequest): string {
     const header = req.headers.authorization ?? '';
     return header.startsWith('Bearer ') ? header.slice(7) : '';
+  }
+
+  /**
+   * What the request's sign-in may do, as the real server derives it: a
+   * token what it was made with, an OAuth token tax:activate only when its
+   * client is first party.
+   */
+  permissionsOf(req: RecordedRequest): string[] {
+    const token = this.tokenOf(req);
+    if (this.pats.has(token)) return [...(this.patPermissions.get(token) ?? [])];
+    const client = this.clients.get(this.accessTokens.get(token)?.client_id ?? '');
+    return client?.first_party ? ['tax:activate'] : [];
   }
 
   private authorized(req: RecordedRequest): boolean {
@@ -401,8 +437,11 @@ export class MockSalli {
     const p = (pattern: string): Record<string, string> | undefined => match(pattern, path);
     let params: Record<string, string> | undefined;
 
+    const taxRules = this.taxRules.route(req, this.permissionsOf(req));
+    if (taxRules) return taxRules;
+
     if (method === 'GET' && path === '/v1/auth/me') {
-      return { status: 200, body: { ...this.user, method: this.pats.has(this.tokenOf(req)) ? 'pat' : 'oauth' } };
+      return { status: 200, body: { ...this.user, method: this.pats.has(this.tokenOf(req)) ? 'pat' : 'oauth', permissions: this.permissionsOf(req) } };
     }
 
     // accounts
@@ -579,18 +618,27 @@ export class MockSalli {
         status: 200,
         body: {
           currency: 'USD',
+          terms: this.data.fiInflation ? 'real_and_nominal' : 'real',
           points: [
-            { year: 2027, conservative: '30000.00', base: '32000.00', growth: '34000.00' },
-            { year: 2028, conservative: '48000.00', base: '52000.00', growth: '57000.00' },
-          ],
+            { year: 0, conservative: '30000.00', base: '30000.00', growth: '30000.00' },
+            { year: 1, conservative: '48000.00', base: '52000.00', growth: '57000.00' },
+          ].map((pt) =>
+            this.data.fiInflation
+              ? { ...pt, nominal: { conservative: pt.conservative, base: pt.year ? '53560.00' : pt.base, growth: pt.growth, fi_number: pt.year ? '683616.15' : '663705.00' } }
+              : pt,
+          ),
           fi_number: '663705.00',
-          swr: '0.04',
+          swr: '0.035',
           fire_year_conservative: 19,
           fire_year_base: 14,
           fire_year_growth: 11,
           current_portfolio: '12834.50',
-          real_returns: { conservative: '0.02', base: '0.035', growth: '0.05' },
-          expected_inflation: '0.05',
+          real_returns: { conservative: '0.02', base: '0.04', growth: '0.06' },
+          inflation: this.data.fiInflation ?? null,
+          nominal_returns: this.data.fiInflation ? { conservative: '0.0506', base: '0.0712', growth: '0.0918' } : null,
+          assumptions: this.data.fiInflation
+            ? { ...FI_ASSUMPTIONS, inflation: { value: this.data.fiInflation, origin: 'user', source: 'https://example.org/cpi', note: null } }
+            : FI_ASSUMPTIONS,
         },
       };
     }
@@ -683,17 +731,14 @@ export class MockSalli {
         residency_status: 'resident',
         employer: null,
         employment_type: null,
-        ird_number: null,
         risk_score: null,
         risk_category: null,
         life_stage: null,
         mcp_enabled: true,
         daily_briefing_enabled: false,
         preferred_model: null,
-        tax_residency: 'LK',
-        tax_ids: [{ scheme: 'LK-TIN', value: '123456789' }],
-        nic: null,
-        fi_assumptions: { safe_withdrawal_rate: '0.04' },
+        tax_residency: 'KE',
+        tax_ids: [{ scheme: 'KE-PIN', value: 'A001234567Z' }],
       };
       return { status: 200, body: profile };
     }
@@ -708,49 +753,27 @@ export class MockSalli {
     if (method === 'GET' && path === '/v1/tax/current-year') {
       return { status: 200, body: this.data.taxYear };
     }
-    if (method === 'GET' && path === '/v1/fi/assumptions') {
-      return {
-        status: 200,
-        body: {
-          applied: FI_ASSUMPTIONS,
-          defaults: { ...FI_ASSUMPTIONS, safe_withdrawal_rate: { value: '0.035', origin: 'default', source: 'US research on 30-year retirements' } },
-          overrides: { safe_withdrawal_rate: '0.04' },
-        } satisfies FiAssumptionsReport,
-      };
-    }
-    if (method === 'GET' && path === '/v1/tax/packs') {
-      const pack: TaxPack = {
-        country: 'LK',
-        year: '2025/26',
-        version: '1',
-        currency: 'LKR',
-        period_start: '2025-04-01',
-        period_end: '2026-03-31',
-        personal_relief: '1800000.00',
-        return_due: '11-30',
-        set_due: '09-30',
-        installments: ['08-15', '11-15', '02-15'],
-        final_installment_due: '05-15',
-        withholding_kinds: [{ code: 'apit', label: 'APIT', description: 'Tax your employer withholds' }],
-        tax_roles: ['apit_credit', 'ait_credit'],
-      };
-      return { status: 200, body: [pack] };
-    }
-    if (method === 'POST' && path === '/v1/tax/compute') {
-      return {
-        status: 200,
-        body: {
-          pack_country: 'LK', pack_year: '2025/26', pack_version: '1', currency: 'LKR',
-          gross_income: '6000000.00', foreign_service_income: '0.00', regular_income: '6000000.00', personal_relief_applied: '1800000.00',
-          qp_deduction: '0.00', taxable_income: '4200000.00', fsi_tax: '0.00', tax_before_credits: '540000.00',
-          apit_credit: '400000.00', ait_credit: '0.00', foreign_tax_credit: '0.00', total_credits: '400000.00',
-          tax_payable: '140000.00', refund_due: '0.00', rounding: 'nearest_rupee',
-          band_workings: [
-            { band: 'LKR 0 – LKR 1,000,000', rate: '6%', from_amount: '0', to_amount: '1000000', rate_fraction: '0.06', taxable_in_band: '1000000.00', tax: '60000.00' },
-            { band: 'LKR 1,000,000 – LKR 1,500,000', rate: '18%', from_amount: '1000000', to_amount: '1500000', rate_fraction: '0.18', taxable_in_band: '500000.00', tax: '90000.00' },
-          ],
+    if ((method === 'GET' || method === 'PATCH') && path === '/v1/fi/assumptions') {
+      if (method === 'PATCH') {
+        this.data.bodies.push({ method, path, body: req.json });
+        const inflation = (req.json as { inflation?: { value: string } | null }).inflation;
+        if (inflation !== undefined) this.data.fiInflation = inflation?.value;
+      }
+      const report: FiAssumptionsReport = {
+        applied: FI_ASSUMPTIONS,
+        own: {
+          real_return: null,
+          nominal_return: null,
+          inflation: null,
+          safe_withdrawal_rate: { value: '0.035', source: 'https://example.org/withdrawal-study', note: null, set_at: '2026-10-01T00:00:00+00:00' },
         },
+        placeholder_values: {
+          real_return: { value: '0.04', source: 'Placeholder: a round 4% a year after inflation.' },
+          safe_withdrawal_rate: { value: '0.04', source: 'Placeholder: a round 4%.' },
+        },
+        scenario_spread: '0.02',
       };
+      return { status: 200, body: report };
     }
     if (method === 'GET' && path === '/v1/llm-keys') return { status: 200, body: { available: true, keys: [{ provider: 'anthropic', last4: 'Ab12', validated_at: '2026-10-01T00:00:00+00:00', readable: true }] } };
     if (method === 'PUT' && /^\/v1\/llm-keys\/(anthropic|openai)$/.test(path)) {
@@ -1207,19 +1230,28 @@ export class MockSalli {
     const { method, path } = req;
     if (path === '/v1/tokens' && method === 'GET') return { status: 200, body: this.data.tokens };
     if (path === '/v1/tokens' && method === 'POST') {
-      const input = req.json as { name?: string; expires_in_days?: number | null };
+      const input = req.json as { name?: string; expires_in_days?: number | null; permissions?: PersonalAccessToken['permissions'] };
       if (!input?.name) return problem(422, 'Request validation failed', [{ loc: ['body', 'name'], msg: 'Field required', type: 'missing' }], '/problems/validation');
       const token = `salli_pat_${b64url(randomBytes(18))}`;
       const created: PersonalAccessToken = {
         id: uid(700 + this.data.tokens.length + 10),
         name: input.name,
         prefix: token.slice(0, 14),
+        permissions: input.permissions ?? [],
         created_at: '2026-10-09T10:00:00Z',
         expires_at: input.expires_in_days ? '2027-01-07T10:00:00Z' : null,
         last_used_at: null,
       };
+      if (this.pats.has(this.tokenOf(req))) {
+        return problem(403, 'Forbidden', 'A personal access token cannot create another; sign in to make one.', '/problems/permission');
+      }
+      const missing = created.permissions.filter((p) => !this.permissionsOf(req).includes(p));
+      if (missing.length) {
+        return problem(403, 'Forbidden', `This sign-in doesn't hold ${missing.join(', ')}, so it can't give it to a token.`, '/problems/permission');
+      }
       this.data.tokens.push(created);
       this.pats.add(token);
+      this.patPermissions.set(token, [...created.permissions]);
       return { status: 201, body: { ...created, token } };
     }
     const params = match('/v1/tokens/{id}', path);
@@ -1356,16 +1388,17 @@ export class MockSalli {
         const computed = createHash('sha256').update(form.code_verifier ?? '').digest('base64url');
         if (computed !== record.challenge) return oauthError('invalid_grant', 'PKCE verification failed');
         this.codes.delete(form.code ?? '');
-        return { status: 200, body: { ...this.issueTokens(), token_type: 'Bearer', scope: '' } };
+        return { status: 200, body: { ...this.issueTokens(undefined, record.client_id), token_type: 'Bearer', scope: '' } };
       }
       if (form.grant_type === 'refresh_token') {
-        if (!this.refreshTokens.has(form.refresh_token ?? '')) return oauthError('invalid_grant', 'invalid or expired refresh token');
+        const refresh = this.refreshTokens.get(form.refresh_token ?? '');
+        if (!refresh) return oauthError('invalid_grant', 'invalid or expired refresh token');
         this.refreshTokens.delete(form.refresh_token ?? '');
-        return { status: 200, body: { ...this.issueTokens(), token_type: 'Bearer', scope: '' } };
+        return { status: 200, body: { ...this.issueTokens(undefined, refresh.client_id), token_type: 'Bearer', scope: '' } };
       }
       if (form.grant_type === 'urn:ietf:params:oauth:grant-type:device_code') {
         const step = this.deviceSteps.shift() ?? 'approve';
-        if (step === 'approve') return { status: 200, body: { ...this.issueTokens(), token_type: 'Bearer' } };
+        if (step === 'approve') return { status: 200, body: { ...this.issueTokens(undefined, form.client_id), token_type: 'Bearer' } };
         return oauthError(step);
       }
       return oauthError('unsupported_grant_type', form.grant_type);

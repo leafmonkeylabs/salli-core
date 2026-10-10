@@ -1,16 +1,22 @@
 # Contributing to Salli
 
-Thanks for helping. Bug reports, tax-rule corrections, new tax packs, and
-fixes are all welcome.
+Thanks for helping. Bug reports, engine fixes, new fictional jurisdictions
+for the tax conformance suite, and fixes are all welcome.
 
 ## Before you open a pull request
 
 - **Accept the Contributor License Agreement** — once, on your first pull
   request. See [below](#contributor-license-agreement).
 - **Keep the rules in `CLAUDE.md`.** The LLM never computes money or tax;
-  posted entries are never edited; money is `Decimal`; tax packs are versioned.
-- **CLI-first.** A new API route needs a `salli` command (and a line in
-  `src/salli/interfaces/parity.py`), and new commands support `--json`.
+  posted entries are never edited; money is `Decimal`; tax rules are user data;
+  nothing country-specific lives in the code (see [below](#local-knowledge)).
+- **CLI-first.** A new API route needs a `salli` command in `packages/cli`
+  (TypeScript, over the API), or a line in `EXEMPT` in
+  `packages/cli/test/api-coverage.test.ts` saying why a person never calls
+  it; that test fails otherwise. Commands print the API's JSON with `--json`,
+  and amounts stay decimal strings. `salli-server` (Python) is only for what
+  must run on the server's own machine: setup, serving, migrations, members,
+  health and jobs across every user.
 - **The API contract is committed.** A new route also needs its operation id in
   `src/salli/interfaces/api/contract.py` (it becomes a function name in every
   generated client), and `openapi/openapi.json` regenerated:
@@ -18,7 +24,8 @@ fixes are all welcome.
 - **Tests pass.** `uv run ruff check src tests`, `uv run ruff format --check
   src tests`, and `uv run pytest`. Migration tests need a Postgres:
   `SALLI_TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres uv run pytest`
-  works against `supabase start`.
+  works against `supabase start`. For `packages/`: `npm ci`, then
+  `npm run typecheck`, `npm run lint`, `npm test` and `npm run check:generated`.
 
 ## Contributor License Agreement
 
@@ -51,12 +58,35 @@ version changes.
   pull request, and the version of the agreement, on the
   [`cla-signatures`](../../tree/cla-signatures) branch.
 
-## Tax packs
+## Tax rules
 
-A pack is wrong until it passes golden tests built from the revenue
-authority's own worked examples (`tests/golden/`). Cite the source in the
-test. A pack is not used in production until a chartered accountant has
-reviewed it.
+salli-core carries no country's tax law, and won't take a pull request that
+adds one: a country's rules are user data, a rule set (`salli.tax/1`,
+[docs/taxrules.md](docs/taxrules.md)) that its user or their agent writes,
+cites and checks against the authority's own worked examples. Share one as a
+file (`salli tax rules export`); anyone can import it as a draft.
+
+What belongs here is the engine: the expression language, the building
+blocks, the schema and validator. A change to them needs a conformance test:
+a fictional jurisdiction in `tests/taxrules/conformance/` that copies the
+*structure* of the real-world feature, never its law, with the arithmetic
+behind every worked example written out in `tests/taxrules/test_conformance.py`.
+
+## Local knowledge
+
+The same goes for everything else that differs by country. Planning
+assumptions (inflation, returns, withdrawal rates) are the user's, set with
+their sources; where there are none, a neutral placeholder stands in, always
+labelled as one. Tax ids are generic `{scheme, value}` pairs. Investment
+products, providers and rates are for the user's agent to research, citing
+sources. So salli-core takes no table of any country's figures, schemes or
+products, and no example that reads as one: use varied currencies and
+countries in examples and tests.
+
+`tests/contract/test_no_country_knowledge.py` keeps it that way: it fails on
+one country's terms in `src/`, the CLI, the SDK, the API document, the skills
+and the docs. The ISO 3166 and ISO 4217 tables (data about every country
+alike) and the historical migrations are its only, commented, exceptions.
 
 ## Reporting a security issue
 

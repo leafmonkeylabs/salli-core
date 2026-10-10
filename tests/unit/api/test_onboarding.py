@@ -18,6 +18,7 @@ from salli.domain.accounting.models import Account, Direction, Posting, StoredJo
 from salli.domain.risk import engine as risk_engine
 from salli.domain.risk.models import RiskQuestionnaireAnswers
 from salli.interfaces.api.routers.onboarding import RiskBreakdown
+from tests.tax_views import computation_view
 
 from .conftest import AUTH
 
@@ -37,7 +38,6 @@ def _profile_row() -> dict[str, Any]:
         "residency_status": "resident",
         "employer": "Acme",
         "employment_type": "permanent",
-        "ird_number": None,
         "risk_score": 58,
         "risk_category": "balanced",
         "life_stage": "family",
@@ -46,8 +46,6 @@ def _profile_row() -> dict[str, Any]:
         "preferred_model": None,
         "tax_residency": None,
         "tax_ids": [],
-        "nic": None,
-        "fi_assumptions": {"inflation": None, "real_return": None, "safe_withdrawal_rate": None},
     }
 
 
@@ -75,22 +73,14 @@ async def test_updating_the_profile_says_so(client, mock_services):
     assert r.json() == {"updated": True}
 
 
-async def test_the_profile_carries_the_tax_identity_and_the_fields_it_replaced(
-    client, mock_services
-):
-    """The web and mobile apps read `ird_number` and `nic`; they stay, derived
-    from the tax ids."""
+async def test_the_profile_carries_the_tax_identity_generically(client, mock_services):
+    """Tax ids are `{scheme, value}` only: no country's numbers as fields."""
     row = {
         **_profile_row(),
-        "tax_residency": "LK",
-        "tax_ids": [
-            {"scheme": "LK-TIN", "value": "123456789"},
-            {"scheme": "LK-NIC", "value": "200012345678"},
-        ],
-        "ird_number": "123456789",
-        "nic": "200012345678",
+        "tax_residency": "KE",
+        "tax_ids": [{"scheme": "KE-PIN", "value": "A001234567Z"}],
     }
-    mock_services.profile.get_profile.return_value = row
+    mock_services.profile.get_profile.return_value = {**row, "ird_number": "1", "nic": "2"}
     body = (await client.get("/v1/onboarding/profile", headers=AUTH)).json()
     assert body == row
 
@@ -101,7 +91,6 @@ async def test_the_tax_identity_is_updated_through_the_profile(client, mock_serv
         json={
             "tax_residency": "GB",
             "tax_ids": [{"scheme": "GB-UTR", "value": "1234567890"}],
-            "nic": "200012345678",
         },
         headers=AUTH,
     )
@@ -111,7 +100,6 @@ async def test_the_tax_identity_is_updated_through_the_profile(client, mock_serv
         {
             "tax_residency": "GB",
             "tax_ids": [{"scheme": "GB-UTR", "value": "1234567890"}],
-            "nic": "200012345678",
         },
     )
 
@@ -128,11 +116,11 @@ async def test_an_explicit_null_clears_the_residency_and_an_omitted_one_does_not
 
 async def test_a_malformed_country_or_scheme_is_a_422(client, mock_services):
     for body in (
-        {"tax_residency": "Sri Lanka"},
-        {"tax_residency": "lk"},
+        {"tax_residency": "Kenya"},
+        {"tax_residency": "ke"},
         {"tax_ids": [{"scheme": "TIN", "value": "1"}]},
-        {"tax_ids": [{"scheme": "lk-tin", "value": "1"}]},
-        {"tax_ids": [{"scheme": "LK-TIN", "value": ""}]},
+        {"tax_ids": [{"scheme": "ke-pin", "value": "1"}]},
+        {"tax_ids": [{"scheme": "KE-PIN", "value": ""}]},
     ):
         r = await client.patch("/v1/onboarding/profile", json=body, headers=AUTH)
         assert r.status_code == 422, body
@@ -153,6 +141,43 @@ async def test_completing_onboarding_reports_what_it_saved_and_opened(client, mo
     r = await client.post("/v1/onboarding/complete", json={"name": "Ama"}, headers=AUTH)
     assert r.status_code == 200
     assert r.json() == result
+
+
+async def test_onboarding_takes_the_residency_and_generic_tax_ids(client, mock_services):
+    mock_services.onboarding = AsyncMock()
+    mock_services.onboarding.complete.return_value = {
+        "memories_saved": [],
+        "accounts_created": [],
+        "accounts_skipped": [],
+    }
+    r = await client.post(
+        "/v1/onboarding/complete",
+        json={
+            "name": "Ama",
+            "tax_residency": "DE",
+            "tax_ids": [{"scheme": "DE-IDNR", "value": "12345678901"}],
+            # The legacy fields are not part of the request any more.
+            "ird_number": "123456789",
+            "nic": "200012345678",
+        },
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    answers = mock_services.onboarding.complete.await_args.args[1]
+    assert answers["tax_residency"] == "DE"
+    assert answers["tax_ids"] == [{"scheme": "DE-IDNR", "value": "12345678901"}]
+    assert "ird_number" not in answers and "nic" not in answers
+
+
+async def test_onboarding_refuses_a_malformed_tax_id(client, mock_services):
+    mock_services.onboarding = AsyncMock()
+    r = await client.post(
+        "/v1/onboarding/complete",
+        json={"name": "Ama", "tax_ids": [{"scheme": "TIN", "value": "1"}]},
+        headers=AUTH,
+    )
+    assert r.status_code == 422
+    mock_services.onboarding.complete.assert_not_awaited()
 
 
 async def test_declarations_return_the_entries_they_posted(client, mock_services):
@@ -264,7 +289,7 @@ def _portability_service(exporters=()) -> DataPortabilityService:
             ],
         )
     ]
-    tax.get_latest_computation.return_value = {"pack_version": "1", "tax_payable": "0.00"}
+    tax.list_computations.return_value = [computation_view()]
     budget.list_budgets.return_value = [
         {
             "id": "b-1",
@@ -380,11 +405,13 @@ async def test_deleting_the_account_reports_what_went(client, app, mock_services
     assert r.json() == {"deleted": True, "counts": {"accounts": 2, "budgets": 0}}
 
 
-async def test_the_export_keeps_closed_accounts_and_every_tax_year():
+async def test_the_export_keeps_closed_accounts_and_every_tax_computation():
     service = _portability_service()
     document = await service.export_all(USER)
     # Entries refer to closed accounts too, so they must be in the document.
     service._ledger.list_accounts.assert_awaited_with(USER, include_inactive=True)
     assert "tax_role" in document["accounts"][0]
-    years = {call.args[1] for call in service._tax.get_latest_computation.await_args_list}
-    assert "2025/26" in years and isinstance(document["tax_computations"], list)
+    service._tax.list_computations.assert_awaited_once_with(USER)
+    [computation] = document["tax_computations"]
+    assert computation["rule_set_version_id"] == "version-2" and computation["lines"]
+    assert "tax_computation_2025_26" not in document

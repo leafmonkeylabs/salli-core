@@ -18,9 +18,11 @@ import { registerInsights } from './commands/insights';
 import { registerPlanningAhead } from './commands/fi';
 import { registerLedger } from './commands/ledger';
 import { registerMore, registerYourData } from './commands/more';
+import { registerOnboarding } from './commands/onboarding';
 import { registerPlanning } from './commands/plan';
 import { registerQuickAdd } from './commands/quickadd';
 import { registerRules } from './commands/rules';
+import { registerSkills } from './commands/skills';
 import { registerStatements } from './commands/statements';
 import { registerStatus } from './commands/status';
 import { registerTokens } from './commands/tokens';
@@ -62,6 +64,7 @@ Start with:  salli login   then   salli status`,
   registerAuth(program, app);
   registerStatus(program, app);
   registerDoctor(program, app);
+  registerOnboarding(program, app);
 
   program.commandsGroup('Your ledger:');
   registerQuickAdd(program, app);
@@ -84,6 +87,7 @@ Start with:  salli login   then   salli status`,
   program.commandsGroup('Your data and settings:');
   registerYourData(program, app);
   registerAi(program, app);
+  registerSkills(program, app);
   registerExports(program, app);
   registerTokens(program, app);
   registerContext(program, app);

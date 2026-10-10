@@ -116,19 +116,130 @@ class LedgerRepository(ABC):
 
 
 class TaxComputationRepository(ABC):
-    @abstractmethod
-    async def save(self, user_id: str, computation: Any) -> str: ...
+    """A user's stored tax computations, as plain dicts. Rows are only added;
+    each read comes back with the rule set version's `rule_set_id` and
+    `version` number joined in."""
 
     @abstractmethod
-    async def get_latest(self, user_id: str, year: str) -> Any | None: ...
+    async def save(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        """Store a computation: country, region, year, rule_set_version_id (one
+        of the user's own), content_hash, currency, net_minor,
+        tax_payable_minor, refund_due_minor, lines, inputs, warnings."""
+        ...
 
     @abstractmethod
-    async def list_computation_keys(self) -> list[tuple[str, str]]:
-        """Every (user_id, year) that has at least one stored computation.
+    async def get(self, user_id: str, computation_id: str) -> dict[str, Any] | None: ...
 
-        Admin-only. Used to re-run stored computations after an engine fix, so
-        users are not left looking at a number the engine no longer agrees with.
-        """
+    @abstractmethod
+    async def get_latest(
+        self, user_id: str, country: str, region: str | None, year: str
+    ) -> dict[str, Any] | None:
+        """The newest computation for this jurisdiction and year."""
+        ...
+
+    @abstractmethod
+    async def list_for_user(self, user_id: str) -> list[dict[str, Any]]:
+        """Every computation of the user's, newest first (their data export)."""
+        ...
+
+    @abstractmethod
+    async def latest_of_each(self) -> list[dict[str, Any]]:
+        """Every user's newest computation for each jurisdiction and year.
+
+        Operator-only: recomputing stored results (`salli-server jobs
+        recompute-tax`), so nobody is left looking at a figure their ledger
+        and active rules no longer give."""
+        ...
+
+
+class RuleSetExists(ValueError):
+    """The user already has a tax rule set for this jurisdiction and year."""
+
+    def __init__(self, rule_set_id: str) -> None:
+        super().__init__(
+            f"A tax rule set for this jurisdiction and year already exists: {rule_set_id}"
+        )
+        self.rule_set_id = rule_set_id
+
+
+class TaxRuleSetRepository(ABC):
+    """A user's tax rule sets and their versions, as plain dicts.
+
+    Every method takes the owner's id and touches nothing of anyone else's: a
+    set or version of another user's is indistinguishable from one that does
+    not exist. A version's `content` and `content_hash` are written once, by
+    `add_version`, and there is no way here to change them (core_0010's
+    trigger refuses it too): an edit is a new version.
+    """
+
+    @abstractmethod
+    async def list_sets(self, user_id: str) -> list[dict[str, Any]]:
+        """The user's rule sets, each with `versions`: a summary of every
+        version (no content), oldest first."""
+        ...
+
+    @abstractmethod
+    async def get_set(
+        self, user_id: str, rule_set_id: str, *, lock: bool = False
+    ) -> dict[str, Any] | None:
+        """One set with its version summaries. `lock` holds the set's row until
+        the unit of work ends (SELECT … FOR UPDATE), so versions can be
+        numbered and activated one at a time."""
+        ...
+
+    @abstractmethod
+    async def find_set(
+        self, user_id: str, country: str, region: str | None, year_label: str, *, lock: bool = False
+    ) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def create_set(
+        self, user_id: str, country: str, region: str | None, year_label: str, name: str
+    ) -> dict[str, Any]:
+        """RuleSetExists when the user has one for this jurisdiction and year."""
+        ...
+
+    @abstractmethod
+    async def get_version(self, user_id: str, version_id: str) -> dict[str, Any] | None:
+        """One version, with its content and validation report."""
+        ...
+
+    @abstractmethod
+    async def add_version(
+        self, user_id: str, rule_set_id: str, fields: dict[str, Any]
+    ) -> dict[str, Any]:
+        """A new version of the set, numbered one past its latest. The caller
+        holds the set's lock (`get_set(…, lock=True)`). `fields`: content,
+        content_hash, status, validation, author_kind, author_name,
+        change_note."""
+        ...
+
+    @abstractmethod
+    async def update_version(self, user_id: str, version_id: str, fields: dict[str, Any]) -> bool:
+        """Change a version's lifecycle fields (status, validation, proposed_at,
+        activated_at, superseded_at); ValueError for any other field."""
+        ...
+
+    @abstractmethod
+    async def set_active(self, user_id: str, rule_set_id: str, version_id: str | None) -> None: ...
+
+    @abstractmethod
+    async def declared_roles(self, user_id: str) -> set[str]:
+        """Every role key the user's rule sets declare now: in a version whose
+        document matches the schema and that hasn't been superseded (an
+        active version, or one still being worked on). A superseded version is
+        history, so a role only it declared is declared no longer."""
+        ...
+
+    @abstractmethod
+    async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
+        """Every rule set of the user's that has an active version: the set's
+        fields with `version`, that version in full (content included)."""
+        ...
+
+    @abstractmethod
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every set with every version in full, for the user's data export."""
         ...
 
 
@@ -163,6 +274,22 @@ class ReminderRepository(ABC):
         against the same still-active condition updates the existing row
         (kind/due_date/severity, and resets status to "pending" if it had been
         dismissed) rather than creating a duplicate."""
+        ...
+
+    @abstractmethod
+    async def sync_source(
+        self,
+        user_id: str,
+        source_domain: str,
+        source_prefix: str,
+        items: list[tuple[str, str, str]],
+    ) -> dict[str, list[str]]:
+        """Make the user's reminders from one source exactly `items`, each
+        (source_id, kind, due_date), every source_id starting with
+        `source_prefix`: add the new ones, update the changed ones (back to
+        pending when the date moves; a done reminder whose date stands stays
+        done), and delete those under the prefix that are no longer listed.
+        Returns the ids `created`, `updated` and `removed`."""
         ...
 
 
@@ -379,7 +506,7 @@ class AccountNotFound(KeyError):
 class ProfileMissing(LookupError):
     """The user has no profile row yet, so nothing that needs one (a base
     currency, a setting) can be read or written. Callers create it first:
-    `UserProfileService.ensure_user`, which `salli setup` and onboarding run."""
+    `UserProfileService.ensure_user`, which `salli-server setup` and onboarding run."""
 
     def __init__(self, user_id: str) -> None:
         super().__init__(f"User {user_id} has no profile")
@@ -405,6 +532,29 @@ class FxRatePort(ABC):
 
         Raises FxUnavailableError when there is no such rate.
         """
+        ...
+
+
+class FetchRefused(ValueError):
+    """A URL Salli won't fetch (not https, not on the public internet), or a
+    response it won't read (too large, too slow, not text, a redirect it won't
+    follow). The message is safe to show: it never describes the network."""
+
+
+@dataclass(frozen=True)
+class FetchedDocument:
+    #: Where the text finally came from, after any redirects followed.
+    url: str
+    text: str
+
+
+class DocumentFetcher(ABC):
+    """Fetches a text document from a URL a user gave, guarded against
+    server-side request forgery (adapters/net)."""
+
+    @abstractmethod
+    async def fetch_text(self, url: str) -> FetchedDocument:
+        """The document at `url`, or FetchRefused."""
         ...
 
 
@@ -596,16 +746,15 @@ class UserProfileRepository(ABC):
         *,
         tax_residency: str | None,
         tax_ids: list[dict[str, str]],
-        ird_number: str | None,
     ) -> None:
         """Write the tax residency (None clears it) and the tax ids exactly as
-        given, with `ird_number`, the legacy column the "LK-TIN" id mirrors.
-        `ProfileMissing` if there is no profile."""
+        given. `ProfileMissing` if there is no profile."""
         raise NotImplementedError
 
-    async def set_fi_assumptions(self, user_id: str, values: dict[str, Any]) -> None:
-        """Write the user's own FI assumptions present in `values` ("inflation",
-        "real_return", "safe_withdrawal_rate"); None returns one to the default."""
+    async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
+        """Replace the user's own FI assumptions with `stored`, as
+        `OwnAssumptions.as_stored()` writes them. `ProfileMissing` if there is
+        no profile."""
         raise NotImplementedError
 
 
@@ -985,11 +1134,14 @@ class DataPortabilityRepository(ABC):
 class OAuthClientRepository(ABC):
     @abstractmethod
     async def register(self, client_name: str | None, redirect_uris: list[str]) -> dict[str, Any]:
-        """Dynamic Client Registration (RFC 7591). Returns the new client's record."""
+        """Dynamic Client Registration (RFC 7591). Returns the new client's
+        record. A client that registers itself is never first party."""
         ...
 
     @abstractmethod
-    async def get(self, client_id: str) -> dict[str, Any] | None: ...
+    async def get(self, client_id: str) -> dict[str, Any] | None:
+        """{client_id, client_name, redirect_uris, first_party}, or None."""
+        ...
 
 
 class McpConnectionRow(TypedDict):
@@ -1060,7 +1212,8 @@ class OAuthTokenRepository(ABC):
 
     @abstractmethod
     async def get_access_token(self, token_hash: str) -> dict[str, Any] | None:
-        """None if missing, expired, or revoked."""
+        """None if missing, expired, or revoked. Includes the holding client's
+        `client_name` and whether it is first party (`client_first_party`)."""
         ...
 
     @abstractmethod
@@ -1287,11 +1440,15 @@ class PersonalAccessTokenRepository(ABC):
         token_hash: str,
         prefix: str,
         expires_at: datetime | None,
-    ) -> dict[str, Any]: ...
+        permissions: list[str],
+    ) -> dict[str, Any]:
+        """A new token holding `permissions` (application/permissions.py)."""
+        ...
 
     @abstractmethod
     async def list(self, user_id: str) -> list[dict[str, Any]]:
-        """The user's tokens that are not revoked, newest first (never the hash)."""
+        """The user's tokens that are not revoked, newest first (never the
+        hash), each with its `permissions`."""
         ...
 
     @abstractmethod

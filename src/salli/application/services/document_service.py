@@ -12,6 +12,8 @@ import base64
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from salli.domain.files import safe_filename
+
 if TYPE_CHECKING:
     from salli.application.ports import StoragePort
     from salli.application.unit_of_work import UnitOfWork
@@ -121,8 +123,11 @@ class DocumentService:
         # path. Building the key by hand here meant every uploaded file was recorded
         # under a location nothing had written to, so get_file_as_base64 could never
         # read one back. parsing_service.py does this correctly — match it.
+        # The filename is the client's: only its safe last component goes in the key.
         storage_key = await self._storage.upload(
-            user_id, f"agent-uploads/{doc_id}/{filename}", file_bytes
+            user_id,
+            f"agent-uploads/{doc_id}/{safe_filename(filename, 'attachment')}",
+            file_bytes,
         )
         async with self._uow_factory() as uow:
             uow: UnitOfWork

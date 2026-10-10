@@ -4,22 +4,39 @@ currency their ledger is kept in, where they are taxed, and the tax year they
 are in. Pure, no I/O: AgentService gathers a `UserContext` per turn, and every
 prompt ends with the section rendered from it.
 
-The static prompts know no country. A user with no tax residency gets no
-country's tax framing at all; a user taxed somewhere Salli has a pack for gets
-that pack's facts (its authority, its law, its withholding kinds, its figures);
-a user taxed elsewhere is told plainly that Salli cannot compute their tax.
-Figures come from the pack, never from the model.
+The static prompts know no country, and neither does Salli: a user's tax is
+computed only from the rule set they activated (docs/taxrules.md). A user with
+no tax residency gets no country's tax framing at all; a user with active
+rules is told which year and version they are, and what they cite; a user
+without is told plainly that Salli can't compute their tax, and how to add
+rules. No figure of any country's law appears here: those are the rules', and
+reach the user only through the engine's results.
 """
 
 from __future__ import annotations
 
 import datetime
 from contextvars import ContextVar
-from dataclasses import dataclass
-from decimal import Decimal
+from dataclasses import dataclass, field
 
 from salli.domain.jurisdiction import country_phrase
-from salli.domain.tax.models import CurrentTaxYear, TaxPack, TaxYear
+
+
+@dataclass(frozen=True)
+class TaxRulesContext:
+    """An active rule set version, as the prompts describe it."""
+
+    country: str
+    region: str | None
+    #: What the rules call the year: "2031/32".
+    year: str
+    start: datetime.date
+    end: datetime.date
+    version: int
+    #: The titles of the sources the rules cite.
+    sources: tuple[str, ...] = ()
+    #: The ledger totals the rules take: (key, label, kind) of each role.
+    roles: tuple[tuple[str, str, str], ...] = field(default=())
 
 
 @dataclass(frozen=True)
@@ -29,11 +46,11 @@ class UserContext:
     base_currency: str | None = None
     #: Where the user said they are taxed.
     tax_residency: str | None = None
-    #: Whose packs the tax tools compute with: the residency, or, while there is
-    #: none, the one country whose packs compute in the base currency.
-    tax_country: str | None = None
-    #: Where the tax country stands today, when Salli has packs for it.
-    current: CurrentTaxYear | None = None
+    #: Their active rules whose year contains today: the current tax year.
+    current: TaxRulesContext | None = None
+    #: The rules a computation uses when no year is named: today's, else the
+    #: latest active year that has begun.
+    latest: TaxRulesContext | None = None
 
 
 #: The context of the agent run in progress, set by AgentService before each
@@ -57,68 +74,64 @@ def _day(day: datetime.date) -> str:
     return f"{day.day} {day.strftime('%B %Y')}"
 
 
-def _year(year: TaxYear) -> str:
-    return f"{year.label} ({_day(year.start)} to {_day(year.end)})"
+def _year(rules: TaxRulesContext) -> str:
+    return f"{rules.year} ({_day(rules.start)} to {_day(rules.end)})"
 
 
 def _place(code: str) -> str:
     return f"{country_phrase(code)} ({code})"
 
 
-def _number(value: Decimal) -> str:
-    return f"{value.normalize():,f}"
+#: Said with every mention of a user's own rules.
+_PROVENANCE = (
+    "Salli computes it from rules the user or their agent entered and doesn't vouch for "
+    "the law: present figures as computed from their rules, citing the rules' sources."
+)
+
+#: How a user gets rules, in the agents' words.
+_ADD_RULES = (
+    "They can add rules (`salli tax rules create` or `import`), or have an AI agent "
+    "research them with Salli's research_tax_rules prompt; only the user can activate them."
+)
 
 
-def _percent(rate: Decimal) -> str:
-    return f"{(rate * 100).normalize():f}"
+def _rules_line(rules: TaxRulesContext, what: str) -> str:
+    region = f", {rules.region}" if rules.region else ""
+    cites = f", citing {'; '.join(rules.sources)}" if rules.sources else ""
+    return (
+        f"{what} is {_year(rules)}, computed from their own rule set for "
+        f"{rules.country}{region} (version {rules.version}{cites})."
+    )
 
 
 def _residency_lines(ctx: UserContext) -> list[str]:
     if ctx.tax_residency is None:
-        lines = [
+        return [
             "The user has not said where they are tax resident, so assume no country's "
             "tax rules. Before discussing their tax, ask where they are tax resident, and "
             "suggest they set it on their profile."
         ]
-        if ctx.tax_country:
-            lines.append(
-                "Until they do, Salli's tax tools compute with the pack for their base "
-                "currency: confirm they are tax resident in that pack's country before "
-                "treating a computation as theirs."
-            )
-        return lines
 
     place = _place(ctx.tax_residency)
-    current = ctx.current
-    if current is None:
+    if ctx.current is None and ctx.latest is None:
         return [
-            f"The user is tax resident in {place}. Salli has no tax pack for "
-            f"{country_phrase(ctx.tax_residency)} yet, so it cannot compute their tax: say "
-            "so, and never apply another country's rules. General explanations are fine; "
-            "for their own position, suggest a local tax professional."
+            f"The user is tax resident in {place}. They have no active tax rules for "
+            f"{country_phrase(ctx.tax_residency)}, so Salli can't compute their tax: say so, "
+            "and never apply another country's rules, or figures from your own knowledge. "
+            + _ADD_RULES
         ]
 
-    latest = current.latest
-    pack = latest or current.pack
-    name = pack.year_name if pack else "tax year"
     lines = [f"The user is tax resident in {place}."]
-    if pack and (pack.authority or pack.law):
-        administered = f", administered by the {pack.authority}" if pack.authority else ""
-        lines.append(f"Their income tax is under {pack.law or 'its law'}{administered}.")
-    lines.append(f"Their current {name} is {_year(current.year)}.")
-    if current.pack is None:
-        if latest is None:
-            lines.append("Salli has no pack for a year that has begun, so it cannot compute it.")
-        else:
-            lines.append(
-                f"Salli has no pack for {current.year.label} yet. The latest year it can "
-                f"compute is {latest.year}, which the tax tools use unless asked for another."
-            )
-    if pack and pack.withholding_kinds:
-        kinds = "; ".join(
-            f"{k.label} ({k.description.rstrip('.')})" for k in pack.withholding_kinds
+    if ctx.current is not None:
+        lines.append(_rules_line(ctx.current, "Their current tax year"))
+    elif ctx.latest is not None:
+        lines.append(
+            "Today falls in no tax year their active rules cover (the next year's rules "
+            "aren't in yet). "
+            + _rules_line(ctx.latest, "The latest year they can compute")
+            + " The tax tools use it unless asked for another."
         )
-        lines.append(f"Tax withheld or paid ahead that their pack credits: {kinds}.")
+    lines.append(_PROVENANCE)
     return lines
 
 
@@ -134,62 +147,38 @@ def context_section(ctx: UserContext) -> str:
     return "About this user:\n" + "\n".join(f"- {line}" for line in lines)
 
 
-def pack_figures(pack: TaxPack) -> str:
-    """A pack's headline figures, as the pack states them."""
-    rates = "/".join(_percent(band.rate) for band in pack.bands)
-    facts = [
-        f"personal relief {pack.currency} {_number(pack.personal_relief)}",
-        f"progressive bands {rates}% on taxable income",
-    ]
-    fsi = pack.foreign_service_income
-    if fsi is not None:
-        via = " remitted through a bank" if fsi.requires_bank_remittance else ""
-        facts.append(f"foreign service income{via}: {_percent(fsi.max_rate)}% final tax")
-    if pack.has_qualifying_payment_relief:
-        facts.append(
-            f"qualifying payments deductible up to {pack.currency} "
-            f"{_number(pack.qualifying_payment_cap)}"
-        )
-    period = f"{_day(datetime.date.fromisoformat(pack.period_start))} to " + _day(
-        datetime.date.fromisoformat(pack.period_end)
-    )
-    return f"The {pack.year} pack (v{pack.version}, {period}): " + "; ".join(facts) + "."
-
-
 def tax_specialist_section(ctx: UserContext) -> str:
-    """The context section, with the figures of the pack the tools compute with."""
+    """The context section, with the ledger totals the user's rules take, so
+    the specialist can say which accounts feed which line."""
     section = context_section(ctx)
-    pack = ctx.current.latest if ctx.current else None
-    if ctx.tax_residency and pack is not None:
-        section += f"\n- {pack_figures(pack)}"
+    rules = ctx.latest or ctx.current
+    if ctx.tax_residency and rules is not None and rules.roles:
+        roles = "; ".join(f"{key} ({label}, {kind})" for key, label, kind in rules.roles)
+        section += (
+            "\n- Their rules take these ledger totals, each from the accounts whose tax role "
+            f"it is: {roles}."
+        )
     return section
 
 
-# ── FIRE strategy: what to suggest where ─────────────────────────────────────
-
-#: Where an investment suggestion needs local knowledge, by tax residency.
-_MARKETS: dict[str, str] = {
-    "LK": (
-        "In Sri Lanka, CSE index funds (tracking the ASPI) and unit trusts are the local "
-        "low-cost options; for the international portion, broad index ETFs through a "
-        "foreign account where needed. The LKR's depreciation risk is real: weight a "
-        "currency-hedge bucket accordingly."
-    ),
-}
+# ── Investing: local knowledge is researched, never built in ─────────────────
 
 
-def market_notes(tax_residency: str | None) -> str:
-    """What the FIRE strategy should know about where the user invests."""
+def investing_context(tax_residency: str | None) -> str:
+    """What the FIRE strategy should know about where the user invests: only
+    where that is, and that local products are theirs to check. The strategy is
+    one model call with no web access, so it suggests kinds of product, never
+    named local ones."""
     if tax_residency is None:
         return (
             "Where the user is tax resident is not known: keep investment suggestions to "
             "broad, low-cost index funds, and assume no country's products or tax rules."
         )
-    known = _MARKETS.get(tax_residency)
-    if known:
-        return f"The user is tax resident in {_place(tax_residency)}. {known}"
     return (
-        f"The user is tax resident in {_place(tax_residency)}: suggest the low-cost index "
-        "funds and tax-advantaged accounts available there, by type rather than by "
-        "product name if unsure."
+        f"The user is tax resident in {_place(tax_residency)}. Salli has no built-in notes "
+        "on any country's investment products or rates, and you have no way to look them "
+        "up here: suggest the kinds of low-cost index funds and tax-advantaged accounts to "
+        "look for there, by type rather than by product or provider name, and say in "
+        "ai_rationale that the user (or their AI agent) should check what is available "
+        "locally against current, official sources."
     )

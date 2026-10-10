@@ -2,7 +2,7 @@
 PortfolioService — investment holdings, their transactions and lots, and the
 allocation/rebalancing/ROI summary.
 
-A holding has a currency of its own (a US fund in a rupee ledger is in USD)
+A holding has a currency of its own (a US fund in a euro ledger is in USD)
 and a history of transactions: buys, sales, dividends, interest, splits and
 transfers in. Its lots, sales and income are worked out from that history by
 the pure domain (domain/portfolio/lots.py). Every transaction but a split

@@ -3,19 +3,17 @@ OnboardingService — the all-in-one first-run flow: profile facts saved as agen
 memories, a starter chart of accounts built from the user's income sources, an
 optional first goal, and the seeded `need` tags.
 
-Shared by `POST /onboarding/complete`, `salli onboarding complete` and
-`salli setup`, so every surface creates the same starting ledger. Idempotent.
+Shared by `POST /onboarding/complete` (which `salli onboarding complete`
+calls) and `salli-server setup`, so every surface creates the same starting ledger. Idempotent.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from typing import Any, NamedTuple
 
 from salli.application.ports import AccountCodeTaken
-from salli.domain.jurisdiction import LEGACY_TAX_ID_FIELDS, InvalidTaxIdError, make_tax_id
-from salli.domain.tax.models import StarterAccount
-from salli.domain.tax.packs import registry
+from salli.domain.jurisdiction import normalize_country, parse_tax_ids
 
 # ── The starter chart of accounts ──────────────────────────────────────────────
 
@@ -24,18 +22,14 @@ class AccountSeed(NamedTuple):
     code: str
     name: str
     type: str
-    # What the tax engine reads (`domain.accounting.models.TaxRole`). Declared
-    # rather than inferred downstream from the name: credit accounts are
-    # correctly typed `asset` (withheld tax is a receivable), and the engine
-    # used to look for them among liabilities, so every seeded credit account
-    # was silently ignored.
+    # Always None here: tax roles come from the user's own tax rule sets,
+    # which don't exist yet at onboarding. A rule set's `suggested_accounts`
+    # add the tax accounts later, when the user chooses
+    # (TaxRuleService.suggested_accounts).
     tax_role: str | None = None
 
 
-# What everyone gets, whatever their country: nothing here is about tax. A tax
-# resident's pack adds its own accounts (`TaxPack.starter_accounts`: Sri Lanka's
-# APIT and AIT receivables, say) and may give one of these its own name and
-# role, by using its code (Sri Lanka's 4500 is "Foreign Service Income (FSI)").
+# What everyone gets, whatever their country: nothing here is about tax.
 BASE_ACCOUNTS: list[AccountSeed] = [
     AccountSeed("1100", "Cash", "asset"),
     AccountSeed("1200", "Bank Account", "asset"),
@@ -62,29 +56,14 @@ SOURCE_ACCOUNTS: dict[str, list[AccountSeed]] = {
 }
 
 
-def _with_pack_accounts(
-    seeds: Sequence[AccountSeed], pack_accounts: Iterable[StarterAccount]
-) -> list[AccountSeed]:
-    """`seeds`, where a pack account with the same code takes the seed's
-    place, followed by the pack's other accounts in the pack's order."""
-    by_code = {a.code: AccountSeed(a.code, a.name, a.type, a.tax_role) for a in pack_accounts}
-    merged = [by_code.pop(seed.code, seed) for seed in seeds]
-    return merged + list(by_code.values())
-
-
-def starter_chart(tax_residency: str | None, income_sources: Iterable[str]) -> list[AccountSeed]:
-    """The starter chart for someone taxed in `tax_residency` with these income
-    sources: the neutral accounts, and what that country's tax pack adds.
-
-    With no residency, or no pack for it, nothing tax-specific is added: Sri
-    Lankan receivables in a chart for someone who is not Sri Lankan would be
-    wrong, and their roles would not be ones their tax uses.
-    """
-    pack_accounts = registry.starter_accounts(tax_residency)
-    chart = _with_pack_accounts(BASE_ACCOUNTS, [a for a in pack_accounts if not a.income_source])
+def starter_chart(income_sources: Iterable[str]) -> list[AccountSeed]:
+    """The starter chart for someone with these income sources: the same,
+    country-neutral accounts for everyone. No tax accounts: Salli knows no
+    country's tax, and the user's rule sets suggest theirs once they have
+    some (`salli tax rules accounts <set> --apply`)."""
+    chart = list(BASE_ACCOUNTS)
     for source in income_sources:
-        from_pack = [a for a in pack_accounts if a.income_source == source]
-        chart += _with_pack_accounts(SOURCE_ACCOUNTS.get(source, []), from_pack)
+        chart += SOURCE_ACCOUNTS.get(source, [])
     return chart
 
 
@@ -115,12 +94,11 @@ GOAL_LABELS = {
 
 
 _ANSWER_DEFAULTS: dict[str, Any] = {
-    "nic": "",
     "residency": "resident",
     "tax_residency": None,
+    "tax_ids": [],
     "employer": "",
     "employment_type": "",
-    "ird_number": "",
     "income_sources": [],
     "primary_goal": "",
     "goal_target_amount": 0,
@@ -136,7 +114,8 @@ class OnboardingService:
         self._fi = fi
         self._ledger = ledger
         # Where the tax identity goes (UserProfileService). Optional so the
-        # service builds without one; then only memories record the numbers.
+        # service builds without one; then the residency and tax ids are
+        # checked but not saved.
         self._profile = profile
 
     async def is_complete(self, user_id: str) -> bool:
@@ -148,8 +127,13 @@ class OnboardingService:
 
         `answers` has the fields of the API's OnboardingRequest; only `name` is
         required; the rest default as the API's request model does.
+
+        The tax residency and tax ids are checked before anything is saved: an
+        unknown country or a malformed tax id (a ValueError) fails the whole
+        call rather than leaving a half-finished onboarding.
         """
         a: dict[str, Any] = {**_ANSWER_DEFAULTS, **answers}
+        identity = self._tax_identity(a)
 
         # Save profile memories
         memories: dict[str, str] = {
@@ -157,14 +141,10 @@ class OnboardingService:
             "user_name": a["name"],
             "residency_status": a["residency"],
         }
-        if a["nic"]:
-            memories["nic_number"] = a["nic"]
         if a["employer"]:
             memories["employer"] = a["employer"]
         if a["employment_type"]:
             memories["employment_type"] = a["employment_type"]
-        if a["ird_number"]:
-            memories["ird_number"] = a["ird_number"]
         if a["income_sources"]:
             memories["income_sources"] = ", ".join(a["income_sources"])
         if a["primary_goal"]:
@@ -181,7 +161,8 @@ class OnboardingService:
         for slug, value in memories.items():
             await self._documents.save_memory(user_id, slug=slug, value=value)
 
-        await self._record_tax_identity(user_id, a)
+        if identity and self._profile is not None:
+            await self._profile.update_identity(user_id, identity)
 
         # If they named a concrete target, seed an initial Financial Independence goal.
         if a["primary_goal"] and a["goal_target_amount"] > 0:
@@ -202,10 +183,8 @@ class OnboardingService:
                 pass
 
         # Create accounts — skip any that already exist (unique constraint will
-        # catch duplicates). Which ones depends on where the user is taxed, so
-        # this comes after the residency has been recorded above.
-        residency = await self._profile.get_tax_residency(user_id) if self._profile else None
-        accounts_to_create = starter_chart(residency, a["income_sources"])
+        # catch duplicates).
+        accounts_to_create = starter_chart(a["income_sources"])
 
         # Deduplicate by code
         seen_codes: set[str] = set()
@@ -248,25 +227,14 @@ class OnboardingService:
             "accounts_skipped": skipped,
         }
 
-    async def _record_tax_identity(self, user_id: str, a: dict[str, Any]) -> None:
-        """Put where the user is taxed, and the Sri Lankan numbers this flow
-        collects, on the profile (where a Sri Lankan number with no residency
-        makes the user LK; see UserProfileService.update_identity)."""
-        if self._profile is None:
-            return
+    @staticmethod
+    def _tax_identity(a: dict[str, Any]) -> dict[str, Any]:
+        """Where the user is taxed and the tax ids they gave, validated, as
+        UserProfileService.update_identity takes them; {} for neither. Each
+        is only what the user said: neither implies the other."""
         identity: dict[str, Any] = {}
         if a.get("tax_residency"):
-            identity["tax_residency"] = a["tax_residency"]
-        for field, scheme in LEGACY_TAX_ID_FIELDS.items():
-            value = a.get(field)
-            if not value:
-                continue
-            try:
-                make_tax_id(scheme, value)
-            except InvalidTaxIdError:
-                # This flow always took any text. One that cannot be a number
-                # stays the memory it always was, rather than failing onboarding.
-                continue
-            identity[field] = value
-        if identity:
-            await self._profile.update_identity(user_id, identity)
+            identity["tax_residency"] = normalize_country(a["tax_residency"])
+        if a.get("tax_ids"):
+            identity["tax_ids"] = [t.as_dict() for t in parse_tax_ids(a["tax_ids"])]
+        return identity

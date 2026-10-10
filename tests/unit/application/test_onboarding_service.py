@@ -1,4 +1,4 @@
-"""The first-run flow every surface shares (API, `salli onboarding`, `salli setup`)."""
+"""The first-run flow every surface shares (the API, which `salli onboarding` calls, and `salli-server setup`)."""
 
 from __future__ import annotations
 
@@ -14,29 +14,7 @@ from salli.application.services.onboarding_service import (
 
 EVERY_SOURCE = ["employment", "freelance", "rental", "interest", "foreign", "dividends"]
 
-#: The chart a Sri Lankan resident got before charts followed the residency,
-#: with every income source, in the order it was opened. It must not change.
-SRI_LANKAN_CHART = [
-    ("1100", "Cash", "asset", None),
-    ("1200", "Bank Account", "asset", None),
-    ("3000", "Opening Equity", "equity", None),
-    ("5000", "General Expenses", "expense", None),
-    ("5900", "Donations & Qualifying Payments", "expense", "qualifying_payment"),
-    ("4100", "Employment Income", "income", None),
-    ("4110", "APIT Receivable", "asset", "apit_credit"),
-    ("4200", "Freelance / Business Income", "income", None),
-    ("5100", "Business Expenses", "expense", None),
-    ("4300", "Rental Income", "income", None),
-    ("5200", "Property & Maintenance Expenses", "expense", None),
-    ("4400", "Interest Income", "income", None),
-    ("4410", "AIT Receivable", "asset", "ait_credit"),
-    ("1300", "Foreign Currency Account", "asset", None),
-    ("4500", "Foreign Service Income (FSI)", "income", "fsi_income"),
-    ("4510", "Foreign Tax Credit Receivable", "asset", "foreign_tax_credit"),
-    ("4600", "Dividend Income", "income", None),
-]
-
-#: Everyone else's: their income sources, and nothing about anyone's tax.
+#: Everyone's: their income sources, and nothing about anyone's tax.
 NEUTRAL_CHART = [
     ("1100", "Cash", "asset", None),
     ("1200", "Bank Account", "asset", None),
@@ -79,46 +57,17 @@ async def test_a_name_alone_gets_the_base_ledger_and_need_tags():
     assert result["memories_saved"] == ["onboarding_complete", "user_name", "residency_status"]
 
 
-async def test_a_sri_lankan_resident_gets_the_chart_they_always_got():
-    svc, _, _, ledger = _service(residency="LK")
+async def test_every_resident_gets_the_same_neutral_chart():
+    """Tax accounts come from the user's own rule sets once they have some
+    (`suggested_accounts`), never from where they live: Salli knows no
+    country's tax."""
+    for residency in ("LK", "US", None):
+        svc, _, _, ledger = _service(residency=residency)
 
-    await svc.complete("u1", {"name": "Asha", "income_sources": EVERY_SOURCE})
+        await svc.complete("u1", {"name": "Asha", "income_sources": EVERY_SOURCE})
 
-    assert _opened(ledger) == SRI_LANKAN_CHART
-
-
-async def test_without_a_residency_the_chart_has_nothing_tax_specific():
-    """`salli onboarding complete --base-currency USD` used to open an "APIT
-    Receivable" for everyone."""
-    svc, _, _, ledger = _service(residency=None)
-
-    await svc.complete("u1", {"name": "Asha", "income_sources": EVERY_SOURCE})
-
-    assert _opened(ledger) == NEUTRAL_CHART
-
-
-async def test_a_country_without_a_tax_pack_gets_the_neutral_chart():
-    svc, _, _, ledger = _service(residency="US")
-
-    await svc.complete("u1", {"name": "Asha", "income_sources": EVERY_SOURCE})
-
-    assert _opened(ledger) == NEUTRAL_CHART
-
-
-async def test_the_chart_follows_the_residency_onboarding_itself_records():
-    """The residency is read after the numbers are saved: a Sri Lankan NIC
-    given to this flow makes the chart Sri Lankan."""
-    svc, _, _, ledger = _service()
-    profile = svc._profile
-    profile.get_tax_residency.return_value = "LK"
-
-    await svc.complete(
-        "u1", {"name": "Asha", "nic": "200012345678", "income_sources": ["interest"]}
-    )
-
-    order = [c[0] for c in profile.method_calls]
-    assert order.index("update_identity") < order.index("get_tax_residency")
-    assert ("4410", "AIT Receivable", "asset", "ait_credit") in _opened(ledger)
+        assert _opened(ledger) == NEUTRAL_CHART, residency
+        assert {role for *_, role in _opened(ledger)} == {None}
 
 
 async def test_rerunning_skips_accounts_that_exist():
@@ -156,15 +105,15 @@ async def test_status_reads_the_completion_memory():
     assert await svc.is_complete("u1")
 
 
-def test_a_pack_account_takes_the_place_of_the_neutral_one_with_its_code():
-    chart = starter_chart("LK", ["foreign"])
-    assert [seed.code for seed in chart].count("4500") == 1
-    assert ("4500", "Foreign Service Income (FSI)", "income", "fsi_income") in chart
+def test_the_starter_chart_is_the_base_and_the_income_sources():
+    chart = starter_chart(["foreign"])
+    assert chart == [*BASE_ACCOUNTS, *[s for s in chart if s.code in ("1300", "4500")]]
+    assert ("4500", "Foreign Income", "income", None) in chart
 
 
 async def test_a_source_given_twice_opens_its_accounts_once():
-    svc, _, _, ledger = _service(residency="LK")
+    svc, _, _, ledger = _service()
 
     await svc.complete("u1", {"name": "Asha", "income_sources": ["employment", "employment"]})
 
-    assert [opened[0] for opened in _opened(ledger)].count("4110") == 1
+    assert [opened[0] for opened in _opened(ledger)].count("4100") == 1

@@ -24,13 +24,13 @@ from tests.unit.api.conftest import AUTH
 pytestmark = pytest.mark.asyncio
 
 _ACCOUNTS = [
-    Account(id="salary", user_id="u1", code="4000", name="Salary", type="income", currency="LKR"),
-    Account(id="savings", user_id="u1", code="1000", name="Savings", type="asset", currency="LKR"),
+    Account(id="salary", user_id="u1", code="4000", name="Salary", type="income", currency="KES"),
+    Account(id="savings", user_id="u1", code="1000", name="Savings", type="asset", currency="KES"),
     Account(
-        id="funds", user_id="u1", code="1100", name="Unit Trusts", type="asset", currency="LKR"
+        id="funds", user_id="u1", code="1100", name="Unit Trusts", type="asset", currency="KES"
     ),
-    Account(id="card", user_id="u1", code="2000", name="Card", type="liability", currency="LKR"),
-    Account(id="food", user_id="u1", code="5000", name="Groceries", type="expense", currency="LKR"),
+    Account(id="card", user_id="u1", code="2000", name="Card", type="liability", currency="KES"),
+    Account(id="food", user_id="u1", code="5000", name="Groceries", type="expense", currency="KES"),
 ]
 
 
@@ -44,13 +44,13 @@ def _entry(n: int, days_ago: int, debit: str, credit: str, amount: str) -> Store
         source="manual",
         postings=[
             Posting(
-                account_id=debit, direction=Direction.DEBIT, amount=Decimal(amount), currency="LKR"
+                account_id=debit, direction=Direction.DEBIT, amount=Decimal(amount), currency="KES"
             ),
             Posting(
                 account_id=credit,
                 direction=Direction.CREDIT,
                 amount=Decimal(amount),
-                currency="LKR",
+                currency="KES",
             ),
         ],
     )
@@ -120,9 +120,9 @@ class _Strategies:
             "created_at": "2026-09-01T00:00:00+00:00",
             "fire_style": "standard",
             "swr": 0.04,
-            "return_conservative": 0.06,
-            "return_base": 0.1,
-            "return_growth": 0.14,
+            "real_return_conservative": 0.02,
+            "real_return_base": 0.04,
+            "real_return_growth": 0.06,
             "target_monthly_expenses": 150000.0,
             "target_age": 50,
             "buckets": [
@@ -152,7 +152,7 @@ def fi(mock_services) -> FiService:
         goals = _Goals()
         fi_scores = scores
         fire_strategies = _Strategies()
-        user_profiles = FakeProfiles()
+        user_profiles = FakeProfiles("KES")
 
     @asynccontextmanager
     async def factory():
@@ -162,8 +162,8 @@ def fi(mock_services) -> FiService:
     return mock_services.fi
 
 
-#: An LKR amount as the API sends one: a plain decimal string with two decimals.
-_LKR = re.compile(r"-?\d+\.\d{2}")
+#: A KES amount as the API sends one: a plain decimal string with two decimals.
+_AMOUNT = re.compile(r"-?\d+\.\d{2}")
 
 
 async def test_the_service_raw_fi_number_is_an_exact_quotient_in_exponent_form(fi):
@@ -198,7 +198,7 @@ async def test_each_route_returns_what_the_service_computes(client, fi, method, 
 async def test_amounts_are_at_the_currency_precision(client, fi):
     score = (await client.get("/v1/fi/score", headers=AUTH)).json()
     assert score["fi_number"] == "45000000.00"
-    assert score["currency"] == "LKR"
+    assert score["currency"] == "KES"
 
     impact = (
         await client.post(
@@ -209,15 +209,16 @@ async def test_amounts_are_at_the_currency_precision(client, fi):
     assert impact["fi_number"] == score["fi_number"]
     installments = next(o for o in impact["options"] if o["key"] == "installments")
     for key in ("total_cost", "interest_cost", "monthly_payment"):
-        assert _LKR.fullmatch(installments[key]), installments[key]
+        assert _AMOUNT.fullmatch(installments[key]), installments[key]
 
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
     assert projections["fi_number"] == score["fi_number"]
-    assert all(_LKR.fullmatch(p["base"]) for p in projections["points"])
+    assert all(_AMOUNT.fullmatch(p["base"]) for p in projections["points"])
 
 
 async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
-    """A rupee ledger: Sri Lanka's figures, as defaults, with their sources."""
+    """The stored strategy's rate and real returns, and no inflation: so no
+    placeholder, and no nominal figure."""
     score = (await client.get("/v1/fi/score", headers=AUTH)).json()
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
     impact = (
@@ -226,25 +227,47 @@ async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
 
     for body in (score, projections, impact):
         assumptions = body["assumptions"]
-        assert assumptions["region"] == "LKR"
-        assert assumptions["inflation"]["value"] == "0.05"
-        assert assumptions["inflation"]["origin"] == "default"
-        assert "Central Bank of Sri Lanka" in assumptions["inflation"]["source"]
-        # The stored strategy's rate and returns: it has one.
+        assert assumptions["status"] == "user"
+        assert assumptions["placeholders"] == []
+        assert assumptions["inflation"] is None
         assert assumptions["safe_withdrawal_rate"]["origin"] == "strategy"
         assert assumptions["real_return"]["origin"] == "strategy"
+        assert assumptions["real_returns"] == {
+            "conservative": "0.02",
+            "base": "0.04",
+            "growth": "0.06",
+        }
+    assert projections["terms"] == "real"
+    assert projections["inflation"] is None
 
 
-async def test_the_assumptions_route_reports_what_applies_and_the_defaults(client, fi):
+async def test_the_assumptions_route_reports_what_applies_and_the_placeholders(client, fi):
     body = (await client.get("/v1/fi/assumptions", headers=AUTH)).json()
     assert body["applied"]["safe_withdrawal_rate"]["origin"] == "strategy"
-    assert body["defaults"]["safe_withdrawal_rate"] == {
-        "value": "0.04",
-        "origin": "default",
-        "source": body["defaults"]["safe_withdrawal_rate"]["source"],
-    }
-    assert body["overrides"] == {
-        "inflation": None,
+    assert body["placeholder_values"]["safe_withdrawal_rate"]["value"] == "0.04"
+    assert body["placeholder_values"]["real_return"]["source"].startswith("Placeholder:")
+    assert body["own"] == {
         "real_return": None,
+        "nominal_return": None,
+        "inflation": None,
         "safe_withdrawal_rate": None,
     }
+    assert body["scenario_spread"] == "0.02"
+
+
+async def test_setting_inflation_brings_nominal_figures_to_the_projections(client, fi):
+    r = await client.patch(
+        "/v1/fi/assumptions",
+        json={"inflation": {"value": "0.03", "source": "https://example.org/cpi"}},
+        headers=AUTH,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["own"]["inflation"]["source"] == "https://example.org/cpi"
+
+    projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
+    assert projections["terms"] == "real_and_nominal"
+    assert projections["inflation"] == "0.03"
+    year_one = projections["points"][1]
+    assert _AMOUNT.fullmatch(year_one["nominal"]["base"])
+    assert _AMOUNT.fullmatch(year_one["nominal"]["fi_number"])
+    assert projections["assumptions"]["inflation"]["origin"] == "user"

@@ -72,12 +72,13 @@ class Settings(BaseSettings):
         "https://salli.lk",
     ]
 
-    # The user the `salli` CLI acts as. Written to .env by `salli setup`; set it
-    # in the environment to act as someone else (e.g. a household member).
+    # The instance's owner, written to .env by `salli-server setup`. Commands an
+    # extension adds to salli-server that act on one user act as this one; set
+    # it in the environment to act as someone else (e.g. a household member).
     salli_user_id: str = ""
 
     # Who may use this instance. "closed" (the default): only accounts that
-    # already have a profile — the owner `salli setup` creates, and anyone they
+    # already have a profile — the owner `salli-server setup` creates, and anyone they
     # add — even if the auth provider would vouch for others. "open": anyone
     # who can sign in gets an account on first request, as a hosted service
     # needs.
@@ -109,7 +110,7 @@ class Settings(BaseSettings):
     salli_chatgpt_plan_usage: bool = True
 
     # The base currency a new account is given when nothing else says which —
-    # `salli setup` asks, and onboarding can change it while the ledger is
+    # `salli-server setup` asks, and onboarding can change it while the ledger is
     # still empty. Existing users keep theirs; this only applies to new ones.
     salli_default_currency: str = "USD"
 

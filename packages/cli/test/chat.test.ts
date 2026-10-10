@@ -52,7 +52,7 @@ describe('salli ask', () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toBe('I can record that. \nOkay, I left it.\n');
     expect(result.stderr).toContain('The agent wants to post “Lunch” for USD 12.50');
-    expect(mock.requestsTo('POST', '/v1/agent/resume')[0]?.json).toMatchObject({ decision: 'denied', workflow: 'chat' });
+    expect(mock.requestsTo('POST', '/v1/agent/resume')[0]?.json).toMatchObject({ decision: 'denied' });
   });
 
   it('asks in a terminal, and resumes with the answer', async () => {

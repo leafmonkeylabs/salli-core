@@ -1,6 +1,6 @@
 """
 Composition root — the single place adapters are bound to ports.
-Both the CLI (Phase 1) and FastAPI (Phase 2) wire up services here.
+The API, the MCP server and the salli-server command line wire up services here.
 """
 
 from __future__ import annotations
@@ -42,6 +42,7 @@ from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
 from salli.application.services.rules_service import RulesService
 from salli.application.services.subscription_service import SubscriptionService
+from salli.application.services.tax_rule_service import TaxRuleService
 from salli.application.services.tax_service import TaxService
 from salli.application.services.user_profile_service import UserProfileService
 from salli.application.unit_of_work import UnitOfWork
@@ -63,6 +64,8 @@ PlanAllowed = Callable[[str], Awaitable[bool]]
 class Services:
     ledger: LedgerService
     tax: TaxService
+    # The user's own tax rule sets (docs/taxrules.md): what phase 3 computes with.
+    tax_rules: TaxRuleService
     agent: AgentService
     parsing: ParsingService
     reminders: ReminderService
@@ -114,7 +117,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     if settings.tavily_api_key:
         os.environ.setdefault("TAVILY_API_KEY", settings.tavily_api_key)
 
-    # Unpooled for the CLI: a command may run several event loops in turn.
+    # Unpooled for salli-server: a command may run several event loops in turn.
     session_factory = make_session_factory(settings, pooled=pooled)
 
     # Filled in once extensions are built (they need uow_factory first). Read
@@ -160,7 +163,8 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
 
     fx = default_fx_rates()
     ledger = LedgerService(uow_factory, fx=fx)
-    tax = TaxService(uow_factory)
+    tax_rules = _build_tax_rules(uow_factory, fx)
+    tax = TaxService(uow_factory, tax_rules)
     documents = DocumentService(uow_factory, storage)
     fi = FiService(uow_factory, llm_credentials)
     budget = BudgetService(uow_factory)
@@ -213,7 +217,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     # configured, which 503'd exactly the users BYOK is for.
     entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
-    reminders = ReminderService(uow_factory, budget, subscription, insurance, tax)
+    reminders = ReminderService(uow_factory, budget, subscription, insurance)
     reports = ReportService(ledger, fi)
     public_url = settings.mcp_public_base_url.rstrip("/")
     mcp_oauth = McpOAuthService(
@@ -251,6 +255,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     return Services(
         ledger=ledger,
         tax=tax,
+        tax_rules=tax_rules,
         agent=agent,
         parsing=parsing,
         reminders=reminders,
@@ -280,6 +285,16 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         entitlements=extensions.entitlements,
         extensions=extensions,
     )
+
+
+def _build_tax_rules(uow_factory, fx: FxRatePort) -> TaxRuleService:
+    """Tax rule sets, converting a ledger into a rule set's currency with the
+    same rates as everything else, and importing from a URL only through the
+    SSRF guard (adapters/net), capped at a document's largest size."""
+    from salli.adapters.net.fetch import GuardedFetcher
+    from salli.domain.taxrules.validate import MAX_DOCUMENT_BYTES
+
+    return TaxRuleService(uow_factory, fx=fx, fetcher=GuardedFetcher(max_bytes=MAX_DOCUMENT_BYTES))
 
 
 def _build_bank_connections(

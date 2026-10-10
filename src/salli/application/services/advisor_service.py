@@ -124,9 +124,10 @@ class AdvisorService:
             "fire_strategy": {
                 "fire_style": fire_strategy.get("fire_style"),
                 "swr": fire_strategy.get("swr"),
-                "return_conservative": fire_strategy.get("return_conservative"),
-                "return_base": fire_strategy.get("return_base"),
-                "return_growth": fire_strategy.get("return_growth"),
+                # Real (after-inflation) yearly returns the strategy chose.
+                "real_return_conservative": fire_strategy.get("real_return_conservative"),
+                "real_return_base": fire_strategy.get("real_return_base"),
+                "real_return_growth": fire_strategy.get("real_return_growth"),
                 "target_age": fire_strategy.get("target_age"),
                 "target_monthly_expenses": fire_strategy.get("target_monthly_expenses"),
                 "buckets": fire_strategy.get("buckets", []),
@@ -144,11 +145,14 @@ class AdvisorService:
                 "fire_year_conservative": fire_projections.get("fire_year_conservative"),
                 "fire_year_base": fire_projections.get("fire_year_base"),
                 "fire_year_growth": fire_projections.get("fire_year_growth"),
-                # Returns here are REAL (inflation-adjusted), unlike the nominal
-                # assumptions in fire_strategy — say so, or the model will conflate them.
+                # The REAL (after-inflation) returns the projections used: the
+                # user's, the strategy's, or placeholders (assumptions says which).
                 "real_returns_used": fire_projections.get("real_returns"),
-                "expected_inflation": fire_projections.get("expected_inflation"),
-                # Which planning assumptions applied, and where each came from.
+                # The user's own inflation, or None: then everything is in
+                # today's money, and no inflation is assumed.
+                "inflation": fire_projections.get("inflation"),
+                # Which planning assumptions applied, where each came from, and
+                # whether any is a placeholder.
                 "assumptions": fire_projections.get("assumptions"),
             },
             "surplus_breakdown": {

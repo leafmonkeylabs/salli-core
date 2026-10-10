@@ -5,8 +5,6 @@ Translate between ORM models and domain models via mappers below.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import uuid
 from collections.abc import Collection, Sequence
 from datetime import UTC, date, datetime
@@ -57,6 +55,8 @@ from salli.adapters.db.models import (
     StatementORM,
     TagORM,
     TaxComputationORM,
+    TaxRuleSetORM,
+    TaxRuleSetVersionORM,
     UserLlmCredentialORM,
     UserProfileORM,
 )
@@ -93,7 +93,6 @@ from salli.application.ports import (
     RemoteAccount,
     RuleRepository,
     StatementRepository,
-    TaxComputationRepository,
     UserProfileRepository,
 )
 from salli.domain.accounting.models import (
@@ -106,7 +105,6 @@ from salli.domain.accounting.models import (
 )
 from salli.domain.currency import exponent, is_currency
 from salli.domain.money import from_minor, to_minor
-from salli.domain.tax.models import TaxComputation
 
 if TYPE_CHECKING:
     from salli.extensions import UserDataPurger
@@ -507,76 +505,6 @@ class SQLLedgerRepository(LedgerRepository):
         return _account_from_orm(row) if row else None
 
 
-# ── TaxComputationRepository ──────────────────────────────────────────────────
-
-
-class SQLTaxComputationRepository(TaxComputationRepository):
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    def _serialize(self, computation: TaxComputation) -> dict[str, Any]:
-        import dataclasses
-
-        return json.loads(json.dumps(dataclasses.asdict(computation), default=str))
-
-    async def save(self, user_id: str, computation: TaxComputation) -> str:
-        import uuid
-
-        result_dict = self._serialize(computation)
-        # Every input the engine actually consumes. Hashing only gross+relief
-        # meant two computations with completely different credits, FSI or
-        # qualifying payments collided, so the hash could not do the one job it
-        # exists for — telling you whether a stored result is still current.
-        inputs_hash = hashlib.sha256(
-            json.dumps(
-                {
-                    "pack_version": computation.pack_version,
-                    "gross": str(computation.gross_income),
-                    "fsi": str(computation.foreign_service_income),
-                    "relief": str(computation.personal_relief_applied),
-                    "qp": str(computation.qp_deduction),
-                    "apit": str(computation.apit_credit),
-                    "ait": str(computation.ait_credit),
-                    "ftc": str(computation.foreign_tax_credit),
-                },
-                sort_keys=True,
-            ).encode()
-        ).hexdigest()
-
-        orm = TaxComputationORM(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            year=computation.pack_year,
-            pack_version=computation.pack_version,
-            inputs_hash=inputs_hash,
-            result_json=result_dict,
-        )
-        self._session.add(orm)
-        return orm.id
-
-    async def get_latest(self, user_id: str, year: str) -> TaxComputation | None:
-        stmt = (
-            select(TaxComputationORM)
-            .where(
-                TaxComputationORM.user_id == user_id,
-                TaxComputationORM.year == year,
-            )
-            .order_by(TaxComputationORM.created_at.desc())
-            .limit(1)
-        )
-        result = await self._session.execute(stmt)
-        row = result.scalar_one_or_none()
-        if row is None:
-            return None
-        # Deserialize back — used only for display/reporting, not recomputation.
-        return row.result_json  # type: ignore[return-value]
-
-    async def list_computation_keys(self) -> list[tuple[str, str]]:
-        stmt = select(TaxComputationORM.user_id, TaxComputationORM.year).distinct()
-        result = await self._session.execute(stmt)
-        return [(r[0], r[1]) for r in result.all()]
-
-
 # ── StatementRepository ───────────────────────────────────────────────────────
 
 
@@ -874,8 +802,9 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         amount=Decimal(str(j["amount"])),
         credit_flag=j["credit_flag"],
         bank_ref=j.get("bank_ref", ""),
-        # Rows saved before the currency was recorded were all rupees.
-        currency=j.get("currency", "LKR"),
+        # Every row records its currency when it is saved: there is no default
+        # currency to fall back on.
+        currency=j["currency"],
         ref_kind=j.get("ref_kind", "id"),
         ref_source=j.get("ref_source", ""),
         source_account=j.get("source_account", ""),
@@ -997,6 +926,60 @@ class SQLReminderRepository(ReminderRepository):
             )
         )
         return alert_id
+
+    async def sync_source(
+        self,
+        user_id: str,
+        source_domain: str,
+        source_prefix: str,
+        items: list[tuple[str, str, str]],
+    ) -> dict[str, list[str]]:
+        for source_id, _, _ in items:
+            if not source_id.startswith(source_prefix):
+                raise ValueError(f"{source_id!r} is not under {source_prefix!r}")
+        rows = (
+            (
+                await self._session.execute(
+                    select(ReminderORM).where(
+                        ReminderORM.user_id == user_id,
+                        ReminderORM.source_domain == source_domain,
+                        ReminderORM.source_id.startswith(source_prefix, autoescape=True),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        existing = {row.source_id: row for row in rows}
+        wanted = {source_id: (kind, due) for source_id, kind, due in items}
+        report: dict[str, list[str]] = {"created": [], "updated": [], "removed": []}
+        for source_id, row in existing.items():
+            if source_id not in wanted:
+                await self._session.delete(row)
+                report["removed"].append(row.id)
+        for source_id, (kind, due) in wanted.items():
+            row = existing.get(source_id)
+            if row is None:
+                reminder_id = str(uuid.uuid4())
+                self._session.add(
+                    ReminderORM(
+                        id=reminder_id,
+                        user_id=user_id,
+                        kind=kind,
+                        due_date=due,
+                        status="pending",
+                        source_domain=source_domain,
+                        source_id=source_id,
+                    )
+                )
+                report["created"].append(reminder_id)
+            elif (row.kind, row.due_date) != (kind, due):
+                if row.due_date != due:
+                    row.status = "pending"
+                row.kind, row.due_date = kind, due
+                report["updated"].append(row.id)
+        await self._session.flush()
+        return report
 
 
 # ── Agent Documents ────────────────────────────────────────────────────────────
@@ -1229,7 +1212,6 @@ class SQLUserProfileRepository(UserProfileRepository):
             "residency_status": row.residency_status,
             "employer": row.employer,
             "employment_type": row.employment_type,
-            "ird_number": row.ird_number,
             "risk_score": row.risk_score,
             "risk_category": row.risk_category,
             "life_stage": row.life_stage,
@@ -1238,29 +1220,19 @@ class SQLUserProfileRepository(UserProfileRepository):
             "preferred_model": row.preferred_model,
             "tax_residency": row.tax_residency,
             "tax_ids": list(row.tax_ids or []),
-            "fi_inflation": row.fi_inflation,
-            "fi_real_return": row.fi_real_return,
-            "fi_safe_withdrawal_rate": row.fi_safe_withdrawal_rate,
+            "fi_assumptions": dict(row.fi_assumptions or {}),
         }
 
-    async def set_fi_assumptions(self, user_id: str, values: dict[str, Decimal | None]) -> None:
-        """Write the user's own FI assumptions present in `values`; None returns
-        one to the default. Keys are "inflation", "real_return" and
-        "safe_withdrawal_rate": nothing else can be written through this."""
-        columns = {
-            "inflation": "fi_inflation",
-            "real_return": "fi_real_return",
-            "safe_withdrawal_rate": "fi_safe_withdrawal_rate",
-        }
-        unknown = set(values) - set(columns)
-        if unknown:
-            raise ValueError(f"Not FI assumptions: {sorted(unknown)}")
+    async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
+        """Replace the user's own FI assumptions with `stored` (as
+        `OwnAssumptions.as_stored()` writes them: the service validates)."""
+        if not isinstance(stored, dict):
+            raise ValueError("FI assumptions are stored as an object")
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
         if row is None:
-            raise LookupError(f"User {user_id} has no profile")
-        for key, value in values.items():
-            setattr(row, columns[key], value)
+            raise ProfileMissing(user_id)
+        row.fi_assumptions = stored
         await self._s.flush()
 
     async def set_tax_identity(
@@ -1269,13 +1241,11 @@ class SQLUserProfileRepository(UserProfileRepository):
         *,
         tax_residency: str | None,
         tax_ids: list[dict[str, str]],
-        ird_number: str | None,
     ) -> None:
         """Write where the user is taxed and their tax ids, exactly as given.
 
         `upsert` skips None, so it could never clear a residency; this writes
-        NULL too. `ird_number` is the legacy column, which the caller keeps
-        equal to the "LK-TIN" tax id.
+        NULL too.
         """
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
@@ -1283,7 +1253,6 @@ class SQLUserProfileRepository(UserProfileRepository):
             raise ProfileMissing(user_id)
         row.tax_residency = tax_residency
         row.tax_ids = tax_ids
-        row.ird_number = ird_number
         await self._s.flush()
 
     async def upsert(self, user_id: str, fields: dict[str, Any]) -> None:
@@ -2747,6 +2716,12 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(PolicyORM, PolicyORM.user_id)
         await _delete(InsuranceTargetORM, InsuranceTargetORM.user_id)
         await _delete(TaxComputationORM, TaxComputationORM.user_id)
+        # After tax_computations, which may point at a version. A set is
+        # deleted before its versions (its active version points back at it),
+        # which cascade from it; deleting them by owner after is then a no-op,
+        # kept so nothing depends on the cascade alone.
+        await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
+        await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
         await _delete(AuditLogORM, AuditLogORM.user_id)
         await _delete(OAuthRefreshTokenORM, OAuthRefreshTokenORM.user_id)
         await _delete(OAuthAccessTokenORM, OAuthAccessTokenORM.user_id)
@@ -2778,8 +2753,12 @@ class SQLOAuthClientRepository(OAuthClientRepository):
 
     async def register(self, client_name: str | None, redirect_uris: list[str]) -> dict[str, Any]:
         client_id = str(uuid.uuid4())
+        # Never first party: a client that registers itself is whoever it says.
         row = OAuthClientORM(
-            client_id=client_id, client_name=client_name, redirect_uris=redirect_uris
+            client_id=client_id,
+            client_name=client_name,
+            redirect_uris=redirect_uris,
+            first_party=False,
         )
         self._s.add(row)
         await self._s.flush()
@@ -2787,6 +2766,7 @@ class SQLOAuthClientRepository(OAuthClientRepository):
             "client_id": row.client_id,
             "client_name": row.client_name,
             "redirect_uris": row.redirect_uris,
+            "first_party": False,
         }
 
     async def get(self, client_id: str) -> dict[str, Any] | None:
@@ -2801,6 +2781,7 @@ class SQLOAuthClientRepository(OAuthClientRepository):
             "client_id": row.client_id,
             "client_name": row.client_name,
             "redirect_uris": row.redirect_uris,
+            "first_party": row.first_party,
         }
 
 
@@ -2908,12 +2889,17 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         await self._s.flush()
 
     async def get_access_token(self, token_hash: str) -> dict[str, Any] | None:
-        row = (
+        found = (
             await self._s.execute(
-                select(OAuthAccessTokenORM).where(OAuthAccessTokenORM.token_hash == token_hash)
+                select(OAuthAccessTokenORM, OAuthClientORM.client_name, OAuthClientORM.first_party)
+                .join(OAuthClientORM, OAuthClientORM.client_id == OAuthAccessTokenORM.client_id)
+                .where(OAuthAccessTokenORM.token_hash == token_hash)
             )
-        ).scalar_one_or_none()
-        if row is None or row.revoked_at is not None or row.expires_at < datetime.now(UTC):
+        ).one_or_none()
+        if found is None:
+            return None
+        row, client_name, first_party = found
+        if row.revoked_at is not None or row.expires_at < datetime.now(UTC):
             return None
         return {
             "id": row.id,
@@ -2922,6 +2908,10 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             "scope": row.scope,
             "resource": row.resource,
             "expires_at": row.expires_at,
+            # Whose client holds it: what a token may do depends on it
+            # (application/permissions.py).
+            "client_name": client_name,
+            "client_first_party": bool(first_party),
         }
 
     async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
@@ -3176,6 +3166,7 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
             "user_id": row.user_id,
             "name": row.name,
             "prefix": row.prefix,
+            "permissions": sorted(row.permissions or []),
             "expires_at": row.expires_at,
             "last_used_at": row.last_used_at,
             "created_at": row.created_at,
@@ -3188,6 +3179,7 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
         token_hash: str,
         prefix: str,
         expires_at: datetime | None,
+        permissions: list[str],
     ) -> dict[str, Any]:
         row = PersonalAccessTokenORM(
             id=str(uuid.uuid4()),
@@ -3195,6 +3187,7 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
             name=name,
             token_hash=token_hash,
             prefix=prefix,
+            permissions=sorted(set(permissions)),
             expires_at=expires_at,
             created_at=datetime.now(UTC),
         )

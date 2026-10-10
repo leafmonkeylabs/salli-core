@@ -9,7 +9,7 @@ import inspect
 import re
 from types import SimpleNamespace
 from typing import Any, get_args
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -147,6 +147,26 @@ async def test_an_uploaded_file_comes_back_as_its_reference(client, mock_service
         "size": 8,
         "mime_type": "application/pdf",
     }
+
+
+async def test_agent_resume_is_for_chat_only(client, mock_services):
+    """A return is reviewed through /v1/tax/returns/resume; asking the agent
+    route for one resumes nothing of it."""
+
+    async def nothing(**kwargs):
+        return
+        yield
+
+    mock_services.agent.resume_chat = MagicMock(side_effect=lambda **kw: nothing(**kw))
+    r = await client.post(
+        "/v1/agent/resume",
+        json={"thread_id": "thread-1", "decision": "approved", "workflow": "return"},
+        headers=AUTH,
+    )
+
+    assert r.status_code == 200
+    mock_services.agent.resume_return.assert_not_awaited()
+    assert mock_services.agent.resume_chat.call_args.kwargs["thread_id"] == "thread-1"
 
 
 def test_the_api_speaks_every_persona_the_service_can_build():

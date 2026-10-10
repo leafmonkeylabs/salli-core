@@ -20,25 +20,18 @@ AccountType = Literal["asset", "liability", "equity", "income", "expense"]
 Source = Literal["manual", "statement", "sms", "system"]
 
 # What an account means to the tax engine, declared explicitly rather than
-# guessed from its name.
-#
-# This replaces substring matching on `Account.name` ("apit" in name.lower(),
-# "qualifying" or "donation", code.startswith("FSI")), which was wrong in two
-# directions at once: it silently missed the accounts onboarding actually seeds
-# — "APIT Receivable" is an *asset*, while the old mapping only inspected
-# liabilities, so every onboarded user's withheld tax was ignored and their tax
-# payable overstated by that amount — and it could fire on unrelated accounts
-# that merely contained the letters (a liability named "Waiting Clearing"
-# counted as AIT withheld).
+# guessed from its name or type: an account's postings count towards the role a
+# tax rule set declares with that key (domain/taxrules/inputs.py), and nothing
+# else about the account decides it. Guessing from names is wrong both ways: it
+# misses accounts that are named differently, and fires on unrelated accounts
+# whose names merely contain the letters.
 #
 # `AccountType` stays the accounting classification; `TaxRole` is the tax
 # treatment. They answer different questions and an account needs both.
 #
-# Which roles exist is not fixed here. Tax packs declare them (their withholding
-# kinds, and the roles of the regimes they have: `TaxPack.tax_roles`), and an
-# account may only take one its owner's pack declares (LedgerService). Sri
-# Lanka's are apit_credit, ait_credit, foreign_tax_credit, qualifying_payment
-# and fsi_income. This model checks only that a code looks like one.
+# Which roles exist is not fixed here. The user's own tax rule sets declare them
+# (their `roles`), and an account may only take one of those (LedgerService).
+# This model checks only that a code looks like one.
 TaxRole = str
 
 _TAX_ROLE_SHAPE = re.compile(r"^[a-z][a-z0-9_]{0,29}$")

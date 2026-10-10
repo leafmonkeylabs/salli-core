@@ -117,6 +117,20 @@ export const TRIAL_BALANCE = {
   net: '0.00',
 } satisfies TrialBalance;
 
+/** Your own withdrawal rate, a placeholder real return, and no inflation set. */
+export const FI_ASSUMPTIONS: FiAssumptions = {
+  status: 'placeholder',
+  placeholders: ['real_return'],
+  message:
+    "Using placeholder assumptions for the real return: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+  real_return: { value: '0.04', origin: 'placeholder', source: 'Placeholder: a round 4% a year after inflation.', note: null },
+  safe_withdrawal_rate: { value: '0.035', origin: 'user', source: 'https://example.org/withdrawal-study', note: null },
+  inflation: null,
+  nominal_return: null,
+  real_returns: { conservative: '0.02', base: '0.04', growth: '0.06' },
+  nominal_returns: null,
+};
+
 export const FI_SCORE = {
   pack_version: '1',
   overall_score: '72.5',
@@ -140,6 +154,7 @@ export const FI_SCORE = {
     { key: 'emergency_fund', label: 'Emergency fund', score: '80', weight: '0.2', detail: '5.8 months covered' },
   ],
   projected_fi_date: '2040-10-09',
+  assumptions: FI_ASSUMPTIONS,
   inputs_hash: 'abc',
 } satisfies FiScore;
 
@@ -157,12 +172,12 @@ export const REMINDERS: Reminder[] = [
   },
   {
     id: uid(302),
-    kind: 'return_due_2025/26',
+    kind: 'Return due (XA 2026)',
     due_date: '2026-11-30',
     status: 'pending',
     alert_type: null,
-    source_domain: null,
-    source_id: null,
+    source_domain: 'tax_rules',
+    source_id: `${uid(1501)}:return`,
     severity: null,
     created_at: '2026-04-01T09:00:00+00:00',
   },
@@ -254,9 +269,3 @@ export const STATEMENT_UPLOAD = {
   ],
 } satisfies StatementUpload;
 
-export const FI_ASSUMPTIONS: FiAssumptions = {
-  region: 'US',
-  inflation: { value: '0.03', origin: 'default', source: 'US CPI, 10-year average' },
-  real_return: { value: '0.05', origin: 'default', source: 'A balanced portfolio, after inflation' },
-  safe_withdrawal_rate: { value: '0.04', origin: 'user', source: 'Your choice' },
-};

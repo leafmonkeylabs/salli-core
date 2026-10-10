@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import AfterValidator, BaseModel, WithJsonSchema
+from pydantic import BaseModel, Field
 
 from salli.domain.accounting.models import Account as DomainAccount
-from salli.domain.tax.packs import registry
 from salli.interfaces.api.contract import Amount, CurrencyCode, Ref
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
@@ -15,23 +14,24 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 AccountTypeStr = Literal["asset", "liability", "equity", "income", "expense"]
 
 
-def _declared_by_a_pack(role: str) -> str:
-    if role not in registry.all_tax_roles():
-        raise ValueError(f"{role!r} is not a tax role any tax pack declares")
-    return role
-
-
 # The tax engine classifies strictly by `tax_role`, never by account name or
 # code (see tax_service). Leaving it off these schemas meant a user-created
 # account could never carry one, so only the chart auto-built during
 # onboarding was ever visible to the engine.
 #
-# Tax packs declare the roles (GET /tax/packs lists each pack's), so the
-# schema's list follows the registry. Whether the user's own country's packs
-# allow a role is checked when it is set (LedgerService): a 422 if not.
-_TAX_ROLES = WithJsonSchema({"type": "string", "enum": list(registry.all_tax_roles())})
-TaxRoleIn = Annotated[str, AfterValidator(_declared_by_a_pack), _TAX_ROLES]
-TaxRoleStr = Annotated[str, _TAX_ROLES]
+# Which roles exist isn't fixed: the user's own tax rule sets declare them
+# (docs/taxrules.md); Salli has none of its own. So the schema says only what
+# a role looks like; whether this user may use it is checked when it is set
+# (LedgerService), a 422 if not.
+TaxRoleIn = Annotated[
+    str,
+    Field(
+        pattern=r"^[a-z][a-z0-9_]{0,29}$",
+        examples=["salary"],
+        description="A role one of the user's tax rule sets declares.",
+    ),
+]
+TaxRoleStr = TaxRoleIn
 
 
 class AddAccountRequest(BaseModel):

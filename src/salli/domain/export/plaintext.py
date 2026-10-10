@@ -10,7 +10,7 @@ Both formats get the same account names: the five Beancount roots (Assets,
 Liabilities, Equity, Income, Expenses), then the account's parents and its own
 name as CamelCase components, so `Bank Account` under `Savings` becomes
 `Assets:Savings:BankAccount`. A posting in a currency other than the base
-carries its exchange rate as a price (`100.00 USD @ 302.50 LKR`), so the entry
+carries its exchange rate as a price (`100.00 USD @ 0.92 EUR`), so the entry
 balances in the base currency exactly as it does in Salli. Pure: no I/O.
 """
 
@@ -36,7 +36,7 @@ _HLEDGER_TYPES = {"asset": "A", "liability": "L", "equity": "E", "income": "R", 
 
 def _component(name: str) -> str:
     """`Donations & Qualifying Payments` → `DonationsQualifyingPayments`. Each
-    word keeps its own capitals (APIT stays APIT); only ASCII letters and
+    word keeps its own capitals (VAT stays VAT); only ASCII letters and
     digits survive, which every Beancount version accepts."""
     words = re.findall(r"[A-Za-z0-9]+", name)
     joined = "".join(w[0].upper() + w[1:] for w in words)

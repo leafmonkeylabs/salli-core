@@ -208,7 +208,7 @@ describe('reminders, reports and tax', () => {
       "ID        DUE           WHAT                   STATUS   ALERT
       0000012f  Aug 15, 2026  Quarterly installment  done
       0000012d  Oct 9, 2026   Budget overspend       pending  warning
-      0000012e  Nov 30, 2026  Return due 2025/26     pending
+      0000012e  Nov 30, 2026  Return due (XA 2026)   pending
       "
     `);
   });
@@ -240,19 +240,24 @@ describe('reminders, reports and tax', () => {
     expect((await run(['reports', 'export', 'cash-flow'])).code).toBe(2);
   });
 
-  it('computes income tax with its bands', async () => {
+  it('computes tax from your rules, line by line', async () => {
     expect((await run(['tax', 'compute'])).stdout).toMatchInlineSnapshot(`
-      "Income tax 2025/26 LK pack v1 · not tax advice
-      BAND                           RATE  TAXABLE (LKR)  TAX (LKR)
-      LKR 0 – LKR 1,000,000            6%   1,000,000.00  60,000.00
-      LKR 1,000,000 – LKR 1,500,000   18%     500,000.00  90,000.00
+      "Tax XA 2031 Jan 1 – Dec 31, 2031 · USD · computed Jun 1, 2031 · not tax advice
+      Computed from your rules, version 1 (a1a1a1a1a1a1).
 
-      Gross income              LKR 6,000,000.00
-      Personal relief           LKR 1,800,000.00
-      Taxable income            LKR 4,200,000.00
-      Tax before credits        LKR 540,000.00
-      Credits (APIT, AIT, FTC)  LKR 400,000.00
-      Tax payable               LKR 140,000.00
+      FROM YOUR LEDGER  ROLE          TOTAL (USD)  POSTINGS
+      Salary            salary          60,000.00        12
+      Tax withheld      tax_withheld    12,000.00        12
+
+      LINE                       KEY          AMOUNT (USD)  FROM
+      Allowance                  allowance       12,000.00  min(12000, max(0, role.salary))
+      Income tax                 income_tax      11,200.00  line.income_tax.band_1.tax + line.income_tax.band_2.tax
+      Tax withheld (refundable)  withholding     12,000.00  role.tax_withheld
+      Tax less withholding       balance           -800.00  line.income_tax - line.withholding
+
+      Net      -USD 800.00
+      Payable  USD 0.00
+      Refund   USD 800.00
       "
     `);
   });
@@ -269,9 +274,8 @@ describe('your data and settings', () => {
       Residency status        resident
       MCP enabled             yes
       Daily briefing enabled  no
-      Tax residency           LK
-      Tax ids                 LK-TIN 123456789
-      FI assumptions          safe withdrawal rate 4%
+      Tax residency           KE
+      Tax ids                 KE-PIN A001234567Z
       "
     `);
     expect((await run(['profile', 'set', '--name', 'Ada L', '--dependents', '2'])).code).toBe(0);

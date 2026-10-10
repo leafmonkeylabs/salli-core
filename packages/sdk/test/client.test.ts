@@ -180,7 +180,7 @@ describe('createClient', () => {
 
   it('sends no Authorization header without auth', async () => {
     server = await startServer((req, res) =>
-      sendJson(res, 200, { api_version: '1', server_version: '0.1.0', extensions: [], tax_packs: [], oauth: {}, default_currency: 'USD' }),
+      sendJson(res, 200, { api_version: '1', server_version: '0.1.0', extensions: [], oauth: {}, default_currency: 'USD' }),
     );
     const salli = createClient({ server: server.url });
     const meta = await salli.call(metaGet);

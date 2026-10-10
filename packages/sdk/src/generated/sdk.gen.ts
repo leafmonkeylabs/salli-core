@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import type { AccountDeleteData, AccountDeleteErrors, AccountDeleteResponses, AccountExportData, AccountExportErrors, AccountExportResponses, AccountsCreateData, AccountsCreateErrors, AccountsCreateResponses, AccountsDeactivateData, AccountsDeactivateErrors, AccountsDeactivateResponses, AccountsGetData, AccountsGetErrors, AccountsGetResponses, AccountsListData, AccountsListErrors, AccountsListResponses, AccountsOverviewData, AccountsOverviewErrors, AccountsOverviewResponses, AccountsReactivateData, AccountsReactivateErrors, AccountsReactivateResponses, AccountsUpdateData, AccountsUpdateErrors, AccountsUpdateResponses, AdvisorBriefingPrepareData, AdvisorBriefingPrepareErrors, AdvisorBriefingPrepareResponses, AdvisorBriefingResumeData, AdvisorBriefingResumeErrors, AdvisorBriefingResumeResponses, AdvisorCronRunDueData, AdvisorCronRunDueErrors, AdvisorCronRunDueResponses, AdvisorDailyBriefingGetData, AdvisorDailyBriefingGetErrors, AdvisorDailyBriefingGetResponses, AdvisorDailyBriefingSetData, AdvisorDailyBriefingSetErrors, AdvisorDailyBriefingSetResponses, AdvisorRecommendationsApplyData, AdvisorRecommendationsApplyErrors, AdvisorRecommendationsApplyResponses, AdvisorRecommendationsDismissData, AdvisorRecommendationsDismissErrors, AdvisorRecommendationsDismissResponses, AdvisorReportsLatestData, AdvisorReportsLatestErrors, AdvisorReportsLatestResponses, AdvisorReportsListData, AdvisorReportsListErrors, AdvisorReportsListResponses, AdvisorRunData, AdvisorRunErrors, AdvisorRunResponses, AgentAuditLogData, AgentAuditLogErrors, AgentAuditLogResponses, AgentChatData, AgentChatErrors, AgentChatResponses, AgentFilesUploadData, AgentFilesUploadErrors, AgentFilesUploadResponses, AgentHistoryData, AgentHistoryErrors, AgentHistoryResponses, AgentResumeData, AgentResumeErrors, AgentResumeResponses, AgentSessionsDeleteData, AgentSessionsDeleteErrors, AgentSessionsDeleteResponses, AgentSessionsListData, AgentSessionsListErrors, AgentSessionsListResponses, AiChatgptConnectData, AiChatgptConnectErrors, AiChatgptConnectResponses, AiChatgptDisconnectData, AiChatgptDisconnectErrors, AiChatgptDisconnectResponses, AiChatgptGetData, AiChatgptGetErrors, AiChatgptGetResponses, AiHostGetData, AiHostGetErrors, AiHostGetResponses, AiModelsListData, AiModelsListErrors, AiModelsListResponses, AiModelsSetData, AiModelsSetErrors, AiModelsSetResponses, AiSettingsGetData, AiSettingsGetErrors, AiSettingsGetResponses, AiSettingsSetData, AiSettingsSetErrors, AiSettingsSetResponses, AuthMeData, AuthMeErrors, AuthMeResponses, BankConnectionsConnectData, BankConnectionsConnectErrors, BankConnectionsConnectResponses, BankConnectionsCronSyncDueData, BankConnectionsCronSyncDueErrors, BankConnectionsCronSyncDueResponses, BankConnectionsDisconnectData, BankConnectionsDisconnectErrors, BankConnectionsDisconnectResponses, BankConnectionsListData, BankConnectionsListErrors, BankConnectionsListResponses, BankConnectionsMapAccountData, BankConnectionsMapAccountErrors, BankConnectionsMapAccountResponses, BankConnectionsSyncData, BankConnectionsSyncErrors, BankConnectionsSyncResponses, BudgetsCreateData, BudgetsCreateErrors, BudgetsCreateResponses, BudgetsDeleteData, BudgetsDeleteErrors, BudgetsDeleteResponses, BudgetsGetData, BudgetsGetErrors, BudgetsGetResponses, BudgetsListData, BudgetsListErrors, BudgetsListResponses, BudgetsSummaryData, BudgetsSummaryErrors, BudgetsSummaryResponses, BudgetsUpdateData, BudgetsUpdateErrors, BudgetsUpdateResponses, DebtsCreateData, DebtsCreateErrors, DebtsCreateResponses, DebtsDeleteData, DebtsDeleteErrors, DebtsDeleteResponses, DebtsGetData, DebtsGetErrors, DebtsGetResponses, DebtsListData, DebtsListErrors, DebtsListResponses, DebtsPayoffPlanData, DebtsPayoffPlanErrors, DebtsPayoffPlanResponses, DebtsUpdateData, DebtsUpdateErrors, DebtsUpdateResponses, DocumentsDeleteData, DocumentsDeleteErrors, DocumentsDeleteResponses, DocumentsGetData, DocumentsGetErrors, DocumentsGetResponses, DocumentsListData, DocumentsListErrors, DocumentsListResponses, EntriesCreateData, EntriesCreateErrors, EntriesCreateResponses, EntriesGetData, EntriesGetErrors, EntriesGetResponses, EntriesListData, EntriesListErrors, EntriesListResponses, EntriesParseData, EntriesParseErrors, EntriesParseResponses, EntriesPostingsSetTagsData, EntriesPostingsSetTagsErrors, EntriesPostingsSetTagsResponses, EntriesProvenanceData, EntriesProvenanceErrors, EntriesProvenanceResponses, EntriesReverseData, EntriesReverseErrors, EntriesReverseResponses, ExportsBeancountData, ExportsBeancountErrors, ExportsBeancountResponses, ExportsHledgerData, ExportsHledgerErrors, ExportsHledgerResponses, FiAssumptionsData, FiAssumptionsErrors, FiAssumptionsResponses, FiProjectionsData, FiProjectionsErrors, FiProjectionsResponses, FiScoreGetData, FiScoreGetErrors, FiScoreGetResponses, FiScoreHistoryData, FiScoreHistoryErrors, FiScoreHistoryResponses, FiScoreRecomputeData, FiScoreRecomputeErrors, FiScoreRecomputeResponses, FiSimulatePurchaseData, FiSimulatePurchaseErrors, FiSimulatePurchaseResponses, FiStrategyGenerateData, FiStrategyGenerateErrors, FiStrategyGenerateResponses, FiStrategyGetData, FiStrategyGetErrors, FiStrategyGetResponses, FiStrategyHistoryData, FiStrategyHistoryErrors, FiStrategyHistoryResponses, FiSurplusData, FiSurplusErrors, FiSurplusResponses, GoalsAllocationsListData, GoalsAllocationsListErrors, GoalsAllocationsListResponses, GoalsAllocationsSetData, GoalsAllocationsSetErrors, GoalsAllocationsSetResponses, GoalsCreateData, GoalsCreateErrors, GoalsCreateResponses, GoalsDeleteData, GoalsDeleteErrors, GoalsDeleteResponses, GoalsListData, GoalsListErrors, GoalsListResponses, GoalsUpdateData, GoalsUpdateErrors, GoalsUpdateResponses, HoldingsCreateData, HoldingsCreateErrors, HoldingsCreateResponses, HoldingsDeleteData, HoldingsDeleteErrors, HoldingsDeleteResponses, HoldingsGetData, HoldingsGetErrors, HoldingsGetResponses, HoldingsListData, HoldingsListErrors, HoldingsListResponses, HoldingsLotsData, HoldingsLotsErrors, HoldingsLotsResponses, HoldingsPerformanceData, HoldingsPerformanceErrors, HoldingsPerformanceResponses, HoldingsTransactionsCreateData, HoldingsTransactionsCreateErrors, HoldingsTransactionsCreateResponses, HoldingsTransactionsDeleteData, HoldingsTransactionsDeleteErrors, HoldingsTransactionsDeleteResponses, HoldingsTransactionsGetData, HoldingsTransactionsGetErrors, HoldingsTransactionsGetResponses, HoldingsTransactionsListData, HoldingsTransactionsListErrors, HoldingsTransactionsListResponses, HoldingsTransactionsUpdateData, HoldingsTransactionsUpdateErrors, HoldingsTransactionsUpdateResponses, HoldingsUpdateData, HoldingsUpdateErrors, HoldingsUpdateResponses, InsightsCashFlowData, InsightsCashFlowErrors, InsightsCashFlowResponses, InsightsForecastData, InsightsForecastErrors, InsightsForecastResponses, InsightsNetWorthData, InsightsNetWorthErrors, InsightsNetWorthResponses, InsightsRecurringData, InsightsRecurringErrors, InsightsRecurringResponses, InsightsSafeToSpendData, InsightsSafeToSpendErrors, InsightsSafeToSpendResponses, InsightsSignalsData, InsightsSignalsErrors, InsightsSignalsResponses, InsightsSpendingData, InsightsSpendingErrors, InsightsSpendingResponses, InsurancePoliciesCreateData, InsurancePoliciesCreateErrors, InsurancePoliciesCreateResponses, InsurancePoliciesDeleteData, InsurancePoliciesDeleteErrors, InsurancePoliciesDeleteResponses, InsurancePoliciesGetData, InsurancePoliciesGetErrors, InsurancePoliciesGetResponses, InsurancePoliciesListData, InsurancePoliciesListErrors, InsurancePoliciesListResponses, InsurancePoliciesUpdateData, InsurancePoliciesUpdateErrors, InsurancePoliciesUpdateResponses, InsuranceReportData, InsuranceReportErrors, InsuranceReportResponses, InsuranceTargetsDeleteData, InsuranceTargetsDeleteErrors, InsuranceTargetsDeleteResponses, InsuranceTargetsListData, InsuranceTargetsListErrors, InsuranceTargetsListResponses, InsuranceTargetsSetData, InsuranceTargetsSetErrors, InsuranceTargetsSetResponses, LedgerIncomeStatementData, LedgerIncomeStatementErrors, LedgerIncomeStatementResponses, LedgerTrialBalanceData, LedgerTrialBalanceErrors, LedgerTrialBalanceResponses, LlmKeysDeleteData, LlmKeysDeleteErrors, LlmKeysDeleteResponses, LlmKeysListData, LlmKeysListErrors, LlmKeysListResponses, LlmKeysSetData, LlmKeysSetErrors, LlmKeysSetResponses, McpConnectionsListData, McpConnectionsListErrors, McpConnectionsListResponses, McpConnectionsRevokeData, McpConnectionsRevokeErrors, McpConnectionsRevokeResponses, McpEnabledGetData, McpEnabledGetErrors, McpEnabledGetResponses, McpEnabledSetData, McpEnabledSetErrors, McpEnabledSetResponses, MetaGetData, MetaGetErrors, MetaGetResponses, MetaHealthData, MetaHealthErrors, MetaHealthResponses, OauthAuthorizationServerMetadataData, OauthAuthorizationServerMetadataErrors, OauthAuthorizationServerMetadataResponses, OauthAuthorizeData, OauthAuthorizeErrors, OauthAuthorizeResponses, OauthConsentData, OauthConsentErrors, OauthConsentInfoData, OauthConsentInfoErrors, OauthConsentInfoResponses, OauthConsentResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthProtectedResourceMetadataData, OauthProtectedResourceMetadataErrors, OauthProtectedResourceMetadataResponses, OauthRegisterData, OauthRegisterErrors, OauthRegisterResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, OnboardingBalanceSheetData, OnboardingBalanceSheetErrors, OnboardingBalanceSheetResponses, OnboardingCompleteData, OnboardingCompleteErrors, OnboardingCompleteResponses, OnboardingGoalsData, OnboardingGoalsErrors, OnboardingGoalsResponses, OnboardingIncomeData, OnboardingIncomeErrors, OnboardingIncomeResponses, OnboardingRiskQuestionnaireData, OnboardingRiskQuestionnaireErrors, OnboardingRiskQuestionnaireResponses, OnboardingStatusData, OnboardingStatusErrors, OnboardingStatusResponses, PortfolioPerformanceData, PortfolioPerformanceErrors, PortfolioPerformanceResponses, PortfolioPricesDeleteData, PortfolioPricesDeleteErrors, PortfolioPricesDeleteResponses, PortfolioPricesListData, PortfolioPricesListErrors, PortfolioPricesListResponses, PortfolioPricesSetData, PortfolioPricesSetErrors, PortfolioPricesSetResponses, PortfolioSummaryData, PortfolioSummaryErrors, PortfolioSummaryResponses, ProfileGetData, ProfileGetErrors, ProfileGetResponses, ProfileUpdateData, ProfileUpdateErrors, ProfileUpdateResponses, RemindersCreateData, RemindersCreateErrors, RemindersCreateResponses, RemindersDeleteData, RemindersDeleteErrors, RemindersDeleteResponses, RemindersListData, RemindersListErrors, RemindersListResponses, RemindersMarkDoneData, RemindersMarkDoneErrors, RemindersMarkDoneResponses, RemindersSeedFilingCalendarData, RemindersSeedFilingCalendarErrors, RemindersSeedFilingCalendarResponses, RemindersSyncAlertsData, RemindersSyncAlertsErrors, RemindersSyncAlertsResponses, ReportsBalanceSheetData, ReportsBalanceSheetErrors, ReportsBalanceSheetResponses, ReportsExportCsvData, ReportsExportCsvErrors, ReportsExportCsvResponses, ReportsGoalProgressData, ReportsGoalProgressErrors, ReportsGoalProgressResponses, ReportsNetWorthData, ReportsNetWorthErrors, ReportsNetWorthResponses, RulesCreateData, RulesCreateErrors, RulesCreateResponses, RulesDeleteData, RulesDeleteErrors, RulesDeleteResponses, RulesGetData, RulesGetErrors, RulesGetResponses, RulesListData, RulesListErrors, RulesListResponses, RulesSuggestionsData, RulesSuggestionsErrors, RulesSuggestionsResponses, RulesTestData, RulesTestErrors, RulesTestResponses, RulesUpdateData, RulesUpdateErrors, RulesUpdateResponses, StatementsCategorizeData, StatementsCategorizeErrors, StatementsCategorizeResponses, StatementsDiscardData, StatementsDiscardErrors, StatementsDiscardResponses, StatementsListData, StatementsListErrors, StatementsListResponses, StatementsPendingData, StatementsPendingErrors, StatementsPendingResponses, StatementsPostData, StatementsPostErrors, StatementsPostResponses, StatementsUploadData, StatementsUploadErrors, StatementsUploadResponses, SubscriptionsCreateData, SubscriptionsCreateErrors, SubscriptionsCreateResponses, SubscriptionsDeleteData, SubscriptionsDeleteErrors, SubscriptionsDeleteResponses, SubscriptionsGetData, SubscriptionsGetErrors, SubscriptionsGetResponses, SubscriptionsListData, SubscriptionsListErrors, SubscriptionsListResponses, SubscriptionsReportData, SubscriptionsReportErrors, SubscriptionsReportResponses, SubscriptionsReportsData, SubscriptionsReportsErrors, SubscriptionsReportsResponses, SubscriptionsUpdateData, SubscriptionsUpdateErrors, SubscriptionsUpdateResponses, TagsListData, TagsListErrors, TagsListResponses, TaxComputeData, TaxComputeErrors, TaxComputeResponses, TaxCurrentYearData, TaxCurrentYearErrors, TaxCurrentYearResponses, TaxLatestData, TaxLatestErrors, TaxLatestResponses, TaxPacksData, TaxPacksErrors, TaxPacksResponses, TokensCreateData, TokensCreateErrors, TokensCreateResponses, TokensListData, TokensListErrors, TokensListResponses, TokensRevokeData, TokensRevokeErrors, TokensRevokeResponses } from './types.gen';
+import type { AccountDeleteData, AccountDeleteErrors, AccountDeleteResponses, AccountExportData, AccountExportErrors, AccountExportResponses, AccountsCreateData, AccountsCreateErrors, AccountsCreateResponses, AccountsDeactivateData, AccountsDeactivateErrors, AccountsDeactivateResponses, AccountsGetData, AccountsGetErrors, AccountsGetResponses, AccountsListData, AccountsListErrors, AccountsListResponses, AccountsOverviewData, AccountsOverviewErrors, AccountsOverviewResponses, AccountsReactivateData, AccountsReactivateErrors, AccountsReactivateResponses, AccountsUpdateData, AccountsUpdateErrors, AccountsUpdateResponses, AdvisorBriefingPrepareData, AdvisorBriefingPrepareErrors, AdvisorBriefingPrepareResponses, AdvisorBriefingResumeData, AdvisorBriefingResumeErrors, AdvisorBriefingResumeResponses, AdvisorCronRunDueData, AdvisorCronRunDueErrors, AdvisorCronRunDueResponses, AdvisorDailyBriefingGetData, AdvisorDailyBriefingGetErrors, AdvisorDailyBriefingGetResponses, AdvisorDailyBriefingSetData, AdvisorDailyBriefingSetErrors, AdvisorDailyBriefingSetResponses, AdvisorRecommendationsApplyData, AdvisorRecommendationsApplyErrors, AdvisorRecommendationsApplyResponses, AdvisorRecommendationsDismissData, AdvisorRecommendationsDismissErrors, AdvisorRecommendationsDismissResponses, AdvisorReportsLatestData, AdvisorReportsLatestErrors, AdvisorReportsLatestResponses, AdvisorReportsListData, AdvisorReportsListErrors, AdvisorReportsListResponses, AdvisorRunData, AdvisorRunErrors, AdvisorRunResponses, AgentAuditLogData, AgentAuditLogErrors, AgentAuditLogResponses, AgentChatData, AgentChatErrors, AgentChatResponses, AgentFilesUploadData, AgentFilesUploadErrors, AgentFilesUploadResponses, AgentHistoryData, AgentHistoryErrors, AgentHistoryResponses, AgentResumeData, AgentResumeErrors, AgentResumeResponses, AgentSessionsDeleteData, AgentSessionsDeleteErrors, AgentSessionsDeleteResponses, AgentSessionsListData, AgentSessionsListErrors, AgentSessionsListResponses, AiChatgptConnectData, AiChatgptConnectErrors, AiChatgptConnectResponses, AiChatgptDisconnectData, AiChatgptDisconnectErrors, AiChatgptDisconnectResponses, AiChatgptGetData, AiChatgptGetErrors, AiChatgptGetResponses, AiHostGetData, AiHostGetErrors, AiHostGetResponses, AiModelsListData, AiModelsListErrors, AiModelsListResponses, AiModelsSetData, AiModelsSetErrors, AiModelsSetResponses, AiSettingsGetData, AiSettingsGetErrors, AiSettingsGetResponses, AiSettingsSetData, AiSettingsSetErrors, AiSettingsSetResponses, AuthMeData, AuthMeErrors, AuthMeResponses, BankConnectionsConnectData, BankConnectionsConnectErrors, BankConnectionsConnectResponses, BankConnectionsCronSyncDueData, BankConnectionsCronSyncDueErrors, BankConnectionsCronSyncDueResponses, BankConnectionsDisconnectData, BankConnectionsDisconnectErrors, BankConnectionsDisconnectResponses, BankConnectionsListData, BankConnectionsListErrors, BankConnectionsListResponses, BankConnectionsMapAccountData, BankConnectionsMapAccountErrors, BankConnectionsMapAccountResponses, BankConnectionsSyncData, BankConnectionsSyncErrors, BankConnectionsSyncResponses, BudgetsCreateData, BudgetsCreateErrors, BudgetsCreateResponses, BudgetsDeleteData, BudgetsDeleteErrors, BudgetsDeleteResponses, BudgetsGetData, BudgetsGetErrors, BudgetsGetResponses, BudgetsListData, BudgetsListErrors, BudgetsListResponses, BudgetsSummaryData, BudgetsSummaryErrors, BudgetsSummaryResponses, BudgetsUpdateData, BudgetsUpdateErrors, BudgetsUpdateResponses, DebtsCreateData, DebtsCreateErrors, DebtsCreateResponses, DebtsDeleteData, DebtsDeleteErrors, DebtsDeleteResponses, DebtsGetData, DebtsGetErrors, DebtsGetResponses, DebtsListData, DebtsListErrors, DebtsListResponses, DebtsPayoffPlanData, DebtsPayoffPlanErrors, DebtsPayoffPlanResponses, DebtsUpdateData, DebtsUpdateErrors, DebtsUpdateResponses, DocumentsDeleteData, DocumentsDeleteErrors, DocumentsDeleteResponses, DocumentsGetData, DocumentsGetErrors, DocumentsGetResponses, DocumentsListData, DocumentsListErrors, DocumentsListResponses, EntriesCreateData, EntriesCreateErrors, EntriesCreateResponses, EntriesGetData, EntriesGetErrors, EntriesGetResponses, EntriesListData, EntriesListErrors, EntriesListResponses, EntriesParseData, EntriesParseErrors, EntriesParseResponses, EntriesPostingsSetTagsData, EntriesPostingsSetTagsErrors, EntriesPostingsSetTagsResponses, EntriesProvenanceData, EntriesProvenanceErrors, EntriesProvenanceResponses, EntriesReverseData, EntriesReverseErrors, EntriesReverseResponses, ExportsBeancountData, ExportsBeancountErrors, ExportsBeancountResponses, ExportsHledgerData, ExportsHledgerErrors, ExportsHledgerResponses, FiAssumptionsData, FiAssumptionsErrors, FiAssumptionsResponses, FiAssumptionsSetData, FiAssumptionsSetErrors, FiAssumptionsSetResponses, FiProjectionsData, FiProjectionsErrors, FiProjectionsResponses, FiScoreGetData, FiScoreGetErrors, FiScoreGetResponses, FiScoreHistoryData, FiScoreHistoryErrors, FiScoreHistoryResponses, FiScoreRecomputeData, FiScoreRecomputeErrors, FiScoreRecomputeResponses, FiSimulatePurchaseData, FiSimulatePurchaseErrors, FiSimulatePurchaseResponses, FiStrategyGenerateData, FiStrategyGenerateErrors, FiStrategyGenerateResponses, FiStrategyGetData, FiStrategyGetErrors, FiStrategyGetResponses, FiStrategyHistoryData, FiStrategyHistoryErrors, FiStrategyHistoryResponses, FiSurplusData, FiSurplusErrors, FiSurplusResponses, GoalsAllocationsListData, GoalsAllocationsListErrors, GoalsAllocationsListResponses, GoalsAllocationsSetData, GoalsAllocationsSetErrors, GoalsAllocationsSetResponses, GoalsCreateData, GoalsCreateErrors, GoalsCreateResponses, GoalsDeleteData, GoalsDeleteErrors, GoalsDeleteResponses, GoalsListData, GoalsListErrors, GoalsListResponses, GoalsUpdateData, GoalsUpdateErrors, GoalsUpdateResponses, HoldingsCreateData, HoldingsCreateErrors, HoldingsCreateResponses, HoldingsDeleteData, HoldingsDeleteErrors, HoldingsDeleteResponses, HoldingsGetData, HoldingsGetErrors, HoldingsGetResponses, HoldingsListData, HoldingsListErrors, HoldingsListResponses, HoldingsLotsData, HoldingsLotsErrors, HoldingsLotsResponses, HoldingsPerformanceData, HoldingsPerformanceErrors, HoldingsPerformanceResponses, HoldingsTransactionsCreateData, HoldingsTransactionsCreateErrors, HoldingsTransactionsCreateResponses, HoldingsTransactionsDeleteData, HoldingsTransactionsDeleteErrors, HoldingsTransactionsDeleteResponses, HoldingsTransactionsGetData, HoldingsTransactionsGetErrors, HoldingsTransactionsGetResponses, HoldingsTransactionsListData, HoldingsTransactionsListErrors, HoldingsTransactionsListResponses, HoldingsTransactionsUpdateData, HoldingsTransactionsUpdateErrors, HoldingsTransactionsUpdateResponses, HoldingsUpdateData, HoldingsUpdateErrors, HoldingsUpdateResponses, InsightsCashFlowData, InsightsCashFlowErrors, InsightsCashFlowResponses, InsightsForecastData, InsightsForecastErrors, InsightsForecastResponses, InsightsNetWorthData, InsightsNetWorthErrors, InsightsNetWorthResponses, InsightsRecurringData, InsightsRecurringErrors, InsightsRecurringResponses, InsightsSafeToSpendData, InsightsSafeToSpendErrors, InsightsSafeToSpendResponses, InsightsSignalsData, InsightsSignalsErrors, InsightsSignalsResponses, InsightsSpendingData, InsightsSpendingErrors, InsightsSpendingResponses, InsurancePoliciesCreateData, InsurancePoliciesCreateErrors, InsurancePoliciesCreateResponses, InsurancePoliciesDeleteData, InsurancePoliciesDeleteErrors, InsurancePoliciesDeleteResponses, InsurancePoliciesGetData, InsurancePoliciesGetErrors, InsurancePoliciesGetResponses, InsurancePoliciesListData, InsurancePoliciesListErrors, InsurancePoliciesListResponses, InsurancePoliciesUpdateData, InsurancePoliciesUpdateErrors, InsurancePoliciesUpdateResponses, InsuranceReportData, InsuranceReportErrors, InsuranceReportResponses, InsuranceTargetsDeleteData, InsuranceTargetsDeleteErrors, InsuranceTargetsDeleteResponses, InsuranceTargetsListData, InsuranceTargetsListErrors, InsuranceTargetsListResponses, InsuranceTargetsSetData, InsuranceTargetsSetErrors, InsuranceTargetsSetResponses, LedgerIncomeStatementData, LedgerIncomeStatementErrors, LedgerIncomeStatementResponses, LedgerTrialBalanceData, LedgerTrialBalanceErrors, LedgerTrialBalanceResponses, LlmKeysDeleteData, LlmKeysDeleteErrors, LlmKeysDeleteResponses, LlmKeysListData, LlmKeysListErrors, LlmKeysListResponses, LlmKeysSetData, LlmKeysSetErrors, LlmKeysSetResponses, McpConnectionsListData, McpConnectionsListErrors, McpConnectionsListResponses, McpConnectionsRevokeData, McpConnectionsRevokeErrors, McpConnectionsRevokeResponses, McpEnabledGetData, McpEnabledGetErrors, McpEnabledGetResponses, McpEnabledSetData, McpEnabledSetErrors, McpEnabledSetResponses, MetaGetData, MetaGetErrors, MetaGetResponses, MetaHealthData, MetaHealthErrors, MetaHealthResponses, OauthAuthorizationServerMetadataData, OauthAuthorizationServerMetadataErrors, OauthAuthorizationServerMetadataResponses, OauthAuthorizeData, OauthAuthorizeErrors, OauthAuthorizeResponses, OauthConsentData, OauthConsentErrors, OauthConsentInfoData, OauthConsentInfoErrors, OauthConsentInfoResponses, OauthConsentResponses, OauthDeviceAuthorizationData, OauthDeviceAuthorizationErrors, OauthDeviceAuthorizationResponses, OauthProtectedResourceMetadataData, OauthProtectedResourceMetadataErrors, OauthProtectedResourceMetadataResponses, OauthRegisterData, OauthRegisterErrors, OauthRegisterResponses, OauthRevokeData, OauthRevokeErrors, OauthRevokeResponses, OauthTokenData, OauthTokenErrors, OauthTokenResponses, OnboardingBalanceSheetData, OnboardingBalanceSheetErrors, OnboardingBalanceSheetResponses, OnboardingCompleteData, OnboardingCompleteErrors, OnboardingCompleteResponses, OnboardingGoalsData, OnboardingGoalsErrors, OnboardingGoalsResponses, OnboardingIncomeData, OnboardingIncomeErrors, OnboardingIncomeResponses, OnboardingRiskQuestionnaireData, OnboardingRiskQuestionnaireErrors, OnboardingRiskQuestionnaireResponses, OnboardingStatusData, OnboardingStatusErrors, OnboardingStatusResponses, PortfolioPerformanceData, PortfolioPerformanceErrors, PortfolioPerformanceResponses, PortfolioPricesDeleteData, PortfolioPricesDeleteErrors, PortfolioPricesDeleteResponses, PortfolioPricesListData, PortfolioPricesListErrors, PortfolioPricesListResponses, PortfolioPricesSetData, PortfolioPricesSetErrors, PortfolioPricesSetResponses, PortfolioSummaryData, PortfolioSummaryErrors, PortfolioSummaryResponses, ProfileGetData, ProfileGetErrors, ProfileGetResponses, ProfileUpdateData, ProfileUpdateErrors, ProfileUpdateResponses, RemindersCreateData, RemindersCreateErrors, RemindersCreateResponses, RemindersDeleteData, RemindersDeleteErrors, RemindersDeleteResponses, RemindersListData, RemindersListErrors, RemindersListResponses, RemindersMarkDoneData, RemindersMarkDoneErrors, RemindersMarkDoneResponses, RemindersSeedFilingCalendarData, RemindersSeedFilingCalendarErrors, RemindersSeedFilingCalendarResponses, RemindersSyncAlertsData, RemindersSyncAlertsErrors, RemindersSyncAlertsResponses, ReportsBalanceSheetData, ReportsBalanceSheetErrors, ReportsBalanceSheetResponses, ReportsExportCsvData, ReportsExportCsvErrors, ReportsExportCsvResponses, ReportsGoalProgressData, ReportsGoalProgressErrors, ReportsGoalProgressResponses, ReportsNetWorthData, ReportsNetWorthErrors, ReportsNetWorthResponses, RulesCreateData, RulesCreateErrors, RulesCreateResponses, RulesDeleteData, RulesDeleteErrors, RulesDeleteResponses, RulesGetData, RulesGetErrors, RulesGetResponses, RulesListData, RulesListErrors, RulesListResponses, RulesSuggestionsData, RulesSuggestionsErrors, RulesSuggestionsResponses, RulesTestData, RulesTestErrors, RulesTestResponses, RulesUpdateData, RulesUpdateErrors, RulesUpdateResponses, StatementsCategorizeData, StatementsCategorizeErrors, StatementsCategorizeResponses, StatementsDiscardData, StatementsDiscardErrors, StatementsDiscardResponses, StatementsListData, StatementsListErrors, StatementsListResponses, StatementsPendingData, StatementsPendingErrors, StatementsPendingResponses, StatementsPostData, StatementsPostErrors, StatementsPostResponses, StatementsUploadData, StatementsUploadErrors, StatementsUploadResponses, SubscriptionsCreateData, SubscriptionsCreateErrors, SubscriptionsCreateResponses, SubscriptionsDeleteData, SubscriptionsDeleteErrors, SubscriptionsDeleteResponses, SubscriptionsGetData, SubscriptionsGetErrors, SubscriptionsGetResponses, SubscriptionsListData, SubscriptionsListErrors, SubscriptionsListResponses, SubscriptionsReportData, SubscriptionsReportErrors, SubscriptionsReportResponses, SubscriptionsReportsData, SubscriptionsReportsErrors, SubscriptionsReportsResponses, SubscriptionsUpdateData, SubscriptionsUpdateErrors, SubscriptionsUpdateResponses, TagsListData, TagsListErrors, TagsListResponses, TaxComputeData, TaxComputeErrors, TaxComputeResponses, TaxCurrentYearData, TaxCurrentYearErrors, TaxCurrentYearResponses, TaxExplainData, TaxExplainErrors, TaxExplainResponses, TaxLatestData, TaxLatestErrors, TaxLatestResponses, TaxReturnsGetData, TaxReturnsGetErrors, TaxReturnsGetResponses, TaxReturnsPrepareData, TaxReturnsPrepareErrors, TaxReturnsPrepareResponses, TaxReturnsResumeData, TaxReturnsResumeErrors, TaxReturnsResumeResponses, TaxRuleSetsCreateData, TaxRuleSetsCreateErrors, TaxRuleSetsCreateResponses, TaxRuleSetsDiffData, TaxRuleSetsDiffErrors, TaxRuleSetsDiffResponses, TaxRuleSetsGetData, TaxRuleSetsGetErrors, TaxRuleSetsGetResponses, TaxRuleSetsImportData, TaxRuleSetsImportErrors, TaxRuleSetsImportResponses, TaxRuleSetsListData, TaxRuleSetsListErrors, TaxRuleSetsListResponses, TaxRuleSetsSuggestedAccountsApplyData, TaxRuleSetsSuggestedAccountsApplyErrors, TaxRuleSetsSuggestedAccountsApplyResponses, TaxRuleSetsSuggestedAccountsListData, TaxRuleSetsSuggestedAccountsListErrors, TaxRuleSetsSuggestedAccountsListResponses, TaxRuleSetsVersionsActivateData, TaxRuleSetsVersionsActivateErrors, TaxRuleSetsVersionsActivateResponses, TaxRuleSetsVersionsCreateData, TaxRuleSetsVersionsCreateErrors, TaxRuleSetsVersionsCreateResponses, TaxRuleSetsVersionsEvaluateData, TaxRuleSetsVersionsEvaluateErrors, TaxRuleSetsVersionsEvaluateResponses, TaxRuleSetsVersionsExportData, TaxRuleSetsVersionsExportErrors, TaxRuleSetsVersionsExportResponses, TaxRuleSetsVersionsGetData, TaxRuleSetsVersionsGetErrors, TaxRuleSetsVersionsGetResponses, TaxRuleSetsVersionsProposeData, TaxRuleSetsVersionsProposeErrors, TaxRuleSetsVersionsProposeResponses, TaxRuleSetsVersionsValidateData, TaxRuleSetsVersionsValidateErrors, TaxRuleSetsVersionsValidateResponses, TaxSchemaData, TaxSchemaErrors, TaxSchemaResponses, TokensCreateData, TokensCreateErrors, TokensCreateResponses, TokensListData, TokensListErrors, TokensListResponses, TokensRevokeData, TokensRevokeErrors, TokensRevokeResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -218,27 +218,26 @@ export const tagsList = <ThrowOnError extends boolean = false>(options?: Options
 });
 
 /**
- * List Packs
- */
-export const taxPacks = <ThrowOnError extends boolean = false>(options?: Options<TaxPacksData, ThrowOnError>): RequestResult<TaxPacksResponses, TaxPacksErrors, ThrowOnError> => (options?.client ?? client).get<TaxPacksResponses, TaxPacksErrors, ThrowOnError>({ url: '/v1/tax/packs', ...options });
-
-/**
  * Compute Tax
  *
- * Compute the user's income tax for a year with their country's pack.
- *
- * Their country is their tax residency or, while they have not set one, the
- * one country whose packs compute in their base currency. 422
- * (/problems/no-tax-pack) when Salli has no pack that can compute it.
+ * Compute the user's tax with their active rule set, from their ledger, and
+ * store it. 422 (/problems/no-tax-rules) when they have no active rules for
+ * it: the detail says what to do.
  */
 export const taxCompute = <ThrowOnError extends boolean = false>(options?: Options<TaxComputeData, ThrowOnError>): RequestResult<TaxComputeResponses, TaxComputeErrors, ThrowOnError> => (options?.client ?? client).post<TaxComputeResponses, TaxComputeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/tax/compute',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
 });
 
 /**
  * Get Latest
+ *
+ * The last computation stored for the jurisdiction and year.
  */
 export const taxLatest = <ThrowOnError extends boolean = false>(options?: Options<TaxLatestData, ThrowOnError>): RequestResult<TaxLatestResponses, TaxLatestErrors, ThrowOnError> => (options?.client ?? client).get<TaxLatestResponses, TaxLatestErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -249,12 +248,272 @@ export const taxLatest = <ThrowOnError extends boolean = false>(options?: Option
 /**
  * Get Current Year
  *
- * The tax year the user is in today, in their country.
+ * The tax year the user is in today: the year of their active rule set
+ * whose dates contain today, or none.
  */
 export const taxCurrentYear = <ThrowOnError extends boolean = false>(options?: Options<TaxCurrentYearData, ThrowOnError>): RequestResult<TaxCurrentYearResponses, TaxCurrentYearErrors, ThrowOnError> => (options?.client ?? client).get<TaxCurrentYearResponses, TaxCurrentYearErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/tax/current-year',
     ...options
+});
+
+/**
+ * Explain Line
+ *
+ * Where one line of the user's tax came from: its expression, the inputs
+ * and lines it used with their values, any band table, and the source the
+ * rules cite. Computed now with the active rules; nothing is stored. 404 for
+ * a line the rules don't have.
+ */
+export const taxExplain = <ThrowOnError extends boolean = false>(options: Options<TaxExplainData, ThrowOnError>): RequestResult<TaxExplainResponses, TaxExplainErrors, ThrowOnError> => (options.client ?? client).post<TaxExplainResponses, TaxExplainErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/explain',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Prepare Return
+ *
+ * Prepare a return from the user's active rules up to the review gate:
+ * compute (and store) their tax, fill in each form the rules define, and
+ * hold the draft for review under a thread of the user's own. Resume it with
+ * `tax.returns.resume`.
+ */
+export const taxReturnsPrepare = <ThrowOnError extends boolean = false>(options: Options<TaxReturnsPrepareData, ThrowOnError>): RequestResult<TaxReturnsPrepareResponses, TaxReturnsPrepareErrors, ThrowOnError> => (options.client ?? client).post<TaxReturnsPrepareResponses, TaxReturnsPrepareErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/returns/prepare',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Return
+ *
+ * The caller's return waiting for review on a thread, to show before
+ * deciding. Another user's thread reads as nothing waiting.
+ */
+export const taxReturnsGet = <ThrowOnError extends boolean = false>(options: Options<TaxReturnsGetData, ThrowOnError>): RequestResult<TaxReturnsGetResponses, TaxReturnsGetErrors, ThrowOnError> => (options.client ?? client).get<TaxReturnsGetResponses, TaxReturnsGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/returns/{thread_id}',
+    ...options
+});
+
+/**
+ * Resume Return
+ *
+ * Resume the caller's return after review: approve, edit (compute again
+ * and review again) or reject. Only a thread of the caller's own that is
+ * waiting for review can be resumed.
+ */
+export const taxReturnsResume = <ThrowOnError extends boolean = false>(options: Options<TaxReturnsResumeData, ThrowOnError>): RequestResult<TaxReturnsResumeResponses, TaxReturnsResumeErrors, ThrowOnError> => (options.client ?? client).post<TaxReturnsResumeResponses, TaxReturnsResumeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/returns/resume',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Schema
+ *
+ * The rule-set document's JSON Schema (Draft 2020-12), to write one
+ * against. The validator checks more than the schema can say (unique keys,
+ * declared sources, expressions that compile, examples that pass).
+ */
+export const taxSchema = <ThrowOnError extends boolean = false>(options?: Options<TaxSchemaData, ThrowOnError>): RequestResult<TaxSchemaResponses, TaxSchemaErrors, ThrowOnError> => (options?.client ?? client).get<TaxSchemaResponses, TaxSchemaErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/schema',
+    ...options
+});
+
+/**
+ * List Rule Sets
+ */
+export const taxRuleSetsList = <ThrowOnError extends boolean = false>(options?: Options<TaxRuleSetsListData, ThrowOnError>): RequestResult<TaxRuleSetsListResponses, TaxRuleSetsListErrors, ThrowOnError> => (options?.client ?? client).get<TaxRuleSetsListResponses, TaxRuleSetsListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets',
+    ...options
+});
+
+/**
+ * Create Rule Set
+ *
+ * A new rule set with the document as version 1, stored whatever its
+ * validation finds (the report says what). 409 when the user already has
+ * one for that jurisdiction and year: add a version to it instead.
+ */
+export const taxRuleSetsCreate = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsCreateData, ThrowOnError>): RequestResult<TaxRuleSetsCreateResponses, TaxRuleSetsCreateErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsCreateResponses, TaxRuleSetsCreateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Import Rule Set
+ *
+ * A rule set from a document or a URL, as a new version of the user's
+ * rule set for its jurisdiction and year (created if there is none). It
+ * lands as a draft (or invalid), never further: validate it, review it,
+ * activate it.
+ */
+export const taxRuleSetsImport = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsImportData, ThrowOnError>): RequestResult<TaxRuleSetsImportResponses, TaxRuleSetsImportErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsImportResponses, TaxRuleSetsImportErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/import',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Rule Set
+ */
+export const taxRuleSetsGet = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsGetData, ThrowOnError>): RequestResult<TaxRuleSetsGetResponses, TaxRuleSetsGetErrors, ThrowOnError> => (options.client ?? client).get<TaxRuleSetsGetResponses, TaxRuleSetsGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}',
+    ...options
+});
+
+/**
+ * Add Version
+ *
+ * A new version: an edit never changes an existing one. Its jurisdiction
+ * and year must be the rule set's.
+ */
+export const taxRuleSetsVersionsCreate = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsCreateData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsCreateResponses, TaxRuleSetsVersionsCreateErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsVersionsCreateResponses, TaxRuleSetsVersionsCreateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Version
+ */
+export const taxRuleSetsVersionsGet = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsGetData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsGetResponses, TaxRuleSetsVersionsGetErrors, ThrowOnError> => (options.client ?? client).get<TaxRuleSetsVersionsGetResponses, TaxRuleSetsVersionsGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}',
+    ...options
+});
+
+/**
+ * Validate Version
+ */
+export const taxRuleSetsVersionsValidate = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsValidateData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsValidateResponses, TaxRuleSetsVersionsValidateErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsVersionsValidateResponses, TaxRuleSetsVersionsValidateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/validate',
+    ...options
+});
+
+/**
+ * Propose Version
+ *
+ * Ask for the user's review. 409 unless it passes validation (run again).
+ */
+export const taxRuleSetsVersionsPropose = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsProposeData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsProposeResponses, TaxRuleSetsVersionsProposeErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsVersionsProposeResponses, TaxRuleSetsVersionsProposeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/propose',
+    ...options
+});
+
+/**
+ * Activate Version
+ *
+ * Make this the version Salli computes with for its jurisdiction and
+ * year, superseding the active one. Needs `tax:activate`, which only the
+ * user's own sign-ins hold (the app, the salli CLI, and a personal access
+ * token made with it): 403 for an AI connector, any other application, or
+ * a token made without it. 409 unless it passes validation (run again).
+ */
+export const taxRuleSetsVersionsActivate = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsActivateData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsActivateResponses, TaxRuleSetsVersionsActivateErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsVersionsActivateResponses, TaxRuleSetsVersionsActivateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/activate',
+    ...options
+});
+
+/**
+ * Diff Versions
+ *
+ * What changed between two versions, with the source behind each change
+ * and the `to` version's example results: the review before activating.
+ */
+export const taxRuleSetsDiff = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsDiffData, ThrowOnError>): RequestResult<TaxRuleSetsDiffResponses, TaxRuleSetsDiffErrors, ThrowOnError> => (options.client ?? client).get<TaxRuleSetsDiffResponses, TaxRuleSetsDiffErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/diff',
+    ...options
+});
+
+/**
+ * List Suggested Accounts
+ *
+ * The accounts a rule set suggests (its `suggested_accounts`), each with
+ * whether you already have one with that code. Nothing is created.
+ */
+export const taxRuleSetsSuggestedAccountsList = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsSuggestedAccountsListData, ThrowOnError>): RequestResult<TaxRuleSetsSuggestedAccountsListResponses, TaxRuleSetsSuggestedAccountsListErrors, ThrowOnError> => (options.client ?? client).get<TaxRuleSetsSuggestedAccountsListResponses, TaxRuleSetsSuggestedAccountsListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/suggested-accounts',
+    ...options
+});
+
+/**
+ * Apply Suggested Accounts
+ *
+ * Create the accounts a rule set suggests that you don't have yet, in your
+ * base currency, each with its suggested tax role. Idempotent: an account
+ * whose code you already use (open or closed) is left as it is. 409 for a
+ * superseded version.
+ */
+export const taxRuleSetsSuggestedAccountsApply = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsSuggestedAccountsApplyData, ThrowOnError>): RequestResult<TaxRuleSetsSuggestedAccountsApplyResponses, TaxRuleSetsSuggestedAccountsApplyErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsSuggestedAccountsApplyResponses, TaxRuleSetsSuggestedAccountsApplyErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/suggested-accounts',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Export Version
+ */
+export const taxRuleSetsVersionsExport = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsExportData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsExportResponses, TaxRuleSetsVersionsExportErrors, ThrowOnError> => (options.client ?? client).get<TaxRuleSetsVersionsExportResponses, TaxRuleSetsVersionsExportErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/export',
+    ...options
+});
+
+/**
+ * Evaluate Version
+ *
+ * Apply this version's rules to the user's own ledger, read-only: each
+ * role's total from the accounts carrying it, within the rules' year,
+ * converted into their currency where needed; then every line.
+ */
+export const taxRuleSetsVersionsEvaluate = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsEvaluateData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsEvaluateResponses, TaxRuleSetsVersionsEvaluateErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsVersionsEvaluateResponses, TaxRuleSetsVersionsEvaluateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/tax/rule-sets/{rule_set_id}/versions/{version_id}/evaluate',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**
@@ -296,9 +555,8 @@ export const agentFilesUpload = <ThrowOnError extends boolean = false>(options: 
 /**
  * Resume
  *
- * Resume an interrupted agent.
- * - workflow="chat": resumes a write-tool approval gate (decision: "approved"|"denied")
- * - workflow="return": resumes the return-preparation workflow (decision: "approve"|"reject")
+ * Resume a chat agent paused at a write-tool approval gate (decision:
+ * "approved" or "denied"). A return is reviewed with `tax.returns.resume`.
  */
 export const agentResume = <ThrowOnError extends boolean = false>(options: Options<AgentResumeData, ThrowOnError, unknown>): Promise<ServerSentEventsResult<AgentResumeResponses>> => (options.client ?? client).sse.post<AgentResumeResponses, AgentResumeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -662,8 +920,9 @@ export const remindersCreate = <ThrowOnError extends boolean = false>(options: O
 /**
  * Seed Filing Calendar
  *
- * Seed the filing deadlines of the user's tax pack for a tax year; by
- * default the latest one Salli can compute for them.
+ * Refresh the filing reminders from the deadlines of the user's active tax
+ * rule sets (one year's, when `year` names it). Activating a version does
+ * this already; this catches a calendar up. Idempotent.
  */
 export const remindersSeedFilingCalendar = <ThrowOnError extends boolean = false>(options?: Options<RemindersSeedFilingCalendarData, ThrowOnError>): RequestResult<RemindersSeedFilingCalendarResponses, RemindersSeedFilingCalendarErrors, ThrowOnError> => (options?.client ?? client).post<RemindersSeedFilingCalendarResponses, RemindersSeedFilingCalendarErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -704,12 +963,30 @@ export const remindersDelete = <ThrowOnError extends boolean = false>(options: O
 /**
  * Get Assumptions
  *
- * The planning assumptions behind the user's FI figures, and where each came from.
+ * The planning assumptions behind the user's FI figures: which apply and
+ * where each came from, what the user set, and the placeholders.
  */
 export const fiAssumptions = <ThrowOnError extends boolean = false>(options?: Options<FiAssumptionsData, ThrowOnError>): RequestResult<FiAssumptionsResponses, FiAssumptionsErrors, ThrowOnError> => (options?.client ?? client).get<FiAssumptionsResponses, FiAssumptionsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/fi/assumptions',
     ...options
+});
+
+/**
+ * Set Assumptions
+ *
+ * Set or clear the user's own planning assumptions, each with its source.
+ * A figure out of range, or a set that can't be used together, is a 422 and
+ * changes nothing.
+ */
+export const fiAssumptionsSet = <ThrowOnError extends boolean = false>(options: Options<FiAssumptionsSetData, ThrowOnError>): RequestResult<FiAssumptionsSetResponses, FiAssumptionsSetErrors, ThrowOnError> => (options.client ?? client).patch<FiAssumptionsSetResponses, FiAssumptionsSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/fi/assumptions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**
@@ -831,7 +1108,9 @@ export const fiStrategyGenerate = <ThrowOnError extends boolean = false>(options
 /**
  * Get Projections
  *
- * 15-year portfolio projections across conservative/base/growth scenarios.
+ * Projections across conservative/base/growth real-return scenarios
+ * (15 years, or as far as FI is reached, up to 40), with placeholders
+ * standing in for assumptions the user has not set.
  */
 export const fiProjections = <ThrowOnError extends boolean = false>(options?: Options<FiProjectionsData, ThrowOnError>): RequestResult<FiProjectionsResponses, FiProjectionsErrors, ThrowOnError> => (options?.client ?? client).get<FiProjectionsResponses, FiProjectionsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -991,9 +1270,10 @@ export const advisorBriefingPrepare = <ThrowOnError extends boolean = false>(opt
 /**
  * Resume Briefing
  *
- * Resume the briefing workflow after human review and persist if approved.
+ * Resume the caller's briefing workflow after human review and persist if approved.
  */
 export const advisorBriefingResume = <ThrowOnError extends boolean = false>(options: Options<AdvisorBriefingResumeData, ThrowOnError>): RequestResult<AdvisorBriefingResumeResponses, AdvisorBriefingResumeErrors, ThrowOnError> => (options.client ?? client).post<AdvisorBriefingResumeResponses, AdvisorBriefingResumeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/advisor/briefing/resume',
     ...options,
     headers: {

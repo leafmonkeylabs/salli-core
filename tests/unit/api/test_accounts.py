@@ -61,6 +61,9 @@ async def test_add_account_passes_tax_role(client, mock_services):
 
 @pytest.mark.asyncio
 async def test_add_account_rejects_unknown_tax_role(client, mock_services):
+    from salli.application.services.ledger_service import UnknownTaxRoleError
+
+    mock_services.ledger.add_account.side_effect = UnknownTaxRoleError("'not_a_role' is not")
     r = await client.post(
         "/accounts/",
         json={"code": "1010", "name": "Nope", "type": "asset", "tax_role": "not_a_role"},

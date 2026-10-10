@@ -20,14 +20,17 @@ _ROW = {
     "id": "p1",
     "name": "laptop",
     "prefix": "salli_pat_AbCd",
+    "permissions": [],
     "created_at": datetime(2026, 10, 9, tzinfo=UTC),
     "expires_at": None,
     "last_used_at": None,
 }
 
 
-def _as(app, method: str) -> None:
-    app.dependency_overrides[get_principal] = lambda: Principal("test-user-1", None, method)
+def _as(app, method: str, **kwargs) -> None:
+    app.dependency_overrides[get_principal] = lambda: Principal(
+        "test-user-1", None, method, **kwargs
+    )
 
 
 # ── /v1/tokens ────────────────────────────────────────────────────────────────
@@ -42,23 +45,79 @@ async def test_a_token_is_created_and_shown_once(app, client, mock_services):
     )
     assert r.status_code == 201
     assert r.json()["token"] == "salli_pat_secret"
-    mock_services.tokens.create.assert_awaited_once_with("test-user-1", "laptop", 90)
+    assert r.json()["permissions"] == []
+    mock_services.tokens.create.assert_awaited_once_with(
+        "test-user-1", "laptop", 90, permissions=[]
+    )
+
+
+@pytest.mark.parametrize(
+    ("method", "first_party_client"),
+    [("session", False), ("dev", False), ("oauth", True)],  # oauth + first party: the CLI
+)
+async def test_your_own_sign_in_may_give_a_token_tax_activate(
+    app, client, mock_services, method, first_party_client
+):
+    _as(app, method, first_party_client=first_party_client)
+    mock_services.tokens = AsyncMock()
+    mock_services.tokens.create.return_value = {
+        **_ROW,
+        "permissions": ["tax:activate"],
+        "token": "salli_pat_secret",
+    }
+    r = await client.post(
+        "/v1/tokens", json={"name": "laptop", "permissions": ["tax:activate"]}, headers=AUTH
+    )
+    assert r.status_code == 201
+    assert r.json()["permissions"] == ["tax:activate"]
+    mock_services.tokens.create.assert_awaited_once_with(
+        "test-user-1", "laptop", None, permissions=["tax:activate"]
+    )
+
+
+async def test_an_unknown_permission_is_a_422(app, client, mock_services):
+    _as(app, "session")
+    mock_services.tokens = AsyncMock()
+    r = await client.post(
+        "/v1/tokens", json={"name": "laptop", "permissions": ["tax:everything"]}, headers=AUTH
+    )
+    assert r.status_code == 422
+    mock_services.tokens.create.assert_not_called()
 
 
 async def test_a_personal_access_token_cannot_make_another(app, client, mock_services):
-    _as(app, "pat")
+    # Not even one with fewer permissions than its own.
+    _as(app, "pat", granted=frozenset({"tax:activate"}))
     mock_services.tokens = AsyncMock()
     r = await client.post("/v1/tokens", json={"name": "more"}, headers=AUTH)
     assert r.status_code == 403
     mock_services.tokens.create.assert_not_called()
 
 
+async def test_another_application_cannot_make_a_token_at_all(app, client, mock_services):
+    """A client that registered itself holds no tax:activate, and making a
+    token is how it would get one."""
+    _as(app, "oauth", first_party_client=False, client_name="Some App")
+    mock_services.tokens = AsyncMock()
+    for permissions in ([], ["tax:activate"]):
+        r = await client.post(
+            "/v1/tokens", json={"name": "more", "permissions": permissions}, headers=AUTH
+        )
+        assert r.status_code == 403
+        assert "other applications cannot" in r.json()["detail"]
+    mock_services.tokens.create.assert_not_called()
+
+
 async def test_the_list_never_includes_the_token(app, client, mock_services):
     mock_services.tokens = AsyncMock()
-    mock_services.tokens.list.return_value = [_ROW]
+    mock_services.tokens.list.return_value = [
+        _ROW,
+        {**_ROW, "id": "p2", "permissions": ["tax:activate"]},
+    ]
     body = (await client.get("/v1/tokens", headers=AUTH)).json()
     assert body[0]["prefix"] == "salli_pat_AbCd"
     assert "token" not in body[0]
+    assert [t["permissions"] for t in body] == [[], ["tax:activate"]]
 
 
 async def test_revoking_an_unknown_token_is_a_404(client, mock_services):

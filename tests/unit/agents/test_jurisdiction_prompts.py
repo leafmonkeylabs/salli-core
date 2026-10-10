@@ -1,12 +1,13 @@
 """
-The agents' prompts come from the user's profile and the tax packs.
+The agents' prompts come from the user's profile and their own tax rules.
 
 Every conversational prompt is a fixed text that knows no country, followed by
 a section about the user: today's date, their base currency, where they are
-taxed and the tax year they are in. A Sri Lankan resident hears what they
-always did (the IRD, APIT and AIT, the pack's relief and bands); a user with no
-residency hears no country's tax at all; a user taxed where Salli has no pack is
-told it cannot compute their tax.
+taxed, and which of their own rule sets is active for the tax year they are in.
+A user with no residency hears no country's tax at all; a user with no active
+rules is told Salli can't compute their tax and how to add rules; a user with
+active rules hears their year, version and sources, and never a figure: those
+reach the user only through the engine.
 """
 
 from __future__ import annotations
@@ -21,17 +22,17 @@ import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from salli.domain.agents.jurisdiction import (
+    TaxRulesContext,
     UserContext,
     context_section,
-    market_notes,
+    investing_context,
     set_user_context,
     tax_specialist_section,
     user_context,
 )
 from salli.domain.agents.prompting import dynamic_prompt
-from salli.domain.tax.packs import registry
 
-TODAY = datetime.date(2026, 10, 9)
+TODAY = datetime.date(2031, 10, 9)
 
 
 @pytest.fixture(autouse=True)
@@ -45,77 +46,100 @@ def _no_context_leaks_between_tests():
     jurisdiction._context.reset(token)
 
 
-#: What only a Sri Lankan should hear about.
-SRI_LANKAN = ("Sri Lanka", "LKR", "IRD", "Inland Revenue", "APIT", "AIT", "RAMIS", "FSI")
+#: Words that would mean a country's law crept into a prompt.
+COUNTRY_SPECIFIC = (
+    "Sri Lanka",
+    "LKR",
+    "IRD",
+    "Inland Revenue",
+    "APIT",
+    "AIT",
+    "RAMIS",
+    "FSI",
+    "CSE",
+    "ASPI",
+    "rupee",
+)
 
+REMITLAND_2031 = TaxRulesContext(
+    country="GB",
+    region=None,
+    year="2031/32",
+    start=datetime.date(2031, 4, 6),
+    end=datetime.date(2032, 4, 5),
+    version=3,
+    sources=("Income Tax Act (fictional)",),
+    roles=(("salary", "Salary", "income"), ("tax_withheld", "Tax withheld", "withholding")),
+)
+LAST_YEAR = TaxRulesContext(
+    country="GB",
+    region=None,
+    year="2030/31",
+    start=datetime.date(2030, 4, 6),
+    end=datetime.date(2031, 4, 5),
+    version=1,
+)
 
-def _context(base: str | None, residency: str | None) -> UserContext:
-    country = residency or (registry.country_for_currency(base) if base else None)
-    return UserContext(
-        today=TODAY,
-        base_currency=base,
-        tax_residency=residency,
-        tax_country=country,
-        current=registry.current_tax_year(country, TODAY),
-    )
-
-
-SRI_LANKAN_USER = _context("LKR", "LK")
-NOBODY_KNOWS = _context("USD", None)
-RUPEES_NO_RESIDENCY = _context("LKR", None)
-AMERICAN = _context("USD", "US")
+WITH_RULES = UserContext(
+    today=TODAY,
+    base_currency="GBP",
+    tax_residency="GB",
+    current=REMITLAND_2031,
+    latest=REMITLAND_2031,
+)
+BETWEEN_YEARS = UserContext(
+    today=TODAY, base_currency="GBP", tax_residency="GB", current=None, latest=LAST_YEAR
+)
+NOBODY_KNOWS = UserContext(today=TODAY, base_currency="USD")
+NO_RULES = UserContext(today=TODAY, base_currency="USD", tax_residency="US")
 
 
 def _says(text: str, *words: str) -> list[str]:
     return [w for w in words if re.search(rf"\b{re.escape(w)}\b", text)]
 
 
-def test_a_sri_lankan_resident_hears_what_they_always_did():
-    section = tax_specialist_section(SRI_LANKAN_USER)
+def test_a_user_with_active_rules_hears_their_year_version_and_sources():
+    section = tax_specialist_section(WITH_RULES)
     for expected in (
-        "Today's date is Friday, 9 October 2026",
-        "base currency is LKR",
-        "tax resident in Sri Lanka (LK)",
-        "Inland Revenue Department (IRD)",
-        "Inland Revenue Act No. 24 of 2017",
-        "current Year of Assessment is 2026/27 (1 April 2026 to 31 March 2027)",
-        "The latest year it can compute is 2025/26",
-        "APIT (Advance Personal Income Tax",
-        "AIT (Advance Income Tax",
-        "personal relief LKR 1,800,000",
-        "progressive bands 6/18/24/30/36%",
-        "foreign service income remitted through a bank: 15% final tax",
+        "Today's date is Thursday, 9 October 2031",
+        "base currency is GBP",
+        "tax resident in the United Kingdom (GB)",
+        "Their current tax year is 2031/32 (6 April 2031 to 5 April 2032)",
+        "computed from their own rule set for GB (version 3, citing Income Tax Act (fictional))",
+        "doesn't vouch for the law",
+        "salary (Salary, income); tax_withheld (Tax withheld, withholding)",
     ):
         assert expected in section, expected
 
 
+def test_between_years_the_latest_computable_year_is_named():
+    section = context_section(BETWEEN_YEARS)
+    assert "falls in no tax year their active rules cover" in section
+    assert "The latest year they can compute is 2030/31" in section
+    assert "use it unless asked for another" in section
+
+
 def test_a_user_with_no_residency_hears_no_countrys_tax():
-    for ctx in (NOBODY_KNOWS, RUPEES_NO_RESIDENCY):
-        section = tax_specialist_section(ctx)
-        assert "has not said where they are tax resident" in section
-        assert _says(section, *SRI_LANKAN) == ([] if ctx is NOBODY_KNOWS else ["LKR"])
+    section = tax_specialist_section(NOBODY_KNOWS)
+    assert "has not said where they are tax resident" in section
+    assert "assume no country's tax rules" in section
+    assert _says(section, *COUNTRY_SPECIFIC) == []
 
 
-def test_the_tools_fallback_is_named_without_naming_a_country():
-    """A rupee ledger is still computed with Sri Lanka's pack until its owner
-    sets a residency: the model is told to confirm before relying on it."""
-    section = context_section(RUPEES_NO_RESIDENCY)
-    assert "pack for their base currency" in section
-    assert "Sri Lanka" not in section
-
-
-def test_a_country_without_a_pack_is_told_so():
-    section = tax_specialist_section(AMERICAN)
+def test_a_user_with_no_active_rules_is_told_so_and_how_to_add_them():
+    section = tax_specialist_section(NO_RULES)
     assert "tax resident in the United States (US)" in section
-    assert "no tax pack for the United States yet" in section
-    assert _says(section, *SRI_LANKAN) == []
+    assert "no active tax rules for the United States" in section
+    assert "Salli can't compute their tax" in section
+    assert "research_tax_rules" in section and "only the user can activate them" in section
+    assert _says(section, *COUNTRY_SPECIFIC) == []
 
 
 def test_no_section_uses_an_em_dash():
-    for ctx in (SRI_LANKAN_USER, NOBODY_KNOWS, RUPEES_NO_RESIDENCY, AMERICAN):
+    for ctx in (WITH_RULES, BETWEEN_YEARS, NOBODY_KNOWS, NO_RULES):
         assert "—" not in tax_specialist_section(ctx)
     for residency in ("LK", "DE", None):
-        assert "—" not in market_notes(residency)
+        assert "—" not in investing_context(residency)
 
 
 # ── The fixed prompts know no country ────────────────────────────────────────
@@ -133,11 +157,21 @@ def _prompt_constants() -> list[tuple[str, str]]:
     return found
 
 
-def test_no_fixed_prompt_assumes_sri_lanka():
+def test_no_fixed_prompt_assumes_a_country():
     constants = _prompt_constants()
     assert len(constants) >= 7
-    offenders = {name: _says(text, *SRI_LANKAN, "2025/26") for name, text in constants}
+    offenders = {name: _says(text, *COUNTRY_SPECIFIC, "2025/26") for name, text in constants}
     assert {name: words for name, words in offenders.items() if words} == {}
+
+
+def test_the_tax_prompts_send_the_model_to_the_rules_and_the_engine():
+    from salli.domain.agents.tax_agent import TAX_AGENT_SYSTEM_PROMPT
+    from salli.domain.agents.tax_worker import TAX_WORKER_PROMPT
+
+    for prompt in (TAX_AGENT_SYSTEM_PROMPT, TAX_WORKER_PROMPT):
+        assert "explain_tax_line" in prompt
+        assert "own" in prompt and "rules" in prompt
+        assert "tax pack" not in prompt and "band_index" not in prompt
 
 
 # ── Every conversational agent ends with this user's section ────────────────
@@ -159,20 +193,20 @@ def _builders() -> list[tuple[str, str, Any]]:
     ]
 
 
-@pytest.mark.parametrize(("ctx", "may_say"), [(NOBODY_KNOWS, []), (AMERICAN, [])])
-def test_no_assembled_prompt_frames_a_user_with_another_countrys_tax(ctx, may_say):
+@pytest.mark.parametrize("ctx", [NOBODY_KNOWS, NO_RULES, WITH_RULES])
+def test_no_assembled_prompt_frames_a_user_with_a_countrys_law(ctx):
     set_user_context(ctx)
     for name, static, section in _builders():
         [system, *_] = dynamic_prompt(static, section)({"messages": []})
-        assert _says(system.content, *SRI_LANKAN) == may_say, name
+        assert _says(system.content, *COUNTRY_SPECIFIC) == [], name
 
 
-def test_a_sri_lankan_residents_assembled_prompts_carry_their_tax():
-    set_user_context(SRI_LANKAN_USER)
+def test_a_users_assembled_prompts_carry_their_rules():
+    set_user_context(WITH_RULES)
     for name, static, section in _builders():
         [system, *_] = dynamic_prompt(static, section)({"messages": []})
-        assert "Sri Lanka (LK)" in system.content, name
-        assert "2026/27" in system.content, name
+        assert "the United Kingdom (GB)" in system.content, name
+        assert "2031/32" in system.content, name
 
 
 def test_the_prompt_reads_the_user_of_the_run_in_progress():
@@ -180,15 +214,15 @@ def test_the_prompt_reads_the_user_of_the_run_in_progress():
     prompt = dynamic_prompt("Fixed text.", context_section)
     question = HumanMessage("What do I owe?")
 
-    set_user_context(SRI_LANKAN_USER)
+    set_user_context(WITH_RULES)
     first = prompt({"messages": [question]})
     set_user_context(NOBODY_KNOWS)
     second = prompt({"messages": [question]})
 
     assert isinstance(first[0], SystemMessage) and first[1:] == [question]
     assert first[0].content.startswith("Fixed text.\n\nAbout this user:")
-    assert "Sri Lanka" in first[0].content
-    assert "Sri Lanka" not in second[0].content
+    assert "United Kingdom" in first[0].content
+    assert "United Kingdom" not in second[0].content
 
 
 def test_without_a_context_the_prompt_knows_only_the_date():
@@ -202,15 +236,47 @@ def test_without_a_context_the_prompt_knows_only_the_date():
     assert ctx == UserContext(today=datetime.date.today())
 
 
-# ── The FIRE strategy suggests what is available where the user is ──────────
+# ── Local market knowledge is researched, never built in ────────────────────
 
 
-def test_market_notes_follow_the_residency():
-    assert "CSE index funds" in market_notes("LK")
-    assert "Germany (DE)" in market_notes("DE")
-    neutral = market_notes(None)
+def test_salli_keeps_no_market_notes_for_any_country():
+    from salli.domain.agents import jurisdiction
+
+    assert not hasattr(jurisdiction, "_MARKETS")
+    assert not hasattr(jurisdiction, "market_notes")
+
+
+@pytest.mark.parametrize("residency", ["LK", "DE", "KE", "BR"])
+def test_every_residency_gets_the_same_neutral_guidance(residency):
+    """Where the user is (the country's ISO name), and that local products are
+    theirs to check: otherwise the same words for every country, naming none
+    of its products."""
+    from salli.domain.jurisdiction import country_phrase
+
+    place = f"{country_phrase(residency)} ({residency})"
+    text = investing_context(residency)
+    assert place in text
+    generic = text.replace(place, "<place>")
+    assert generic == investing_context("DE").replace("Germany (DE)", "<place>")
+    assert "no built-in notes" in generic
+    assert "by type rather than by product or provider name" in generic
+    assert "official sources" in generic
+    assert _says(generic, *COUNTRY_SPECIFIC) == []
+
+
+def test_an_unknown_residency_assumes_no_country():
+    neutral = investing_context(None)
     assert "assume no country" in neutral
-    assert _says(neutral, *SRI_LANKAN) == []
+    assert _says(neutral, *COUNTRY_SPECIFIC) == []
+
+
+def test_agents_with_web_search_research_local_markets_and_cite_them():
+    from salli.domain.agents.buddy_agent import BUDDY_SYSTEM_PROMPT
+    from salli.domain.agents.manager_agent import MANAGER_SYSTEM_PROMPT
+
+    for prompt in (MANAGER_SYSTEM_PROMPT, BUDDY_SYSTEM_PROMPT):
+        assert "no built-in notes on any country's investment products" in prompt
+        assert "research it with web_search, cite your sources" in prompt
 
 
 async def test_the_fire_strategy_is_asked_with_the_users_market():
@@ -224,25 +290,38 @@ async def test_the_fire_strategy_is_asked_with_the_users_market():
             await fire_strategy.generate_strategy({"tax_residency": residency}, llm=llm)
 
     lk, unknown = (request["instructions"] for request in llm.requests)
-    assert "CSE index funds" in lk
+    assert "Sri Lanka (LK)" in lk and "no built-in notes" in lk
     assert "assume no country" in unknown and "Sri Lanka" not in unknown
 
 
 # ── The agent service sets the context each turn ─────────────────────────────
 
 
+class _Rules:
+    """TaxService's ActiveRules, as far as the agent service reads it."""
+
+    def __init__(self) -> None:
+        from salli.domain.taxrules.schema import RuleSet
+        from tests.taxrules.documents import minimal
+
+        self.document = RuleSet.model_validate(minimal())
+        self.country, self.region, self.year = "XZ", None, "2031"
+        self.start, self.end = datetime.date(2031, 1, 1), datetime.date(2031, 12, 31)
+        self.version = {"id": "v1", "version": 2}
+
+
 class _Tax:
     def __init__(self, fail: bool = False) -> None:
         self.fail = fail
 
-    async def current_tax_year(self, user_id, today):
+    async def status(self, user_id, *, today=None):
         if self.fail:
             raise LookupError("no profile")
-        from salli.application.services.tax_service import TaxJurisdiction
+        from salli.application.services.tax_service import TaxJurisdiction, TaxYearStatus
 
-        return (
-            TaxJurisdiction("LK", "tax_residency", "LK", "LKR"),
-            registry.current_tax_year("LK", today),
+        rules = _Rules()
+        return TaxYearStatus(
+            TaxJurisdiction("GB", None, "tax_residency", "GB", "GBP"), rules, rules
         )
 
 
@@ -250,8 +329,10 @@ async def test_the_service_gathers_the_users_context():
     from salli.application.services.agent_service import AgentService
 
     ctx = await AgentService(None, _Tax()).user_context("u1")
-    assert (ctx.base_currency, ctx.tax_residency, ctx.tax_country) == ("LKR", "LK", "LK")
-    assert ctx.current is not None and ctx.current.latest is not None
+    assert (ctx.base_currency, ctx.tax_residency) == ("GBP", "GB")
+    assert ctx.current is not None and ctx.current.version == 2
+    assert ctx.current.sources == ("A fictional law",)
+    assert ("income", "Income", "income") in ctx.current.roles
 
     # A context it cannot gather never stops the conversation.
     neutral = await AgentService(None, _Tax(fail=True)).user_context("u1")
@@ -277,4 +358,4 @@ async def test_each_turn_runs_with_its_users_context(monkeypatch):
     async for _ in svc.stream_chat("u1", "hello", thread_id="t1", api_key="k"):
         pass
 
-    assert [c.tax_residency for c in seen] == ["LK"]
+    assert [c.tax_residency for c in seen] == ["GB"]

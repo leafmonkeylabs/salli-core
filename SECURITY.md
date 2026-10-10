@@ -10,8 +10,8 @@ you updated until it's fixed.
 
 ## Running your own instance safely
 
-- Keep `.env` out of version control and readable only by you (`salli setup`
-  writes it with mode 600).
+- Keep `.env` out of version control and readable only by you (`salli-server
+  setup` writes it with mode 600).
 - Leave `SALLI_REGISTRATION=closed` unless you mean to let anyone who can
   sign in create an account.
 - Never set `SALLI_INSECURE_DEV_AUTH` outside local development.

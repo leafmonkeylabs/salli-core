@@ -6,7 +6,6 @@ import pytest
 
 from salli.domain.jurisdiction import (
     COUNTRIES,
-    LEGACY_TAX_ID_FIELDS,
     InvalidTaxIdError,
     TaxId,
     UnknownCountryError,
@@ -18,8 +17,6 @@ from salli.domain.jurisdiction import (
     normalize_scheme,
     parse_tax_ids,
     stored_tax_ids,
-    tax_id_value,
-    with_tax_id,
 )
 
 # ── Countries ─────────────────────────────────────────────────────────────────
@@ -54,19 +51,22 @@ def test_a_country_has_a_name_to_show():
 # ── Tax ids ───────────────────────────────────────────────────────────────────
 
 
-def test_the_legacy_fields_are_sri_lankan_schemes():
-    assert LEGACY_TAX_ID_FIELDS == {"ird_number": "LK-TIN", "nic": "LK-NIC"}
+def test_salli_knows_no_country_s_schemes():
+    """Tax ids are generic: no constants, no legacy fields, for any country."""
+    import salli.domain.jurisdiction as jurisdiction
+
+    assert not [name for name in vars(jurisdiction) if name.startswith(("LK_", "LEGACY_"))]
 
 
 @pytest.mark.parametrize(
-    ("given", "expected"), [("LK-TIN", "LK-TIN"), ("lk-nic", "LK-NIC"), (" GB-UTR ", "GB-UTR")]
+    ("given", "expected"), [("KE-PIN", "KE-PIN"), ("br-cpf", "BR-CPF"), (" GB-UTR ", "GB-UTR")]
 )
 def test_a_scheme_is_a_country_a_hyphen_and_a_kind(given, expected):
     assert normalize_scheme(given) == expected
 
 
 @pytest.mark.parametrize(
-    "given", ["TIN", "LK_TIN", "LKA-TIN", "LK-", "-TIN", "LK-TIN!", "LK-T IN", "L1-TIN", None]
+    "given", ["TIN", "XX_TIN", "XXX-TIN", "XX-", "-TIN", "XX-TIN!", "XX-T IN", "X1-TIN", None]
 )
 def test_other_schemes_are_refused(given):
     with pytest.raises(InvalidTaxIdError):
@@ -74,48 +74,38 @@ def test_other_schemes_are_refused(given):
 
 
 def test_a_tax_id_value_is_trimmed_and_must_be_short_and_present():
-    assert make_tax_id("lk-tin", " 123456789 ") == TaxId("LK-TIN", "123456789")
-    assert make_tax_id("LK-TIN", "1" * 32).value == "1" * 32
+    assert make_tax_id("ke-pin", " A00123 ") == TaxId("KE-PIN", "A00123")
+    assert make_tax_id("KE-PIN", "1" * 32).value == "1" * 32
     for bad in ("", "   ", "1" * 33, None, 123456789):
         with pytest.raises(InvalidTaxIdError):
-            make_tax_id("LK-TIN", bad)
+            make_tax_id("KE-PIN", bad)
 
 
 def test_a_tax_id_knows_its_country():
-    assert TaxId("LK-NIC", "x").country == "LK"
+    assert TaxId("BR-CPF", "x").country == "BR"
 
 
 def test_a_list_takes_one_number_per_scheme():
-    ids = parse_tax_ids([{"scheme": "LK-TIN", "value": "1"}, TaxId("LK-NIC", "2")])
-    assert ids == [TaxId("LK-TIN", "1"), TaxId("LK-NIC", "2")]
+    ids = parse_tax_ids([{"scheme": "MX-RFC", "value": "1"}, TaxId("MX-CURP", "2")])
+    assert ids == [TaxId("MX-RFC", "1"), TaxId("MX-CURP", "2")]
     with pytest.raises(InvalidTaxIdError, match="more than once"):
-        parse_tax_ids([{"scheme": "LK-TIN", "value": "1"}, {"scheme": "lk-tin", "value": "2"}])
+        parse_tax_ids([{"scheme": "MX-RFC", "value": "1"}, {"scheme": "mx-rfc", "value": "2"}])
     with pytest.raises(InvalidTaxIdError):
-        parse_tax_ids(["LK-TIN=1"])
+        parse_tax_ids(["MX-RFC=1"])
 
 
 def test_stored_ids_are_read_leniently():
     """A malformed entry is left out rather than making the profile unreadable."""
     raw = [
-        {"scheme": "LK-TIN", "value": "1"},
+        {"scheme": "DE-IDNR", "value": "1"},
         {"scheme": "bad", "value": "2"},
-        {"scheme": "LK-NIC"},
+        {"scheme": "DE-STNR"},
         "junk",
-        {"scheme": "LK-TIN", "value": "3"},
+        {"scheme": "DE-IDNR", "value": "3"},
     ]
-    assert stored_tax_ids(raw) == [TaxId("LK-TIN", "1")]
+    assert stored_tax_ids(raw) == [TaxId("DE-IDNR", "1")]
     assert stored_tax_ids(None) == []
-    assert stored_tax_ids({"scheme": "LK-TIN"}) == []
-
-
-def test_setting_and_removing_one_scheme_leaves_the_others():
-    ids = [TaxId("LK-TIN", "1"), TaxId("GB-UTR", "2")]
-    assert with_tax_id(ids, "LK-TIN", "9") == [TaxId("LK-TIN", "9"), TaxId("GB-UTR", "2")]
-    assert with_tax_id(ids, "lk-nic", "5") == [*ids, TaxId("LK-NIC", "5")]
-    assert with_tax_id(ids, "LK-TIN", "") == [TaxId("GB-UTR", "2")]
-    assert with_tax_id(ids, "LK-TIN", None) == [TaxId("GB-UTR", "2")]
-    assert tax_id_value(ids, "GB-UTR") == "2"
-    assert tax_id_value(ids, "LK-NIC") is None
+    assert stored_tax_ids({"scheme": "DE-IDNR"}) == []
 
 
 def test_a_country_reads_naturally_in_a_sentence():

@@ -14,28 +14,26 @@ plain printable text first, as the protocol asks.
 The setup token is the user's paste, so the address in it is untrusted: Salli
 must not be made to call into its own network. Before any request, the host
 of the claim URL and of the access URL it returns is resolved, and an address
-that is not public (loopback, private, link-local, ULA, ...) is refused;
+that is not public (loopback, private, link-local, ULA, ...) is refused
+(adapters/net/guard.py, shared with every other fetch of a user's URL);
 answers are read up to 20 MB; and a failure to connect says only that, never
 the connection's details.
 """
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import binascii
 import datetime as dt
-import ipaddress
 import json
 import re
-import socket
-from collections.abc import Awaitable, Callable
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 import httpx
 
+from salli.adapters.net.guard import Resolver, UnsafeAddress, resolve_host, vet
 from salli.application.ports import (
     BankConnector,
     BankLinkError,
@@ -45,25 +43,8 @@ from salli.application.ports import (
 )
 from salli.domain.currency import is_currency, normalize_currency
 
-#: What resolves a host name to its addresses (injectable for tests).
-Resolver = Callable[[str, int], Awaitable[list[str]]]
-
 # An account set for a few years of a household's banks is a few MB.
 MAX_BODY_BYTES = 20 * 1024 * 1024
-
-
-async def resolve_host(host: str, port: int) -> list[str]:
-    infos = await asyncio.get_running_loop().getaddrinfo(
-        host, port, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
-    )
-    return [str(info[4][0]) for info in infos]
-
-
-def _public(address: str) -> bool:
-    ip = ipaddress.ip_address(address.split("%", 1)[0])
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    return ip.is_global and not ip.is_multicast
 
 
 _UNPRINTABLE = re.compile(r"[^\x20-\x7E -￿]")
@@ -107,18 +88,14 @@ class SimpleFinConnector(BankConnector):
     async def _vet(self, url: str) -> None:
         """Refuse a URL whose host is not on the public internet."""
         try:
-            parts = urlsplit(url)
-            host, port = parts.hostname, parts.port or 443
-        except ValueError:
-            raise BankLinkError("SimpleFIN gave an address Salli can't use") from None
-        if parts.scheme != "https" or not host:
-            raise BankLinkError("SimpleFIN gave an address Salli can't use")
-        try:
-            addresses = [host] if _is_ip(host) else await self._resolve(host, port)
-        except (OSError, UnicodeError):
-            raise BankLinkError("Could not reach SimpleFIN") from None
-        if not addresses or not all(_public(a) for a in addresses):
-            raise BankLinkError("That SimpleFIN address is not on the public internet; refused")
+            await vet(url, self._resolve, allow_credentials=True)
+        except UnsafeAddress as refused:
+            message = {
+                "not_public": "That SimpleFIN address is not on the public internet; refused",
+                "unreachable": "Could not reach SimpleFIN",
+                "unusable": "SimpleFIN gave an address Salli can't use",
+            }[refused.reason]
+            raise BankLinkError(message) from None
 
     async def _request(self, method: str, url: str, **kwargs: Any) -> tuple[int, str]:
         """(status, body) of one request to a vetted URL, the body capped."""
@@ -200,14 +177,6 @@ class SimpleFinConnector(BankConnector):
             raise BankLinkError(
                 f"SimpleFIN sent an account set Salli can't read ({type(exc).__name__})"
             ) from exc
-
-
-def _is_ip(host: str) -> bool:
-    try:
-        ipaddress.ip_address(host.split("%", 1)[0])
-    except ValueError:
-        return False
-    return True
 
 
 def _objects(value: object) -> list[dict[str, Any]]:

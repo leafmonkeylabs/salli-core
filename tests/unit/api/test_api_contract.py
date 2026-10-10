@@ -26,8 +26,8 @@ async def test_meta_is_public_and_describes_the_server(client):
     body = r.json()
     assert body["api_version"] == "1"
     assert body["oauth"]["token_endpoint"].endswith("/mcp/oauth/token")
-    lk = body["tax_packs"][0]
-    assert (lk["country"], lk["year"], lk["currency"]) == ("LK", "2025/26", "LKR")
+    # No country's tax is built in: a user's rule sets are theirs, not the server's.
+    assert "tax_packs" not in body
     assert len(body["default_currency"]) == 3
 
 
@@ -39,7 +39,12 @@ async def test_health_and_identity_keep_their_shapes(client):
     me = await client.get("/v1/auth/me", headers=AUTH)
     assert me.status_code == 200
     # user_id as before; how they signed in, and their email when known, since.
-    assert me.json() == {"user_id": "test-user-1", "email": None, "method": "dev"}
+    assert me.json() == {
+        "user_id": "test-user-1",
+        "email": None,
+        "method": "dev",
+        "permissions": ["tax:activate"],
+    }
 
 
 async def test_errors_are_problem_details_that_keep_their_detail(client):

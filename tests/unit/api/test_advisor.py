@@ -123,6 +123,29 @@ async def test_a_briefing_not_approved_stores_nothing(client, mock_services):
     assert r.json() == {"report": {}, "error": "Briefing not approved (decision: reject)"}
 
 
+async def test_resuming_a_briefing_needs_a_signed_in_user(client, mock_services):
+    r = await client.post(
+        "/v1/advisor/briefing/resume", json={"thread_id": "thread-1", "decision": "approve"}
+    )
+
+    assert r.status_code == 401
+    mock_services.agent.resume_briefing.assert_not_awaited()
+
+
+async def test_a_briefing_is_resumed_as_the_signed_in_user(client, mock_services):
+    mock_services.agent.resume_briefing.return_value = {"report": {}, "error": "x"}
+
+    await client.post(
+        "/v1/advisor/briefing/resume",
+        json={"thread_id": "thread-1", "decision": "approve"},
+        headers=AUTH,
+    )
+
+    mock_services.agent.resume_briefing.assert_awaited_once_with(
+        user_id="test-user-1", thread_id="thread-1", decision="approve"
+    )
+
+
 async def test_the_daily_briefing_setting(client, mock_services):
     mock_services.advisor.get_daily_briefing_enabled.return_value = True
 
