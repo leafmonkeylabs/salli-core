@@ -1,6 +1,6 @@
 """
 Composition root — the single place adapters are bound to ports.
-Both the CLI (Phase 1) and FastAPI (Phase 2) wire up services here.
+The API, the MCP server and the salli-server command line wire up services here.
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     if settings.tavily_api_key:
         os.environ.setdefault("TAVILY_API_KEY", settings.tavily_api_key)
 
-    # Unpooled for the CLI: a command may run several event loops in turn.
+    # Unpooled for salli-server: a command may run several event loops in turn.
     session_factory = make_session_factory(settings, pooled=pooled)
 
     # Filled in once extensions are built (they need uow_factory first). Read

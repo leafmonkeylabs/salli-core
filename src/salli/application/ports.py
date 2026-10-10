@@ -379,7 +379,7 @@ class AccountNotFound(KeyError):
 class ProfileMissing(LookupError):
     """The user has no profile row yet, so nothing that needs one (a base
     currency, a setting) can be read or written. Callers create it first:
-    `UserProfileService.ensure_user`, which `salli setup` and onboarding run."""
+    `UserProfileService.ensure_user`, which `salli-server setup` and onboarding run."""
 
     def __init__(self, user_id: str) -> None:
         super().__init__(f"User {user_id} has no profile")
