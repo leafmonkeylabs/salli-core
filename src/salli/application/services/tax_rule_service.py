@@ -26,7 +26,8 @@ can't be read (a version has to belong to some rule set).
 
 **Only the user activates.** `activate` needs `tax:activate`
 (application/permissions.py), which AI connectors and other applications
-never hold, and it is checked here, not only at the route, so no other path
+never hold (nor a personal access token the user didn't make with it), and it
+is checked here, not only at the route, so no other path
 can activate. Proposing, validating, diffing and evaluating are open to
 agents. Propose and activate re-run validation rather than trusting the stored
 report.
@@ -540,9 +541,9 @@ class TaxRuleService:
         the set. Needs `tax:activate`: only the user's own sign-ins hold it."""
         if not actor.may(TAX_ACTIVATE):
             raise RuleSetPermissionError(
-                "Activating tax rules needs your own sign-in to Salli (the app, the salli CLI "
-                "or a personal access token). AI connectors and other applications can "
-                "propose rules, never activate them."
+                "Activating tax rules needs your own sign-in to Salli (the app or the salli "
+                "CLI), or a personal access token made with tax:activate. AI connectors and "
+                "other applications can propose rules, never activate them."
             )
         failed: str | None = None
         async with self._uow_factory() as uow:

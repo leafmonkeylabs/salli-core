@@ -240,7 +240,7 @@ export class MockSalli {
       },
     ] as CategorizationRule[],
     tokens: [
-      { id: uid(701), name: 'backup job', prefix: 'salli_pat_bk7Q', created_at: '2026-09-01T09:00:00Z', expires_at: null, last_used_at: '2026-10-08T03:00:00Z' },
+      { id: uid(701), name: 'backup job', prefix: 'salli_pat_bk7Q', permissions: [], created_at: '2026-09-01T09:00:00Z', expires_at: null, last_used_at: '2026-10-08T03:00:00Z' },
     ] as PersonalAccessToken[],
     bodies: [] as Array<{ method: string; path: string; body: unknown }>,
   };
@@ -1208,13 +1208,14 @@ export class MockSalli {
     const { method, path } = req;
     if (path === '/v1/tokens' && method === 'GET') return { status: 200, body: this.data.tokens };
     if (path === '/v1/tokens' && method === 'POST') {
-      const input = req.json as { name?: string; expires_in_days?: number | null };
+      const input = req.json as { name?: string; expires_in_days?: number | null; permissions?: PersonalAccessToken['permissions'] };
       if (!input?.name) return problem(422, 'Request validation failed', [{ loc: ['body', 'name'], msg: 'Field required', type: 'missing' }], '/problems/validation');
       const token = `salli_pat_${b64url(randomBytes(18))}`;
       const created: PersonalAccessToken = {
         id: uid(700 + this.data.tokens.length + 10),
         name: input.name,
         prefix: token.slice(0, 14),
+        permissions: input.permissions ?? [],
         created_at: '2026-10-09T10:00:00Z',
         expires_at: input.expires_in_days ? '2027-01-07T10:00:00Z' : null,
         last_used_at: null,

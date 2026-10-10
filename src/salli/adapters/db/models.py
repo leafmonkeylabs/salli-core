@@ -1286,7 +1286,9 @@ class PersonalAccessTokenORM(Base):
 
     Stored as a SHA-256 hash; the plaintext is shown once, at creation. `prefix`
     is the first characters of the token, kept so a list can show which token
-    is which without revealing it."""
+    is which without revealing it. `permissions` is what the token may do
+    beyond reading and writing the user's data (application/permissions.py):
+    none unless the user asked for them when they made it."""
 
     __tablename__ = "personal_access_tokens"
 
@@ -1295,11 +1297,21 @@ class PersonalAccessTokenORM(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     prefix: Mapped[str] = mapped_column(String(20), nullable=False)
+    permissions: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "jsonb_typeof(permissions) = 'array'",
+            name="ck_personal_access_tokens_permissions",
+        ),
     )
 
 

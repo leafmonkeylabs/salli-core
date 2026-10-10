@@ -373,9 +373,9 @@ export const taxRuleSetsVersionsPropose = <ThrowOnError extends boolean = false>
  *
  * Make this the version Salli computes with for its jurisdiction and
  * year, superseding the active one. Needs `tax:activate`, which only the
- * user's own sign-ins hold (the app, the salli CLI, a personal access
- * token): 403 for an AI connector or any other application. 409 unless it
- * passes validation (run again).
+ * user's own sign-ins hold (the app, the salli CLI, and a personal access
+ * token made with it): 403 for an AI connector, any other application, or
+ * a token made without it. 409 unless it passes validation (run again).
  */
 export const taxRuleSetsVersionsActivate = <ThrowOnError extends boolean = false>(options: Options<TaxRuleSetsVersionsActivateData, ThrowOnError>): RequestResult<TaxRuleSetsVersionsActivateResponses, TaxRuleSetsVersionsActivateErrors, ThrowOnError> => (options.client ?? client).post<TaxRuleSetsVersionsActivateResponses, TaxRuleSetsVersionsActivateErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

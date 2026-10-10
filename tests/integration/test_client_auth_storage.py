@@ -16,13 +16,26 @@ BASE = "https://salli.test"
 async def test_a_personal_access_token_round_trips(uow_factory):
     tokens = PersonalAccessTokenService(uow_factory)
     created = await tokens.create("u1", "ci", expires_in_days=30)
-    assert await tokens.verify(created["token"]) == "u1"
+    verified = await tokens.verify(created["token"])
+    assert verified is not None
+    assert (verified.user_id, verified.name, verified.permissions) == ("u1", "ci", frozenset())
     [listed] = await tokens.list("u1")
+    assert listed["permissions"] == []
     assert listed["last_used_at"] is not None  # the verify above was recorded
     assert listed["expires_at"] > datetime.now(UTC) + timedelta(days=29)
     assert await tokens.revoke("u1", created["id"])
     assert await tokens.verify(created["token"]) is None
     assert await tokens.list("u1") == []
+
+
+async def test_a_token_keeps_the_permissions_it_was_made_with(uow_factory):
+    tokens = PersonalAccessTokenService(uow_factory)
+    created = await tokens.create("u1", "laptop", permissions=["tax:activate"])
+    assert created["permissions"] == ["tax:activate"]
+    verified = await tokens.verify(created["token"])
+    assert verified is not None and verified.permissions == frozenset({"tax:activate"})
+    [listed] = await tokens.list("u1")
+    assert listed["permissions"] == ["tax:activate"]
 
 
 async def test_a_device_code_goes_from_pending_to_tokens(uow_factory):

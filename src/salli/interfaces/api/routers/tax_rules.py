@@ -360,9 +360,9 @@ async def activate_version(
 ) -> TaxRuleSetVersion:
     """Make this the version Salli computes with for its jurisdiction and
     year, superseding the active one. Needs `tax:activate`, which only the
-    user's own sign-ins hold (the app, the salli CLI, a personal access
-    token): 403 for an AI connector or any other application. 409 unless it
-    passes validation (run again)."""
+    user's own sign-ins hold (the app, the salli CLI, and a personal access
+    token made with it): 403 for an AI connector, any other application, or
+    a token made without it. 409 unless it passes validation (run again)."""
     return _version(await svc.tax_rules.activate(actor, version_id, rule_set_id))
 
 

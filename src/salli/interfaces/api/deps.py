@@ -136,9 +136,11 @@ class Principal:
     `dev`: the local-development fallback where the token is the user id.
 
     What the caller may do beyond reading and writing the user's data follows
-    from how they signed in (application/permissions.py), so it is derived
-    here rather than stored: there is no way to build a Principal whose
-    permissions disagree with its sign-in.
+    from how they signed in (application/permissions.py), and is derived
+    there and nowhere else: for a personal access token, from the permissions
+    it stores (`granted`); for any other sign-in, from the method and client.
+    There is no way to build a Principal whose permissions disagree with its
+    sign-in.
     """
 
     user_id: str
@@ -146,12 +148,17 @@ class Principal:
     method: Literal["session", "oauth", "pat", "dev"]
     #: For `oauth`: whether the token's client is one of Salli's own.
     first_party_client: bool = False
-    #: For `oauth`: the client's name, recorded as the author of what it writes.
+    #: For `oauth`: the client's name; for `pat`, the token's. Recorded as the
+    #: author of what it writes.
     client_name: str | None = None
+    #: For `pat`: the permissions the token was made with. Ignored otherwise.
+    granted: frozenset[str] = frozenset()
 
     @property
     def permissions(self) -> frozenset[str]:
-        return permissions_for(self.method, first_party_client=self.first_party_client)
+        return permissions_for(
+            self.method, first_party_client=self.first_party_client, granted=self.granted
+        )
 
     def actor(self) -> Actor:
         return Actor.signed_in(
@@ -159,6 +166,7 @@ class Principal:
             self.method,
             first_party_client=self.first_party_client,
             name=self.client_name,
+            granted=self.granted,
         )
 
 
@@ -181,13 +189,19 @@ async def get_principal(
     """
     token = creds.credentials
     if is_personal_access_token(token):
-        user_id = await services.tokens.verify(token)
-        if user_id is None:
+        verified = await services.tokens.verify(token)
+        if verified is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="This token is invalid, expired, or has been revoked.",
             )
-        return Principal(user_id, None, "pat")
+        return Principal(
+            verified.user_id,
+            None,
+            "pat",
+            client_name=verified.name,
+            granted=verified.permissions,
+        )
     # Salli's own tokens before the development fallback: under it, a CLI
     # signed in with the device flow was taken to be the user whose id is
     # its access token.
@@ -271,15 +285,21 @@ def require_permission(permission: str) -> Any:
     says why in a way a client can show."""
 
     async def check(principal: CurrentPrincipal) -> None:
-        if permission not in principal.permissions:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"This sign-in doesn't hold {permission}. Only your own sign-in to Salli "
-                    "(the app, the salli CLI, or a personal access token) can do this; "
-                    "AI connectors and other applications never can."
-                ),
+        if permission in principal.permissions:
+            return
+        if principal.method == "pat":
+            why = (
+                f"This personal access token wasn't made with {permission}. Make one that "
+                f"is (`salli tokens create <name> --allow {permission}`), or sign in "
+                "yourself (`salli login`, or the app)."
             )
+        else:
+            why = (
+                f"This sign-in doesn't hold {permission}. Only your own sign-in to Salli "
+                "(the app, or the salli CLI) can do this, or a personal access token you "
+                "made with it; AI connectors and other applications never can."
+            )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=why)
 
     return Depends(check)
 
