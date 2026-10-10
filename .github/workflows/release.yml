@@ -1,0 +1,242 @@
+# Releases the TypeScript packages: the `salli` CLI and @leafmonkeylabs/salli-sdk.
+#
+# Push a tag to release one package (see RELEASING.md):
+#   cli-v0.2.0  →  salli 0.2.0 on npm, plus standalone binaries
+#   sdk-v0.2.0  →  @leafmonkeylabs/salli-sdk 0.2.0 on npm
+#
+# The npm package is *staged*, not published: it reaches users only once a
+# maintainer approves it on npmjs.com with 2FA. The GitHub release is made
+# as a draft for the same reason. Run it by hand ("Run workflow") for a dry
+# run that builds and tests everything and publishes nothing.
+#
+# Third-party actions are pinned to commit SHAs: this workflow can publish.
+name: Release
+
+on:
+  push:
+    tags: ['cli-v*', 'sdk-v*']
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to rehearse a release of (nothing is published)
+        type: choice
+        options: [cli, sdk]
+        default: cli
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+  # npm stage needs npm 11.15 or later.
+  NPM_VERSION: '11.19.1'
+  BUN_VERSION: '1.3.14'
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    outputs:
+      package: ${{ steps.which.outputs.package }}
+      name: ${{ steps.which.outputs.name }}
+      version: ${{ steps.which.outputs.version }}
+      dist_tag: ${{ steps.which.outputs.dist_tag }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Which package, at which version
+        id: which
+        env:
+          INPUT_PACKAGE: ${{ inputs.package }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            package="${GITHUB_REF_NAME%%-v*}"
+            tag_version="${GITHUB_REF_NAME#*-v}"
+          else
+            package="$INPUT_PACKAGE"
+            tag_version=""
+          fi
+          case "$package" in
+            cli|sdk) ;;
+            *) echo "::error::Unknown package '$package'"; exit 1 ;;
+          esac
+          name=$(node -p "require('./packages/$package/package.json').name")
+          version=$(node -p "require('./packages/$package/package.json').version")
+          if [ -n "$tag_version" ] && [ "$tag_version" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME says $tag_version, but packages/$package/package.json says $version"
+            exit 1
+          fi
+          # A pre-release (0.2.0-beta.1) must not become `latest`.
+          case "$version" in *-*) dist_tag=next ;; *) dist_tag=latest ;; esac
+          {
+            echo "package=$package"
+            echo "name=$name"
+            echo "version=$version"
+            echo "dist_tag=$dist_tag"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $name $version ($dist_tag)" >> "$GITHUB_STEP_SUMMARY"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - name: The generated SDK matches openapi/openapi.json
+        run: npm run check:generated
+      - name: Build
+        run: |
+          npm run build
+          node packages/cli/dist/salli.js --version
+      - name: Pack the exact tarball that will be published
+        id: pack
+        working-directory: packages/${{ steps.which.outputs.package }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          tarball=$(npm pack --pack-destination "$RUNNER_TEMP/pack" | tail -1)
+          tar -tzf "$RUNNER_TEMP/pack/$tarball" | sort
+          tar -tzf "$RUNNER_TEMP/pack/$tarball" | grep -qx package/LICENSE
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+
+  binaries:
+    # Each binary is built on its own platform, so it embeds that platform's
+    # native keychain module (see packages/cli/scripts/build-binaries.mjs).
+    needs: verify
+    if: needs.verify.outputs.package == 'cli'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: macos-15, target: darwin-arm64 }
+          - { os: macos-15-intel, target: darwin-x64 }
+          - { os: ubuntu-24.04, target: linux-x64 }
+          - { os: ubuntu-24.04-arm, target: linux-arm64 }
+          - { os: windows-2025, target: windows-x64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: npm ci
+      - run: npm run build --workspace salli
+      - name: Build the ${{ matrix.target }} binary on its own platform
+        run: npm run binaries -- --host
+      - name: It runs
+        run: |
+          file="salli-${{ matrix.target }}"
+          [ "${{ matrix.target }}" = windows-x64 ] && file="$file.exe"
+          test -f "packages/cli/dist/bin/$file"
+          "packages/cli/dist/bin/$file" --version
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binary-${{ matrix.target }}
+          path: packages/cli/dist/bin/salli-*
+          if-no-files-found: error
+
+  publish:
+    needs: [verify, binaries]
+    # The binaries are only built for the CLI; an SDK release skips them.
+    if: >-
+      !cancelled() && github.event_name == 'push'
+      && needs.verify.result == 'success'
+      && (needs.binaries.result == 'success' || needs.binaries.result == 'skipped')
+    runs-on: ubuntu-24.04
+    # The trusted publisher on npmjs.com names this environment. Give it
+    # required reviewers in the repository settings to gate staging too.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # trusted publishing (OIDC) and provenance
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install --global "npm@$NPM_VERSION"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack
+      - name: Unpack the tested tarball
+        # `npm stage publish` packs the directory it runs in: this one holds
+        # exactly what was tested and packed above.
+        run: tar -xzf "$RUNNER_TEMP/pack/${{ needs.verify.outputs.tarball }}" -C "$RUNNER_TEMP"
+      - name: First release only — a stage-only bootstrap token
+        # Trusted publishing can only be set up for a package that exists.
+        # Until then, an environment secret holds a stage-only token (see
+        # RELEASING.md); delete it once the trusted publisher is configured.
+        env:
+          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          if [ -n "$NPM_BOOTSTRAP_TOKEN" ]; then
+            npm config set "//registry.npmjs.org/:_authToken" "$NPM_BOOTSTRAP_TOKEN"
+            echo "::warning::Staging with the bootstrap token. Configure trusted publishing and delete NPM_BOOTSTRAP_TOKEN."
+          fi
+      - name: Stage ${{ needs.verify.outputs.name }} ${{ needs.verify.outputs.version }} on npm
+        working-directory: ${{ runner.temp }}/package
+        run: npm stage publish --access public --provenance --tag "${{ needs.verify.outputs.dist_tag }}"
+      - name: Next step
+        run: |
+          {
+            echo "### ${{ needs.verify.outputs.name }} ${{ needs.verify.outputs.version }} is staged on npm"
+            echo
+            echo "Approve it on npmjs.com (or \`npm stage list ${{ needs.verify.outputs.name }}\` then \`npm stage approve <id>\`),"
+            echo "then publish the draft GitHub release."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  github-release:
+    needs: [verify, binaries, publish]
+    if: >-
+      !cancelled() && needs.publish.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Checksums
+        working-directory: assets
+        run: |
+          rm -f SHA256SUMS
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - name: Draft the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ needs.verify.outputs.name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          DIST_TAG: ${{ needs.verify.outputs.dist_tag }}
+        run: |
+          prerelease=""
+          [ "$DIST_TAG" = next ] && prerelease="--prerelease"
+          cat > notes.md <<NOTES
+          \`$NAME\` $VERSION, staged on npm: it installs once a maintainer approves it.
+
+          \`\`\`bash
+          npm install --global $NAME@$VERSION
+          \`\`\`
+
+          Built and published from this repository by GitHub Actions, with npm provenance.
+          Standalone binaries (CLI releases) are listed below. Check them against \`SHA256SUMS\`.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" assets/* \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --draft $prerelease \
+            --title "$NAME $VERSION" --notes-file notes.md
