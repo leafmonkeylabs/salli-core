@@ -16,7 +16,7 @@
     "lint": "eslint .",
     "test": "npm run test --workspaces",
     "build": "npm run build --workspaces",
-    "binaries": "npm run binaries --workspace @leafmonkeylabs/salli --"
+    "binaries": "npm run binaries --workspace salli --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
