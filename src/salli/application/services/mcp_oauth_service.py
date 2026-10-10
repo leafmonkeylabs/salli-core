@@ -67,6 +67,10 @@ _LOOPBACK_HOSTS = ("127.0.0.1", "[::1]", "localhost")
 MCP = "mcp"
 API = "api"
 
+#: The `salli` CLI's client: first party, seeded by core_0011, never
+#: registered. Advertised in /v1/meta so the CLI signs in as it.
+CLI_CLIENT_ID = "salli-cli"
+
 # Recognisable prefixes, like personal access tokens' `salli_pat_`: secret
 # scanners can spot a leaked one, and the API's development fallback can tell
 # a Salli token from a user id without a lookup. Tokens issued before the

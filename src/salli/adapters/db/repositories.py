@@ -2786,8 +2786,12 @@ class SQLOAuthClientRepository(OAuthClientRepository):
 
     async def register(self, client_name: str | None, redirect_uris: list[str]) -> dict[str, Any]:
         client_id = str(uuid.uuid4())
+        # Never first party: a client that registers itself is whoever it says.
         row = OAuthClientORM(
-            client_id=client_id, client_name=client_name, redirect_uris=redirect_uris
+            client_id=client_id,
+            client_name=client_name,
+            redirect_uris=redirect_uris,
+            first_party=False,
         )
         self._s.add(row)
         await self._s.flush()
@@ -2795,6 +2799,7 @@ class SQLOAuthClientRepository(OAuthClientRepository):
             "client_id": row.client_id,
             "client_name": row.client_name,
             "redirect_uris": row.redirect_uris,
+            "first_party": False,
         }
 
     async def get(self, client_id: str) -> dict[str, Any] | None:
@@ -2809,6 +2814,7 @@ class SQLOAuthClientRepository(OAuthClientRepository):
             "client_id": row.client_id,
             "client_name": row.client_name,
             "redirect_uris": row.redirect_uris,
+            "first_party": row.first_party,
         }
 
 
@@ -2916,12 +2922,17 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         await self._s.flush()
 
     async def get_access_token(self, token_hash: str) -> dict[str, Any] | None:
-        row = (
+        found = (
             await self._s.execute(
-                select(OAuthAccessTokenORM).where(OAuthAccessTokenORM.token_hash == token_hash)
+                select(OAuthAccessTokenORM, OAuthClientORM.client_name, OAuthClientORM.first_party)
+                .join(OAuthClientORM, OAuthClientORM.client_id == OAuthAccessTokenORM.client_id)
+                .where(OAuthAccessTokenORM.token_hash == token_hash)
             )
-        ).scalar_one_or_none()
-        if row is None or row.revoked_at is not None or row.expires_at < datetime.now(UTC):
+        ).one_or_none()
+        if found is None:
+            return None
+        row, client_name, first_party = found
+        if row.revoked_at is not None or row.expires_at < datetime.now(UTC):
             return None
         return {
             "id": row.id,
@@ -2930,6 +2941,10 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             "scope": row.scope,
             "resource": row.resource,
             "expires_at": row.expires_at,
+            # Whose client holds it: what a token may do depends on it
+            # (application/permissions.py).
+            "client_name": client_name,
+            "client_first_party": bool(first_party),
         }
 
     async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:

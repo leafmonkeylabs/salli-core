@@ -1159,14 +1159,22 @@ class AuditLogORM(Base):
 
 
 class OAuthClientORM(Base):
-    """A dynamically-registered MCP client (RFC 7591). Public clients only —
-    no client_secret, since these are PKCE-only per OAuth 2.1."""
+    """An OAuth client: one that registered itself (RFC 7591), or one of
+    Salli's own. Public clients only — no client_secret, since these are
+    PKCE-only per OAuth 2.1."""
 
     __tablename__ = "oauth_clients"
 
     client_id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_uuid)
     client_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     redirect_uris: Mapped[list] = mapped_column(JSONB, nullable=False)
+    # Salli's own client (the `salli` CLI, seeded by core_0011), as opposed to
+    # one that registered itself and may call itself anything. Only a first
+    # party client's API tokens carry permissions like `tax:activate`
+    # (application/permissions.py). Registration never sets it.
+    first_party: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
