@@ -62,6 +62,7 @@ from salli.adapters.db.models import (
 )
 from salli.application.ports import (
     AccountCodeTaken,
+    AccountNotFound,
     AdvisoryRepository,
     AgentDocumentRepository,
     AgentSessionRepository,
@@ -304,6 +305,24 @@ class SQLLedgerRepository(LedgerRepository):
     async def save_entry(self, user_id: str, entry: JournalEntry) -> str:
         entry_id = str(uuid.uuid4())
         base_currency = await self._base_currency(user_id)
+        # Every posting's account is this user's. Nothing below the service
+        # checks it (postings reference accounts by id alone), so an id from
+        # another ledger would otherwise be booked against that ledger.
+        named = {p.account_id for p in entry.postings}
+        owned = set(
+            (
+                await self._session.execute(
+                    select(AccountORM.id).where(
+                        AccountORM.user_id == user_id, AccountORM.id.in_(named)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if named - owned:
+            raise AccountNotFound(named - owned)
+
         orm_entry = JournalEntryORM(
             id=entry_id,
             user_id=user_id,
