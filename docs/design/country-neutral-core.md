@@ -1,7 +1,7 @@
 # A country-neutral core: tax rules and local knowledge as user data
 
 Status: **approved in principle (2026-10-10).** The decisions are recorded at the end.
-Nothing is built yet. Each phase below is its own PR.
+Phase 1 (the engine) is #29. Each phase is its own PR.
 
 There are **no real users yet**. So there is no user data to migrate, no need to run
 two engines side by side, and no deprecation windows. Old code and endpoints are
@@ -68,9 +68,11 @@ So the engine is general from the start.
 - **constants.**
 
 **The expression language** is small and safe:
-- decimal arithmetic only (never floats), with comparisons, `if`, `min`, `max` and
-  `clamp`;
-- `bands(amount, table)` for progressive schedules, and `round(x, mode, unit)`;
+- decimal arithmetic only (never floats), at 28 significant digits with every
+  error trapped, plus comparisons, `if`, `min`, `max`, `clamp` and `abs`;
+- `choice(answer.x, "a", value, …)` to select by a question's answer;
+- `bands(amount, table)` and `band_amount(amount, table, n)` for progressive
+  schedules, and `round(x, mode, unit)`;
 - no loops, no recursion, no I/O and no host functions;
 - a hard limit on how complex an expression can be.
 
@@ -107,6 +109,13 @@ example:
   ],
   "questions": [],
 
+  // Band tables, referred to by schedules and by bands()/band_amount().
+  "band_tables": {
+    "general": { "bands": [{ "upto": "1000000", "rate": "0.06" }, { "upto": "1500000", "rate": "0.18" },
+                           { "upto": null, "rate": "0.36" }],
+                 "round": { "mode": "nearest", "unit": "1" }, "source": "act" }
+  },
+
   // Building blocks; each compiles to lines.
   "blocks": [
     { "type": "final_rate", "key": "fsi", "of": "role.foreign_service_income",
@@ -114,9 +123,7 @@ example:
     { "type": "relief", "key": "personal_relief",
       "of": "role.employment_income", "amount": "1800000", "source": "act" },
     { "type": "schedule", "key": "general", "of": "line.personal_relief.remaining",
-      "bands": [{ "upto": "1000000", "rate": "0.06" }, { "upto": "1500000", "rate": "0.18" },
-                { "upto": null, "rate": "0.36" }],
-      "round": { "mode": "nearest", "unit": "1" }, "source": "act" },
+      "table": "general" },
     { "type": "credit", "key": "ftc", "of": "role.foreign_tax_paid",
       "refundable": false, "cap": "line.liability" },
     { "type": "credit", "key": "apit", "of": "role.apit_withheld", "refundable": true }
@@ -127,7 +134,8 @@ example:
     { "key": "liability", "label": "Tax before credits",
       "expr": "line.general + line.fsi" }
   ],
-  "result": { "payable": "line.net", "round": { "mode": "down", "unit": "1" } },
+  // net may be negative: after the final rounding it splits into payable or refund.
+  "result": { "net": "line.liability - line.ftc - line.apit", "round": { "mode": "down", "unit": "1" } },
 
   "deadlines": [{ "key": "return", "label": "Return due", "date": "2026-11-30", "source": "act" }],
   "suggested_accounts": [{ "code": "4110", "name": "APIT withheld", "type": "income",
@@ -149,6 +157,14 @@ example:
 
 Every figure can name the source it came from, and validation warns about any that
 doesn't.
+
+**Precision is 28 significant digits.** That's Python's default, and today's built-in
+engine runs at it. A non-terminating fraction (such as a one-third cap) therefore gives
+the same digits in both engines. Literals and inputs with more significant digits are
+refused rather than rounded.
+
+The authoritative reference for authors and agents is [`docs/taxrules.md`](../taxrules.md),
+which ships with the engine (#29). It is kept in step with the code by tests.
 
 ### Coverage: one schema, delivered in stages
 
