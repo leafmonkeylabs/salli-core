@@ -34,9 +34,14 @@ transactions**, **can I afford** and **research tax rules** (for a country and y
 
 There is no tool to activate rules. An agent researching tax law reads pages anyone
 can write, so activation needs a permission (`tax:activate`) that no AI connector's
-token ever holds: you activate from the app, the `salli` CLI or a personal access
-token, after reviewing the changes, sources and examples. See
-[docs/taxrules.md](taxrules.md#lifecycle).
+token ever holds: you activate in the app, or with `salli tax rules activate` at your
+own terminal, after reviewing the changes, sources and examples. A personal access
+token holds it only if you made it with `--allow tax:activate`, so don't give such a
+token to an agent. See [docs/taxrules.md](taxrules.md#who-may-activate-taxactivate).
+
+The same holds for an agent driving the `salli` CLI on your machine (Claude Code with
+`salli skills install`, say): it can draft, validate, propose and evaluate, and
+`salli tax rules activate` refuses to run for it (no terminal to ask in, no `--yes`).
 
 Before connecting anything:
 - **The switch:** MCP must be on for your account (`salli mcp enable`), and you approve

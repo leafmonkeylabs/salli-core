@@ -874,7 +874,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             **_version_view(version),
             "next": (
                 "Proposed. Only the user can activate it: ask them to review the diff, "
-                "sources and worked examples in Salli and activate it there."
+                "sources and worked examples and activate it themselves, in the Salli app "
+                "or with `salli tax rules activate <set>` in their own terminal."
             ),
         }
 
@@ -983,7 +984,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "Fix the document and draft again until there are no errors and every "
             "example passes. "
             "6. Propose it with propose_tax_rule_set. "
-            "7. Tell me to review it and activate it myself in Salli: show me what "
+            "7. Tell me to review it and activate it myself in Salli (the app, or "
+            "`salli tax rules activate` in my own terminal): show me what "
             "changed (diff_tax_rule_set_versions) and the source of each figure. You "
             "can't activate rules, and shouldn't ask me for anything that would. "
             "Never compute tax yourself, not even as an estimate: Salli's engine "
