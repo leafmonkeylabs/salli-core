@@ -624,11 +624,14 @@ class UserProfileORM(Base):
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
 
-    # The user's own FI planning assumptions, as yearly fractions ("0.03" is
-    # 3%). NULL uses the default for their base currency (domain/fi/assumptions.py).
-    fi_inflation: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
-    fi_real_return: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
-    fi_safe_withdrawal_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    # The user's own FI planning assumptions, each with where it comes from:
+    # {"inflation": {"value": "0.03", "source": "...", "note": "...",
+    # "set_at": "..."}, ...}, values as decimal strings. One that is missing
+    # uses the FIRE strategy's figure, or a labelled placeholder
+    # (domain/fi/assumptions.py).
+    fi_assumptions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -644,6 +647,9 @@ class UserProfileORM(Base):
             name="ck_user_profiles_tax_residency",
         ),
         CheckConstraint("jsonb_typeof(tax_ids) = 'array'", name="ck_user_profiles_tax_ids"),
+        CheckConstraint(
+            "jsonb_typeof(fi_assumptions) = 'object'", name="ck_user_profiles_fi_assumptions"
+        ),
     )
 
 

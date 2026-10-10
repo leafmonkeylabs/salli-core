@@ -209,6 +209,8 @@ export class MockSalli {
       country: 'XA', country_source: 'given', year: '2031', region: null, start: '2031-01-01', end: '2031-12-31',
       rule_set_id: uid(1501), rule_set_version_id: uid(1511), version: 1, latest_year: '2031', latest_rule_set_version_id: uid(1511),
     } as TaxYearStatus,
+    /** The inflation the user set (`PATCH /v1/fi/assumptions`), as a rate string. */
+    fiInflation: undefined as string | undefined,
     statementTransactions: clone(STATEMENT_UPLOAD.transactions) as StatementTransaction[],
     prices: [
       { id: uid(1301), symbol: 'VTI', date: '2026-10-08', close: '281.26', currency: 'USD', source: 'user', created_at: '2026-10-08T18:00:00Z', updated_at: '2026-10-08T18:00:00Z' },
@@ -616,18 +618,27 @@ export class MockSalli {
         status: 200,
         body: {
           currency: 'USD',
+          terms: this.data.fiInflation ? 'real_and_nominal' : 'real',
           points: [
-            { year: 2027, conservative: '30000.00', base: '32000.00', growth: '34000.00' },
-            { year: 2028, conservative: '48000.00', base: '52000.00', growth: '57000.00' },
-          ],
+            { year: 0, conservative: '30000.00', base: '30000.00', growth: '30000.00' },
+            { year: 1, conservative: '48000.00', base: '52000.00', growth: '57000.00' },
+          ].map((pt) =>
+            this.data.fiInflation
+              ? { ...pt, nominal: { conservative: pt.conservative, base: pt.year ? '53560.00' : pt.base, growth: pt.growth, fi_number: pt.year ? '683616.15' : '663705.00' } }
+              : pt,
+          ),
           fi_number: '663705.00',
-          swr: '0.04',
+          swr: '0.035',
           fire_year_conservative: 19,
           fire_year_base: 14,
           fire_year_growth: 11,
           current_portfolio: '12834.50',
-          real_returns: { conservative: '0.02', base: '0.035', growth: '0.05' },
-          expected_inflation: '0.05',
+          real_returns: { conservative: '0.02', base: '0.04', growth: '0.06' },
+          inflation: this.data.fiInflation ?? null,
+          nominal_returns: this.data.fiInflation ? { conservative: '0.0506', base: '0.0712', growth: '0.0918' } : null,
+          assumptions: this.data.fiInflation
+            ? { ...FI_ASSUMPTIONS, inflation: { value: this.data.fiInflation, origin: 'user', source: 'https://example.org/cpi', note: null } }
+            : FI_ASSUMPTIONS,
         },
       };
     }
@@ -728,7 +739,6 @@ export class MockSalli {
         preferred_model: null,
         tax_residency: 'KE',
         tax_ids: [{ scheme: 'KE-PIN', value: 'A001234567Z' }],
-        fi_assumptions: { safe_withdrawal_rate: '0.04' },
       };
       return { status: 200, body: profile };
     }
@@ -743,15 +753,27 @@ export class MockSalli {
     if (method === 'GET' && path === '/v1/tax/current-year') {
       return { status: 200, body: this.data.taxYear };
     }
-    if (method === 'GET' && path === '/v1/fi/assumptions') {
-      return {
-        status: 200,
-        body: {
-          applied: FI_ASSUMPTIONS,
-          defaults: { ...FI_ASSUMPTIONS, safe_withdrawal_rate: { value: '0.035', origin: 'default', source: 'US research on 30-year retirements' } },
-          overrides: { safe_withdrawal_rate: '0.04' },
-        } satisfies FiAssumptionsReport,
+    if ((method === 'GET' || method === 'PATCH') && path === '/v1/fi/assumptions') {
+      if (method === 'PATCH') {
+        this.data.bodies.push({ method, path, body: req.json });
+        const inflation = (req.json as { inflation?: { value: string } | null }).inflation;
+        if (inflation !== undefined) this.data.fiInflation = inflation?.value;
+      }
+      const report: FiAssumptionsReport = {
+        applied: FI_ASSUMPTIONS,
+        own: {
+          real_return: null,
+          nominal_return: null,
+          inflation: null,
+          safe_withdrawal_rate: { value: '0.035', source: 'https://example.org/withdrawal-study', note: null, set_at: '2026-10-01T00:00:00+00:00' },
+        },
+        placeholder_values: {
+          real_return: { value: '0.04', source: 'Placeholder: a round 4% a year after inflation.' },
+          safe_withdrawal_rate: { value: '0.04', source: 'Placeholder: a round 4%.' },
+        },
+        scenario_spread: '0.02',
       };
+      return { status: 200, body: report };
     }
     if (method === 'GET' && path === '/v1/llm-keys') return { status: 200, body: { available: true, keys: [{ provider: 'anthropic', last4: 'Ab12', validated_at: '2026-10-01T00:00:00+00:00', readable: true }] } };
     if (method === 'PUT' && /^\/v1\/llm-keys\/(anthropic|openai)$/.test(path)) {

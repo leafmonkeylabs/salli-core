@@ -276,7 +276,6 @@ describe('your data and settings', () => {
       Daily briefing enabled  no
       Tax residency           KE
       Tax ids                 KE-PIN A001234567Z
-      FI assumptions          safe withdrawal rate 4%
       "
     `);
     expect((await run(['profile', 'set', '--name', 'Ada L', '--dependents', '2'])).code).toBe(0);

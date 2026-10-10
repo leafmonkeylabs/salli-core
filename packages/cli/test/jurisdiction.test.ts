@@ -39,17 +39,15 @@ describe('tax residency, tax years and FI assumptions', () => {
     expect((await run(['tax', 'year'])).stderr).toContain('salli profile set --tax-residency');
   });
 
-  it('sets tax residency, tax ids (merged with the stored ones) and FI assumptions', async () => {
-    const result = await run([
-      'profile', 'set', '--tax-residency', 'gb', '--tax-id', 'GB-UTR=1234567890', '--tax-id', 'ke-pin=',
-      '--fi-swr', '3.5%', '--fi-inflation', 'none',
-    ]);
+  it('sets tax residency and tax ids (merged with the stored ones)', async () => {
+    const result = await run(['profile', 'set', '--tax-residency', 'gb', '--tax-id', 'GB-UTR=1234567890', '--tax-id', 'ke-pin=']);
     expect(result.code).toBe(0);
     expect(lastBody('/v1/onboarding/profile')).toEqual({
       tax_residency: 'GB',
-      fi_assumptions: { inflation: null, safe_withdrawal_rate: '0.035' },
       tax_ids: [{ scheme: 'GB-UTR', value: '1234567890' }],
     });
+    // FI assumptions are set with `salli fi assumptions set`, each with its source.
+    expect((await run(['profile', 'set', '--fi-swr', '3.5%'])).code).toBe(2);
     expect((await run(['profile', 'set', '--tax-residency', 'Britain'])).code).toBe(2);
     expect((await run(['profile', 'set', '--tax-id', '123'])).code).toBe(2);
     expect((await run(['profile', 'set', '--tax-id', 'TIN=123'])).code).toBe(2);
@@ -58,21 +56,76 @@ describe('tax residency, tax years and FI assumptions', () => {
     expect((await run(['profile', 'set', '--nic', '123'])).code).toBe(2);
   });
 
-  it('shows the profile with its tax ids and own assumptions', async () => {
+  it('shows the profile with its tax ids', async () => {
     const out = (await run(['profile', 'get'])).stdout;
     expect(out).toContain('Tax residency');
     expect(out).toContain('KE-PIN A001234567Z');
-    expect(out).toContain('safe withdrawal rate 4%');
+    expect(out).not.toContain('FI assumptions');
   });
+});
 
-  it('shows the FI assumptions and where each came from', async () => {
-    expect((await run(['fi', 'assumptions'])).stdout).toMatchInlineSnapshot(`
-      "FI assumptions defaults for US
-      ASSUMPTION            APPLIED  FROM     DEFAULT  SOURCE
-      Inflation                  3%  default       3%  US CPI, 10-year average
-      Real return                5%  default       5%  A balanced portfolio, after inflation
-      Safe withdrawal rate       4%  you         3.5%  Your choice
+describe('FI planning assumptions: real terms, placeholders, your own figures', () => {
+  it('shows which apply, where each came from, and which are placeholders', async () => {
+    const result = await run(['fi', 'assumptions']);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "FI assumptions real terms: after inflation, in today’s money
+      ASSUMPTION            APPLIED  FROM         SOURCE
+      Real return                4%  placeholder  Placeholder: a round 4% a year after inflation.
+      Nominal return        not set
+      Inflation             not set
+      Safe withdrawal rate     3.5%  you          https://example.org/withdrawal-study
+      Scenarios (real): 2% / 4% / 6% (conservative / base / growth)
       "
     `);
+    expect(result.stderr).toContain('Using placeholder assumptions for the real return');
+    expect(result.stderr).toContain('salli fi assumptions set <name> <rate> --source');
+  });
+
+  it('sets one figure with its source, as a rate string, and clears figures', async () => {
+    const set = await run(['fi', 'assumptions', 'set', 'inflation', '3%', '--source', 'https://example.org/cpi', '--note', 'official target']);
+    expect(set.code).toBe(0);
+    expect(lastBody('/v1/fi/assumptions')).toEqual({
+      inflation: { value: '0.03', source: 'https://example.org/cpi', note: 'official target' },
+    });
+    expect(set.stderr).toContain('Inflation set to 3% (source: https://example.org/cpi).');
+
+    const unsourced = await run(['fi', 'assumptions', 'set', 'safe_withdrawal_rate', '0.035']);
+    expect(lastBody('/v1/fi/assumptions')).toEqual({ safe_withdrawal_rate: { value: '0.035', source: null, note: null } });
+    expect(unsourced.stderr).toContain('No source given');
+
+    await run(['fi', 'assumptions', 'clear', 'real-return', 'swr']);
+    expect(lastBody('/v1/fi/assumptions')).toEqual({ real_return: null, safe_withdrawal_rate: null });
+
+    expect((await run(['fi', 'assumptions', 'set', 'growth', '3%'])).code).toBe(2);
+    expect((await run(['fi', 'assumptions', 'set', 'inflation', 'three'])).code).toBe(2);
+  });
+
+  it('shows projections in today’s money, then future money once inflation is set', async () => {
+    const real = await run(['fi', 'projections']);
+    expect(real.stdout).not.toContain('THEN');
+    expect(real.stderr).toContain('in today’s money. Set your inflation');
+    expect(real.stderr).toContain('Using placeholder assumptions for the real return');
+
+    await run(['fi', 'assumptions', 'set', 'inflation', '3%', '--source', 'https://example.org/cpi']);
+    const both = await run(['fi', 'projections']);
+    expect(both.stdout).toMatchInlineSnapshot(`
+      "FI number     USD 663,705.00
+      Invested now  USD 12,834.50
+      FI in         19 years / 14 years / 11 years (conservative / base / growth)
+
+      YEAR  CONSERVATIVE       BASE     GROWTH  BASE (THEN)  FI NUMBER (THEN)
+         0     30,000.00  30,000.00  30,000.00    30,000.00        663,705.00
+         1     48,000.00  52,000.00  57,000.00    53,560.00        683,616.15
+      "
+    `);
+    expect(both.stderr).toContain('at your inflation of 3%');
+  });
+
+  it('says when the score and a purchase rest on placeholders', async () => {
+    expect((await run(['fi', 'score'])).stderr).toContain('Using placeholder assumptions for the real return');
+    expect((await run(['fi', 'afford', '2400'])).stderr).toContain('Using placeholder assumptions for the real return');
+    // Machine output is the API's JSON, flag included.
+    const json = JSON.parse((await run(['fi', 'score', '--json'])).stdout);
+    expect(json.assumptions.status).toBe('placeholder');
   });
 });

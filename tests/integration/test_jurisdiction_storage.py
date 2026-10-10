@@ -227,23 +227,45 @@ def test_rule_sets_decide_the_roles_and_the_database_their_shape(db):
             _execute(db, _account(bad))
 
 
-async def test_the_users_own_fi_assumptions_are_stored_exactly_and_cleared(db, uow_factory):
-    from decimal import Decimal
-
+async def test_the_users_own_fi_assumptions_are_stored_with_their_sources(db, uow_factory):
+    stored = {
+        "inflation": {"value": "0.0325", "source": "https://example.org/cpi", "set_at": "x"},
+        "safe_withdrawal_rate": {"value": "0.035"},
+    }
     async with uow_factory() as uow:
         await uow.user_profiles.upsert("u", {"base_currency": "USD"})
-        await uow.user_profiles.set_fi_assumptions(
-            "u", {"inflation": Decimal("0.0325"), "safe_withdrawal_rate": Decimal("0.035")}
+        assert (await uow.user_profiles.get("u"))["fi_assumptions"] == {}
+        await uow.user_profiles.set_fi_assumptions("u", stored)
+    async with uow_factory() as uow:
+        assert (await uow.user_profiles.get("u"))["fi_assumptions"] == stored
+        await uow.user_profiles.set_fi_assumptions("u", {})
+        with pytest.raises(LookupError):
+            await uow.user_profiles.set_fi_assumptions("nobody", {})
+    async with uow_factory() as uow:
+        assert (await uow.user_profiles.get("u"))["fi_assumptions"] == {}
+    # The database keeps them an object.
+    with pytest.raises(Exception, match="ck_user_profiles_fi_assumptions"):
+        _execute(db, ("update user_profiles set fi_assumptions = '[]'::jsonb", {}))
+
+
+def test_core_0015_replaces_the_bare_fi_columns_with_figures_and_sources(monkeypatch):
+    with scratch_database() as url:
+        monkeypatch.setenv("DATABASE_URL", url)
+        upgrade(CORE_SCRIPT_LOCATION, "core_0014_generic_tax_ids")
+        _execute(
+            url,
+            _new_profile("u"),
+            ("update user_profiles set fi_inflation = 0.03 where id = 'u'", {}),
         )
-    async with uow_factory() as uow:
-        profile = await uow.user_profiles.get("u")
-        assert profile["fi_inflation"] == Decimal("0.0325")
-        assert profile["fi_safe_withdrawal_rate"] == Decimal("0.035")
-        assert profile["fi_real_return"] is None
-        await uow.user_profiles.set_fi_assumptions("u", {"inflation": None})
-        with pytest.raises(ValueError, match="Not FI assumptions"):
-            await uow.user_profiles.set_fi_assumptions("u", {"base_currency": Decimal("1")})
-    async with uow_factory() as uow:
-        profile = await uow.user_profiles.get("u")
-        assert profile["fi_inflation"] is None
-        assert profile["fi_safe_withdrawal_rate"] == Decimal("0.035")
+        upgrade(CORE_SCRIPT_LOCATION)
+        old = (
+            "select count(*) from information_schema.columns where table_name = 'user_profiles'"
+            " and column_name in ('fi_inflation', 'fi_real_return', 'fi_safe_withdrawal_rate')"
+        )
+        assert scalar(url, old) == 0
+        # No real users yet: the bare figure is not carried over.
+        assert scalar(url, "select fi_assumptions from user_profiles where id = 'u'") == {}
+
+        command.downgrade(alembic_config(CORE_SCRIPT_LOCATION), "core_0014_generic_tax_ids")
+        assert scalar(url, old) == 3
+        assert scalar(url, "select fi_inflation from user_profiles where id = 'u'") is None

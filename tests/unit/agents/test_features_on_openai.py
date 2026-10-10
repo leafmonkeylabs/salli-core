@@ -143,9 +143,9 @@ async def test_quick_add_runs_on_the_plan():
 STRATEGY = {
     "fire_style": "standard",
     "swr": 0.04,
-    "return_conservative": 0.06,
-    "return_base": 0.1,
-    "return_growth": 0.14,
+    "real_return_conservative": 0.02,
+    "real_return_base": 0.04,
+    "real_return_growth": 0.06,
     "target_monthly_expenses": None,
     "target_age": 55,
     "buckets": [

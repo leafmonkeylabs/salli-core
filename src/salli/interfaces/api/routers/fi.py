@@ -45,71 +45,163 @@ def _priced(payload: dict[str, Any], keys: Iterable[str], currency: str) -> dict
 
 
 # ── Assumptions ───────────────────────────────────────────────────────────────
+#
+# Projections run in real terms (today's money). Where the user has not set a
+# figure, a neutral placeholder stands in, always labelled as one: projections
+# never wait for assumptions, and every FI response says which it used.
 
 
 class FiAssumption(BaseModel):
-    """One planning assumption, and where it came from."""
+    """One planning assumption a figure was computed with, and where it came from."""
 
-    #: A yearly fraction, in a decimal string: "0.05" is 5%.
+    #: A yearly fraction, in a decimal string: "0.04" is 4%.
     value: str
-    #: "user" when set on the profile, "strategy" when the user's FIRE strategy
-    #: chose it, "default" when it is the default for `region`.
-    origin: Literal["user", "strategy", "default"]
-    #: Where the figure comes from, in words: the published figure a default
-    #: rests on, or how it was arrived at.
+    #: "user" when the user (or their agent) set it, "strategy" when their FIRE
+    #: strategy chose it, "placeholder" when it is the neutral stand-in.
+    origin: Literal["user", "strategy", "placeholder"]
+    #: Where the figure comes from, in words: the source the user cited, the
+    #: strategy, or the placeholder's label.
     source: str
+    #: The user's note on it, if any.
+    note: str | None = None
+
+
+class FiScenarioReturns(BaseModel):
+    """Yearly returns per scenario, as fractions in decimal strings."""
+
+    model_config = ConfigDict(extra="allow")
+
+    conservative: str | None = None
+    base: str | None = None
+    growth: str | None = None
 
 
 class FiAssumptions(BaseModel):
-    """The assumptions these figures were computed with. Defaults are round,
-    conservative starting points to adjust, never forecasts."""
+    """The assumptions these figures were computed with, in real terms.
 
-    #: Whose defaults: the base currency ("LKR"), or "other" for a currency
-    #: Salli has no figures of its own for.
-    region: str
-    #: Yearly inflation, which turns the nominal returns into real ones.
-    inflation: FiAssumption
+    Check `status`: "placeholder" means at least one figure (`placeholders`
+    says which) is a neutral stand-in, not a forecast and not any country's
+    figure; set your own with `PATCH /v1/fi/assumptions`.
+    """
+
+    #: "placeholder" while any figure used is one; "user" once every one was
+    #: set by the user, their agent or their FIRE strategy.
+    status: Literal["placeholder", "user"]
+    #: The placeholders in use: "real_return", "safe_withdrawal_rate".
+    placeholders: list[Literal["real_return", "safe_withdrawal_rate"]]
+    #: What to tell a person about these assumptions, in a sentence or two.
+    message: str
     #: The base scenario's yearly return after inflation.
     real_return: FiAssumption
     #: What the FI number is built on: annual expenses / this.
     safe_withdrawal_rate: FiAssumption
+    #: The user's inflation; null when they have not set one, and then every
+    #: figure is in today's money only.
+    inflation: FiAssumption | None = None
+    #: The user's return before inflation, when the real return came from it.
+    nominal_return: FiAssumption | None = None
+    #: Each scenario's real return.
+    real_returns: FiScenarioReturns
+    #: Each scenario's return before inflation; only with the user's inflation.
+    nominal_returns: FiScenarioReturns | None = None
 
 
-class FiAssumptionOverrides(BaseModel):
-    """The planning assumptions the user set themselves; null where they use
-    the default for their currency. Yearly fractions in decimal strings."""
+AssumptionName = Literal["real_return", "nominal_return", "inflation", "safe_withdrawal_rate"]
 
-    inflation: str | None = None
+
+class FiOwnAssumption(BaseModel):
+    """A planning assumption the user (or their agent) set."""
+
+    #: A yearly fraction in a decimal string.
+    value: str
+    #: Where it comes from: a URL or a citation.
+    source: str | None = None
+    note: str | None = None
+    #: When it was set (ISO 8601).
+    set_at: str | None = None
+
+
+class FiOwnAssumptions(BaseModel):
+    """What the user set themselves; null where they have not."""
+
     #: The base scenario's yearly return after inflation.
-    real_return: str | None = None
-    safe_withdrawal_rate: str | None = None
+    real_return: FiOwnAssumption | None = None
+    #: Or the return before inflation; it needs `inflation` to become a real one.
+    nominal_return: FiOwnAssumption | None = None
+    inflation: FiOwnAssumption | None = None
+    safe_withdrawal_rate: FiOwnAssumption | None = None
 
 
-class FiAssumptionOverridesIn(BaseModel):
-    """Set the user's own planning assumptions, as yearly fractions ("0.03" is
-    3%). Only the fields sent change; an explicit null returns one to the
-    default for their currency."""
+class FiPlaceholder(BaseModel):
+    """The neutral stand-in used where the user has set nothing."""
 
-    inflation: DecimalIn | None = None
-    real_return: DecimalIn | None = None
-    safe_withdrawal_rate: DecimalIn | None = None
+    value: str
+    #: Says it is a placeholder, and why it is this figure.
+    source: str
+
+
+class FiPlaceholderValues(BaseModel):
+    real_return: FiPlaceholder
+    safe_withdrawal_rate: FiPlaceholder
 
 
 class FiAssumptionsReport(BaseModel):
-    """The assumptions the user's FI figures use, the defaults for their
-    currency, and what they set themselves."""
+    """The assumptions the user's FI figures use, what they set themselves,
+    and the placeholders that stand in for the rest."""
 
     applied: FiAssumptions
-    #: Whatever applies: what the user would have without their own figures
-    #: and their strategy's.
-    defaults: FiAssumptions
-    overrides: FiAssumptionOverrides
+    own: FiOwnAssumptions
+    placeholder_values: FiPlaceholderValues
+    #: How far the conservative and growth scenarios sit below and above the
+    #: base real return (unless the user's FIRE strategy chose all three).
+    scenario_spread: str
+
+
+class FiOwnAssumptionIn(BaseModel):
+    """One planning assumption to set."""
+
+    #: A yearly fraction: "0.03" is 3%. Plausible ranges are enforced
+    #: (a real return from -0.05 to 0.15, a withdrawal rate from 0.01 to 0.10,
+    #: inflation and a nominal return from -0.05 to 1).
+    value: DecimalIn
+    #: Where the figure comes from: a URL, or a publication and its date.
+    source: Annotated[str | None, Field(max_length=500)] = None
+    #: Anything else worth knowing about it.
+    note: Annotated[str | None, Field(max_length=1000)] = None
+
+
+class FiAssumptionsUpdate(BaseModel):
+    """Set the user's own planning assumptions. Only the fields sent change;
+    an explicit null clears one (a placeholder, or the FIRE strategy's figure,
+    stands in again). Set a real return or a nominal one, not both; a nominal
+    return needs inflation."""
+
+    real_return: FiOwnAssumptionIn | None = None
+    nominal_return: FiOwnAssumptionIn | None = None
+    inflation: FiOwnAssumptionIn | None = None
+    safe_withdrawal_rate: FiOwnAssumptionIn | None = None
 
 
 @router.get("/assumptions")
 async def get_assumptions(user_id: CurrentUser, svc: AppServices) -> FiAssumptionsReport:
-    """The planning assumptions behind the user's FI figures, and where each came from."""
+    """The planning assumptions behind the user's FI figures: which apply and
+    where each came from, what the user set, and the placeholders."""
     return FiAssumptionsReport.model_validate(await svc.fi.assumptions(user_id))
+
+
+@router.patch("/assumptions")
+async def set_assumptions(
+    body: FiAssumptionsUpdate, user_id: CurrentUser, svc: AppServices
+) -> FiAssumptionsReport:
+    """Set or clear the user's own planning assumptions, each with its source.
+    A figure out of range, or a set that can't be used together, is a 422 and
+    changes nothing."""
+    changes: dict[str, dict[str, Any] | None] = {
+        name: (None if given is None else given.model_dump())
+        for name, given in body
+        if name in body.model_fields_set
+    }
+    return FiAssumptionsReport.model_validate(await svc.fi.set_assumptions(user_id, changes))
 
 
 # ── Score ─────────────────────────────────────────────────────────────────────
@@ -365,7 +457,8 @@ class FireStrategyBucket(BaseModel):
 class FireStrategy(BaseModel):
     """A version of the user's AI-generated FIRE strategy.
 
-    Rates are fractions (0.04 is 4%), and the returns are nominal and yearly.
+    Rates are fractions (0.04 is 4%), and the returns are yearly and real
+    (after inflation).
     Every field is optional: a strategy stored by an earlier version can lack
     some, and a deployment's entitlement policy may withhold parts of it and
     add fields of its own.
@@ -378,9 +471,9 @@ class FireStrategy(BaseModel):
     #: lean | standard | fat | coast
     fire_style: str | None = None
     swr: float | None = None
-    return_conservative: float | None = None
-    return_base: float | None = None
-    return_growth: float | None = None
+    real_return_conservative: float | None = None
+    real_return_base: float | None = None
+    real_return_growth: float | None = None
     #: Monthly spending to plan retirement around, in the base currency; null
     #: means what the ledger shows. A JSON number, unlike other amounts.
     target_monthly_expenses: float | None = None
@@ -482,6 +575,18 @@ async def generate_strategy(
 # ── Projections & Surplus ──────────────────────────────────────────────────────
 
 
+class FiNominalPoint(BaseModel):
+    """A year's projected values in that year's own money, from the user's inflation."""
+
+    model_config = ConfigDict(extra="allow")
+
+    conservative: Amount | None = None
+    base: Amount | None = None
+    growth: Amount | None = None
+    #: The FI number in that year's money.
+    fi_number: Amount | None = None
+
+
 class FiProjectionPoint(BaseModel):
     """The FI asset base projected to the end of a year, per scenario, in today's money."""
 
@@ -492,20 +597,15 @@ class FiProjectionPoint(BaseModel):
     conservative: Amount | None = None
     base: Amount | None = None
     growth: Amount | None = None
-
-
-class FiScenarioReturns(BaseModel):
-    """Real (after-inflation) yearly returns per scenario, as fractions in decimal strings."""
-
-    model_config = ConfigDict(extra="allow")
-
-    conservative: str | None = None
-    base: str | None = None
-    growth: str | None = None
+    #: The same in that year's money; only when the user set their inflation.
+    nominal: FiNominalPoint | None = None
 
 
 class FiProjections(BaseModel):
-    """The FI asset base projected forward under three return scenarios, in today's money.
+    """The FI asset base projected forward under three real-return scenarios,
+    in today's money, and in each year's own money when the user set their
+    inflation. Never waits for assumptions: `assumptions.status` says when a
+    placeholder stands in.
 
     A deployment's entitlement policy may withhold parts of this and add fields
     of its own, so every field is optional.
@@ -515,6 +615,9 @@ class FiProjections(BaseModel):
 
     #: The user's base currency, which every amount here is in.
     currency: CurrencyCode | None = None
+    #: "real": amounts in today's money only; "real_and_nominal": each point
+    #: also carries its year's own money.
+    terms: Literal["real", "real_and_nominal"] | None = None
     points: list[FiProjectionPoint] | None = None
     #: The FI number the score reports.
     fi_number: Amount | None = None
@@ -524,9 +627,14 @@ class FiProjections(BaseModel):
     fire_year_base: int | None = None
     fire_year_growth: int | None = None
     current_portfolio: Amount | None = None
+    #: The real (after-inflation) yearly returns the scenarios use.
     real_returns: FiScenarioReturns | None = None
-    expected_inflation: str | None = None
-    #: The assumptions these projections use, and where each came from.
+    #: The user's inflation; null when they have not set one.
+    inflation: str | None = None
+    #: The scenarios' returns before inflation; only with the user's inflation.
+    nominal_returns: FiScenarioReturns | None = None
+    #: The assumptions these projections use, where each came from, and
+    #: whether any is a placeholder.
     assumptions: FiAssumptions | None = None
 
 
@@ -555,12 +663,21 @@ _SCENARIOS = ("conservative", "base", "growth")
 async def get_projections(
     user_id: CurrentUser, email: CurrentEmail, svc: AppServices
 ) -> FiProjections:
-    """15-year portfolio projections across conservative/base/growth scenarios."""
+    """Projections across conservative/base/growth real-return scenarios
+    (15 years, or as far as FI is reached, up to 40), with placeholders
+    standing in for assumptions the user has not set."""
     data = await svc.fi.get_projections(user_id)
     currency = data["currency"]
+
+    def point(p: dict[str, Any]) -> dict[str, Any]:
+        priced = _priced(p, _SCENARIOS, currency)
+        if p.get("nominal") is not None:
+            priced["nominal"] = _priced(p["nominal"], (*_SCENARIOS, "fi_number"), currency)
+        return priced
+
     priced = {
         **_priced(data, ("fi_number", "current_portfolio"), currency),
-        "points": [_priced(p, _SCENARIOS, currency) for p in data["points"]],
+        "points": [point(p) for p in data["points"]],
     }
     view = await svc.entitlements.for_user(user_id, email)
     return FiProjections.model_validate(view.shape(Surface.FI_PROJECTIONS, priced))

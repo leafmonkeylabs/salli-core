@@ -46,7 +46,6 @@ def _profile_row() -> dict[str, Any]:
         "preferred_model": None,
         "tax_residency": None,
         "tax_ids": [],
-        "fi_assumptions": {"inflation": None, "real_return": None, "safe_withdrawal_rate": None},
     }
 
 

@@ -19,7 +19,6 @@ from salli.application.services.ledger_service import LedgerService, tax_residen
 from salli.domain.accounting.models import AccountType, Direction
 from salli.domain.ai_models import DEFAULT_MODEL
 from salli.domain.currency import normalize_currency
-from salli.domain.fi.assumptions import check_override
 from salli.domain.jurisdiction import (
     TaxId,
     normalize_country,
@@ -66,33 +65,13 @@ def tax_identity_view(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-#: The user's own FI assumptions: the name each has in the API, and its column.
-_FI_ASSUMPTION_COLUMNS = {
-    "inflation": "fi_inflation",
-    "real_return": "fi_real_return",
-    "safe_withdrawal_rate": "fi_safe_withdrawal_rate",
-}
-
-
-def fi_assumptions_view(profile: dict[str, Any]) -> dict[str, Any]:
-    """`profile` with the user's own FI assumptions under `fi_assumptions`, as
-    decimal strings ("0.03"), None where they use their currency's default."""
-    view = {k: v for k, v in profile.items() if k not in _FI_ASSUMPTION_COLUMNS.values()}
-    view["fi_assumptions"] = {
-        name: None if profile.get(column) is None else f"{Decimal(profile[column]).normalize():f}"
-        for name, column in _FI_ASSUMPTION_COLUMNS.items()
-    }
+def profile_view(profile: dict[str, Any]) -> dict[str, Any]:
+    """The profile as the API shows it: identity and tax identity. The FI
+    planning assumptions stored on the same row are the FI service's to show
+    (`FiService.assumptions`), with their sources."""
+    view = tax_identity_view(profile)
+    view.pop("fi_assumptions", None)
     return view
-
-
-def _checked_fi_changes(changes: dict[str, Any]) -> dict[str, Decimal | None]:
-    unknown = set(changes) - set(_FI_ASSUMPTION_COLUMNS)
-    if unknown:
-        raise ValueError(f"Not FI assumptions: {', '.join(sorted(unknown))}")
-    return {
-        name: check_override(name, None if value is None else Decimal(str(value)))
-        for name, value in changes.items()
-    }
 
 
 def _apply_tax_changes(
@@ -229,7 +208,7 @@ class UserProfileService:
         profile = stored if stored is not None else {"id": user_id}
         # Only into a profile that exists: a read never creates one.
         await self._backfill_from_legacy_memories(user_id, profile, persist=stored is not None)
-        return fi_assumptions_view(tax_identity_view(profile))
+        return profile_view(profile)
 
     async def get_tax_residency(self, user_id: str) -> str | None:
         """Where the user is taxed (ISO 3166-1 alpha-2), or None while they
@@ -261,9 +240,7 @@ class UserProfileService:
         - `tax_ids`: replaces every tax id, `[{"scheme", "value"}]`, one per
           scheme ("XX-KIND").
 
-        `fi_assumptions`: the user's own planning assumptions present in it
-        (`inflation`, `real_return`, `safe_withdrawal_rate`, yearly fractions);
-        None returns one to the default for their currency.
+        The FI planning assumptions are not set here: `FiService.set_assumptions`.
         """
         fields: dict[str, Any] = {}
         for key in (
@@ -280,8 +257,7 @@ class UserProfileService:
         if "dependents_count" in data:
             fields["dependents_count"] = int(data["dependents_count"])
         tax_changes = {key: data[key] for key in _TAX_IDENTITY_FIELDS if key in data}
-        fi_changes = _checked_fi_changes(data.get("fi_assumptions") or {})
-        if not fields and not tax_changes and not fi_changes:
+        if not fields and not tax_changes:
             return
         # One unit of work: a change that does not validate writes nothing.
         async with self._uow_factory() as uow:
@@ -295,8 +271,6 @@ class UserProfileService:
                 await uow.user_profiles.set_tax_identity(
                     user_id, tax_residency=residency, tax_ids=[t.as_dict() for t in ids]
                 )
-            if fi_changes:
-                await uow.user_profiles.set_fi_assumptions(user_id, fi_changes)
         await self._recompute_life_stage(user_id)
 
     async def _recompute_life_stage(self, user_id: str) -> None:

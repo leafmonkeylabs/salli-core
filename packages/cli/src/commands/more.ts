@@ -50,7 +50,7 @@ import { resolveById } from '../util/resolve';
 import { readAllStdin } from '../util/stdin';
 import { fieldLabel, renderRecord } from './records';
 import { humanize } from './status';
-import { amountArg, collect, confirmAction, countArg, countryArg, currencyArg, rateArg, taxIdArg } from './shared';
+import { amountArg, collect, confirmAction, countArg, countryArg, currencyArg, taxIdArg } from './shared';
 import { registerTax } from './tax';
 
 /** A field from the server, as one line of safe text. */
@@ -365,14 +365,10 @@ function registerProfile(program: Command, app: App): void {
       app.out.emit(data, {
         human: (d) => {
           const ids = d.tax_ids ?? [];
-          const own = Object.entries(d.fi_assumptions ?? {}).filter(([, v]) => v !== null && v !== undefined);
           app.out.line(
             renderRecord(app, d, {
-              hide: ['tax_ids', 'fi_assumptions'],
-              extra: [
-                ['Tax ids', ids.length ? ids.map((t) => `${t.scheme} ${t.value}`).join(', ') : undefined],
-                ['FI assumptions', own.length ? own.map(([k, v]) => `${k.replace(/_/g, ' ')} ${app.out.percent(v, 2)}`).join(', ') : undefined],
-              ],
+              hide: ['tax_ids'],
+              extra: [['Tax ids', ids.length ? ids.map((t) => `${t.scheme} ${t.value}`).join(', ') : undefined]],
             }),
           );
         },
@@ -392,19 +388,7 @@ function registerProfile(program: Command, app: App): void {
     .option('--employer <name>', 'Employer')
     .option('--tax-residency <country>', 'The country you are taxed in, as a two-letter code (DE, KE, BR…); "none" clears it')
     .option('--tax-id <scheme=number>', 'A tax id as SCHEME=NUMBER, the scheme your country\'s code and the kind of number, e.g. XX-TIN=123456789 (repeatable); SCHEME= removes one', collect)
-    .option('--fi-inflation <rate>', 'Your own yearly inflation for FI plans, e.g. 3%; "none" for the default')
-    .option('--fi-real-return <rate>', 'Your own yearly return after inflation, e.g. 4%; "none" for the default')
-    .option('--fi-swr <rate>', 'Your own safe withdrawal rate, e.g. 3.5%; "none" for the default')
     .action(async (opts) => {
-      const rate = (value: string | undefined, flag: string): string | null | undefined =>
-        value === undefined ? undefined : value.trim().toLowerCase() === 'none' ? null : rateArg(value, flag);
-      const own = Object.fromEntries(
-        Object.entries({
-          inflation: rate(opts.fiInflation, '--fi-inflation'),
-          real_return: rate(opts.fiRealReturn, '--fi-real-return'),
-          safe_withdrawal_rate: rate(opts.fiSwr, '--fi-swr'),
-        }).filter(([, v]) => v !== undefined),
-      );
       const residency = opts.taxResidency?.trim();
       const idChanges = (opts.taxId ?? []).map(taxIdArg);
       const body: ProfileIdentityRequest = Object.fromEntries(
@@ -418,7 +402,6 @@ function registerProfile(program: Command, app: App): void {
           residency_status: opts.residency,
           employer: opts.employer,
           tax_residency: residency === undefined ? undefined : residency.toLowerCase() === 'none' ? null : countryArg(residency),
-          fi_assumptions: Object.keys(own).length ? own : undefined,
         }).filter(([, v]) => v !== undefined),
       );
       if (!Object.keys(body).length && !idChanges.length) {

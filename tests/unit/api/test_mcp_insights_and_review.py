@@ -135,3 +135,48 @@ async def test_the_prompts_lean_on_salli_s_tools_not_the_model_s_arithmetic():
     sort = await server.get_prompt("sort_pending_transactions", {})
     text = sort.messages[0].content.text  # type: ignore[union-attr]
     assert "Only after I approve" in text and "never invent" in text
+
+
+# ── Financial independence: real terms, placeholders, the user's own figures ──
+
+
+async def test_fi_projections_and_assumptions_are_salli_s_with_the_placeholder_flag(services):
+    flagged = {"assumptions": {"status": "placeholder", "placeholders": ["real_return"]}}
+    services.fi.get_projections.return_value = flagged
+    assert await _call(services, "get_fi_projections", {}) == flagged
+    services.fi.get_projections.assert_awaited_once_with("u1")
+
+    services.fi.assumptions.return_value = {"applied": flagged["assumptions"]}
+    assert await _call(services, "get_fi_assumptions", {}) == {"applied": flagged["assumptions"]}
+
+
+async def test_an_agent_sets_an_assumption_with_its_source_and_it_is_audited(services):
+    services.fi.set_assumptions.return_value = {"applied": {"status": "user"}}
+    result = await _call(
+        services,
+        "set_fi_assumption",
+        {"name": "inflation", "value": "0.03", "source": "https://example.org/cpi"},
+    )
+    assert result == {"applied": {"status": "user"}}
+    services.fi.set_assumptions.assert_awaited_once_with(
+        "u1", {"inflation": {"value": "0.03", "source": "https://example.org/cpi", "note": None}}
+    )
+    services.audit.log.assert_awaited_once()
+    assert services.audit.log.await_args.args[1] == "set_fi_assumption"
+
+    # Null clears it; a refusal is the service's reason, and nothing is audited.
+    await _call(services, "set_fi_assumption", {"name": "inflation", "value": None})
+    assert services.fi.set_assumptions.await_args.args[1] == {"inflation": None}
+    services.fi.set_assumptions.side_effect = ValueError("inflation must be a yearly fraction")
+    services.audit.log.reset_mock()
+    refused = await _call(services, "set_fi_assumption", {"name": "inflation", "value": "3"})
+    assert refused == {"error": "inflation must be a yearly fraction"}
+    services.audit.log.assert_not_awaited()
+
+
+async def test_the_planning_assumptions_prompt_asks_for_sources_and_consent():
+    server = mcp_server.build_mcp_server(MagicMock(), "https://api.test")
+    prompt = await server.get_prompt("set_planning_assumptions", {"country": "KE"})
+    text = prompt.messages[0].content.text  # type: ignore[union-attr]
+    for phrase in ("for KE", "get_fi_assumptions", "real terms", "source", "only after I agree"):
+        assert phrase in text, phrase

@@ -33,6 +33,9 @@ class FakeProfiles:
     async def has_financial_data(self, user_id: str) -> bool:
         return self.has_data
 
+    async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
+        self.rows.setdefault(user_id, {})["fi_assumptions"] = stored
+
 
 class FakeRecords:
     """Things a user declares (budgets, debts, holdings, …) kept the way the SQL

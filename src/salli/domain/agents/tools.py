@@ -404,6 +404,12 @@ def make_manager_tools(
         Use this for "how am I doing?", "when can I retire?", or before discussing
         any trade-off between spending now and retiring sooner. Figures are
         engine-computed and authoritative — never recompute or estimate them.
+
+        Everything is in real terms (today's money). If `assumptions.status` is
+        "placeholder", the return or withdrawal rate behind the figures is a
+        round stand-in (`assumptions.placeholders` says which), not a forecast:
+        say so, and suggest the user set their own, with a source
+        (`salli fi assumptions set`).
         """
         if fi_svc is None:
             return {"error": "Freedom service unavailable"}
@@ -448,6 +454,8 @@ def make_manager_tools(
           to date first — a confident answer from an old balance sheet is worse than
           no answer.
         - Never derive your own figures from these; quote them.
+        - If `assumptions.status` is "placeholder", say the costing rests on
+          placeholder assumptions (round stand-ins, not forecasts).
         """
         if fi_svc is None:
             return {"error": "Freedom service unavailable"}

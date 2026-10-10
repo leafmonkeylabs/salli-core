@@ -2585,7 +2585,7 @@ export type ExportedPosting = {
 /**
  * FiAssumption
  *
- * One planning assumption, and where it came from.
+ * One planning assumption a figure was computed with, and where it came from.
  */
 export type FiAssumption = {
     /**
@@ -2595,7 +2595,169 @@ export type FiAssumption = {
     /**
      * Origin
      */
-    origin: 'user' | 'strategy' | 'default';
+    origin: 'user' | 'strategy' | 'placeholder';
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * FiAssumptions
+ *
+ * The assumptions these figures were computed with, in real terms.
+ *
+ * Check `status`: "placeholder" means at least one figure (`placeholders`
+ * says which) is a neutral stand-in, not a forecast and not any country's
+ * figure; set your own with `PATCH /v1/fi/assumptions`.
+ */
+export type FiAssumptions = {
+    /**
+     * Status
+     */
+    status: 'placeholder' | 'user';
+    /**
+     * Placeholders
+     */
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate'>;
+    /**
+     * Message
+     */
+    message: string;
+    real_return: FiAssumption;
+    safe_withdrawal_rate: FiAssumption;
+    inflation?: FiAssumption | null;
+    nominal_return?: FiAssumption | null;
+    real_returns: FiScenarioReturns;
+    nominal_returns?: FiScenarioReturns | null;
+};
+
+/**
+ * FiAssumptionsReport
+ *
+ * The assumptions the user's FI figures use, what they set themselves,
+ * and the placeholders that stand in for the rest.
+ */
+export type FiAssumptionsReport = {
+    applied: FiAssumptions;
+    own: FiOwnAssumptions;
+    placeholder_values: FiPlaceholderValues;
+    /**
+     * Scenario Spread
+     */
+    scenario_spread: string;
+};
+
+/**
+ * FiAssumptionsUpdate
+ *
+ * Set the user's own planning assumptions. Only the fields sent change;
+ * an explicit null clears one (a placeholder, or the FIRE strategy's figure,
+ * stands in again). Set a real return or a nominal one, not both; a nominal
+ * return needs inflation.
+ */
+export type FiAssumptionsUpdate = {
+    real_return?: FiOwnAssumptionIn | null;
+    nominal_return?: FiOwnAssumptionIn | null;
+    inflation?: FiOwnAssumptionIn | null;
+    safe_withdrawal_rate?: FiOwnAssumptionIn | null;
+};
+
+/**
+ * FiNominalPoint
+ *
+ * A year's projected values in that year's own money, from the user's inflation.
+ */
+export type FiNominalPoint = {
+    /**
+     * Conservative
+     */
+    conservative?: string | null;
+    /**
+     * Base
+     */
+    base?: string | null;
+    /**
+     * Growth
+     */
+    growth?: string | null;
+    /**
+     * Fi Number
+     */
+    fi_number?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * FiOwnAssumption
+ *
+ * A planning assumption the user (or their agent) set.
+ */
+export type FiOwnAssumption = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Set At
+     */
+    set_at?: string | null;
+};
+
+/**
+ * FiOwnAssumptionIn
+ *
+ * One planning assumption to set.
+ */
+export type FiOwnAssumptionIn = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * FiOwnAssumptions
+ *
+ * What the user set themselves; null where they have not.
+ */
+export type FiOwnAssumptions = {
+    real_return?: FiOwnAssumption | null;
+    nominal_return?: FiOwnAssumption | null;
+    inflation?: FiOwnAssumption | null;
+    safe_withdrawal_rate?: FiOwnAssumption | null;
+};
+
+/**
+ * FiPlaceholder
+ *
+ * The neutral stand-in used where the user has set nothing.
+ */
+export type FiPlaceholder = {
+    /**
+     * Value
+     */
+    value: string;
     /**
      * Source
      */
@@ -2603,74 +2765,11 @@ export type FiAssumption = {
 };
 
 /**
- * FiAssumptionOverrides
- *
- * The planning assumptions the user set themselves; null where they use
- * the default for their currency. Yearly fractions in decimal strings.
+ * FiPlaceholderValues
  */
-export type FiAssumptionOverrides = {
-    /**
-     * Inflation
-     */
-    inflation?: string | null;
-    /**
-     * Real Return
-     */
-    real_return?: string | null;
-    /**
-     * Safe Withdrawal Rate
-     */
-    safe_withdrawal_rate?: string | null;
-};
-
-/**
- * FiAssumptionOverridesIn
- *
- * Set the user's own planning assumptions, as yearly fractions ("0.03" is
- * 3%). Only the fields sent change; an explicit null returns one to the
- * default for their currency.
- */
-export type FiAssumptionOverridesIn = {
-    /**
-     * Inflation
-     */
-    inflation?: string | null;
-    /**
-     * Real Return
-     */
-    real_return?: string | null;
-    /**
-     * Safe Withdrawal Rate
-     */
-    safe_withdrawal_rate?: string | null;
-};
-
-/**
- * FiAssumptions
- *
- * The assumptions these figures were computed with. Defaults are round,
- * conservative starting points to adjust, never forecasts.
- */
-export type FiAssumptions = {
-    /**
-     * Region
-     */
-    region: string;
-    inflation: FiAssumption;
-    real_return: FiAssumption;
-    safe_withdrawal_rate: FiAssumption;
-};
-
-/**
- * FiAssumptionsReport
- *
- * The assumptions the user's FI figures use, the defaults for their
- * currency, and what they set themselves.
- */
-export type FiAssumptionsReport = {
-    applied: FiAssumptions;
-    defaults: FiAssumptions;
-    overrides: FiAssumptionOverrides;
+export type FiPlaceholderValues = {
+    real_return: FiPlaceholder;
+    safe_withdrawal_rate: FiPlaceholder;
 };
 
 /**
@@ -2695,13 +2794,17 @@ export type FiProjectionPoint = {
      * Growth
      */
     growth?: string | null;
+    nominal?: FiNominalPoint | null;
     [key: string]: unknown;
 };
 
 /**
  * FiProjections
  *
- * The FI asset base projected forward under three return scenarios, in today's money.
+ * The FI asset base projected forward under three real-return scenarios,
+ * in today's money, and in each year's own money when the user set their
+ * inflation. Never waits for assumptions: `assumptions.status` says when a
+ * placeholder stands in.
  *
  * A deployment's entitlement policy may withhold parts of this and add fields
  * of its own, so every field is optional.
@@ -2711,6 +2814,10 @@ export type FiProjections = {
      * Currency
      */
     currency?: string | null;
+    /**
+     * Terms
+     */
+    terms?: 'real' | 'real_and_nominal' | null;
     /**
      * Points
      */
@@ -2741,9 +2848,10 @@ export type FiProjections = {
     current_portfolio?: string | null;
     real_returns?: FiScenarioReturns | null;
     /**
-     * Expected Inflation
+     * Inflation
      */
-    expected_inflation?: string | null;
+    inflation?: string | null;
+    nominal_returns?: FiScenarioReturns | null;
     assumptions?: FiAssumptions | null;
     [key: string]: unknown;
 };
@@ -2751,7 +2859,7 @@ export type FiProjections = {
 /**
  * FiScenarioReturns
  *
- * Real (after-inflation) yearly returns per scenario, as fractions in decimal strings.
+ * Yearly returns per scenario, as fractions in decimal strings.
  */
 export type FiScenarioReturns = {
     /**
@@ -3006,7 +3114,8 @@ export type FinanceSignals = {
  *
  * A version of the user's AI-generated FIRE strategy.
  *
- * Rates are fractions (0.04 is 4%), and the returns are nominal and yearly.
+ * Rates are fractions (0.04 is 4%), and the returns are yearly and real
+ * (after inflation).
  * Every field is optional: a strategy stored by an earlier version can lack
  * some, and a deployment's entitlement policy may withhold parts of it and
  * add fields of its own.
@@ -3029,17 +3138,17 @@ export type FireStrategy = {
      */
     swr?: number | null;
     /**
-     * Return Conservative
+     * Real Return Conservative
      */
-    return_conservative?: number | null;
+    real_return_conservative?: number | null;
     /**
-     * Return Base
+     * Real Return Base
      */
-    return_base?: number | null;
+    real_return_base?: number | null;
     /**
-     * Return Growth
+     * Real Return Growth
      */
-    return_growth?: number | null;
+    real_return_growth?: number | null;
     /**
      * Target Monthly Expenses
      */
@@ -5472,7 +5581,6 @@ export type Profile = {
      * Tax Ids
      */
     tax_ids?: Array<TaxId>;
-    fi_assumptions?: FiAssumptionOverrides;
 };
 
 /**
@@ -5515,7 +5623,6 @@ export type ProfileIdentityRequest = {
      * Tax Ids
      */
     tax_ids?: Array<TaxId> | null;
-    fi_assumptions?: FiAssumptionOverridesIn | null;
     /**
      * Base Currency
      */
@@ -11192,6 +11299,35 @@ export type FiAssumptionsResponses = {
 };
 
 export type FiAssumptionsResponse = FiAssumptionsResponses[keyof FiAssumptionsResponses];
+
+export type FiAssumptionsSetData = {
+    body: FiAssumptionsUpdate;
+    path?: never;
+    query?: never;
+    url: '/v1/fi/assumptions';
+};
+
+export type FiAssumptionsSetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type FiAssumptionsSetError = FiAssumptionsSetErrors[keyof FiAssumptionsSetErrors];
+
+export type FiAssumptionsSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FiAssumptionsReport;
+};
+
+export type FiAssumptionsSetResponse = FiAssumptionsSetResponses[keyof FiAssumptionsSetResponses];
 
 export type FiScoreGetData = {
     body?: never;
