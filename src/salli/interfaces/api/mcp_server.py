@@ -582,6 +582,21 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         return await insights_svc.forecast(_current_user_id(), _window(days, 1, 366))
 
     @mcp.tool()
+    async def get_safe_to_spend() -> dict[str, Any]:
+        """How much could go out today without the user's cash forecast dropping
+        below zero before money next comes in, with what is committed until
+        then. The first thing to check for "can I afford it right now?"."""
+        return await insights_svc.safe_to_spend(_current_user_id())
+
+    @mcp.tool()
+    async def get_signals() -> dict[str, Any]:
+        """What in the user's finances needs attention now, most pressing first:
+        cash running out before payday, a subscription that got dearer, a new
+        recurring charge, a category far above usual, a falling savings rate,
+        transactions waiting for review. Each comes with its evidence."""
+        return await insights_svc.signals(_current_user_id())
+
+    @mcp.tool()
     async def simulate_purchase(
         amount: str, term_months: int | None = None, annual_interest_rate: str = "0"
     ) -> dict[str, Any]:
@@ -726,8 +741,9 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         changed, what needs attention, and a few actions."""
         when = f"for {month}" if month else "for this month"
         return (
-            f"Review my finances {when} with Salli's tools: get_cash_flow, "
-            "get_spending, get_recurring_payments and get_cash_forecast. Quote Salli's "
+            f"Review my finances {when} with Salli's tools: start with get_signals, "
+            "then get_cash_flow, get_spending, get_recurring_payments and "
+            "get_cash_forecast. Quote Salli's "
             "numbers exactly; never compute or estimate amounts yourself. Tell me, "
             "briefly: how this month compares with my usual months, anything that "
             "needs attention (a forecast low point before payday, a new or more "
@@ -756,7 +772,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         thing = f" for {what}" if what else ""
         date = f" on {when}" if when else " now"
         return (
-            f"Can I afford {amount}{thing}{date}? Use Salli: get_cash_forecast for a "
+            f"Can I afford {amount}{thing}{date}? Use Salli: get_safe_to_spend first, "
+            "then get_cash_forecast for a "
             "window covering that date and the next payday, and simulate_purchase for "
             "what it costs my plan in months of freedom (paid at once, and in "
             "installments if that is an option). Answer with Salli's numbers only, "
@@ -798,6 +815,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_net_worth_history,
         get_recurring_payments,
         get_cash_forecast,
+        get_safe_to_spend,
+        get_signals,
         simulate_purchase,
         list_pending_transactions,
         categorize_transactions,

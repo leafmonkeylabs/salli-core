@@ -615,7 +615,12 @@ class SQLStatementRepository(StatementRepository):
             account_id=account_id,
             period_start=period_start,
             period_end=period_end,
-            status="pending",
+            # Nothing to review (empty, or every row an exact duplicate): done.
+            status=(
+                "pending"
+                if any(t.dedup_status not in _SETTLED for t in transactions)
+                else "reviewed"
+            ),
         )
         self._session.add(orm)
 
@@ -727,7 +732,20 @@ class SQLStatementRepository(StatementRepository):
         for row in rows:
             row.dedup_status = "discarded"
         await self._session.flush()
+        await self._settle(statement_id)
         return len(rows)
+
+    async def _settle(self, statement_id: str) -> None:
+        """A statement is reviewed once none of its rows waits for anyone."""
+        waiting = await self._session.scalar(
+            select(func.count())
+            .select_from(ParsedTransactionORM)
+            .where(ParsedTransactionORM.statement_id == statement_id, *_PENDING)
+        )
+        statement = await self._session.get(StatementORM, statement_id)
+        if statement is not None:
+            statement.status = "pending" if waiting else "reviewed"
+            await self._session.flush()
 
     async def get_by_ids(
         self, user_id: str, ids: list[str], *, for_update: bool = False
@@ -792,6 +810,8 @@ class SQLStatementRepository(StatementRepository):
         if row:
             row.posted_entry_id = entry_id
             row.dedup_status = "posted"
+            await self._session.flush()
+            await self._settle(row.statement_id)
 
     async def get_statement(self, user_id: str, statement_id: str) -> dict[str, Any] | None:
         stmt = select(StatementORM).where(
@@ -814,6 +834,7 @@ class SQLStatementRepository(StatementRepository):
 
 
 # Waiting for review: not posted, and not discarded.
+_SETTLED = ("posted", "discarded", "exact_duplicate")
 _PENDING = (
     ParsedTransactionORM.posted_entry_id.is_(None),
     # An exact duplicate needs nothing from anyone: its import's result said

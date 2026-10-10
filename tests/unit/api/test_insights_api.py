@@ -100,3 +100,42 @@ async def test_the_forecast_looks_ahead_at_most_a_year(client, insights):
     assert r.status_code == 200 and r.json()["lowest_date"] == "2026-10-10"
     insights.forecast.assert_awaited_once_with("test-user-1", 1)
     assert (await client.get("/v1/insights/forecast?days=400", headers=AUTH)).status_code == 422
+
+
+async def test_safe_to_spend_and_signals_come_typed(client, insights):
+    insights.safe_to_spend.return_value = {
+        "currency": "USD",
+        "amount": "240.00",
+        "cash_today": "900.00",
+        "until": "2026-10-25",
+        "next_income": {
+            "date": "2026-10-25",
+            "description": "Acme Payroll",
+            "amount": "3000.00",
+            "currency": "USD",
+        },
+        "committed": [
+            {"date": "2026-10-15", "description": "Rent", "amount": "-660.00", "currency": "USD"}
+        ],
+        "notes": [],
+    }
+    body = (await client.get("/v1/insights/safe-to-spend", headers=AUTH)).json()
+    assert (body["amount"], body["next_income"]["date"]) == ("240.00", "2026-10-25")
+
+    insights.signals.return_value = {
+        "signals": [
+            {
+                "kind": "price_change",
+                "severity": "medium",
+                "title": "Netflix went up",
+                "detail": "…",
+                "action": "see_recurring",
+                "amount": "17.99",
+                "currency": "USD",
+                "date": "2026-10-01",
+                "refs": ["e4"],
+            }
+        ]
+    }
+    body = (await client.get("/v1/insights/signals", headers=AUTH)).json()
+    assert body["signals"][0]["kind"] == "price_change"

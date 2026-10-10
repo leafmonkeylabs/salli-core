@@ -260,6 +260,13 @@ class Recurring:
     #: The same for the other side, when it is another account of the
     #: user's in its own currency (a transfer); None otherwise.
     counter_amount: Decimal | None = None
+    #: The amount it was charged steadily before the latest charge, when the
+    #: latest differs from that steady run (a price change); None otherwise.
+    #: In `currency`, like `typical_amount`.
+    previous_amount: Decimal | None = None
+    #: The latest charge's amount, in `currency`, and the first charge's day.
+    latest_amount: Decimal | None = None
+    first_date: str = ""
 
 
 def _on(year: int, month: int, day: int) -> dt.date:
@@ -474,7 +481,19 @@ def _series(
         direction=moved,
         money_account_id=max(money_accounts, key=lambda k: (money_accounts[k], k)),
         anchor_days=anchors,
+        previous_amount=_previous_amount(amounts),
+        latest_amount=amounts[-1],
+        first_date=days[0].isoformat(),
     )
+
+
+def _previous_amount(amounts: list[Decimal]) -> Decimal | None:
+    """The steady amount before the last charge, when the last one differs
+    from at least two equal charges before it."""
+    *earlier, last = amounts
+    if len(earlier) >= 2 and len(set(earlier)) == 1 and last != earlier[0]:
+        return earlier[0]
+    return None
 
 
 def _in_account_currencies(

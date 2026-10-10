@@ -193,6 +193,8 @@ CLI_FOR_ROUTE: dict[Route, str] = {
     ("GET", "/insights/net-worth"): "insights net-worth",
     ("GET", "/insights/recurring"): "insights recurring",
     ("GET", "/insights/forecast"): "insights forecast",
+    ("GET", "/insights/safe-to-spend"): "insights safe-to-spend",
+    ("GET", "/insights/signals"): "insights signals",
     ("GET", "/bank-connections"): "banks list",
     ("POST", "/bank-connections"): "banks connect",
     ("PUT", "/bank-connections/{connection_id}/accounts/{remote_id}"): "banks map",

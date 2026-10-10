@@ -49,7 +49,7 @@ jobs:
           src/salli/adapters/parsing/dates.py src/salli/adapters/parsing/csv_import.py
           src/salli/adapters/parsing/ofx.py src/salli/adapters/parsing/qif.py
           src/salli/adapters/parsing/camt053.py src/salli/adapters/parsing/mt940.py
-          src/salli/domain/rules src/salli/domain/export src/salli/domain/reports/insights.py src/salli/domain/reports/forecast.py
+          src/salli/domain/rules src/salli/domain/export src/salli/domain/reports/insights.py src/salli/domain/reports/forecast.py src/salli/domain/reports/signals.py
           src/salli/application/services/rules_service.py
           src/salli/application/services/insights_service.py
           src/salli/interfaces/api/routers/insights.py

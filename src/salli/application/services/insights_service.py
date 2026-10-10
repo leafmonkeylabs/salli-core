@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal
+from statistics import median
 from typing import Any
 
 from salli.domain.currency import quantize
 from salli.domain.reports import forecast as forecasting
 from salli.domain.reports import insights
+from salli.domain.reports import signals as signal_rules
 from salli.domain.rules.engine import payee_word
 from salli.domain.rules.history import booked_transactions
 from salli.domain.subscription.engine import find_matches
@@ -27,6 +30,20 @@ def _ratio(value: Decimal | None) -> str | None:
 
 def _money(value: Decimal, currency: str) -> str:
     return str(quantize(value, currency))
+
+
+@dataclass(frozen=True)
+class _Run:
+    """A forecast projection and the ledger it was made from."""
+
+    result: forecasting.Forecast
+    by_id: dict[str, Any]
+    base: str
+    notes: list[str]
+    found: list[insights.Recurring]
+    covered_by: Callable[[insights.Recurring], str | None]
+    entries: list[Any]
+    accounts: list[Any]
 
 
 class InsightsService:
@@ -152,18 +169,9 @@ class InsightsService:
             )
         return {"items": items}
 
-    async def forecast(self, user_id: str, days: int = 60) -> dict[str, Any]:
-        """Each cash account's balance from today to `days` ahead, and the
-        total's, from what keeps happening in the ledger and the declared
-        subscriptions it has not shown (domain/reports/forecast.py).
-
-        Cash accounts are the ones money is spent from (forecast.cash_accounts).
-        Each is valued in its own currency, from what the database sums of its
-        postings (exact, and no history loaded); an account whose balance in
-        its currency can't be known (postings in another currency with no
-        rate into its own) is left out and said in `notes`, never shown at a
-        wrong balance. The total is in the base currency, at the rate of the
-        latest posting in each currency (no rate is fetched)."""
+    async def _project(self, user_id: str, days: int) -> _Run:
+        """The forecast's projection and what it rests on, for the forecast,
+        safe-to-spend and the signals alike."""
         today = self._today()
         end = today + dt.timedelta(days=days)
         since = (today - dt.timedelta(days=_RECURRING_DAYS)).isoformat()
@@ -237,6 +245,22 @@ class InsightsService:
         result = forecasting.project(
             balances, flows, {c: rate for c, (_, rate) in latest_rate.items()}, base, today, end
         )
+        return _Run(result, by_id, base, notes, found, covered_by, entries, accounts)
+
+    async def forecast(self, user_id: str, days: int = 60) -> dict[str, Any]:
+        """Each cash account's balance from today to `days` ahead, and the
+        total's, from what keeps happening in the ledger and the declared
+        subscriptions it has not shown (domain/reports/forecast.py).
+
+        Cash accounts are the ones money is spent from (forecast.cash_accounts).
+        Each is valued in its own currency, from what the database sums of its
+        postings (exact, and no history loaded); an account whose balance in
+        its currency can't be known (postings in another currency with no
+        rate into its own) is left out and said in `notes`, never shown at a
+        wrong balance. The total is in the base currency, at the rate of the
+        latest posting in each currency (no rate is fetched)."""
+        run = await self._project(user_id, days)
+        result, by_id, base, notes = run.result, run.by_id, run.base, run.notes
 
         def money(value: Decimal, currency: str) -> str:
             return str(quantize(value, currency, strict=False))
@@ -275,6 +299,109 @@ class InsightsService:
             ],
             "notes": list(dict.fromkeys(notes)),
         }
+
+    async def safe_to_spend(self, user_id: str) -> dict[str, Any]:
+        """How much could go out today without the cash forecast dropping below
+        zero before money next comes in: the lowest the total gets from today
+        until the day before the next income the ledger expects (or over 30
+        days, when it expects none), never below zero."""
+        run = await self._project(user_id, 45)
+        today = self._today().isoformat()
+        income = next(
+            (
+                f
+                for f in run.result.flows
+                if f.amount > 0 and f.source == "recurring" and f.date > today
+            ),
+            None,
+        )
+        until = income.date if income else (self._today() + dt.timedelta(days=30)).isoformat()
+        window = [v for d, v in run.result.daily if d < until] or [run.result.today]
+        lowest = min(window)
+        before = [f for f in run.result.flows if f.amount < 0 and f.date < until]
+        base = run.base
+
+        def money(value: Decimal, currency: str = base) -> str:
+            return str(quantize(value, currency, strict=False))
+
+        return {
+            "currency": base,
+            "amount": money(max(lowest, Decimal(0))),
+            "cash_today": money(run.result.today),
+            "until": until,
+            "next_income": None
+            if income is None
+            else {
+                "date": income.date,
+                "description": income.description,
+                "amount": money(income.amount, income.currency),
+                "currency": income.currency,
+            },
+            "committed": [
+                {
+                    "date": f.date,
+                    "description": f.description,
+                    "amount": money(f.amount, f.currency),
+                    "currency": f.currency,
+                }
+                for f in before
+            ],
+            "notes": list(dict.fromkeys(run.notes)),
+        }
+
+    async def signals(self, user_id: str) -> dict[str, Any]:
+        """What needs the user's attention now (domain/reports/signals.py),
+        most pressing first."""
+        today = self._today()
+        run = await self._project(user_id, 60)
+        base = run.base
+        months = insights.last_months(today, 5)[:-1]  # full months only
+        flows = insights.cash_flow(run.entries, run.accounts, months)
+        lines = insights.spending(run.entries, run.accounts, months)
+        spent = [f.expenses for f in flows if f.expenses > 0]
+        usual_spending = median(spent) if spent else None
+        tracked = {r.entry_ids[0]: run.covered_by(r) is not None for r in run.found if r.entry_ids}
+        pending = await self._pending(user_id)
+        oldest = min((t.raw.date for t in pending), default=None)
+        found = list(run.found)
+        detected = [
+            *signal_rules.low_balance_ahead(
+                run.result.lowest, run.result.lowest_date, run.result.today, usual_spending, base
+            ),
+            *signal_rules.price_changes(found),
+            *signal_rules.new_recurring(found, tracked, today),
+            *signal_rules.spending_spikes(
+                lines, months, base, floor=(usual_spending or Decimal(0)) / 20
+            ),
+            *signal_rules.savings_rate_drop(flows),
+            *signal_rules.review_waiting(len(pending), oldest, today),
+        ]
+
+        def money(value: Decimal | None, currency: str | None) -> str | None:
+            if value is None or currency is None:
+                return None
+            return str(quantize(value, currency, strict=False))
+
+        return {
+            "signals": [
+                {
+                    "kind": sig.kind,
+                    "severity": sig.severity,
+                    "title": sig.title,
+                    "detail": sig.detail,
+                    "action": sig.action,
+                    "amount": money(sig.amount, sig.currency),
+                    "currency": sig.currency,
+                    "date": sig.date,
+                    "refs": list(sig.refs),
+                }
+                for sig in signal_rules.ranked(detected)
+            ]
+        }
+
+    async def _pending(self, user_id: str) -> list[Any]:
+        async with self._uow_factory() as uow:
+            return await uow.statements.get_all_pending(user_id)
 
     @staticmethod
     async def _statement_accounts(uow: Any, user_id: str) -> set[str]:

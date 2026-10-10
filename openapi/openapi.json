@@ -8833,6 +8833,78 @@
         }
       }
     },
+    "/v1/insights/safe-to-spend": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Safe To Spend",
+        "operationId": "insights.safeToSpend",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeToSpend"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/insights/signals": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Signals",
+        "operationId": "insights.signals",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceSignals"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/bank-connections": {
       "get": {
         "tags": [
@@ -12811,6 +12883,44 @@
         ],
         "title": "ChatUserMessage"
       },
+      "CommittedFlow": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "description",
+          "amount",
+          "currency"
+        ],
+        "title": "CommittedFlow"
+      },
       "ConnectBank": {
         "properties": {
           "provider": {
@@ -14747,6 +14857,129 @@
         ],
         "title": "FileUpload",
         "description": "A multipart/form-data body carrying one file, as `file`."
+      },
+      "FinanceSignal": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "low_balance_ahead",
+              "price_change",
+              "new_recurring",
+              "spending_spike",
+              "savings_rate_drop",
+              "review_waiting"
+            ],
+            "title": "Kind"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "info"
+            ],
+            "title": "Severity"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "see_forecast",
+              "see_recurring",
+              "see_spending",
+              "see_cash_flow",
+              "review"
+            ],
+            "title": "Action"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "ISO 4217 currency code",
+                "examples": [
+                  "USD"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Refs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "severity",
+          "title",
+          "detail",
+          "action",
+          "amount",
+          "currency",
+          "date",
+          "refs"
+        ],
+        "title": "FinanceSignal"
+      },
+      "FinanceSignals": {
+        "properties": {
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/FinanceSignal"
+            },
+            "type": "array",
+            "title": "Signals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signals"
+        ],
+        "title": "FinanceSignals"
       },
       "FireStrategy": {
         "properties": {
@@ -17727,6 +17960,44 @@
           "token"
         ],
         "title": "NewPersonalAccessToken"
+      },
+      "NextIncome": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "description",
+          "amount",
+          "currency"
+        ],
+        "title": "NextIncome"
       },
       "OAuthErrorBody": {
         "properties": {
@@ -20932,6 +21203,77 @@
         },
         "type": "object",
         "title": "RuleUpdate"
+      },
+      "SafeToSpend": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "cash_today": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cash Today",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "until": {
+            "type": "string",
+            "title": "Until"
+          },
+          "next_income": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextIncome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "committed": {
+            "items": {
+              "$ref": "#/components/schemas/CommittedFlow"
+            },
+            "type": "array",
+            "title": "Committed"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "amount",
+          "cash_today",
+          "until",
+          "next_income",
+          "committed",
+          "notes"
+        ],
+        "title": "SafeToSpend",
+        "description": "What could go out today without the cash forecast going below zero\nbefore money next comes in."
       },
       "SaveKeyRequest": {
         "properties": {

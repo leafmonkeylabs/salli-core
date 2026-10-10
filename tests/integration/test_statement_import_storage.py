@@ -217,3 +217,31 @@ async def test_the_data_export_carries_statements_and_their_rows(uow_factory, ch
     assert statement["id"] == first.statement_id
     assert {t.dedup_status for t in statement["transactions"]} == {"discarded"}
     assert len(statement["transactions"]) == 5
+
+
+async def test_a_statement_is_reviewed_once_nothing_in_it_waits(uow_factory, chart):
+    # Its status stayed "pending" after every row was posted or discarded.
+    parsing = ParsingService(uow_factory)
+    checking = chart["checking"]
+
+    async def status(statement_id: str) -> str:
+        async with uow_factory() as uow:
+            statement = await uow.statements.get_statement("u1", statement_id)
+        assert statement is not None
+        return statement["status"]
+
+    first = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=checking, api_key="k"
+    )
+    ids = [t.id for t in first.transactions]
+    assert await status(first.statement_id) == "pending"
+    await parsing.post_approved("u1", ids[:3])
+    assert await status(first.statement_id) == "pending"
+    await parsing.discard("u1", first.statement_id, ids[3:])
+    assert await status(first.statement_id) == "reviewed"
+
+    # The same file again holds only exact duplicates: nothing to review.
+    again = await parsing.parse_statement(
+        "u1", "oct.csv", STATEMENT, account_id=checking, api_key="k"
+    )
+    assert await status(again.statement_id) == "reviewed"

@@ -183,3 +183,69 @@ async def forecast(
     days: int = Query(60, ge=1, le=366, description="How many days ahead"),
 ) -> CashForecast:
     return CashForecast.model_validate(await svc.insights.forecast(user_id, days))
+
+
+class CommittedFlow(BaseModel):
+    date: str
+    description: str
+    #: Signed: money out is negative. In `currency`.
+    amount: Amount
+    currency: CurrencyCode
+
+
+class NextIncome(BaseModel):
+    date: str
+    description: str
+    amount: Amount
+    currency: CurrencyCode
+
+
+class SafeToSpend(BaseModel):
+    """What could go out today without the cash forecast going below zero
+    before money next comes in."""
+
+    currency: CurrencyCode
+    amount: Amount
+    cash_today: Amount
+    #: The day money next comes in, or 30 days ahead when none is expected.
+    until: str
+    next_income: NextIncome | None
+    #: What is expected to go out before then.
+    committed: list[CommittedFlow]
+    notes: list[str]
+
+
+class FinanceSignal(BaseModel):
+    kind: Literal[
+        "low_balance_ahead",
+        "price_change",
+        "new_recurring",
+        "spending_spike",
+        "savings_rate_drop",
+        "review_waiting",
+    ]
+    severity: Literal["high", "medium", "info"]
+    title: str
+    detail: str
+    #: Where to look: see_forecast, see_recurring, see_spending, see_cash_flow or review.
+    action: Literal["see_forecast", "see_recurring", "see_spending", "see_cash_flow", "review"]
+    amount: Amount | None
+    currency: CurrencyCode | None
+    date: str | None
+    #: What it rests on: journal entry, transaction or account ids.
+    refs: list[str]
+
+
+class FinanceSignals(BaseModel):
+    #: Most pressing first.
+    signals: list[FinanceSignal]
+
+
+@router.get("/safe-to-spend")
+async def safe_to_spend(user_id: CurrentUser, svc: AppServices) -> SafeToSpend:
+    return SafeToSpend.model_validate(await svc.insights.safe_to_spend(user_id))
+
+
+@router.get("/signals")
+async def signals(user_id: CurrentUser, svc: AppServices) -> FinanceSignals:
+    return FinanceSignals.model_validate(await svc.insights.signals(user_id))

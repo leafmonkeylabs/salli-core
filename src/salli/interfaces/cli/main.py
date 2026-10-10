@@ -4706,6 +4706,56 @@ def insights_forecast(
         console.print(f"[yellow]{escape(note)}[/yellow]")
 
 
+@insights_app.command("safe-to-spend")
+def insights_safe_to_spend():
+    """What could go out today without your cash running out before payday."""
+    from decimal import Decimal as _D
+
+    from salli.domain.currency import format_amount
+
+    user_id = _require_user()
+    data = asyncio.run(_services().insights.safe_to_spend(user_id))
+    if emit(data):
+        return
+    base = data["currency"]
+    console.print(
+        f"[bold]Safe to spend: {format_amount(_D(data['amount']), base)}[/bold] "
+        f"(cash today {format_amount(_D(data['cash_today']), base)})"
+    )
+    nxt = data["next_income"]
+    if nxt:
+        console.print(
+            f"Until {nxt['date']}, when {escape(nxt['description'])} brings "
+            f"{format_amount(_D(nxt['amount']), nxt['currency'])}."
+        )
+    else:
+        console.print(f"No income expected; this covers the next 30 days (to {data['until']}).")
+    for f in data["committed"]:
+        console.print(
+            f"  [dim]{f['date']}  {escape(f['description'])}  "
+            f"{format_amount(_D(f['amount']), f['currency'])}[/dim]"
+        )
+    for note in data["notes"]:
+        console.print(f"[dim]{escape(note)}[/dim]")
+
+
+@insights_app.command("signals")
+def insights_signals():
+    """What in your finances needs your attention now."""
+    user_id = _require_user()
+    data = asyncio.run(_services().insights.signals(user_id))
+    if emit(data):
+        return
+    if not data["signals"]:
+        console.print("[green]Nothing needs your attention.[/green]")
+        return
+    style = {"high": "red", "medium": "yellow", "info": "cyan"}
+    for sig in data["signals"]:
+        colour = style[sig["severity"]]
+        console.print(f"[{colour}]●[/{colour}] [bold]{escape(sig['title'])}[/bold]")
+        console.print(f"  {escape(sig['detail'])}")
+
+
 # ── banks ─────────────────────────────────────────────────────────────────────
 
 
