@@ -1,0 +1,92 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XD", "region": null },
+  "year": { "label": "2031", "start": "2031-01-01", "end": "2031-12-31" },
+  "currency": "JPY",
+  "sources": [
+    { "id": "tax_act", "url": "https://example.org/capland/income-tax", "title": "Capland Income Tax Act (fictional)" },
+    { "id": "social_act", "url": "https://example.org/capland/social-insurance", "title": "Capland Social Insurance Act (fictional)" }
+  ],
+  "roles": [
+    { "key": "earnings", "kind": "income", "label": "Earnings from work" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Income tax withheld" },
+    { "key": "contributions_withheld", "kind": "withholding", "label": "Social contributions withheld" }
+  ],
+  "band_tables": {
+    "income": {
+      "label": "Income tax rates",
+      "bands": [{ "upto": "3000000", "rate": "0.05" }, { "upto": null, "rate": "0.20" }],
+      "round": { "mode": "down", "unit": "1" },
+      "source": "tax_act"
+    }
+  },
+  "blocks": [
+    { "type": "relief", "key": "allowance", "label": "Basic allowance", "of": "role.earnings", "amount": "1000000", "source": "tax_act" },
+    {
+      "type": "deduction", "key": "contribution_deduction", "label": "Contributions deducted",
+      "of": "line.allowance.remaining", "amount": "line.contribution", "source": "tax_act"
+    },
+    { "type": "schedule", "key": "income_tax", "label": "Income tax", "of": "line.contribution_deduction.remaining", "table": "income" },
+    { "type": "credit", "key": "tax_withholding", "label": "Income tax withheld", "of": "role.tax_withheld", "refundable": true },
+    { "type": "credit", "key": "contribution_withholding", "label": "Contributions withheld", "of": "role.contributions_withheld", "refundable": true }
+  ],
+  "lines": [
+    {
+      "key": "contribution", "label": "Social contribution",
+      "expr": "round(0.08 * (clamp(role.earnings, 1200000, 6000000) - 1200000), \"down\", 1)",
+      "source": "social_act"
+    },
+    {
+      "key": "balance", "label": "Tax and contribution less withholding",
+      "expr": "line.income_tax + line.contribution - line.tax_withholding - line.contribution_withholding"
+    }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "down", "unit": "1" } },
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2032-03-15", "source": "tax_act" }],
+  "suggested_accounts": [
+    { "code": "1470", "name": "Income tax withheld", "type": "asset", "tax_role": "tax_withheld" },
+    { "code": "1471", "name": "Contributions withheld", "type": "asset", "tax_role": "contributions_withheld" }
+  ],
+  "forms": [
+    {
+      "key": "return", "label": "Return",
+      "fields": [
+        { "id": "earnings", "label": "Earnings", "value": "role.earnings" },
+        { "id": "contribution", "label": "Social contribution", "value": "line.contribution" },
+        { "id": "income_tax", "label": "Income tax", "value": "line.income_tax" }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "name": "Below the floor and the allowance", "source": "social_act",
+      "inputs": { "earnings": "1000000" },
+      "expected": { "payable": "0", "lines": { "contribution": "0", "income_tax": "0" } }
+    },
+    {
+      "name": "At the floor", "source": "social_act",
+      "inputs": { "earnings": "1200000" },
+      "expected": { "payable": "10000", "lines": { "contribution": "0", "income_tax": "10000" } }
+    },
+    {
+      "name": "Just above the floor, rounded down", "source": "social_act",
+      "inputs": { "earnings": "1200005" },
+      "expected": { "payable": "10000", "lines": { "contribution": "0", "income_tax.band_1.tax": "10000" } }
+    },
+    {
+      "name": "Between floor and ceiling", "source": "social_act",
+      "inputs": { "earnings": "4000000" },
+      "expected": { "payable": "362800", "lines": { "contribution": "224000", "contribution_deduction.remaining": "2776000", "income_tax": "138800" } }
+    },
+    {
+      "name": "At the ceiling", "source": "social_act",
+      "inputs": { "earnings": "6000000" },
+      "expected": { "payable": "857200", "lines": { "contribution": "384000", "income_tax": "473200" } }
+    },
+    {
+      "name": "Above the ceiling, mostly withheld", "source": "social_act",
+      "inputs": { "earnings": "9000000", "tax_withheld": "1000000", "contributions_withheld": "384000" },
+      "expected": { "payable": "73200", "refund": "0", "lines": { "contribution": "384000", "income_tax": "1073200" } }
+    }
+  ]
+}

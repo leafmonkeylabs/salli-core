@@ -1,0 +1,71 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XE", "region": null },
+  "year": { "label": "2031", "start": "2031-01-01", "end": "2031-12-31" },
+  "currency": "EUR",
+  "sources": [
+    { "id": "tariff", "url": "https://example.org/formulaland/tariff", "title": "Formulaland Tariff Ordinance (fictional)" }
+  ],
+  "roles": [
+    { "key": "income", "kind": "income", "label": "Income" },
+    { "key": "deductible_expenses", "kind": "deduction", "label": "Deductible expenses" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Tax withheld" }
+  ],
+  "blocks": [
+    { "type": "credit", "key": "withholding", "label": "Tax withheld", "of": "role.tax_withheld", "refundable": true }
+  ],
+  "lines": [
+    {
+      "key": "taxable", "label": "Taxable income, in whole euros",
+      "expr": "round(max(0, role.income - role.deductible_expenses), \"down\", 1)", "source": "tariff"
+    },
+    { "key": "y", "label": "Zone 2 variable", "expr": "(line.taxable - 10000) / 10000", "source": "tariff" },
+    { "key": "z", "label": "Zone 3 variable", "expr": "(line.taxable - 20000) / 10000", "source": "tariff" },
+    {
+      "key": "tariff", "label": "Tariff tax",
+      "expr": "round(if(line.taxable <= 10000, 0, if(line.taxable <= 20000, (600 * line.y + 1400) * line.y, if(line.taxable <= 60000, (200 * line.z + 2600) * line.z + 2000, 0.42 * line.taxable - 9600))), \"down\", 1)",
+      "source": "tariff"
+    },
+    { "key": "balance", "label": "Tax less withholding", "expr": "line.tariff - line.withholding" }
+  ],
+  "result": { "net": "line.balance" },
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2032-07-31", "source": "tariff" }],
+  "suggested_accounts": [
+    { "code": "6500", "name": "Work expenses", "type": "expense", "tax_role": "deductible_expenses" }
+  ],
+  "forms": [
+    {
+      "key": "return", "label": "Return",
+      "fields": [
+        { "id": "taxable", "label": "Taxable income", "value": "line.taxable" },
+        { "id": "tax", "label": "Tax", "value": "line.tariff" }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "Top of the zero zone", "source": "tariff", "inputs": { "income": "10000" }, "expected": { "payable": "0", "lines": { "tariff": "0" } } },
+    {
+      "name": "Cents don't push income into zone 2", "source": "tariff",
+      "inputs": { "income": "10000.99" },
+      "expected": { "payable": "0", "lines": { "taxable": "10000", "tariff": "0" } }
+    },
+    { "name": "Middle of zone 2", "source": "tariff", "inputs": { "income": "15000" }, "expected": { "payable": "850", "lines": { "y": "0.5" } } },
+    {
+      "name": "Zone 2, rounded down", "source": "tariff",
+      "inputs": { "income": "15001" },
+      "expected": { "payable": "850", "lines": { "y": "0.5001", "tariff": "850" } }
+    },
+    { "name": "Zone 2 meets zone 3", "source": "tariff", "inputs": { "income": "20000" }, "expected": { "payable": "2000" } },
+    {
+      "name": "Inside zone 3", "source": "tariff",
+      "inputs": { "income": "33333.99" },
+      "expected": { "payable": "5822", "lines": { "taxable": "33333", "z": "1.3333" } }
+    },
+    { "name": "Zone 3 meets zone 4", "source": "tariff", "inputs": { "income": "60000" }, "expected": { "payable": "15600" } },
+    {
+      "name": "Zone 4, with a refund", "source": "tariff",
+      "inputs": { "income": "100000", "deductible_expenses": "5000.50", "tax_withheld": "40000" },
+      "expected": { "payable": "0", "refund": "9701", "lines": { "taxable": "94999", "tariff": "30299" } }
+    }
+  ]
+}

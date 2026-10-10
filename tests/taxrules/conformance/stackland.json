@@ -1,0 +1,92 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XC", "region": "Upper Stack" },
+  "year": { "label": "2031", "start": "2031-01-01", "end": "2031-12-31" },
+  "currency": "CHF",
+  "sources": [
+    { "id": "law", "url": "https://example.org/stackland/income-and-gains", "title": "Stackland Income and Gains Law (fictional)" }
+  ],
+  "roles": [
+    { "key": "salary", "kind": "income", "label": "Salary" },
+    { "key": "capital_gains", "kind": "income", "label": "Capital gains", "description": "Net gains realised in the year" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Tax withheld" }
+  ],
+  "band_tables": {
+    "income": {
+      "label": "Income tax rates",
+      "bands": [{ "upto": "50000", "rate": "0.20" }, { "upto": null, "rate": "0.40" }],
+      "source": "law"
+    },
+    "cgt": {
+      "label": "Capital gains rates, stacked on ordinary taxable income",
+      "bands": [{ "upto": "50000", "rate": "0.10" }, { "upto": null, "rate": "0.20" }],
+      "source": "law"
+    }
+  },
+  "blocks": [
+    { "type": "relief", "key": "allowance", "label": "Personal allowance", "of": "role.salary", "amount": "12000", "source": "law" },
+    { "type": "deduction", "key": "gains_exemption", "label": "Annual gains exemption", "of": "role.capital_gains", "amount": "3000", "source": "law" },
+    { "type": "schedule", "key": "income_tax", "label": "Income tax", "of": "line.ordinary_taxable", "table": "income" },
+    { "type": "credit", "key": "withholding", "label": "Tax withheld", "of": "role.tax_withheld", "refundable": true }
+  ],
+  "lines": [
+    { "key": "ordinary_taxable", "label": "Ordinary taxable income", "expr": "line.allowance.remaining" },
+    { "key": "taxable_gains", "label": "Taxable gains", "expr": "line.gains_exemption.remaining" },
+    {
+      "key": "gains_tax", "label": "Capital gains tax",
+      "expr": "bands(line.ordinary_taxable + line.taxable_gains, \"cgt\") - bands(line.ordinary_taxable, \"cgt\")"
+    },
+    {
+      "key": "gains_in_lower_band", "label": "Gains taxed at the lower rate",
+      "expr": "band_amount(line.ordinary_taxable + line.taxable_gains, \"cgt\", 1) - band_amount(line.ordinary_taxable, \"cgt\", 1)"
+    },
+    { "key": "balance", "label": "Tax less withholding", "expr": "line.income_tax + line.gains_tax - line.withholding" }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "nearest", "unit": "0.05" } },
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2032-03-31", "source": "law" }],
+  "suggested_accounts": [
+    { "code": "8200", "name": "Realised gains", "type": "income", "tax_role": "capital_gains" }
+  ],
+  "forms": [
+    {
+      "key": "return", "label": "Return",
+      "fields": [
+        { "id": "income", "label": "Ordinary taxable income", "value": "line.ordinary_taxable" },
+        { "id": "gains", "label": "Taxable gains", "value": "line.taxable_gains" },
+        { "id": "gains_tax", "label": "Capital gains tax", "value": "line.gains_tax" }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "name": "Gains entirely in the lower band", "source": "law",
+      "inputs": { "salary": "40000", "capital_gains": "23000" },
+      "expected": { "payable": "7600", "lines": { "income_tax": "5600", "gains_tax": "2000", "gains_in_lower_band": "20000" } }
+    },
+    {
+      "name": "Gains straddle the band edge", "source": "law",
+      "inputs": { "salary": "52000", "capital_gains": "23000" },
+      "expected": { "payable": "11000", "lines": { "income_tax": "8000", "gains_tax": "3000", "gains_in_lower_band": "10000" } }
+    },
+    {
+      "name": "Ordinary income already above the edge", "source": "law",
+      "inputs": { "salary": "80000", "capital_gains": "13000" },
+      "expected": { "payable": "19200", "lines": { "income_tax": "17200", "gains_tax": "2000", "gains_in_lower_band": "0" } }
+    },
+    {
+      "name": "Gains within the exemption", "source": "law",
+      "inputs": { "salary": "30000", "capital_gains": "2500" },
+      "expected": { "payable": "3600", "lines": { "taxable_gains": "0", "gains_tax": "0" } }
+    },
+    {
+      "name": "Ordinary income ends exactly at the edge", "source": "law",
+      "inputs": { "salary": "62000", "capital_gains": "3001.10" },
+      "expected": { "payable": "10000.20", "lines": { "gains_tax": "0.22", "gains_in_lower_band": "0" } }
+    },
+    {
+      "name": "Gains only, refund of withholding", "source": "law",
+      "inputs": { "capital_gains": "63000", "tax_withheld": "7500" },
+      "expected": { "payable": "0", "refund": "500", "lines": { "allowance": "0", "gains_tax": "7000" } }
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XF", "region": null },
+  "year": { "label": "2031/32", "start": "2031-04-01", "end": "2032-03-31" },
+  "currency": "NZD",
+  "sources": [
+    { "id": "act", "url": "https://example.org/rebateland/rebate-act", "title": "Rebateland Rebate Act (fictional)" }
+  ],
+  "roles": [
+    { "key": "income", "kind": "income", "label": "Income" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Tax withheld" }
+  ],
+  "band_tables": {
+    "main": {
+      "label": "Rates on income",
+      "bands": [{ "upto": "30000", "rate": "0.10" }, { "upto": null, "rate": "0.25" }],
+      "source": "act"
+    }
+  },
+  "blocks": [
+    { "type": "schedule", "key": "gross_tax", "label": "Tax before the rebate", "of": "role.income", "table": "main" },
+    { "type": "credit", "key": "withholding", "label": "Tax withheld", "of": "role.tax_withheld", "refundable": true }
+  ],
+  "lines": [
+    { "key": "excess", "label": "Income above the rebate threshold", "expr": "max(0, role.income - 20000)", "source": "act" },
+    {
+      "key": "rebate", "label": "Rebate, with marginal relief",
+      "expr": "if(role.income <= 20000, line.gross_tax, max(0, line.gross_tax - line.excess))", "source": "act"
+    },
+    { "key": "tax", "label": "Tax after the rebate", "expr": "line.gross_tax - line.rebate" },
+    { "key": "balance", "label": "Tax less withholding", "expr": "line.tax - line.withholding" }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "nearest", "unit": "0.01" } },
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2032-07-07", "source": "act" }],
+  "suggested_accounts": [
+    { "code": "1480", "name": "Tax withheld", "type": "asset", "tax_role": "tax_withheld" }
+  ],
+  "forms": [
+    {
+      "key": "return", "label": "Return",
+      "fields": [
+        { "id": "income", "label": "Income", "value": "role.income" },
+        { "id": "rebate", "label": "Rebate", "value": "line.rebate" },
+        { "id": "rebate_claimed", "label": "Rebate claimed", "value": "line.rebate > 0" }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "Under the threshold", "source": "act", "inputs": { "income": "18000" }, "expected": { "payable": "0", "lines": { "gross_tax": "1800", "rebate": "1800" } } },
+    { "name": "At the threshold", "source": "act", "inputs": { "income": "20000" }, "expected": { "payable": "0", "lines": { "rebate": "2000" } } },
+    {
+      "name": "One cent over", "source": "act",
+      "inputs": { "income": "20000.01" },
+      "expected": { "payable": "0.01", "lines": { "gross_tax": "2000.001", "rebate": "1999.991", "tax": "0.01" } }
+    },
+    {
+      "name": "Marginal relief: tax is the income above the threshold", "source": "act",
+      "inputs": { "income": "21000" },
+      "expected": { "payable": "1000", "lines": { "rebate": "1100", "tax": "1000" } }
+    },
+    {
+      "name": "Where marginal relief runs out", "source": "act",
+      "inputs": { "income": "22222.22" },
+      "expected": { "payable": "2222.22", "lines": { "rebate": "0.002", "tax": "2222.22" } }
+    },
+    { "name": "Past marginal relief", "source": "act", "inputs": { "income": "25000" }, "expected": { "payable": "2500", "lines": { "rebate": "0" } } },
+    {
+      "name": "Higher band, refund", "source": "act",
+      "inputs": { "income": "40000", "tax_withheld": "6000" },
+      "expected": { "payable": "0", "refund": "500", "lines": { "gross_tax": "5500" } }
+    }
+  ]
+}

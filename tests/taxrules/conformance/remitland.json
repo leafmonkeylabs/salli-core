@@ -1,0 +1,99 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XG", "region": null },
+  "year": { "label": "2031/32", "start": "2031-04-01", "end": "2032-03-31" },
+  "currency": "KWD",
+  "sources": [
+    { "id": "act", "url": "https://example.org/remitland/income-tax-act", "title": "Remitland Income Tax Act (fictional)" },
+    { "id": "foreign_regime", "url": "https://example.org/remitland/foreign-income", "title": "Remitland Foreign Income Regulations (fictional)" }
+  ],
+  "roles": [
+    { "key": "local_income", "kind": "income", "label": "Local income" },
+    { "key": "foreign_income", "kind": "income", "label": "Foreign income remitted" },
+    { "key": "foreign_tax_paid", "kind": "withholding", "label": "Foreign tax paid on the foreign income" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Tax withheld locally" }
+  ],
+  "band_tables": {
+    "local": {
+      "label": "Rates on local taxable income",
+      "bands": [
+        { "upto": "10000", "rate": "0.05" },
+        { "upto": "30000", "rate": "0.15" },
+        { "upto": null, "rate": "0.25" }
+      ],
+      "round": { "mode": "nearest", "unit": "0.001" },
+      "source": "act"
+    }
+  },
+  "blocks": [
+    {
+      "type": "final_rate", "key": "foreign_tax", "label": "Final tax on foreign income",
+      "of": "role.foreign_income", "rate": "0.10", "round": { "mode": "down", "unit": "1" }, "source": "foreign_regime"
+    },
+    { "type": "relief", "key": "relief", "label": "Personal relief", "of": "role.local_income", "amount": "5000", "source": "act" },
+    { "type": "schedule", "key": "local_tax", "label": "Tax on local income", "of": "line.relief.remaining", "table": "local" },
+    {
+      "type": "credit", "key": "ftc", "label": "Foreign tax credit", "of": "role.foreign_tax_paid",
+      "refundable": false, "cap": "line.foreign_tax", "source": "foreign_regime"
+    },
+    { "type": "credit", "key": "withholding", "label": "Tax withheld", "of": "role.tax_withheld", "refundable": true }
+  ],
+  "lines": [
+    { "key": "tax_before_credits", "label": "Tax before credits", "expr": "line.local_tax + line.foreign_tax" },
+    { "key": "balance", "label": "Tax less credits", "expr": "line.tax_before_credits - line.ftc - line.withholding" }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "nearest", "unit": "0.001" } },
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2032-09-30", "source": "act" }],
+  "suggested_accounts": [
+    { "code": "4600", "name": "Foreign income", "type": "income", "tax_role": "foreign_income" },
+    { "code": "1490", "name": "Foreign tax paid", "type": "asset", "tax_role": "foreign_tax_paid" }
+  ],
+  "forms": [
+    {
+      "key": "return", "label": "Return",
+      "fields": [
+        { "id": "local", "label": "Local taxable income", "value": "line.relief.remaining" },
+        { "id": "foreign", "label": "Foreign income", "value": "role.foreign_income" },
+        { "id": "ftc", "label": "Foreign tax credit", "value": "line.ftc" }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "Below the relief", "source": "act", "inputs": { "local_income": "4000" }, "expected": { "payable": "0", "refund": "0" } },
+    {
+      "name": "Local income across two bands", "source": "act",
+      "inputs": { "local_income": "20000" },
+      "expected": { "payable": "1250", "lines": { "relief.remaining": "15000", "local_tax.band_2.tax": "750" } }
+    },
+    {
+      "name": "Foreign income only: the relief doesn't reach it", "source": "foreign_regime",
+      "inputs": { "foreign_income": "12345.678" },
+      "expected": { "payable": "1234", "lines": { "foreign_tax": "1234", "relief": "0" } }
+    },
+    {
+      "name": "Foreign tax credit below the cap", "source": "foreign_regime",
+      "inputs": { "local_income": "20000", "foreign_income": "10000", "foreign_tax_paid": "600" },
+      "expected": { "payable": "1650", "lines": { "foreign_tax": "1000", "ftc": "600" } }
+    },
+    {
+      "name": "Foreign tax credit capped at the foreign income's tax", "source": "foreign_regime",
+      "inputs": { "local_income": "20000", "foreign_income": "10000", "foreign_tax_paid": "1500" },
+      "expected": { "payable": "1250", "lines": { "ftc": "1000", "tax_before_credits": "2250" } }
+    },
+    {
+      "name": "Withholding above the tax is refunded", "source": "act",
+      "inputs": { "local_income": "20000", "tax_withheld": "2000" },
+      "expected": { "payable": "0", "refund": "750" }
+    },
+    {
+      "name": "The refund comes from withholding, never the foreign tax credit", "source": "act",
+      "inputs": { "local_income": "6000", "foreign_income": "5000", "foreign_tax_paid": "900", "tax_withheld": "300" },
+      "expected": { "payable": "0", "refund": "250", "lines": { "local_tax": "50", "ftc": "500" } }
+    },
+    {
+      "name": "Per-band rounding to a thousandth, tie away from zero", "source": "act",
+      "inputs": { "local_income": "15000.01" },
+      "expected": { "payable": "500.002", "lines": { "local_tax.band_2.tax": "0.002" } }
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XB", "region": null },
+  "year": { "label": "2031/32", "start": "2031-07-01", "end": "2032-06-30" },
+  "currency": "EUR",
+  "sources": [
+    { "id": "code", "url": "https://example.org/jointland/tax-code", "title": "Jointland Tax Code (fictional)" }
+  ],
+  "roles": [
+    { "key": "wages", "kind": "income", "label": "Wages" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Tax withheld" }
+  ],
+  "questions": [
+    { "key": "filing_status", "label": "Filing status", "type": "choice", "choices": ["single", "joint"] },
+    { "key": "blind", "label": "Registered blind", "type": "boolean", "default": false }
+  ],
+  "band_tables": {
+    "single": {
+      "label": "Single filers",
+      "bands": [{ "upto": "20000", "rate": "0.10" }, { "upto": null, "rate": "0.30" }],
+      "source": "code"
+    },
+    "joint": {
+      "label": "Joint filers",
+      "bands": [{ "upto": "40000", "rate": "0.10" }, { "upto": null, "rate": "0.30" }],
+      "source": "code"
+    }
+  },
+  "blocks": [
+    { "type": "relief", "key": "allowance_relief", "label": "Allowance", "of": "role.wages", "amount": "line.allowance" },
+    { "type": "schedule", "key": "single_tax", "label": "Tax at single rates", "of": "line.allowance_relief.remaining", "table": "single" },
+    { "type": "schedule", "key": "joint_tax", "label": "Tax at joint rates", "of": "line.allowance_relief.remaining", "table": "joint" },
+    { "type": "credit", "key": "withholding", "label": "Tax withheld", "of": "role.tax_withheld", "refundable": true }
+  ],
+  "lines": [
+    {
+      "key": "allowance", "label": "Allowance for this filer",
+      "expr": "choice(answer.filing_status, \"single\", 10000, \"joint\", 20000) + if(answer.blind, 2500, 0)",
+      "source": "code"
+    },
+    {
+      "key": "income_tax", "label": "Income tax",
+      "expr": "choice(answer.filing_status, \"single\", line.single_tax, \"joint\", line.joint_tax)"
+    },
+    { "key": "balance", "label": "Tax less withholding", "expr": "line.income_tax - line.withholding" }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "down", "unit": "1" } },
+  "deadlines": [{ "key": "return", "label": "Return due", "date": "2032-10-31", "source": "code" }],
+  "suggested_accounts": [
+    { "code": "1460", "name": "Wage tax withheld", "type": "asset", "tax_role": "tax_withheld" }
+  ],
+  "forms": [
+    {
+      "key": "return", "label": "Annual return",
+      "fields": [
+        { "id": "wages", "label": "Wages", "value": "role.wages" },
+        { "id": "joint", "label": "Filing jointly", "value": "choice(answer.filing_status, \"single\", false, \"joint\", true)" },
+        { "id": "tax", "label": "Tax", "value": "line.income_tax" }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "name": "Single, into the higher band", "source": "code",
+      "inputs": { "wages": "50000", "filing_status": "single" },
+      "expected": { "payable": "8000", "lines": { "allowance": "10000", "allowance_relief.remaining": "40000" } }
+    },
+    {
+      "name": "Joint, same wages", "source": "code",
+      "inputs": { "wages": "50000", "filing_status": "joint" },
+      "expected": { "payable": "3000", "lines": { "allowance": "20000", "joint_tax": "3000", "single_tax": "5000" } }
+    },
+    {
+      "name": "Single, at the band edge", "source": "code",
+      "inputs": { "wages": "30000", "filing_status": "single", "blind": false },
+      "expected": { "payable": "2000", "lines": { "single_tax.band_2.amount": "0" } }
+    },
+    {
+      "name": "Joint and blind, refund rounded towards zero", "source": "code",
+      "inputs": { "wages": "62500.50", "filing_status": "joint", "blind": true, "tax_withheld": "5000" },
+      "expected": { "payable": "0", "refund": "999", "lines": { "allowance": "22500", "income_tax": "4000.15" } }
+    },
+    {
+      "name": "Single, below the allowance", "source": "code",
+      "inputs": { "wages": "10000", "filing_status": "single" },
+      "expected": { "payable": "0", "refund": "0" }
+    },
+    {
+      "name": "Joint and blind, wages below the allowance", "source": "code",
+      "inputs": { "wages": "21000", "filing_status": "joint", "blind": true },
+      "expected": { "payable": "0", "lines": { "allowance_relief": "21000", "allowance_relief.remaining": "0" } }
+    }
+  ]
+}
