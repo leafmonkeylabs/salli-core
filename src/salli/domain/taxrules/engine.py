@@ -181,14 +181,19 @@ def _canonical(value: Any) -> Any:
     return value
 
 
-def content_hash(doc: RuleSet | Mapping[str, Any]) -> str:
-    """sha256 (hex) of the document's canonical JSON: the validated document
-    with every field present, keys sorted, no whitespace, and decimals as their
-    shortest string ("0.150" and "0.15" hash alike). Two spellings of the same
-    rules hash the same; any change to them doesn't."""
+def canonical_json(doc: RuleSet | Mapping[str, Any]) -> str:
+    """The document's canonical JSON: the validated document with every field
+    present, keys sorted, no whitespace, and decimals as their shortest string.
+    What an export writes, so the file's sha256 is its content hash."""
     data = _canonical(load(doc).model_dump(mode="python", by_alias=True))
-    text = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def content_hash(doc: RuleSet | Mapping[str, Any]) -> str:
+    """sha256 (hex) of the document's canonical JSON (`canonical_json`):
+    "0.150" and "0.15" hash alike, so two spellings of the same rules hash the
+    same; any change to them doesn't."""
+    return hashlib.sha256(canonical_json(doc).encode("utf-8")).hexdigest()
 
 
 # ── compiling ──────────────────────────────────────────────────────────────────
