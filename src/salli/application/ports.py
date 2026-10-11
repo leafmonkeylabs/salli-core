@@ -46,17 +46,24 @@ class LedgerRepository(ABC):
         ...
 
     async def posting_totals(
-        self, user_id: str, account_ids: Collection[str]
+        self, user_id: str, account_ids: Collection[str], to_date: str | None = None
     ) -> list[tuple[str, str, Decimal, Decimal]]:
         """For each of these accounts and each currency posted to it: (account
         id, currency, the signed total in that currency, the signed total in
-        the base currency), summed by the store over every entry."""
+        the base currency), summed by the store over every entry (dated on or
+        before `to_date`, when given)."""
         raise NotImplementedError
 
     async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
         """Each account's signed base-currency balance from every entry dated
         before `before` (YYYY-MM-DD): debits up, credits down, exactly as
         `Posting.base_signed` sums them. Summed by the store, not loaded."""
+        raise NotImplementedError
+
+    async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
+        """The date of the user's first entry with a posting to an income or
+        an expense account (on or before `to_date`, when given), or None:
+        when their record of money in and out begins."""
         raise NotImplementedError
 
     @abstractmethod
@@ -85,6 +92,7 @@ class LedgerRepository(ABC):
         type: str,
         currency: str,
         tax_role: str | None = None,
+        asset_role: str | None = None,
     ) -> None:
         """Update mutable fields of an existing account."""
         ...

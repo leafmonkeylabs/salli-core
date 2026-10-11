@@ -9,8 +9,10 @@ from salli.application.fx import rate_to_base
 from salli.application.ownership import require_own_accounts
 from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.accounting.models import (
+    ASSET_ROLES,
     Account,
     AccountType,
+    AssetRole,
     Direction,
     JournalEntry,
     Posting,
@@ -34,6 +36,26 @@ async def tax_residency(uow: Any, user_id: str) -> str | None:
     profile = await uow.user_profiles.get(user_id)
     residency = (profile or {}).get("tax_residency")
     return residency if isinstance(residency, str) and residency else None
+
+
+def asset_role_for(
+    type: str, given: str | None, current: AssetRole | None = None
+) -> AssetRole | None:
+    """The asset role an account of `type` takes: the one `given`, else the
+    one it has (`current`), else "cash" for an asset account; None for any
+    other type, which can't take one (ValueError)."""
+    if type != "asset":
+        if given is not None:
+            raise ValueError(
+                f"Only an asset account has an asset role (cash, investment or other); "
+                f"this is a {type} account"
+            )
+        return None
+    if given is None:
+        return current or "cash"
+    if given not in ASSET_ROLES:
+        raise ValueError(f"An asset role is cash, investment or other, not {given!r}")
+    return given  # type: ignore[return-value]
 
 
 def _role_refusal(role: str, declared: tuple[str, ...]) -> str:
@@ -86,13 +108,17 @@ class LedgerService:
         currency: str | None = None,
         parent_id: str | None = None,
         tax_role: TaxRole | None = None,
+        asset_role: AssetRole | None = None,
     ) -> str:
         """Open an account, held in `currency` — the user's base currency unless
         another is named (a USD savings account in a yen ledger).
 
         A `tax_role` must be one the user's tax rule sets declare
         (`UnknownTaxRoleError` otherwise), and a `parent_id` one of the user's
-        own accounts (`AccountNotFound` otherwise)."""
+        own accounts (`AccountNotFound` otherwise). An asset account's
+        `asset_role` is "cash" unless another is given; no other type of
+        account takes one (ValueError)."""
+        role = asset_role_for(type, asset_role)
         async with self._uow_factory() as uow:
             if tax_role is not None:
                 await self._check_tax_role(uow, user_id, tax_role)
@@ -111,6 +137,7 @@ class LedgerService:
                 currency=held_in,
                 parent_id=parent_id,
                 tax_role=tax_role,
+                asset_role=role,
             )
             return await uow.ledger.save_account(user_id, account)
 
@@ -282,6 +309,7 @@ class LedgerService:
         type: str,
         currency: str | None = None,
         tax_role: str | None = None,
+        asset_role: str | None = None,
     ) -> None:
         """Edit an account. `currency` None leaves it as it is; it can only
         change while the account has no entries, because its postings are
@@ -290,11 +318,15 @@ class LedgerService:
         A new `tax_role` must be one the user's tax rule sets declare; the role
         an account already has may stay, so a rename never fails on it (even
         when no rule set in use declares it any more: validating a rule set
-        warns about that)."""
+        warns about that).
+
+        `asset_role` None keeps an asset account's role (an account that
+        becomes an asset is "cash"; one that stops being one has none)."""
         async with self._uow_factory() as uow:
             account = await uow.ledger.get_account(user_id, account_id)
             if account is None:
                 raise KeyError(account_id)
+            role = asset_role_for(type, asset_role, account.asset_role)
             if tax_role is not None and tax_role != account.tax_role:
                 await self._check_tax_role(uow, user_id, tax_role)
             held_in = normalize_currency(currency) if currency else account.currency
@@ -314,6 +346,7 @@ class LedgerService:
                 type=type,
                 currency=held_in,
                 tax_role=tax_role,
+                asset_role=role,
             )
 
     async def ensure_system_tags(self, user_id: str, tags: list[tuple[str, str, str]]) -> None:
@@ -392,6 +425,8 @@ class LedgerService:
                 "currency": account.currency,
                 "parent_id": account.parent_id,
                 "is_active": account.is_active,
+                "tax_role": account.tax_role,
+                "asset_role": account.asset_role,
             },
             "base_currency": base,
             "current_balance": str(quantize(current_balance, base)),

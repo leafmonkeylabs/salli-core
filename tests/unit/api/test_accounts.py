@@ -118,3 +118,42 @@ async def test_accounts_expose_tax_role(client, mock_services):
     mock_services.ledger.get_account.return_value = make_account(tax_role="ait_credit")
     r = await client.get("/accounts/acc-1", headers=AUTH)
     assert r.json()["tax_role"] == "ait_credit"
+
+
+async def test_an_asset_role_is_sent_and_read_back(client, mock_services):
+    mock_services.ledger.add_account.return_value = "new-acc-id"
+    r = await client.post(
+        "/accounts/",
+        json={"code": "1300", "name": "Brokerage", "type": "asset", "asset_role": "investment"},
+        headers=AUTH,
+    )
+    assert r.status_code == 201
+    assert mock_services.ledger.add_account.await_args.kwargs["asset_role"] == "investment"
+
+    mock_services.ledger.get_account.return_value = make_account()
+    r = await client.patch(
+        "/accounts/acc-1",
+        json={"code": "1000", "name": "Cash", "type": "asset", "asset_role": "other"},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    assert mock_services.ledger.update_account.await_args.kwargs["asset_role"] == "other"
+
+    # Omitted on an update: the service keeps the role the account has.
+    r = await client.patch(
+        "/accounts/acc-1", json={"code": "1000", "name": "Wallet", "type": "asset"}, headers=AUTH
+    )
+    assert mock_services.ledger.update_account.await_args.kwargs["asset_role"] is None
+
+    mock_services.ledger.list_accounts.return_value = [make_account()]
+    assert (await client.get("/accounts/", headers=AUTH)).json()[0]["asset_role"] == "cash"
+
+
+async def test_an_asset_role_is_one_of_three(client, mock_services):
+    r = await client.post(
+        "/accounts/",
+        json={"code": "1300", "name": "Brokerage", "type": "asset", "asset_role": "stocks"},
+        headers=AUTH,
+    )
+    assert r.status_code == 422
+    mock_services.ledger.add_account.assert_not_awaited()

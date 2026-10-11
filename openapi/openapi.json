@@ -11308,6 +11308,22 @@
               }
             ],
             "title": "Tax Role"
+          },
+          "asset_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "investment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Role"
           }
         },
         "type": "object",
@@ -11638,6 +11654,22 @@
               }
             ],
             "title": "Tax Role"
+          },
+          "asset_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "investment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Role"
           }
         },
         "type": "object",
@@ -14922,6 +14954,17 @@
             "type": "boolean",
             "title": "Is Active"
           },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -14992,6 +15035,17 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
           }
         },
         "type": "object",
@@ -15073,6 +15127,17 @@
               }
             ],
             "title": "Is Active"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
           }
         },
         "type": "object",
@@ -26836,6 +26901,22 @@
               }
             ],
             "title": "Tax Role"
+          },
+          "asset_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "investment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Role"
           }
         },
         "type": "object",

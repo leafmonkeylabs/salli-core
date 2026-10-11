@@ -64,6 +64,10 @@ class AccountORM(Base):
     # than inferred from `name`. The user's own tax rule sets declare which
     # roles exist, so the database checks only the shape of the code.
     tax_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # What an asset account holds: cash, investment or other
+    # (`domain.accounting.models.AssetRole`). Every asset account has one;
+    # no other account does.
+    asset_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -77,6 +81,14 @@ class AccountORM(Base):
         CheckConstraint(
             "tax_role IS NULL OR tax_role ~ '^[a-z][a-z0-9_]*$'",
             name="ck_accounts_tax_role",
+        ),
+        # Written so a NULL can't slip through: a CHECK passes when its
+        # expression is NULL, and `NULL IN (...)` is.
+        CheckConstraint(
+            "(type = 'asset' AND asset_role IS NOT NULL"
+            " AND asset_role IN ('cash','investment','other'))"
+            " OR (type <> 'asset' AND asset_role IS NULL)",
+            name="ck_accounts_asset_role",
         ),
     )
 
@@ -932,6 +944,14 @@ class DebtORM(Base):
     apr: Mapped[float] = mapped_column(Numeric(6, 4), nullable=False)  # e.g. 0.1850 = 18.5%
     minimum_payment_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # The liability account in the ledger that holds this debt, if any. A
+    # linked debt's balance is the account's (counted once); its rate and
+    # minimum payment are what it adds. The service checks it is the owner's
+    # own liability account in the base currency; the database, that it
+    # exists and that no other active debt holds it.
+    account_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("accounts.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -939,7 +959,16 @@ class DebtORM(Base):
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
 
-    __table_args__ = (Index("ix_debts_user_active", "user_id", "is_active"),)
+    __table_args__ = (
+        Index("ix_debts_user_active", "user_id", "is_active"),
+        Index(
+            "uq_debts_active_account",
+            "user_id",
+            "account_id",
+            unique=True,
+            postgresql_where=text("account_id IS NOT NULL AND is_active"),
+        ),
+    )
 
 
 # ── Portfolio ─────────────────────────────────────────────────────────────────

@@ -36,6 +36,24 @@ TaxRole = str
 
 _TAX_ROLE_SHAPE = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
 
+# What an asset account holds, declared rather than guessed from its name:
+#
+# - "cash": money to spend or fall back on (a current account, savings, a
+#   wallet). The default: it is what most asset accounts are.
+# - "investment": money invested for growth (a brokerage, a pension fund).
+#   Planning grows it at the real return (domain/baseline).
+# - "other": something owned that is neither (a home, a car, a loan made to
+#   a friend). It counts in net worth, never as cash or as investable.
+#
+# Three values rather than an `investment` flag, because the baseline needs to
+# tell all three apart: a flag would leave a home counted as cash, and so in
+# the emergency fund. Only asset accounts have one; a liability is a
+# liability, and income, expense and equity accounts hold no balance of their
+# own to plan with. The name matters no more than it does for `tax_role`:
+# an earlier pattern on names matched "fd" inside "Refund".
+AssetRole = Literal["cash", "investment", "other"]
+ASSET_ROLES: tuple[AssetRole, ...] = ("cash", "investment", "other")
+
 
 def _currency_code(value: object) -> str:
     """Shape check only — three letters, upper-cased. Whether the code is a real
@@ -59,6 +77,9 @@ class Account(BaseModel):
     parent_id: str | None = None
     is_active: bool = True
     tax_role: TaxRole | None = None
+    # An asset account's role (`AssetRole`): "cash" unless it says otherwise.
+    # Always None for any other type of account.
+    asset_role: AssetRole | None = None
 
     @field_validator("currency", mode="before")
     @classmethod
@@ -71,6 +92,17 @@ class Account(BaseModel):
         if v is not None and not _TAX_ROLE_SHAPE.fullmatch(v):
             raise ValueError(f"{v!r} is not a tax role code")
         return v
+
+    @model_validator(mode="after")
+    def _asset_role_for_assets(self) -> Account:
+        if self.type != "asset":
+            if self.asset_role is not None:
+                raise ValueError(
+                    f"Only an asset account has an asset role; this is a {self.type} account"
+                )
+        elif self.asset_role is None:
+            self.asset_role = "cash"
+        return self
 
 
 #: Accounts that hold money (a bank, cash) or owe it (a card, a loan): what a

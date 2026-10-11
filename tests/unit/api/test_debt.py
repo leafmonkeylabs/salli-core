@@ -134,3 +134,29 @@ async def test_money_sent_as_a_string_is_kept_exactly(client, mock_services):
     )
     debt = (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()
     assert (debt["principal"], debt["minimum_payment"]) == ("12345678901234567.89", "1500.10")
+
+
+async def test_a_debt_links_to_its_ledger_account_and_null_unlinks_it(client, mock_services):
+    from salli.domain.accounting.models import Account
+
+    uow = _uow(mock_services, "NZD")
+    uow.ledger.accounts = [
+        Account(
+            id="loan", user_id=USER, code="2100", name="Loan", type="liability", currency="NZD"
+        ),
+        Account(id="bank", user_id=USER, code="1000", name="Bank", type="asset", currency="NZD"),
+    ]
+    debt_id = await _create(client, {**CARD, "account_id": "loan"})
+    assert (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()["account_id"] == "loan"
+
+    # A rename leaves the link alone; an explicit null removes it.
+    await client.patch(f"/v1/debt/{debt_id}", json={"name": "Car"}, headers=AUTH)
+    assert (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()["account_id"] == "loan"
+    await client.patch(f"/v1/debt/{debt_id}", json={"account_id": None}, headers=AUTH)
+    assert (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()["account_id"] is None
+
+    # Not a liability: 422. Not theirs (or nowhere): 404, alike.
+    r = await client.patch(f"/v1/debt/{debt_id}", json={"account_id": "bank"}, headers=AUTH)
+    assert r.status_code == 422
+    r = await client.post("/v1/debt/", json={**CARD, "account_id": "elsewhere"}, headers=AUTH)
+    assert (r.status_code, r.json()["detail"]) == (404, "Account not found: elsewhere")

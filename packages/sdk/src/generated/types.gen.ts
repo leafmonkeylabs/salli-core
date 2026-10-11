@@ -42,6 +42,10 @@ export type Account = {
      * Tax Role
      */
     tax_role?: string | null;
+    /**
+     * Asset Role
+     */
+    asset_role?: 'cash' | 'investment' | 'other' | null;
 };
 
 /**
@@ -224,6 +228,10 @@ export type AddAccountRequest = {
      * Tax Role
      */
     tax_role?: string | null;
+    /**
+     * Asset Role
+     */
+    asset_role?: 'cash' | 'investment' | 'other' | null;
 };
 
 /**
@@ -2227,6 +2235,10 @@ export type Debt = {
      */
     is_active: boolean;
     /**
+     * Account Id
+     */
+    account_id?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -2270,6 +2282,10 @@ export type DebtRequest = {
      * Decimal string, read exactly; a JSON number goes through a float.
      */
     minimum_payment: string;
+    /**
+     * Account Id
+     */
+    account_id?: string | null;
 };
 
 /**
@@ -2296,6 +2312,10 @@ export type DebtUpdateRequest = {
      * Is Active
      */
     is_active?: boolean | null;
+    /**
+     * Account Id
+     */
+    account_id?: string | null;
 };
 
 /**
@@ -8711,6 +8731,10 @@ export type UpdateAccountRequest = {
      * Tax Role
      */
     tax_role?: string | null;
+    /**
+     * Asset Role
+     */
+    asset_role?: 'cash' | 'investment' | 'other' | null;
 };
 
 /**

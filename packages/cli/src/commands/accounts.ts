@@ -21,8 +21,16 @@ import { AccountBook, currencyArg } from './shared';
 
 const TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as const;
 const TAX_ROLES = ['apit_credit', 'ait_credit', 'foreign_tax_credit', 'qualifying_payment', 'fsi_income'] as const;
+/** What an asset account holds: planning reads this, never the account's name. */
+const ASSET_ROLES = ['cash', 'investment', 'other'] as const;
 type AccountType = (typeof TYPES)[number];
 type TaxRole = (typeof TAX_ROLES)[number];
+type AssetRole = (typeof ASSET_ROLES)[number];
+
+/** "asset (investment)" for an asset account that isn't cash; the type alone otherwise. */
+function typeLabel(a: { type: string; asset_role?: string | null }): string {
+  return a.type === 'asset' && a.asset_role && a.asset_role !== 'cash' ? `${a.type} (${a.asset_role})` : a.type;
+}
 
 function accountType(value: string): AccountType {
   const type = value.trim().toLowerCase();
@@ -45,7 +53,11 @@ Accounts can be named by code (1000), name (Cash, or a unique start of it) or id
 Examples:
   $ salli accounts list --type expense
   $ salli accounts show checking
-  $ salli accounts add 1300 Brokerage asset --currency USD`,
+  $ salli accounts add 1300 Brokerage asset --currency USD --asset-role investment
+  $ salli accounts update 1500 --asset-role other
+
+An asset account's role says what it holds: cash (the default), investment
+(a brokerage, a pension fund) or other (a home, a car). Planning reads it.`,
     );
 
   accounts
@@ -77,7 +89,7 @@ Examples:
             app.out.table(list, [
               { header: 'CODE', get: (a) => a.code },
               { header: 'NAME', get: (a) => a.name, shrink: true, style: (t, a) => (a.is_active ? t : c.dim(t)) },
-              { header: 'TYPE', get: (a) => a.type },
+              { header: 'TYPE', get: (a) => typeLabel(a) },
               { header: 'CURRENCY', get: (a) => a.currency },
               ...(trial
                 ? [
@@ -125,6 +137,7 @@ Examples:
           out.line(
             out.details([
               ['Type', a.type + (a.tax_role ? ` (tax: ${a.tax_role})` : '')],
+              a.asset_role ? ['Holds', a.asset_role] : false,
               ['Currency', a.currency],
               ['Status', a.is_active ? 'active' : 'inactive', a.is_active ? undefined : c.yellow],
               ['Balance', foreign ? out.money(o.balance, a.currency) : out.money(o.current_balance, o.base_currency)],
@@ -165,6 +178,7 @@ Examples:
     .option('--currency <code>', 'Currency it is held in (default: your base currency)')
     .option('--parent <account>', 'Parent account (code, name or id)')
     .addOption(new Option('--tax-role <role>', 'How the tax engine treats it').choices(TAX_ROLES))
+    .addOption(new Option('--asset-role <role>', 'For an asset account: what it holds (default cash)').choices(ASSET_ROLES))
     .action(async (codeArg, nameArg, typeArg, opts) => {
       let [code, name, type] = [codeArg, nameArg, typeArg];
       if (!code || !name || !type) {
@@ -183,6 +197,10 @@ Examples:
       if (opts.currency) body.currency = currencyArg(opts.currency);
       if (opts.parent) body.parent_id = (await AccountBook.load(api)).resolve(opts.parent).id;
       if (opts.taxRole) body.tax_role = opts.taxRole as TaxRole;
+      if (opts.assetRole) {
+        if (body.type !== 'asset') throw new UsageError('Only an asset account has an asset role.', `This is a ${body.type} account.`);
+        body.asset_role = opts.assetRole as AssetRole;
+      }
       const created = await api.call(accountsCreate, { body });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
       else app.out.success(`Added ${body.code} ${body.name} (${body.type}${body.currency ? `, ${body.currency}` : ''}) ${app.out.errColors.dim(created.id)}`);
@@ -191,20 +209,21 @@ Examples:
   accounts
     .command('update')
     .argument('<account>', 'Code, name or id')
-    .description('Change an account’s code, name, type, currency or tax role')
+    .description('Change an account’s code, name, type, currency, tax role or asset role')
     .option('--code <code>', 'New code')
     .option('--name <name>', 'New name')
     .addOption(new Option('--type <type>', 'New type').choices(TYPES))
     .option('--currency <code>', 'New currency (only while it has no entries)')
     .addOption(new Option('--tax-role <role>', 'New tax role').choices(TAX_ROLES))
     .option('--no-tax-role', 'Clear its tax role')
+    .addOption(new Option('--asset-role <role>', 'What an asset account holds').choices(ASSET_ROLES))
     .action(async (query, opts) => {
       const api = await app.api();
       const account = (await AccountBook.load(api)).resolve(query);
       const changingTaxRole = typeof opts.taxRole === 'string';
       const clearingTaxRole = opts.taxRole === false;
-      if (!opts.code && !opts.name && !opts.type && !opts.currency && !changingTaxRole && !clearingTaxRole) {
-        throw new UsageError('Nothing to change.', 'Pass --code, --name, --type, --currency, --tax-role or --no-tax-role.');
+      if (!opts.code && !opts.name && !opts.type && !opts.currency && !changingTaxRole && !clearingTaxRole && !opts.assetRole) {
+        throw new UsageError('Nothing to change.', 'Pass --code, --name, --type, --currency, --tax-role, --no-tax-role or --asset-role.');
       }
       // The API replaces code, name and type together, so unchanged ones are sent as they are.
       const body: UpdateAccountRequest = {
@@ -215,6 +234,10 @@ Examples:
       if (opts.currency) body.currency = currencyArg(opts.currency);
       if (changingTaxRole) body.tax_role = opts.taxRole as TaxRole;
       if (clearingTaxRole) body.tax_role = null;
+      if (opts.assetRole) {
+        if (body.type !== 'asset') throw new UsageError('Only an asset account has an asset role.', `This is a ${body.type} account.`);
+        body.asset_role = opts.assetRole as AssetRole;
+      }
       const updated = await api.call(accountsUpdate, { path: { account_id: account.id }, body });
       if (app.out.machine) app.out.emit(updated, { human: () => undefined });
       else app.out.success(`Updated ${body.code} ${body.name}.`);

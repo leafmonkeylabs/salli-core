@@ -443,6 +443,20 @@ describe('salli accounts', () => {
     expect(result.code).toBe(2);
     expect(mock.requestsTo('POST', '/v1/accounts/')).toHaveLength(0);
   });
+
+  it('says what an asset account holds', async () => {
+    const added = await run(['accounts', 'add', '1300', 'Brokerage', 'asset', '--asset-role', 'investment']);
+    expect(added.code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/accounts/')[0]?.json).toEqual({ code: '1300', name: 'Brokerage', type: 'asset', asset_role: 'investment' });
+
+    expect((await run(['accounts', 'update', '1100', '--asset-role', 'other'])).code).toBe(0);
+    expect(mock.requestsTo('PATCH', '/v1/accounts/')[0]?.json).toEqual({ code: '1100', name: 'Checking', type: 'asset', asset_role: 'other' });
+
+    // Only an asset account has one, and it is one of three.
+    expect((await run(['accounts', 'add', '5200', 'Fees', 'expense', '--asset-role', 'cash'])).code).toBe(2);
+    expect((await run(['accounts', 'add', '1400', 'Shares', 'asset', '--asset-role', 'stocks'])).code).not.toBe(0);
+    expect(mock.requestsTo('POST', '/v1/accounts/')).toHaveLength(1);
+  });
 });
 
 describe('salli entries', () => {

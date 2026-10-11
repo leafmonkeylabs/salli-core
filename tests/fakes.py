@@ -74,7 +74,9 @@ class FakeRecords:
         if await self.get(user_id, record_id) is None:
             return
         row = self.rows[record_id]
-        row.update({k: v for k, v in updates.items() if v is not None})
+        # As the SQL repositories do: None leaves a field as it is, except a
+        # reference to an account, where it removes the reference.
+        row.update({k: v for k, v in updates.items() if v is not None or k == "account_id"})
         row["updated_at"] = datetime.now(UTC).isoformat()
 
     async def delete(self, user_id: str, record_id: str) -> None:
@@ -225,6 +227,9 @@ class FakeLedgerReader:
 
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
         return self.accounts
+
+    async def get_account(self, user_id: str, account_id: str) -> Any:
+        return next((a for a in self.accounts if a.id == account_id), None)
 
     async def get_entries(
         self, user_id: str, from_date: str | None = None, to_date: str | None = None

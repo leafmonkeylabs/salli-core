@@ -166,7 +166,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "saved documents/memories, and the Wealth Advisor. Numbers returned by "
             "read tools are authoritative and already computed by Salli: quote them, "
             "never recompute, estimate or adjust them. Tools that write "
-            "(create_account, create_reminder, post_journal_entry, "
+            "(create_account, update_account, create_reminder, post_journal_entry, "
             "categorize_transactions, post_transactions, discard_transactions, "
             "create_rule, set_fi_assumption, and the document/memory writers) take effect "
             "immediately: show the user what you will do and get their go-ahead first. "
@@ -222,12 +222,21 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     @mcp.tool()
     async def get_accounts() -> dict[str, Any]:
-        """List all accounts in the user's chart of accounts."""
+        """List all accounts in the user's chart of accounts. An asset account
+        has an asset_role: cash, investment or other (a home, a car); planning
+        reads it, never the account's name."""
         user_id = _current_user_id()
         accounts = await ledger_svc.list_accounts(user_id)
         return {
             "accounts": [
-                {"id": a.id, "code": a.code, "name": a.name, "type": a.type, "currency": a.currency}
+                {
+                    "id": a.id,
+                    "code": a.code,
+                    "name": a.name,
+                    "type": a.type,
+                    "currency": a.currency,
+                    "asset_role": a.asset_role,
+                }
                 for a in accounts
             ]
         }
@@ -506,16 +515,71 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         name: str,
         account_type: str,
         currency: str = "",
+        asset_role: Literal["cash", "investment", "other"] | None = None,
     ) -> dict[str, Any]:
         """Create a new account in the chart of accounts. account_type is one of:
         asset, liability, equity, income, expense. currency is the ISO 4217 code
-        the account is held in; leave it empty for the user's base currency."""
+        the account is held in; leave it empty for the user's base currency.
+        asset_role, for an asset account only: cash (the default: a bank
+        account, savings, a wallet), investment (a brokerage, a pension fund)
+        or other (a home, a car)."""
         user_id = _current_user_id()
         currency = currency or await ledger_svc.base_currency(user_id)
-        params = {"code": code, "name": name, "type": account_type, "currency": currency}
-        account_id = await ledger_svc.add_account(user_id, code, name, account_type, currency)
+        params = {
+            "code": code,
+            "name": name,
+            "type": account_type,
+            "currency": currency,
+            "asset_role": asset_role,
+        }
+        try:
+            account_id = await ledger_svc.add_account(
+                user_id, code, name, account_type, currency, asset_role=asset_role
+            )
+        except (ValueError, LookupError) as exc:
+            return {"error": f"Could not create the account: {exc}"}
         await _log_audit(ledger_svc, user_id, "create_account", params)
         return {"account_id": account_id, "code": code, "name": name, "created": True}
+
+    @mcp.tool()
+    async def update_account(
+        account_id: str,
+        code: str | None = None,
+        name: str | None = None,
+        asset_role: Literal["cash", "investment", "other"] | None = None,
+    ) -> dict[str, Any]:
+        """Change an account's code, name or asset role; what you leave out
+        stays as it is. asset_role, for an asset account only: cash,
+        investment or other (a home, a car). Planning reads the role, never the
+        name: mark a brokerage or a pension fund as an investment so its growth
+        is projected, and a home as other so it isn't counted as cash. Writes
+        immediately: show the user the change and get their go-ahead first."""
+        user_id = _current_user_id()
+        account = await ledger_svc.get_account(user_id, account_id)
+        if account is None:
+            return {"error": f"Account not found: {account_id}"}
+        params = {"account_id": account_id, "code": code, "name": name, "asset_role": asset_role}
+        try:
+            await ledger_svc.update_account(
+                user_id,
+                account_id,
+                code=code or account.code,
+                name=name or account.name,
+                type=account.type,
+                tax_role=account.tax_role,
+                asset_role=asset_role,
+            )
+        except (ValueError, LookupError) as exc:
+            return {"error": f"Could not update the account: {exc}"}
+        await _log_audit(ledger_svc, user_id, "update_account", params)
+        updated = await ledger_svc.get_account(user_id, account_id)
+        return {
+            "account_id": account_id,
+            "code": updated.code if updated else code,
+            "name": updated.name if updated else name,
+            "asset_role": updated.asset_role if updated else asset_role,
+            "updated": True,
+        }
 
     @mcp.tool()
     async def create_reminder(description: str, due_date: str) -> dict[str, Any]:
@@ -1096,6 +1160,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_memory,
         list_memories,
         create_account,
+        update_account,
         create_reminder,
         post_journal_entry,
         get_cash_flow,

@@ -22,6 +22,11 @@ class DebtRequest(BaseModel):
     #: A yearly rate as a fraction ("0.18" is 18%).
     apr: DecimalIn
     minimum_payment: AmountIn
+    #: The liability account that holds this debt in your ledger, if any: one
+    #: of your own, in your base currency, holding no other active debt. A
+    #: linked debt's balance is the account's, so it is counted once; without
+    #: one, the debt counts as declared (its principal).
+    account_id: str | None = None
 
 
 class DebtUpdateRequest(BaseModel):
@@ -30,6 +35,9 @@ class DebtUpdateRequest(BaseModel):
     apr: DecimalIn | None = None
     minimum_payment: AmountIn | None = None
     is_active: bool | None = None
+    #: Link the debt to this liability account; null unlinks it. Omitted:
+    #: unchanged.
+    account_id: str | None = None
 
 
 class Debt(BaseModel):
@@ -43,6 +51,9 @@ class Debt(BaseModel):
     apr: str
     minimum_payment: Amount
     is_active: bool
+    #: The liability account that holds it in the ledger; null when it isn't
+    #: linked to one (it then counts as declared).
+    account_id: str | None = None
     created_at: str
     updated_at: str
 
@@ -113,7 +124,14 @@ async def update_debt(
 ) -> Updated:
     if await svc.debt.get_debt(user_id, debt_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such debt")
-    await svc.debt.update_debt(user_id, debt_id, body.model_dump(exclude_none=True))
+    # Omitted fields are unchanged; an explicit null is ignored, except for
+    # `account_id`, where it unlinks the debt.
+    changes = {
+        k: v
+        for k, v in body.model_dump(exclude_unset=True).items()
+        if v is not None or k == "account_id"
+    }
+    await svc.debt.update_debt(user_id, debt_id, changes)
     return Updated(updated=True)
 
 

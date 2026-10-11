@@ -105,6 +105,15 @@ describe('debts', () => {
     expect(lastBody(`/v1/debt/${uid(411)}`)).toEqual({ is_active: false });
     expect((await run(['debts', 'update', uid(411).slice(0, 8)])).code).toBe(2);
   });
+
+  it('links a debt to the account that holds it, and unlinks it', async () => {
+    expect((await run(['debts', 'update', uid(411).slice(0, 8), '--account', '2000'])).code).toBe(0);
+    expect(lastBody(`/v1/debt/${uid(411)}`)).toEqual({ account_id: uid(4) });
+    expect((await run(['debts', 'update', uid(411).slice(0, 8), '--no-account'])).code).toBe(0);
+    expect(lastBody(`/v1/debt/${uid(411)}`)).toEqual({ account_id: null });
+    await run(['debts', 'add', 'Store card', '--balance', '600', '--apr', '21%', '--minimum', '30', '--account', 'credit']);
+    expect(lastBody('/v1/debt/')).toEqual({ name: 'Store card', principal: '600', apr: '0.21', minimum_payment: '30', account_id: uid(4) });
+  });
 });
 
 describe('investments, subscriptions and insurance', () => {
