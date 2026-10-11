@@ -255,7 +255,7 @@ agent running commands can't answer the prompt, so it can't activate. It
 defaults to the newest proposed version.
 
 The server checks too. Activating needs the `tax:activate` permission, which
-your own sign-ins hold (the app, `salli login`), and a personal access token
+your own sign-ins hold (`salli login`, or a session from your password), and a personal access token
 only if you made it with `--allow tax:activate`. AI connectors (MCP) never hold
 it. If the server refuses, `activate` says why and what to do.
 

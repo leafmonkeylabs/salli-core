@@ -20,6 +20,7 @@ import { registerPlanningAhead } from './commands/fi';
 import { registerLedger } from './commands/ledger';
 import { registerMore, registerYourData } from './commands/more';
 import { registerOnboarding } from './commands/onboarding';
+import { registerPassword } from './commands/password';
 import { registerPlanning } from './commands/plan';
 import { registerQuickAdd } from './commands/quickadd';
 import { registerRules } from './commands/rules';
@@ -94,6 +95,7 @@ Start with:  salli login   then   salli status`,
   registerSkills(program, app);
   registerExports(program, app);
   registerTokens(program, app);
+  registerPassword(program, app);
   registerContext(program, app);
   registerConfig(program, app);
   registerCompletion(program, app);

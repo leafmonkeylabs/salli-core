@@ -13,11 +13,13 @@ from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from salli.application.permissions import Actor, permissions_for
+from salli.application.ports import IdentityProvider
 from salli.application.services.llm_credential_service import ResolvedCredentials
+from salli.application.services.login_service import is_session_token
 from salli.application.services.mcp_oauth_service import API, has_salli_prefix
 from salli.application.services.personal_access_token_service import is_personal_access_token
 from salli.composition import Services, build_services
-from salli.config import Settings, dev_auth_fallback_live, get_settings, insecure_dev_auth
+from salli.config import Settings, get_settings, insecure_dev_auth
 
 _bearer = HTTPBearer(auto_error=True)
 
@@ -41,95 +43,15 @@ def get_services() -> Services:
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
-# JWKS cache for Supabase's asymmetric signing keys (ES256/RS256).
-_jwks_cache: dict[str, object] = {"keys": [], "ts": 0.0}
-_JWKS_TTL = 3600.0
-
-
-def _get_jwks(settings: Settings) -> list[dict]:
-    import time
-
-    import httpx
-
-    now = time.time()
-    if _jwks_cache["keys"] and now - float(_jwks_cache["ts"]) < _JWKS_TTL:  # type: ignore[arg-type]
-        return _jwks_cache["keys"]  # type: ignore[return-value]
-    url = settings.supabase_url.rstrip("/") + "/auth/v1/.well-known/jwks.json"
-    resp = httpx.get(url, timeout=5)
-    resp.raise_for_status()
-    keys = resp.json().get("keys", [])
-    _jwks_cache["keys"] = keys
-    _jwks_cache["ts"] = now
-    return keys
-
-
-__all__ = ["insecure_dev_auth"]  # re-exported: the consent page imports it from here
-
-
-def _decode_jwt(token: str, settings: Settings) -> tuple[str, str | None]:
-    """
-    Verify a Supabase-issued JWT and return (user_id, email).
-
-    Supports both modern asymmetric tokens (ES256/RS256, verified via the project's
-    JWKS) and legacy HS256 tokens (verified with the shared JWT secret).
-
-    With no Supabase configured, refuses — unless the local-dev fallback is
-    explicitly switched on (see `insecure_dev_auth`), in which case the token
-    itself is taken as the user id.
-    """
-    if not settings.supabase_url and not settings.supabase_jwt_secret:
-        if insecure_dev_auth(settings):
-            return token, None
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication is not configured on this server.",
-        )
-
-    try:
-        from jose import jwt
-
-        header = jwt.get_unverified_header(token)
-        alg = header.get("alg", "")
-
-        if alg == "HS256":
-            payload = jwt.decode(
-                token,
-                settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                audience="authenticated",
-            )
-        else:
-            kid = header.get("kid")
-            jwks = _get_jwks(settings)
-            jwk = next((k for k in jwks if k.get("kid") == kid), None)
-            if jwk is None:
-                # Key may have rotated — refresh once
-                _jwks_cache["ts"] = 0.0
-                jwks = _get_jwks(settings)
-                jwk = next((k for k in jwks if k.get("kid") == kid), None)
-            if jwk is None:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown signing key"
-                )
-            payload = jwt.decode(token, jwk, algorithms=[alg], audience="authenticated")
-
-        sub = payload.get("sub")
-        if not sub:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        return str(sub), payload.get("email")
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate token"
-        ) from exc
-
 
 @dataclass(frozen=True)
 class Principal:
     """Who is calling, and how they signed in.
 
-    `session`: a Supabase access token (the web and mobile apps).
+    `session`: a session from signing in with an email and password
+    (`POST /v1/auth/sessions`; `session_id` says which), or a token an
+    extension's identity provider vouches for (application/ports.py,
+    `IdentityProvider`).
     `oauth`: a Salli OAuth token issued for the REST API (the `salli` CLI, or
     another client: `first_party_client` says which).
     `pat`: a personal access token (scripts, CI).
@@ -153,6 +75,8 @@ class Principal:
     client_name: str | None = None
     #: For `pat`: the permissions the token was made with. Ignored otherwise.
     granted: frozenset[str] = frozenset()
+    #: For a Salli `session`: which one (so it can sign itself out).
+    session_id: str | None = None
 
     @property
     def permissions(self) -> frozenset[str]:
@@ -170,9 +94,17 @@ class Principal:
         )
 
 
-def _looks_like_jwt(token: str) -> bool:
-    # Three dot-separated segments. Salli's own tokens never contain a dot.
-    return token.count(".") == 2
+def _refused(detail: str = "This token is invalid, expired, or has been revoked.") -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _identity_provider(services: Any) -> IdentityProvider | None:
+    extensions = getattr(services, "extensions", None)
+    return getattr(extensions, "identity_provider", None)
 
 
 async def get_principal(
@@ -182,19 +114,18 @@ async def get_principal(
 ) -> Principal:
     """Verify the bearer token, whichever kind it is.
 
-    Personal access tokens and Salli's own OAuth tokens are checked against
-    this database, so they work with or without Supabase. An OAuth token is
-    only accepted if it was issued for the REST API: one an AI client holds
-    for MCP is refused here, as an API token would be refused by MCP.
+    Salli's own tokens are checked against this database: sessions, personal
+    access tokens and OAuth tokens. An OAuth token is only accepted if it was
+    issued for the REST API: one an AI client holds for MCP is refused here,
+    as an API token would be refused by MCP. A token that is none of these
+    goes to an extension's identity provider, if there is one, and then to
+    the local-development fallback, if that is on; never one Salli issued.
     """
     token = creds.credentials
     if is_personal_access_token(token):
         verified = await services.tokens.verify(token)
         if verified is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="This token is invalid, expired, or has been revoked.",
-            )
+            raise _refused()
         return Principal(
             verified.user_id,
             None,
@@ -202,35 +133,37 @@ async def get_principal(
             client_name=verified.name,
             granted=verified.permissions,
         )
-    # Salli's own tokens before the development fallback: under it, a CLI
-    # signed in with the device flow was taken to be the user whose id is
-    # its access token.
-    if not _looks_like_jwt(token):
-        record = await services.mcp_oauth.verify_access_token(token, audience=API)
-        if record is not None:
-            return Principal(
-                str(record["user_id"]),
-                None,
-                "oauth",
-                first_party_client=bool(record.get("client_first_party")),
-                client_name=record.get("client_name"),
-            )
-    if dev_auth_fallback_live(settings):
-        # A Salli token that did not verify (expired, revoked, issued for MCP,
-        # or a refresh token) is refused, never taken to be a user's id.
-        # Prefixed tokens need no lookup; older unprefixed ones do.
-        if has_salli_prefix(token) or (
-            not _looks_like_jwt(token) and await services.mcp_oauth.is_salli_token(token)
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="This token is invalid, expired, or has been revoked.",
-            )
+    if is_session_token(token):
+        session = await services.logins.verify_session(token)
+        if session is None:
+            raise _refused("This session has ended or expired. Sign in again.")
+        return Principal(session.user_id, None, "session", session_id=session.id)
+    record = await services.mcp_oauth.verify_access_token(token, audience=API)
+    if record is not None:
+        return Principal(
+            str(record["user_id"]),
+            None,
+            "oauth",
+            first_party_client=bool(record.get("client_first_party")),
+            client_name=record.get("client_name"),
+        )
+
+    provider = _identity_provider(services)
+    dev = insecure_dev_auth(settings)
+    if provider is None and not dev:
+        raise _refused()
+    # A Salli token that did not verify (expired, revoked, issued for MCP, or
+    # a refresh token) is refused, never taken to be anything else. Prefixed
+    # tokens need no lookup; older unprefixed ones do.
+    if has_salli_prefix(token) or await services.mcp_oauth.is_salli_token(token):
+        raise _refused()
+    if provider is not None:
+        identity = await provider.verify(token)
+        if identity is not None:
+            return Principal(identity.user_id, identity.email, "session")
+    if dev:
         return Principal(token, None, "dev")
-    if _looks_like_jwt(token):
-        user_id, email = _decode_jwt(token, settings)
-        return Principal(user_id, email, "session")
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate token")
+    raise _refused()
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
@@ -238,19 +171,15 @@ CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
 
 async def get_current_user(
     principal: CurrentPrincipal,
-    settings: Annotated[Settings, Depends(get_settings)],
     services: Annotated[Services, Depends(get_services)],
 ) -> str:
-    """The verified caller, provisioned on first contact if this instance is
-    open to sign-ups, and refused if it is not and they are not a member.
+    """The verified caller, refused unless they have an account here.
 
-    Only a sign-in (or the local-dev fallback) can create an account: a token
-    is only ever issued to someone who already has one."""
-    if not await services.profile.ensure_user(
-        principal.user_id,
-        principal.email,
-        may_create=settings.salli_registration == "open" and principal.method in ("session", "dev"),
-    ):
+    No request creates an account: the owner's comes from `salli-server
+    setup`, and everyone else's from the owner. A token an identity provider
+    vouches for, or a user id under the development fallback, is no
+    exception."""
+    if not await services.profile.ensure_user(principal.user_id, principal.email, may_create=False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account is not a member of this Salli instance.",
@@ -262,9 +191,9 @@ async def get_current_email(
     principal: CurrentPrincipal,
     services: Annotated[Services, Depends(get_services)],
 ) -> str | None:
-    if principal.email or principal.method in ("session", "dev"):
+    if principal.email or principal.method == "dev":
         return principal.email
-    # A token carries no email; the profile has the one they signed up with.
+    # A token carries no email; the profile has the one they sign in with.
     profile = await services.profile.get_profile(principal.user_id)
     return profile.get("email")
 
@@ -296,8 +225,8 @@ def require_permission(permission: str) -> Any:
         else:
             why = (
                 f"This sign-in doesn't hold {permission}. Only your own sign-in to Salli "
-                "(the app, or the salli CLI) can do this, or a personal access token you "
-                "made with it; AI connectors and other applications never can."
+                "(with your password, or the salli CLI) can do this, or a personal access "
+                "token you made with it; AI connectors and other applications never can."
             )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=why)
 
@@ -322,7 +251,7 @@ def require_cron_secret(
     settings: Annotated[Settings, Depends(get_settings)],
     x_cron_secret: Annotated[str | None, Header()] = None,
 ) -> None:
-    """The scheduler's own endpoints (pg_cron, not users): the X-Cron-Secret
+    """The scheduler's own endpoints (a cron job, not users): the X-Cron-Secret
     header must match CRON_SECRET, and with none configured nothing does.
     Compared as bytes: a non-ASCII header is a wrong secret, not a 500."""
     secret = settings.cron_secret

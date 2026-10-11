@@ -34,6 +34,7 @@ from salli.application.services.insights_service import InsightsService
 from salli.application.services.insurance_service import InsuranceService
 from salli.application.services.ledger_service import LedgerService
 from salli.application.services.llm_credential_service import LlmCredentialService
+from salli.application.services.login_service import LoginService
 from salli.application.services.mcp_oauth_service import McpOAuthService
 from salli.application.services.onboarding_service import OnboardingService
 from salli.application.services.parsing_service import ParsingService
@@ -90,6 +91,8 @@ class Services:
     # A user's ChatGPT plan, signed in to and kept renewed.
     chatgpt: ChatGPTConnectionService
     tokens: PersonalAccessTokenService
+    # Salli's own accounts: passwords, sign-in and sessions.
+    logins: LoginService
     rules: RulesService
     insights: InsightsService
     # One model of a user's money, as of a day (domain/baseline): what FI,
@@ -233,9 +236,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     public_url = settings.mcp_public_base_url.rstrip("/")
     mcp_oauth = McpOAuthService(
         uow_factory,
-        signing_secret=settings.mcp_signing_secret
-        or settings.supabase_jwt_secret
-        or "dev-insecure-secret",
+        signing_secret=_mcp_signing_secret(settings),
         mcp_resource_url=f"{public_url}/mcp",
         api_resource_url=f"{public_url}/v1",
         device_verification_url=f"{public_url}/mcp/oauth/device",
@@ -288,6 +289,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         llm_credentials=llm_credentials,
         chatgpt=chatgpt,
         tokens=PersonalAccessTokenService(uow_factory),
+        logins=_build_logins(settings, uow_factory),
         rules=rules,
         insights=InsightsService(uow_factory, baselines=baseline),
         baseline=baseline,
@@ -298,6 +300,39 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         entitlements=extensions.entitlements,
         extensions=extensions,
     )
+
+
+def _build_logins(settings: Settings, uow_factory) -> LoginService:
+    from datetime import timedelta
+
+    from salli.adapters.auth.passwords import Argon2PasswordHasher
+
+    return LoginService(
+        uow_factory,
+        Argon2PasswordHasher(),
+        session_ttl=timedelta(days=settings.salli_session_ttl_days),
+        default_currency=settings.salli_default_currency,
+    )
+
+
+#: Made up once per process when MCP_SIGNING_SECRET is unset. Never a constant:
+#: anyone who knew it could forge the consent page's pending requests.
+_process_secret: str | None = None
+
+
+def _mcp_signing_secret(settings: Settings) -> str:
+    global _process_secret
+    if settings.mcp_signing_secret:
+        return settings.mcp_signing_secret
+    if _process_secret is None:
+        import secrets
+
+        _process_secret = secrets.token_urlsafe(48)
+        logging.getLogger(__name__).warning(
+            "MCP_SIGNING_SECRET is not set: using one made up for this process, so a "
+            "connection pending approval will not survive a restart."
+        )
+    return _process_secret
 
 
 def _build_tax_rules(uow_factory, fx: FxRatePort) -> TaxRuleService:
@@ -382,8 +417,8 @@ def _build_llm_credentials(
     1. An encryption key is configured. Without one there is nowhere safe to put
        a user's key, and storing plaintext is not an acceptable fallback.
     2. Auth is real (`config.auth_can_hold_secrets`). `deps.get_principal`
-       falls back to treating the bearer token *as* the user id when Supabase
-       is unconfigured and the development fallback is on — a documented
+       falls back to treating the bearer token *as* the user id when the
+       development fallback is on — a documented
        local-dev convenience, but with BYOK it would let any caller name an
        arbitrary user id and spend that user's key. So BYOK stays off whenever
        that fallback is live.
@@ -410,14 +445,10 @@ def _build_llm_credentials(
 
 
 def _build_storage(settings: Settings) -> StoragePort:
-    use_supabase = settings.salli_storage == "supabase" or (
-        settings.salli_storage == "auto"
-        and bool(settings.supabase_url and settings.supabase_service_role_key)
-    )
-    if use_supabase:
-        from salli.adapters.storage.supabase import SupabaseStorageAdapter
+    from pathlib import Path
 
-        return SupabaseStorageAdapter(settings.supabase_url, settings.supabase_service_role_key)
     from salli.adapters.storage.local import LocalStorageAdapter
 
-    return LocalStorageAdapter()
+    return LocalStorageAdapter(
+        Path(settings.salli_storage_dir) if settings.salli_storage_dir else None
+    )

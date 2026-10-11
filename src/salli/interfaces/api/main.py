@@ -38,7 +38,7 @@ from salli.application.services.tax_rule_service import (
 )
 from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
-from salli.config import get_settings
+from salli.config import database_url, get_settings
 from salli.domain.llm import LLMError
 from salli.domain.scenarios import ScenarioError
 from salli.domain.secrets import redact
@@ -90,8 +90,14 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     # ── PostgreSQL checkpointer for LangGraph agent conversations ─────────────
-    # Converts asyncpg URL → psycopg3 URL (different drivers, same DB)
-    pg_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+    # The same database through psycopg 3 (a different driver), password and all.
+    from sqlalchemy.engine import make_url
+
+    pg_url = (
+        make_url(database_url(settings))
+        .set(drivername="postgresql")
+        .render_as_string(hide_password=False)
+    )
 
     checkpointer_ctx = None
     try:
@@ -218,10 +224,11 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    origins = ["*"] if settings.environment == "development" else settings.allowed_origins
+    # Only the origins ALLOWED_ORIGINS names, in every environment: none by
+    # default. Nothing Salli ships runs in a browser on another origin.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=settings.allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

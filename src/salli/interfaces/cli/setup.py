@@ -1,21 +1,23 @@
 """
-`salli-server setup`, `serve` and `members` — standing up a self-hosted
-instance and deciding who may use it.
+`salli-server setup`, `serve`, `members` and `secrets` — standing up an
+instance, deciding who may use it, and the secrets it keeps.
 
-`salli-server setup` is the one command between `supabase start` and a working
-Salli. It is idempotent: every step checks before it acts, so it can be re-run
-after a failure, or to add what a later version needs.
+`salli-server setup` turns an empty database into a working Salli. It is
+idempotent: every step checks before it acts, so it can be re-run after a
+failure, or to add what a later version needs.
 
-1. Write `.env` from `supabase status` (keys already in `.env` are kept).
-2. Generate the local secrets Salli needs (BYOK encryption key, MCP signing
-   secret, cron secret).
-3. Ask for an Anthropic API key, if there is none.
-4. Migrate the database.
-5. Create the owner's login in Supabase Auth and their Salli profile, kept in
-   the currency they choose, and record them as the owner (SALLI_USER_ID).
-6. Seed the starter chart of accounts.
+1. Make sure the server's own secrets exist (BYOK encryption key, MCP signing
+   secret, cron secret). In the container they already do (`salli-server
+   secrets init` made them in SALLI_SECRETS_DIR); in a development checkout
+   the missing ones are written to `.env`.
+2. Migrate the database.
+3. Create the owner's account — their email and password, kept in the
+   currency they choose — unless the instance has an owner already.
+4. Seed the owner's starter chart of accounts.
 
-Nothing here prints a secret.
+There is no sign-up: everyone else is added by the owner (`salli-server
+members add`), and the owner resets anyone's password here (`salli-server
+members reset-password`). Nothing here prints a secret or a password.
 """
 
 from __future__ import annotations
@@ -24,31 +26,22 @@ import asyncio
 import base64
 import os
 import secrets
-import shutil
-import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
-import httpx
 import typer
+from rich.markup import escape
 
-from salli.interfaces.cli.support import console, emit
+from salli.interfaces.cli.support import console, emit, services
 
-members_app = typer.Typer(help="Who may use this instance")
+members_app = typer.Typer(help="Who may use this instance", no_args_is_help=True)
+secrets_app = typer.Typer(help="The server's own secrets", no_args_is_help=True)
 
 ENV_FILE = Path(".env")
 
-#: `supabase status -o env` name -> Salli setting.
-_FROM_SUPABASE = {
-    "API_URL": "SUPABASE_URL",
-    "ANON_KEY": "SUPABASE_ANON_KEY",
-    "SERVICE_ROLE_KEY": "SUPABASE_SERVICE_ROLE_KEY",
-    "JWT_SECRET": "SUPABASE_JWT_SECRET",
-    "DB_URL": "DATABASE_URL",
-}
 
-
-# ── .env ─────────────────────────────────────────────────────────────────────
+# ── .env (a development checkout) ────────────────────────────────────────────
 
 
 def read_env(path: Path = ENV_FILE) -> dict[str, str]:
@@ -86,43 +79,37 @@ def add_to_env(new: dict[str, str], path: Path = ENV_FILE) -> list[str]:
     return written
 
 
-def supabase_status() -> dict[str, str]:
-    """Connection details of the local Supabase stack, or {} without one."""
-    if shutil.which("supabase") is None:
-        return {}
-    try:
-        out = subprocess.run(
-            ["supabase", "status", "-o", "env"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=60,
-        ).stdout
-    except (subprocess.SubprocessError, OSError):
-        return {}
-    raw = read_env_text(out)
-    found = {_FROM_SUPABASE[k]: v for k, v in raw.items() if k in _FROM_SUPABASE}
-    if url := found.get("DATABASE_URL"):
-        found["DATABASE_URL"] = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return found
-
-
-def read_env_text(text: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for line in text.splitlines():
-        if "=" in line and not line.lstrip().startswith("#"):
-            key, _, value = line.partition("=")
-            values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
+# ── Secrets ──────────────────────────────────────────────────────────────────
 
 
 def generated_secrets() -> dict[str, str]:
+    """A fresh value for each of the server's own secrets, by setting name."""
     return {
         # version:base64(32 random bytes) — see Settings.byok_encryption_keys.
-        "BYOK_ENCRYPTION_KEYS": "1:" + base64.b64encode(os.urandom(32)).decode(),
-        "MCP_SIGNING_SECRET": secrets.token_urlsafe(48),
-        "CRON_SECRET": secrets.token_urlsafe(32),
+        "byok_encryption_keys": "1:" + base64.b64encode(os.urandom(32)).decode(),
+        "mcp_signing_secret": secrets.token_urlsafe(48),
+        "cron_secret": secrets.token_urlsafe(32),
     }
+
+
+def write_secret_files(directory: Path) -> list[str]:
+    """Write each secret that has no file in `directory` yet; never replace
+    one. The database password is readable by the database's container too
+    (0644); the rest by this user alone (0600). Returns the names written."""
+    directory.mkdir(parents=True, exist_ok=True)
+    wanted = {"database_password": secrets.token_urlsafe(32), **generated_secrets()}
+    written: list[str] = []
+    for name, value in wanted.items():
+        path = directory / name
+        if path.exists() and path.read_text().strip():
+            continue
+        mode = 0o644 if name == "database_password" else 0o600
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+        with os.fdopen(fd, "w") as f:
+            f.write(value)
+        path.chmod(mode)
+        written.append(name)
+    return written
 
 
 def _reload_settings() -> Any:
@@ -132,55 +119,14 @@ def _reload_settings() -> Any:
     return salli.config.get_settings()
 
 
-# ── Supabase Auth admin ──────────────────────────────────────────────────────
+# ── Prompts ──────────────────────────────────────────────────────────────────
 
 
-class AuthAdminError(RuntimeError):
-    pass
-
-
-def create_login(settings: Any, email: str, password: str | None) -> str:
-    """Create (or find) a confirmed Supabase Auth user; return its id.
-
-    Uses the Admin API with the service-role key, so it works with public
-    sign-up switched off — which is how a self-hosted instance runs.
-    """
-    if not (settings.supabase_url and settings.supabase_service_role_key):
-        raise AuthAdminError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.")
-    base = settings.supabase_url.rstrip("/") + "/auth/v1/admin/users"
-    headers = {
-        "apikey": settings.supabase_service_role_key,
-        "Authorization": f"Bearer {settings.supabase_service_role_key}",
-    }
-    body: dict[str, Any] = {"email": email, "email_confirm": True}
-    if password:
-        body["password"] = password
-    resp = httpx.post(base, json=body, headers=headers, timeout=15)
-    if resp.status_code < 300:
-        return str(resp.json()["id"])
-    if resp.status_code in (409, 422):
-        page = 1
-        while True:
-            listed = httpx.get(
-                base, params={"page": page, "per_page": 200}, headers=headers, timeout=15
-            )
-            listed.raise_for_status()
-            users = listed.json().get("users", [])
-            for user in users:
-                if str(user.get("email", "")).lower() == email.lower():
-                    return str(user["id"])
-            if len(users) < 200:
-                break
-            page += 1
-    raise AuthAdminError(f"Supabase Auth refused to create {email}: HTTP {resp.status_code}")
-
-
-async def _add_member(user_id: str, email: str, base_currency: str | None = None) -> None:
-    from salli.composition import build_services
-    from salli.config import get_settings
-
-    svc = build_services(get_settings(), pooled=False)
-    await svc.profile.ensure_user(user_id, email, may_create=True, base_currency=base_currency)
+def read_password(password_stdin: bool, prompt: str) -> str:
+    """A new password: from the first line of stdin, or asked for twice."""
+    if password_stdin:
+        return sys.stdin.readline().rstrip("\r\n")
+    return typer.prompt(prompt, hide_input=True, confirmation_prompt=True)
 
 
 def detect_currency() -> str:
@@ -217,6 +163,21 @@ def choose_currency(given: str | None) -> str:
             )
 
 
+def _create_account(
+    email: str, password: str, *, currency: str | None, owner: bool
+) -> dict[str, Any]:
+    """Creates the account, or says why not and exits 1."""
+    from salli.application.services.login_service import LoginExists
+
+    try:
+        return asyncio.run(
+            services().logins.create_account(email, password, base_currency=currency, owner=owner)
+        )
+    except (LoginExists, ValueError) as exc:  # PasswordRejected is a ValueError
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
+
+
 # ── Commands ─────────────────────────────────────────────────────────────────
 
 
@@ -228,7 +189,6 @@ def setup(
         help="Comma-separated income sources for the starter accounts: "
         "employment,freelance,rental,interest,foreign,dividends",
     ),
-    skip_llm_key: bool = typer.Option(False, help="Do not ask for an Anthropic API key"),
     currency: str = typer.Option(
         None, help="ISO 4217 code to keep your ledger in (prompted if omitted)"
     ),
@@ -238,72 +198,61 @@ def setup(
         help="The country you are taxed in (ISO 3166-1 alpha-2, e.g. GB): which of your "
         "tax rule sets compute your tax",
     ),
+    password_stdin: bool = typer.Option(
+        False, "--password-stdin", help="Read the owner's password from stdin, not a prompt"
+    ),
 ):
-    """Set up this instance: config, database, and your owner account."""
+    """Set up this instance: secrets, database, and your owner account."""
+    from salli.config import get_settings
     from salli.migrations.support import script_locations, upgrade
 
-    # 1–3. Configuration.
-    found = supabase_status()
-    if found:
-        console.print("[green]✓[/green] Found the local Supabase stack")
-    elif not read_env().get("SUPABASE_URL"):
+    # 1. The server's own secrets.
+    settings = get_settings()
+    missing = {k: v for k, v in generated_secrets().items() if not getattr(settings, k)}
+    written: list[str] = []
+    if missing and os.environ.get("SALLI_SECRETS_DIR"):
         console.print(
-            "[yellow]No local Supabase found.[/yellow] Run [bold]supabase start[/bold] first, "
-            "or put SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET and "
-            "DATABASE_URL in .env yourself."
+            f"[yellow]Not set: {', '.join(k.upper() for k in sorted(missing))}.[/yellow] "
+            "Run [bold]salli-server secrets init[/bold] (the compose file does), or set them."
         )
-        raise typer.Exit(1)
-    written = add_to_env({**found, **generated_secrets(), "SALLI_STORAGE": "local"})
-    if not skip_llm_key and not read_env().get("ANTHROPIC_API_KEY"):
-        key = typer.prompt(
-            "Anthropic API key (Enter to skip; AI features stay off until you add one)",
-            default="",
-            hide_input=True,
-            show_default=False,
-        )
-        written += add_to_env({"ANTHROPIC_API_KEY": key.strip()})
-    if written:
-        console.print(f"[green]✓[/green] Wrote to .env: {', '.join(sorted(written))}")
-    settings = _reload_settings()
+    elif missing:
+        written = add_to_env({k.upper(): v for k, v in missing.items()})
+        if written:
+            console.print(f"[green]✓[/green] Wrote to .env: {', '.join(sorted(written))}")
+        settings = _reload_settings()
 
-    # 4. Database.
+    # 2. Database.
     for label, location in script_locations(settings):
         upgrade(location)
         console.print(f"[green]✓[/green] Database migrated ({label})")
 
-    # 5. Owner.
-    owner_email = email or typer.prompt("Your email (you'll sign in with it)")
-    user_id = read_env().get("SALLI_USER_ID")
-    if not user_id:
-        password = typer.prompt(
-            "Choose a password (for the API, the MCP connection page, and any client)",
-            hide_input=True,
-            confirmation_prompt=True,
+    # 3. Owner.
+    svc = services()
+    owner: dict[str, Any] | None = asyncio.run(svc.logins.owner())
+    if owner is None:
+        owner_email = email or typer.prompt("Your email (you'll sign in with it)")
+        password = read_password(
+            password_stdin,
+            "Choose a password (at least 12 characters; for the CLI, the MCP connection "
+            "page, and any client)",
         )
-        try:
-            user_id = create_login(settings, owner_email, password)
-        except AuthAdminError as exc:
-            console.print(f"[red]{exc}[/red]")
-            raise typer.Exit(1) from exc
-        add_to_env({"SALLI_USER_ID": user_id})
-    from salli.composition import build_services
+        owner = _create_account(
+            owner_email, password, currency=choose_currency(currency), owner=True
+        )
+    else:
+        console.print("[green]✓[/green] This instance already has an owner")
+    user_id = str(owner["user_id"])
+    base_currency = asyncio.run(svc.profile.get_base_currency(user_id))
+    console.print(
+        f"[green]✓[/green] Owner account ready ({escape(str(owner['email']))}, in {base_currency})"
+    )
 
-    svc = build_services(settings, pooled=False)
-    try:
-        existing = asyncio.run(svc.profile.get_base_currency(user_id))
-    except LookupError:
-        existing = None
-    # A re-run keeps the currency the ledger already has.
-    base_currency = existing or choose_currency(currency)
-    asyncio.run(_add_member(user_id, owner_email, base_currency))
-    console.print(f"[green]✓[/green] Owner account ready ({owner_email}, in {base_currency})")
-
-    # 6. Starter ledger.
+    # 4. Starter ledger.
     result = asyncio.run(
         svc.onboarding.complete(
             user_id,
             {
-                "name": name or owner_email.split("@")[0],
+                "name": name or str(owner["email"]).split("@")[0],
                 "income_sources": [s.strip() for s in income.split(",") if s.strip()],
                 "tax_residency": tax_residency,
             },
@@ -313,25 +262,45 @@ def setup(
         f"[green]✓[/green] Starter chart of accounts "
         f"({len(result['accounts_created'])} created, {len(result['accounts_skipped'])} kept)"
     )
-    emit({"user_id": user_id, "email": owner_email, "env_written": sorted(written), **result})
+    emit({"user_id": user_id, "email": owner["email"], "env_written": sorted(written), **result})
 
+    server = settings.mcp_public_base_url.rstrip("/")
     console.print(
-        "\n[bold]Done.[/bold] Next:\n"
-        "  salli-server serve                         # the API and MCP server on :8000\n"
-        "  npm install --global @leafmonkeylabs/salli  # the salli command line\n"
-        "  salli login --server http://127.0.0.1:8000  # sign in with the email above\n"
+        "\n[bold]Done.[/bold] Next, on your own computer:\n"
+        "  npm install --global @leafmonkeylabs/salli\n"
+        f"  salli login --server {server}   # with the email and password above\n"
     )
+    if not settings.anthropic_api_key:
+        console.print(
+            "AI features need a model: set ANTHROPIC_API_KEY on the server, or have each "
+            "person add their own key (salli llm-keys set anthropic)."
+        )
 
 
 def serve(
     host: str = typer.Option("127.0.0.1", help="Interface to bind"),
     port: int = typer.Option(8000, help="Port"),
     reload: bool = typer.Option(False, help="Reload on code changes (development)"),
+    migrate: bool = typer.Option(
+        False, "--migrate", help="Migrate the database first (what the container does)"
+    ),
 ):
     """Run the HTTP API and the MCP server."""
     import uvicorn
 
-    uvicorn.run("salli.interfaces.api.main:app", host=host, port=port, reload=reload)
+    if migrate:
+        from salli.config import get_settings
+        from salli.migrations.support import script_locations, upgrade
+
+        for label, location in script_locations(get_settings()):
+            upgrade(location)
+            console.print(f"[green]✓[/green] Database migrated ({label})")
+    # Behind a reverse proxy, uvicorn takes the client's address from
+    # X-Forwarded-For only when the proxy is in FORWARDED_ALLOW_IPS
+    # (127.0.0.1 unless set): sign-in throttling counts by that address.
+    uvicorn.run(
+        "salli.interfaces.api.main:app", host=host, port=port, reload=reload, server_header=False
+    )
 
 
 @members_app.command("add")
@@ -340,17 +309,109 @@ def members_add(
     currency: str = typer.Option(
         None, help="ISO 4217 code their ledger is kept in (default: the instance's)"
     ),
+    password_stdin: bool = typer.Option(
+        False, "--password-stdin", help="Read their password from stdin, not a prompt"
+    ),
 ):
     """Let someone else (a partner, a household member) use this instance."""
-    from salli.config import get_settings
-
-    password = typer.prompt("A password for them", hide_input=True, confirmation_prompt=True)
-    try:
-        user_id = create_login(get_settings(), email, password)
-    except AuthAdminError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(1) from exc
-    asyncio.run(_add_member(user_id, email, currency))
-    emit({"user_id": user_id, "email": email})
-    console.print(f"[green]Member added:[/green] {email} ({user_id})")
+    password = read_password(password_stdin, "A password for them (at least 12 characters)")
+    login = _create_account(email, password, currency=currency, owner=False)
+    if emit({"user_id": login["user_id"], "email": login["email"]}):
+        return
+    console.print(f"[green]Member added:[/green] {escape(login['email'])} ({login['user_id']})")
     console.print("  They sign in with that email and password: salli login, or any client.")
+
+
+@members_app.command("list")
+def members_list():
+    """Everyone who can sign in here."""
+    from rich.table import Table
+
+    logins: list[dict[str, Any]] = asyncio.run(services().logins.list_logins())
+    rows: list[dict[str, Any]] = [
+        {
+            "user_id": login["user_id"],
+            "email": login["email"],
+            "role": "owner" if login["is_owner"] else "member",
+            "created_at": login["created_at"],
+            "password_changed_at": login["password_changed_at"],
+        }
+        for login in logins
+    ]
+    if emit(rows):
+        return
+    table = Table(show_header=True, box=None)
+    for column in ("EMAIL", "ROLE", "USER ID", "PASSWORD CHANGED"):
+        table.add_column(column)
+    for row in rows:
+        table.add_row(
+            escape(row["email"]),
+            row["role"],
+            row["user_id"],
+            f"{row['password_changed_at']:%Y-%m-%d}",
+        )
+    console.print(table)
+
+
+@members_app.command("reset-password")
+def members_reset_password(
+    email: str = typer.Argument(..., help="The email they sign in with"),
+    password_stdin: bool = typer.Option(
+        False, "--password-stdin", help="Read the new password from stdin, not a prompt"
+    ),
+    sign_out_everywhere: bool = typer.Option(
+        False,
+        "--sign-out-everywhere",
+        help="Also revoke their OAuth sign-ins (the CLI, AI connectors) and personal "
+        "access tokens, for an account you think was taken over",
+    ),
+):
+    """Set a new password for someone who has forgotten theirs. Ends their sessions."""
+    from salli.application.services.login_service import LoginNotFound
+
+    password = read_password(password_stdin, f"A new password for {email}")
+    logins = services().logins
+    try:
+        login = asyncio.run(logins.reset_password(email, password))
+    except (LoginNotFound, ValueError) as exc:  # PasswordRejected is a ValueError
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(1) from exc
+    ended: dict[str, int] = {"sessions": int(login["sessions_ended"])}
+    if sign_out_everywhere:
+        ended = asyncio.run(logins.sign_out_everywhere(str(login["user_id"])))
+        ended["sessions"] += int(login["sessions_ended"])
+    if emit({"user_id": login["user_id"], "email": login["email"], "revoked": ended}):
+        return
+    console.print(f"[green]Password reset[/green] for {escape(login['email'])}.")
+    console.print("  Ended: " + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in ended.items()))
+    if not sign_out_everywhere:
+        console.print(
+            "  Their CLI sign-ins, AI connectors and personal access tokens still work; "
+            "--sign-out-everywhere revokes them too."
+        )
+
+
+@secrets_app.command("init")
+def secrets_init(
+    directory: Path | None = typer.Option(
+        None,
+        "--dir",
+        help="Where to keep them (default: SALLI_SECRETS_DIR)",
+        file_okay=False,
+    ),
+):
+    """Generate the server's secrets that don't exist yet, one file each. Never
+    replaces one. The compose file runs it before anything else starts."""
+    env_dir = os.environ.get("SALLI_SECRETS_DIR")
+    target = directory or (Path(env_dir) if env_dir else None)
+    if target is None:
+        console.print("[red]Say where: --dir, or SALLI_SECRETS_DIR.[/red]")
+        raise typer.Exit(1)
+    written = write_secret_files(target)
+    if emit({"directory": str(target), "written": written}):
+        return
+    console.print(
+        f"[green]✓[/green] Generated {', '.join(written)} in {target}"
+        if written
+        else f"[green]✓[/green] Every secret already exists in {target}"
+    )

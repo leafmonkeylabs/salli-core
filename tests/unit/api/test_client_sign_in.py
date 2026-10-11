@@ -6,10 +6,11 @@ sign-in, and the consent and device pages for the CLI.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
+from salli.application.services.login_service import SignedIn, SignInRefused
 from salli.application.services.mcp_oauth_service import ConsentError, DeviceFlowError
 from salli.interfaces.api.deps import Principal, get_principal
 from tests.unit.api.conftest import AUTH
@@ -188,6 +189,8 @@ def cli_consent(mock_services):
     }
     mock_services.mcp_oauth.complete_consent.return_value = "http://127.0.0.1:5000/callback?code=x"
     mock_services.profile.ensure_user.return_value = True
+    mock_services.logins = AsyncMock()
+    mock_services.logins.authenticate.return_value = SignedIn("test-user-1", "a@b.test")
     return mock_services.mcp_oauth
 
 
@@ -198,17 +201,10 @@ async def test_the_consent_page_asks_the_cli_to_sign_in_not_to_connect(client, c
 
 
 async def test_approving_the_cli_does_not_switch_mcp_on(client, cli_consent):
-    with (
-        patch("salli.interfaces.api.routers.mcp_consent_page._sign_in", return_value="jwt"),
-        patch(
-            "salli.interfaces.api.routers.mcp_consent_page._decode_jwt",
-            return_value=("test-user-1", "a@b.test"),
-        ),
-    ):
-        r = await client.post(
-            "/mcp/oauth/consent-page",
-            data={"rt": "t", "decision": "allow", "email": "a@b.test", "password": "pw"},
-        )
+    r = await client.post(
+        "/mcp/oauth/consent-page",
+        data={"rt": "t", "decision": "allow", "email": "a@b.test", "password": "pw"},
+    )
     assert r.status_code == 303
     cli_consent.set_mcp_enabled.assert_not_called()
 
@@ -220,27 +216,35 @@ async def test_the_device_page_signs_a_device_in(client, mock_services):
         "audience": "api",
     }
     mock_services.profile.ensure_user.return_value = True
+    mock_services.logins = AsyncMock()
+    mock_services.logins.authenticate.return_value = SignedIn("test-user-1", "a@b.test")
     page = await client.get("/mcp/oauth/device", params={"user_code": "BCDF-GHJK"})
     assert "Salli CLI on another device is waiting" in page.text
-    with (
-        patch("salli.interfaces.api.routers.mcp_consent_page._sign_in", return_value="jwt"),
-        patch(
-            "salli.interfaces.api.routers.mcp_consent_page._decode_jwt",
-            return_value=("test-user-1", "a@b.test"),
-        ),
-    ):
-        r = await client.post(
-            "/mcp/oauth/device",
-            data={
-                "user_code": "BCDF-GHJK",
-                "decision": "allow",
-                "email": "a@b.test",
-                "password": "pw",
-            },
-        )
+    r = await client.post(
+        "/mcp/oauth/device",
+        data={
+            "user_code": "BCDF-GHJK",
+            "decision": "allow",
+            "email": "a@b.test",
+            "password": "pw",
+        },
+    )
     assert r.status_code == 200 and "Signed in" in r.text
     mock_services.mcp_oauth.decide_device.assert_awaited_once_with("BCDF-GHJK", "test-user-1", True)
     mock_services.mcp_oauth.set_mcp_enabled.assert_not_called()
+
+
+async def test_the_device_page_refuses_a_wrong_password_without_deciding(client, mock_services):
+    mock_services.mcp_oauth = AsyncMock()
+    mock_services.mcp_oauth.device_request.return_value = {"client_name": "Salli CLI"}
+    mock_services.logins = AsyncMock()
+    mock_services.logins.authenticate.side_effect = SignInRefused()
+    r = await client.post(
+        "/mcp/oauth/device",
+        data={"user_code": "B", "decision": "allow", "email": "a@b.test", "password": "nope"},
+    )
+    assert r.status_code == 401 and "didn" in r.text
+    mock_services.mcp_oauth.decide_device.assert_not_awaited()
 
 
 async def test_an_unknown_device_code_is_refused(client, mock_services):

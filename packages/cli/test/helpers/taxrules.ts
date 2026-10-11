@@ -483,7 +483,7 @@ export class TaxRulesMock {
     }
     if (action === 'activate' && method === 'POST') {
       if (!permissions.includes('tax:activate')) {
-        return problem(403, "This sign-in doesn't hold tax:activate. Only your own sign-in to Salli (the app, or the salli CLI) can do this, or a personal access token you made with it; AI connectors and other applications never can.", '/problems/permission');
+        return problem(403, "This sign-in doesn't hold tax:activate. Only your own sign-in to Salli (with your password, or the salli CLI) can do this, or a personal access token you made with it; AI connectors and other applications never can.", '/problems/permission');
       }
       if (!version.validation.ok) return problem(409, `Version ${version.version} can't be activated: its worked examples don't all pass`, '/problems/rule-set-state');
       for (const other of this.versionsOf(set)) {

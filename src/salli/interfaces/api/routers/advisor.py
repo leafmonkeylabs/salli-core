@@ -250,7 +250,7 @@ async def resume_briefing(
     )
 
 
-# ── Daily scheduling (called by Supabase pg_cron, not end users) ──────────────
+# ── Daily scheduling (called by a scheduler, not end users) ───────────────────
 
 
 class ScheduledAdvisorRuns(BaseModel):

@@ -1,8 +1,11 @@
 """
-LocalStorageAdapter — dev/test fallback that writes to ~/.salli/storage/.
+LocalStorageAdapter — uploaded files (statements, receipts) on the server's
+own disk, under one root: SALLI_STORAGE_DIR, or ~/.salli/storage.
 
-Not suitable for production (no auth, no CDN, no multi-instance). Wire the
-SupabaseStorageAdapter in production by setting SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+A file's key is its path relative to the root (`<user id>/<key>`), so the
+root can move — a restore onto another machine, a different volume — without
+rewriting what the database holds. Back the root up with the database
+(docs/self-host.md).
 """
 
 from __future__ import annotations
@@ -31,12 +34,13 @@ class LocalStorageAdapter(StoragePort):
             raise ValueError(f"Storage key names no file: {key!r}")
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
-        return str(dest)
+        return dest.relative_to(root).as_posix()
 
     async def download(self, key: str) -> bytes:
-        # key is the full path returned by upload(); nothing outside the root
-        # was written by upload(), so nothing outside it is read.
-        path = pathlib.Path(key).resolve()
-        if not path.is_relative_to(self._root.resolve()):
+        # key is what upload() returned, relative to the root; nothing outside
+        # the root was written by upload(), so nothing outside it is read.
+        root = self._root.resolve()
+        path = (root / key).resolve()
+        if path == root or not path.is_relative_to(root):
             raise ValueError(f"Storage key is outside the storage root: {key!r}")
         return path.read_bytes()

@@ -3,8 +3,8 @@
 
 It checks what a server needs before `salli-server serve`: the configuration
 loads, the enabled extensions load, the database answers, every migration
-history is at its head, and authentication and the server's own secrets are
-set. It says whether each secret is set, never what it is, and names the
+history is at its head, the instance has an owner, and the server's own
+secrets are set. It says whether each secret is set, never what it is, and names the
 database by host, port and name only: the output is safe to paste into an
 issue.
 """
@@ -68,13 +68,11 @@ def _scrub(message: str, url: str) -> str:
 def config_checks(settings: Any) -> list[Check]:
     """What the settings alone say. Reads no secret's value beyond whether it
     is empty."""
-    from salli.config import dev_auth_fallback_live
+    from salli.config import insecure_dev_auth
 
     checks: list[Check] = []
 
-    if settings.supabase_url or settings.supabase_jwt_secret:
-        checks.append(Check("Authentication", "ok", "Supabase Auth"))
-    elif dev_auth_fallback_live(settings):
+    if insecure_dev_auth(settings):
         checks.append(
             Check(
                 "Authentication",
@@ -84,12 +82,14 @@ def config_checks(settings: Any) -> list[Check]:
             )
         )
     else:
+        checks.append(Check("Authentication", "ok", "Salli's own accounts"))
+    if settings.environment == "development":
         checks.append(
             Check(
-                "Authentication",
-                "fail",
-                "not configured: the API refuses every request. "
-                "Set SUPABASE_URL and SUPABASE_JWT_SECRET (salli-server setup writes them).",
+                "Environment",
+                "warn",
+                "development: API docs are served at /docs. Set ENVIRONMENT=production "
+                "on a server others can reach.",
             )
         )
 
@@ -99,7 +99,8 @@ def config_checks(settings: Any) -> list[Check]:
     secret(
         "MCP_SIGNING_SECRET",
         settings.mcp_signing_secret,
-        "not set: MCP sign-in falls back to the Supabase JWT secret. Set one in production.",
+        "not set: each start makes up its own, so a connection waiting for approval "
+        "does not survive a restart. `salli-server secrets init` makes one.",
     )
     secret(
         "CRON_SECRET",
@@ -117,12 +118,13 @@ def config_checks(settings: Any) -> list[Check]:
         settings.anthropic_api_key,
         "not set: the AI runs only on users' own keys or ChatGPT plans.",
     )
+    origins = ", ".join(settings.allowed_origins) or "none"
     checks.append(
         Check(
             "Instance",
             "ok",
-            f"environment {settings.environment}, registration {settings.salli_registration}, "
-            f"storage {settings.salli_storage}",
+            f"environment {settings.environment}, files in "
+            f"{settings.salli_storage_dir or '~/.salli/storage'}, CORS origins: {origins}",
         )
     )
     return checks
@@ -148,7 +150,7 @@ def database_check(url: str) -> Check:
     async def ping() -> None:
         engine = create_async_engine(
             url,
-            # As the app's own engine: Supabase's transaction pooler breaks
+            # As the app's own engine: a transaction-mode pooler breaks
             # asyncpg's prepared statement cache.
             connect_args={"statement_cache_size": 0, "timeout": CONNECT_TIMEOUT_SECONDS},
         )
@@ -232,9 +234,25 @@ def run_checks() -> list[Check]:
     checks.append(database)
     if database.status == "ok" and checks[1].status == "ok":
         checks += migration_checks(settings)
+        if all(c.status == "ok" for c in checks if c.name.startswith("Migrations")):
+            checks.append(owner_check())
     else:
         checks.append(Check("Migrations", "warn", "not checked: fix the database first"))
     return checks
+
+
+def owner_check() -> Check:
+    """Whether the instance has an owner yet. Not who: the report is meant to
+    be pasted into an issue."""
+    from salli.interfaces.cli.support import services
+
+    try:
+        owner: dict[str, Any] | None = asyncio.run(services().logins.owner())
+    except Exception as exc:  # noqa: BLE001 — report it and carry on
+        return Check("Owner", "fail", f"could not read: {type(exc).__name__}")
+    if owner is None:
+        return Check("Owner", "warn", "none yet: run `salli-server setup`")
+    return Check("Owner", "ok", "set up")
 
 
 _STYLE: dict[Status, str] = {"ok": "green", "warn": "yellow", "fail": "red"}

@@ -22,12 +22,13 @@ Flow:
   1. Client calls POST /mcp/oauth/register (Dynamic Client Registration).
   2. Client redirects the user's browser to GET /mcp/oauth/authorize.
   3. We validate the request (client, redirect_uri, PKCE) and redirect the
-     browser to the web app's consent screen with a short-lived signed token
-     (an "ART" — authorization request token) carrying the pending request —
-     nothing is persisted to the DB until the user actually decides.
-  4. The web app (already holding the user's Supabase session) calls
-     GET .../consent-info to show what's being requested, then
-     POST .../consent with the user's Allow/Deny decision.
+     browser to the consent page with a short-lived signed token (an "ART" —
+     authorization request token) carrying the pending request — nothing is
+     persisted to the DB until the user actually decides.
+  4. Salli's own consent page (mcp_consent_page.py) takes the user's email
+     and password with their Allow/Deny decision. A deployment's web app,
+     holding the user's session, can instead call GET .../consent-info to
+     show what's being requested, then POST .../consent with the decision.
   5. On Allow, we mint a one-time authorization code and redirect back to the
      client's redirect_uri. The client exchanges it at POST /mcp/oauth/token.
 

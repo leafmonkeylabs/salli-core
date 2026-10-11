@@ -27,7 +27,6 @@ export default defineConfig(
       '.venv/**',
       'src/**',
       'tests/**',
-      'supabase/**',
     ],
   },
   js.configs.recommended,

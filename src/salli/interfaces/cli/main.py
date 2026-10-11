@@ -3,7 +3,8 @@
 
 This is the operator's command line, run where the server runs, with the
 database at hand: setting up an instance, serving the API, migrating, adding
-members, checking health, and the scheduled jobs that act on every user.
+members and resetting their passwords, the server's own secrets, checking
+health, and the scheduled jobs that act on every user.
 Enabled extensions add their own command groups (`ExtensionSpec.cli_groups`).
 
 What a person does with their own finances is not here. That is the `salli`
@@ -25,7 +26,7 @@ from rich.markup import escape
 
 from salli.interfaces.cli.doctor import doctor
 from salli.interfaces.cli.jobs import jobs_app
-from salli.interfaces.cli.setup import members_app, serve, setup
+from salli.interfaces.cli.setup import members_app, secrets_app, serve, setup
 from salli.interfaces.cli.support import console, emit, json_mode, with_json_option
 
 app = typer.Typer(
@@ -41,6 +42,7 @@ app.command("serve")(serve)
 app.command("doctor")(doctor)
 app.add_typer(db_app, name="db")
 app.add_typer(members_app, name="members")
+app.add_typer(secrets_app, name="secrets")
 app.add_typer(jobs_app, name="jobs")
 
 
@@ -115,8 +117,8 @@ def main() -> None:
     try:
         cli()()
     except ProfileMissing as exc:
-        # An extension's command acted as a user (SALLI_USER_ID) who has no
-        # profile yet: say what to do rather than end in a traceback.
+        # An extension's command acted as a user (SALLI_USER_ID, or the
+        # owner) who has no profile yet: say what to do, not a traceback.
         console.print(
             f"[red]{escape(str(exc))}.[/red] Run [bold]salli-server setup[/bold] for a new "
             "instance, or [bold]salli-server members add[/bold] to add someone."

@@ -20,8 +20,8 @@ _BIDI_CONTROLS = frozenset("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u20
 
 _DROPPED_CATEGORIES = frozenset({"Cc", "Cs", "Zl", "Zp"})
 
-#: Characters that mean something in a URL (Supabase Storage puts the key in
-#: one, and would decode "%2e%2e%2f" back to "../") or that Windows refuses in a
+#: Characters that mean something in a URL (an object store puts the key in
+#: one, and may decode "%2e%2e%2f" back to "../") or that Windows refuses in a
 #: name. Replaced rather than dropped, so "a?b" does not become "ab".
 _REPLACED = frozenset('%?#<>:"|*')
 

@@ -4,7 +4,7 @@ OAuth server and stored in a real database, verified by the API's own
 
 | sign-in                                   | tax:activate         |
 |-------------------------------------------|----------------------|
-| the web session (Supabase JWT)            | yes                  |
+| a session (signed in with the password)   | yes                  |
 | the local-development sign-in             | yes                  |
 | OAuth for the API, as the salli CLI       | yes, from any grant  |
 | a personal access token                   | only if made with it |
@@ -26,9 +26,10 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from httpx import ASGITransport, AsyncClient, Response
-from jose import jwt
 
+from salli.adapters.auth.passwords import Argon2PasswordHasher
 from salli.application.permissions import TAX_ACTIVATE, Actor
+from salli.application.services.login_service import LoginService
 from salli.application.services.mcp_oauth_service import API, CLI_CLIENT_ID, McpOAuthService
 from salli.application.services.personal_access_token_service import PersonalAccessTokenService
 from salli.application.services.tax_rule_service import RuleSetPermissionError, TaxRuleService
@@ -42,8 +43,7 @@ pytestmark = requires_postgres
 
 USER = "user-a"
 BASE = "https://salli.test"
-# A signing key for test sessions only (HS256 wants 32 bytes or more).
-SECRET = "x" * 40
+PASSWORD = "user a's long password"
 
 
 def _oauth(uow_factory) -> McpOAuthService:
@@ -73,15 +73,13 @@ async def _device_token(oauth: McpOAuthService, client_id: str, resource: str) -
     return tokens["access_token"]
 
 
-def _session() -> str:
-    """A Supabase session for USER, as the web app holds one."""
-    return jwt.encode(
-        {"sub": USER, "aud": "authenticated", "email": "a@example.org"}, SECRET, algorithm="HS256"
-    )
+async def _session(logins: LoginService) -> str:
+    """A session for USER, as signing in with their password starts one."""
+    return (await logins.sign_in("a@example.org", PASSWORD)).token
 
 
 def _real() -> Settings:
-    return Settings(_env_file=None, supabase_jwt_secret=SECRET)
+    return Settings(_env_file=None, environment="production")
 
 
 async def _principal(token: str, settings: Settings, services):
@@ -95,7 +93,11 @@ async def world(uow_factory):
         await uow.user_profiles.upsert(USER, {"base_currency": "EUR", "mcp_enabled": True})
     oauth = _oauth(uow_factory)
     tokens = PersonalAccessTokenService(uow_factory)
-    services = SimpleNamespace(mcp_oauth=oauth, tokens=tokens)
+    logins = LoginService(
+        uow_factory, Argon2PasswordHasher(time_cost=1, memory_cost=1024, parallelism=1)
+    )
+    await logins.create_account("a@example.org", PASSWORD, user_id=USER)
+    services = SimpleNamespace(mcp_oauth=oauth, tokens=tokens, logins=logins)
     rules = TaxRuleService(uow_factory)
 
     async def proposed_version() -> str:
@@ -131,7 +133,8 @@ async def test_the_user_s_own_sign_ins_can_activate(world):
     pat = (await tokens.create(USER, "laptop", permissions=[TAX_ACTIVATE]))["token"]
     cli = await _device_token(oauth, CLI_CLIENT_ID, f"{BASE}/v1")
 
-    for token, method in ((_session(), "session"), (pat, "pat"), (cli, "oauth")):
+    session = await _session(services.logins)
+    for token, method in ((session, "session"), (pat, "pat"), (cli, "oauth")):
         principal = await _principal(token, _real(), services)
         assert principal.method == method
         assert TAX_ACTIVATE in principal.permissions
@@ -237,8 +240,9 @@ def api(world):
         return principal.user_id
 
     app = create_app()
+    services = world[2]
     app.dependency_overrides[get_services] = lambda: SimpleNamespace(
-        mcp_oauth=oauth, tokens=tokens, tax_rules=rules
+        mcp_oauth=oauth, tokens=tokens, tax_rules=rules, logins=services.logins
     )
     app.dependency_overrides[get_settings] = _real
     app.dependency_overrides[get_current_user] = member
@@ -296,7 +300,7 @@ async def test_over_http_only_a_sign_in_holding_tax_activate_may_give_it_to_a_to
     assert r.status_code == 422
 
     # The user's own sign-ins hold it, so they may give it.
-    for token in (_session(), cli):
+    for token in (await _session(world[2].logins), cli):
         r = await api.post("/v1/tokens", json=wanted, headers=_bearer(token))
         assert r.status_code == 201, r.json()
         assert r.json()["permissions"] == [TAX_ACTIVATE]
