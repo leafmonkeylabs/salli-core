@@ -54,6 +54,8 @@ dependencies = [
     "httpx>=0.27",
     "python-multipart>=0.0.32",
     "mcp>=1.28.1,<2",  # 2.x renamed FastMCP (interfaces/api/mcp_server.py)
+    # Sign-in: password hashing (argon2id) for Salli's own accounts
+    "argon2-cffi>=23.1",
 ]
 
 [project.urls]
