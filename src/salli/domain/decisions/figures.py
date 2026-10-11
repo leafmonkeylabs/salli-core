@@ -81,7 +81,7 @@ def _monthly_specs() -> list[FigureSpec]:
         "net_worth": "Net worth (cash and investments and other assets, less debts and other "
         "liabilities)",
         "cash": "Cash (the cash accounts together, a card's balance against them)",
-        "investments": "Investments, grown at the real return",
+        "investments": "Investments (grown at the real return)",
         "debts": "What the debts with terms (and the option's loans) still owe",
     }
     return [
