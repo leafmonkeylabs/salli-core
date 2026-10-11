@@ -288,8 +288,15 @@ def view(
             "lowest": _money(result.lowest, cur),
             "lowest_date": result.lowest_date,
             "month_ends": [
-                {"month": month, "cash": _money(value, cur), "unscheduled": _money(rest, cur)}
-                for (month, value), (_, rest) in zip(cash.month_ends, cash.unscheduled, strict=True)
+                {
+                    "month": month,
+                    "cash": _money(value, cur),
+                    "unscheduled": _money(rest, cur),
+                    "invested": _money(invested, cur),
+                }
+                for (month, value), (_, rest), (_, invested) in zip(
+                    cash.month_ends, cash.unscheduled, cash.invested, strict=True
+                )
             ],
             "daily": [{"date": d, "balance": _money(v, cur)} for d, v in result.daily]
             if daily
@@ -298,6 +305,7 @@ def view(
         "monthly": {
             "horizon_years": horizon_years,
             "real_return": rate_text(monthly.real_return),
+            "surplus_invested": rate_text(monthly.surplus_invested),
             "inflation": None if baseline.inflation is None else rate_text(baseline.inflation),
             "points": [
                 {
@@ -327,5 +335,5 @@ def view(
             for r in baseline.rule_sets
         ],
         "fingerprint": baseline.fingerprint,
-        "notes": list(dict.fromkeys([*baseline.notes, *cash.notes])),
+        "notes": list(dict.fromkeys([*baseline.notes, *cash.notes, *monthly.notes])),
     }

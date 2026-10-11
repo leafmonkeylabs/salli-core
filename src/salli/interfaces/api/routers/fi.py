@@ -87,14 +87,19 @@ class FiAssumptions(BaseModel):
     #: "placeholder" while any figure used is one; "user" once every one was
     #: set by the user, their agent or their FIRE strategy.
     status: Literal["placeholder", "user"]
-    #: The placeholders in use: "real_return", "safe_withdrawal_rate".
-    placeholders: list[Literal["real_return", "safe_withdrawal_rate"]]
+    #: The placeholders in use: "real_return", "safe_withdrawal_rate",
+    #: "surplus_invested".
+    placeholders: list[Literal["real_return", "safe_withdrawal_rate", "surplus_invested"]]
     #: What to tell a person about these assumptions, in a sentence or two.
     message: str
     #: The base scenario's yearly return after inflation.
     real_return: FiAssumption
     #: What the FI number is built on: annual expenses / this.
     safe_withdrawal_rate: FiAssumption
+    #: The share (0 to 1) of each month's regular surplus that goes into
+    #: investments and grows at the real return; the rest stays in cash,
+    #: which earns nothing. Not a rate: "0.8" is 80% of the surplus.
+    surplus_invested: FiAssumption
     #: The user's inflation; null when they have not set one, and then every
     #: figure is in today's money only.
     inflation: FiAssumption | None = None
@@ -106,13 +111,16 @@ class FiAssumptions(BaseModel):
     nominal_returns: FiScenarioReturns | None = None
 
 
-AssumptionName = Literal["real_return", "nominal_return", "inflation", "safe_withdrawal_rate"]
+AssumptionName = Literal[
+    "real_return", "nominal_return", "inflation", "safe_withdrawal_rate", "surplus_invested"
+]
 
 
 class FiOwnAssumption(BaseModel):
     """A planning assumption the user (or their agent) set."""
 
-    #: A yearly fraction in a decimal string.
+    #: A yearly fraction in a decimal string (a share from 0 to 1, for
+    #: surplus_invested).
     value: str
     #: Where it comes from: a URL or a citation.
     source: str | None = None
@@ -130,6 +138,8 @@ class FiOwnAssumptions(BaseModel):
     nominal_return: FiOwnAssumption | None = None
     inflation: FiOwnAssumption | None = None
     safe_withdrawal_rate: FiOwnAssumption | None = None
+    #: The share of the monthly surplus invested.
+    surplus_invested: FiOwnAssumption | None = None
 
 
 class FiPlaceholder(BaseModel):
@@ -143,6 +153,7 @@ class FiPlaceholder(BaseModel):
 class FiPlaceholderValues(BaseModel):
     real_return: FiPlaceholder
     safe_withdrawal_rate: FiPlaceholder
+    surplus_invested: FiPlaceholder
 
 
 class FiAssumptionsReport(BaseModel):
@@ -162,7 +173,8 @@ class FiOwnAssumptionIn(BaseModel):
 
     #: A yearly fraction: "0.03" is 3%. Plausible ranges are enforced
     #: (a real return from -0.05 to 0.15, a withdrawal rate from 0.01 to 0.10,
-    #: inflation and a nominal return from -0.05 to 1).
+    #: inflation and a nominal return from -0.05 to 1). For surplus_invested,
+    #: a share from 0 to 1: "0.8" is 80% of the monthly surplus.
     value: DecimalIn
     #: Where the figure comes from: a URL, or a publication and its date.
     source: Annotated[str | None, Field(max_length=500)] = None
@@ -180,6 +192,8 @@ class FiAssumptionsUpdate(BaseModel):
     nominal_return: FiOwnAssumptionIn | None = None
     inflation: FiOwnAssumptionIn | None = None
     safe_withdrawal_rate: FiOwnAssumptionIn | None = None
+    #: The share (0 to 1) of each month's regular surplus you invest.
+    surplus_invested: FiOwnAssumptionIn | None = None
 
 
 @router.get("/assumptions")

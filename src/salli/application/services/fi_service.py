@@ -675,7 +675,8 @@ class FiService:
         and `assumptions` says which.
 
         Each scenario is the baseline's monthly timeline with its
-        investments at that real return (cash earns nothing, debts follow
+        investments, the share of each month's surplus the user invests
+        among them, at that real return (cash earns nothing, debts follow
         their schedules), and the month FI is reached is read from the same
         timeline, so the chart and the month always agree."""
         baseline, _, strategy, applied, _ = await self._inputs(user_id, as_of)

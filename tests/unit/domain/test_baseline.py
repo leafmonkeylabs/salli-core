@@ -1,7 +1,8 @@
 """
 The baseline (domain/baseline): one definition of income and expenses,
 balances by role at the as-of rates, debts counted once, and two timelines
-that agree.
+that agree, each month's regular surplus shared between the investments and
+cash by the share the user invests.
 """
 
 from __future__ import annotations
@@ -210,29 +211,158 @@ def test_debt_schedules_land_on_calendar_months():
     }
 
 
-def test_a_paid_off_debt_leaves_its_payment_in_cash():
+def _plan(baseline, changes=timelines.NO_CHANGES, count: int = 13):
+    months = timelines.periods(AS_OF, count)
+    paths = timelines.debt_paths(baseline, months, changes)
+    return {m.period.month: m for m in timelines.cash_plan(baseline, months, paths, changes)}
+
+
+def test_a_paid_off_debts_payment_joins_the_regular_surplus():
     books = _household()
     books.debt("car", "1000", "0.12", "400")
     baseline = books.baseline(AS_OF)
-    points = {p.month: p for p in timelines.monthly(baseline, 1).points[1:]}
     surplus = baseline.flows.surplus
-    # While it's paid, the 400 is in the surplus already: cash grows by it.
-    assert points["2027-05"].cash - points["2027-04"].cash == surplus
-    # The last payment is smaller: the rest stays.
-    assert points["2027-06"].cash - points["2027-05"].cash == surplus + Decimal("181.74")
-    # Once it's paid off, the whole payment stays.
-    assert points["2027-07"].cash - points["2027-06"].cash == surplus + 400
+    assert surplus == 3800
+    plan = _plan(baseline)
+    # While it's paid, the 400 is in the surplus already (an unlinked debt's
+    # payments were spending): the regular surplus is the surplus.
+    assert plan["2027-05"].regular == surplus
+    # The last payment is smaller: the rest is freed.
+    assert plan["2027-06"].regular == surplus + Decimal("181.74")
+    # Once it's paid off, the whole payment is freed.
+    assert plan["2027-07"].regular == surplus + 400
+    # The placeholder invests all of it, the freed payment too: cash stays
+    # where it is, and the investments take it.
+    assert baseline.surplus_invested == 1
+    assert all(m.invested == m.regular for m in plan.values())
+    points = {p.month: p for p in timelines.monthly(baseline, 1).points[1:]}
+    assert points["2027-07"].cash == points["2027-06"].cash == points["2027-04"].cash
+
+    # With none of it invested, cash grows by it, as before the share was an
+    # assumption.
+    books.assume(surplus_invested="0")
+    kept = {p.month: p for p in timelines.monthly(books.baseline(AS_OF), 1).points[1:]}
+    assert kept["2027-05"].cash - kept["2027-04"].cash == surplus
+    assert kept["2027-06"].cash - kept["2027-05"].cash == surplus + Decimal("181.74")
+    assert kept["2027-07"].cash - kept["2027-06"].cash == surplus + 400
 
 
 def test_investments_grow_at_the_real_return_and_other_assets_keep_their_value():
     books = _household()
     books.assume(real_return="0.06")
-    monthly = timelines.monthly(books.baseline(AS_OF), 1)
+    baseline = books.baseline(AS_OF)
+    monthly = timelines.monthly(baseline, 1)
+    plan = _plan(baseline)
     start, march, april = monthly.points[:3]
-    assert march.investments == Decimal(20000) * (1 + Decimal("0.005") * Decimal(14) / 31)
-    assert april.investments == march.investments * Decimal("1.005")
+    # A twelfth of 6% a month (the as-of month's 14 days of 31); the share of
+    # each month's regular surplus joins at its end and grows from the next.
+    assert march.investments == (
+        Decimal(20000) * (1 + Decimal("0.005") * Decimal(14) / 31) + plan["2027-03"].invested
+    )
+    assert april.investments == march.investments * Decimal("1.005") + plan["2027-04"].invested
     assert start.other_assets == april.other_assets == Decimal(400000)
     assert monthly.real_return == Decimal("0.06")
+    assert monthly.surplus_invested == 1
+
+
+# ── The share of the surplus invested ────────────────────────────────────────
+
+
+def test_the_share_invested_splits_each_months_regular_surplus():
+    books = _household()
+    books.assume(surplus_invested="0.8")
+    baseline = books.baseline(AS_OF)
+    assert baseline.surplus_invested == Decimal("0.8")
+    assert "surplus_invested" not in baseline.placeholders
+    plan = _plan(baseline)
+    # 80% of April's 3,800.00 into the investments at its end; the rest,
+    # 760.00, stays in cash.
+    april = plan["2027-04"]
+    assert (april.regular, april.invested, april.cash_change) == (
+        Decimal("3800.00"),
+        Decimal("3040.00"),
+        Decimal("760.00"),
+    )
+    points = {p.month: p for p in timelines.monthly(baseline, 1).points}
+    assert points["2027-04"].cash - points["2027-03"].cash == Decimal("760.00")
+    # Rounded to the currency's smallest unit, so the daily timeline, which
+    # takes it out on the month's last day, sums to it exactly.
+    assert timelines.invested_share(Decimal("100.01"), Decimal("0.5"), "CHF") == Decimal("50.01")
+    assert timelines.invested_share(Decimal("1001"), Decimal("0.5"), "JPY") == Decimal("501")
+
+
+def test_the_daily_timeline_takes_the_share_invested_out_on_the_months_last_day():
+    books = _household()
+    books.assume(surplus_invested="0.5")
+    baseline = books.baseline(AS_OF)
+    daily = timelines.daily(baseline)
+    invested = [f for f in daily.forecast.flows if f.source == "invested"]
+    plan = _plan(baseline)
+    assert [(f.date, f.amount) for f in invested[:2]] == [
+        ("2027-03-31", -plan["2027-03"].invested),
+        ("2027-04-30", -plan["2027-04"].invested),
+    ]
+    assert dict(daily.invested)["2027-04"] == Decimal("1900.00")
+    # Until its last day cash holds it; the month ends without it, where the
+    # plan says: the other half of April's 3,800.00 more than March.
+    ends = dict(daily.month_ends)
+    assert ends["2027-04"] - ends["2027-03"] == plan["2027-04"].cash_change == Decimal("1900.00")
+    monthly = timelines.monthly(baseline, 1)
+    assert [v for _, v in daily.month_ends] == [p.cash for p in monthly.points[1:]]
+
+
+def test_a_deficit_is_drawn_from_cash_never_from_the_investments():
+    books = _household()
+    books.book("2027-01-20", "food", "bank", "15000", description="ROOF REPAIRS")
+    baseline = books.baseline(AS_OF)
+    # 6,000 in and 7,200 out a month on average: a deficit of 1,200.
+    assert baseline.flows.surplus == -1200
+    plan = _plan(baseline, count=25)
+    # The rest of March still has its salary to come: a surplus, shared out.
+    # Every full month after it is a deficit, and invests nothing.
+    assert plan["2027-03"].regular > 0
+    full = [m for month, m in plan.items() if month != "2027-03"]
+    assert all(m.regular == -1200 and m.invested == 0 for m in full)
+    assert all(m.cash_change == -1200 for m in full)
+    monthly = timelines.monthly(baseline, 2)
+    # The investments only grow at the real return; cash takes the deficit
+    # and is left below zero, never made up by selling investments, and the
+    # timeline says from when.
+    for before, after in zip(monthly.points[1:], monthly.points[2:], strict=False):
+        assert after.investments == before.investments * (1 + Decimal("0.04") / 12)
+    below = next(p for p in monthly.points[1:] if p.cash < 0)
+    assert monthly.notes == (
+        f"Cash is below zero from the end of {below.month}: what the regular surplus "
+        "doesn't cover, and what is paid from cash, is drawn from cash, never from your "
+        "investments, so cash is left below zero rather than investments sold.",
+    )
+    # A surplus that stays positive says nothing.
+    assert timelines.monthly(_household().baseline(AS_OF), 2).notes == ()
+
+
+def test_moves_and_extra_payments_are_not_shared_out():
+    from salli.domain.reports.forecast import Flow
+
+    books = _household()
+    books.debt("car", "6000", "0.069", "300")
+    baseline = books.baseline(AS_OF)
+    before = _plan(baseline)
+    one_off = Flow("2027-05-03", None, Decimal("-2400"), "CHF", "Laptop", "change")
+    rent = Flow("2027-05-02", "bank", Decimal("-500"), "CHF", "Parking", "change")
+    extra = timelines.ExtraPayment("car", "2027-05", "2027-05", Decimal("1000"))
+    changes = timelines.Changes(flows=(one_off,), regular=(rent,), extra=(extra,))
+    after = _plan(baseline, changes)
+    may = after["2027-05"]
+    # The one-off and the extra payment come out of cash; the recurring cost
+    # is regular surplus, so less is invested.
+    assert (may.changes, may.extra, may.regular_changes) == (
+        Decimal(-2400),
+        Decimal("1000.00"),
+        Decimal(-500),
+    )
+    assert may.regular == before["2027-05"].regular - 500
+    assert may.invested == before["2027-05"].invested - 500
+    assert may.cash_change == before["2027-05"].cash_change - 2400 - 1000
 
 
 def test_without_inflation_nominal_amounts_keep_their_real_value_and_it_is_said():

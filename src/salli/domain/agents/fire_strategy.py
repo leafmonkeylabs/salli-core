@@ -58,10 +58,11 @@ count, names, and target percentages should reflect their actual financial profi
 
 Planning assumptions: Salli plans in REAL terms (after inflation, in today's money). The
 data's `assumptions` gives the base scenario's real return and the safe withdrawal rate Salli
-applies for this user, and their inflation if they set one. Each has an `origin`: `user` when
-they (or their agent) set it, with the `source` they cited, or `placeholder` when it is
-Salli's neutral stand-in, a round figure that is no forecast and no country's figure.
-`status` is `placeholder` while any is one. Use them:
+applies for this user, the share of their monthly surplus they invest (`surplus_invested`,
+0 to 1: not a rate, and not yours to choose), and their inflation if they set one. Each has
+an `origin`: `user` when they (or their agent) set it, with the `source` they cited, or
+`placeholder` when it is Salli's neutral stand-in, a round figure that is no forecast and no
+country's figure. `status` is `placeholder` while any is one. Use them:
 - Choose three REAL yearly returns (conservative, base, growth), after inflation: never
   nominal ones. Your base should be near the real return given, or say in ai_rationale why not
 - Keep to any assumption whose origin is `user`: Salli applies theirs over yours

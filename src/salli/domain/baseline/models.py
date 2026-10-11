@@ -149,10 +149,13 @@ class BaselineDebt:
     #: The part of each month's payment the average surplus already pays:
     #: a linked debt's interest this month (its principal moves between
     #: accounts, so isn't spending); an unlinked debt's minimum payment (its
-    #: payments were spending). Payments beyond it come out of cash; when the
-    #: debt is paid off, it stays in cash. Nothing, for a scenario's loan.
+    #: payments were spending). The rest of its scheduled payment comes out
+    #: of the regular surplus; once the debt is paid off, the payment is
+    #: freed and joins it (`timelines.cash_plan`). Nothing, for a scenario's
+    #: loan.
     already_paid: Decimal
-    #: Paid on top of the minimum each month, from the first payment.
+    #: Paid on top of the minimum each month, from the first payment: out of
+    #: cash, not the regular surplus.
     extra_payment: Decimal = Decimal(0)
     #: The calendar month ("YYYY-MM") a scenario's loan is taken out, owed
     #: from that month's end; None for a debt owed on the as-of date.
@@ -325,6 +328,12 @@ class Baseline:
     @property
     def inflation(self) -> Decimal | None:
         return self.assumptions.inflation.value if self.assumptions.inflation else None
+
+    @property
+    def surplus_invested(self) -> Decimal:
+        """The share (0 to 1) of each month's regular surplus that goes into
+        investments (`timelines.cash_plan`); the user's, or the placeholder."""
+        return self.assumptions.surplus_invested.value
 
     @property
     def placeholders(self) -> tuple[str, ...]:

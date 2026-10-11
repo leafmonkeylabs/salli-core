@@ -259,7 +259,9 @@ class ScenarioRun(BaseModel):
     break_evens: list[ScenarioBreakEven]
     #: The FI assumptions the figures rest on, and where each came from.
     assumptions: FiAssumptions
-    placeholders: list[Literal["real_return", "safe_withdrawal_rate", "inflation"]]
+    placeholders: list[
+        Literal["real_return", "safe_withdrawal_rate", "surplus_invested", "inflation"]
+    ]
     versions: ScenarioVersions
     #: The newest ledger entry on or before the as-of date.
     data_as_of: Day | None

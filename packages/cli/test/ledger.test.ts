@@ -187,9 +187,10 @@ describe('salli status', () => {
           "assumptions": {
             "status": "placeholder",
             "placeholders": [
-              "real_return"
+              "real_return",
+              "surplus_invested"
             ],
-            "message": "Using placeholder assumptions for the real return: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+            "message": "Using placeholder assumptions for the real return and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
             "real_return": {
               "value": "0.04",
               "origin": "placeholder",
@@ -200,6 +201,12 @@ describe('salli status', () => {
               "value": "0.035",
               "origin": "user",
               "source": "https://example.org/withdrawal-study",
+              "note": null
+            },
+            "surplus_invested": {
+              "value": "1",
+              "origin": "placeholder",
+              "source": "Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.",
               "note": null
             },
             "inflation": null,

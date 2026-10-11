@@ -3,29 +3,33 @@ The scenario engine: `run(baseline, scenario) -> ScenarioResult`. Pure,
 deterministic, Decimal; no model, and nothing written anywhere.
 
 **Translating.** Each change becomes what the baseline's timelines take
-(`timelines.Changes`):
+(`timelines.Changes`), either part of the regular surplus, which the share
+invested (`surplus_invested`) splits between investments and cash as it
+does the baseline's own, or a move that goes where it says:
 
-- `one_off`: a cash flow on its day, in that day's money.
-- `recurring`: a cash flow on each day its cadence lands on (monthly and
-  longer keep the start's day of the month, kept to short months), from its
-  start to its end or for good. In today's money: each is the amount grown
-  by the user's inflation to its month (nothing, with none set), as the
-  baseline's average spending is.
-- `income_change`: the same, monthly from its `from` day.
-- `loan`: the money borrowed arrives on its start day; it is owed from that
-  month's end and repaid from the month after in level payments
-  (`fi.engine.installment_payment`, rounded to the currency's smallest
-  unit), the last one clearing it. Its payments are fixed in their own
-  day's money.
-- `extra_debt_payment`: paid on a debt on top of its minimum each month from
-  `from`'s month to `to`'s (debts are paid from the month after the as-of
-  month), until it is paid off.
-- `invest`: cash out on its day, into the investments, which then grow at
-  the real return.
-- `stop_recurring`: what the ledger's recurring flow would have moved, put
-  back on each day it would have fallen, from `from` on. Only a flow of
-  income or spending: a transfer between the user's own accounts is no part
-  of what they earn or spend.
+- `one_off`: a move, a cash flow on its day, in that day's money.
+- `recurring`: regular, a cash flow on each day its cadence lands on
+  (monthly and longer keep the start's day of the month, kept to short
+  months), from its start to its end or for good. In today's money: each is
+  the amount grown by the user's inflation to its month (nothing, with none
+  set), as the baseline's average spending is.
+- `income_change`: regular, the same, monthly from its `from` day.
+- `loan`: the money borrowed is a move, arriving in cash on its start day;
+  it is owed from that month's end and repaid from the month after in level
+  payments (`fi.engine.installment_payment`, rounded to the currency's
+  smallest unit), the last one clearing it. Its payments are scheduled ones,
+  out of the regular surplus, and fixed in their own day's money; once it
+  is paid off they are freed.
+- `extra_debt_payment`: a move, paid out of cash onto a debt on top of its
+  minimum each month from `from`'s month to `to`'s (debts are paid from the
+  month after the as-of month), until it is paid off. The debt's scheduled
+  payments it saves join the regular surplus once the debt is gone.
+- `invest`: a move, cash out on its day into the investments, which then
+  grow at the real return.
+- `stop_recurring`: regular, what the ledger's recurring flow would have
+  moved, put back on each day it would have fallen, from `from` on. Only a
+  flow of income or spending: a transfer between the user's own accounts is
+  no part of what they earn or spend.
 
 Every date in a change is on or after the as-of date; every account is a
 cash account held in the base currency; every amount fits the currency's
@@ -70,8 +74,9 @@ from salli.domain.reports.insights import Recurring as Rhythm
 from salli.domain.scenarios import schema
 from salli.domain.taxrules.common import Problem, join_path
 
-#: Bumped whenever the same inputs would give different figures.
-ENGINE_VERSION = "1"
+#: Bumped whenever the same inputs would give different figures. 2: the
+#: share of the regular surplus invested (`surplus_invested`).
+ENGINE_VERSION = "2"
 #: The years the monthly figures are shown at (and the horizon itself).
 CHECKPOINT_YEARS = (1, 5, 10, 20)
 #: A ledger whose newest entry is older than this is too stale to decide on.
@@ -263,6 +268,7 @@ class _Translator:
 
     def translate(self) -> Translation:
         flows: list[forecasting.Flow] = []
+        regular: list[forecasting.Flow] = []
         invested: list[tuple[str, Decimal]] = []
         loans: list[BaselineDebt] = []
         extra: list[timelines.ExtraPayment] = []
@@ -294,7 +300,7 @@ class _Translator:
                     account = self.account(here("account"), change.account)
                     last = min(change.end or self.end, self.end)
                     for day in occurrences(change.start, change.cadence, last):
-                        flows.append(
+                        regular.append(
                             self.flow(
                                 day, account, self.today_money(change.amount, day), change.label
                             )
@@ -316,7 +322,7 @@ class _Translator:
                     self.amount(here("monthly_net"), change.monthly_net)
                     last = min(change.to or self.end, self.end)
                     for day in occurrences(change.from_, "monthly", last):
-                        flows.append(
+                        regular.append(
                             self.flow(
                                 day, None, self.today_money(change.monthly_net, day), change.label
                             )
@@ -404,7 +410,7 @@ class _Translator:
                 case schema.StopRecurringChange():
                     self.date(here("from"), change.from_)
                     stop, stopped, less = self.stop(here("key"), change)
-                    flows.extend(stop)
+                    regular.extend(stop)
                     spending -= less
                     applied.append(
                         AppliedChange(
@@ -427,7 +433,13 @@ class _Translator:
             base if target is not None and target > 0 else max(base + spending, Decimal(0))
         )
         return Translation(
-            timelines.Changes(tuple(flows), tuple(invested), tuple(loans), tuple(extra)),
+            timelines.Changes(
+                flows=tuple(flows),
+                invested=tuple(invested),
+                loans=tuple(loans),
+                extra=tuple(extra),
+                regular=tuple(regular),
+            ),
             tuple(applied),
             scenario_spending,
             tuple(dict.fromkeys(self.notes)),
@@ -461,8 +473,9 @@ class _Translator:
             self.problem(
                 path,
                 f"{names} moves money between your own accounts, which is no part of what "
-                "you earn or spend: stopping it changes nothing here (the baseline keeps "
-                "your surplus in cash; to invest it, add an invest change)",
+                "you earn or spend: stopping it changes nothing here (how much of your "
+                "surplus is invested is your surplus_invested assumption; to move a sum, "
+                "add an invest change)",
             )
             return [], (), Decimal(0)
         flows: list[forecasting.Flow] = []
@@ -984,5 +997,9 @@ def run(
         versions=versions(baseline),
         data_as_of=latest,
         is_stale=stale,
-        notes=tuple(dict.fromkeys([*baseline.notes, *mine.cash.notes, *translation.notes])),
+        notes=tuple(
+            dict.fromkeys(
+                [*baseline.notes, *mine.cash.notes, *mine.monthly.notes, *translation.notes]
+            )
+        ),
     )

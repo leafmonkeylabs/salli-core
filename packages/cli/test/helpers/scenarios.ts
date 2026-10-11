@@ -12,8 +12,8 @@ export const SCENARIO_RUN: ScenarioRun = {
   "as_of": "2026-10-11",
   "horizon_years": 20,
   "currency": "EUR",
-  "hash": "sha256:c96461abfc8eb370d812bfc45e4e8021b27a6b59d7f87e0e9981376f5d8601f7",
-  "baseline_fingerprint": "sha256:58d04aceaabd7cb4575ff0bdb45a12686dcb7ddf1941113eb202ad3c673f05c7",
+  "hash": "sha256:01756a0b53033b31a1597dcb5d8dfbcea9a89cf8ffa186304cc5b2dc81941b57",
+  "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Laptop",
@@ -90,19 +90,19 @@ export const SCENARIO_RUN: ScenarioRun = {
     "start": "2026-10-11",
     "end": "2027-10-31",
     "lowest": {
-      "baseline": "15740.01",
-      "scenario": "15085.90",
-      "delta": "-654.11"
+      "baseline": "13998.91",
+      "scenario": "11626.24",
+      "delta": "-2372.67"
     },
     "lowest_date": {
-      "baseline": "2026-10-18",
+      "baseline": "2027-02-24",
       "scenario": "2026-11-24",
-      "delta_days": 37
+      "delta_days": -92
     },
     "at_end": {
-      "baseline": "39200.21",
-      "scenario": "50654.09",
-      "delta": "11453.88"
+      "baseline": "15801.47",
+      "scenario": "31401.47",
+      "delta": "15600.00"
     },
     "safe_to_spend": {
       "baseline": "15727.02",
@@ -180,19 +180,19 @@ export const SCENARIO_RUN: ScenarioRun = {
       "month": "2027-10",
       "date": "2027-10-31",
       "net_worth": {
-        "baseline": "365755.54",
-        "scenario": "362562.26",
-        "delta": "-3193.28"
+        "baseline": "366266.13",
+        "scenario": "363010.64",
+        "delta": "-3255.50"
       },
       "cash": {
-        "baseline": "39200.21",
-        "scenario": "50654.09",
-        "delta": "11453.88"
+        "baseline": "15801.47",
+        "scenario": "31401.47",
+        "delta": "15600.00"
       },
       "investments": {
-        "baseline": "39637.48",
-        "scenario": "39637.48",
-        "delta": "0.00"
+        "baseline": "63546.81",
+        "scenario": "59338.48",
+        "delta": "-4208.34"
       },
       "debts": {
         "baseline": "13082.15",
@@ -205,19 +205,19 @@ export const SCENARIO_RUN: ScenarioRun = {
       "month": "2031-10",
       "date": "2031-10-31",
       "net_worth": {
-        "baseline": "473816.13",
-        "scenario": "469546.07",
-        "delta": "-4270.06"
+        "baseline": "485551.81",
+        "scenario": "478903.79",
+        "delta": "-6648.03"
       },
       "cash": {
-        "baseline": "129270.40",
-        "scenario": "125000.34",
-        "delta": "-4270.06"
+        "baseline": "15801.47",
+        "scenario": "31401.47",
+        "delta": "15600.00"
       },
       "investments": {
-        "baseline": "46502.64",
-        "scenario": "46502.64",
-        "delta": "0.00"
+        "baseline": "171707.25",
+        "scenario": "149459.23",
+        "delta": "-22248.03"
       },
       "debts": {
         "baseline": "1956.91",
@@ -230,19 +230,19 @@ export const SCENARIO_RUN: ScenarioRun = {
       "month": "2036-10",
       "date": "2036-10-31",
       "net_worth": {
-        "baseline": "611922.24",
-        "scenario": "608431.58",
-        "delta": "-3490.66"
+        "baseline": "664379.50",
+        "scenario": "653675.96",
+        "delta": "-10703.54"
       },
       "cash": {
-        "baseline": "255142.68",
-        "scenario": "251652.02",
-        "delta": "-3490.66"
+        "baseline": "15801.47",
+        "scenario": "31401.47",
+        "delta": "15600.00"
       },
       "investments": {
-        "baseline": "56779.56",
-        "scenario": "56779.56",
-        "delta": "0.00"
+        "baseline": "348578.03",
+        "scenario": "322274.49",
+        "delta": "-26303.54"
       },
       "debts": {
         "baseline": "0.00",
@@ -255,19 +255,19 @@ export const SCENARIO_RUN: ScenarioRun = {
       "month": "2046-10",
       "date": "2046-10-31",
       "net_worth": {
-        "baseline": "895582.31",
-        "scenario": "893650.45",
-        "delta": "-1931.86"
+        "baseline": "1149349.20",
+        "scenario": "1127647.79",
+        "delta": "-21701.41"
       },
       "cash": {
-        "baseline": "510933.48",
-        "scenario": "509001.62",
-        "delta": "-1931.86"
+        "baseline": "15801.47",
+        "scenario": "31401.47",
+        "delta": "15600.00"
       },
       "investments": {
-        "baseline": "84648.83",
-        "scenario": "84648.83",
-        "delta": "0.00"
+        "baseline": "833547.73",
+        "scenario": "796246.32",
+        "delta": "-37301.41"
       },
       "debts": {
         "baseline": "0.00",
@@ -339,14 +339,14 @@ export const SCENARIO_RUN: ScenarioRun = {
     "basis": "essential",
     "monthly_spending": "1898.32",
     "lowest": {
-      "baseline": "8.29",
-      "scenario": "7.95",
-      "delta": "-0.34"
+      "baseline": "7.37",
+      "scenario": "6.12",
+      "delta": "-1.25"
     },
     "at_end": {
-      "baseline": "20.65",
-      "scenario": "26.68",
-      "delta": "6.03"
+      "baseline": "8.32",
+      "scenario": "16.54",
+      "delta": "8.22"
     }
   },
   "fi": {
@@ -361,20 +361,21 @@ export const SCENARIO_RUN: ScenarioRun = {
       "delta": "-12.99"
     },
     "fi_month": {
-      "baseline": "2047-05",
-      "scenario": "2047-04",
-      "delta_months": -1
+      "baseline": "2042-05",
+      "scenario": "2042-09",
+      "delta_months": 4
     },
-    "months_gained": 1
+    "months_gained": -4
   },
   "break_evens": [],
   "assumptions": {
     "status": "placeholder",
     "placeholders": [
       "real_return",
-      "safe_withdrawal_rate"
+      "safe_withdrawal_rate",
+      "surplus_invested"
     ],
-    "message": "Using placeholder assumptions for the real return and the safe withdrawal rate: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -385,6 +386,12 @@ export const SCENARIO_RUN: ScenarioRun = {
       "value": "0.04",
       "origin": "placeholder",
       "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "note": null
+    },
+    "surplus_invested": {
+      "value": "1",
+      "origin": "placeholder",
+      "source": "Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.",
       "note": null
     },
     "inflation": null,
@@ -399,12 +406,13 @@ export const SCENARIO_RUN: ScenarioRun = {
   "placeholders": [
     "real_return",
     "safe_withdrawal_rate",
+    "surplus_invested",
     "inflation"
   ],
   "versions": {
     "schema": "salli.scenario/1",
-    "engine": "1",
-    "fi_assumptions": "sha256:007c166ccd9fa0fe1706a636937eb7266f94db89dba293a2bc5823a91dbf1846",
+    "engine": "2",
+    "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
     "fire_strategy": null,
     "rule_sets": []
   },
@@ -428,8 +436,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:c25f7c53f603182c68a2d1450079cc71cdcab7d61eb72e88ac47d1cce01b773e",
-      "baseline_fingerprint": "sha256:58d04aceaabd7cb4575ff0bdb45a12686dcb7ddf1941113eb202ad3c673f05c7",
+      "hash": "sha256:c67789751bb9861552d93e1440317e8fbbb40fca19d147a1c2213e8ecaec7fe6",
+      "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
       "scenario": {
         "schema": "salli.scenario/1",
         "label": "Pay cash",
@@ -462,18 +470,18 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "start": "2026-10-11",
         "end": "2027-10-31",
         "lowest": {
-          "baseline": "15740.01",
-          "scenario": "15072.91",
-          "delta": "-667.10"
+          "baseline": "13998.91",
+          "scenario": "11598.91",
+          "delta": "-2400.00"
         },
         "lowest_date": {
-          "baseline": "2026-10-18",
-          "scenario": "2026-11-24",
-          "delta_days": 37
+          "baseline": "2027-02-24",
+          "scenario": "2027-02-24",
+          "delta_days": 0
         },
         "at_end": {
-          "baseline": "39200.21",
-          "scenario": "36800.21",
+          "baseline": "15801.47",
+          "scenario": "13401.47",
           "delta": "-2400.00"
         },
         "safe_to_spend": {
@@ -552,18 +560,18 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2027-10",
           "date": "2027-10-31",
           "net_worth": {
-            "baseline": "365755.54",
-            "scenario": "363355.54",
+            "baseline": "366266.13",
+            "scenario": "363866.13",
             "delta": "-2400.00"
           },
           "cash": {
-            "baseline": "39200.21",
-            "scenario": "36800.21",
+            "baseline": "15801.47",
+            "scenario": "13401.47",
             "delta": "-2400.00"
           },
           "investments": {
-            "baseline": "39637.48",
-            "scenario": "39637.48",
+            "baseline": "63546.81",
+            "scenario": "63546.81",
             "delta": "0.00"
           },
           "debts": {
@@ -577,18 +585,18 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2031-10",
           "date": "2031-10-31",
           "net_worth": {
-            "baseline": "473816.13",
-            "scenario": "471416.13",
+            "baseline": "485551.81",
+            "scenario": "483151.81",
             "delta": "-2400.00"
           },
           "cash": {
-            "baseline": "129270.40",
-            "scenario": "126870.40",
+            "baseline": "15801.47",
+            "scenario": "13401.47",
             "delta": "-2400.00"
           },
           "investments": {
-            "baseline": "46502.64",
-            "scenario": "46502.64",
+            "baseline": "171707.25",
+            "scenario": "171707.25",
             "delta": "0.00"
           },
           "debts": {
@@ -602,18 +610,18 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2036-10",
           "date": "2036-10-31",
           "net_worth": {
-            "baseline": "611922.24",
-            "scenario": "609522.24",
+            "baseline": "664379.50",
+            "scenario": "661979.50",
             "delta": "-2400.00"
           },
           "cash": {
-            "baseline": "255142.68",
-            "scenario": "252742.68",
+            "baseline": "15801.47",
+            "scenario": "13401.47",
             "delta": "-2400.00"
           },
           "investments": {
-            "baseline": "56779.56",
-            "scenario": "56779.56",
+            "baseline": "348578.03",
+            "scenario": "348578.03",
             "delta": "0.00"
           },
           "debts": {
@@ -627,18 +635,18 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2046-10",
           "date": "2046-10-31",
           "net_worth": {
-            "baseline": "895582.31",
-            "scenario": "893182.31",
+            "baseline": "1149349.20",
+            "scenario": "1146949.20",
             "delta": "-2400.00"
           },
           "cash": {
-            "baseline": "510933.48",
-            "scenario": "508533.48",
+            "baseline": "15801.47",
+            "scenario": "13401.47",
             "delta": "-2400.00"
           },
           "investments": {
-            "baseline": "84648.83",
-            "scenario": "84648.83",
+            "baseline": "833547.73",
+            "scenario": "833547.73",
             "delta": "0.00"
           },
           "debts": {
@@ -696,13 +704,13 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "basis": "essential",
         "monthly_spending": "1898.32",
         "lowest": {
-          "baseline": "8.29",
-          "scenario": "7.94",
-          "delta": "-0.35"
+          "baseline": "7.37",
+          "scenario": "6.11",
+          "delta": "-1.26"
         },
         "at_end": {
-          "baseline": "20.65",
-          "scenario": "19.39",
+          "baseline": "8.32",
+          "scenario": "7.06",
           "delta": "-1.26"
         }
       },
@@ -718,8 +726,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "0.00"
         },
         "fi_month": {
-          "baseline": "2047-05",
-          "scenario": "2047-06",
+          "baseline": "2042-05",
+          "scenario": "2042-06",
           "delta_months": 1
         },
         "months_gained": -1
@@ -729,9 +737,10 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "status": "placeholder",
         "placeholders": [
           "real_return",
-          "safe_withdrawal_rate"
+          "safe_withdrawal_rate",
+          "surplus_invested"
         ],
-        "message": "Using placeholder assumptions for the real return and the safe withdrawal rate: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+        "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
         "real_return": {
           "value": "0.04",
           "origin": "placeholder",
@@ -742,6 +751,12 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "value": "0.04",
           "origin": "placeholder",
           "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+          "note": null
+        },
+        "surplus_invested": {
+          "value": "1",
+          "origin": "placeholder",
+          "source": "Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.",
           "note": null
         },
         "inflation": null,
@@ -756,12 +771,13 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "placeholders": [
         "real_return",
         "safe_withdrawal_rate",
+        "surplus_invested",
         "inflation"
       ],
       "versions": {
         "schema": "salli.scenario/1",
-        "engine": "1",
-        "fi_assumptions": "sha256:007c166ccd9fa0fe1706a636937eb7266f94db89dba293a2bc5823a91dbf1846",
+        "engine": "2",
+        "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
         "fire_strategy": null,
         "rule_sets": []
       },
@@ -775,8 +791,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:07dfbff27a34bcc4eba237969c8a4f2635f37d2f9f255d5beed5af14f59f90cf",
-      "baseline_fingerprint": "sha256:58d04aceaabd7cb4575ff0bdb45a12686dcb7ddf1941113eb202ad3c673f05c7",
+      "hash": "sha256:2ad20594087b83c8e2731062613844d25b4c1af17e4e8270eff1deeb381b35cb",
+      "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
       "scenario": {
         "schema": "salli.scenario/1",
         "label": "Instalments",
@@ -829,19 +845,19 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "start": "2026-10-11",
         "end": "2027-10-31",
         "lowest": {
-          "baseline": "15740.01",
-          "scenario": "15740.01",
-          "delta": "0.00"
+          "baseline": "13998.91",
+          "scenario": "13821.01",
+          "delta": "-177.90"
         },
         "lowest_date": {
-          "baseline": "2026-10-18",
-          "scenario": "2026-10-18",
+          "baseline": "2027-02-24",
+          "scenario": "2027-02-24",
           "delta_days": 0
         },
         "at_end": {
-          "baseline": "39200.21",
-          "scenario": "36917.16",
-          "delta": "-2283.05"
+          "baseline": "15801.47",
+          "scenario": "15801.47",
+          "delta": "0.00"
         },
         "safe_to_spend": {
           "baseline": "15727.02",
@@ -919,19 +935,19 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2027-10",
           "date": "2027-10-31",
           "net_worth": {
-            "baseline": "365755.54",
-            "scenario": "363266.05",
-            "delta": "-2489.49"
+            "baseline": "366266.13",
+            "scenario": "363738.21",
+            "delta": "-2527.92"
           },
           "cash": {
-            "baseline": "39200.21",
-            "scenario": "36917.16",
-            "delta": "-2283.05"
+            "baseline": "15801.47",
+            "scenario": "15801.47",
+            "delta": "0.00"
           },
           "investments": {
-            "baseline": "39637.48",
-            "scenario": "39637.48",
-            "delta": "0.00"
+            "baseline": "63546.81",
+            "scenario": "61225.33",
+            "delta": "-2321.48"
           },
           "debts": {
             "baseline": "13082.15",
@@ -944,19 +960,19 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2031-10",
           "date": "2031-10-31",
           "net_worth": {
-            "baseline": "473816.13",
-            "scenario": "471325.45",
-            "delta": "-2490.68"
+            "baseline": "485551.81",
+            "scenario": "482585.47",
+            "delta": "-2966.34"
           },
           "cash": {
-            "baseline": "129270.40",
-            "scenario": "126779.72",
-            "delta": "-2490.68"
+            "baseline": "15801.47",
+            "scenario": "15801.47",
+            "delta": "0.00"
           },
           "investments": {
-            "baseline": "46502.64",
-            "scenario": "46502.64",
-            "delta": "0.00"
+            "baseline": "171707.25",
+            "scenario": "168740.91",
+            "delta": "-2966.34"
           },
           "debts": {
             "baseline": "1956.91",
@@ -969,19 +985,19 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2036-10",
           "date": "2036-10-31",
           "net_worth": {
-            "baseline": "611922.24",
-            "scenario": "609431.56",
-            "delta": "-2490.68"
+            "baseline": "664379.50",
+            "scenario": "660757.60",
+            "delta": "-3621.90"
           },
           "cash": {
-            "baseline": "255142.68",
-            "scenario": "252652.00",
-            "delta": "-2490.68"
+            "baseline": "15801.47",
+            "scenario": "15801.47",
+            "delta": "0.00"
           },
           "investments": {
-            "baseline": "56779.56",
-            "scenario": "56779.56",
-            "delta": "0.00"
+            "baseline": "348578.03",
+            "scenario": "344956.13",
+            "delta": "-3621.90"
           },
           "debts": {
             "baseline": "0.00",
@@ -994,19 +1010,19 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "month": "2046-10",
           "date": "2046-10-31",
           "net_worth": {
-            "baseline": "895582.31",
-            "scenario": "893091.63",
-            "delta": "-2490.68"
+            "baseline": "1149349.20",
+            "scenario": "1143949.56",
+            "delta": "-5399.64"
           },
           "cash": {
-            "baseline": "510933.48",
-            "scenario": "508442.80",
-            "delta": "-2490.68"
+            "baseline": "15801.47",
+            "scenario": "15801.47",
+            "delta": "0.00"
           },
           "investments": {
-            "baseline": "84648.83",
-            "scenario": "84648.83",
-            "delta": "0.00"
+            "baseline": "833547.73",
+            "scenario": "828148.09",
+            "delta": "-5399.64"
           },
           "debts": {
             "baseline": "0.00",
@@ -1078,14 +1094,14 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "basis": "essential",
         "monthly_spending": "1898.32",
         "lowest": {
-          "baseline": "8.29",
-          "scenario": "8.29",
-          "delta": "0.00"
+          "baseline": "7.37",
+          "scenario": "7.28",
+          "delta": "-0.09"
         },
         "at_end": {
-          "baseline": "20.65",
-          "scenario": "19.45",
-          "delta": "-1.20"
+          "baseline": "8.32",
+          "scenario": "8.32",
+          "delta": "0.00"
         }
       },
       "fi": {
@@ -1100,20 +1116,21 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "0.00"
         },
         "fi_month": {
-          "baseline": "2047-05",
-          "scenario": "2047-06",
-          "delta_months": 1
+          "baseline": "2042-05",
+          "scenario": "2042-07",
+          "delta_months": 2
         },
-        "months_gained": -1
+        "months_gained": -2
       },
       "break_evens": [],
       "assumptions": {
         "status": "placeholder",
         "placeholders": [
           "real_return",
-          "safe_withdrawal_rate"
+          "safe_withdrawal_rate",
+          "surplus_invested"
         ],
-        "message": "Using placeholder assumptions for the real return and the safe withdrawal rate: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+        "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
         "real_return": {
           "value": "0.04",
           "origin": "placeholder",
@@ -1124,6 +1141,12 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "value": "0.04",
           "origin": "placeholder",
           "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+          "note": null
+        },
+        "surplus_invested": {
+          "value": "1",
+          "origin": "placeholder",
+          "source": "Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.",
           "note": null
         },
         "inflation": null,
@@ -1138,12 +1161,13 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "placeholders": [
         "real_return",
         "safe_withdrawal_rate",
+        "surplus_invested",
         "inflation"
       ],
       "versions": {
         "schema": "salli.scenario/1",
-        "engine": "1",
-        "fi_assumptions": "sha256:007c166ccd9fa0fe1706a636937eb7266f94db89dba293a2bc5823a91dbf1846",
+        "engine": "2",
+        "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
         "fire_strategy": null,
         "rule_sets": []
       },
@@ -1160,9 +1184,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         {
           "figure": "monthly.1y.net_worth",
           "unit": "amount",
-          "this": "363355.54",
-          "other": "363266.05",
-          "delta": "89.49"
+          "this": "363866.13",
+          "other": "363738.21",
+          "delta": "127.92"
+        },
+        {
+          "figure": "monthly.1y.investments",
+          "unit": "amount",
+          "this": "63546.81",
+          "other": "61225.33",
+          "delta": "2321.48"
         },
         {
           "figure": "monthly.1y.debts",
@@ -1174,44 +1205,44 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         {
           "figure": "monthly.5y.net_worth",
           "unit": "amount",
-          "this": "471416.13",
-          "other": "471325.45",
-          "delta": "90.68"
+          "this": "483151.81",
+          "other": "482585.47",
+          "delta": "566.34"
         },
         {
-          "figure": "monthly.5y.cash",
+          "figure": "monthly.5y.investments",
           "unit": "amount",
-          "this": "126870.40",
-          "other": "126779.72",
-          "delta": "90.68"
+          "this": "171707.25",
+          "other": "168740.91",
+          "delta": "2966.34"
         },
         {
           "figure": "monthly.10y.net_worth",
           "unit": "amount",
-          "this": "609522.24",
-          "other": "609431.56",
-          "delta": "90.68"
+          "this": "661979.50",
+          "other": "660757.60",
+          "delta": "1221.90"
         },
         {
-          "figure": "monthly.10y.cash",
+          "figure": "monthly.10y.investments",
           "unit": "amount",
-          "this": "252742.68",
-          "other": "252652.00",
-          "delta": "90.68"
+          "this": "348578.03",
+          "other": "344956.13",
+          "delta": "3621.90"
         },
         {
           "figure": "monthly.20y.net_worth",
           "unit": "amount",
-          "this": "893182.31",
-          "other": "893091.63",
-          "delta": "90.68"
+          "this": "1146949.20",
+          "other": "1143949.56",
+          "delta": "2999.64"
         },
         {
-          "figure": "monthly.20y.cash",
+          "figure": "monthly.20y.investments",
           "unit": "amount",
-          "this": "508533.48",
-          "other": "508442.80",
-          "delta": "90.68"
+          "this": "833547.73",
+          "other": "828148.09",
+          "delta": "5399.64"
         },
         {
           "figure": "debts.total_interest",
@@ -1219,29 +1250,57 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "this": "2009.25",
           "other": "2099.93",
           "delta": "-90.68"
+        },
+        {
+          "figure": "fi.fi_month",
+          "unit": "month",
+          "this": "2042-06",
+          "other": "2042-07",
+          "delta": -1
         }
       ],
       "gives_up": [
         {
           "figure": "cash.lowest",
           "unit": "amount",
-          "this": "15072.91",
-          "other": "15740.01",
-          "delta": "-667.10"
+          "this": "11598.91",
+          "other": "13821.01",
+          "delta": "-2222.10"
         },
         {
           "figure": "resilience.lowest",
           "unit": "months_of_spending",
-          "this": "7.94",
-          "other": "8.29",
-          "delta": "-0.35"
+          "this": "6.11",
+          "other": "7.28",
+          "delta": "-1.17"
         },
         {
           "figure": "monthly.1y.cash",
           "unit": "amount",
-          "this": "36800.21",
-          "other": "36917.16",
-          "delta": "-116.95"
+          "this": "13401.47",
+          "other": "15801.47",
+          "delta": "-2400.00"
+        },
+        {
+          "figure": "monthly.5y.cash",
+          "unit": "amount",
+          "this": "13401.47",
+          "other": "15801.47",
+          "delta": "-2400.00"
+        },
+        {
+          "figure": "monthly.10y.cash",
+          "unit": "amount",
+          "this": "13401.47",
+          "other": "15801.47",
+          "delta": "-2400.00"
+        },
+        {
+          "figure": "monthly.20y.cash",
+          "unit": "amount",
+          "this": "13401.47",
+          "other": "15801.47",
+          "delta": "-2400.00"
         }
       ]
     },
@@ -1252,32 +1311,60 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         {
           "figure": "cash.lowest",
           "unit": "amount",
-          "this": "15740.01",
-          "other": "15072.91",
-          "delta": "667.10"
+          "this": "13821.01",
+          "other": "11598.91",
+          "delta": "2222.10"
         },
         {
           "figure": "resilience.lowest",
           "unit": "months_of_spending",
-          "this": "8.29",
-          "other": "7.94",
-          "delta": "0.35"
+          "this": "7.28",
+          "other": "6.11",
+          "delta": "1.17"
         },
         {
           "figure": "monthly.1y.cash",
           "unit": "amount",
-          "this": "36917.16",
-          "other": "36800.21",
-          "delta": "116.95"
+          "this": "15801.47",
+          "other": "13401.47",
+          "delta": "2400.00"
+        },
+        {
+          "figure": "monthly.5y.cash",
+          "unit": "amount",
+          "this": "15801.47",
+          "other": "13401.47",
+          "delta": "2400.00"
+        },
+        {
+          "figure": "monthly.10y.cash",
+          "unit": "amount",
+          "this": "15801.47",
+          "other": "13401.47",
+          "delta": "2400.00"
+        },
+        {
+          "figure": "monthly.20y.cash",
+          "unit": "amount",
+          "this": "15801.47",
+          "other": "13401.47",
+          "delta": "2400.00"
         }
       ],
       "gives_up": [
         {
           "figure": "monthly.1y.net_worth",
           "unit": "amount",
-          "this": "363266.05",
-          "other": "363355.54",
-          "delta": "-89.49"
+          "this": "363738.21",
+          "other": "363866.13",
+          "delta": "-127.92"
+        },
+        {
+          "figure": "monthly.1y.investments",
+          "unit": "amount",
+          "this": "61225.33",
+          "other": "63546.81",
+          "delta": "-2321.48"
         },
         {
           "figure": "monthly.1y.debts",
@@ -1289,44 +1376,44 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         {
           "figure": "monthly.5y.net_worth",
           "unit": "amount",
-          "this": "471325.45",
-          "other": "471416.13",
-          "delta": "-90.68"
+          "this": "482585.47",
+          "other": "483151.81",
+          "delta": "-566.34"
         },
         {
-          "figure": "monthly.5y.cash",
+          "figure": "monthly.5y.investments",
           "unit": "amount",
-          "this": "126779.72",
-          "other": "126870.40",
-          "delta": "-90.68"
+          "this": "168740.91",
+          "other": "171707.25",
+          "delta": "-2966.34"
         },
         {
           "figure": "monthly.10y.net_worth",
           "unit": "amount",
-          "this": "609431.56",
-          "other": "609522.24",
-          "delta": "-90.68"
+          "this": "660757.60",
+          "other": "661979.50",
+          "delta": "-1221.90"
         },
         {
-          "figure": "monthly.10y.cash",
+          "figure": "monthly.10y.investments",
           "unit": "amount",
-          "this": "252652.00",
-          "other": "252742.68",
-          "delta": "-90.68"
+          "this": "344956.13",
+          "other": "348578.03",
+          "delta": "-3621.90"
         },
         {
           "figure": "monthly.20y.net_worth",
           "unit": "amount",
-          "this": "893091.63",
-          "other": "893182.31",
-          "delta": "-90.68"
+          "this": "1143949.56",
+          "other": "1146949.20",
+          "delta": "-2999.64"
         },
         {
-          "figure": "monthly.20y.cash",
+          "figure": "monthly.20y.investments",
           "unit": "amount",
-          "this": "508442.80",
-          "other": "508533.48",
-          "delta": "-90.68"
+          "this": "828148.09",
+          "other": "833547.73",
+          "delta": "-5399.64"
         },
         {
           "figure": "debts.total_interest",
@@ -1334,6 +1421,13 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "this": "2099.93",
           "other": "2009.25",
           "delta": "90.68"
+        },
+        {
+          "figure": "fi.fi_month",
+          "unit": "month",
+          "this": "2042-07",
+          "other": "2042-06",
+          "delta": 1
         }
       ]
     }
@@ -1349,111 +1443,111 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "option": "Pay cash",
         "conservative": {
           "net_worth": {
-            "baseline": "867667.93",
-            "scenario": "865267.93",
+            "baseline": "977656.19",
+            "scenario": "975256.19",
             "delta": "-2400.00"
           },
           "investments": {
-            "baseline": "56734.45",
-            "scenario": "56734.45",
+            "baseline": "661854.72",
+            "scenario": "661854.72",
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2048-06",
-            "scenario": "2048-07",
-            "delta_months": 1
+            "baseline": "2045-02",
+            "scenario": "2045-02",
+            "delta_months": 0
           },
-          "months_gained": -1
+          "months_gained": 0
         },
         "base": {
           "net_worth": {
-            "baseline": "895582.31",
-            "scenario": "893182.31",
+            "baseline": "1149349.20",
+            "scenario": "1146949.20",
             "delta": "-2400.00"
           },
           "investments": {
-            "baseline": "84648.83",
-            "scenario": "84648.83",
+            "baseline": "833547.73",
+            "scenario": "833547.73",
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2047-05",
-            "scenario": "2047-06",
+            "baseline": "2042-05",
+            "scenario": "2042-06",
             "delta_months": 1
           },
           "months_gained": -1
         },
         "growth": {
           "net_worth": {
-            "baseline": "937147.31",
-            "scenario": "934747.31",
+            "baseline": "1380323.33",
+            "scenario": "1377923.33",
             "delta": "-2400.00"
           },
           "investments": {
-            "baseline": "126213.83",
-            "scenario": "126213.83",
+            "baseline": "1064521.86",
+            "scenario": "1064521.86",
             "delta": "0.00"
           },
           "fi_month": {
-            "baseline": "2046-01",
-            "scenario": "2046-02",
-            "delta_months": 1
+            "baseline": "2040-07",
+            "scenario": "2040-07",
+            "delta_months": 0
           },
-          "months_gained": -1
+          "months_gained": 0
         }
       },
       {
         "option": "Instalments",
         "conservative": {
           "net_worth": {
-            "baseline": "867667.93",
-            "scenario": "865177.25",
-            "delta": "-2490.68"
+            "baseline": "977656.19",
+            "scenario": "973987.81",
+            "delta": "-3668.38"
           },
           "investments": {
-            "baseline": "56734.45",
-            "scenario": "56734.45",
-            "delta": "0.00"
+            "baseline": "661854.72",
+            "scenario": "658186.34",
+            "delta": "-3668.38"
           },
           "fi_month": {
-            "baseline": "2048-06",
-            "scenario": "2048-07",
+            "baseline": "2045-02",
+            "scenario": "2045-03",
             "delta_months": 1
           },
           "months_gained": -1
         },
         "base": {
           "net_worth": {
-            "baseline": "895582.31",
-            "scenario": "893091.63",
-            "delta": "-2490.68"
+            "baseline": "1149349.20",
+            "scenario": "1143949.56",
+            "delta": "-5399.64"
           },
           "investments": {
-            "baseline": "84648.83",
-            "scenario": "84648.83",
-            "delta": "0.00"
+            "baseline": "833547.73",
+            "scenario": "828148.09",
+            "delta": "-5399.64"
           },
           "fi_month": {
-            "baseline": "2047-05",
-            "scenario": "2047-06",
-            "delta_months": 1
+            "baseline": "2042-05",
+            "scenario": "2042-07",
+            "delta_months": 2
           },
-          "months_gained": -1
+          "months_gained": -2
         },
         "growth": {
           "net_worth": {
-            "baseline": "937147.31",
-            "scenario": "934656.63",
-            "delta": "-2490.68"
+            "baseline": "1380323.33",
+            "scenario": "1372380.21",
+            "delta": "-7943.12"
           },
           "investments": {
-            "baseline": "126213.83",
-            "scenario": "126213.83",
-            "delta": "0.00"
+            "baseline": "1064521.86",
+            "scenario": "1056578.74",
+            "delta": "-7943.12"
           },
           "fi_month": {
-            "baseline": "2046-01",
-            "scenario": "2046-02",
+            "baseline": "2040-07",
+            "scenario": "2040-08",
             "delta_months": 1
           },
           "months_gained": -1
@@ -1470,13 +1564,13 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       ],
       "option": "Instalments",
       "change": 1,
-      "status": "found",
+      "status": "none_in_range",
       "unit": "rate",
-      "value": "0",
+      "value": null,
       "low": "0",
       "high": "1",
-      "ahead": null,
-      "says": "Only at a loan rate of 0% does Instalments end the horizon with at least Pay cash's net worth; at any higher rate, Pay cash costs less."
+      "ahead": "Pay cash",
+      "says": "Pay cash ends the horizon with more net worth at every loan rate from 0% to 100%."
     }
   ]
 };

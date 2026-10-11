@@ -23,6 +23,7 @@ const ROLES: Record<Baseline['balances'][number]['role'], string> = {
 const PLACEHOLDERS: Record<Baseline['placeholders'][number], string> = {
   real_return: 'the real return',
   safe_withdrawal_rate: 'the safe withdrawal rate',
+  surplus_invested: 'the share of your monthly surplus invested (all of it)',
   inflation: 'inflation (none set: nominal amounts keep their real value)',
 };
 
@@ -45,8 +46,10 @@ export function registerBaseline(program: Command, app: App): void {
 Income and spending are netted per calendar month and averaged over the full
 months observed (at most twelve). Balances in other currencies are valued at
 the published rate for the as-of date. The monthly timeline is in today's
-money: cash earns nothing, investments grow at your real return, debts follow
-their schedules.
+money: the share of each month's surplus you invest goes into your
+investments, which grow at your real return; the rest stays in cash, which
+earns nothing; debts follow their schedules, and their payments join the
+surplus once each is paid off.
 
 Examples:
   $ salli baseline
@@ -159,7 +162,9 @@ Examples:
                 { header: 'DEBTS', get: (m) => out.amount(m.point.debts, cur), align: 'right' },
               ]),
             );
-            out.note(`In today's money. Investments at ${out.percent(d.monthly.real_return, 2)} a year after inflation.`);
+            out.note(
+              `In today's money. ${out.percent(d.monthly.surplus_invested, 0)} of each month's surplus invested, at ${out.percent(d.monthly.real_return, 2)} a year after inflation.`,
+            );
           }
 
           if (d.placeholders.length) {

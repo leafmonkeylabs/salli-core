@@ -408,9 +408,10 @@ def make_manager_tools(
         engine-computed and authoritative — never recompute or estimate them.
 
         Everything is in real terms (today's money). If `assumptions.status` is
-        "placeholder", the return or withdrawal rate behind the figures is a
-        round stand-in (`assumptions.placeholders` says which), not a forecast:
-        say so, and suggest the user set their own, with a source
+        "placeholder", the return, the withdrawal rate or the share of the
+        surplus invested behind the figures is a round stand-in
+        (`assumptions.placeholders` says which), not a forecast: say so, and
+        suggest the user set their own, with a source
         (`salli fi assumptions set`).
         """
         if fi_svc is None:

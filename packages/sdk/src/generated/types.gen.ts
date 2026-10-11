@@ -1140,7 +1140,7 @@ export type Baseline = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'inflation'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation'>;
     /**
      * Rule Sets
      */
@@ -1260,6 +1260,12 @@ export type BaselineCashMonth = {
      * Decimal string in the currency's own precision; never a float.
      */
     unscheduled: string;
+    /**
+     * Invested
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    invested: string;
 };
 
 /**
@@ -1479,6 +1485,12 @@ export type BaselineMonthly = {
      * Decimal string, exact; never a float.
      */
     real_return: string;
+    /**
+     * Surplus Invested
+     *
+     * Decimal string, exact; never a float.
+     */
+    surplus_invested: string;
     /**
      * Inflation
      */
@@ -3311,13 +3323,14 @@ export type FiAssumptions = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested'>;
     /**
      * Message
      */
     message: string;
     real_return: FiAssumption;
     safe_withdrawal_rate: FiAssumption;
+    surplus_invested: FiAssumption;
     inflation?: FiAssumption | null;
     nominal_return?: FiAssumption | null;
     real_returns: FiScenarioReturns;
@@ -3353,6 +3366,7 @@ export type FiAssumptionsUpdate = {
     nominal_return?: FiOwnAssumptionIn | null;
     inflation?: FiOwnAssumptionIn | null;
     safe_withdrawal_rate?: FiOwnAssumptionIn | null;
+    surplus_invested?: FiOwnAssumptionIn | null;
 };
 
 /**
@@ -3459,6 +3473,7 @@ export type FiOwnAssumptions = {
     nominal_return?: FiOwnAssumption | null;
     inflation?: FiOwnAssumption | null;
     safe_withdrawal_rate?: FiOwnAssumption | null;
+    surplus_invested?: FiOwnAssumption | null;
 };
 
 /**
@@ -3483,6 +3498,7 @@ export type FiPlaceholder = {
 export type FiPlaceholderValues = {
     real_return: FiPlaceholder;
     safe_withdrawal_rate: FiPlaceholder;
+    surplus_invested: FiPlaceholder;
 };
 
 /**
@@ -7831,7 +7847,7 @@ export type ScenarioRun = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'inflation'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation'>;
     versions: ScenarioVersions;
     /**
      * Data As Of

@@ -88,7 +88,12 @@ async def test_a_scenario_runs_as_the_api_runs_it(services):
     chk = next(a for a in result["cash"]["accounts"] if a["account_id"] == "chk")
     assert chk["lowest"]["scenario"] == "4883.77"
     assert result["fi"]["months_gained"] == -1
-    assert result["placeholders"] == ["real_return", "safe_withdrawal_rate", "inflation"]
+    assert result["placeholders"] == [
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+        "inflation",
+    ]
 
 
 async def test_options_compare_without_a_ranking(services):
@@ -116,9 +121,12 @@ async def test_options_compare_without_a_ranking(services):
             ]
         },
     )
+    # The student loan's own 4.5%, to the bisection's basis point: the
+    # golden household (tests/golden/test_household_scenarios.py) works it
+    # through.
     (break_even,) = result["break_evens"]
-    assert (break_even["kind"], break_even["value"]) == ("invest_vs_debt_return", "0.019")
-    assert break_even["says"].startswith("At a real return of 1.9% a year or more, Invest")
+    assert (break_even["kind"], break_even["value"]) == ("invest_vs_debt_return", "0.0451")
+    assert break_even["says"].startswith("At a real return of 4.51% a year or more, Invest")
 
 
 INVALID = [

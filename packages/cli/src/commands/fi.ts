@@ -63,6 +63,7 @@ const ASSUMPTIONS = {
   'nominal-return': { key: 'nominal_return', label: 'Nominal return' },
   inflation: { key: 'inflation', label: 'Inflation' },
   swr: { key: 'safe_withdrawal_rate', label: 'Safe withdrawal rate' },
+  'surplus-invested': { key: 'surplus_invested', label: 'Surplus invested' },
 } as const;
 type AssumptionName = keyof typeof ASSUMPTIONS;
 const ASSUMPTION_NAMES = Object.keys(ASSUMPTIONS) as AssumptionName[];
@@ -76,14 +77,19 @@ function assumptionName(value: string): AssumptionName {
   return known as AssumptionName;
 }
 
-const PLACEHOLDER_LABELS: Record<string, string> = { real_return: 'real return', safe_withdrawal_rate: 'safe withdrawal rate' };
+const PLACEHOLDER_LABELS: Record<string, string> = {
+  real_return: 'real return',
+  safe_withdrawal_rate: 'safe withdrawal rate',
+  surplus_invested: 'share of your monthly surplus invested',
+};
 
 /** Says, on stderr, when figures rest on placeholders, and how to set your own. */
 function assumptionsNote(app: App, assumptions: FiAssumptions | null | undefined): void {
   if (!assumptions || assumptions.status !== 'placeholder') return;
-  const names = assumptions.placeholders.map((p) => PLACEHOLDER_LABELS[p] ?? p).join(' and the ');
+  const labels = assumptions.placeholders.map((p) => `the ${PLACEHOLDER_LABELS[p] ?? p}`);
+  const names = labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}` : (labels[0] ?? '');
   app.out.note(
-    `Using placeholder assumptions for the ${names}: round figures, not forecasts. Set yours with \`salli fi assumptions set real-return 5% --source <where it comes from>\` (and swr).`,
+    `Using placeholder assumptions for ${names}: round figures, not forecasts. Set yours with \`salli fi assumptions set real-return 5% --source <where it comes from>\` (and swr, and surplus-invested).`,
   );
 }
 
@@ -213,7 +219,7 @@ function registerFi(program: Command, app: App): void {
   assumptions
     .command('set')
     .argument('<name>', `Which: ${ASSUMPTION_NAMES.join(', ')}`)
-    .argument('<rate>', 'A yearly rate: 0.03 or 3%')
+    .argument('<rate>', 'A yearly rate: 0.03 or 3%; for surplus-invested, the share you invest: 0.8 or 80%')
     .option('--source <source>', 'Where the figure comes from: a URL, or a publication and its date')
     .option('--note <note>', 'Anything else worth keeping with it')
     .description('Set one of your own planning assumptions, with its source')

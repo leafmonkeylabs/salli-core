@@ -262,6 +262,7 @@ function notesFor(app: App, run: ScenarioRun): void {
     const names: Record<string, string> = {
       real_return: 'the real return',
       safe_withdrawal_rate: 'the safe withdrawal rate',
+      surplus_invested: 'the share of your monthly surplus invested (all of it)',
       inflation: 'inflation (none set: nominal amounts keep their real value)',
     };
     out.note(`Placeholders: ${run.placeholders.map((p) => names[p] ?? p).join('; ')}. Set yours with \`salli fi assumptions set\`.`);

@@ -43,21 +43,21 @@ describe('salli whatif', () => {
       2  Car loan         EUR 18,000.00 at 6.9% over 48 months: EUR 430.20 a month from Jan 2027
       3  Stop Streamflix  from Nov 1, 2026: Streamflix (-EUR 12.99 monthly)
 
-                                                                    BASELINE      SCENARIO         CHANGE
-      Lowest cash                                                  15,740.01     15,085.90        -654.11
-      Lowest on                                                 Oct 18, 2026  Nov 24, 2026  37 days later
-      Cash by Oct 31, 2027                                         39,200.21     50,654.09     +11,453.88
-      Safe to spend until Oct 25, 2026                             15,727.02     15,727.02           0.00
-      Checking at its lowest                                        6,063.46      4,883.77      -1,179.69
-      Savings at its lowest                                         7,800.00      7,800.00           0.00
-      Dollar account at its lowest                                  2,500.00      2,500.00           0.00
-      Emergency fund at the low (months of essential spending)          8.29          7.95          -0.34
+                                                                    BASELINE      SCENARIO          CHANGE
+      Lowest cash                                                  13,998.91     11,626.24       -2,372.67
+      Lowest on                                                 Feb 24, 2027  Nov 24, 2026  92 days sooner
+      Cash by Oct 31, 2027                                         15,801.47     31,401.47      +15,600.00
+      Safe to spend until Oct 25, 2026                             15,727.02     15,727.02            0.00
+      Checking at its lowest                                        6,063.46      4,883.77       -1,179.69
+      Savings at its lowest                                         7,800.00      7,800.00            0.00
+      Dollar account at its lowest                                  2,500.00      2,500.00            0.00
+      Emergency fund at the low (months of essential spending)          7.37          6.12           -1.25
 
-      IN        MONTH     NET WORTH (EUR)     CHANGE        CASH  INVESTMENTS       DEBTS
-      1 year    Oct 2027       362,562.26  -3,193.28  +11,453.88         0.00  +14,647.16
-      5 years   Oct 2031       469,546.07  -4,270.06   -4,270.06         0.00        0.00
-      10 years  Oct 2036       608,431.58  -3,490.66   -3,490.66         0.00        0.00
-      20 years  Oct 2046       893,650.45  -1,931.86   -1,931.86         0.00        0.00
+      IN        MONTH     NET WORTH (EUR)      CHANGE        CASH  INVESTMENTS       DEBTS
+      1 year    Oct 2027       363,010.64   -3,255.50  +15,600.00    -4,208.34  +14,647.16
+      5 years   Oct 2031       478,903.79   -6,648.03  +15,600.00   -22,248.03        0.00
+      10 years  Oct 2036       653,675.96  -10,703.54  +15,600.00   -26,303.54        0.00
+      20 years  Oct 2046     1,127,647.79  -21,701.41  +15,600.00   -37,301.41        0.00
 
                                  BASELINE    SCENARIO          CHANGE
       Car loan paid off          May 2029    May 2029      same month
@@ -66,11 +66,13 @@ describe('salli whatif', () => {
       Interest on debts          2,009.25    4,658.71       +2,649.46
       Debt-free                  Mar 2033    Mar 2033      same month
       FI number                611,127.00  607,230.00       -3,897.00
-      Financially independent    May 2047    Apr 2047  1 month sooner
+      Financially independent    May 2042    Sep 2042  4 months later
       "
     `);
     expect(result.stderr).toContain('In today’s money.');
-    expect(result.stderr).toContain('Placeholders: the real return; the safe withdrawal rate; inflation');
+    expect(result.stderr).toContain(
+      'Placeholders: the real return; the safe withdrawal rate; the share of your monthly surplus invested (all of it); inflation',
+    );
   });
 
   it('turns every kind of flag into its change', async () => {
@@ -125,7 +127,7 @@ describe('salli whatif', () => {
     expect(result.code).toBe(0);
     expect(lastBody('/v1/scenarios/run')).toEqual({ ...doc, horizon_years: 5 });
     const body = JSON.parse(result.stdout) as { cash: { lowest: { scenario: string } }; hash: string };
-    expect(body.cash.lowest.scenario).toBe('15085.90');
+    expect(body.cash.lowest.scenario).toBe('11626.24');
     expect(body.hash).toMatch(/^sha256:/);
   });
 
@@ -177,31 +179,31 @@ describe('salli compare', () => {
       "Comparing 2 options as of Oct 11, 2026, in EUR, over 20 years
 
                                        BASELINE      PAY CASH   INSTALMENTS
-      Lowest cash                     15,740.01     15,072.91     15,740.01
-      Lowest on                    Oct 18, 2026  Nov 24, 2026  Oct 18, 2026
-      Cash by Oct 31, 2027            39,200.21     36,800.21     36,917.16
+      Lowest cash                     13,998.91     11,598.91     13,821.01
+      Lowest on                    Feb 24, 2027  Feb 24, 2027  Feb 24, 2027
+      Cash by Oct 31, 2027            15,801.47     13,401.47     15,801.47
       Safe to spend                   15,727.02     15,727.02     15,727.02
-      Emergency months at the low          8.29          7.94          8.29
-      Net worth in 1 year            365,755.54    363,355.54    363,266.05
-      Net worth in 5 years           473,816.13    471,416.13    471,325.45
-      Net worth in 10 years          611,922.24    609,522.24    609,431.56
-      Net worth in 20 years          895,582.31    893,182.31    893,091.63
+      Emergency months at the low          7.37          6.11          7.28
+      Net worth in 1 year            366,266.13    363,866.13    363,738.21
+      Net worth in 5 years           485,551.81    483,151.81    482,585.47
+      Net worth in 10 years          664,379.50    661,979.50    660,757.60
+      Net worth in 20 years        1,149,349.20  1,146,949.20  1,143,949.56
       Interest on debts                2,009.25      2,009.25      2,099.93
       Debt-free                        Mar 2033      Mar 2033      Mar 2033
       FI number                      611,127.00    611,127.00    611,127.00
-      Financially independent          May 2047      Jun 2047      Jun 2047
+      Financially independent          May 2042      Jun 2042      Jul 2042
 
       The trade
         Pay cash against Instalments
-          ahead on:  net worth in 1 year +89.49; debts in 1 year -206.44; net worth in 5 years +90.68; cash in 5 years +90.68; net worth in 10 years +90.68; cash in 10 years +90.68; net worth in 20 years +90.68; cash in 20 years +90.68; interest -90.68
-          behind on: lowest cash -667.10; emergency months at the low -0.35; cash in 1 year -116.95
+          ahead on:  net worth in 1 year +127.92; investments in 1 year +2,321.48; debts in 1 year -206.44; net worth in 5 years +566.34; investments in 5 years +2,966.34; net worth in 10 years +1,221.90; investments in 10 years +3,621.90; net worth in 20 years +2,999.64; investments in 20 years +5,399.64; interest -90.68; FI 1 month sooner
+          behind on: lowest cash -2,222.10; emergency months at the low -1.17; cash in 1 year -2,400.00; cash in 5 years -2,400.00; cash in 10 years -2,400.00; cash in 20 years -2,400.00
 
-      AT 20 YEARS     CONSERVATIVE (2%)             BASE (4%)           GROWTH (6%)
-      Pay cash     865,267.93  Jul 2048  893,182.31  Jun 2047  934,747.31  Feb 2046
-      Instalments  865,177.25  Jul 2048  893,091.63  Jun 2047  934,656.63  Feb 2046
+      AT 20 YEARS     CONSERVATIVE (2%)               BASE (4%)             GROWTH (6%)
+      Pay cash     975,256.19  Feb 2045  1,146,949.20  Jun 2042  1,377,923.33  Jul 2040
+      Instalments  973,987.81  Mar 2045  1,143,949.56  Jul 2042  1,372,380.21  Aug 2040
 
       Break-evens
-        Only at a loan rate of 0% does Instalments end the horizon with at least Pay cash's net worth; at any higher rate, Pay cash costs less.
+        Pay cash ends the horizon with more net worth at every loan rate from 0% to 100%.
       "
     `);
     expect(result.stdout).not.toMatch(/best|cheapest|recommend/i);
@@ -214,7 +216,7 @@ describe('salli compare', () => {
     await writeFile(a, '{"schema": "salli.scenario/1"}');
     await writeFile(b, '{"schema": "salli.scenario/1"}');
     const body = JSON.parse((await run(['compare', a, b, '--json'])).stdout) as { break_evens: Array<{ kind: string; value: string }> };
-    expect(body.break_evens[0]).toMatchObject({ kind: 'loan_rate', value: '0' });
+    expect(body.break_evens[0]).toMatchObject({ kind: 'loan_rate', status: 'none_in_range', value: null, ahead: 'Pay cash' });
   });
 
   it('needs two to five readable scenarios (exit 2)', async () => {

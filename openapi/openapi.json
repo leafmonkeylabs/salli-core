@@ -13453,6 +13453,7 @@
               "enum": [
                 "real_return",
                 "safe_withdrawal_rate",
+                "surplus_invested",
                 "inflation"
               ]
             },
@@ -13684,13 +13685,23 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "invested": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Invested",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
         "required": [
           "month",
           "cash",
-          "unscheduled"
+          "unscheduled",
+          "invested"
         ],
         "title": "BaselineCashMonth"
       },
@@ -14054,6 +14065,15 @@
               "10.5"
             ]
           },
+          "surplus_invested": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Surplus Invested",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
           "inflation": {
             "anyOf": [
               {
@@ -14082,6 +14102,7 @@
         "required": [
           "horizon_years",
           "real_return",
+          "surplus_invested",
           "inflation",
           "points"
         ],
@@ -17044,7 +17065,8 @@
               "type": "string",
               "enum": [
                 "real_return",
-                "safe_withdrawal_rate"
+                "safe_withdrawal_rate",
+                "surplus_invested"
               ]
             },
             "type": "array",
@@ -17058,6 +17080,9 @@
             "$ref": "#/components/schemas/FiAssumption"
           },
           "safe_withdrawal_rate": {
+            "$ref": "#/components/schemas/FiAssumption"
+          },
+          "surplus_invested": {
             "$ref": "#/components/schemas/FiAssumption"
           },
           "inflation": {
@@ -17101,6 +17126,7 @@
           "message",
           "real_return",
           "safe_withdrawal_rate",
+          "surplus_invested",
           "real_returns"
         ],
         "title": "FiAssumptions",
@@ -17165,6 +17191,16 @@
             ]
           },
           "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "surplus_invested": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/FiOwnAssumptionIn"
@@ -17434,6 +17470,16 @@
                 "type": "null"
               }
             ]
+          },
+          "surplus_invested": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -17466,12 +17512,16 @@
           },
           "safe_withdrawal_rate": {
             "$ref": "#/components/schemas/FiPlaceholder"
+          },
+          "surplus_invested": {
+            "$ref": "#/components/schemas/FiPlaceholder"
           }
         },
         "type": "object",
         "required": [
           "real_return",
-          "safe_withdrawal_rate"
+          "safe_withdrawal_rate",
+          "surplus_invested"
         ],
         "title": "FiPlaceholderValues"
       },
@@ -25518,6 +25568,7 @@
               "enum": [
                 "real_return",
                 "safe_withdrawal_rate",
+                "surplus_invested",
                 "inflation"
               ]
             },

@@ -675,10 +675,11 @@ export class MockSalli {
       for (let i = 0; i <= 12 * 20; i++) {
         points.push(point('2026-10', '2026-10-31', '9400.00', '30000.00', '8400.00', '281000.00'));
       }
-      points[13] = point('2027-10', '2027-10-31', '40200.00', '31200.00', '5100.00', '316300.00');
-      points[61] = point('2031-10', '2031-10-31', '171000.00', '36500.00', '0.00', '457500.00');
-      points[121] = point('2036-10', '2036-10-31', '346000.00', '44400.00', '0.00', '640400.00');
-      points[241] = point('2046-10', '2046-10-31', '696000.00', '65800.00', '0.00', '1011800.00');
+      // The surplus invested at the placeholder 100%: cash stays where it is.
+      points[13] = point('2027-10', '2027-10-31', '9397.60', '62002.40', '5100.00', '316300.00');
+      points[61] = point('2031-10', '2031-10-31', '9397.60', '198102.40', '0.00', '457500.00');
+      points[121] = point('2036-10', '2036-10-31', '9397.60', '381002.40', '0.00', '640400.00');
+      points[241] = point('2046-10', '2046-10-31', '9397.60', '752402.40', '0.00', '1011800.00');
       const body: Baseline = {
         as_of: '2026-10-09',
         currency: 'USD',
@@ -730,13 +731,13 @@ export class MockSalli {
           today: '9397.60',
           lowest: '8801.12',
           lowest_date: '2026-10-24',
-          month_ends: [{ month: '2027-10', cash: '40200.00', unscheduled: '-410.20' }],
+          month_ends: [{ month: '2027-10', cash: '9397.60', unscheduled: '-410.20', invested: '2787.65' }],
           daily: req.query.get('daily') === 'true' ? [{ date: '2026-10-09', balance: '9397.60' }] : null,
         },
         // eslint-disable-next-line no-restricted-syntax -- not money: a number of years
-        monthly: { horizon_years: Number(req.query.get('horizon_years') ?? 30), real_return: '0.04', inflation: null, points },
+        monthly: { horizon_years: Number(req.query.get('horizon_years') ?? 30), real_return: '0.04', surplus_invested: '1', inflation: null, points },
         assumptions: FI_ASSUMPTIONS,
-        placeholders: ['real_return', 'inflation'],
+        placeholders: ['real_return', 'surplus_invested', 'inflation'],
         rule_sets: [],
         fingerprint: 'sha256:0f1e2d3c',
         notes: [],
@@ -837,6 +838,11 @@ export class MockSalli {
     if ((method === 'GET' || method === 'PATCH') && path === '/v1/fi/assumptions') {
       if (method === 'PATCH') {
         this.data.bodies.push({ method, path, body: req.json });
+        // As the server refuses a share out of range (here, the one the tests send).
+        const share = (req.json as { surplus_invested?: { value: string } | null }).surplus_invested;
+        if (share?.value === '1.2') {
+          return problem(422, 'Invalid request', 'surplus_invested must be a share from 0 to 1 (0.8 for 80%), got 1.2', '/problems/invalid');
+        }
         const inflation = (req.json as { inflation?: { value: string } | null }).inflation;
         if (inflation !== undefined) this.data.fiInflation = inflation?.value;
       }
@@ -847,10 +853,12 @@ export class MockSalli {
           nominal_return: null,
           inflation: null,
           safe_withdrawal_rate: { value: '0.035', source: 'https://example.org/withdrawal-study', note: null, set_at: '2026-10-01T00:00:00+00:00' },
+          surplus_invested: null,
         },
         placeholder_values: {
           real_return: { value: '0.04', source: 'Placeholder: a round 4% a year after inflation.' },
           safe_withdrawal_rate: { value: '0.04', source: 'Placeholder: a round 4%.' },
+          surplus_invested: { value: '1', source: 'Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.' },
         },
         scenario_spread: '0.02',
       };

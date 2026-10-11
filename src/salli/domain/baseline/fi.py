@@ -2,10 +2,13 @@
 Financial independence on the monthly timeline. Pure, Decimal, real terms.
 
 FI's date and projections come from the baseline's monthly timeline
-(`timelines.monthly`), where cash, investments and debts are kept apart: cash
-earns nothing and takes the surplus, investments grow at the real return,
-debts follow their schedules. So FI, the baseline and every scenario agree:
-a scenario with no changes has the baseline's FI exactly.
+(`timelines.monthly`), where cash, investments and debts are kept apart: the
+share of each month's regular surplus the user invests (`surplus_invested`;
+all of it, as a placeholder, as FI projections conventionally assume) goes
+into the investments, which grow at the real return; the rest stays in cash,
+which earns nothing; debts follow their schedules, their payments freed into
+the surplus once each is paid off. So FI, the baseline and every scenario
+agree: a scenario with no changes has the baseline's FI exactly.
 
 - **The FI number** is a year of the spending to live on, over the safe
   withdrawal rate: the FIRE strategy's target, when it names one, or the

@@ -232,6 +232,7 @@ async def test_the_users_own_fi_assumptions_are_stored_with_their_sources(db, uo
     stored = {
         "inflation": {"value": "0.0325", "source": "https://example.org/cpi", "set_at": "x"},
         "safe_withdrawal_rate": {"value": "0.035"},
+        "surplus_invested": {"value": "0.8", "source": "my standing orders"},
     }
     async with uow_factory() as uow:
         await uow.user_profiles.upsert("u", {"base_currency": "USD"})

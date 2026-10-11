@@ -10,14 +10,18 @@ balances at the published rate for the as-of date, and its debts counted once.
 Phase 1b ("1b: was …"): when FI is reached, and the projections, come from
 the baseline's monthly timeline, where cash, investments and debts are kept
 apart, instead of a walk that grew the whole asset base at the real return
-with the surplus invested. On the timeline the surplus stays in cash, which
-earns nothing; only the investments (38,000 here) grow at the real return;
-the debts follow their schedules, and their payments stay in cash once each
-is paid off. So FI comes later, and the three return scenarios sit closer
-together: most of the base is cash. A scenario that invests says so, and
-shows the months it gains. What a purchase costs is a scenario too now
-(tests/golden/test_household_scenarios.py), so the purchase costing that
-was pinned here is gone with the engine's own walk.
+with the surplus invested. On the timeline, first, the surplus stayed in
+cash, which earns nothing, and FI moved four years later (2047-05). Now the
+share of each month's regular surplus invested is a planning assumption
+(`surplus_invested`), and its placeholder is all of it, the convention FI
+projections start from ("surplus invested at the placeholder 100%"): only
+the 15,801.47 of cash the household holds today earns nothing; the debts
+follow their schedules, and once each is paid off its payment joins the
+surplus that is invested. With the share at 0 the 1b figures come back
+exactly (`test_with_none_of_the_surplus_invested_...`). What a purchase
+costs is a scenario too now (tests/golden/test_household_scenarios.py), so
+the purchase costing that was pinned here is gone with the engine's own
+walk.
 """
 
 from __future__ import annotations
@@ -98,11 +102,23 @@ async def test_the_score(fi):
     # the month, and the base is far smaller.
     assert "projected_fi_years" not in score and "projected_fi_date" not in score
     # 1b: was 197 months (2043-03), the base of 35,901.47 compounding at 4%
-    # with 1,962.91 a month invested. Now the timeline's month: cash takes the
-    # surplus and earns nothing, only the 38,000 invested grows at 4%, and the
-    # debts' payments stay in cash once paid off (the car loan from 2029-06,
-    # the student loan from 2033-04).
-    assert (score["projected_fi_months"], score["projected_fi_month"]) == (247, "2047-05")
+    # with 1,962.91 a month invested; then 247 (2047-05), the surplus kept in
+    # cash. Now 187 (2042-05): surplus invested at the placeholder 100%.
+    #
+    # Ten months sooner than the old walk, though both invest the surplus,
+    # because the timeline keeps cash, investments and debts apart. Each
+    # month the base grows by what is invested and the debts' principal
+    # repaid: 2,052.91 at first (1,661.59 of regular surplus, 391.32 of
+    # principal), against the old walk's flat 1,962.91, since the surplus
+    # already holds 168.68 of the debts' payments (the car loan's interest,
+    # the student loan's whole minimum) and the debts charge only 78.68 of
+    # interest; 2,131.59 once both are paid off (the car loan in 2029-05, the
+    # student loan in 2033-03), their payments freed. And the rest of October
+    # (3,459.66, its salary in it) is invested at October's end. Fed those
+    # flows, the old walk reaches FI in 185 months; but the 15,801.47 of cash
+    # earns nothing, where the old walk compounded the whole base, and that
+    # puts it back two months, to 187.
+    assert (score["projected_fi_months"], score["projected_fi_month"]) == (187, "2042-05")
     assert score["as_of"] == "2026-10-11"
 
 
@@ -127,31 +143,63 @@ async def test_the_projections(fi):
     # precision.
     assert projections["current_portfolio"] == "35901.47"
     # Was 7, 5 and 4 whole years: now the month in each scenario.
-    # 1b: was 233 (2046-03), 197 (2043-03) and 171 (2041-01): each is now the
-    # timeline with its investments at 2%, 4% and 6% while cash earns
-    # nothing, so they are later and closer together (see the score).
+    # 1b: was 233 (2046-03), 197 (2043-03) and 171 (2041-01); then 260
+    # (2048-06), 247 (2047-05) and 231 (2046-01), the surplus kept in cash.
+    # Now each is the timeline with its investments, the surplus invested at
+    # the placeholder 100% among them, at 2%, 4% and 6% (see the score).
+    assert projections["fi_by"] == {
+        "conservative": {"months": 220, "month": "2045-02"},
+        "base": {"months": 187, "month": "2042-05"},
+        "growth": {"months": 165, "month": "2040-07"},
+    }
+    year_one = projections["points"][1]
+    # Was 371,976.99 / 379,243.22 / 386,642.03, from the larger base; then
+    # 60,398.16 / 61,355.75 / 62,329.39, the base compounding as one; then
+    # 64,928.83 / 65,755.54 / 66,598.47, the surplus kept in cash.
+    # Now, surplus invested at the placeholder 100%: the timeline's point at
+    # the end of 2027-10, cash 15,801.47 (each month's regular surplus
+    # invested, so it stays where it is) less debts 13,082.15, plus the
+    # investments. At 4%: 38,000 × (1 + 0.04/12 × 21/31) × (1 + 0.04/12)^12
+    # = 39,637.48 (the as-of month's 21 days left, then twelve months), the
+    # rest of October's 3,459.66 grown twelve months, 3,600.61, and 1,661.59
+    # at each month's end from November, 20,308.72: 63,546.81, so 66,266.13.
+    assert (year_one["conservative"], year_one["base"], year_one["growth"]) == (
+        "65182.46",
+        "66266.13",
+        "67369.42",
+    )
+    # Was 16 (years 0 to 15): the chart runs on to show the crossing.
+    # 1b: was 23, then 25 (the conservative crossing in year 22). Now the
+    # conservative crossing is in year 19 (220 months), and the chart runs
+    # two years past it: surplus invested at the placeholder 100%.
+    assert len(projections["points"]) == 22
+
+
+async def test_with_none_of_the_surplus_invested_fi_is_the_cash_only_timelines():
+    """The share at 0 keeps the whole surplus in cash, which earns nothing:
+    exactly the figures before the share was an assumption (1b's)."""
+    fi = _fi(h.uow(fi_assumptions={"surplus_invested": {"value": "0", "source": "none of it"}}))
+    score = await fi.compute_score(h.USER)
+    assert (score["projected_fi_months"], score["projected_fi_month"]) == (247, "2047-05")
+    assert "surplus_invested" not in score["assumptions"]["placeholders"]
+    assert score["assumptions"]["surplus_invested"] == {
+        "value": "0",
+        "origin": "user",
+        "source": "none of it",
+        "note": None,
+    }
+    projections = await fi.get_projections(h.USER)
     assert projections["fi_by"] == {
         "conservative": {"months": 260, "month": "2048-06"},
         "base": {"months": 247, "month": "2047-05"},
         "growth": {"months": 231, "month": "2046-01"},
     }
     year_one = projections["points"][1]
-    # Was 371,976.99 / 379,243.22 / 386,642.03, from the larger base; then
-    # 60,398.16 / 61,355.75 / 62,329.39, the base compounding as one.
-    # 1b: the timeline's point at the end of 2027-10, cash 39,200.21 less
-    # debts 13,082.15, plus the investments: at 4%, 38,000 × (1 + 0.04/12 ×
-    # 21/31) × (1 + 0.04/12)^12 = 39,637.48 (the as-of month's 21 days
-    # left, then twelve months), so 65,755.54; at 2% and 6%, 38,810.77 and
-    # 40,480.41.
     assert (year_one["conservative"], year_one["base"], year_one["growth"]) == (
         "64928.83",
         "65755.54",
         "66598.47",
     )
-    # Was 16 (years 0 to 15): the chart runs on to show the crossing.
-    # 1b: was 23; the conservative crossing is now in year 22 (260 months),
-    # and the chart runs two years past it.
-    assert len(projections["points"]) == 25
 
 
 async def test_the_surplus_breakdown(fi):

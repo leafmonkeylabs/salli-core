@@ -79,20 +79,29 @@ async def test_a_scenario_runs_with_every_figure_against_the_baseline(client, uo
     assert body["cash"]["at_end"]["delta"] == "-2400.00"
     assert [p["years"] for p in body["monthly"]] == [1, 5, 10, 20]
     assert body["monthly"][0]["net_worth"]["delta"] == "-2400.00"
+    # The surplus invested at the placeholder 100%: the golden household
+    # (tests/golden/test_household_scenarios.py) works these through.
     assert body["fi"]["fi_month"] == {
-        "baseline": "2047-05",
-        "scenario": "2047-06",
+        "baseline": "2042-05",
+        "scenario": "2042-06",
         "delta_months": 1,
     }
     assert body["fi"]["months_gained"] == -1
     assert body["resilience"]["lowest"] == {
-        "baseline": "8.29",
-        "scenario": "7.94",
-        "delta": "-0.35",
+        "baseline": "7.37",
+        "scenario": "6.11",
+        "delta": "-1.26",
     }
     # Recorded with it: the assumptions, the versions, the as-of date, a hash.
-    assert body["placeholders"] == ["real_return", "safe_withdrawal_rate", "inflation"]
+    assert body["placeholders"] == [
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+        "inflation",
+    ]
     assert body["assumptions"]["status"] == "placeholder"
+    assert body["assumptions"]["surplus_invested"]["value"] == "1"
+    assert body["assumptions"]["surplus_invested"]["origin"] == "placeholder"
     assert body["versions"]["schema"] == "salli.scenario/1"
     assert body["versions"]["fi_assumptions"].startswith("sha256:")
     assert body["versions"]["rule_sets"] == []
@@ -148,13 +157,20 @@ async def test_options_compare_side_by_side_with_the_trade_and_break_evens(
         "delta": "90.68",
     }
     assert set(body["sensitivity"]["real_returns"]) == {"conservative", "base", "growth"}
+    # The surplus invested at the placeholder 100%: the price comes out of
+    # cash, which earns nothing, and the instalments out of what would be
+    # invested, so paying cash is ahead at every rate.
     (rate,) = body["break_evens"]
     assert (rate["kind"], rate["option"], rate["status"], rate["value"], rate["unit"]) == (
         "loan_rate",
         "Instalments",
-        "found",
-        "0",
+        "none_in_range",
+        None,
         "rate",
+    )
+    assert rate["ahead"] == "Pay cash"
+    assert rate["says"] == (
+        "Pay cash ends the horizon with more net worth at every loan rate from 0% to 100%."
     )
     assert "best" not in r.text.lower()
     mock_services.usage.charge.assert_not_called()

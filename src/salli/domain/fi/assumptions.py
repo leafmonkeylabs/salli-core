@@ -8,11 +8,13 @@ money, so the FI number stays a flat line the projected balances can be
 compared with. A real return is broadly the same whatever the currency, so one
 neutral figure works anywhere: there is no table by country or currency.
 
-**Placeholders.** Two figures have one: the base scenario's real return and
-the safe withdrawal rate, both a round 4%. They are labelled as placeholders
-wherever they are used: they are nobody's forecast and no country's figure,
-and every FI response says which of the figures it used are placeholders
-(`FiAssumptions.placeholders`). Projections never wait for real ones.
+**Placeholders.** Three figures have one: the base scenario's real return and
+the safe withdrawal rate, both a round 4%, and the share of the monthly
+surplus invested, all of it (the convention FI projections start from). They
+are labelled as placeholders wherever they are used: they are nobody's
+forecast and no country's figure, and every FI response says which of the
+figures it used are placeholders (`FiAssumptions.placeholders`). Projections
+never wait for real ones.
 
 **The user's own** (`OwnAssumptions`), set by the user or their agent, each
 with a `source` and a `note`, and stored as user data:
@@ -22,10 +24,15 @@ with a `source` and a `note`, and stored as user data:
   to become a real one (set one of the two, not both);
 - `inflation`: yearly. It has no placeholder. Without it every figure is in
   today's money only; with it, projections show future money too;
-- `safe_withdrawal_rate`: what the FI number is built on.
+- `safe_withdrawal_rate`: what the FI number is built on;
+- `surplus_invested`: the share, from 0 to 1, of each month's regular
+  surplus that goes into investments and grows at the real return; the rest
+  stays in cash, which earns nothing (`baseline.timelines` says what is
+  regular). Not a rate: a share of money, the same in every year.
 
 **What applies** (`resolve`): the user's own figure; then their FIRE
-strategy's (its real returns and withdrawal rate); then the placeholder.
+strategy's (its real returns and withdrawal rate; it chooses no share of the
+surplus); then the placeholder.
 """
 
 from __future__ import annotations
@@ -38,16 +45,26 @@ from typing import Any, Literal, cast
 Origin = Literal["user", "strategy", "placeholder"]
 
 #: What a user may set, in the order they are shown.
-NAMES: tuple[str, ...] = ("real_return", "nominal_return", "inflation", "safe_withdrawal_rate")
+NAMES: tuple[str, ...] = (
+    "real_return",
+    "nominal_return",
+    "inflation",
+    "safe_withdrawal_rate",
+    "surplus_invested",
+)
 
-#: The plausible range of each, as yearly fractions, so that "5" typed for 5%
-#: is refused rather than applied.
+#: The plausible range of each, as fractions (yearly, for a rate), so that
+#: "5" typed for 5% is refused rather than applied.
 BOUNDS: dict[str, tuple[Decimal, Decimal]] = {
     "real_return": (Decimal("-0.05"), Decimal("0.15")),
     "nominal_return": (Decimal("-0.05"), Decimal("1")),
     "inflation": (Decimal("-0.05"), Decimal("1")),
     "safe_withdrawal_rate": (Decimal("0.01"), Decimal("0.10")),
+    "surplus_invested": (Decimal(0), Decimal(1)),
 }
+
+#: The figures that are shares of money rather than yearly rates.
+SHARES: frozenset[str] = frozenset({"surplus_invested"})
 
 #: How long a source or a note may be.
 MAX_SOURCE_LENGTH = 500
@@ -77,6 +94,11 @@ PLACEHOLDERS: dict[str, Placeholder] = {
         "Placeholder: a round 4%, the rule of thumb most writing on financial independence "
         "starts from. Not a recommendation: the rate that lasts differs between markets and "
         "periods. Set your own, with its source.",
+    ),
+    "surplus_invested": Placeholder(
+        Decimal(1),
+        "Placeholder: all of your monthly surplus is assumed invested at the real return; "
+        "set what you actually invest.",
     ),
 }
 
@@ -148,8 +170,8 @@ def _text(value: object, limit: int, what: str) -> str | None:
 
 
 def check_value(name: str, value: object) -> Decimal:
-    """`value` as a Decimal, or a ValueError when it is not a plausible yearly
-    fraction for `name`."""
+    """`value` as a Decimal, or a ValueError when it is not a plausible
+    fraction for `name`: a yearly rate, or a share from 0 to 1."""
     if name not in BOUNDS:
         raise ValueError(f"Not an FI assumption: {name!r}. They are: {', '.join(NAMES)}")
     if isinstance(value, (float, bool)):
@@ -164,6 +186,10 @@ def check_value(name: str, value: object) -> Decimal:
         raise ValueError(f"{name} must be a number such as 0.03 for 3%, got {value!r}")
     low, high = BOUNDS[name]
     if not (low <= number <= high):
+        if name in SHARES:
+            raise ValueError(
+                f"{name} must be a share from {low} to {high} (0.8 for 80%), got {number}"
+            )
         raise ValueError(
             f"{name} must be a yearly fraction from {low} to {high} (0.03 for 3%), got {number}"
         )
@@ -195,6 +221,7 @@ class OwnAssumptions:
     nominal_return: OwnFigure | None = None
     inflation: OwnFigure | None = None
     safe_withdrawal_rate: OwnFigure | None = None
+    surplus_invested: OwnFigure | None = None
 
     def get(self, name: str) -> OwnFigure | None:
         return cast("OwnFigure | None", getattr(self, name))
@@ -318,7 +345,16 @@ _LABELS = {
     "nominal_return": "the nominal return",
     "inflation": "inflation",
     "safe_withdrawal_rate": "the safe withdrawal rate",
+    "surplus_invested": "the share of your monthly surplus invested",
 }
+
+#: The figures that can be placeholders, in the order they are named.
+_PLACEHOLDER_ORDER = ("real_return", "safe_withdrawal_rate", "surplus_invested")
+
+
+def _listed(items: list[str]) -> str:
+    """ "a", "a and b", "a, b and c"."""
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 @dataclass(frozen=True)
@@ -330,6 +366,9 @@ class FiAssumptions:
     safe_withdrawal_rate: Applied
     #: The three scenarios' real returns.
     real_returns: Scenarios
+    #: The share (0 to 1) of each month's regular surplus invested at the
+    #: real return; the rest stays in cash.
+    surplus_invested: Applied
     #: The user's inflation, or None: then figures are in today's money only.
     inflation: Applied | None = None
     #: The user's nominal return, when it is what the real return came from.
@@ -340,7 +379,7 @@ class FiAssumptions:
         """Which of the figures used are placeholders."""
         return tuple(
             name
-            for name in ("real_return", "safe_withdrawal_rate")
+            for name in _PLACEHOLDER_ORDER
             if cast(Applied, getattr(self, name)).origin == "placeholder"
         )
 
@@ -368,7 +407,7 @@ class FiAssumptions:
         """What a person should know about these assumptions, in a sentence or two."""
         parts: list[str] = []
         if self.placeholders:
-            names = " and ".join(_LABELS[n] for n in self.placeholders)
+            names = _listed([_LABELS[n] for n in self.placeholders])
             parts.append(
                 f"Using placeholder assumptions for {names}: round figures, not forecasts. "
                 "Set your own, with a source, to replace them."
@@ -434,10 +473,17 @@ def resolve(own: OwnAssumptions, strategy: StrategyFigures | None = None) -> FiA
         placeholder = PLACEHOLDERS["safe_withdrawal_rate"]
         swr = Applied(placeholder.value, "placeholder", placeholder.source)
 
+    if own.surplus_invested is not None:
+        share = _yours(own.surplus_invested)
+    else:
+        placeholder = PLACEHOLDERS["surplus_invested"]
+        share = Applied(placeholder.value, "placeholder", placeholder.source)
+
     return FiAssumptions(
         real_return=base,
         safe_withdrawal_rate=swr,
         real_returns=scenarios,
+        surplus_invested=share,
         inflation=inflation,
         nominal_return=nominal,
     )
@@ -473,14 +519,15 @@ def scenarios_dict(scenarios: Scenarios | None) -> dict[str, str] | None:
 def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
     """The assumptions behind a figure, as every FI (and baseline) response
     carries them: whether any is a placeholder (and which), each figure with
-    its origin and source, and the scenarios' returns, real and (with the
-    user's inflation) nominal."""
+    its origin and source (the share of the surplus invested among them), and
+    the scenarios' returns, real and (with the user's inflation) nominal."""
     return {
         "status": applied.status,
         "placeholders": list(applied.placeholders),
         "message": applied.message,
         "real_return": _applied_dict(applied.real_return),
         "safe_withdrawal_rate": _applied_dict(applied.safe_withdrawal_rate),
+        "surplus_invested": _applied_dict(applied.surplus_invested),
         "inflation": _applied_dict(applied.inflation),
         "nominal_return": _applied_dict(applied.nominal_return),
         "real_returns": scenarios_dict(applied.real_returns),

@@ -10,14 +10,20 @@ import datetime as dt
 from dataclasses import replace
 from decimal import Decimal
 
-from salli.domain.baseline import BaselineDebt, fi, timelines
+from salli.domain.baseline import Baseline, BaselineDebt, fi, timelines
 from salli.domain.debt import engine as debt_engine
 from salli.domain.debt.models import Debt
-from salli.domain.fi.assumptions import StrategyFigures
+from salli.domain.fi.assumptions import Applied, StrategyFigures
 from salli.domain.reports.forecast import Flow
 from tests.baseline_ledger import Ledger
 
 AS_OF = dt.date(2026, 10, 11)
+
+
+def _with_share(baseline: Baseline, share: str) -> Baseline:
+    """`baseline` with the user's own share of the surplus invested."""
+    applied = Applied(Decimal(share), "user", "test")
+    return replace(baseline, assumptions=replace(baseline.assumptions, surplus_invested=applied))
 
 
 def _books(rent: str = "1500", pay: str = "4000") -> Ledger:
@@ -109,12 +115,37 @@ def test_a_loan_taken_out_later_is_owed_from_its_month_and_cleared_by_its_term()
     # The last payment clears what the rounding left.
     assert path.schedule[-1].remaining_balance == 0
     assert sum(path.payments) == Decimal("5000") + path.total_interest
-    # Cash takes the money in January and the payments after: a year on, it
-    # is down by the interest alone.
+    # Its payments are scheduled ones, out of the regular surplus: so much
+    # less is invested each month it is paid.
+    plan = timelines.cash_plan(baseline, months, [path], changes)
+    paid_months = [i for i, p in enumerate(path.payments) if p]
+    assert all(plan[i].regular == plan[i].planned for i in paid_months)
+    before_plan = timelines.cash_plan(baseline, months, [], timelines.NO_CHANGES)
+    assert [before_plan[i].invested - plan[i].invested for i in paid_months] == [
+        path.payments[i] for i in paid_months
+    ]
+    # The money borrowed is a move into cash, where it stays: a year on, cash
+    # is 5,000 higher, and the investments lower by the payments and what
+    # they would have earned by then, at the placeholder 4%.
     before = timelines.monthly(baseline, 1)
     after = timelines.monthly(baseline, 1, changes)
-    assert before.points[-1].cash - after.points[-1].cash == path.total_interest
+    assert after.points[-1].cash - before.points[-1].cash == Decimal("5000")
+    forgone = sum(
+        (path.payments[i] * (1 + Decimal("0.04") / 12) ** (12 - i) for i in paid_months),
+        Decimal(0),
+    )
+    cent = Decimal("0.01")
+    lower = before.points[-1].investments - after.points[-1].investments
+    assert lower.quantize(cent) == forgone.quantize(cent) == Decimal("5181.66")
     assert after.points[-1].debts == before.points[-1].debts
+    # With none of the surplus invested, cash takes the money and the
+    # payments: a year on, it is down by the interest alone.
+    kept = _with_share(baseline, "0")
+    assert (
+        timelines.monthly(kept, 1).points[-1].cash
+        - timelines.monthly(kept, 1, changes).points[-1].cash
+        == path.total_interest
+    )
 
 
 def test_an_extra_payment_runs_for_its_months_only():
