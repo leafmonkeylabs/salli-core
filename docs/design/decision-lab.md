@@ -272,8 +272,10 @@ Nudges are quiet, useful and rare:
   - `salli whatif` (a scenario from flags or a file)
   - `salli compare <a> <b> …`
   - `salli decide <template>` (interactive)
-  - `salli decisions list|show|review|note`
-  - `salli principles list|add|check`
+  - `salli decisions list|show|review|note` (2a adds `record`, `reviews`,
+    `export`)
+  - `salli principles list|add|check` (2a adds `edit`, `archive`,
+    `figures`)
 - **MCP:** the tools and prompt above.
 
 ## Phases
@@ -283,7 +285,7 @@ Nudges are quiet, useful and rare:
    - **Status:** built. 1a, the baseline ([docs/baseline.md](../baseline.md));
      1b, scenarios, comparison, sensitivity and break-evens
      ([docs/scenarios.md](../scenarios.md)), with FI's month and projections
-     read from the baseline's monthly timeline. Phase 2 is next.
+     read from the baseline's monthly timeline. Phase 2a is built (below).
    - **As built in 1b:** the schema's seven change types (one-off, recurring,
      income change, loan, extra debt payment, invest, stop a recurring flow);
      results as baseline / scenario / delta, with a content hash of the
@@ -319,6 +321,49 @@ Nudges are quiet, useful and rare:
    - Reviews, with reminders and signals.
    - The `think_through_decision` prompt.
    - Guardrails in the prompts and skills.
+   - **Status:** 2a built: principles, the decision journal and reviews
+     ([docs/decisions.md](../decisions.md)). 2b (templates,
+     `start_decision`, `think_through_decision`, `salli decide`) is next.
+   - **As built in 2a:**
+     - **Principles** (`salli.principle/1`) are a label and a check in the
+       tax rules' expression language in a *figure mode*: figures are plain
+       names (`emergency_months >= 6`), the dotted `role.`/`answer.`/`line.`
+       references and the tax-only functions don't exist. They read a fixed,
+       documented set of 32 figures computed from the same timelines as
+       scenarios (cash over the next thirteen months, emergency months, net
+       worth, cash, investments and debts at 1, 5, 10 and 20 years, interest,
+       months to debt-free, the highest rate owed and owed while investing,
+       what an option borrows, FI), each the value Salli shows. The design's
+       "no debt above 0.07 while investing" is
+       `max_debt_rate_while_investing <= 0.07`; "never below 2,000 in
+       checking" is `account_lowest >= 2000` with the principle naming the
+       account. A check reading a missing figure can't tell; nothing is
+       counted or ranked.
+     - **The journal** (`salli.decision/1`) records one to five options,
+       each run by Salli itself (the client supplies no figure) with its
+       figures, its principle checks and its projection month by month in
+       each month's own money to a year past the review date, plus the
+       choice, the person's reasons, the agent's summary (marked), the
+       basis (fingerprint, versions, assumptions) and how it was recorded.
+       Each entry, note and review is a self-describing document with a
+       SHA-256 over its canonical JSON, returned exactly as stored so
+       anyone can recompute it. Append-only in the repository and in the
+       database (a trigger refuses UPDATE, DELETE and TRUNCATE; only erasing
+       the account, which names the user for its transaction, deletes).
+     - **Reviews** compare at the last month's end on or before the review:
+       cash, investments, what is owed, net worth (the baseline as of that
+       day) and spending a month since the decision, actual less projected,
+       with the other options' projections beside it. A due review is a
+       `decision_review_due` signal and a reminder (`source_domain`
+       "decision"), set when the decision is recorded and done when it is
+       reviewed.
+     - **Interfaces** as designed, plus `PATCH /v1/principles/{id}`,
+       `POST /v1/principles/{id}/archive`, `GET /v1/principles/figures`,
+       `GET /v1/decisions/{id}` and the exports (JSON, Markdown); MCP
+       `get_decision` beside the listed tools; CLI `salli principles
+       edit|figures` and `salli decisions record|reviews|export`, so every
+       operation has a command. The MCP tools that store something require
+       `confirmed_by_user: true`.
 3. **Further.**
    - Tax-aware scenarios: hypothetical role totals through the active rule set.
    - "Invest" changes using the portfolio's actual holdings.
