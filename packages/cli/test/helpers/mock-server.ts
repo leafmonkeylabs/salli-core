@@ -43,7 +43,6 @@ import type {
   PersonalAccessToken,
   Profile,
   PayoffPlan,
-  PurchaseImpact,
   RuleDraft,
   RuleSuggestion,
   RuleTestResult,
@@ -63,6 +62,7 @@ import {
   TRIAL_BALANCE,
   uid,
 } from './fixtures';
+import { SCENARIO_COMPARISON, SCENARIO_RUN } from './scenarios';
 import { TaxRulesMock } from './taxrules';
 
 export interface RecordedRequest {
@@ -646,33 +646,18 @@ export class MockSalli {
         },
       };
     }
-    if (method === 'POST' && path === '/v1/fi/simulate-purchase') {
+    if (method === 'POST' && (path === '/v1/scenarios/run' || path === '/v1/scenarios/compare')) {
       this.data.bodies.push({ method, path, body: req.json });
-      const impact: PurchaseImpact = {
-        amount: (req.json as { amount: string }).amount,
-        as_of: '2026-10-09',
-        currency: 'USD',
-        fi_number: '663705.00',
-        fi_asset_base_before: '12834.50',
-        monthly_surplus: '2787.65',
-        baseline_months_to_fi: 168,
-        payable_from_liquid: true,
-        emergency_months_before: '5.8',
-        emergency_months_after_cash: '4.7',
-        emergency_fund_target_months: 6,
-        options: [
-          { key: 'cash', label: 'Pay cash', total_cost: '2400.00', interest_cost: '0.00', monthly_payment: null, term_months: null, months_to_fi: 169, months_delay: 1, exceeds_monthly_surplus: false },
-          { key: 'installments', label: 'Pay over 12 months', total_cost: '2616.00', interest_cost: '216.00', monthly_payment: '218.00', term_months: 12, months_to_fi: 170, months_delay: 2, exceeds_monthly_surplus: false },
-        ],
-        cheapest_option_key: 'cash',
-        data_as_of: '2026-10-06',
-        is_stale: false,
-        stale_after_days: 30,
-        real_return_used: '0.035',
-        swr: '0.04',
-        assumptions: FI_ASSUMPTIONS,
-      };
-      return { status: 200, body: impact };
+      const body = req.json as { label?: string; options?: Array<{ label?: string }> };
+      if (body.label === 'refuse' || body.options?.some((o) => o.label === 'refuse')) {
+        return problem(
+          422,
+          'Not a scenario Salli can run',
+          [{ loc: ['body', 'changes', 0, 'date'], msg: 'is before the as-of date (2026-10-11): a scenario changes what comes next' }],
+          '/problems/invalid-scenario',
+        );
+      }
+      return { status: 200, body: path === '/v1/scenarios/run' ? SCENARIO_RUN : SCENARIO_COMPARISON };
     }
     if (method === 'GET' && path === '/v1/baseline') {
       this.data.bodies.push({ method, path, body: Object.fromEntries(req.query) });
@@ -752,6 +737,8 @@ export class MockSalli {
         monthly: { horizon_years: Number(req.query.get('horizon_years') ?? 30), real_return: '0.04', inflation: null, points },
         assumptions: FI_ASSUMPTIONS,
         placeholders: ['real_return', 'inflation'],
+        rule_sets: [],
+        fingerprint: 'sha256:0f1e2d3c',
         notes: [],
       };
       return { status: 200, body };
@@ -1209,8 +1196,8 @@ export class MockSalli {
           status: 200,
           body: {
             items: [
-              { payee: 'Streaming', cadence: 'monthly', typical_amount: '15.99', varies: false, currency: 'USD', account_id: uid(6), occurrences: 6, last_date: '2026-09-20', next_expected: '2026-10-20', examples: ['STREAMING CO'], tracked: true, subscription_id: uid(431) },
-              { payee: 'Gym', cadence: 'monthly', typical_amount: '39.99', varies: true, currency: 'USD', account_id: uid(6), occurrences: 4, last_date: '2026-10-01', next_expected: '2026-11-01', examples: ['GYM'], tracked: false, subscription_id: null },
+              { payee: 'Streaming', key: 'streaming', cadence: 'monthly', typical_amount: '15.99', varies: false, currency: 'USD', account_id: uid(6), occurrences: 6, last_date: '2026-09-20', next_expected: '2026-10-20', examples: ['STREAMING CO'], tracked: true, subscription_id: uid(431) },
+              { payee: 'Gym', key: 'gym', cadence: 'monthly', typical_amount: '39.99', varies: true, currency: 'USD', account_id: uid(6), occurrences: 4, last_date: '2026-10-01', next_expected: '2026-11-01', examples: ['GYM'], tracked: false, subscription_id: null },
             ],
           } satisfies RecurringPayments,
         };

@@ -1,6 +1,7 @@
 /**
- * Financial independence (score, projections, purchases, strategy), goals
- * and the wealth advisor.
+ * Financial independence (score, projections, strategy), goals and the
+ * wealth advisor. What a purchase does is a scenario: `salli whatif`,
+ * `salli compare`.
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
@@ -19,7 +20,6 @@ import {
   fiScoreGet,
   fiScoreHistory,
   fiScoreRecompute,
-  fiSimulatePurchase,
   fiStrategyGet,
   fiStrategyHistory,
   fiSurplus,
@@ -43,7 +43,7 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { CliError, NotFoundError, UsageError } from '../errors';
-import { plural, singleLine } from '../output/text';
+import { singleLine } from '../output/text';
 import { displayDate, displayMonth, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { AccountBook, amountArg, confirmAction, countArg, rateArg } from './shared';
@@ -155,7 +155,7 @@ function strategyView(app: App, s: FireStrategy): void {
 }
 
 function registerFi(program: Command, app: App): void {
-  const fi = program.command('fi').description('Financial independence: your score, projections, and what a purchase costs you');
+  const fi = program.command('fi').description('Financial independence: your score, projections, strategy and assumptions');
 
   fi.command('score')
     .description('Your FI score and the figures behind it')
@@ -348,48 +348,6 @@ function registerFi(program: Command, app: App): void {
           };
           section('INCOME', d.income_by_source);
           section('SPENDING', d.expense_by_category);
-        },
-      });
-    });
-
-  fi.command('simulate-purchase')
-    .alias('afford')
-    .argument('<amount>', 'The price')
-    .description('What a purchase costs you in months of freedom: cash against instalments')
-    .option('--months <n>', 'Pay in instalments over this many months', countArg('--months'))
-    .option('--rate <rate>', 'The instalments’ annual interest: 0.18 or 18%', '0')
-    .action(async (amountText, opts) => {
-      const api = await app.api();
-      const impact = await api.call(fiSimulatePurchase, {
-        body: {
-          amount: amountArg(amountText),
-          ...(opts.months !== undefined ? { term_months: opts.months } : {}),
-          annual_interest_rate: rateArg(opts.rate, '--rate'),
-        },
-      });
-      app.out.emit(impact, {
-        records: (d) => d.options,
-        human: (d) => {
-          const out = app.out;
-          out.line(out.heading(`Buying something for ${out.money(d.amount, d.currency)}`));
-          out.line(
-            out.table(d.options, [
-              { header: 'HOW', get: (o) => o.label + (o.key === d.cheapest_option_key ? ' (cheapest)' : '') },
-              { header: 'COSTS', get: (o) => out.amount(o.total_cost, d.currency), align: 'right' },
-              { header: 'INTEREST', get: (o) => out.amount(o.interest_cost, d.currency), align: 'right' },
-              { header: 'A MONTH', get: (o) => (o.monthly_payment ? out.amount(o.monthly_payment, d.currency) : ''), align: 'right' },
-              {
-                header: 'DELAYS FI BY',
-                get: (o) => (o.months_delay === null ? 'unknown' : plural(o.months_delay, 'month')),
-                align: 'right',
-                style: (t, o) => (o.exceeds_monthly_surplus ? out.colors.red(t) : t),
-              },
-            ]),
-          );
-          out.note(`Amounts in ${d.currency}.`);
-          if (!d.payable_from_liquid) out.warn('Paying cash would use more than your liquid savings.');
-          if (d.is_stale) out.warn(`Your ledger’s latest entry is from ${displayDate(d.data_as_of, out.locale)}: add recent entries for a truer answer.`);
-          assumptionsNote(app, d.assumptions);
         },
       });
     });

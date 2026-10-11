@@ -154,6 +154,7 @@ export function registerInsights(program: Command, app: App): void {
           out.line(
             out.table(d.items, [
               { header: 'PAYEE', get: (r) => r.payee, shrink: true },
+              { header: 'KEY', get: (r) => r.key },
               { header: 'EVERY', get: (r) => r.cadence.replace(/ly$/, '').replace('dai', 'day') },
               { header: 'TYPICAL', get: (r) => `${r.varies ? '~' : ''}${out.money(r.typical_amount, r.currency)}`, align: 'right' },
               { header: 'NEXT', get: (r) => displayDate(r.next_expected, out.locale) },
@@ -164,6 +165,7 @@ export function registerInsights(program: Command, app: App): void {
           if (untracked) {
             out.note(`${untracked} not tracked: add one with \`salli subscriptions add\` to be told when it is missed or its price changes.`);
           }
+          out.note('To see what stopping one would do: `salli whatif --cancel <key>`.');
         },
       });
     });

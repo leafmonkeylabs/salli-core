@@ -121,9 +121,9 @@ describe('FI planning assumptions: real terms, placeholders, your own figures', 
     expect(both.stderr).toContain('at your inflation of 3%');
   });
 
-  it('says when the score and a purchase rest on placeholders', async () => {
+  it('says when the score and a scenario rest on placeholders', async () => {
     expect((await run(['fi', 'score'])).stderr).toContain('Using placeholder assumptions for the real return');
-    expect((await run(['fi', 'afford', '2400'])).stderr).toContain('Using placeholder assumptions for the real return');
+    expect((await run(['whatif', '--buy', '2400'])).stderr).toContain('Placeholders: the real return; the safe withdrawal rate');
     // Machine output is the API's JSON, flag included.
     const json = JSON.parse((await run(['fi', 'score', '--json'])).stdout);
     expect(json.assumptions.status).toBe('placeholder');

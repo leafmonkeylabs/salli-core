@@ -54,8 +54,6 @@ describe('money on the wire', () => {
     await run(['goals', 'allocate', uid(451).slice(0, 8), 'checking', '9000.00']);
     expect(lastBody('/v1/fi/goals/')).toEqual({ account_id: uid(2), allocated_amount: '9000.00' });
 
-    await run(['fi', 'afford', '2400', '--months', '12', '--rate', '18%']);
-    expect(lastBody('/v1/fi/simulate-purchase')).toEqual({ amount: '2400', term_months: 12, annual_interest_rate: '0.18' });
   });
 });
 
@@ -182,16 +180,6 @@ describe('financial independence and goals', () => {
       PART            SCORE  WEIGHT  WHY
       Savings rate       90     30%  56% of income saved
       Emergency fund     80     20%  5.8 months covered
-      "
-    `);
-  });
-
-  it('costs a purchase in months of freedom', async () => {
-    expect((await run(['fi', 'simulate-purchase', '2400', '--months', '12'])).stdout).toMatchInlineSnapshot(`
-      "Buying something for USD 2,400.00
-      HOW                     COSTS  INTEREST  A MONTH  DELAYS FI BY
-      Pay cash (cheapest)  2,400.00      0.00                1 month
-      Pay over 12 months   2,616.00    216.00   218.00      2 months
       "
     `);
   });

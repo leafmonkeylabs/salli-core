@@ -54,6 +54,37 @@ office or central bank for inflation, long-run studies for returns), show the
 user the figure and its source, and set it only once they agree. Projections
 show nominal (future-money) figures only once inflation is set.
 
+## Decisions: what-ifs and options
+
+When the user weighs a decision (can I afford it, cash or instalments, pay
+down a debt or invest, a new flat or a new job), build each option as a
+scenario and let Salli run it. Never subtract, add or project anything
+yourself, and never say which option is best: Salli doesn't rank them, and
+neither do you.
+
+    salli whatif --buy 2400@2026-11-01 --json                  # a one-off purchase
+    salli whatif --buy 18000 --loan 18000@6.9%x48 --json       # financed: price out, loan in
+    salli whatif --recurring -450/month@2027-01-01 --json      # a new cost (or +80/week in)
+    salli whatif --income +600/month@2027-01-01 --json         # a raise, or a cut (-)
+    salli whatif --extra-payment "student loan:200/month" --json
+    salli whatif --invest 5000 --account savings --json
+    salli whatif --cancel <key> --json                         # keys: salli insights recurring
+    salli whatif ... --label "Pay cash" --save cash.json       # keep it as a document
+    salli compare cash.json instalments.json --json            # 2 to 5 options
+
+A scenario is a JSON document (`salli.scenario/1`; amounts and rates as
+decimal strings, dates YYYY-MM-DD), so you can also write one and run it with
+`salli whatif --file <path>`. Every figure comes as `baseline`, `scenario`
+and `delta`: the lowest cash in the next twelve months and when, accounts
+going below zero, safe-to-spend, net worth, cash, investments and debts at 1,
+5, 10 and 20 years in today's money, each debt's payoff and interest,
+emergency-fund months, and the FI number and month (`fi.months_gained`).
+`compare` adds `trade` (what each option gains and gives up against each
+other), `sensitivity` (the same at the conservative and growth returns) and
+`break_evens`, each with a sentence (`says`) saying where the answer changes:
+quote it. If `is_stale` is true, ask the user to bring their ledger up to
+date before deciding. Name the `placeholders` the figures rest on.
+
 ## Running it
 
 `salli` must be installed (`npm install --global @leafmonkeylabs/salli`) and
@@ -75,11 +106,12 @@ Other ids can be shortened to any unique prefix.
 | `ledger` | `trial-balance`, `income-statement` |
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
 | `baseline` | the one model every figure comes from, as of a day (`--as-of`): months averaged, exchange rates and their source, account roles, debts, assumptions, and timelines to `--years` |
+| `whatif`, `compare` | a scenario's figures against the baseline (from flags, or `--file`); two to five options side by side, with the trade, sensitivity and break-evens |
 | `tax` | your tax from your own active rules: `year`, `compute`, `latest`, `explain <line>`; `return prepare`, `return review <thread>`; `schema` (the rule-set JSON Schema) |
 | `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`, `accounts <set> [--apply]`; `activate` is the user's, never yours |
 | `budgets`, `debts`, `insurance`, `subscriptions` | each domain's records and reports |
 | `holdings`, `portfolio` | holdings: `holdings list`, `holdings add`; `portfolio` (summary), `portfolio transactions add <holding> buy\|sell\|dividend\|…`, `portfolio lots <holding>`, `portfolio prices set <symbol> <close>`, `portfolio performance --from --to` |
-| `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `afford`, `strategy`, `assumptions` (`set`, `clear`); `goals list`, `goals allocate` |
+| `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `strategy`, `assumptions` (`set`, `clear`); `goals list`, `goals allocate` |
 | `reports` | `balance-sheet`, `net-worth`, `goal-progress`, `export` |
 | `reminders` | `list`, `add`, `seed` (filing deadlines from the active tax rules), `sync-alerts` |
 | `advisor` | `run`, `latest`, `reports`, `apply`, `dismiss` |
