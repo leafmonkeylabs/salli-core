@@ -1076,6 +1076,480 @@ export type BankSync = {
 };
 
 /**
+ * Baseline
+ *
+ * The user's money as of a day, and the definitions behind every figure.
+ */
+export type Baseline = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Months Observed
+     */
+    months_observed: Array<string>;
+    flows: BaselineFlows;
+    /**
+     * Rates
+     */
+    rates: Array<BaselineRate>;
+    /**
+     * Balances
+     */
+    balances: Array<BaselineBalance>;
+    totals: BaselineTotals;
+    /**
+     * Debts
+     */
+    debts: Array<BaselineDebt>;
+    /**
+     * Debt Free
+     */
+    debt_free: string | null;
+    cash: BaselineCash;
+    monthly: BaselineMonthly;
+    assumptions: FiAssumptions;
+    /**
+     * Placeholders
+     */
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'inflation'>;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
+ * BaselineBalance
+ */
+export type BaselineBalance = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Role
+     */
+    role: 'cash' | 'investment' | 'other_asset' | 'liability';
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Amount
+     */
+    amount: string | null;
+    /**
+     * Value
+     */
+    value: string | null;
+    /**
+     * In Cash
+     */
+    in_cash: boolean;
+    /**
+     * Debt Id
+     */
+    debt_id: string | null;
+};
+
+/**
+ * BaselineCash
+ *
+ * The daily cash timeline: the as-of month and the twelve after it, in
+ * each day's own money.
+ */
+export type BaselineCash = {
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Today
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    today: string;
+    /**
+     * Lowest
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    lowest: string;
+    /**
+     * Lowest Date
+     */
+    lowest_date: string;
+    /**
+     * Month Ends
+     */
+    month_ends: Array<BaselineCashMonth>;
+    /**
+     * Daily
+     */
+    daily?: Array<BaselineDay> | null;
+};
+
+/**
+ * BaselineCashMonth
+ */
+export type BaselineCashMonth = {
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Cash
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cash: string;
+    /**
+     * Unscheduled
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    unscheduled: string;
+};
+
+/**
+ * BaselineDay
+ */
+export type BaselineDay = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    balance: string;
+};
+
+/**
+ * BaselineDebt
+ */
+export type BaselineDebt = {
+    /**
+     * Debt Id
+     */
+    debt_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Source
+     */
+    source: 'account' | 'declared';
+    /**
+     * Account Id
+     */
+    account_id: string | null;
+    /**
+     * Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    balance: string;
+    /**
+     * Apr
+     *
+     * Decimal string, exact; never a float.
+     */
+    apr: string;
+    /**
+     * Minimum Payment
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    minimum_payment: string;
+    /**
+     * Already Paid
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    already_paid: string;
+    /**
+     * Paid Off
+     */
+    paid_off: string | null;
+    /**
+     * Total Interest
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_interest: string;
+};
+
+/**
+ * BaselineFlows
+ *
+ * Monthly averages over the months observed (`months_observed`).
+ */
+export type BaselineFlows = {
+    /**
+     * Monthly Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_income: string;
+    /**
+     * Monthly Expenses
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_expenses: string;
+    /**
+     * Monthly Surplus
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    monthly_surplus: string;
+    /**
+     * Savings Rate
+     */
+    savings_rate: string | null;
+    /**
+     * Essential Monthly
+     */
+    essential_monthly: string | null;
+    /**
+     * Need Coverage
+     */
+    need_coverage: string | null;
+    /**
+     * By Month
+     */
+    by_month: Array<BaselineMonthFlow>;
+};
+
+/**
+ * BaselineMonthFlow
+ *
+ * One full calendar month's money in and out, signed amounts netted.
+ */
+export type BaselineMonthFlow = {
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    income: string;
+    /**
+     * Expenses
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    expenses: string;
+    /**
+     * Net
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net: string;
+    /**
+     * Essential
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    essential: string;
+};
+
+/**
+ * BaselineMonthPoint
+ *
+ * Where things stand at a month's end (the first point: the as-of date),
+ * in today's money.
+ */
+export type BaselineMonthPoint = {
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Cash
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cash: string;
+    /**
+     * Investments
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    investments: string;
+    /**
+     * Other Assets
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    other_assets: string;
+    /**
+     * Debts
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    debts: string;
+    /**
+     * Other Liabilities
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    other_liabilities: string;
+    /**
+     * Net Worth
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net_worth: string;
+};
+
+/**
+ * BaselineMonthly
+ */
+export type BaselineMonthly = {
+    /**
+     * Horizon Years
+     */
+    horizon_years: number;
+    /**
+     * Real Return
+     *
+     * Decimal string, exact; never a float.
+     */
+    real_return: string;
+    /**
+     * Inflation
+     */
+    inflation: string | null;
+    /**
+     * Points
+     */
+    points: Array<BaselineMonthPoint>;
+};
+
+/**
+ * BaselineRate
+ *
+ * The published rate for the as-of date that balances in a currency are
+ * valued at.
+ */
+export type BaselineRate = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Rate
+     */
+    rate: string | null;
+    /**
+     * Source
+     */
+    source: string | null;
+    /**
+     * As Of
+     */
+    as_of: string | null;
+};
+
+/**
+ * BaselineTotals
+ *
+ * In the base currency, at the as-of rates.
+ */
+export type BaselineTotals = {
+    /**
+     * Cash
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cash: string;
+    /**
+     * Liquid
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    liquid: string;
+    /**
+     * Investments
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    investments: string;
+    /**
+     * Other Assets
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    other_assets: string;
+    /**
+     * Debts
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    debts: string;
+    /**
+     * Other Liabilities
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    other_liabilities: string;
+    /**
+     * Total Assets
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_assets: string;
+    /**
+     * Total Liabilities
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_liabilities: string;
+    /**
+     * Net Worth
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net_worth: string;
+};
+
+/**
  * BriefingAction
  *
  * What applying the recommendation would set up.
@@ -14862,6 +15336,54 @@ export type InsightsSignalsResponses = {
 };
 
 export type InsightsSignalsResponse = InsightsSignalsResponses[keyof InsightsSignalsResponses];
+
+export type BaselineGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * As Of
+         *
+         * YYYY-MM-DD; today when omitted
+         */
+        as_of?: string | null;
+        /**
+         * Horizon Years
+         *
+         * The monthly timeline's horizon
+         */
+        horizon_years?: number;
+        /**
+         * Daily
+         *
+         * Include every day of the cash timeline
+         */
+        daily?: boolean;
+    };
+    url: '/v1/baseline';
+};
+
+export type BaselineGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type BaselineGetError = BaselineGetErrors[keyof BaselineGetErrors];
+
+export type BaselineGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Baseline;
+};
+
+export type BaselineGetResponse = BaselineGetResponses[keyof BaselineGetResponses];
 
 export type BankConnectionsListData = {
     body?: never;

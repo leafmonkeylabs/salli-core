@@ -68,12 +68,13 @@ Other ids can be shortened to any unique prefix.
 | Command | For |
 |---|---|
 | `status` | net worth, this month, FI score and what is due, on one screen |
-| `accounts` | chart of accounts: `list --balances`, `add`, `show <account>` (balance and history) |
+| `accounts` | chart of accounts: `list --balances`, `add`, `show <account>` (balance and history); `--asset-role cash\|investment\|other` says what an asset account holds |
 | `add "<text>"` | an entry drafted by the AI from a sentence; `--dry-run` only shows the draft |
 | `entries` | journal entries: `list`, `add`, `show <id>`, `reverse <id>`, `tag` |
 | `import <file>`, `statements` | bank statements: import, then `statements pending`, `post`, `discard`, `categorize` |
 | `ledger` | `trial-balance`, `income-statement` |
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
+| `baseline` | the one model every figure comes from, as of a day (`--as-of`): months averaged, exchange rates and their source, account roles, debts, assumptions, and timelines to `--years` |
 | `tax` | your tax from your own active rules: `year`, `compute`, `latest`, `explain <line>`; `return prepare`, `return review <thread>`; `schema` (the rule-set JSON Schema) |
 | `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`, `accounts <set> [--apply]`; `activate` is the user's, never yours |
 | `budgets`, `debts`, `insurance`, `subscriptions` | each domain's records and reports |

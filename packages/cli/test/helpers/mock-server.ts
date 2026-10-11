@@ -10,6 +10,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
   Account,
+  Baseline,
   AiModelChoice,
   AiModels,
   AiSettings,
@@ -672,6 +673,88 @@ export class MockSalli {
         assumptions: FI_ASSUMPTIONS,
       };
       return { status: 200, body: impact };
+    }
+    if (method === 'GET' && path === '/v1/baseline') {
+      this.data.bodies.push({ method, path, body: Object.fromEntries(req.query) });
+      const point = (month: string, date: string, cash: string, investments: string, debts: string, netWorth: string) => ({
+        month,
+        date,
+        cash,
+        investments,
+        other_assets: '250000.00',
+        debts,
+        other_liabilities: '0.00',
+        net_worth: netWorth,
+      });
+      const points = [point('2026-10', '2026-10-09', '9400.00', '30000.00', '8400.00', '281000.00')];
+      for (let i = 0; i <= 12 * 20; i++) {
+        points.push(point('2026-10', '2026-10-31', '9400.00', '30000.00', '8400.00', '281000.00'));
+      }
+      points[13] = point('2027-10', '2027-10-31', '40200.00', '31200.00', '5100.00', '316300.00');
+      points[61] = point('2031-10', '2031-10-31', '171000.00', '36500.00', '0.00', '457500.00');
+      points[121] = point('2036-10', '2036-10-31', '346000.00', '44400.00', '0.00', '640400.00');
+      points[241] = point('2046-10', '2046-10-31', '696000.00', '65800.00', '0.00', '1011800.00');
+      const body: Baseline = {
+        as_of: '2026-10-09',
+        currency: 'USD',
+        months_observed: ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'],
+        flows: {
+          monthly_income: '5000.00',
+          monthly_expenses: '2212.35',
+          monthly_surplus: '2787.65',
+          savings_rate: '0.5575',
+          essential_monthly: '1800.00',
+          need_coverage: '0.8136',
+          by_month: [],
+        },
+        rates: [{ currency: 'EUR', rate: '1.0823', source: 'ecb', as_of: '2026-10-09' }],
+        balances: [
+          { account_id: uid(1), code: '1000', name: 'Cash', role: 'cash', currency: 'USD', amount: '250.00', value: '250.00', in_cash: true, debt_id: null },
+          { account_id: uid(3), code: '1200', name: 'Euro Savings', role: 'cash', currency: 'EUR', amount: '8452.00', value: '9147.60', in_cash: true, debt_id: null },
+          { account_id: uid(4), code: '2000', name: 'Credit Card', role: 'liability', currency: 'USD', amount: '-8400.00', value: '-8400.00', in_cash: false, debt_id: uid(412) },
+        ],
+        totals: {
+          cash: '9397.60',
+          liquid: '9397.60',
+          investments: '30000.00',
+          other_assets: '250000.00',
+          debts: '8400.00',
+          other_liabilities: '0.00',
+          total_assets: '289397.60',
+          total_liabilities: '8400.00',
+          net_worth: '280997.60',
+        },
+        debts: [
+          {
+            debt_id: uid(412),
+            name: 'Card',
+            source: 'account',
+            account_id: uid(4),
+            balance: '8400.00',
+            apr: '0.069',
+            minimum_payment: '310.00',
+            already_paid: '48.30',
+            paid_off: '2029-07',
+            total_interest: '845.12',
+          },
+        ],
+        debt_free: '2029-07',
+        cash: {
+          start: '2026-10-09',
+          end: '2027-10-31',
+          today: '9397.60',
+          lowest: '8801.12',
+          lowest_date: '2026-10-24',
+          month_ends: [{ month: '2027-10', cash: '40200.00', unscheduled: '-410.20' }],
+          daily: req.query.get('daily') === 'true' ? [{ date: '2026-10-09', balance: '9397.60' }] : null,
+        },
+        // eslint-disable-next-line no-restricted-syntax -- not money: a number of years
+        monthly: { horizon_years: Number(req.query.get('horizon_years') ?? 30), real_return: '0.04', inflation: null, points },
+        assumptions: FI_ASSUMPTIONS,
+        placeholders: ['real_return', 'inflation'],
+        notes: [],
+      };
+      return { status: 200, body };
     }
     if (method === 'GET' && path === '/v1/debt/payoff-plan') {
       return {

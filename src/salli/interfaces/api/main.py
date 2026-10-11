@@ -53,6 +53,7 @@ from salli.interfaces.api.routers import (
     ai,
     auth,
     banks,
+    baseline,
     budget,
     debt,
     documents,
@@ -245,6 +246,7 @@ def create_app() -> FastAPI:
         rules.router,
         exports.router,
         insights.router,
+        baseline.router,
         banks.router,
     ]
     # Routers contributed by enabled extensions (salli/extensions.py), after

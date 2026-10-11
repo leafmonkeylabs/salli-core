@@ -264,6 +264,8 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/rules/{rule_id}"): "rules.get",
     ("PATCH", "/rules/{rule_id}"): "rules.update",
     ("DELETE", "/rules/{rule_id}"): "rules.delete",
+    # the baseline: one dated model of the user's money (domain/baseline)
+    ("GET", "/baseline"): "baseline.get",
     # insights
     ("GET", "/insights/cash-flow"): "insights.cashFlow",
     ("GET", "/insights/spending"): "insights.spending",

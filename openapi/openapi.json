@@ -10339,6 +10339,100 @@
         ]
       }
     },
+    "/v1/baseline": {
+      "get": {
+        "tags": [
+          "baseline"
+        ],
+        "summary": "Get Baseline",
+        "description": "The baseline as of a day: what FI, insights, the forecast and the debt\nplan compute from, with the months, rates and assumptions they use.",
+        "operationId": "baseline.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM-DD; today when omitted",
+              "title": "As Of"
+            },
+            "description": "YYYY-MM-DD; today when omitted"
+          },
+          {
+            "name": "horizon_years",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "The monthly timeline's horizon",
+              "default": 30,
+              "title": "Horizon Years"
+            },
+            "description": "The monthly timeline's horizon"
+          },
+          {
+            "name": "daily",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include every day of the cash timeline",
+              "default": true,
+              "title": "Daily"
+            },
+            "description": "Include every day of the cash timeline"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Baseline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/bank-connections": {
       "get": {
         "tags": [
@@ -13160,6 +13254,861 @@
           "warnings"
         ],
         "title": "BankSync"
+      },
+      "Baseline": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "months_observed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months Observed"
+          },
+          "flows": {
+            "$ref": "#/components/schemas/BaselineFlows"
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineRate"
+            },
+            "type": "array",
+            "title": "Rates"
+          },
+          "balances": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineBalance"
+            },
+            "type": "array",
+            "title": "Balances"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BaselineTotals"
+          },
+          "debts": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineDebt"
+            },
+            "type": "array",
+            "title": "Debts"
+          },
+          "debt_free": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Free"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/BaselineCash"
+          },
+          "monthly": {
+            "$ref": "#/components/schemas/BaselineMonthly"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/FiAssumptions"
+          },
+          "placeholders": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "real_return",
+                "safe_withdrawal_rate",
+                "inflation"
+              ]
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "currency",
+          "months_observed",
+          "flows",
+          "rates",
+          "balances",
+          "totals",
+          "debts",
+          "debt_free",
+          "cash",
+          "monthly",
+          "assumptions",
+          "placeholders",
+          "notes"
+        ],
+        "title": "Baseline",
+        "description": "The user's money as of a day, and the definitions behind every figure."
+      },
+      "BaselineBalance": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "investment",
+              "other_asset",
+              "liability"
+            ],
+            "title": "Role"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "in_cash": {
+            "type": "boolean",
+            "title": "In Cash"
+          },
+          "debt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "code",
+          "name",
+          "role",
+          "currency",
+          "amount",
+          "value",
+          "in_cash",
+          "debt_id"
+        ],
+        "title": "BaselineBalance"
+      },
+      "BaselineCash": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "today": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Today",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Lowest",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest_date": {
+            "type": "string",
+            "title": "Lowest Date"
+          },
+          "month_ends": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineCashMonth"
+            },
+            "type": "array",
+            "title": "Month Ends"
+          },
+          "daily": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BaselineDay"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "today",
+          "lowest",
+          "lowest_date",
+          "month_ends"
+        ],
+        "title": "BaselineCash",
+        "description": "The daily cash timeline: the as-of month and the twelve after it, in\neach day's own money."
+      },
+      "BaselineCashMonth": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "cash": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cash",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "unscheduled": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Unscheduled",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "cash",
+          "unscheduled"
+        ],
+        "title": "BaselineCashMonth"
+      },
+      "BaselineDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "balance"
+        ],
+        "title": "BaselineDay"
+      },
+      "BaselineDebt": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "account",
+              "declared"
+            ],
+            "title": "Source"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "apr": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Apr",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "minimum_payment": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Minimum Payment",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "already_paid": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Already Paid",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "paid_off": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Off"
+          },
+          "total_interest": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Interest",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "debt_id",
+          "name",
+          "source",
+          "account_id",
+          "balance",
+          "apr",
+          "minimum_payment",
+          "already_paid",
+          "paid_off",
+          "total_interest"
+        ],
+        "title": "BaselineDebt"
+      },
+      "BaselineFlows": {
+        "properties": {
+          "monthly_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_surplus": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Surplus",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Rate"
+          },
+          "essential_monthly": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Essential Monthly"
+          },
+          "need_coverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need Coverage"
+          },
+          "by_month": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineMonthFlow"
+            },
+            "type": "array",
+            "title": "By Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monthly_income",
+          "monthly_expenses",
+          "monthly_surplus",
+          "savings_rate",
+          "essential_monthly",
+          "need_coverage",
+          "by_month"
+        ],
+        "title": "BaselineFlows",
+        "description": "Monthly averages over the months observed (`months_observed`)."
+      },
+      "BaselineMonthFlow": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "essential": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Essential",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "income",
+          "expenses",
+          "net",
+          "essential"
+        ],
+        "title": "BaselineMonthFlow",
+        "description": "One full calendar month's money in and out, signed amounts netted."
+      },
+      "BaselineMonthPoint": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "cash": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cash",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "investments": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Investments",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "debts": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Debts",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "date",
+          "cash",
+          "investments",
+          "other_assets",
+          "debts",
+          "other_liabilities",
+          "net_worth"
+        ],
+        "title": "BaselineMonthPoint",
+        "description": "Where things stand at a month's end (the first point: the as-of date),\nin today's money."
+      },
+      "BaselineMonthly": {
+        "properties": {
+          "horizon_years": {
+            "type": "integer",
+            "title": "Horizon Years"
+          },
+          "real_return": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Real Return",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflation"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineMonthPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "horizon_years",
+          "real_return",
+          "inflation",
+          "points"
+        ],
+        "title": "BaselineMonthly"
+      },
+      "BaselineRate": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rate",
+          "source",
+          "as_of"
+        ],
+        "title": "BaselineRate",
+        "description": "The published rate for the as-of date that balances in a currency are\nvalued at."
+      },
+      "BaselineTotals": {
+        "properties": {
+          "cash": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cash",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "liquid": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Liquid",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "investments": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Investments",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "debts": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Debts",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "cash",
+          "liquid",
+          "investments",
+          "other_assets",
+          "debts",
+          "other_liabilities",
+          "total_assets",
+          "total_liabilities",
+          "net_worth"
+        ],
+        "title": "BaselineTotals",
+        "description": "In the base currency, at the as-of rates."
       },
       "BriefingAction": {
         "properties": {

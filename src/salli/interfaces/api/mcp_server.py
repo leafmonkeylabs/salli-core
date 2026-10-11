@@ -155,6 +155,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     parsing_svc = services.parsing
     rules_svc = services.rules
     fi_svc = services.fi
+    baseline_svc = services.baseline
     tax_rules_svc = services.tax_rules
 
     mcp = FastMCP(
@@ -171,6 +172,9 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "categorize_transactions, post_transactions, discard_transactions, "
             "create_rule, set_fi_assumption, and the document/memory writers) take effect "
             "immediately: show the user what you will do and get their go-ahead first. "
+            "Every money figure comes from one model of the user's money as of a day; "
+            "get_baseline shows it with the definitions behind it (months averaged, "
+            "exchange rates and their source, account roles, assumptions). "
             "Financial-independence figures are in real terms (today's money); where "
             "the user has set no return or withdrawal rate, a labelled placeholder "
             "stands in: when a result's assumptions.status is 'placeholder', say so, "
@@ -742,6 +746,30 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         return await fi_svc.assumptions(_current_user_id())
 
     @mcp.tool()
+    async def get_baseline(as_of: str | None = None, horizon_years: int = 10) -> dict[str, Any]:
+        """The user's money as of a day (as_of, YYYY-MM-DD; omit for today):
+        the one model FI, insights, the cash forecast and the debt plan compute
+        from. It says the definitions it used: the full months income and
+        expenses are averaged over (months_observed), the published exchange
+        rates balances are valued at and their source (rates), each account's
+        role (cash, investment, other_asset, liability), debts counted once
+        (source: account or declared), the assumptions and which are
+        placeholders. Two timelines: cash month-ends for the next twelve
+        months with the lowest point (cash; the day-by-day series is in the
+        API), and net worth, cash, investments and debts at each month's end
+        to horizon_years (1 to 50) in today's money (monthly). Quote these
+        figures; never compute your own."""
+        try:
+            day = datetime.date.fromisoformat(as_of) if as_of else None
+            if day is not None and day > baseline_svc.today():
+                return {"error": "The as-of date can't be after today"}
+            return await baseline_svc.get_baseline(
+                _current_user_id(), day, horizon_years, daily=False
+            )
+        except ValueError as exc:
+            return {"error": f"Could not read the baseline: {exc}"}
+
+    @mcp.tool()
     async def set_fi_assumption(
         name: Literal["real_return", "nominal_return", "inflation", "safe_withdrawal_rate"],
         value: str | None,
@@ -1183,6 +1211,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         simulate_purchase,
         get_fi_projections,
         get_fi_assumptions,
+        get_baseline,
         set_fi_assumption,
         set_planning_assumptions,
         list_pending_transactions,
