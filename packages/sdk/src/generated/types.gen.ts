@@ -759,6 +759,41 @@ export type AuthorizationServerMetadata = {
 };
 
 /**
+ * AverageCashFlow
+ *
+ * The monthly averages over the months marked observed: the baseline's
+ * income and expenses, the same figures FI uses.
+ */
+export type AverageCashFlow = {
+    /**
+     * Months Observed
+     */
+    months_observed: Array<string>;
+    /**
+     * Income
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    income: string;
+    /**
+     * Expenses
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    expenses: string;
+    /**
+     * Net
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net: string;
+    /**
+     * Savings Rate
+     */
+    savings_rate: string | null;
+};
+
+/**
  * BalanceSheet
  *
  * Every asset, liability and equity account, valued in the base currency.
@@ -1369,6 +1404,7 @@ export type CashFlow = {
      * Months
      */
     months: Array<MonthCashFlow>;
+    average: AverageCashFlow;
 };
 
 /**
@@ -1425,6 +1461,10 @@ export type CashForecast = {
      * Flows
      */
     flows: Array<ExpectedFlow>;
+    /**
+     * Fx
+     */
+    fx?: Array<ExchangeRate>;
     /**
      * Notes
      */
@@ -2433,6 +2473,33 @@ export type EntryProvenance = {
 };
 
 /**
+ * ExchangeRate
+ *
+ * A published rate the cash total is in the base currency at: the one
+ * for the as-of date, as every baseline figure uses.
+ */
+export type ExchangeRate = {
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Rate
+     */
+    rate: string | null;
+    /**
+     * Source
+     */
+    source: string | null;
+    /**
+     * As Of
+     */
+    as_of: string | null;
+};
+
+/**
  * ExpectedFlow
  */
 export type ExpectedFlow = {
@@ -2463,7 +2530,7 @@ export type ExpectedFlow = {
     /**
      * Source
      */
-    source: 'recurring' | 'subscription';
+    source: 'recurring' | 'subscription' | 'change';
 };
 
 /**
@@ -4571,6 +4638,14 @@ export type MonthCashFlow = {
      * Savings Rate
      */
     savings_rate: string | null;
+    /**
+     * Complete
+     */
+    complete: boolean;
+    /**
+     * Observed
+     */
+    observed: boolean;
 };
 
 /**
@@ -6562,6 +6637,10 @@ export type SafeToSpend = {
      * Committed
      */
     committed: Array<CommittedFlow>;
+    /**
+     * Fx
+     */
+    fx?: Array<ExchangeRate>;
     /**
      * Notes
      */
@@ -14478,7 +14557,7 @@ export type InsightsCashFlowData = {
         /**
          * Months
          *
-         * How many months, ending this one
+         * How many full months before this one (this month follows)
          */
         months?: number;
     };

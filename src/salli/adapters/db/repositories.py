@@ -418,6 +418,11 @@ class SQLLedgerRepository(LedgerRepository):
         return balances
 
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
+        # A reversed entry and its reversal net to nothing: neither says when
+        # the record of money in and out began.
+        reversals = select(JournalEntryORM.reversed_by).where(
+            JournalEntryORM.user_id == user_id, JournalEntryORM.reversed_by.is_not(None)
+        )
         stmt = (
             select(func.min(JournalEntryORM.entry_date))
             .join(PostingORM, PostingORM.entry_id == JournalEntryORM.id)
@@ -426,6 +431,8 @@ class SQLLedgerRepository(LedgerRepository):
                 JournalEntryORM.user_id == user_id,
                 AccountORM.user_id == user_id,
                 AccountORM.type.in_(("income", "expense")),
+                JournalEntryORM.reversed_by.is_(None),
+                JournalEntryORM.id.not_in(reversals),
             )
         )
         if to_date:

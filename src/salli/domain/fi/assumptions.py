@@ -268,6 +268,31 @@ class StrategyFigures:
     real_returns: Scenarios | None = None
     version: int | None = None
 
+    @classmethod
+    def from_stored(cls, data: Mapping[str, Any] | None) -> StrategyFigures | None:
+        """From a stored FIRE strategy. The model writes floats; they become
+        Decimals here, once. A strategy stored without real returns
+        contributes only its withdrawal rate, and one without a withdrawal
+        rate contributes nothing."""
+        if data is None or data.get("swr") is None:
+            return None
+
+        def rate(key: str) -> Decimal:
+            return Decimal(str(data[key]))
+
+        keys = ("real_return_conservative", "real_return_base", "real_return_growth")
+        returns = (
+            Scenarios(*(rate(k) for k in keys))
+            if all(data.get(k) is not None for k in keys)
+            else None
+        )
+        version = data.get("version")
+        return cls(
+            safe_withdrawal_rate=rate("swr"),
+            real_returns=returns,
+            version=version if isinstance(version, int) else None,
+        )
+
 
 @dataclass(frozen=True)
 class Applied:
@@ -410,3 +435,48 @@ def resolve(own: OwnAssumptions, strategy: StrategyFigures | None = None) -> FiA
         inflation=inflation,
         nominal_return=nominal,
     )
+
+
+# ── As every response carries them ───────────────────────────────────────────
+
+
+def rate_text(value: Decimal) -> str:
+    """A yearly fraction as a plain decimal string, never in exponent form,
+    without the trailing zeros a computed rate carries ("0.09", not
+    "0.0900000000000000000000000000")."""
+    return f"{value.normalize():f}"
+
+
+def _applied_dict(applied: Applied | None) -> dict[str, Any] | None:
+    if applied is None:
+        return None
+    return {
+        "value": rate_text(applied.value),
+        "origin": applied.origin,
+        "source": applied.source,
+        "note": applied.note,
+    }
+
+
+def scenarios_dict(scenarios: Scenarios | None) -> dict[str, str] | None:
+    if scenarios is None:
+        return None
+    return {k: rate_text(v) for k, v in scenarios.as_dict().items()}
+
+
+def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
+    """The assumptions behind a figure, as every FI (and baseline) response
+    carries them: whether any is a placeholder (and which), each figure with
+    its origin and source, and the scenarios' returns, real and (with the
+    user's inflation) nominal."""
+    return {
+        "status": applied.status,
+        "placeholders": list(applied.placeholders),
+        "message": applied.message,
+        "real_return": _applied_dict(applied.real_return),
+        "safe_withdrawal_rate": _applied_dict(applied.safe_withdrawal_rate),
+        "inflation": _applied_dict(applied.inflation),
+        "nominal_return": _applied_dict(applied.nominal_return),
+        "real_returns": scenarios_dict(applied.real_returns),
+        "nominal_returns": scenarios_dict(applied.nominal_returns),
+    }

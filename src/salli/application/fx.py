@@ -14,7 +14,24 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from salli.application.ports import FxRatePort, FxUnavailableError
+from salli.application.ports import FxQuote, FxRatePort, FxUnavailableError
+
+
+async def published_rate(
+    fx: FxRatePort | None, currency: str, base: str, on_date: str
+) -> FxQuote | None:
+    """The published rate converting `currency` into `base` for `on_date`, as
+    the FX port gives it (with its source and the day it is for), or None
+    when there is no source or it has none. What the baseline values balances
+    at, as tax converts a ledger: never a rate a posting happened to record."""
+    if currency == base:
+        return FxQuote(rate=Decimal(1), source="identity", as_of=on_date)
+    if fx is None:
+        return None
+    try:
+        return await fx.rate(currency, base, on_date)
+    except FxUnavailableError:
+        return None
 
 
 async def rate_to_base(

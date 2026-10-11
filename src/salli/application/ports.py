@@ -63,7 +63,8 @@ class LedgerRepository(ABC):
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
         """The date of the user's first entry with a posting to an income or
         an expense account (on or before `to_date`, when given), or None:
-        when their record of money in and out begins."""
+        when their record of money in and out begins. A reversed entry and
+        its reversal are left out: together they are nothing."""
         raise NotImplementedError
 
     @abstractmethod

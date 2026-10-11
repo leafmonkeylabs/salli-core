@@ -48,13 +48,15 @@ def _account(
     return Account(id=id_, user_id=USER, code=code, name=name, type=type_, currency=currency, **kw)  # type: ignore[arg-type]
 
 
+#: Each asset account says what it holds: the brokerage and the pension fund
+#: are investments, the flat is neither cash nor invested.
 ACCOUNTS: list[Account] = [
     _account("chk", "1000", "Checking", "asset"),
     _account("sav", "1100", "Savings", "asset"),
     _account("usd", "1200", "Dollar account", "asset", "USD"),
-    _account("brk", "1300", "Brokerage", "asset"),
-    _account("pen", "1400", "Pension fund", "asset"),
-    _account("flat", "1500", "Flat", "asset"),
+    _account("brk", "1300", "Brokerage", "asset", asset_role="investment"),
+    _account("pen", "1400", "Pension fund", "asset", asset_role="investment"),
+    _account("flat", "1500", "Flat", "asset", asset_role="other"),
     _account("card", "2000", "Credit card", "liability"),
     _account("loan", "2100", "Car loan", "liability"),
     _account("eq", "3000", "Opening equity", "equity"),
@@ -229,6 +231,7 @@ _book(
 ENTRIES: list[StoredJournalEntry] = sorted(_entries, key=lambda e: (e.entry_date, e.id))
 
 #: The two declared debts, as the debts repository keeps them (minor units).
+#: The car loan is linked to the ledger account that holds it.
 DEBTS: list[dict[str, Any]] = [
     {
         "id": "debt-car",
@@ -236,6 +239,7 @@ DEBTS: list[dict[str, Any]] = [
         "principal_minor": 1020000,
         "apr": "0.0590",
         "minimum_payment_minor": 35000,
+        "account_id": "loan",
     },
     {
         "id": "debt-student",
@@ -243,11 +247,12 @@ DEBTS: list[dict[str, Any]] = [
         "principal_minor": 800000,
         "apr": "0.0450",
         "minimum_payment_minor": 12000,
+        "account_id": None,
     },
 ]
 
-#: The published rate for the as-of date, and the rates the fake FX port knows.
-FX_RATES = {("USD", BASE, AS_OF.isoformat()): (Decimal("0.86"), "ecb")}
+#: The published rate for the as-of date, a Sunday: the Friday's.
+FX_RATES = {("USD", BASE, AS_OF.isoformat()): (Decimal("0.86"), "ecb", "2026-10-09")}
 
 
 def fx() -> FakeFx:
@@ -264,7 +269,6 @@ def uow(**profile: Any) -> FakeUoW:
             **debt,
             "user_id": USER,
             "is_active": True,
-            "account_id": None,
             "created_at": "2026-04-01T00:00:00+00:00",
             "updated_at": "2026-04-01T00:00:00+00:00",
         }

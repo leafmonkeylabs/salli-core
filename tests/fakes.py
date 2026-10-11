@@ -328,11 +328,11 @@ class FakeLLM:
 
 class FakeFx:
     """The FX port (application/ports.FxRatePort) from a table of published
-    rates: `(from, to, date)` → `(rate, source)`, where a date of None is a
-    rate for any day. Anything else is FxUnavailableError, as the real port
-    raises."""
+    rates: `(from, to, date)` → `(rate, source)` or `(rate, source, the day
+    the rate is for)`, where a date of None is a rate for any day. Anything
+    else is FxUnavailableError, as the real port raises."""
 
-    def __init__(self, rates: dict[tuple[str, str, str | None], tuple[Decimal, str]]) -> None:
+    def __init__(self, rates: dict[tuple[str, str, str | None], tuple[Any, ...]]) -> None:
         self.rates = dict(rates)
         self.asked: list[tuple[str, str, str]] = []
 
@@ -344,8 +344,10 @@ class FakeFx:
             return FxQuote(rate=Decimal(1), source="identity", as_of=on_date)
         for key in ((from_currency, to_currency, on_date), (from_currency, to_currency, None)):
             if key in self.rates:
-                rate, source = self.rates[key]
-                return FxQuote(rate=rate, source=source, as_of=on_date)
+                rate, source, *published = self.rates[key]
+                return FxQuote(
+                    rate=rate, source=source, as_of=published[0] if published else on_date
+                )
         raise FxUnavailableError(f"No {from_currency}→{to_currency} rate for {on_date}")
 
 
@@ -410,9 +412,14 @@ class FakeLedger:
 
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
         """The date of the user's first entry touching an income or an expense
-        account (on or before `to_date`, if given)."""
+        account (on or before `to_date`, if given), leaving out a reversed
+        entry and its reversal."""
         kinds = {a.id for a in self.accounts if a.type in ("income", "expense")}
-        for e in await self.get_entries(user_id, to_date=to_date):
+        entries = await self.get_entries(user_id, to_date=to_date)
+        reversals = {e.reversed_by for e in self.entries if e.reversed_by}
+        for e in entries:
+            if e.reversed_by or e.id in reversals:
+                continue
             if any(p.account_id in kinds for p in e.postings):
                 return e.entry_date
         return None

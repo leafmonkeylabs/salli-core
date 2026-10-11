@@ -89,7 +89,10 @@ async def test_windowed_insights_answer_as_the_whole_ledger_does(uow_factory):
         str(p.net_worth.quantize(Decimal("0.01"))) for p in full
     ]
 
-    flows = insights.cash_flow(everything, accounts, insights.last_months(TODAY, 12))
+    # Twelve full months, then this month so far: what is dated after today
+    # (October's groceries, on the 10th) hasn't happened yet.
+    so_far = [e for e in everything if e.entry_date <= TODAY.isoformat()]
+    flows = insights.cash_flow(so_far, accounts, insights.last_months(TODAY, 13))
     served_flows = (await service.cash_flow("u1", months=12))["months"]
     assert [m["net"] for m in served_flows] == [str(f.net.quantize(Decimal("0.01"))) for f in flows]
 
@@ -111,3 +114,50 @@ async def test_windowed_insights_answer_as_the_whole_ledger_does(uow_factory):
                 pair[0] += signed
                 pair[1] += signed * p.fx_rate
     assert {(a, c): [amount, base] for a, c, amount, base in totals} == expected
+
+    # Summed to a day, they leave out what is dated after it.
+    cutoff = "2024-06-30"
+    async with uow_factory() as uow:
+        to_day = await uow.ledger.posting_totals("u1", [bank], to_date=cutoff)
+    upto: dict[tuple[str, str], list[Decimal]] = {}
+    for entry in everything:
+        for p in entry.postings:
+            if p.account_id == bank and entry.entry_date <= cutoff:
+                signed = Decimal(p.direction.value) * p.amount
+                pair = upto.setdefault((p.account_id, p.currency), [Decimal(0), Decimal(0)])
+                pair[0] += signed
+                pair[1] += signed * p.fx_rate
+    assert {(a, c): [amount, base] for a, c, amount, base in to_day} == upto
+
+
+async def test_the_record_of_money_in_and_out_begins_with_its_first_unreversed_entry(
+    uow_factory,
+):
+    async with uow_factory() as uow:
+        await uow.user_profiles.upsert("u2", {"base_currency": "NOK"})
+        await uow.user_profiles.upsert("u3", {"base_currency": "NOK"})
+    ledger = LedgerService(uow_factory)
+    bank = await ledger.add_account("u2", "1000", "Bank", "asset")
+    equity = await ledger.add_account("u2", "3000", "Equity", "equity")
+    food = await ledger.add_account("u2", "5000", "Food", "expense")
+    other_bank = await ledger.add_account("u3", "1000", "Bank", "asset")
+    other_food = await ledger.add_account("u3", "5000", "Food", "expense")
+
+    def legs(debit: str, credit: str, amount: str) -> list[dict[str, object]]:
+        return [
+            {"account_id": debit, "direction": Direction.DEBIT, "amount": Decimal(amount)},
+            {"account_id": credit, "direction": Direction.CREDIT, "amount": Decimal(amount)},
+        ]
+
+    await ledger.add_entry("u2", "2026-01-31", "Opening", "manual", legs(bank, equity, "900"))
+    mistake = await ledger.add_entry("u2", "2026-02-10", "OOPS", "manual", legs(food, bank, "5"))
+    await ledger.reverse_entry("u2", mistake)
+    await ledger.add_entry("u2", "2026-04-02", "GROCER", "manual", legs(food, bank, "20"))
+    await ledger.add_entry("u3", "2025-01-01", "GROCER", "manual", legs(other_food, other_bank, "1"))
+
+    async with uow_factory() as uow:
+        # Not the opening balance (no income or expense), not the reversed
+        # mistake or its reversal, not another user's.
+        assert await uow.ledger.first_flow_date("u2") == "2026-04-02"
+        assert await uow.ledger.first_flow_date("u2", to_date="2026-03-31") is None
+        assert await uow.ledger.first_flow_date("u3") == "2025-01-01"

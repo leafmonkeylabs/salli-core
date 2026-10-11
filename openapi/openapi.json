@@ -9989,11 +9989,11 @@
               "type": "integer",
               "maximum": 120,
               "minimum": 1,
-              "description": "How many months, ending this one",
+              "description": "How many full months before this one (this month follows)",
               "default": 12,
               "title": "Months"
             },
-            "description": "How many months, ending this one"
+            "description": "How many full months before this one (this month follows)"
           }
         ],
         "responses": {
@@ -12598,6 +12598,65 @@
         "title": "AuthorizationServerMetadata",
         "description": "RFC 8414 §2."
       },
+      "AverageCashFlow": {
+        "properties": {
+          "months_observed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months Observed"
+          },
+          "income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "months_observed",
+          "income",
+          "expenses",
+          "net",
+          "savings_rate"
+        ],
+        "title": "AverageCashFlow",
+        "description": "The monthly averages over the months marked observed: the baseline's\nincome and expenses, the same figures FI uses."
+      },
       "BalanceSheet": {
         "properties": {
           "currency": {
@@ -13602,12 +13661,16 @@
             },
             "type": "array",
             "title": "Months"
+          },
+          "average": {
+            "$ref": "#/components/schemas/AverageCashFlow"
           }
         },
         "type": "object",
         "required": [
           "currency",
-          "months"
+          "months",
+          "average"
         ],
         "title": "CashFlow"
       },
@@ -13681,6 +13744,13 @@
             },
             "type": "array",
             "title": "Flows"
+          },
+          "fx": {
+            "items": {
+              "$ref": "#/components/schemas/ExchangeRate"
+            },
+            "type": "array",
+            "title": "Fx"
           },
           "notes": {
             "items": {
@@ -15336,6 +15406,61 @@
         ],
         "title": "EntryProvenance"
       },
+      "ExchangeRate": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rate",
+          "source",
+          "as_of"
+        ],
+        "title": "ExchangeRate",
+        "description": "A published rate the cash total is in the base currency at: the one\nfor the as-of date, as every baseline figure uses."
+      },
       "ExpectedFlow": {
         "properties": {
           "date": {
@@ -15379,7 +15504,8 @@
             "type": "string",
             "enum": [
               "recurring",
-              "subscription"
+              "subscription",
+              "change"
             ],
             "title": "Source"
           }
@@ -19484,6 +19610,14 @@
               }
             ],
             "title": "Savings Rate"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "observed": {
+            "type": "boolean",
+            "title": "Observed"
           }
         },
         "type": "object",
@@ -19492,7 +19626,9 @@
           "income",
           "expenses",
           "net",
-          "savings_rate"
+          "savings_rate",
+          "complete",
+          "observed"
         ],
         "title": "MonthCashFlow"
       },
@@ -22990,6 +23126,13 @@
             },
             "type": "array",
             "title": "Committed"
+          },
+          "fx": {
+            "items": {
+              "$ref": "#/components/schemas/ExchangeRate"
+            },
+            "type": "array",
+            "title": "Fx"
           },
           "notes": {
             "items": {

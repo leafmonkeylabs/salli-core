@@ -22,16 +22,35 @@ async def test_cash_flow_takes_a_number_of_months(client, insights):
         "currency": "USD",
         "months": [
             {
-                "month": "2026-10",
+                "month": "2026-09",
                 "income": "10.00",
                 "expenses": "5.00",
                 "net": "5.00",
                 "savings_rate": "0.5000",
-            }
+                "complete": True,
+                "observed": True,
+            },
+            {
+                "month": "2026-10",
+                "income": "0.00",
+                "expenses": "1.00",
+                "net": "-1.00",
+                "savings_rate": None,
+                "complete": False,
+                "observed": False,
+            },
         ],
+        "average": {
+            "months_observed": ["2026-09"],
+            "income": "10.00",
+            "expenses": "5.00",
+            "net": "5.00",
+            "savings_rate": "0.5000",
+        },
     }
     r = await client.get("/v1/insights/cash-flow?months=1", headers=AUTH)
     assert r.status_code == 200 and r.json()["months"][0]["savings_rate"] == "0.5000"
+    assert r.json()["average"]["months_observed"] == ["2026-09"]
     insights.cash_flow.assert_awaited_once_with("test-user-1", 1)
 
 

@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import datetime as dt
 import sys
-from contextlib import asynccontextmanager
 from decimal import Decimal
-from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock
 
 from salli.application.services.insights_service import InsightsService
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
-from tests.fakes import FakeProfiles
+from tests.fakes import FakeUoW
 
 ACCOUNTS = [
     Account(id="bank", user_id="u", code="1000", name="Checking", type="asset", currency="EUR"),
@@ -64,58 +61,16 @@ def _subscription(**kw: Any) -> dict[str, Any]:
     }
 
 
-async def _entries(user_id: str, from_date: str | None = None, to_date: str | None = None):
-    return [
-        e
-        for e in ENTRIES
-        if (from_date is None or e.entry_date >= from_date)
-        and (to_date is None or e.entry_date <= to_date)
-    ]
-
-
-async def _before(user_id: str, before: str) -> dict[str, Decimal]:
-    from salli.domain.accounting.ledger import trial_balance
-
-    return trial_balance([e for e in ENTRIES if e.entry_date < before])
-
-
-async def _totals(user_id: str, account_ids: list[str]):
-    """What the database sums: per account and currency, the signed totals."""
-    sums: dict[tuple[str, str], list[Decimal]] = {}
-    for e in ENTRIES:
-        for p in e.postings:
-            if p.account_id in account_ids:
-                signed = Decimal(p.direction.value) * p.amount
-                pair = sums.setdefault((p.account_id, p.currency), [Decimal(0), Decimal(0)])
-                pair[0] += signed
-                pair[1] += signed * p.fx_rate
-    return [(a, c, amount, base) for (a, c), (amount, base) in sums.items()]
-
-
 def _service(
     subscriptions: list[dict[str, Any]], statements: list[dict[str, Any]] | None = None
 ) -> InsightsService:
-    uow = SimpleNamespace(
-        ledger=SimpleNamespace(
-            get_accounts=AsyncMock(return_value=ACCOUNTS),
-            get_entries=AsyncMock(side_effect=_entries),
-            balances_before=AsyncMock(side_effect=_before),
-            posting_totals=AsyncMock(side_effect=_totals),
-        ),
-        user_profiles=FakeProfiles("EUR"),
-        recurring_subscriptions=SimpleNamespace(list=AsyncMock(return_value=subscriptions)),
-        statements=SimpleNamespace(
-            list_statements=AsyncMock(return_value=statements or []),
-            get_all_pending=AsyncMock(return_value=[]),
-        ),
-        bank_connections=SimpleNamespace(list=AsyncMock(return_value=[])),
-    )
-
-    @asynccontextmanager
-    async def factory():
-        yield uow
-
-    return InsightsService(factory, today=lambda: dt.date(2026, 10, 9))
+    uow = FakeUoW("EUR")
+    uow.ledger.accounts = list(ACCOUNTS)
+    uow.ledger.entries = list(ENTRIES)
+    for row in subscriptions:
+        uow.recurring_subscriptions.rows[row["id"]] = {**row, "user_id": "u", "is_active": True}
+    uow.statements.statements = list(statements or [])
+    return InsightsService(uow.factory(), today=lambda: dt.date(2026, 10, 9))
 
 
 async def test_money_is_served_as_strings_in_the_base_currency():
@@ -124,11 +79,22 @@ async def test_money_is_served_as_strings_in_the_base_currency():
         "currency": "EUR",
         "months": [
             {
+                "month": "2026-08",
+                "income": "0.00",
+                "expenses": "51.99",
+                "net": "-51.99",
+                "savings_rate": None,
+                "complete": True,
+                "observed": True,
+            },
+            {
                 "month": "2026-09",
                 "income": "3000.00",
                 "expenses": "51.99",
                 "net": "2948.01",
                 "savings_rate": "0.9827",
+                "complete": True,
+                "observed": True,
             },
             {
                 "month": "2026-10",
@@ -136,9 +102,37 @@ async def test_money_is_served_as_strings_in_the_base_currency():
                 "expenses": "51.99",
                 "net": "-51.99",
                 "savings_rate": None,
+                "complete": False,
+                "observed": False,
             },
         ],
+        # Over the two full months: (3,000 in, 103.98 out) / 2.
+        "average": {
+            "months_observed": ["2026-08", "2026-09"],
+            "income": "1500.00",
+            "expenses": "51.99",
+            "net": "1448.01",
+            "savings_rate": "0.9653",
+        },
     }
+
+
+async def test_the_average_is_over_the_full_months_observed_and_no_earlier():
+    # The ledger's first income or expense is in July: twelve months asked
+    # for, three observed (July to September), and October not yet over.
+    flow = await _service([]).cash_flow("u", months=12)
+    assert [m["month"] for m in flow["months"] if m["observed"]] == [
+        "2026-07",
+        "2026-08",
+        "2026-09",
+    ]
+    assert flow["average"]["months_observed"] == ["2026-07", "2026-08", "2026-09"]
+    # (3,000 in; 12.99 + 51.99 + 51.99 out) / 3.
+    assert (flow["average"]["income"], flow["average"]["expenses"]) == ("1000.00", "38.99")
+    # The average and the months it is over agree, to the cent.
+    observed = [m for m in flow["months"] if m["observed"]]
+    total = sum(Decimal(m["net"]) for m in observed)
+    assert Decimal(flow["average"]["net"]) == (total / len(observed)).quantize(Decimal("0.01"))
 
 
 async def test_spending_lines_carry_shares_and_each_month():

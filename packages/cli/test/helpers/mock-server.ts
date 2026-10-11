@@ -1079,9 +1079,11 @@ export class MockSalli {
           body: {
             currency: 'USD',
             months: [
-              { month: '2026-09', income: '5000.00', expenses: '2400.00', net: '2600.00', savings_rate: '0.52' },
-              { month: '2026-10', income: '5000.00', expenses: '2212.35', net: '2787.65', savings_rate: '0.5575' },
+              { month: '2026-08', income: '5000.00', expenses: '2600.00', net: '2400.00', savings_rate: '0.48', complete: true, observed: true },
+              { month: '2026-09', income: '5000.00', expenses: '2400.00', net: '2600.00', savings_rate: '0.52', complete: true, observed: true },
+              { month: '2026-10', income: '5000.00', expenses: '2212.35', net: '2787.65', savings_rate: '0.5575', complete: false, observed: false },
             ],
+            average: { months_observed: ['2026-08', '2026-09'], income: '5000.00', expenses: '2500.00', net: '2500.00', savings_rate: '0.5000' },
           } satisfies CashFlow,
         };
       case 'spending':

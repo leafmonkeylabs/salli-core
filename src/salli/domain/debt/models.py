@@ -23,16 +23,28 @@ class Debt:
     principal: Decimal  # current outstanding balance
     apr: Decimal  # annual percentage rate, e.g. Decimal("0.18") for 18%
     minimum_payment: Decimal
+    #: What tells it apart from another debt of the same name; its name when
+    #: not given. Two cards both called "Card" are still two debts.
+    id: str = ""
+
+    @property
+    def key(self) -> str:
+        return self.id or self.name
 
 
 @dataclass(frozen=True)
 class PayoffScheduleEntry:
+    #: 1 for the first payment, 2 for the next, ...
     month: int
     debt_name: str
     payment: Decimal
     principal_paid: Decimal
     interest_paid: Decimal
     remaining_balance: Decimal
+    #: The calendar month the payment falls in ("YYYY-MM"), when the plan was
+    #: given its first month; None otherwise.
+    period: str | None = None
+    debt_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -41,3 +53,6 @@ class PayoffPlan:
     months_to_payoff: int | None  # None if not paid off within the simulation horizon
     total_interest_paid: Decimal
     schedule: list[PayoffScheduleEntry] = field(default_factory=list[PayoffScheduleEntry])
+    #: The calendar month of the last payment ("YYYY-MM"), when the plan is
+    #: dated and pays everything off within its horizon; None otherwise.
+    debt_free_period: str | None = None

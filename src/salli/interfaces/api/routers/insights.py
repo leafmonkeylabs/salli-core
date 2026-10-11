@@ -31,12 +31,44 @@ class MonthCashFlow(BaseModel):
     net: Amount
     #: Share of income kept, as a decimal string ("0.2500"); null with no income.
     savings_rate: str | None
+    #: False for the current month, which isn't over.
+    complete: bool
+    #: Counted in `average`: a full month, from the first with income or
+    #: expenses, among the twelve most recent.
+    observed: bool
+
+
+class AverageCashFlow(BaseModel):
+    """The monthly averages over the months marked observed: the baseline's
+    income and expenses, the same figures FI uses."""
+
+    months_observed: list[Month]
+    income: Amount
+    expenses: Amount
+    net: Amount
+    #: net / income, a fraction in a decimal string; null without income.
+    savings_rate: str | None
 
 
 class CashFlow(BaseModel):
     currency: CurrencyCode
-    #: Oldest first, ending with the current month.
+    #: Oldest first: the full months asked for, then the current month so far.
     months: list[MonthCashFlow]
+    average: AverageCashFlow
+
+
+class ExchangeRate(BaseModel):
+    """A published rate the cash total is in the base currency at: the one
+    for the as-of date, as every baseline figure uses."""
+
+    currency: CurrencyCode
+    #: Units of the base currency per unit; null when no source had one (the
+    #: currency's accounts are then left out of the total).
+    rate: str | None
+    #: Who published it.
+    source: str | None
+    #: The day the rate is for: a Sunday's rate is Friday's.
+    as_of: str | None
 
 
 class SpendingLine(BaseModel):
@@ -119,8 +151,9 @@ class ExpectedFlow(BaseModel):
     amount: Amount
     currency: CurrencyCode
     description: str
-    #: "recurring" (seen in the ledger) or "subscription" (declared, not yet seen).
-    source: Literal["recurring", "subscription"]
+    #: "recurring" (seen in the ledger) or "subscription" (declared, not yet
+    #: seen); "change" for a flow a scenario added.
+    source: Literal["recurring", "subscription", "change"]
 
 
 class CashForecast(BaseModel):
@@ -138,6 +171,8 @@ class CashForecast(BaseModel):
     daily: list[ForecastDay]
     accounts: list[AccountForecast]
     flows: list[ExpectedFlow]
+    #: The rates the total is in the base currency at.
+    fx: list[ExchangeRate] = Field(default_factory=list[ExchangeRate])
     #: What was left out, and why: a cash account whose balance in its own
     #: currency can't be known, a series or subscription that can't be read.
     notes: list[str] = Field(default_factory=list)
@@ -147,7 +182,9 @@ class CashForecast(BaseModel):
 async def cash_flow(
     user_id: CurrentUser,
     svc: AppServices,
-    months: int = Query(12, ge=1, le=120, description="How many months, ending this one"),
+    months: int = Query(
+        12, ge=1, le=120, description="How many full months before this one (this month follows)"
+    ),
 ) -> CashFlow:
     return CashFlow.model_validate(await svc.insights.cash_flow(user_id, months))
 
@@ -212,6 +249,8 @@ class SafeToSpend(BaseModel):
     next_income: NextIncome | None
     #: What is expected to go out before then.
     committed: list[CommittedFlow]
+    #: The rates the cash total is in the base currency at.
+    fx: list[ExchangeRate] = Field(default_factory=list[ExchangeRate])
     notes: list[str]
 
 
