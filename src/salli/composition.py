@@ -27,6 +27,7 @@ from salli.application.services.budget_service import BudgetService
 from salli.application.services.chatgpt_connection_service import ChatGPTConnectionService
 from salli.application.services.data_portability_service import DataPortabilityService
 from salli.application.services.debt_service import DebtService
+from salli.application.services.decision_service import DecisionService
 from salli.application.services.document_service import DocumentService
 from salli.application.services.entry_parse_service import EntryParseService
 from salli.application.services.fi_service import FiService
@@ -39,6 +40,7 @@ from salli.application.services.onboarding_service import OnboardingService
 from salli.application.services.parsing_service import ParsingService
 from salli.application.services.personal_access_token_service import PersonalAccessTokenService
 from salli.application.services.portfolio_service import PortfolioService
+from salli.application.services.principle_service import PrincipleService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
 from salli.application.services.rules_service import RulesService
@@ -97,6 +99,10 @@ class Services:
     baseline: BaselineService
     # The decision lab's what-ifs on the baseline (domain/scenarios).
     scenarios: ScenarioService
+    # The user's own rules of thumb, checked against options, and the
+    # append-only decision journal with its reviews (domain/decisions).
+    principles: PrincipleService
+    decisions: DecisionService
     bank_connections: BankConnectionService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
@@ -179,6 +185,8 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     budget = BudgetService(uow_factory)
     debt = DebtService(uow_factory, baselines=baseline)
     scenarios = ScenarioService(uow_factory, baselines=baseline)
+    principles = PrincipleService(uow_factory, scenarios)
+    decisions = DecisionService(uow_factory, scenarios, principles)
     portfolio = PortfolioService(uow_factory, fx=fx)
     subscription = SubscriptionService(uow_factory)
     insurance = InsuranceService(uow_factory)
@@ -292,6 +300,8 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         insights=InsightsService(uow_factory, baselines=baseline),
         baseline=baseline,
         scenarios=scenarios,
+        principles=principles,
+        decisions=decisions,
         bank_connections=_build_bank_connections(settings, uow_factory, parsing),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,

@@ -265,16 +265,25 @@ class FinanceSignal(BaseModel):
         "spending_spike",
         "savings_rate_drop",
         "review_waiting",
+        "decision_review_due",
     ]
     severity: Literal["high", "medium", "info"]
     title: str
     detail: str
-    #: Where to look: see_forecast, see_recurring, see_spending, see_cash_flow or review.
-    action: Literal["see_forecast", "see_recurring", "see_spending", "see_cash_flow", "review"]
+    #: Where to look: see_forecast, see_recurring, see_spending, see_cash_flow,
+    #: review (transactions) or review_decision (a decision in the journal).
+    action: Literal[
+        "see_forecast",
+        "see_recurring",
+        "see_spending",
+        "see_cash_flow",
+        "review",
+        "review_decision",
+    ]
     amount: Amount | None
     currency: CurrencyCode | None
     date: str | None
-    #: What it rests on: journal entry, transaction or account ids.
+    #: What it rests on: journal entry, transaction, account or decision ids.
     refs: list[str]
 
 

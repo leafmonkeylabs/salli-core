@@ -12,6 +12,7 @@ import { registerChat } from './commands/chat';
 import { registerCompletion } from './commands/completion';
 import { registerConfig } from './commands/config';
 import { registerContext } from './commands/context';
+import { registerDecisions, registerPrinciples } from './commands/decisions';
 import { registerDoctor } from './commands/doctor';
 import { registerEntries } from './commands/entries';
 import { registerExports } from './commands/exports';
@@ -86,6 +87,8 @@ Start with:  salli login   then   salli status`,
   registerInsights(program, app);
   registerBaseline(program, app);
   registerScenarios(program, app);
+  registerPrinciples(program, app);
+  registerDecisions(program, app);
   registerMore(program, app);
 
   program.commandsGroup('Your data and settings:');

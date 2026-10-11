@@ -2390,6 +2390,70 @@ export type ChatUserMessage = {
 };
 
 /**
+ * CheckOptions
+ *
+ * None to five scenarios, with one as-of date between them.
+ */
+export type CheckOptions = {
+    /**
+     * Options
+     */
+    options?: Array<Scenario>;
+};
+
+/**
+ * CheckedFigures
+ */
+export type CheckedFigures = {
+    /**
+     * Figures
+     */
+    figures: {
+        [key: string]: string | number | boolean | null;
+    };
+    /**
+     * Unavailable
+     */
+    unavailable: {
+        [key: string]: string;
+    };
+    /**
+     * Results
+     */
+    results: Array<PrincipleCheckResult>;
+};
+
+/**
+ * CheckedOption
+ */
+export type CheckedOption = {
+    /**
+     * Figures
+     */
+    figures: {
+        [key: string]: string | number | boolean | null;
+    };
+    /**
+     * Unavailable
+     */
+    unavailable: {
+        [key: string]: string;
+    };
+    /**
+     * Results
+     */
+    results: Array<PrincipleCheckResult>;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Scenario Hash
+     */
+    scenario_hash: string;
+};
+
+/**
  * CommittedFlow
  */
 export type CommittedFlow = {
@@ -2426,6 +2490,84 @@ export type CompareOptions = {
      * Options
      */
     options: Array<Scenario>;
+};
+
+/**
+ * ComparisonOther
+ *
+ * What another option projected for the same month's end: what it
+ * expected, never what would have happened.
+ */
+export type ComparisonOther = {
+    /**
+     * Option
+     */
+    option: string;
+    /**
+     * Cash
+     */
+    cash: string;
+    /**
+     * Investments
+     */
+    investments: string;
+    /**
+     * Owed
+     */
+    owed: string;
+    /**
+     * Net Worth
+     */
+    net_worth: string;
+};
+
+/**
+ * ComparisonRow
+ *
+ * A figure the chosen option projected, what happened, and actual less
+ * projected, in the day's own money.
+ */
+export type ComparisonRow = {
+    /**
+     * Figure
+     */
+    figure: 'cash' | 'investments' | 'owed' | 'net_worth';
+    /**
+     * Projected
+     */
+    projected: string;
+    /**
+     * Actual
+     */
+    actual: string;
+    /**
+     * Difference
+     */
+    difference: string;
+};
+
+/**
+ * ComparisonSpending
+ *
+ * Spending a month, on average over the full months since the decision.
+ */
+export type ComparisonSpending = {
+    /**
+     * Months
+     */
+    months: Array<string>;
+    /**
+     * Projected
+     */
+    projected: string | null;
+    /**
+     * Actual
+     */
+    actual: string | null;
+    /**
+     * Difference
+     */
+    difference: string | null;
 };
 
 /**
@@ -2793,6 +2935,23 @@ export type DataExport = {
     bank_connections?: Array<{
         [key: string]: unknown;
     }>;
+    /**
+     * Principles
+     *
+     * Every principle as in `principles.list`, archived ones included.
+     */
+    principles?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Decision Journal
+     *
+     * The decision journal as `decisions.export` gives it: every entry,
+     * note and review exactly as recorded, with its hash.
+     */
+    decision_journal?: {
+        [key: string]: unknown;
+    };
     [key: string]: unknown;
 };
 
@@ -2937,6 +3096,513 @@ export type DebtUpdateRequest = {
 };
 
 /**
+ * Decision
+ *
+ * An entry as recorded, with what was appended to it.
+ */
+export type Decision = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Verified
+     */
+    verified: boolean;
+    /**
+     * Status
+     */
+    status: 'awaiting_review' | 'review_due' | 'reviewed';
+    entry: DecisionEntry;
+    /**
+     * Notes
+     */
+    notes: Array<DecisionNote>;
+    /**
+     * Reviews
+     */
+    reviews: Array<DecisionReview>;
+};
+
+/**
+ * DecisionEntryDocument
+ *
+ * `salli.decision/1`: a decision as recorded. Its hash is the SHA-256 of
+ * its canonical JSON (sorted keys, no whitespace, ASCII).
+ */
+export type DecisionEntry = {
+    /**
+     * Schema
+     */
+    schema: 'salli.decision/1';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * _Via
+     */
+    recorded_via: {
+        /**
+         * Channel
+         */
+        channel: 'api' | 'mcp';
+        /**
+         * Client
+         */
+        client?: string | null;
+        /**
+         * Confirmed By User
+         */
+        confirmed_by_user?: boolean | null;
+    };
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * _Basis
+     *
+     * What every option rests on.
+     */
+    basis: {
+        /**
+         * Baseline Fingerprint
+         */
+        baseline_fingerprint: string;
+        versions: ScenarioVersions;
+        assumptions: FiAssumptions;
+        /**
+         * Placeholders
+         */
+        placeholders: Array<string>;
+        /**
+         * Data As Of
+         */
+        data_as_of: string | null;
+        /**
+         * Is Stale
+         */
+        is_stale: boolean;
+    };
+    /**
+     * Principles
+     */
+    principles: Array<PrincipleRef>;
+    /**
+     * _Checked
+     */
+    baseline: {
+        /**
+         * Figures
+         */
+        figures: {
+            [key: string]: string | number | boolean | null;
+        };
+        /**
+         * Unavailable
+         */
+        unavailable: {
+            [key: string]: string;
+        };
+        /**
+         * Principles
+         */
+        principles: Array<PrincipleCheckResult>;
+    };
+    /**
+     * Options
+     */
+    options: Array<{
+        /**
+         * Figures
+         */
+        figures: {
+            [key: string]: string | number | boolean | null;
+        };
+        /**
+         * Unavailable
+         */
+        unavailable: {
+            [key: string]: string;
+        };
+        /**
+         * Principles
+         */
+        principles: Array<PrincipleCheckResult>;
+        /**
+         * Label
+         */
+        label: string;
+        scenario: Scenario;
+        /**
+         * Scenario Hash
+         */
+        scenario_hash: string;
+        /**
+         * Projection
+         */
+        projection: Array<{
+            /**
+             * Month
+             */
+            month: string;
+            /**
+             * Date
+             */
+            date: string;
+            /**
+             * Cash
+             */
+            cash: string;
+            /**
+             * Investments
+             */
+            investments: string;
+            /**
+             * Owed
+             */
+            owed: string;
+            /**
+             * Net Worth
+             */
+            net_worth: string;
+            /**
+             * Spending
+             */
+            spending: string | null;
+        }>;
+        /**
+         * Notes
+         */
+        notes: Array<string>;
+    }>;
+    /**
+     * Chosen
+     */
+    chosen: string;
+    /**
+     * Reasons
+     */
+    reasons: string;
+    agent_summary: {
+        /**
+         * Text
+         */
+        text: string;
+        /**
+         * Author
+         */
+        author: 'agent';
+        /**
+         * Agent
+         */
+        agent: string | null;
+    } | null;
+    /**
+     * Review On
+     */
+    review_on: string;
+};
+
+/**
+ * DecisionFigure
+ *
+ * A figure a check may read.
+ */
+export type DecisionFigure = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Kind
+     */
+    kind: 'amount' | 'months' | 'rate' | 'count' | 'boolean';
+    /**
+     * Unit
+     */
+    unit: string;
+    /**
+     * Terms
+     */
+    terms: 'nominal' | 'real' | 'none';
+    /**
+     * Group
+     */
+    group: 'cash' | 'resilience' | 'monthly' | 'debts' | 'fi';
+    /**
+     * Description
+     */
+    description: string;
+};
+
+/**
+ * DecisionFigures
+ */
+export type DecisionFigures = {
+    /**
+     * Figures
+     */
+    figures: Array<DecisionFigure>;
+};
+
+/**
+ * DecisionIn
+ *
+ * A decision to record. Salli runs every option itself.
+ */
+export type DecisionIn = {
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * Options
+     */
+    options: Array<Scenario>;
+    /**
+     * Chosen
+     */
+    chosen: string;
+    /**
+     * Reasons
+     */
+    reasons: string;
+    /**
+     * Agent Summary
+     */
+    agent_summary?: string | null;
+    /**
+     * Agent
+     */
+    agent?: string | null;
+    /**
+     * Review On
+     */
+    review_on: string;
+};
+
+/**
+ * DecisionJournal
+ *
+ * `salli.decision-journal/1`: every entry, note and review as recorded.
+ */
+export type DecisionJournal = {
+    /**
+     * Schema
+     */
+    schema: 'salli.decision-journal/1';
+    /**
+     * Exported At
+     */
+    exported_at: string;
+    /**
+     * Verify
+     */
+    verify: string;
+    /**
+     * Entries
+     */
+    entries: Array<JournalExportEntry>;
+};
+
+/**
+ * DecisionList
+ */
+export type DecisionList = {
+    /**
+     * Decisions
+     */
+    decisions: Array<DecisionSummary>;
+};
+
+/**
+ * DecisionNote
+ */
+export type DecisionNote = {
+    note: DecisionNoteEntry;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Verified
+     */
+    verified: boolean;
+};
+
+/**
+ * DecisionNoteDocument
+ *
+ * `salli.decision-note/1`: a note appended to an entry.
+ */
+export type DecisionNoteEntry = {
+    /**
+     * Schema
+     */
+    schema: 'salli.decision-note/1';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Decision Id
+     */
+    decision_id: string;
+    /**
+     * Entry Hash
+     */
+    entry_hash: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Author
+     */
+    author: 'user' | 'agent';
+    /**
+     * Agent
+     */
+    agent: string | null;
+};
+
+/**
+ * DecisionReview
+ */
+export type DecisionReview = {
+    review: DecisionReviewEntry;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Verified
+     */
+    verified: boolean;
+};
+
+/**
+ * DecisionReviewDocument
+ *
+ * `salli.decision-review/1`: a review appended to an entry.
+ */
+export type DecisionReviewEntry = {
+    /**
+     * Schema
+     */
+    schema: 'salli.decision-review/1';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Decision Id
+     */
+    decision_id: string;
+    /**
+     * Entry Hash
+     */
+    entry_hash: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Reflection
+     */
+    reflection: string;
+    /**
+     * Author
+     */
+    author: 'user' | 'agent';
+    /**
+     * Agent
+     */
+    agent: string | null;
+    comparison: ReviewComparison;
+};
+
+/**
+ * DecisionSummary
+ */
+export type DecisionSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * Chosen
+     */
+    chosen: string;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Review On
+     */
+    review_on: string;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Notes
+     */
+    notes: number;
+    /**
+     * Reviews
+     */
+    reviews: number;
+    /**
+     * Last Reviewed At
+     */
+    last_reviewed_at: string | null;
+    /**
+     * Status
+     */
+    status: 'awaiting_review' | 'review_due' | 'reviewed';
+};
+
+/**
  * DeclaredEntries
  */
 export type DeclaredEntries = {
@@ -3016,6 +3682,79 @@ export type DiscardedStatementTransactions = {
      * Discarded
      */
     discarded: number;
+};
+
+/**
+ * DueReview
+ */
+export type DueReview = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * Chosen
+     */
+    chosen: string;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Review On
+     */
+    review_on: string;
+    /**
+     * Recorded At
+     */
+    recorded_at: string;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Notes
+     */
+    notes: number;
+    /**
+     * Reviews
+     */
+    reviews: number;
+    /**
+     * Last Reviewed At
+     */
+    last_reviewed_at: string | null;
+    /**
+     * Status
+     */
+    status: 'awaiting_review' | 'review_due' | 'reviewed';
+    /**
+     * Reasons
+     */
+    reasons: string;
+    comparison: ReviewComparison;
+};
+
+/**
+ * DueReviews
+ */
+export type DueReviews = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Reviews
+     */
+    reviews: Array<DueReview>;
 };
 
 /**
@@ -3790,7 +4529,7 @@ export type FinanceSignal = {
     /**
      * Kind
      */
-    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting';
+    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting' | 'decision_review_due';
     /**
      * Severity
      */
@@ -3806,7 +4545,7 @@ export type FinanceSignal = {
     /**
      * Action
      */
-    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'review';
+    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'review' | 'review_decision';
     /**
      * Amount
      */
@@ -5096,6 +5835,25 @@ export type JournalEntry = {
     postings: Array<Posting>;
 };
 
+/**
+ * JournalExportEntry
+ */
+export type JournalExportEntry = {
+    entry: DecisionEntry;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Notes
+     */
+    notes: Array<DecisionNote>;
+    /**
+     * Reviews
+     */
+    reviews: Array<DecisionReview>;
+};
+
 export type JsonValue = unknown;
 
 /**
@@ -5612,6 +6370,16 @@ export type NextIncome = {
      * ISO 4217 currency code
      */
     currency: string;
+};
+
+/**
+ * NoteIn
+ */
+export type NoteIn = {
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -6477,6 +7245,225 @@ export type PriceRequest = {
 };
 
 /**
+ * Principle
+ */
+export type Principle = {
+    /**
+     * Schema
+     */
+    schema: 'salli.principle/1';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Check
+     */
+    check: string;
+    /**
+     * Account
+     */
+    account: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Author
+     */
+    author: 'user' | 'agent';
+    /**
+     * Agent
+     */
+    agent: string | null;
+    /**
+     * Status
+     */
+    status: 'active' | 'archived';
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Archived At
+     */
+    archived_at: string | null;
+};
+
+/**
+ * PrincipleChanges
+ *
+ * What to change; a field left out stays as it is, and a null account or
+ * note removes it.
+ */
+export type PrincipleChanges = {
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Check
+     */
+    check?: string | null;
+    /**
+     * Account
+     */
+    account?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * PrincipleCheckResult
+ *
+ * Whether an option keeps a principle, breaks it, or can't tell (a
+ * figure it reads is missing, or the arithmetic failed); why; and the
+ * figures the check read.
+ */
+export type PrincipleCheckResult = {
+    /**
+     * Principle Id
+     */
+    principle_id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Status
+     */
+    status: 'keeps' | 'breaks' | 'unknown';
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Figures
+     */
+    figures: {
+        [key: string]: string | number | boolean | null;
+    };
+};
+
+/**
+ * PrincipleIn
+ *
+ * A principle to keep: what it is called and the check that says
+ * whether an option keeps it.
+ */
+export type PrincipleIn = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Check
+     */
+    check: string;
+    /**
+     * Account
+     */
+    account?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * PrincipleList
+ */
+export type PrincipleList = {
+    /**
+     * Principles
+     */
+    principles: Array<Principle>;
+};
+
+/**
+ * PrincipleRef
+ *
+ * A principle as it stood when it was checked.
+ */
+export type PrincipleRef = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Check
+     */
+    check: string;
+    /**
+     * Account
+     */
+    account: string | null;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Hash
+     */
+    hash: string;
+};
+
+/**
+ * PrinciplesCheck
+ *
+ * Your principles against the baseline and each option. Not a ranking.
+ */
+export type PrinciplesCheck = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Principles
+     */
+    principles: Array<PrincipleRef>;
+    baseline: CheckedFigures;
+    /**
+     * Options
+     */
+    options: Array<CheckedOption>;
+    /**
+     * Placeholders
+     */
+    placeholders: Array<string>;
+    /**
+     * Data As Of
+     */
+    data_as_of: string | null;
+};
+
+/**
  * Profile
  *
  * The structured fact-find profile: identity, risk profile, life stage.
@@ -7102,6 +8089,74 @@ export type ResumeRequest = {
      * Persona
      */
     persona?: 'scrooge' | 'buddy';
+};
+
+/**
+ * ReviewComparison
+ *
+ * What the chosen option projected at a month's end, against the
+ * baseline as of that day.
+ */
+export type ReviewComparison = {
+    /**
+     * Option
+     */
+    option: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Terms
+     */
+    terms: 'nominal';
+    /**
+     * Figures
+     */
+    figures: Array<ComparisonRow>;
+    spending: ComparisonSpending;
+    /**
+     * Others
+     */
+    others: Array<ComparisonOther>;
+    /**
+     * Baseline Fingerprint
+     */
+    baseline_fingerprint: string;
+    /**
+     * Data As Of
+     */
+    data_as_of: string | null;
+    /**
+     * Is Stale
+     */
+    is_stale: boolean;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
+ * ReviewIn
+ */
+export type ReviewIn = {
+    /**
+     * Reflection
+     */
+    reflection: string;
+    /**
+     * As Of
+     */
+    as_of?: string | null;
 };
 
 /**
@@ -16774,6 +17829,492 @@ export type OauthRevokeResponses = {
 };
 
 export type OauthRevokeResponse = OauthRevokeResponses[keyof OauthRevokeResponses];
+
+export type PrinciplesListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Include Archived
+         */
+        include_archived?: boolean;
+    };
+    url: '/v1/principles';
+};
+
+export type PrinciplesListErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PrinciplesListError = PrinciplesListErrors[keyof PrinciplesListErrors];
+
+export type PrinciplesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: PrincipleList;
+};
+
+export type PrinciplesListResponse = PrinciplesListResponses[keyof PrinciplesListResponses];
+
+export type PrinciplesCreateData = {
+    body: PrincipleIn;
+    path?: never;
+    query?: never;
+    url: '/v1/principles';
+};
+
+export type PrinciplesCreateErrors = {
+    /**
+     * Not one of your principles, or not one of your accounts
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PrinciplesCreateError = PrinciplesCreateErrors[keyof PrinciplesCreateErrors];
+
+export type PrinciplesCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: Principle;
+};
+
+export type PrinciplesCreateResponse = PrinciplesCreateResponses[keyof PrinciplesCreateResponses];
+
+export type PrinciplesFiguresData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/principles/figures';
+};
+
+export type PrinciplesFiguresErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PrinciplesFiguresError = PrinciplesFiguresErrors[keyof PrinciplesFiguresErrors];
+
+export type PrinciplesFiguresResponses = {
+    /**
+     * Successful Response
+     */
+    200: DecisionFigures;
+};
+
+export type PrinciplesFiguresResponse = PrinciplesFiguresResponses[keyof PrinciplesFiguresResponses];
+
+export type PrinciplesCheckData = {
+    body: CheckOptions;
+    path?: never;
+    query?: never;
+    url: '/v1/principles/check';
+};
+
+export type PrinciplesCheckErrors = {
+    /**
+     * Not one of your principles, or not one of your accounts
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PrinciplesCheckError = PrinciplesCheckErrors[keyof PrinciplesCheckErrors];
+
+export type PrinciplesCheckResponses = {
+    /**
+     * Successful Response
+     */
+    200: PrinciplesCheck;
+};
+
+export type PrinciplesCheckResponse = PrinciplesCheckResponses[keyof PrinciplesCheckResponses];
+
+export type PrinciplesUpdateData = {
+    body: PrincipleChanges;
+    path: {
+        /**
+         * Principle Id
+         */
+        principle_id: string;
+    };
+    query?: never;
+    url: '/v1/principles/{principle_id}';
+};
+
+export type PrinciplesUpdateErrors = {
+    /**
+     * Not one of your principles, or not one of your accounts
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PrinciplesUpdateError = PrinciplesUpdateErrors[keyof PrinciplesUpdateErrors];
+
+export type PrinciplesUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Principle;
+};
+
+export type PrinciplesUpdateResponse = PrinciplesUpdateResponses[keyof PrinciplesUpdateResponses];
+
+export type PrinciplesArchiveData = {
+    body?: never;
+    path: {
+        /**
+         * Principle Id
+         */
+        principle_id: string;
+    };
+    query?: never;
+    url: '/v1/principles/{principle_id}/archive';
+};
+
+export type PrinciplesArchiveErrors = {
+    /**
+     * Not one of your principles, or not one of your accounts
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type PrinciplesArchiveError = PrinciplesArchiveErrors[keyof PrinciplesArchiveErrors];
+
+export type PrinciplesArchiveResponses = {
+    /**
+     * Successful Response
+     */
+    200: Principle;
+};
+
+export type PrinciplesArchiveResponse = PrinciplesArchiveResponses[keyof PrinciplesArchiveResponses];
+
+export type DecisionsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/decisions';
+};
+
+export type DecisionsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsListError = DecisionsListErrors[keyof DecisionsListErrors];
+
+export type DecisionsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: DecisionList;
+};
+
+export type DecisionsListResponse = DecisionsListResponses[keyof DecisionsListResponses];
+
+export type DecisionsRecordData = {
+    body: DecisionIn;
+    path?: never;
+    query?: never;
+    url: '/v1/decisions';
+};
+
+export type DecisionsRecordErrors = {
+    /**
+     * Not one of your decisions, or an account or debt that isn't yours
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsRecordError = DecisionsRecordErrors[keyof DecisionsRecordErrors];
+
+export type DecisionsRecordResponses = {
+    /**
+     * Successful Response
+     */
+    201: Decision;
+};
+
+export type DecisionsRecordResponse = DecisionsRecordResponses[keyof DecisionsRecordResponses];
+
+export type DecisionsReviewsDueData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/decisions/reviews';
+};
+
+export type DecisionsReviewsDueErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsReviewsDueError = DecisionsReviewsDueErrors[keyof DecisionsReviewsDueErrors];
+
+export type DecisionsReviewsDueResponses = {
+    /**
+     * Successful Response
+     */
+    200: DueReviews;
+};
+
+export type DecisionsReviewsDueResponse = DecisionsReviewsDueResponses[keyof DecisionsReviewsDueResponses];
+
+export type DecisionsExportData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/decisions/export';
+};
+
+export type DecisionsExportErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsExportError = DecisionsExportErrors[keyof DecisionsExportErrors];
+
+export type DecisionsExportResponses = {
+    /**
+     * Successful Response
+     */
+    200: DecisionJournal;
+};
+
+export type DecisionsExportResponse = DecisionsExportResponses[keyof DecisionsExportResponses];
+
+export type DecisionsExportMarkdownData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/decisions/export/markdown';
+};
+
+export type DecisionsExportMarkdownErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsExportMarkdownError = DecisionsExportMarkdownErrors[keyof DecisionsExportMarkdownErrors];
+
+export type DecisionsExportMarkdownResponses = {
+    /**
+     * The journal, as Markdown.
+     */
+    200: string;
+};
+
+export type DecisionsExportMarkdownResponse = DecisionsExportMarkdownResponses[keyof DecisionsExportMarkdownResponses];
+
+export type DecisionsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Decision Id
+         */
+        decision_id: string;
+    };
+    query?: never;
+    url: '/v1/decisions/{decision_id}';
+};
+
+export type DecisionsGetErrors = {
+    /**
+     * Not one of your decisions, or an account or debt that isn't yours
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsGetError = DecisionsGetErrors[keyof DecisionsGetErrors];
+
+export type DecisionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Decision;
+};
+
+export type DecisionsGetResponse = DecisionsGetResponses[keyof DecisionsGetResponses];
+
+export type DecisionsMarkdownData = {
+    body?: never;
+    path: {
+        /**
+         * Decision Id
+         */
+        decision_id: string;
+    };
+    query?: never;
+    url: '/v1/decisions/{decision_id}/markdown';
+};
+
+export type DecisionsMarkdownErrors = {
+    /**
+     * Not one of your decisions, or an account or debt that isn't yours
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsMarkdownError = DecisionsMarkdownErrors[keyof DecisionsMarkdownErrors];
+
+export type DecisionsMarkdownResponses = {
+    /**
+     * The journal, as Markdown.
+     */
+    200: string;
+};
+
+export type DecisionsMarkdownResponse = DecisionsMarkdownResponses[keyof DecisionsMarkdownResponses];
+
+export type DecisionsNotesAddData = {
+    body: NoteIn;
+    path: {
+        /**
+         * Decision Id
+         */
+        decision_id: string;
+    };
+    query?: never;
+    url: '/v1/decisions/{decision_id}/notes';
+};
+
+export type DecisionsNotesAddErrors = {
+    /**
+     * Not one of your decisions, or an account or debt that isn't yours
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsNotesAddError = DecisionsNotesAddErrors[keyof DecisionsNotesAddErrors];
+
+export type DecisionsNotesAddResponses = {
+    /**
+     * Successful Response
+     */
+    201: DecisionNote;
+};
+
+export type DecisionsNotesAddResponse = DecisionsNotesAddResponses[keyof DecisionsNotesAddResponses];
+
+export type DecisionsReviewData = {
+    body: ReviewIn;
+    path: {
+        /**
+         * Decision Id
+         */
+        decision_id: string;
+    };
+    query?: never;
+    url: '/v1/decisions/{decision_id}/review';
+};
+
+export type DecisionsReviewErrors = {
+    /**
+     * Not one of your decisions, or an account or debt that isn't yours
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsReviewError = DecisionsReviewErrors[keyof DecisionsReviewErrors];
+
+export type DecisionsReviewResponses = {
+    /**
+     * Successful Response
+     */
+    201: DecisionReview;
+};
+
+export type DecisionsReviewResponse = DecisionsReviewResponses[keyof DecisionsReviewResponses];
 
 export type MetaHealthData = {
     body?: never;

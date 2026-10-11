@@ -499,6 +499,228 @@ class FakeFeeds:
         return list(self.connections)
 
 
+class FakePrinciples:
+    """Principles kept as the SQL repository keeps them: per owner, edited
+    with a version, archived, never deleted."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, dict[str, Any]] = {}
+
+    async def list(self, user_id: str, include_archived: bool = False) -> list[dict[str, Any]]:
+        return [
+            dict(r)
+            for r in self.rows.values()
+            if r["user_id"] == user_id and (include_archived or r["archived_at"] is None)
+        ]
+
+    async def get(self, user_id: str, principle_id: str) -> dict[str, Any] | None:
+        row = self.rows.get(principle_id)
+        return dict(row) if row is not None and row["user_id"] == user_id else None
+
+    async def add(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        now = datetime.now(UTC)
+        row = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "label": record["label"],
+            "check": record["check"],
+            "account": record.get("account"),
+            "note": record.get("note"),
+            "version": 1,
+            "author_kind": record.get("author_kind", "user"),
+            "author_name": record.get("author_name"),
+            "created_at": now,
+            "updated_at": now,
+            "archived_at": None,
+        }
+        self.rows[row["id"]] = row
+        return dict(row)
+
+    async def update(
+        self, user_id: str, principle_id: str, changes: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        row = self.rows.get(principle_id)
+        if row is None or row["user_id"] != user_id or row["archived_at"] is not None:
+            return None
+        row.update({k: v for k, v in changes.items() if k in ("label", "check", "account", "note")})
+        row["version"] += 1
+        row["updated_at"] = datetime.now(UTC)
+        return dict(row)
+
+    async def archive(self, user_id: str, principle_id: str) -> dict[str, Any] | None:
+        row = self.rows.get(principle_id)
+        if row is None or row["user_id"] != user_id:
+            return None
+        if row["archived_at"] is None:
+            row["archived_at"] = row["updated_at"] = datetime.now(UTC)
+        return dict(row)
+
+
+class FakeDecisions:
+    """The decision journal, append-only as the SQL repository is: it adds
+    and reads, and has no way to change or delete anything. Documents are
+    stored as JSON text, as JSONB would hold them, so a test can see an
+    entry come back exactly as it went in."""
+
+    def __init__(self) -> None:
+        self.entries: dict[str, dict[str, Any]] = {}
+        self.notes: list[dict[str, Any]] = []
+        self.reviews: list[dict[str, Any]] = []
+
+    @staticmethod
+    def _stored(document: dict[str, Any]) -> str:
+        import json
+
+        return json.dumps(document)
+
+    @staticmethod
+    def _read(text: str) -> dict[str, Any]:
+        import json
+
+        return json.loads(text)
+
+    def _entry(self, row: dict[str, Any]) -> dict[str, Any]:
+        return {k: v for k, v in row.items() if k not in ("user_id", "content")} | {
+            "content": self._read(row["content"])
+        }
+
+    def _appended(self, row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "content": self._read(row["content"]),
+            "hash": row["hash"],
+            "created_at": row["created_at"],
+        }
+
+    async def record(self, user_id: str, entry: dict[str, Any]) -> dict[str, Any]:
+        if entry["id"] in self.entries:
+            raise ValueError("an entry with this id exists")
+        self.entries[entry["id"]] = {
+            **entry,
+            "user_id": user_id,
+            "content": self._stored(entry["content"]),
+        }
+        return self._entry(self.entries[entry["id"]])
+
+    def _owned(self, user_id: str, decision_id: str) -> dict[str, Any] | None:
+        row = self.entries.get(decision_id)
+        return row if row is not None and row["user_id"] == user_id else None
+
+    def _with(self, row: dict[str, Any]) -> dict[str, Any]:
+        mine = [n for n in self.notes if n["decision_id"] == row["id"]]
+        theirs = [v for v in self.reviews if v["decision_id"] == row["id"]]
+        return {
+            **self._entry(row),
+            "notes": [self._appended(n) for n in mine],
+            "reviews": [self._appended(v) for v in theirs],
+        }
+
+    async def get(self, user_id: str, decision_id: str) -> dict[str, Any] | None:
+        row = self._owned(user_id, decision_id)
+        return None if row is None else self._with(row)
+
+    async def list_full(self, user_id: str) -> list[dict[str, Any]]:
+        rows = [r for r in self.entries.values() if r["user_id"] == user_id]
+        return [self._with(r) for r in sorted(rows, key=lambda r: (r["recorded_at"], r["id"]))]
+
+    def _summary(self, row: dict[str, Any]) -> dict[str, Any]:
+        reviews = [v for v in self.reviews if v["decision_id"] == row["id"]]
+        return {
+            **{k: v for k, v in self._entry(row).items() if k != "content"},
+            "notes": sum(1 for n in self.notes if n["decision_id"] == row["id"]),
+            "reviews": len(reviews),
+            "last_reviewed_at": max((v["created_at"] for v in reviews), default=None),
+        }
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        rows = [r for r in self.entries.values() if r["user_id"] == user_id]
+        rows.sort(key=lambda r: (r["recorded_at"], r["id"]), reverse=True)
+        return [self._summary(r) for r in rows]
+
+    async def due(self, user_id: str, on: Any) -> list[dict[str, Any]]:
+        reviewed = {v["decision_id"] for v in self.reviews}
+        rows = [
+            r
+            for r in self.entries.values()
+            if r["user_id"] == user_id and r["review_on"] <= on and r["id"] not in reviewed
+        ]
+        rows.sort(key=lambda r: (r["review_on"], r["recorded_at"], r["id"]))
+        return [self._summary(r) for r in rows]
+
+    async def add_note(
+        self, user_id: str, decision_id: str, note: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        if self._owned(user_id, decision_id) is None:
+            return None
+        row = {**note, "decision_id": decision_id, "user_id": user_id}
+        row["content"] = self._stored(note["content"])
+        self.notes.append(row)
+        return self._appended(row)
+
+    async def add_review(
+        self, user_id: str, decision_id: str, review: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        if self._owned(user_id, decision_id) is None:
+            return None
+        row = {**review, "decision_id": decision_id, "user_id": user_id}
+        row["content"] = self._stored(review["content"])
+        self.reviews.append(row)
+        return self._appended(row)
+
+
+class FakeReminders:
+    """Reminders and alerts, as the SQL repository keeps them (the slice the
+    decision journal uses)."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, dict[str, Any]] = {}
+
+    async def list_reminders(self, user_id: str, status: str | None = None) -> list[Any]:
+        return [
+            dict(r)
+            for r in self.rows.values()
+            if r["user_id"] == user_id and (status is None or r["status"] == status)
+        ]
+
+    async def upsert_alert(
+        self,
+        user_id: str,
+        alert_type: str,
+        source_domain: str,
+        source_id: str,
+        kind: str,
+        due_date: str,
+        severity: str,
+    ) -> str:
+        for row in self.rows.values():
+            if (row["user_id"], row["source_domain"], row["source_id"], row["alert_type"]) == (
+                user_id,
+                source_domain,
+                source_id,
+                alert_type,
+            ):
+                row.update(kind=kind, due_date=due_date, severity=severity, status="pending")
+                return row["id"]
+        reminder_id = str(uuid.uuid4())
+        self.rows[reminder_id] = {
+            "id": reminder_id,
+            "user_id": user_id,
+            "kind": kind,
+            "due_date": due_date,
+            "status": "pending",
+            "alert_type": alert_type,
+            "source_domain": source_domain,
+            "source_id": source_id,
+            "severity": severity,
+        }
+        return reminder_id
+
+    async def mark_done(self, user_id: str, reminder_id: str) -> None:
+        row = self.rows.get(reminder_id)
+        if row is not None and row["user_id"] == user_id:
+            row["status"] = "done"
+
+
 class FakeUoW:
     """A unit of work over one in-memory ledger and what a user declares
     beside it: enough for FI, insights, the forecast, debts and the baseline."""
@@ -515,6 +737,9 @@ class FakeUoW:
         self.bank_connections = self.statements
         self.advisories = FakeRecords()
         self.tax_rule_sets = FakeActiveRuleSets()
+        self.principles = FakePrinciples()
+        self.decisions = FakeDecisions()
+        self.reminders = FakeReminders()
 
     async def __aenter__(self) -> FakeUoW:
         return self

@@ -6,7 +6,8 @@ recurring payments, spending by month, cash flow, transactions waiting for
 review) and says, plainly and with its evidence, when something stands out:
 the cash running out before payday, a subscription that got dearer, a new
 recurring charge, a category far above usual, the savings rate falling, a
-review queue growing old. Nothing here advises; it points. Pure: no I/O.
+review queue growing old, a decision whose review date has come. Nothing
+here advises; it points. Pure: no I/O.
 """
 
 from __future__ import annotations
@@ -28,9 +29,12 @@ SignalKind = Literal[
     "spending_spike",
     "savings_rate_drop",
     "review_waiting",
+    "decision_review_due",
 ]
 #: What the user can look at or do about it, for a client to link to.
-Action = Literal["see_forecast", "see_recurring", "see_spending", "see_cash_flow", "review"]
+Action = Literal[
+    "see_forecast", "see_recurring", "see_spending", "see_cash_flow", "review", "review_decision"
+]
 
 _ORDER: dict[Severity, int] = {"high": 0, "medium": 1, "info": 2}
 
@@ -232,6 +236,25 @@ def review_waiting(
             "review",
             date=oldest,
         )
+    ]
+
+
+def decision_reviews_due(due: Sequence[tuple[str, str, str]]) -> list[Signal]:
+    """A decision in the journal whose review date has come and that has no
+    review yet: (id, question, review date) each. Info: a review is an
+    invitation, never urgent."""
+    return [
+        Signal(
+            "decision_review_due",
+            "info",
+            "A decision is ready for review",
+            f'You decided "{" ".join(question.split())}" and asked to look back on '
+            f"{review_on}: see how it turned out against what Salli projected.",
+            "review_decision",
+            date=review_on,
+            refs=(decision_id,),
+        )
+        for decision_id, question, review_on in due
     ]
 
 

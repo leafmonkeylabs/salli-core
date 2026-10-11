@@ -62,6 +62,7 @@ import {
   TRIAL_BALANCE,
   uid,
 } from './fixtures';
+import { DecisionsMock } from './decisions';
 import { SCENARIO_COMPARISON, SCENARIO_RUN } from './scenarios';
 import { TaxRulesMock } from './taxrules';
 
@@ -132,6 +133,8 @@ export class MockSalli {
   user: { user_id: string; email: string | null } = { user_id: 'user-123', email: null };
   /** Tax rule sets (`/v1/tax/schema`, `/v1/tax/rule-sets`). */
   readonly taxRules = new TaxRulesMock();
+  /** Principles and the decision journal (`/v1/principles`, `/v1/decisions`). */
+  readonly decisions = new DecisionsMock();
   data = {
     accounts: clone(ACCOUNTS),
     entries: clone(ENTRIES),
@@ -441,6 +444,8 @@ export class MockSalli {
 
     const taxRules = this.taxRules.route(req, this.permissionsOf(req));
     if (taxRules) return taxRules;
+    const decisions = this.decisions.route(req);
+    if (decisions) return decisions;
 
     if (method === 'GET' && path === '/v1/auth/me') {
       return { status: 200, body: { ...this.user, method: this.pats.has(this.tokenOf(req)) ? 'pat' : 'oauth', permissions: this.permissionsOf(req) } };

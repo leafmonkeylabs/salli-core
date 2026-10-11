@@ -968,6 +968,25 @@ def run(
     """The scenario against the baseline: every figure under each, and the
     delta. `base` is the baseline's own outlook, when the caller has it
     already (a comparison evaluates it once). Writes nothing."""
+    return run_with_outlook(baseline, scenario, base=base)[0]
+
+
+@dataclass(frozen=True)
+class Evaluated:
+    """A scenario's result, and what it was read from: the scenario's own
+    outlook on both timelines and how its changes were translated (for
+    figures the result doesn't carry: a decision's principles and
+    projection, domain/decisions)."""
+
+    result: ScenarioResult
+    outlook: Outlook
+    translation: Translation
+
+
+def run_with_outlook(
+    baseline: Baseline, scenario: schema.Scenario, *, base: Outlook | None = None
+) -> tuple[ScenarioResult, Evaluated]:
+    """`run`, and the outlook and translation its figures come from."""
     translation = translate(baseline, scenario)
     base = base or baseline_outlook(baseline)
     mine = evaluate(baseline, translation.changes, translation.spending)
@@ -977,7 +996,7 @@ def run(
         latest is None or (baseline.as_of - dt.date.fromisoformat(latest)).days > STALE_AFTER_DAYS
     )
     filled = scenario.model_copy(update={"as_of": baseline.as_of})
-    return ScenarioResult(
+    result = ScenarioResult(
         label=scenario.label,
         as_of=baseline.as_of,
         horizon_years=scenario.horizon_years,
@@ -1003,3 +1022,4 @@ def run(
             )
         ),
     )
+    return result, Evaluated(result, mine, translation)
