@@ -720,7 +720,8 @@ class DecisionReviewORM(Base):
 
 
 class UserProfileORM(Base):
-    """Identity, fact-find, and preferences. `id` is the Supabase auth uid (JWT `sub`)."""
+    """Identity, fact-find, and preferences. `id` is the user id every other
+    table keys on; whoever can sign in as it has a `logins` row."""
 
     __tablename__ = "user_profiles"
 
@@ -1530,6 +1531,71 @@ class PersonalAccessTokenORM(Base):
             name="ck_personal_access_tokens_permissions",
         ),
     )
+
+
+# ── Sign-in: Salli's own accounts ────────────────────────────────────────────
+
+
+class LoginORM(Base):
+    """How a person signs in: their email and an argon2id hash of their
+    password (application/services/login_service.py). One per user, keyed by
+    the profile's id. `email` is stored lower-cased and is unique; exactly
+    one login may be the instance's owner."""
+
+    __tablename__ = "logins"
+
+    user_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("user_profiles.id", ondelete="CASCADE"), primary_key=True
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_owner: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    password_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        Index("uq_logins_email", "email", unique=True),
+        Index("uq_logins_owner", "is_owner", unique=True, postgresql_where=text("is_owner")),
+        CheckConstraint("email = lower(email)", name="ck_logins_email_lower"),
+    )
+
+
+class LoginSessionORM(Base):
+    """A signed-in session (`salli_st_…`), as a person's own client holds one.
+    Stored as a SHA-256 hash: the token is seen once, when it is issued. It
+    ends at `expires_at`, or when revoked (sign-out, a password change)."""
+
+    __tablename__ = "login_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("logins.user_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    # What signed in, as its User-Agent said, so a list can tell sessions apart.
+    user_agent: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LoginFailureORM(Base):
+    """A failed sign-in, for throttling: keyed by a SHA-256 of what was tried
+    (the email, or the address it came from), never the email itself. Rows
+    older than the throttle's window are pruned."""
+
+    __tablename__ = "login_failures"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("ix_login_failures_key_at", "key_hash", "at"),)
 
 
 class CategorizationRuleORM(Base):

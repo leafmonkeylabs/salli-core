@@ -59,7 +59,7 @@ class Meta(BaseModel):
 @router.get("")
 async def get_meta() -> Meta:
     settings = get_settings()
-    base = settings.mcp_public_base_url.rstrip("/")
+    base = settings.salli_public_url.rstrip("/")
     return Meta(
         api_version=API_VERSION,
         server_version=server_version(),

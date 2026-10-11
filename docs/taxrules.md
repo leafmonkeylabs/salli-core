@@ -347,7 +347,7 @@ agent is only as trustworthy as the agent. So activation needs the
 
 | Sign-in | `tax:activate` |
 |---|---|
-| The web or mobile app (a Supabase session) | yes |
+| A session: signing in with your email and password (`POST /v1/auth/sessions`) | yes |
 | The local-development sign-in | yes |
 | OAuth for the REST API, as Salli's own CLI (`salli-cli`, a first-party client the server knows), from any grant | yes |
 | A personal access token | only if made with it |

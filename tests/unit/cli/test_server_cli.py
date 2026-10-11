@@ -64,6 +64,9 @@ def test_the_server_has_only_operator_commands():
         "db upgrade",
         "db current",
         "members add",
+        "members list",
+        "members reset-password",
+        "secrets init",
         "jobs run-advisor",
         "jobs sync-banks",
         "jobs recompute-tax",
@@ -206,13 +209,13 @@ def test_doctor_says_whether_a_secret_is_set_never_what_it_is():
     from salli.config import Settings
 
     secrets = {
-        "supabase_jwt_secret": "jwt-secret-value",
         "mcp_signing_secret": "mcp-secret-value",
         "cron_secret": "cron-secret-value",
         "byok_encryption_keys": "1:Ynlvay1rZXktdmFsdWU=",
         "anthropic_api_key": "sk-ant-secret-value",
+        "database_password": "db-password-value",
     }
-    settings = Settings(_env_file=None, supabase_url="https://auth.example.com", **secrets)
+    settings = Settings(_env_file=None, environment="production", **secrets)
     shown = json.dumps([c.detail for c in doctor.config_checks(settings)])
     for value in secrets.values():
         assert value not in shown
@@ -227,13 +230,15 @@ def test_doctor_names_the_database_without_its_credentials():
     )
 
 
-def test_doctor_fails_without_authentication():
+def test_doctor_warns_of_the_dev_fallback_and_a_development_environment():
     from salli.config import Settings
 
-    [auth] = [
-        c for c in doctor.config_checks(Settings(_env_file=None)) if c.name == "Authentication"
-    ]
-    assert auth.status == "fail"
+    def by_name(settings: Settings) -> dict[str, str]:
+        return {c.name: c.status for c in doctor.config_checks(settings)}
+
+    assert by_name(Settings(_env_file=None, environment="production"))["Authentication"] == "ok"
+    dev = by_name(Settings(_env_file=None, salli_insecure_dev_auth=True))
+    assert dev["Authentication"] == "warn" and dev["Environment"] == "warn"
 
 
 def test_doctor_exits_non_zero_and_skips_migrations_when_the_database_is_down(monkeypatch, capsys):

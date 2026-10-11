@@ -144,6 +144,31 @@ def test_two_policies_are_refused():
         )
 
 
+class _NoOneProvider:
+    """An identity provider that knows no tokens."""
+
+    async def verify(self, token):
+        return None
+
+
+def test_salli_ships_no_identity_provider_and_an_extension_may_supply_one():
+    assert combine([]).identity_provider is None
+    provider = _NoOneProvider()
+    assert combine([Extension(name="oidc", identity_provider=provider)]).identity_provider is (
+        provider
+    )
+
+
+def test_two_identity_providers_are_refused():
+    with pytest.raises(ExtensionError, match="identity provider"):
+        combine(
+            [
+                Extension(name="a", identity_provider=_NoOneProvider()),
+                Extension(name="b", identity_provider=_NoOneProvider()),
+            ]
+        )
+
+
 def test_a_service_key_claimed_twice_is_refused():
     with pytest.raises(ExtensionError, match="'x'"):
         combine([Extension(name="a", services={"x": 1}), Extension(name="b", services={"x": 2})])

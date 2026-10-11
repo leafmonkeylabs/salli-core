@@ -74,7 +74,5 @@ async def test_an_agent_upload_named_to_climb_out_lands_in_the_users_folder(tmp_
 
     doc = await service.save_file("u1", filename="../../../../evil.txt", file_bytes=b"x")
 
-    assert doc["storage_key"] == str(
-        (root / "u1" / "agent-uploads" / doc["id"] / "evil.txt").resolve()
-    )
+    assert doc["storage_key"] == f"u1/agent-uploads/{doc['id']}/evil.txt"
     assert [p.name for p in tmp_path.rglob("evil.txt")] == ["evil.txt"]

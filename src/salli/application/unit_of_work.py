@@ -30,6 +30,7 @@ from salli.adapters.db.repositories import (
     SQLInsuranceTargetRepository,
     SQLLedgerRepository,
     SQLLlmCredentialRepository,
+    SQLLoginRepository,
     SQLOAuthClientRepository,
     SQLOAuthTokenRepository,
     SQLPersonalAccessTokenRepository,
@@ -63,6 +64,7 @@ from salli.application.ports import (
     InsuranceTargetRepository,
     LedgerRepository,
     LlmCredentialRepository,
+    LoginRepository,
     OAuthClientRepository,
     OAuthTokenRepository,
     PersonalAccessTokenRepository,
@@ -111,6 +113,7 @@ class UnitOfWork:
     ai_connections: AiConnectionRepository
     instance_settings: InstanceSettingsRepository
     personal_access_tokens: PersonalAccessTokenRepository
+    logins: LoginRepository
     rules: RuleRepository
     bank_connections: BankConnectionRepository
     principles: PrincipleRepository
@@ -155,6 +158,7 @@ class UnitOfWork:
         self.ai_connections = SQLAiConnectionRepository(self._session)
         self.instance_settings = SQLInstanceSettingsRepository(self._session)
         self.personal_access_tokens = SQLPersonalAccessTokenRepository(self._session)
+        self.logins = SQLLoginRepository(self._session)
         self.rules = SQLRuleRepository(self._session)
         self.bank_connections = SQLBankConnectionRepository(self._session)
         self.principles = SQLPrincipleRepository(self._session)

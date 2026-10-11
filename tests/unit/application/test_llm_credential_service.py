@@ -352,21 +352,16 @@ def test_aad_binds_both_user_and_provider():
 
 # ── The composition-level gates ───────────────────────────────────────────────
 #
-# These construct Settings with the auth fields set EXPLICITLY. Settings reads
-# the repo .env, which sets supabase_url locally, so a test that omitted them
-# would silently exercise the wrong branch.
+# These construct Settings without the repo's .env, so a developer's local
+# settings can't change which branch a test exercises.
 
 
 def _built(**overrides: Any):
     from salli.composition import _build_llm_credentials
     from salli.config import Settings
 
-    base = {
-        "byok_encryption_keys": f"1:{K1}",
-        "supabase_url": "https://project.supabase.co",
-        "supabase_jwt_secret": "",
-    }
-    return _build_llm_credentials(Settings(**{**base, **overrides}), lambda: None)
+    base = {"byok_encryption_keys": f"1:{K1}", "environment": "production"}
+    return _build_llm_credentials(Settings(_env_file=None, **{**base, **overrides}), lambda: None)
 
 
 def test_available_with_an_encryption_key_and_real_auth():
@@ -378,19 +373,16 @@ def test_unavailable_without_an_encryption_key_at_all():
 
 
 def test_unavailable_when_the_dev_auth_fallback_is_live():
-    """deps.get_principal treats the bearer token AS the user id when Supabase
-    is entirely unconfigured and the development fallback is on. BYOK there
-    would let any caller spend an arbitrary user's key, so it must stay off."""
+    """deps.get_principal treats the bearer token AS the user id when the
+    development fallback is on. BYOK there would let any caller spend an
+    arbitrary user's key, so it must stay off."""
     live = {"salli_insecure_dev_auth": True, "environment": "development"}
-    assert _built(supabase_url="", supabase_jwt_secret="", **live).available is False
+    assert _built(**live).available is False
 
 
-def test_available_without_supabase_when_the_dev_fallback_is_off():
-    """No Supabase and no fallback: the API takes only Salli's own tokens, which
-    are real. The gate is the fallback, the same one get_principal applies."""
-    off = {"salli_insecure_dev_auth": False}
-    assert _built(supabase_url="", supabase_jwt_secret="", **off).available is True
-
-
-def test_a_jwt_secret_alone_is_enough_to_count_as_real_auth():
-    assert _built(supabase_url="", supabase_jwt_secret="s3cret").available is True
+def test_available_when_the_dev_fallback_is_off():
+    """No fallback: the API takes only Salli's own tokens, which are real. The
+    gate is the fallback, the same one get_principal applies."""
+    assert _built(salli_insecure_dev_auth=False, environment="development").available is True
+    # The flag alone, outside development, is not the fallback.
+    assert _built(salli_insecure_dev_auth=True).available is True

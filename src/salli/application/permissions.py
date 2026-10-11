@@ -11,7 +11,7 @@ kept to channels an agent cannot fake:
 
 | How the caller signed in                        | `tax:activate`               |
 |-------------------------------------------------|------------------------------|
-| the web or mobile app (a Supabase session)      | yes                          |
+| a session (signing in with your password)       | yes                          |
 | the local-development sign-in                   | yes                          |
 | OAuth, for the REST API, as Salli's own CLI     | yes                          |
 | a personal access token                         | only if made with it         |

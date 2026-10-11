@@ -110,8 +110,8 @@ async def test_the_setting_switches_it_off_for_everyone(monkeypatch):
     def built(**overrides: Any):
         return build_services(
             Settings(
+                _env_file=None,
                 byok_encryption_keys=KEYS,
-                supabase_url="https://project.supabase.co",
                 salli_extensions="",
                 **overrides,
             )

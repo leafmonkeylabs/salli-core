@@ -14,7 +14,8 @@ A spec has two halves, because they are needed at different times:
   handlers reach services through the usual request/command plumbing.
 - `build(ctx)` — returns an `Extension` with the runtime parts: a `UsageMeter`,
   an `EntitlementPolicy`, a `ChatGPTPlanPolicy` (whether users may use their
-  ChatGPT plan: a hosted product needs OpenAI's approval first), extra
+  ChatGPT plan: a hosted product needs OpenAI's approval first), an
+  `IdentityProvider` (sign-in through an outside provider, such as OIDC), extra
   services, and purgers for its own per-user tables. Called by `build_services`, before Salli's own services are built so
   the meter and policy can be injected into them.
 
@@ -32,7 +33,12 @@ from importlib.metadata import EntryPoint, entry_points
 from typing import Any, cast
 
 from salli.application.defaults import ChatGPTPlanAllowed, FullAccess, UnmeteredUsage
-from salli.application.ports import ChatGPTPlanPolicy, EntitlementPolicy, UsageMeter
+from salli.application.ports import (
+    ChatGPTPlanPolicy,
+    EntitlementPolicy,
+    IdentityProvider,
+    UsageMeter,
+)
 
 ENTRY_POINT_GROUP = "salli.extensions"
 
@@ -77,6 +83,9 @@ class Extension:
     entitlements: EntitlementPolicy | None = None
     #: Whether users may use their ChatGPT plan here (see ChatGPTPlanPolicy).
     chatgpt_plan: ChatGPTPlanPolicy | None = None
+    #: An identity provider outside Salli whose tokens the API accepts as a
+    #: person's session (see IdentityProvider). Salli ships none.
+    identity_provider: IdentityProvider | None = None
     #: Extra services, reachable as `services.extensions.services[key]`.
     services: dict[str, Any] = field(default_factory=dict[str, Any])
     user_data_purgers: list[UserDataPurger] = field(default_factory=list[UserDataPurger])
@@ -111,6 +120,8 @@ class Contributions:
     user_data_exporters: list[UserDataExporter] = field(default_factory=list[UserDataExporter])
     names: tuple[str, ...] = ()
     chatgpt_plan: ChatGPTPlanPolicy = field(default_factory=ChatGPTPlanAllowed)
+    #: None unless an extension supplied one: Salli's own sign-in is the only one.
+    identity_provider: IdentityProvider | None = None
 
 
 def parse_enabled(raw: str | None) -> list[str]:
@@ -189,6 +200,7 @@ def combine(extensions: list[Extension]) -> Contributions:
     meter: tuple[str, UsageMeter] | None = None
     policy: tuple[str, EntitlementPolicy] | None = None
     plan: tuple[str, ChatGPTPlanPolicy] | None = None
+    identity: tuple[str, IdentityProvider] | None = None
     services: dict[str, Any] = {}
     purgers: list[UserDataPurger] = []
     exporters: list[UserDataExporter] = []
@@ -210,6 +222,12 @@ def combine(extensions: list[Extension]) -> Contributions:
                     f"Both {plan[0]!r} and {ext.name!r} decide who may use a ChatGPT plan."
                 )
             plan = (ext.name, ext.chatgpt_plan)
+        if ext.identity_provider is not None:
+            if identity is not None:
+                raise ExtensionError(
+                    f"Both {identity[0]!r} and {ext.name!r} provide an identity provider."
+                )
+            identity = (ext.name, ext.identity_provider)
         for key, service in ext.services.items():
             if key in services:
                 raise ExtensionError(f"Service {key!r} is provided by two extensions.")
@@ -225,4 +243,5 @@ def combine(extensions: list[Extension]) -> Contributions:
         user_data_exporters=exporters,
         names=tuple(ext.name for ext in extensions),
         chatgpt_plan=plan[1] if plan else ChatGPTPlanAllowed(),
+        identity_provider=identity[1] if identity else None,
     )

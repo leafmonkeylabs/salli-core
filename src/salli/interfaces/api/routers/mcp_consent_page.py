@@ -1,30 +1,34 @@
 """
 Salli's own MCP consent page — where you approve an AI client (Claude, ChatGPT,
-…) connecting to your Salli over MCP.
+…) connecting to your Salli over MCP, or the salli CLI signing in — and the
+device page, where you approve a sign-in with a code.
 
 The OAuth authorize step redirects here with a short-lived signed request
 token (`rt`). The page shows which client is asking, takes your Salli email and
-password, signs you in against Supabase Auth, and records your Allow or Deny —
-exactly what a web app's consent screen does through /mcp/oauth/consent-info
-and /mcp/oauth/consent, without needing a web app.
+password, checks them against Salli's own accounts (throttled like any
+sign-in), and records your Allow or Deny — exactly what a web app's consent
+screen does through /mcp/oauth/consent-info and /mcp/oauth/consent, without
+needing a web app.
 
 Plain server-rendered HTML with no script and no session: every decision is
 authenticated by the password submitted with it, so there is no cookie for a
-cross-site request to ride on.
+cross-site request to ride on. The password is never written back into the
+page.
 """
 
 from __future__ import annotations
 
 import html
+from dataclasses import dataclass
 from typing import Annotated, Any
 
-import httpx
-from fastapi import APIRouter, Depends, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from salli.application.services.login_service import SignInRefused, SignInThrottled
 from salli.application.services.mcp_oauth_service import ConsentError
-from salli.config import Settings, get_settings
-from salli.interfaces.api.deps import AppServices, _decode_jwt, insecure_dev_auth
+from salli.config import Settings, get_settings, insecure_dev_auth
+from salli.interfaces.api.deps import AppServices
 
 router = APIRouter(tags=["mcp-oauth"])
 
@@ -108,42 +112,35 @@ def _form(
     )
 
 
+@dataclass(frozen=True)
+class _Refusal:
+    """Why the page won't act on a decision, and the status to show it with."""
+
+    message: str
+    status_code: int = status.HTTP_401_UNAUTHORIZED
+
+
 async def _signed_in(
-    svc: Any, settings: Settings, email: str, password: str, user_id: str
-) -> tuple[str, str | None] | str:
-    """(user id, email) for these credentials, or the error to show."""
+    svc: Any, settings: Settings, request: Request, email: str, password: str, user_id: str
+) -> str | _Refusal:
+    """The user id these credentials belong to, or why not."""
     if insecure_dev_auth(settings):
         if not user_id:
-            return "Enter a user id."
-        caller, caller_email = user_id, None
+            return _Refusal("Enter a user id.")
+        caller = user_id
     else:
-        token = await _sign_in(settings, email, password)
-        if token is None:
-            return "That email and password didn't match."
         try:
-            caller, caller_email = _decode_jwt(token, settings)
-        except HTTPException:
-            return "Couldn't verify your sign-in. Try again."
-    if not await svc.profile.ensure_user(
-        caller, caller_email, may_create=settings.salli_registration == "open"
-    ):
-        return "This account is not a member of this Salli instance."
-    return caller, caller_email
-
-
-async def _sign_in(settings: Settings, email: str, password: str) -> str | None:
-    """A Supabase access token for these credentials, or None if refused."""
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            settings.supabase_url.rstrip("/") + "/auth/v1/token",
-            params={"grant_type": "password"},
-            headers={"apikey": settings.supabase_anon_key},
-            json={"email": email, "password": password},
-        )
-    if resp.status_code != 200:
-        return None
-    token: Any = resp.json().get("access_token")
-    return str(token) if token else None
+            who = await svc.logins.authenticate(
+                email, password, address=request.client.host if request.client else None
+            )
+        except SignInRefused as exc:
+            return _Refusal(str(exc))
+        except SignInThrottled as exc:
+            return _Refusal(str(exc), status.HTTP_429_TOO_MANY_REQUESTS)
+        caller = who.user_id
+    if not await svc.profile.ensure_user(caller, None, may_create=False):
+        return _Refusal("This account is not a member of this Salli instance.", 403)
+    return caller
 
 
 @router.get("/mcp/oauth/consent-page", response_class=HTMLResponse)
@@ -167,6 +164,7 @@ async def consent_page(
 
 @router.post("/mcp/oauth/consent-page", response_class=HTMLResponse)
 async def consent_page_decision(
+    request: Request,
     svc: AppServices,
     settings: Annotated[Settings, Depends(get_settings)],
     rt: Annotated[str, Form()],
@@ -181,25 +179,25 @@ async def consent_page_decision(
         return _page(f"<h1>Can't connect</h1><p>{html.escape(str(exc))}</p>", 400)
     dev = insecure_dev_auth(settings)
 
-    def again(error: str) -> HTMLResponse:
+    def again(refusal: _Refusal) -> HTMLResponse:
         return _page(
             _form(
                 rt,
                 info["client_name"],
                 info["scope"],
                 dev,
-                error,
+                refusal.message,
                 audience=info.get("audience", "mcp"),
             ),
-            401,
+            refusal.status_code,
         )
 
     approve = decision == "allow"
     if approve:
-        who = await _signed_in(svc, settings, email, password, user_id)
-        if isinstance(who, str):
+        who = await _signed_in(svc, settings, request, email, password, user_id)
+        if isinstance(who, _Refusal):
             return again(who)
-        caller, _ = who
+        caller = who
         # Connecting an AI client from here is consent to MCP, so switch it on
         # for them. Signing in the CLI is not, and leaves MCP as it was.
         if info.get("audience", "mcp") == "mcp":
@@ -251,6 +249,7 @@ async def device_page(
 
 @router.post("/mcp/oauth/device", response_class=HTMLResponse)
 async def device_page_decision(
+    request: Request,
     svc: AppServices,
     settings: Annotated[Settings, Depends(get_settings)],
     user_code: Annotated[str, Form()],
@@ -266,22 +265,25 @@ async def device_page_decision(
             _device_form(user_code, dev, "That code is not valid, or it has expired."), 400
         )
 
-    def again(error: str) -> HTMLResponse:
-        return _page(_device_form(user_code, dev, error, client=info["client_name"]), 401)
+    def again(refusal: _Refusal) -> HTMLResponse:
+        return _page(
+            _device_form(user_code, dev, refusal.message, client=info["client_name"]),
+            refusal.status_code,
+        )
 
     approve = decision == "allow"
     caller = ""
     if approve:
-        who = await _signed_in(svc, settings, email, password, user_id)
-        if isinstance(who, str):
+        who = await _signed_in(svc, settings, request, email, password, user_id)
+        if isinstance(who, _Refusal):
             return again(who)
-        caller, _ = who
+        caller = who
         if info.get("audience", "mcp") == "mcp":
             await svc.mcp_oauth.set_mcp_enabled(caller, True)
     try:
         await svc.mcp_oauth.decide_device(user_code, caller, approve)
     except ConsentError as exc:
-        return again(str(exc))
+        return again(_Refusal(str(exc)))
     if not approve:
         return _page("<h1>Declined</h1><p>The device was not signed in.</p>")
     return _page(

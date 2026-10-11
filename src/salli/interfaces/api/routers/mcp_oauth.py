@@ -38,7 +38,7 @@ router = APIRouter(tags=["mcp-oauth"])
 
 
 def _issuer() -> str:
-    return get_settings().mcp_public_base_url.rstrip("/")
+    return get_settings().salli_public_url.rstrip("/")
 
 
 # ── Discovery metadata ───────────────────────────────────────────────────────

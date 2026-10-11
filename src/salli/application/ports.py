@@ -1380,6 +1380,12 @@ class OAuthTokenRepository(ABC):
         ...
 
     @abstractmethod
+    async def revoke_all_for_user(self, user_id: str) -> int:
+        """Revoke every access and refresh token any client holds for this
+        user (signing them out everywhere). Returns how many it revoked."""
+        ...
+
+    @abstractmethod
     async def list_active_connections(
         self, user_id: str, resource: str | None = None
     ) -> list[McpConnectionRow]:
@@ -1591,8 +1597,146 @@ class PersonalAccessTokenRepository(ABC):
     async def revoke(self, user_id: str, token_id: str) -> bool: ...
 
     @abstractmethod
+    async def revoke_all(self, user_id: str) -> int:
+        """Revoke every live token of the user's; how many."""
+        ...
+
+    @abstractmethod
     async def touch(self, token_id: str, at: datetime) -> None:
         """Record use, for "last used" in the list."""
+        ...
+
+
+# ── Sign-in: Salli's own accounts ────────────────────────────────────────────
+
+
+class PasswordHasher(ABC):
+    """Turns a password into a hash that can be stored, and checks one
+    against it (adapters/auth/passwords.py: argon2id). Async because a good
+    hash is slow on purpose: an adapter runs it off the event loop."""
+
+    @abstractmethod
+    async def hash(self, password: str) -> str: ...
+
+    @abstractmethod
+    async def verify(self, password_hash: str, password: str) -> bool:
+        """Whether `password` is the one `password_hash` was made from. False,
+        never an exception, for a hash it can't read."""
+        ...
+
+    @abstractmethod
+    def needs_rehash(self, password_hash: str) -> bool:
+        """Whether a stored hash was made with other parameters than the
+        current ones, and should be made again at the next sign-in."""
+        ...
+
+
+class LoginRepository(ABC):
+    """Who can sign in (`logins`, one per user, keyed by the user id), their
+    sessions (`login_sessions`, stored hashed), and failed sign-ins
+    (`login_failures`, by a hash of what was tried) for throttling."""
+
+    @abstractmethod
+    async def create(
+        self, user_id: str, email: str, password_hash: str, *, is_owner: bool, at: datetime
+    ) -> dict[str, Any]:
+        """A login for an existing profile. `email` is already normalised."""
+        ...
+
+    @abstractmethod
+    async def get(self, user_id: str) -> dict[str, Any] | None:
+        """{user_id, email, is_owner, password_hash, password_changed_at, created_at}."""
+        ...
+
+    @abstractmethod
+    async def get_by_email(self, email: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def owner(self) -> dict[str, Any] | None:
+        """The instance's owner's login, if there is one yet."""
+        ...
+
+    @abstractmethod
+    async def list(self) -> list[dict[str, Any]]:
+        """Every login, oldest first, without password hashes."""
+        ...
+
+    @abstractmethod
+    async def set_password(
+        self, user_id: str, password_hash: str, *, changed_at: datetime | None
+    ) -> bool:
+        """Store a new hash. `changed_at` None: the same password, hashed
+        again with newer parameters, so not a change."""
+        ...
+
+    @abstractmethod
+    async def create_session(
+        self,
+        user_id: str,
+        token_hash: str,
+        user_agent: str | None,
+        at: datetime,
+        expires_at: datetime,
+    ) -> dict[str, Any]: ...
+
+    @abstractmethod
+    async def get_session(self, token_hash: str, now: datetime) -> dict[str, Any] | None:
+        """The session if it exists, is not revoked and has not expired."""
+        ...
+
+    @abstractmethod
+    async def list_sessions(self, user_id: str, now: datetime) -> list[dict[str, Any]]:
+        """The user's live sessions, newest first, never the hash."""
+        ...
+
+    @abstractmethod
+    async def touch_session(self, session_id: str, at: datetime) -> None: ...
+
+    @abstractmethod
+    async def revoke_session(self, user_id: str, session_id: str, at: datetime) -> bool: ...
+
+    @abstractmethod
+    async def revoke_sessions(self, user_id: str, at: datetime, *, keep: str | None = None) -> int:
+        """Revoke every live session of the user's but `keep`; how many."""
+        ...
+
+    @abstractmethod
+    async def record_failure(self, key_hash: str, at: datetime) -> None: ...
+
+    @abstractmethod
+    async def failures_since(self, key_hash: str, since: datetime) -> list[datetime]:
+        """When each failure for `key_hash` after `since` happened, oldest first."""
+        ...
+
+    @abstractmethod
+    async def clear_failures(self, key_hash: str) -> None: ...
+
+    @abstractmethod
+    async def prune_failures(self, before: datetime) -> None:
+        """Forget failures too old to count."""
+        ...
+
+
+@dataclass(frozen=True)
+class ExternalIdentity:
+    """Who an `IdentityProvider` says a bearer token belongs to."""
+
+    user_id: str
+    email: str | None = None
+
+
+class IdentityProvider(ABC):
+    """An identity provider outside Salli (an OIDC provider, say) whose
+    tokens the API should accept as a person's own session. Salli ships none:
+    a deployment supplies one through an extension (`Extension.
+    identity_provider`). The API asks it only about a bearer token that is
+    none of Salli's own, and the person must already have an account here:
+    a provider vouching for someone never creates one."""
+
+    @abstractmethod
+    async def verify(self, token: str) -> ExternalIdentity | None:
+        """Whose token this is, or None if it isn't one of this provider's
+        (or is no longer valid). Must not raise for a token it doesn't know."""
         ...
 
 

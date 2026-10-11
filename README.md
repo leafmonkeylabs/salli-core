@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="#quickstart"><b>Quickstart</b></a> ·
+  <a href="docs/self-host.md"><b>Self-hosting</b></a> ·
   <a href="packages/cli/README.md"><b>The CLI</b></a> ·
   <a href="docs/ai-clients.md"><b>AI clients</b></a> ·
   <a href="docs/taxrules.md"><b>Tax rules</b></a> ·
@@ -111,32 +112,23 @@ The REST API, the MCP server and any app you build on the
 
 ## Quickstart
 
-For the server you need:
-- [Docker](https://docs.docker.com/get-docker/);
-- [uv](https://docs.astral.sh/uv/);
-- the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started).
+On the machine that will run Salli, with
+[Docker](https://docs.docker.com/get-docker/):
 
 ```bash
-git clone https://github.com/leafmonkeylabs/salli-core && cd salli-core
-uv sync
-supabase start -x studio,storage-api,imgproxy,realtime,edge-runtime,logflare,vector,postgres-meta,mailpit,supavisor,postgrest
-uv run salli-server setup
-uv run salli-server serve       # http://localhost:8000; API docs at /docs
+mkdir salli && cd salli
+curl -fsSLO https://raw.githubusercontent.com/leafmonkeylabs/salli-core/main/compose.yaml
+docker compose up -d
+docker compose exec salli salli-server setup
 ```
 
-**`supabase start`** runs Postgres and Auth locally. The `-x` list skips the
-parts Salli doesn't use.
+That starts Salli and its Postgres database, with the server's secrets
+generated on the first run. `setup` asks for your email, a password and the
+currency you keep your money in, then creates your account and a starter
+chart of accounts. Signing in needs nothing else: Salli keeps its own
+accounts.
 
-**`salli-server setup`** writes `.env`, migrates the database, creates your
-account and seeds a starter chart of accounts.
-- It asks for your email, a password and the currency you keep your money in.
-- It also asks, optionally, for an
-  [Anthropic API key](https://console.anthropic.com/). Without one, everything
-  except the AI features works.
-
-`salli-server doctor` checks the setup at any time, without printing a secret.
-
-Then, in another terminal:
+Then, on your own computer, with Node.js 22:
 
 ```bash
 npm install --global @leafmonkeylabs/salli
@@ -144,6 +136,13 @@ salli login                     # http://localhost:8000 by default
 salli status
 salli add "lunch 12.50 cash"    # the AI drafts the entry, you confirm it
 ```
+
+The AI features need a model: an `ANTHROPIC_API_KEY` for the server, or each
+person's own key (`salli llm-keys set`) or ChatGPT plan. Everything else works
+without one.
+
+[docs/self-host.md](docs/self-host.md) covers the rest: settings, HTTPS on
+your own domain, members, backups, upgrades and security.
 
 ## Using it
 
@@ -193,8 +192,11 @@ Rule sets export and share as files, but salli-core ships none. See
   - Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem
     details.
   - `GET /v1/meta` describes the server.
-- **Signing in:** clients other than a browser use OAuth 2.1, with PKCE and a
-  loopback redirect, or a device code on a machine without a browser.
+- **Signing in:** Salli keeps its own accounts; the owner adds everyone else.
+  - The CLI uses OAuth 2.1, with PKCE and a loopback redirect, or a device
+    code on a machine without a browser.
+  - An app can sign in with an email and password (`POST /v1/auth/sessions`)
+    and send the session token it gets back.
   - Tokens are issued for the REST API or for MCP, and each accepts only its
     own.
   - For scripts and CI, make a personal access token with `salli tokens
@@ -229,33 +231,21 @@ guesses.
 
 ## Running the server
 
-`salli-server` is for whoever runs the instance, on its own machine:
+`salli-server` is for whoever runs the instance, on its own machine. With
+compose, run each command as `docker compose exec salli salli-server …`:
 
 | You want to… | Run |
 |---|---|
 | Set up a new instance | `salli-server setup` |
-| Serve the API and MCP | `salli-server serve --host 0.0.0.0 --port 8000` |
 | Check it is healthy | `salli-server doctor` |
-| Migrate after an upgrade | `salli-server db upgrade` (and `db current`) |
 | Let someone else use it | `salli-server members add partner@example.com` |
+| Reset a forgotten password | `salli-server members reset-password partner@example.com` |
 | Scheduled work for every user (cron) | `salli-server jobs run-advisor`, `jobs sync-banks`, `jobs recompute-tax` |
+| Migrate after an upgrade | done when the server starts; or `salli-server db upgrade` (and `db current`) |
 
-Each member has their own ledger and signs in with `salli login`. Public
-sign-up is off, so only accounts you create can use your instance.
-
-<details>
-<summary><b>Configuration</b></summary>
-
-Everything is in `.env` (see [`.env.example`](.env.example)), and `salli-server
-setup` fills in the essentials. These are the settings you might change:
-
-| Setting | Default | |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | none | Your key; every AI feature runs on it |
-| `SALLI_REGISTRATION` | `closed` | `open` lets anyone who can sign in create an account |
-| `SALLI_STORAGE` | `local` (after setup) | Uploaded files stay in `~/.salli/storage` |
-| `MCP_PUBLIC_BASE_URL` | `http://localhost:8000` | This API's URL as MCP clients see it |
-</details>
+Each member has their own ledger and signs in with `salli login`. There is no
+public sign-up: only accounts you create can use your instance. Settings,
+HTTPS, backups and upgrades are in [docs/self-host.md](docs/self-host.md).
 
 ## How it's built
 
@@ -286,6 +276,19 @@ Salli itself ships with none: nothing is metered, and every feature is on. See
 ## Contributing
 
 Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+To work on Salli itself you need [uv](https://docs.astral.sh/uv/), Node.js 22
+and a Postgres you can create databases on (Docker will do):
+
+```bash
+git clone https://github.com/leafmonkeylabs/salli-core && cd salli-core
+uv sync --group dev && npm ci
+docker run -d --name salli-dev-pg -e POSTGRES_PASSWORD=salli -p 127.0.0.1:5432:5432 postgres:17-alpine
+echo 'DATABASE_URL=postgresql+asyncpg://postgres:salli@127.0.0.1:5432/postgres' > .env
+uv run salli-server setup
+uv run salli-server serve       # http://localhost:8000; API docs at /docs
+```
+
 Contributors accept the [Contributor License Agreement](CLA.md) once, by
 commenting on their first pull request. For security issues, see
 [SECURITY.md](SECURITY.md). For how Salli looks and sounds, see the

@@ -143,7 +143,7 @@ async def test_a_token_needs_a_name_and_a_sane_lifetime(tokens):
 
 
 def _settings(**overrides: Any) -> Settings:
-    return Settings(_env_file=None, supabase_jwt_secret="secret", **overrides)
+    return Settings(_env_file=None, environment="production", **overrides)
 
 
 def _creds(token: str) -> HTTPAuthorizationCredentials:

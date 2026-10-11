@@ -12,7 +12,7 @@ import { readAllStdin } from '../util/stdin';
 
 /** How the server says you signed in (`method` in /v1/auth/me). */
 const SIGN_IN_METHODS: Record<AuthIdentity['method'], string> = {
-  session: 'a web session',
+  session: 'a session (signed in with your password)',
   oauth: 'an OAuth sign-in',
   pat: 'a personal access token',
   dev: 'development sign-in (any token is a user id)',

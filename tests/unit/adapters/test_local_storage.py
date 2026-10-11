@@ -14,8 +14,17 @@ async def test_a_file_is_written_under_the_users_folder_and_read_back(tmp_path):
 
     key = await storage.upload("u1", "stmt-1/october.csv", b"date,amount")
 
-    assert key == str((tmp_path / "storage" / "u1" / "stmt-1" / "october.csv").resolve())
+    assert key == "u1/stmt-1/october.csv"
+    assert (tmp_path / "storage" / "u1" / "stmt-1" / "october.csv").read_bytes() == b"date,amount"
     assert await storage.download(key) == b"date,amount"
+
+
+async def test_a_key_still_reads_after_the_root_moves(tmp_path):
+    """Keys are relative, so a restore onto another path keeps every file."""
+    key = await LocalStorageAdapter(tmp_path / "old").upload("u1", "a.csv", b"x")
+    (tmp_path / "old").rename(tmp_path / "new")
+
+    assert await LocalStorageAdapter(tmp_path / "new").download(key) == b"x"
 
 
 @pytest.mark.parametrize(
@@ -60,7 +69,6 @@ async def test_a_path_outside_the_root_is_not_read(tmp_path):
     secret.write_bytes(b"not yours")
     storage = LocalStorageAdapter(tmp_path / "storage")
 
-    with pytest.raises(ValueError):
-        await storage.download(str(secret))
-    with pytest.raises(ValueError):
-        await storage.download(str(tmp_path / "storage" / ".." / "secret.txt"))
+    for key in (str(secret), "../secret.txt", "u1/../../secret.txt", ""):
+        with pytest.raises(ValueError):
+            await storage.download(key)

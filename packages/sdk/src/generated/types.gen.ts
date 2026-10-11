@@ -2086,6 +2086,20 @@ export type CategorizedTransactions = {
 };
 
 /**
+ * ChangePasswordRequest
+ */
+export type ChangePasswordRequest = {
+    /**
+     * Current Password
+     */
+    current_password: string;
+    /**
+     * New Password
+     */
+    new_password: string;
+};
+
+/**
  * ChatAssistantMessage
  */
 export type ChatAssistantMessage = {
@@ -6347,6 +6361,34 @@ export type NewPersonalAccessToken = {
 };
 
 /**
+ * NewSession
+ *
+ * A session just started. Send `token` as a bearer token.
+ */
+export type NewSession = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Token
+     */
+    token: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+};
+
+/**
  * NextIncome
  */
 export type NextIncome = {
@@ -6673,6 +6715,16 @@ export type ParsedEntryDraft = {
      * Confidence
      */
     confidence?: number;
+};
+
+/**
+ * PasswordChanged
+ */
+export type PasswordChanged = {
+    /**
+     * Sessions Ended
+     */
+    sessions_ended: number;
 };
 
 /**
@@ -9101,6 +9153,36 @@ export type SensitivityReturns = {
 };
 
 /**
+ * Session
+ */
+export type Session = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * User Agent
+     */
+    user_agent: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Current
+     */
+    current: boolean;
+};
+
+/**
  * SetAiModels
  *
  * Name a model per task, or null to let Salli pick from the account's models.
@@ -9136,6 +9218,20 @@ export type SetPostingTagsRequest = {
     tags: {
         [key: string]: string;
     };
+};
+
+/**
+ * SignInRequest
+ */
+export type SignInRequest = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Password
+     */
+    password: string;
 };
 
 /**
@@ -11390,6 +11486,172 @@ export type AuthMeResponses = {
 };
 
 export type AuthMeResponse = AuthMeResponses[keyof AuthMeResponses];
+
+export type AuthSessionsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/sessions';
+};
+
+export type AuthSessionsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthSessionsListError = AuthSessionsListErrors[keyof AuthSessionsListErrors];
+
+export type AuthSessionsListResponses = {
+    /**
+     * Response Auth.Sessions.List
+     *
+     * Successful Response
+     */
+    200: Array<Session>;
+};
+
+export type AuthSessionsListResponse = AuthSessionsListResponses[keyof AuthSessionsListResponses];
+
+export type AuthSessionsCreateData = {
+    body: SignInRequest;
+    headers?: {
+        /**
+         * User-Agent
+         */
+        'user-agent'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/auth/sessions';
+};
+
+export type AuthSessionsCreateErrors = {
+    /**
+     * The email and password didn't match (which, is not said)
+     */
+    401: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * Too many failed sign-ins; `Retry-After` says when to try again
+     */
+    429: unknown;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthSessionsCreateError = AuthSessionsCreateErrors[keyof AuthSessionsCreateErrors];
+
+export type AuthSessionsCreateResponses = {
+    /**
+     * Successful Response
+     */
+    201: NewSession;
+};
+
+export type AuthSessionsCreateResponse = AuthSessionsCreateResponses[keyof AuthSessionsCreateResponses];
+
+export type AuthSessionsSignOutData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/sessions/current';
+};
+
+export type AuthSessionsSignOutErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthSessionsSignOutError = AuthSessionsSignOutErrors[keyof AuthSessionsSignOutErrors];
+
+export type AuthSessionsSignOutResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type AuthSessionsSignOutResponse = AuthSessionsSignOutResponses[keyof AuthSessionsSignOutResponses];
+
+export type AuthSessionsRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/v1/auth/sessions/{session_id}';
+};
+
+export type AuthSessionsRevokeErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthSessionsRevokeError = AuthSessionsRevokeErrors[keyof AuthSessionsRevokeErrors];
+
+export type AuthSessionsRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type AuthSessionsRevokeResponse = AuthSessionsRevokeResponses[keyof AuthSessionsRevokeResponses];
+
+export type AuthPasswordChangeData = {
+    body: ChangePasswordRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/password';
+};
+
+export type AuthPasswordChangeErrors = {
+    /**
+     * The current password is wrong, or this sign-in may not change it
+     */
+    403: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * Too many failed attempts; `Retry-After` says when to try again
+     */
+    429: unknown;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthPasswordChangeError = AuthPasswordChangeErrors[keyof AuthPasswordChangeErrors];
+
+export type AuthPasswordChangeResponses = {
+    /**
+     * Successful Response
+     */
+    200: PasswordChanged;
+};
+
+export type AuthPasswordChangeResponse = AuthPasswordChangeResponses[keyof AuthPasswordChangeResponses];
 
 export type AccountsListData = {
     body?: never;

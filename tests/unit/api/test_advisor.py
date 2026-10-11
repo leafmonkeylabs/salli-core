@@ -196,10 +196,8 @@ async def test_the_daily_run_lists_the_due_users_once(app, client, mock_services
     assert mock_services.advisor.due_users.await_count == 1
 
 
-async def test_the_daily_run_still_answers_at_the_path_pg_cron_was_given(
-    app, client, mock_services
-):
-    """The scheduled job's URL predates /v1 (supabase/migrations)."""
+async def test_the_daily_run_still_answers_at_its_path_from_before_v1(app, client, mock_services):
+    """A scheduler set up before /v1 calls the unversioned path."""
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cron_secret="s3cret")
     mock_services.advisor.due_users.return_value = []
 

@@ -13,8 +13,11 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, text
 from sqlalchemy.ext.asyncio import create_async_engine
+
+#: The advisory lock every migration run holds (any number: Salli's own).
+MIGRATION_LOCK = 0x5A11_0001
 
 #: Salli's own Alembic script directory.
 CORE_SCRIPT_LOCATION = str(Path(__file__).resolve().parent)
@@ -27,12 +30,16 @@ _EXTERNAL_TABLES = frozenset(
 
 
 def database_url() -> str:
-    """The URL the app uses: DATABASE_URL, else Settings (which reads .env)."""
-    if url := os.environ.get("DATABASE_URL"):
-        return url
+    """The URL the app uses: DATABASE_URL from the environment (read afresh:
+    tests point it at a scratch database), else Settings (which reads .env),
+    with DATABASE_PASSWORD in it when the URL has none."""
+    from salli.config import database_url as with_password
     from salli.config import get_settings
 
-    return get_settings().database_url
+    settings = get_settings()
+    if url := os.environ.get("DATABASE_URL"):
+        settings = settings.model_copy(update={"database_url": url})
+    return with_password(settings)
 
 
 def _owns(metadata: MetaData):
@@ -71,13 +78,18 @@ def run_env(context: Any, metadata: MetaData, version_table: str) -> None:
     def run(connection: Any) -> None:
         configure(connection=connection)
         with context.begin_transaction():
+            # One migrator at a time: the container migrates on every start,
+            # and two starting together would otherwise both try to. The
+            # second waits here, then finds nothing left to do. Released when
+            # the transaction ends.
+            connection.execute(text("select pg_advisory_xact_lock(:key)"), {"key": MIGRATION_LOCK})
             context.run_migrations()
 
     async def run_async() -> None:
         engine = create_async_engine(
             database_url(),
-            # Same reason as adapters/db/session.py: Supabase's transaction-mode
-            # pooler breaks asyncpg's server-side prepared statement cache.
+            # Same reason as adapters/db/session.py: a transaction-mode pooler
+            # breaks asyncpg's server-side prepared statement cache.
             connect_args={"statement_cache_size": 0},
         )
         async with engine.connect() as conn:

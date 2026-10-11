@@ -122,14 +122,19 @@ def with_json_option(root: Any) -> Any:
 
 
 def require_user() -> str:
-    """The user a command acts as: SALLI_USER_ID, from the environment or .env
-    (`salli-server setup` writes it: the instance's owner). For an extension's
-    commands that act on one user. Refuses rather than guessing: acting as a
-    made-up user would quietly put someone's records in an account no one
-    can sign in to."""
+    """The user a command acts as: SALLI_USER_ID (from the environment or
+    .env) if set, else the instance's owner (the account `salli-server setup`
+    created). For an extension's commands that act on one user. Refuses
+    rather than guessing: acting as a made-up user would quietly put
+    someone's records in an account no one can sign in to."""
+    import asyncio
+
     from salli.config import get_settings
 
     user_id = os.environ.get("SALLI_USER_ID") or get_settings().salli_user_id
+    if not user_id:
+        owner = asyncio.run(services().logins.owner())
+        user_id = str(owner["user_id"]) if owner else ""
     if not user_id:
         console.print(
             "[red]No user set.[/red] Run [bold]salli-server setup[/bold], or set SALLI_USER_ID."

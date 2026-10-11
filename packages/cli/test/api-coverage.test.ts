@@ -24,6 +24,8 @@ const SDK_PACKAGE = '@leafmonkeylabs/salli-sdk';
 /** Operations no `salli` command calls, and why. */
 const EXEMPT: Record<string, string> = {
   'meta.health': 'liveness probe for the host or load balancer',
+  'auth.sessions.create': 'signing in with a password, for an app that holds a session; `salli login` signs in through the browser or device page, which takes the same password',
+  'auth.sessions.signOut': 'signing out of a session, for the app that holds it; the CLI holds OAuth tokens, which `salli logout` revokes',
   'oauth.authorizationServerMetadata': 'OAuth discovery (RFC 8414); `salli login` reads the same endpoints from /v1/meta',
   'oauth.protectedResourceMetadata': 'OAuth discovery (RFC 9728), for MCP clients',
   'oauth.register': 'OAuth protocol: `salli login` reaches it through the SDK’s oauth module, at the URL /v1/meta names',

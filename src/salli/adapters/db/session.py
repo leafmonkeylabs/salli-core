@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from salli.config import Settings
+from salli.config import Settings, database_url
 
 
 def make_engine(settings: Settings, pooled: bool = True):
@@ -20,12 +20,12 @@ def make_engine(settings: Settings, pooled: bool = True):
         else {"poolclass": NullPool}
     )
     return create_async_engine(
-        settings.database_url,
+        database_url(settings),
         **pool,
-        # Supabase's transaction-mode pooler (pgbouncer) hands out connections that
-        # may not survive between statements, so asyncpg's server-side prepared
-        # statement cache goes stale. Disabling it trades a little query-plan reuse
-        # for correctness under pooling.
+        # A transaction-mode pooler (PgBouncer, or a hosted Postgres's) hands out
+        # connections that may not survive between statements, so asyncpg's
+        # server-side prepared statement cache goes stale. Disabling it trades a
+        # little query-plan reuse for working behind one.
         connect_args={"statement_cache_size": 0},
     )
 

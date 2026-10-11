@@ -43,6 +43,9 @@ from salli.adapters.db.models import (
     InstanceSettingORM,
     InsuranceTargetORM,
     JournalEntryORM,
+    LoginFailureORM,
+    LoginORM,
+    LoginSessionORM,
     OAuthAccessTokenORM,
     OAuthAuthorizationCodeORM,
     OAuthClientORM,
@@ -85,6 +88,7 @@ from salli.application.ports import (
     InsuranceTargetRepository,
     LedgerRepository,
     LlmCredentialRepository,
+    LoginRepository,
     McpConnectionRow,
     OAuthClientRepository,
     OAuthTokenRepository,
@@ -2780,6 +2784,9 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(OAuthAuthorizationCodeORM, OAuthAuthorizationCodeORM.user_id)
         await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
         await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
+        # Their sessions, then their login: no one signs in as them again.
+        await _delete(LoginSessionORM, LoginSessionORM.user_id)
+        await _delete(LoginORM, LoginORM.user_id)
         await _delete(CategorizationRuleORM, CategorizationRuleORM.user_id)
         await _delete(BankConnectionAccountORM, BankConnectionAccountORM.user_id)
         await _delete(BankConnectionORM, BankConnectionORM.user_id)
@@ -3073,6 +3080,19 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         await self._s.flush()
         return revoked
 
+    async def revoke_all_for_user(self, user_id: str) -> int:
+        now = datetime.now(UTC)
+        revoked = 0
+        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+            result = await self._s.execute(
+                update(model)
+                .where(model.user_id == user_id, model.revoked_at.is_(None))
+                .values(revoked_at=now)
+            )
+            revoked += cast(Any, result).rowcount or 0
+        await self._s.flush()
+        return revoked
+
     async def list_active_connections(
         self, user_id: str, resource: str | None = None
     ) -> list[McpConnectionRow]:
@@ -3289,6 +3309,18 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
         await self._s.flush()
         return True
 
+    async def revoke_all(self, user_id: str) -> int:
+        result = await self._s.execute(
+            update(PersonalAccessTokenORM)
+            .where(
+                PersonalAccessTokenORM.user_id == user_id,
+                PersonalAccessTokenORM.revoked_at.is_(None),
+            )
+            .values(revoked_at=datetime.now(UTC))
+        )
+        await self._s.flush()
+        return cast(Any, result).rowcount or 0
+
     async def touch(self, token_id: str, at: datetime) -> None:
         row = (
             await self._s.execute(
@@ -3298,6 +3330,171 @@ class SQLPersonalAccessTokenRepository(PersonalAccessTokenRepository):
         if row is not None:
             row.last_used_at = at
             await self._s.flush()
+
+
+class SQLLoginRepository(LoginRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    @staticmethod
+    def _login(row: LoginORM, *, with_hash: bool = True) -> dict[str, Any]:
+        login: dict[str, Any] = {
+            "user_id": row.user_id,
+            "email": row.email,
+            "is_owner": row.is_owner,
+            "password_changed_at": row.password_changed_at,
+            "created_at": row.created_at,
+        }
+        if with_hash:
+            login["password_hash"] = row.password_hash
+        return login
+
+    @staticmethod
+    def _session(row: LoginSessionORM) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "user_id": row.user_id,
+            "user_agent": row.user_agent,
+            "created_at": row.created_at,
+            "last_used_at": row.last_used_at,
+            "expires_at": row.expires_at,
+        }
+
+    async def create(
+        self, user_id: str, email: str, password_hash: str, *, is_owner: bool, at: datetime
+    ) -> dict[str, Any]:
+        row = LoginORM(
+            user_id=user_id,
+            email=email,
+            password_hash=password_hash,
+            is_owner=is_owner,
+            password_changed_at=at,
+            created_at=at,
+        )
+        self._s.add(row)
+        await self._s.flush()
+        return self._login(row, with_hash=False)
+
+    async def get(self, user_id: str) -> dict[str, Any] | None:
+        row = await self._s.get(LoginORM, user_id)
+        return self._login(row) if row is not None else None
+
+    async def get_by_email(self, email: str) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(select(LoginORM).where(LoginORM.email == email))
+        ).scalar_one_or_none()
+        return self._login(row) if row is not None else None
+
+    async def owner(self) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(select(LoginORM).where(LoginORM.is_owner.is_(True)))
+        ).scalar_one_or_none()
+        return self._login(row, with_hash=False) if row is not None else None
+
+    async def list(self) -> list[dict[str, Any]]:
+        rows = (await self._s.execute(select(LoginORM).order_by(LoginORM.created_at))).scalars()
+        return [self._login(r, with_hash=False) for r in rows]
+
+    async def set_password(
+        self, user_id: str, password_hash: str, *, changed_at: datetime | None
+    ) -> bool:
+        row = await self._s.get(LoginORM, user_id)
+        if row is None:
+            return False
+        row.password_hash = password_hash
+        if changed_at is not None:
+            row.password_changed_at = changed_at
+        await self._s.flush()
+        return True
+
+    async def create_session(
+        self,
+        user_id: str,
+        token_hash: str,
+        user_agent: str | None,
+        at: datetime,
+        expires_at: datetime,
+    ) -> dict[str, Any]:
+        row = LoginSessionORM(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            token_hash=token_hash,
+            user_agent=user_agent,
+            created_at=at,
+            last_used_at=at,
+            expires_at=expires_at,
+        )
+        self._s.add(row)
+        await self._s.flush()
+        return self._session(row)
+
+    async def get_session(self, token_hash: str, now: datetime) -> dict[str, Any] | None:
+        row = (
+            await self._s.execute(
+                select(LoginSessionORM).where(
+                    LoginSessionORM.token_hash == token_hash,
+                    LoginSessionORM.revoked_at.is_(None),
+                    LoginSessionORM.expires_at > now,
+                )
+            )
+        ).scalar_one_or_none()
+        return self._session(row) if row is not None else None
+
+    async def list_sessions(self, user_id: str, now: datetime) -> list[dict[str, Any]]:
+        rows = (
+            await self._s.execute(
+                select(LoginSessionORM)
+                .where(
+                    LoginSessionORM.user_id == user_id,
+                    LoginSessionORM.revoked_at.is_(None),
+                    LoginSessionORM.expires_at > now,
+                )
+                .order_by(LoginSessionORM.created_at.desc())
+            )
+        ).scalars()
+        return [self._session(r) for r in rows]
+
+    async def touch_session(self, session_id: str, at: datetime) -> None:
+        await self._s.execute(
+            update(LoginSessionORM).where(LoginSessionORM.id == session_id).values(last_used_at=at)
+        )
+
+    async def revoke_session(self, user_id: str, session_id: str, at: datetime) -> bool:
+        result = await self._s.execute(
+            update(LoginSessionORM)
+            .where(
+                LoginSessionORM.id == session_id,
+                LoginSessionORM.user_id == user_id,
+                LoginSessionORM.revoked_at.is_(None),
+            )
+            .values(revoked_at=at)
+        )
+        return bool(cast(Any, result).rowcount)
+
+    async def revoke_sessions(self, user_id: str, at: datetime, *, keep: str | None = None) -> int:
+        where = [LoginSessionORM.user_id == user_id, LoginSessionORM.revoked_at.is_(None)]
+        if keep is not None:
+            where.append(LoginSessionORM.id != keep)
+        result = await self._s.execute(update(LoginSessionORM).where(*where).values(revoked_at=at))
+        return cast(Any, result).rowcount or 0
+
+    async def record_failure(self, key_hash: str, at: datetime) -> None:
+        self._s.add(LoginFailureORM(key_hash=key_hash, at=at))
+        await self._s.flush()
+
+    async def failures_since(self, key_hash: str, since: datetime) -> list[datetime]:
+        rows = await self._s.execute(
+            select(LoginFailureORM.at)
+            .where(LoginFailureORM.key_hash == key_hash, LoginFailureORM.at > since)
+            .order_by(LoginFailureORM.at)
+        )
+        return list(rows.scalars())
+
+    async def clear_failures(self, key_hash: str) -> None:
+        await self._s.execute(delete(LoginFailureORM).where(LoginFailureORM.key_hash == key_hash))
+
+    async def prune_failures(self, before: datetime) -> None:
+        await self._s.execute(delete(LoginFailureORM).where(LoginFailureORM.at <= before))
 
 
 class SQLRuleRepository(RuleRepository):
