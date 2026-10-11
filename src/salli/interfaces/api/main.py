@@ -124,7 +124,7 @@ async def lifespan(app: FastAPI):
     # request throws "Task group is not initialized".
     from salli.interfaces.api.mcp_server import build_mcp_server
 
-    mcp_server = build_mcp_server(svc, issuer_url=settings.mcp_public_base_url.rstrip("/"))
+    mcp_server = build_mcp_server(svc, issuer_url=settings.salli_public_url.rstrip("/"))
     # Mounted at root, not "/mcp": FastMCP's own streamable_http_path default
     # ("/mcp") already puts the real route at exactly /mcp with no trailing
     # slash, matching the resource URL we advertise everywhere. Mounting at

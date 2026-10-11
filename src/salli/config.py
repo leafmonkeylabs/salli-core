@@ -54,11 +54,15 @@ class Settings(BaseSettings):
     # call. `salli-server jobs` does the same work from a crontab without them.
     cron_secret: str = ""
 
+    # This server's public URL, as clients see it: what OAuth and MCP name as
+    # the issuer and resources, and where the consent and device pages are.
+    # Behind a proxy on a domain, `https://money.example.org`.
+    salli_public_url: str = "http://localhost:8000"
+
     # MCP server — lets external AI clients (Claude, ChatGPT, etc.) connect to a
     # user's Salli account via OAuth 2.1 + Dynamic Client Registration.
-    mcp_public_base_url: str = "http://localhost:8000"  # this API, as seen by MCP clients
     # Where a user approves an MCP connection. Empty: Salli's own consent page,
-    # served by this API at {mcp_public_base_url}/mcp/oauth/consent-page. A
+    # served by this API at {salli_public_url}/mcp/oauth/consent-page. A
     # deployment with its own web app points this at that app's consent screen
     # (it receives `?rt=<token>` and calls /mcp/oauth/consent-info and /consent).
     mcp_consent_url: str = ""

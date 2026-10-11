@@ -44,7 +44,7 @@ async def salli(db):
         _env_file=None,
         database_url=db,
         environment="production",
-        mcp_public_base_url=BASE,
+        salli_public_url=BASE,
         mcp_signing_secret="s" * 48,
     )
     services = build_services(settings)

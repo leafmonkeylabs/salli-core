@@ -233,7 +233,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
     reports = ReportService(ledger, fi)
-    public_url = settings.mcp_public_base_url.rstrip("/")
+    public_url = settings.salli_public_url.rstrip("/")
     mcp_oauth = McpOAuthService(
         uow_factory,
         signing_secret=_mcp_signing_secret(settings),

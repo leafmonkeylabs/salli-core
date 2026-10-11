@@ -264,7 +264,7 @@ def setup(
     )
     emit({"user_id": user_id, "email": owner["email"], "env_written": sorted(written), **result})
 
-    server = settings.mcp_public_base_url.rstrip("/")
+    server = settings.salli_public_url.rstrip("/")
     console.print(
         "\n[bold]Done.[/bold] Next, on your own computer:\n"
         "  npm install --global @leafmonkeylabs/salli\n"
