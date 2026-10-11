@@ -120,7 +120,7 @@ class DebtService:
         async with self._uow_factory() as uow:
             if "account_id" in data:
                 updates["account_id"] = data["account_id"] or None
-            current = await uow.debts.get(user_id, debt_id)
+            current: dict[str, Any] | None = await uow.debts.get(user_id, debt_id)
             linked = updates.get("account_id", (current or {}).get("account_id"))
             # Checked when it is linked, and when a paid-off debt is made
             # active again: its account may hold another debt by now.
