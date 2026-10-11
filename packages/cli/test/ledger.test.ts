@@ -458,6 +458,18 @@ describe('salli accounts', () => {
     expect((await run(['accounts', 'add', '1400', 'Shares', 'asset', '--asset-role', 'stocks'])).code).not.toBe(0);
     expect(mock.requestsTo('POST', '/v1/accounts/')).toHaveLength(1);
   });
+
+  it('passes a tax role through for the server to check against your rule sets', async () => {
+    // No list of roles is built in: they are whatever the user's rule sets declare.
+    const added = await run(['accounts', 'add', '4100', 'Salary', 'income', '--tax-role', 'employment_income']);
+    expect(added.code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/accounts/')[0]?.json).toEqual({
+      code: '4100',
+      name: 'Salary',
+      type: 'income',
+      tax_role: 'employment_income',
+    });
+  });
 });
 
 describe('salli entries', () => {

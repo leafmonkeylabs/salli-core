@@ -20,11 +20,9 @@ import { displayDate, parseDate } from '../util/dates';
 import { AccountBook, currencyArg } from './shared';
 
 const TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as const;
-const TAX_ROLES = ['apit_credit', 'ait_credit', 'foreign_tax_credit', 'qualifying_payment', 'fsi_income'] as const;
 /** What an asset account holds: planning reads this, never the account's name. */
 const ASSET_ROLES = ['cash', 'investment', 'other'] as const;
 type AccountType = (typeof TYPES)[number];
-type TaxRole = (typeof TAX_ROLES)[number];
 type AssetRole = (typeof ASSET_ROLES)[number];
 
 /** "asset (investment)" for an asset account that isn't cash; the type alone otherwise. */
@@ -177,7 +175,7 @@ An asset account's role says what it holds: cash (the default), investment
     .description('Add an account')
     .option('--currency <code>', 'Currency it is held in (default: your base currency)')
     .option('--parent <account>', 'Parent account (code, name or id)')
-    .addOption(new Option('--tax-role <role>', 'How the tax engine treats it').choices(TAX_ROLES))
+    .option('--tax-role <role>', 'A tax role from one of your tax rule sets (see salli tax rules show)')
     .addOption(new Option('--asset-role <role>', 'For an asset account: what it holds (default cash)').choices(ASSET_ROLES))
     .action(async (codeArg, nameArg, typeArg, opts) => {
       let [code, name, type] = [codeArg, nameArg, typeArg];
@@ -196,7 +194,7 @@ An asset account's role says what it holds: cash (the default), investment
       const body: AddAccountRequest = { code: code.trim(), name: name.trim(), type: accountType(type) };
       if (opts.currency) body.currency = currencyArg(opts.currency);
       if (opts.parent) body.parent_id = (await AccountBook.load(api)).resolve(opts.parent).id;
-      if (opts.taxRole) body.tax_role = opts.taxRole as TaxRole;
+      if (opts.taxRole) body.tax_role = opts.taxRole;
       if (opts.assetRole) {
         if (body.type !== 'asset') throw new UsageError('Only an asset account has an asset role.', `This is a ${body.type} account.`);
         body.asset_role = opts.assetRole as AssetRole;
@@ -214,7 +212,7 @@ An asset account's role says what it holds: cash (the default), investment
     .option('--name <name>', 'New name')
     .addOption(new Option('--type <type>', 'New type').choices(TYPES))
     .option('--currency <code>', 'New currency (only while it has no entries)')
-    .addOption(new Option('--tax-role <role>', 'New tax role').choices(TAX_ROLES))
+    .option('--tax-role <role>', 'New tax role, from one of your tax rule sets')
     .option('--no-tax-role', 'Clear its tax role')
     .addOption(new Option('--asset-role <role>', 'What an asset account holds').choices(ASSET_ROLES))
     .action(async (query, opts) => {
@@ -232,7 +230,7 @@ An asset account's role says what it holds: cash (the default), investment
         type: (opts.type as AccountType | undefined) ?? account.type,
       };
       if (opts.currency) body.currency = currencyArg(opts.currency);
-      if (changingTaxRole) body.tax_role = opts.taxRole as TaxRole;
+      if (typeof opts.taxRole === 'string') body.tax_role = opts.taxRole;
       if (clearingTaxRole) body.tax_role = null;
       if (opts.assetRole) {
         if (body.type !== 'asset') throw new UsageError('Only an asset account has an asset role.', `This is a ${body.type} account.`);
