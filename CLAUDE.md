@@ -8,8 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies (requires uv)
 uv sync --group dev
 
-# Run all tests (migration tests also need SALLI_TEST_DATABASE_URL, a Postgres
-# URL whose user may CREATE DATABASE; they are skipped without it)
+# Run all tests (integration and migration tests also need
+# SALLI_TEST_DATABASE_URL, a plain Postgres URL whose user may CREATE DATABASE;
+# they are skipped without it). A local one:
+#   docker run -d --name salli-core-test-pg -e POSTGRES_PASSWORD=postgres \
+#     -p 127.0.0.1:54998:5432 postgres:17-alpine
+#   export SALLI_TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:54998/postgres
 uv run pytest
 
 # Run a single test file / test
@@ -29,11 +33,18 @@ uv run salli-server db upgrade
 # New migration after editing adapters/db/models.py
 uv run alembic revision --autogenerate -m "description"
 
-# First-time setup of a local instance (after `supabase start`), then serve it
+# First-time setup of a local instance (DATABASE_URL in .env, any Postgres),
+# then serve it. setup writes the server's secrets to .env and makes the owner.
 uv run salli-server setup
 uv run salli-server serve
-uv run salli-server doctor      # config, database, migrations; prints no secrets
+uv run salli-server doctor      # config, database, migrations, owner; prints no secrets
+uv run salli-server members add|list|reset-password
 uv run salli-server --help
+
+# The container, as self-hosters run it (compose.yaml, docs/self-host.md)
+docker compose up -d --build
+docker compose exec salli salli-server setup
+docker compose down -v          # and its data
 
 # The TypeScript SDK and the `salli` CLI (packages/)
 npm ci
@@ -146,12 +157,20 @@ Every prompt ends with a section about the user (`jurisdiction.py`: date, base c
 | `tests/properties/` | Hypothesis property tests for ledger invariants (trial balance nets zero, reversing restores balance, multi-currency reconciles) |
 | `tests/golden/` | Engines' worked examples (budget, debt, FI, portfolio, …) |
 | `tests/taxrules/` | The tax rule-set engine; `conformance/` holds fictional jurisdictions, each the structure of a real-world feature, never its law |
-| `tests/integration/` | Against a real Postgres (migrations, triggers); skipped without `SALLI_TEST_DATABASE_URL` |
-| `tests/contract/` | The committed OpenAPI document, the no-billing-vocabulary guard, and the no-country-knowledge guard (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
+| `tests/integration/` | Against a real Postgres (migrations, triggers, accounts and every sign-in path over HTTP); skipped without `SALLI_TEST_DATABASE_URL` |
+| `tests/contract/` | The committed OpenAPI document, the no-billing-vocabulary guard, the no-country-knowledge guard and the guard that keeps a former auth provider out (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
 
 ### Configuration
 
-All config is in `config.py` via `pydantic-settings` and reads from environment / `.env` (see `.env.example`; `salli-server setup` writes it). Required: `DATABASE_URL` and the `SUPABASE_*` auth keys. `ANTHROPIC_API_KEY` enables the AI features. `SALLI_REGISTRATION` (closed by default), `SALLI_STORAGE`, `SALLI_EXTENSIONS`.
+All config is in `config.py` via `pydantic-settings` and reads from the environment, a `.env` (a checkout's; `salli-server setup` writes the server's secrets there) and `SALLI_SECRETS_DIR` (one file per secret; the container's, made by `salli-server secrets init`). Required: `DATABASE_URL` (its password may come from `DATABASE_PASSWORD`). `ANTHROPIC_API_KEY` enables the AI features. `SALLI_PUBLIC_URL`, `ALLOWED_ORIGINS` (none by default), `SALLI_STORAGE_DIR`, `SALLI_EXTENSIONS`. Every setting is in the table in [docs/self-host.md](docs/self-host.md#configuration): keep it in step.
+
+### Signing in
+
+Salli keeps its own accounts (decision D13); nothing but Postgres is needed. `application/services/login_service.py`: argon2id passwords (`adapters/auth/passwords.py`, rehashed when the parameters change), throttled failures (by a hash of the email and of the address), opaque `salli_st_` session tokens stored as SHA-256 hashes. `interfaces/api/deps.get_principal` accepts Salli's own tokens only (sessions, personal access tokens, OAuth tokens for the API), then an extension's `IdentityProvider` if one is enabled, then the development fallback; no request ever creates an account. The consent and device pages (`routers/mcp_consent_page.py`) check the same passwords, so the CLI's sign-in and MCP connections go through them. There is no sign-up and no email: the owner (`salli-server setup`) adds members and resets passwords. `tax:activate` follows from how the caller signed in (`application/permissions.py`). `tests/contract/test_auth_is_our_own.py` keeps the auth provider Salli used before out of the code and docs.
+
+### Self-hosting
+
+`Dockerfile` (uv from `uv.lock`, slim, non-root, `/healthz` healthcheck; the command migrates under an advisory lock, then serves) and `compose.yaml` (generated secrets, Postgres 17 on an internal network, Caddy under the `tls` profile). `.github/workflows/image.yml` builds both platforms on pull requests and pushes to GHCR from `server-v*` tags, after approval. The guide is [docs/self-host.md](docs/self-host.md).
 
 ### Tax rules for a country: rule-set authoring
 

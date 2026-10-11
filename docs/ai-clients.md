@@ -5,6 +5,11 @@ already pay for, and that subscription does the thinking while Salli supplies th
 numbers. Salli computes every amount; the model reads and explains them. It never
 does the arithmetic itself.
 
+You approve each connection on Salli's own consent page, with your Salli email and
+password. An app that connects from its maker's cloud (Claude's, ChatGPT's) needs
+your Salli reachable over HTTPS: [docs/self-host.md](self-host.md#https-on-your-own-domain)
+shows how.
+
 Once connected, your AI can:
 - read your cash flow, spending, net worth over time, recurring payments and your
   cash forecast;

@@ -22,10 +22,36 @@ for the tax conformance suite, and fixes are all welcome.
   generated client), and `openapi/openapi.json` regenerated:
   `uv run python -m salli.interfaces.api.spec > openapi/openapi.json`.
 - **Tests pass.** `uv run ruff check src tests`, `uv run ruff format --check
-  src tests`, and `uv run pytest`. Migration tests need a Postgres:
-  `SALLI_TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres uv run pytest`
-  works against `supabase start`. For `packages/`: `npm ci`, then
-  `npm run typecheck`, `npm run lint`, `npm test` and `npm run check:generated`.
+  src tests`, and `uv run pytest` with a Postgres for the integration tests
+  ([below](#a-development-setup)). For `packages/`: `npm ci`, then `npm run
+  typecheck`, `npm run lint`, `npm test` and `npm run check:generated`.
+
+## A development setup
+
+You need [uv](https://docs.astral.sh/uv/), Node.js 22 and Docker (or any
+Postgres 17 you can create databases on).
+
+```bash
+uv sync --group dev
+npm ci
+
+# A Postgres for development and the tests. The integration and migration
+# tests create and drop their own databases on it, and are skipped without it.
+docker run -d --name salli-core-test-pg -e POSTGRES_PASSWORD=postgres \
+  -p 127.0.0.1:54998:5432 postgres:17-alpine
+export SALLI_TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:54998/postgres
+uv run pytest
+
+# A server to try things against, on the same Postgres.
+echo 'DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:54998/postgres' > .env
+uv run salli-server setup      # writes the server's secrets to .env, makes your account
+uv run salli-server serve      # http://localhost:8000; API docs at /docs
+npm run build && node packages/cli/dist/salli.js login
+```
+
+To try the container as a self-hoster runs it, `docker compose up -d --build`
+builds the image from this checkout ([docs/self-host.md](docs/self-host.md)).
+`docker run --rm -i hadolint/hadolint < Dockerfile` lints the Dockerfile.
 
 ## Contributor License Agreement
 

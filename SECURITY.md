@@ -12,8 +12,10 @@ you updated until it's fixed.
 
 - Keep `.env` out of version control and readable only by you (`salli-server
   setup` writes it with mode 600).
-- Leave `SALLI_REGISTRATION=closed` unless you mean to let anyone who can
-  sign in create an account.
+- There is no sign-up: only accounts the owner creates can sign in. Keep the
+  `secrets` volume and your backups as private as the database.
 - Never set `SALLI_INSECURE_DEV_AUTH` outside local development.
-- If you expose the API beyond your machine, put it behind HTTPS and set
-  `MCP_PUBLIC_BASE_URL` to its public URL.
+- If you expose the API beyond your machine, put it behind HTTPS (compose's
+  `tls` profile) and set `SALLI_PUBLIC_URL` to its public URL.
+- [docs/self-host.md](docs/self-host.md#security) says how passwords, sessions
+  and sign-in throttling work.
