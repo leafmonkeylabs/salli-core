@@ -205,43 +205,44 @@ async def test_explain_tax_line_names_the_lines_there_are_for_an_unknown_one():
 
 # ── can_i_afford / get_freedom_snapshot — the affordability tools ──────────────
 #
-# The engine's arithmetic is covered in tests/golden and tests/properties. What
-# matters at this layer is that the tool refuses bad input rather than passing it
-# to the money path, and that it surfaces staleness instead of hiding it.
+# The figures are the scenario engine's (tests/golden/test_household_scenarios.py).
+# What matters at this layer is that the tool refuses bad input rather than
+# passing it on, that it builds the purchase as scenario documents and leaves
+# every figure to Salli (no arithmetic of its own), and that it surfaces
+# staleness instead of hiding it.
+
+
+class FakeScenarioService:
+    """Records the documents the tool built, and echoes a canned result."""
+
+    def __init__(self, is_stale: bool = False):
+        self.calls: list[tuple[str, object]] = []
+        self._is_stale = is_stale
+
+    def today(self):
+        import datetime as dt
+
+        return dt.date(2026, 10, 11)
+
+    async def run(self, user_id, scenario):
+        self.calls.append(("run", scenario))
+        return {"is_stale": self._is_stale, "data_as_of": "2026-03-01" if self._is_stale else None}
+
+    async def compare(self, user_id, options):
+        self.calls.append(("compare", options))
+        return {"options": [{"is_stale": self._is_stale}] * len(options)}
 
 
 class FakeFiService:
-    """Records what the tool passed through, and echoes a canned impact."""
-
-    def __init__(self, is_stale: bool = False):
-        self.calls: list[dict] = []
-        self._is_stale = is_stale
-
-    async def simulate_purchase(self, user_id, amount, *, term_months=None, annual_interest_rate=0):
-        self.calls.append(
-            {
-                "user_id": user_id,
-                "amount": amount,
-                "term_months": term_months,
-                "annual_interest_rate": annual_interest_rate,
-            }
-        )
-        return {
-            "amount": str(amount),
-            "is_stale": self._is_stale,
-            "data_as_of": "2026-03-01" if self._is_stale else "2026-07-20",
-            "options": [{"key": "cash", "months_delay": 9}],
-        }
-
     async def compute_score(self, user_id):
         return {"overall_score": "61.01", "grade": "Strong"}
 
 
-def _manager_tool(name: str, fi_svc=None):
+def _manager_tool(name: str, fi_svc=None, scenario_svc=None):
     from salli.domain.agents.tools import make_manager_tools, set_current_user
 
     set_current_user("u1")
-    tools = make_manager_tools(None, None, None, fi_svc=fi_svc)
+    tools = make_manager_tools(None, None, None, fi_svc=fi_svc, scenario_svc=scenario_svc)
     return next(t for t in tools if t.name == name)
 
 
@@ -250,21 +251,64 @@ def test_affordability_tools_are_registered():
     discuss Freedom at all. Guard against that regressing."""
     from salli.domain.agents.tools import make_manager_tools
 
-    names = {t.name for t in make_manager_tools(None, None, None, fi_svc=FakeFiService())}
+    names = {
+        t.name
+        for t in make_manager_tools(
+            None, None, None, fi_svc=FakeFiService(), scenario_svc=FakeScenarioService()
+        )
+    }
     assert "can_i_afford" in names
     assert "get_freedom_snapshot" in names
 
 
 @pytest.mark.asyncio
-async def test_can_i_afford_passes_decimal_amount_through():
-    fi = FakeFiService()
-    tool = _manager_tool("can_i_afford", fi)
+async def test_can_i_afford_builds_cash_against_instalments_as_scenarios():
+    """Was: the tool passed the price to FI's own purchase costing. Now it
+    writes the options as documents, the price exactly as given, and Salli
+    compares them."""
+    scenarios = FakeScenarioService()
+    tool = _manager_tool("can_i_afford", scenario_svc=scenarios)
 
-    await tool.ainvoke({"amount": "450000", "term_months": 12, "annual_interest_rate": "0.18"})
+    await tool.ainvoke(
+        {
+            "amount": "2400.00",
+            "date": "2026-11-01",
+            "term_months": 12,
+            "annual_interest_rate": "0.069",
+            "what": "A laptop",
+        }
+    )
 
-    assert fi.calls[0]["amount"] == Decimal("450000")
-    assert fi.calls[0]["annual_interest_rate"] == Decimal("0.18")
-    assert fi.calls[0]["term_months"] == 12
+    ((kind, options),) = scenarios.calls
+    assert kind == "compare"
+    cash, instalments = options
+    purchase = {"type": "one_off", "date": "2026-11-01", "amount": "-2400.00", "label": "A laptop"}
+    assert cash == {"schema": "salli.scenario/1", "label": "Pay cash", "changes": [purchase]}
+    assert instalments["label"] == "Instalments"
+    assert instalments["changes"] == [
+        purchase,
+        {
+            "type": "loan",
+            "principal": "2400.00",
+            "annual_rate": "0.069",
+            "term_months": 12,
+            "start": "2026-11-01",
+            "label": "A laptop: instalments",
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_cash_purchase_alone_is_one_scenario_run_today():
+    scenarios = FakeScenarioService()
+    tool = _manager_tool("can_i_afford", scenario_svc=scenarios)
+
+    await tool.ainvoke({"amount": "450000"})
+
+    ((kind, scenario),) = scenarios.calls
+    assert kind == "run"
+    assert scenario["changes"][0]["date"] == "2026-10-11"  # the service's today
+    assert scenario["changes"][0]["amount"] == "-450000"
 
 
 @pytest.mark.asyncio
@@ -273,31 +317,32 @@ async def test_can_i_afford_rejects_a_percentage_mistaken_for_a_fraction():
     18 instead of 0.18 would overstate the finance cost ~100x. Reject rather than
     compute — the same reason FireStrategySchema bounds its rates.
     """
-    fi = FakeFiService()
-    tool = _manager_tool("can_i_afford", fi)
+    scenarios = FakeScenarioService()
+    tool = _manager_tool("can_i_afford", scenario_svc=scenarios)
 
     result = await tool.ainvoke(
         {"amount": "450000", "term_months": 12, "annual_interest_rate": "18"}
     )
 
     assert "error" in result
-    assert fi.calls == []  # never reached the money path
+    assert scenarios.calls == []  # never reached the engine
 
 
 @pytest.mark.asyncio
 async def test_can_i_afford_rejects_unparseable_and_negative_amounts():
-    fi = FakeFiService()
-    tool = _manager_tool("can_i_afford", fi)
+    scenarios = FakeScenarioService()
+    tool = _manager_tool("can_i_afford", scenario_svc=scenarios)
 
     assert "error" in await tool.ainvoke({"amount": "a lot"})
     assert "error" in await tool.ainvoke({"amount": "-100"})
-    assert fi.calls == []
+    assert "error" in await tool.ainvoke({"amount": "0"})
+    assert scenarios.calls == []
 
 
 @pytest.mark.asyncio
 async def test_can_i_afford_surfaces_staleness_to_the_model():
     """The refusal is the model's job, but it can only refuse if it is told."""
-    tool = _manager_tool("can_i_afford", FakeFiService(is_stale=True))
+    tool = _manager_tool("can_i_afford", scenario_svc=FakeScenarioService(is_stale=True))
 
     result = await tool.ainvoke({"amount": "450000"})
 
@@ -308,7 +353,7 @@ async def test_can_i_afford_surfaces_staleness_to_the_model():
 @pytest.mark.asyncio
 async def test_freedom_tools_degrade_without_the_service():
     for name in ("can_i_afford", "get_freedom_snapshot"):
-        tool = _manager_tool(name, None)
+        tool = _manager_tool(name)
         payload = {"amount": "1000"} if name == "can_i_afford" else {}
         result = await tool.ainvoke(payload)
         assert "error" in result

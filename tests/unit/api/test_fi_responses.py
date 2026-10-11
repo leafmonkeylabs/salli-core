@@ -164,7 +164,6 @@ async def test_the_service_raw_fi_number_is_an_exact_quotient_in_exponent_form(f
         ("get", "/v1/fi/score/history", None),
         ("get", "/v1/fi/projections", None),
         ("get", "/v1/fi/surplus", None),
-        ("post", "/v1/fi/simulate-purchase", {"amount": "450000", "term_months": 12}),
         ("get", "/v1/fi/goals", None),
         ("get", "/v1/fi/goals/house/allocations", None),
         ("get", "/v1/fi/strategy", None),
@@ -184,17 +183,6 @@ async def test_amounts_are_at_the_currency_precision(client, fi):
     assert score["fi_number"] == "45000000.00"
     assert score["currency"] == "KES"
 
-    impact = (
-        await client.post(
-            "/v1/fi/simulate-purchase", json={"amount": "450000", "term_months": 12}, headers=AUTH
-        )
-    ).json()
-    # The same Freedom number, however it was reached.
-    assert impact["fi_number"] == score["fi_number"]
-    installments = next(o for o in impact["options"] if o["key"] == "installments")
-    for key in ("total_cost", "interest_cost", "monthly_payment"):
-        assert _AMOUNT.fullmatch(installments[key]), installments[key]
-
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
     assert projections["fi_number"] == score["fi_number"]
     assert all(_AMOUNT.fullmatch(p["base"]) for p in projections["points"])
@@ -205,11 +193,7 @@ async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
     placeholder, and no nominal figure."""
     score = (await client.get("/v1/fi/score", headers=AUTH)).json()
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
-    impact = (
-        await client.post("/v1/fi/simulate-purchase", json={"amount": "450000"}, headers=AUTH)
-    ).json()
-
-    for body in (score, projections, impact):
+    for body in (score, projections):
         assumptions = body["assumptions"]
         assert assumptions["status"] == "user"
         assert assumptions["placeholders"] == []

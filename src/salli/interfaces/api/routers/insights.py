@@ -104,6 +104,9 @@ class NetWorthByMonth(BaseModel):
 
 class RecurringPayment(BaseModel):
     payee: str
+    #: The one word the charges are grouped by: what a scenario's
+    #: stop_recurring change names to stop them.
+    key: str
     cadence: Cadence
     #: The middle charge; `varies` when charges differ by more than 10%.
     typical_amount: Amount

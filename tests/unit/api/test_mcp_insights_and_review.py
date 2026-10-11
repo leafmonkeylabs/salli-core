@@ -128,9 +128,14 @@ async def test_the_prompts_lean_on_salli_s_tools_not_the_model_s_arithmetic():
     text = review.messages[0].content.text  # type: ignore[union-attr]
     assert "October" in text and "get_cash_forecast" in text and "never compute" in text
 
+    # Was: simulate_purchase, beside a forecast the agent read itself. Now the
+    # purchase is built as scenarios Salli compares, and the agent never
+    # subtracts anything, nor picks for the user.
     afford = await server.get_prompt("can_i_afford", {"amount": "2000 USD", "what": "a trip"})
     text = afford.messages[0].content.text  # type: ignore[union-attr]
-    assert "simulate_purchase" in text and "never your own arithmetic" in text
+    assert "compare_options" in text and "get_scenario_schema" in text
+    assert "Never subtract" in text and "Don't tell me which to choose" in text
+    assert "simulate_purchase" not in text
 
     sort = await server.get_prompt("sort_pending_transactions", {})
     text = sort.messages[0].content.text  # type: ignore[union-attr]

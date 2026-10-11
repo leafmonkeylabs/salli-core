@@ -75,6 +75,7 @@ async def test_recurring_payments_say_whether_they_are_tracked(client, insights)
         "items": [
             {
                 "payee": "Netflix",
+                "key": "netflix",
                 "cadence": "monthly",
                 "typical_amount": "15.99",
                 "varies": False,
@@ -91,6 +92,8 @@ async def test_recurring_payments_say_whether_they_are_tracked(client, insights)
     }
     body = (await client.get("/v1/insights/recurring", headers=AUTH)).json()
     assert body["items"][0]["tracked"] is False
+    # The key a scenario names to stop it.
+    assert body["items"][0]["key"] == "netflix"
 
 
 async def test_the_forecast_looks_ahead_at_most_a_year(client, insights):

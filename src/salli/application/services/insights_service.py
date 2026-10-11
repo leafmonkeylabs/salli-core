@@ -189,6 +189,7 @@ class InsightsService:
             items.append(
                 {
                     "payee": r.payee,
+                    "key": r.key,
                     "cadence": r.cadence,
                     "typical_amount": str(quantize(r.typical_amount, r.currency, strict=False)),
                     "varies": r.varies,

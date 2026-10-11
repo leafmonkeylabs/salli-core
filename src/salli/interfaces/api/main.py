@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from salli.application.ports import (
     AccountNotFound,
+    DebtNotFound,
     FetchRefused,
     FxUnavailableError,
     ProfileMissing,
@@ -39,6 +40,7 @@ from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import get_settings
 from salli.domain.llm import LLMError
+from salli.domain.scenarios import ScenarioError
 from salli.domain.secrets import redact
 from salli.domain.taxrules.explain import UnknownLine
 from salli.domain.usage import UsageLimitReached
@@ -72,6 +74,7 @@ from salli.interfaces.api.routers import (
     reminders,
     reports,
     rules,
+    scenarios,
     statements,
     subscriptions,
     tags,
@@ -161,6 +164,19 @@ def problem(
         media_type="application/problem+json",
         headers=headers or None,
     )
+
+
+def _path_parts(path: str) -> list[str | int]:
+    """A problem's path (`options[1].changes[0].amount`) as a validation
+    error's `loc` parts (`["options", 1, "changes", 0, "amount"]`)."""
+    if path == "$":
+        return []
+    parts: list[str | int] = []
+    for piece in path.replace("[", ".[").split("."):
+        if not piece:
+            continue
+        parts.append(int(piece[1:-1]) if piece.startswith("[") else piece)
+    return parts
 
 
 async def _deprecated_path(request: Request, response: Response) -> None:
@@ -258,6 +274,8 @@ def create_app() -> FastAPI:
             router, include_in_schema=False, dependencies=[Depends(_deprecated_path)]
         )
     app.include_router(meta.router, prefix=API_PREFIX)
+    # New in /v1, so with no unversioned path to keep.
+    app.include_router(scenarios.router, prefix=API_PREFIX)
     # OAuth and the MCP consent page keep the paths their protocols fix.
     app.include_router(mcp_oauth.router)
     # A server-rendered page for people, not an API operation: kept out of the schema.
@@ -282,6 +300,23 @@ def create_app() -> FastAPI:
     @app.exception_handler(AccountNotFound)
     async def account_not_found_handler(request: Request, exc: AccountNotFound) -> JSONResponse:
         return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
+
+    # A debt a scenario names that is not one of the caller's active debts.
+    @app.exception_handler(DebtNotFound)
+    async def debt_not_found_handler(request: Request, exc: DebtNotFound) -> JSONResponse:
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
+
+    # A scenario Salli can't run on this user's money (domain/scenarios):
+    # each problem with its path in the body, in the shape a validation
+    # error's `detail` takes, so clients show both the same way.
+    @app.exception_handler(ScenarioError)
+    async def scenario_error_handler(request: Request, exc: ScenarioError) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid-scenario",
+            "Not a scenario Salli can run",
+            [{"loc": ["body", *_path_parts(p.path)], "msg": p.message} for p in exc.problems],
+        )
 
     @app.exception_handler(KeyError)
     async def key_error_handler(request: Request, exc: KeyError) -> JSONResponse:

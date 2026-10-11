@@ -65,6 +65,9 @@ jobs:
           src/salli/domain/fi/assumptions.py
           src/salli/domain/baseline src/salli/application/services/baseline_service.py
           src/salli/interfaces/api/routers/baseline.py
+          src/salli/domain/canonical.py src/salli/domain/scenarios
+          src/salli/application/services/scenario_service.py
+          src/salli/interfaces/api/routers/scenarios.py
           src/salli/domain/debt src/salli/application/services/debt_service.py
           src/salli/domain/portfolio/lots.py src/salli/domain/portfolio/valuation.py
           src/salli/domain/portfolio/returns.py src/salli/domain/portfolio/performance.py

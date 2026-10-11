@@ -1,8 +1,8 @@
 """
 The MCP tools for the baseline and the figures built on it: `get_baseline`,
-and the bounds `simulate_purchase` and `get_payoff_plan` now keep as the API
-does, because the services check them. And an account's asset role, on create
-and update.
+and the bounds `get_payoff_plan` keeps as the API does, because the service
+checks them. And an account's asset role, on create and update. (What a
+purchase costs is a scenario now: tests/unit/api/test_mcp_scenarios.py.)
 """
 
 from __future__ import annotations
@@ -68,31 +68,6 @@ async def test_the_baseline_is_salli_s_with_its_definitions(services):
     ):
         refused = await _call(services, "get_baseline", args)
         assert said in refused["error"]
-
-
-@pytest.mark.parametrize(
-    "args",
-    [
-        {"amount": "-100"},
-        {"amount": "100", "annual_interest_rate": "18"},
-        {"amount": "100", "term_months": 0},
-        {"amount": "100", "term_months": 601},
-        {"amount": "lots"},
-        {"amount": "1e30"},
-    ],
-)
-async def test_a_purchase_out_of_bounds_is_refused_as_the_api_refuses_it(services, args):
-    refused = await _call(services, "simulate_purchase", args)
-    assert refused["error"].startswith("Could not simulate that purchase")
-
-
-async def test_a_purchase_in_bounds_is_costed(services):
-    costed = await _call(
-        services,
-        "simulate_purchase",
-        {"amount": "2400", "term_months": 12, "annual_interest_rate": "0.069"},
-    )
-    assert costed["baseline_months_to_fi"] == 197
 
 
 @pytest.mark.parametrize("extra", ["-50", "nothing", "NaN"])

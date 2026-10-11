@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from salli.application.ports import PayloadView, Surface
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref
+from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalIn, Ref
 from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
@@ -720,107 +720,6 @@ async def get_surplus_breakdown(user_id: CurrentUser, svc: AppServices) -> Surpl
         {
             **_priced(data, totals, currency),
             **{k: {name: money(v, currency) for name, v in data[k].items()} for k in by_name},
-        }
-    )
-
-
-# ── "Can I afford this?" ──────────────────────────────────────────────────────
-
-
-class PurchaseRequest(BaseModel):
-    """
-    Money arrives as a STRING and is parsed to Decimal, never float — a float in
-    the money path is a bug (CLAUDE.md). `annual_interest_rate` is a fraction
-    (0.18 = 18%), bounded so a caller passing 18 is rejected rather than
-    silently costing the plan ~100x too dearly.
-    """
-
-    #: In the base currency, at its own precision (no decimals for JPY, three for KWD).
-    amount: Annotated[AmountIn, Field(ge=0, max_digits=18)]
-    term_months: Annotated[int | None, Field(default=None, ge=1, le=600)] = None
-    annual_interest_rate: Annotated[Decimal, Field(default=Decimal(0), ge=0, le=1)] = Decimal(0)
-
-
-PurchaseOptionKey = Literal["cash", "installments"]
-
-
-class PurchaseOption(BaseModel):
-    """One way of paying, costed in months of freedom."""
-
-    key: PurchaseOptionKey
-    label: str
-    #: Everything handed over across the term.
-    total_cost: Amount
-    interest_cost: Amount
-    #: Null for cash.
-    monthly_payment: Amount | None
-    #: Null for cash.
-    term_months: int | None
-    #: Null when FI is not reached within the horizon.
-    months_to_fi: int | None
-    #: Months of freedom it costs against not buying; null when unknowable.
-    months_delay: int | None
-    #: The payment is more than the monthly surplus: not just slower, cash-flow negative.
-    exceeds_monthly_surplus: bool
-
-
-class PurchaseImpact(BaseModel):
-    """What a purchase does to the balance sheet and the FI date. Every figure is the engine's."""
-
-    amount: Amount
-    currency: CurrencyCode
-    #: The day the costing is as of (ISO 8601).
-    as_of: str
-    fi_number: Amount
-    fi_asset_base_before: Amount
-    monthly_surplus: Amount
-    #: Months to FI without the purchase; null when not reached within the horizon.
-    baseline_months_to_fi: int | None
-    payable_from_liquid: bool
-    #: Months of expenses liquid savings cover, before and after paying cash.
-    emergency_months_before: str
-    emergency_months_after_cash: str
-    emergency_fund_target_months: int
-    options: list[PurchaseOption]
-    #: The option costing the fewest months of freedom; null when none compares.
-    cheapest_option_key: PurchaseOptionKey | None
-    #: Date of the newest entry the answer rests on, and whether that is too old.
-    data_as_of: str | None
-    is_stale: bool
-    stale_after_days: int
-    #: The base scenario's real return the costing used, a fraction.
-    real_return_used: str
-    swr: str
-    #: The assumptions behind the costing, and where each came from.
-    assumptions: FiAssumptions
-
-
-@router.post("/simulate-purchase")
-async def simulate_purchase(
-    body: PurchaseRequest, user_id: CurrentUser, svc: AppServices
-) -> PurchaseImpact:
-    """
-    Cost a prospective purchase in months of freedom, comparing cash against
-    instalments.
-
-    Deliberately NOT metered: it is pure deterministic engine math with no LLM
-    call, and it is the loop the product exists for — throttling it would teach
-    users not to ask.
-    """
-    impact = await svc.fi.simulate_purchase(
-        user_id,
-        body.amount,
-        term_months=body.term_months,
-        annual_interest_rate=body.annual_interest_rate,
-    )
-    currency = impact["currency"]
-    option_money = ("total_cost", "interest_cost", "monthly_payment")
-    return PurchaseImpact.model_validate(
-        {
-            **_priced(
-                impact, ("amount", "fi_number", "fi_asset_base_before", "monthly_surplus"), currency
-            ),
-            "options": [_priced(o, option_money, currency) for o in impact["options"]],
         }
     )
 

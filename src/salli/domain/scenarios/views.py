@@ -102,7 +102,12 @@ def break_even_view(b: BreakEven, result_currency: str, end: str | None = None) 
     else:
         others = [o for o in b.options if o != b.option]
         other = others[0] if others else b.option
-        if b.status == "found":
+        if b.status == "found" and b.value == b.low:
+            says = (
+                f"Only at a loan rate of {_percent(b.low)} does {b.option} end the horizon with "
+                f"at least {other}'s net worth; at any higher rate, {other} costs less."
+            )
+        elif b.status == "found":
             assert b.value is not None
             says = (
                 f"At a loan rate of {_percent(b.value)} or less, {b.option} ends the horizon "

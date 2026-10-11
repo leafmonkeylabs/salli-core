@@ -183,7 +183,6 @@ def headline(result: ScenarioResult) -> list[tuple[str, Better, Decimal | str | 
         out.append((name, better, value))
 
     add("cash.lowest", "higher", result.cash.lowest.scenario)
-    add("cash.at_end", "higher", result.cash.at_end.scenario)
     add("cash.safe_to_spend", "higher", result.cash.safe_to_spend.scenario)
     add("resilience.lowest", "higher", result.resilience.lowest.scenario)
     for c in result.monthly:
