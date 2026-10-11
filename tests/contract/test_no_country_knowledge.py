@@ -45,7 +45,9 @@ SUFFIXES = {".py", ".ts", ".mjs", ".json", ".md", ".mako", ".toml", ".example"}
 #: letters in lower case ("ait", "cse").
 ACRONYMS = re.compile(r"\b(?:LKR|IRD|RAMIS|APIT|AIT|CSE|ASPI|CBSL)\b|LK-TIN|LK-NIC|LK_TIN|LK_NIC")
 #: Matched in any case.
-WORDS = re.compile(r"sri\s+lanka|rupee|ird_number|\blk_\d", re.IGNORECASE)
+WORDS = re.compile(
+    r"sri\s+lanka|rupee|ird_number|\blk_\d|\bapit_|\bait_credit|\bfsi_income", re.IGNORECASE
+)
 
 #: (path, the stripped line) pairs where a term is data about every country
 #: alike, or history; each says why. A stale entry fails the test.

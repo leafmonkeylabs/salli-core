@@ -178,21 +178,23 @@ def test_an_accounts_low_point_is_where_it_ends_the_day():
     assert (checking.lowest, checking.lowest_date) == (Decimal(1000), "2026-10-09")
 
 
-def test_cash_is_what_money_is_spent_from():
-    # After onboarding (bank, EPF, house, housing loan) every account that
-    # moved was "cash", opening balances included: the house and the EPF
-    # fund were forecast as spending money.
+def test_cash_is_the_cash_accounts_and_the_cards_money_is_spent_from():
+    # After onboarding (bank, a pension fund, house, housing loan) every
+    # account that moved was "cash", opening balances included: the house and
+    # the pension fund were forecast as spending money. Now an asset is cash
+    # by its role, and a liability by paying for things.
     from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
     from salli.domain.reports.forecast import cash_accounts
     from salli.domain.rules.history import booked_transactions
 
-    def account(id_, type_):
-        return Account(id=id_, user_id="u", code=id_, name=id_, type=type_, currency="LKR")
+    def account(id_, type_, **kw):
+        return Account(id=id_, user_id="u", code=id_, name=id_, type=type_, currency="MXN", **kw)
 
     accounts = [
         account("bank", "asset"),
-        account("epf", "asset"),
-        account("house", "asset"),
+        account("epf", "asset", asset_role="investment"),
+        account("house", "asset", asset_role="other"),
+        account("wallet", "asset"),  # cash by its role, though nothing was spent from it yet
         account("loan", "liability"),
         account("card", "liability"),
         account("equity", "equity"),
@@ -203,7 +205,7 @@ def test_cash_is_what_money_is_spent_from():
     ]
 
     def entry(n, day, debit, credit, description="x"):
-        legs = {"amount": Decimal(100), "currency": "LKR"}
+        legs = {"amount": Decimal(100), "currency": "MXN"}
         return StoredJournalEntry(
             id=f"e{n}",
             user_id="u",
@@ -230,6 +232,10 @@ def test_cash_is_what_money_is_spent_from():
         entry(11, "2026-10-03", "fuel", "card"),
     ]
     booked = booked_transactions(entries, accounts)
-    assert set(cash_accounts(booked, accounts, "2026-07-11")) == {"bank", "card"}
-    # An account a statement is imported into is cash, whatever it did.
-    assert "epf" in cash_accounts(booked, accounts, "2026-07-11", {"epf"})
+    assert set(cash_accounts(booked, accounts, "2026-07-11")) == {"bank", "wallet", "card"}
+    # A liability a statement is imported into is cash, whatever it did; an
+    # investment isn't, whatever is imported into it.
+    fed = cash_accounts(booked, accounts, "2026-07-11", {"epf", "loan"})
+    assert "loan" in fed and "epf" not in fed
+    # A liability that holds a declared debt is that debt, not cash.
+    assert "card" not in cash_accounts(booked, accounts, "2026-07-11", debt_accounts={"card"})

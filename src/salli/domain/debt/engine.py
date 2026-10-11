@@ -19,6 +19,10 @@ payment allocation. Under monthly rounding to the currency's smallest unit it ho
 but pathological minimum-payment-to-balance ratios can (rarely) shift a payoff
 across a month boundary and flip the comparison by a few cents — this is a known,
 narrow property of discretized amortization, not specific to this implementation.
+
+Calendar months: given the month of the first payment (`first_month`,
+"YYYY-MM"), every schedule entry says the calendar month it falls in, and the
+plan the month of its last payment. The day within the month is not modelled.
 """
 
 from __future__ import annotations
@@ -44,12 +48,20 @@ def _order_debts(debts: list[Debt], strategy: PayoffStrategy) -> list[Debt]:
     return sorted(debts, key=lambda d: d.principal)
 
 
+def month_after(period: str, months: int) -> str:
+    """The calendar month ("YYYY-MM") `months` after `period`."""
+    year, month = int(period[:4]), int(period[5:7])
+    index = year * 12 + month - 1 + months
+    return f"{index // 12:04d}-{index % 12 + 1:02d}"
+
+
 def compute_payoff_plan(
     debts: list[Debt],
     extra_monthly_payment: Decimal,
     strategy: PayoffStrategy,
     max_months: int = _DEFAULT_MAX_MONTHS,
     money_quantum: Decimal = _CENT,
+    first_month: str | None = None,
 ) -> PayoffPlan:
     if not debts:
         return PayoffPlan(
@@ -57,9 +69,9 @@ def compute_payoff_plan(
         )
 
     order = _order_debts(debts, strategy)
-    balances = {d.name: d.principal for d in order}
-    monthly_rate = {d.name: d.apr / Decimal(12) for d in order}
-    min_payment = {d.name: d.minimum_payment for d in order}
+    balances = {d.key: d.principal for d in order}
+    monthly_rate = {d.key: d.apr / Decimal(12) for d in order}
+    min_payment = {d.key: d.minimum_payment for d in order}
 
     schedule: list[PayoffScheduleEntry] = []
     total_interest = Decimal(0)
@@ -69,26 +81,26 @@ def compute_payoff_plan(
     while any(bal > 0 for bal in balances.values()) and month < max_months:
         month += 1
         interest_this_month: dict[str, Decimal] = {}
-        payment_this_month: dict[str, Decimal] = {d.name: Decimal(0) for d in order}
+        payment_this_month: dict[str, Decimal] = {d.key: Decimal(0) for d in order}
 
         # Accrue this month's interest on every still-active debt.
         for d in order:
-            bal = balances[d.name]
+            bal = balances[d.key]
             if bal <= 0:
                 continue
-            interest = _round(bal * monthly_rate[d.name], money_quantum)
-            interest_this_month[d.name] = interest
+            interest = _round(bal * monthly_rate[d.key], money_quantum)
+            interest_this_month[d.key] = interest
             total_interest += interest
-            balances[d.name] = bal + interest
+            balances[d.key] = bal + interest
 
         # Apply minimum payments.
         for d in order:
-            bal = balances[d.name]
+            bal = balances[d.key]
             if bal <= 0:
                 continue
-            payment = min(min_payment[d.name], bal)
-            balances[d.name] = bal - payment
-            payment_this_month[d.name] += payment
+            payment = min(min_payment[d.key], bal)
+            balances[d.key] = bal - payment
+            payment_this_month[d.key] += payment
 
         # Cascade the extra pool through debts in priority order — a debt paid
         # off with less than the full pool passes the remainder to the next.
@@ -96,19 +108,20 @@ def compute_payoff_plan(
         for d in order:
             if pool <= 0:
                 break
-            bal = balances[d.name]
+            bal = balances[d.key]
             if bal <= 0:
                 continue
             applied = min(pool, bal)
-            balances[d.name] = bal - applied
-            payment_this_month[d.name] += applied
+            balances[d.key] = bal - applied
+            payment_this_month[d.key] += applied
             pool -= applied
 
+        period = month_after(first_month, month - 1) if first_month else None
         for d in order:
-            if d.name not in interest_this_month:
+            if d.key not in interest_this_month:
                 continue  # already paid off before this month started
-            interest = interest_this_month[d.name]
-            payment = payment_this_month[d.name]
+            interest = interest_this_month[d.key]
+            payment = payment_this_month[d.key]
             schedule.append(
                 PayoffScheduleEntry(
                     month=month,
@@ -116,12 +129,14 @@ def compute_payoff_plan(
                     payment=_round(payment, money_quantum),
                     principal_paid=_round(payment - interest, money_quantum),
                     interest_paid=_round(interest, money_quantum),
-                    remaining_balance=_round(balances[d.name], money_quantum),
+                    remaining_balance=_round(balances[d.key], money_quantum),
+                    period=period,
+                    debt_id=d.id,
                 )
             )
 
         freed_minimums = sum(
-            (min_payment[d.name] for d in order if balances[d.name] <= 0), Decimal(0)
+            (min_payment[d.key] for d in order if balances[d.key] <= 0), Decimal(0)
         )
 
     paid_off = not any(bal > 0 for bal in balances.values())
@@ -130,4 +145,7 @@ def compute_payoff_plan(
         months_to_payoff=month if paid_off else None,
         total_interest_paid=_round(total_interest, money_quantum),
         schedule=schedule,
+        debt_free_period=(
+            month_after(first_month, month - 1) if first_month and paid_off and month else None
+        ),
     )

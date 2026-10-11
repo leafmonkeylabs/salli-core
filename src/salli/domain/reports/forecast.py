@@ -6,9 +6,9 @@ keeps happening (insights.detect_recurring: the salary, the rent, the
 subscriptions it has seen) and the subscriptions the user declared that it
 has not seen yet. Pure: no I/O, and nothing here guesses beyond those rhythms.
 
-- Cash accounts are the ones money is spent from (`cash_accounts`): not a
-  house, a pension fund or a loan whose only movements are an opening
-  balance, contributions or interest.
+- Cash accounts are the asset accounts the user says hold cash, and the
+  cards money is spent from (`cash_accounts`): not an investment, a house
+  or a loan.
 - A transfer between two cash accounts (rent from checking to the card,
   savings to checking) moves both, each in its own currency, so the total
   does not change but by the exchange.
@@ -17,36 +17,49 @@ has not seen yet. Pure: no I/O, and nothing here guesses beyond those rhythms.
 - A declared subscription with no history has no account to say which cash
   account pays it, so it moves the total only.
 - Amounts in an account's own currency; the total in the base currency, at
-  the rate the caller gives for each currency.
+  the rate the caller gives for each currency (the baseline gives the
+  published rate for the as-of date).
+- Other flows can be added (a scenario's changes): they move the total like
+  any other, on their day.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 from collections import defaultdict
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
-from salli.domain.accounting.models import Account
+from salli.domain.accounting.models import Account, StoredJournalEntry
 from salli.domain.reports.insights import CADENCES, Cadence, Recurring, add_period
+from salli.domain.rules.engine import payee_word
 from salli.domain.rules.history import Booked
+from salli.domain.subscription.engine import find_matches
+from salli.domain.subscription.models import Subscription
 
-FlowSource = Literal["recurring", "subscription"]
+#: Where a flow comes from: a rhythm in the ledger, a declared subscription,
+#: the rest of an average month (the baseline's cash timeline), or a change
+#: added to the forecast.
+FlowSource = Literal["recurring", "subscription", "average", "change"]
 
 
 @dataclass(frozen=True)
 class Flow:
     date: str
-    #: The cash account it moves; None for a declared subscription the ledger
-    #: has not shown, which moves only the total.
+    #: The cash account it moves; None for a flow that moves only the total
+    #: (a declared subscription the ledger has not shown, the rest of an
+    #: average month, most changes).
     account_id: str | None
     #: Signed: money in is positive.
     amount: Decimal
     currency: str
     description: str
     source: FlowSource
+    #: One side of a transfer between two cash accounts: it moves money
+    #: between them, never into or out of cash.
+    transfer: bool = False
 
 
 @dataclass(frozen=True)
@@ -89,17 +102,19 @@ def cash_accounts(
     accounts: Sequence[Account],
     since: str,
     statement_accounts: Collection[str] = frozenset(),
+    debt_accounts: Collection[str] = frozenset(),
 ) -> dict[str, str]:
-    """The accounts money is spent from (account id → its currency): what a
-    cash forecast is about.
+    """The cash accounts (account id → its currency): what a cash forecast is
+    about.
 
-    An account a statement or bank feed is imported into is one. Otherwise,
-    from what was booked since `since` (opening balances, which are booked
-    against equity, and the system's own entries left out), one that paid
-    an expense: an asset (a bank or cash account) that did at all, a
-    liability that paid several (a card, not a loan accruing its interest).
-    A pension fund that only ever receives contributions, a house, and a
-    loan are not cash, though money moved on them."""
+    Every active asset account whose role is cash (`Account.asset_role`):
+    a bank account, savings, a wallet; never an investment or a home, whatever
+    it is called or paid. And the liabilities money is spent from: a card a
+    statement or bank feed is imported into, or one that paid several kinds
+    of expense since `since` (opening balances, which are booked against
+    equity, and the system's own entries left out). A loan accruing its
+    interest is not one, and nor is a liability that holds a declared debt
+    (`debt_accounts`): that is a debt, with its own schedule."""
     by_id = {a.id: a for a in accounts}
     spent: dict[str, set[str]] = defaultdict(set)  # money account -> expense accounts paid
     for b in booked:
@@ -111,15 +126,13 @@ def cash_accounts(
         spent[b.money_account_id].add(counter.id)
     cash: dict[str, str] = {}
     for a in accounts:
-        if not a.is_active or a.type not in ("asset", "liability"):
+        if not a.is_active:
             continue
-        paid = spent.get(a.id, set())
-        if (
-            a.id in statement_accounts
-            or (a.type == "asset" and paid)
-            or (a.type == "liability" and len(paid) >= 2)
-        ):
+        if a.type == "asset" and a.asset_role == "cash":
             cash[a.id] = a.currency
+        elif a.type == "liability" and a.id not in debt_accounts:
+            if a.id in statement_accounts or len(spent.get(a.id, set())) >= 2:
+                cash[a.id] = a.currency
     return cash
 
 
@@ -179,17 +192,76 @@ def recurring_flows(
             other_amount = r.typical_amount
         if other is not None and other_amount is None and notes is not None:
             notes.append(f"{r.payee}: its amount in {other} can't be known; that side left out")
+        transfer = other is not None and other_amount is not None
         due = dt.date.fromisoformat(r.next_expected)
         for day in schedule(due, r.cadence, r.anchor_days, start, end):
             when = day.isoformat()
             flows.append(
-                Flow(when, r.money_account_id, sign * amount, currency, r.payee, "recurring")
+                Flow(
+                    when,
+                    r.money_account_id,
+                    sign * amount,
+                    currency,
+                    r.payee,
+                    "recurring",
+                    transfer=transfer,
+                )
             )
             if other is not None and other_amount is not None:
                 flows.append(
-                    Flow(when, r.account_id, -sign * other_amount, other, r.payee, "recurring")
+                    Flow(
+                        when,
+                        r.account_id,
+                        -sign * other_amount,
+                        other,
+                        r.payee,
+                        "recurring",
+                        transfer=True,
+                    )
                 )
     return flows
+
+
+def coverage(
+    subscriptions: Sequence[Mapping[str, Any]],
+    entries: Sequence[StoredJournalEntry],
+    accounts: Sequence[Account],
+    base: str,
+) -> Callable[[Recurring], str | None]:
+    """Which declared subscription covers a recurring payment, if any.
+
+    One covers a series only when the subscription engine's own matching
+    (domain/subscription) takes most of the series' charges as its, the
+    amounts agree within its tolerance or it is named after the payee, and
+    its frequency is the series' rhythm. Matching alone was too loose: a
+    subscription tied to an expense account matches every charge there, and
+    an untied one any expense within 5%, so Netflix read as Disney+. The
+    accounts matched against are the subscription report's (active ones)."""
+    active = [a for a in accounts if a.is_active]
+    declared: list[tuple[str, Subscription, set[str]]] = []
+    for row in subscriptions:
+        try:
+            subscription = Subscription.from_row(row, base)
+        except ValueError:
+            continue  # a malformed row covers nothing
+        matched = {m.entry_id for m in find_matches(subscription, list(entries), active)}
+        declared.append((str(row["id"]), subscription, matched))
+
+    def covered_by(r: Recurring) -> str | None:
+        if r.direction != "out":
+            return None  # income is no subscription
+        for subscription_id, subscription, matched in declared:
+            agreeing = sum(1 for e in r.entry_ids if e in matched)
+            if agreeing * 2 <= len(r.entry_ids):
+                continue
+            tolerance = subscription.amount * subscription.amount_tolerance_pct
+            same_amount = abs(r.typical_amount - subscription.amount) <= tolerance
+            same_name = (payee_word(subscription.name) or subscription.name.casefold()) == r.key
+            if (same_amount or same_name) and subscription.frequency == r.cadence:
+                return subscription_id
+        return None
+
+    return covered_by
 
 
 def declared_flows(

@@ -213,7 +213,8 @@ async def test_the_repository_writes_the_tax_identity_and_can_clear_it(db, uow_f
 def _account(role: str | None) -> tuple[str, dict]:
     return (
         "insert into accounts (id, user_id, code, name, type, currency, is_active, created_at,"
-        " tax_role) values (:id, 'u', :id, 'x', 'asset', 'LKR', true, now(), :role)",
+        " tax_role, asset_role) values (:id, 'u', :id, 'x', 'asset', 'LKR', true, now(), :role,"
+        " 'cash')",
         {"id": f"a-{role}", "role": role},
     )
 

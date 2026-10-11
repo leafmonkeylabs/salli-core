@@ -4711,7 +4711,7 @@
           "financial-independence"
         ],
         "summary": "Get Score",
-        "description": "Latest FI score, computing one on first access.",
+        "description": "The FI score as of today, computed from the ledger as it is. Reading\nit stores nothing: `POST /v1/fi/score/recompute` records one in the\nhistory.",
         "operationId": "fi.score.get",
         "responses": {
           "200": {
@@ -4748,7 +4748,7 @@
           "financial-independence"
         ],
         "summary": "Recompute Score",
-        "description": "Recompute the FI score from the current ledger and store a snapshot.",
+        "description": "Compute today's FI score and record it in the score history (unless\nthe latest recorded one was computed from the same inputs).",
         "operationId": "fi.score.recompute",
         "responses": {
           "200": {
@@ -5170,7 +5170,7 @@
           "financial-independence"
         ],
         "summary": "Get Surplus Breakdown",
-        "description": "Income-by-source and expense-by-category breakdown from the trailing 12 months.",
+        "description": "Income by source and spending by category, monthly, over the full months observed.",
         "operationId": "fi.surplus",
         "responses": {
           "200": {
@@ -6318,7 +6318,7 @@
           "debt"
         ],
         "summary": "Get Payoff Plan",
-        "description": "Avalanche/snowball payoff plan — months to payoff, total interest, schedule.",
+        "description": "Avalanche/snowball payoff plan on calendar months, from what each debt owes\ntoday (a linked debt: its ledger account; another: its declared principal):\nmonths to payoff, the debt-free month, total interest, the schedule.",
         "operationId": "debts.payoffPlan",
         "security": [
           {
@@ -9989,11 +9989,11 @@
               "type": "integer",
               "maximum": 120,
               "minimum": 1,
-              "description": "How many months, ending this one",
+              "description": "How many full months before this one (this month follows)",
               "default": 12,
               "title": "Months"
             },
-            "description": "How many months, ending this one"
+            "description": "How many full months before this one (this month follows)"
           }
         ],
         "responses": {
@@ -10337,6 +10337,100 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/v1/baseline": {
+      "get": {
+        "tags": [
+          "baseline"
+        ],
+        "summary": "Get Baseline",
+        "description": "The baseline as of a day: what FI, insights, the forecast and the debt\nplan compute from, with the months, rates and assumptions they use.",
+        "operationId": "baseline.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM-DD; today when omitted",
+              "title": "As Of"
+            },
+            "description": "YYYY-MM-DD; today when omitted"
+          },
+          {
+            "name": "horizon_years",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "The monthly timeline's horizon",
+              "default": 30,
+              "title": "Horizon Years"
+            },
+            "description": "The monthly timeline's horizon"
+          },
+          {
+            "name": "daily",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include every day of the cash timeline",
+              "default": true,
+              "title": "Daily"
+            },
+            "description": "Include every day of the cash timeline"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Baseline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/bank-connections": {
@@ -11308,6 +11402,22 @@
               }
             ],
             "title": "Tax Role"
+          },
+          "asset_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "investment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Role"
           }
         },
         "type": "object",
@@ -11638,6 +11748,22 @@
               }
             ],
             "title": "Tax Role"
+          },
+          "asset_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "investment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Role"
           }
         },
         "type": "object",
@@ -12566,6 +12692,65 @@
         "title": "AuthorizationServerMetadata",
         "description": "RFC 8414 §2."
       },
+      "AverageCashFlow": {
+        "properties": {
+          "months_observed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months Observed"
+          },
+          "income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "months_observed",
+          "income",
+          "expenses",
+          "net",
+          "savings_rate"
+        ],
+        "title": "AverageCashFlow",
+        "description": "The monthly averages over the months marked observed: the baseline's\nincome and expenses, the same figures FI uses."
+      },
       "BalanceSheet": {
         "properties": {
           "currency": {
@@ -13070,6 +13255,861 @@
         ],
         "title": "BankSync"
       },
+      "Baseline": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "months_observed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months Observed"
+          },
+          "flows": {
+            "$ref": "#/components/schemas/BaselineFlows"
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineRate"
+            },
+            "type": "array",
+            "title": "Rates"
+          },
+          "balances": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineBalance"
+            },
+            "type": "array",
+            "title": "Balances"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BaselineTotals"
+          },
+          "debts": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineDebt"
+            },
+            "type": "array",
+            "title": "Debts"
+          },
+          "debt_free": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Free"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/BaselineCash"
+          },
+          "monthly": {
+            "$ref": "#/components/schemas/BaselineMonthly"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/FiAssumptions"
+          },
+          "placeholders": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "real_return",
+                "safe_withdrawal_rate",
+                "inflation"
+              ]
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "currency",
+          "months_observed",
+          "flows",
+          "rates",
+          "balances",
+          "totals",
+          "debts",
+          "debt_free",
+          "cash",
+          "monthly",
+          "assumptions",
+          "placeholders",
+          "notes"
+        ],
+        "title": "Baseline",
+        "description": "The user's money as of a day, and the definitions behind every figure."
+      },
+      "BaselineBalance": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "investment",
+              "other_asset",
+              "liability"
+            ],
+            "title": "Role"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "in_cash": {
+            "type": "boolean",
+            "title": "In Cash"
+          },
+          "debt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "code",
+          "name",
+          "role",
+          "currency",
+          "amount",
+          "value",
+          "in_cash",
+          "debt_id"
+        ],
+        "title": "BaselineBalance"
+      },
+      "BaselineCash": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "today": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Today",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Lowest",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lowest_date": {
+            "type": "string",
+            "title": "Lowest Date"
+          },
+          "month_ends": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineCashMonth"
+            },
+            "type": "array",
+            "title": "Month Ends"
+          },
+          "daily": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BaselineDay"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "today",
+          "lowest",
+          "lowest_date",
+          "month_ends"
+        ],
+        "title": "BaselineCash",
+        "description": "The daily cash timeline: the as-of month and the twelve after it, in\neach day's own money."
+      },
+      "BaselineCashMonth": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "cash": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cash",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "unscheduled": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Unscheduled",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "cash",
+          "unscheduled"
+        ],
+        "title": "BaselineCashMonth"
+      },
+      "BaselineDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "balance"
+        ],
+        "title": "BaselineDay"
+      },
+      "BaselineDebt": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "account",
+              "declared"
+            ],
+            "title": "Source"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "apr": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Apr",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "minimum_payment": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Minimum Payment",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "already_paid": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Already Paid",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "paid_off": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Off"
+          },
+          "total_interest": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Interest",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "debt_id",
+          "name",
+          "source",
+          "account_id",
+          "balance",
+          "apr",
+          "minimum_payment",
+          "already_paid",
+          "paid_off",
+          "total_interest"
+        ],
+        "title": "BaselineDebt"
+      },
+      "BaselineFlows": {
+        "properties": {
+          "monthly_income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "monthly_surplus": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly Surplus",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "savings_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Rate"
+          },
+          "essential_monthly": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Essential Monthly"
+          },
+          "need_coverage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need Coverage"
+          },
+          "by_month": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineMonthFlow"
+            },
+            "type": "array",
+            "title": "By Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monthly_income",
+          "monthly_expenses",
+          "monthly_surplus",
+          "savings_rate",
+          "essential_monthly",
+          "need_coverage",
+          "by_month"
+        ],
+        "title": "BaselineFlows",
+        "description": "Monthly averages over the months observed (`months_observed`)."
+      },
+      "BaselineMonthFlow": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "income": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Income",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "expenses": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expenses",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "essential": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Essential",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "income",
+          "expenses",
+          "net",
+          "essential"
+        ],
+        "title": "BaselineMonthFlow",
+        "description": "One full calendar month's money in and out, signed amounts netted."
+      },
+      "BaselineMonthPoint": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "cash": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cash",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "investments": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Investments",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "debts": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Debts",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "date",
+          "cash",
+          "investments",
+          "other_assets",
+          "debts",
+          "other_liabilities",
+          "net_worth"
+        ],
+        "title": "BaselineMonthPoint",
+        "description": "Where things stand at a month's end (the first point: the as-of date),\nin today's money."
+      },
+      "BaselineMonthly": {
+        "properties": {
+          "horizon_years": {
+            "type": "integer",
+            "title": "Horizon Years"
+          },
+          "real_return": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Real Return",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflation"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineMonthPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "horizon_years",
+          "real_return",
+          "inflation",
+          "points"
+        ],
+        "title": "BaselineMonthly"
+      },
+      "BaselineRate": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rate",
+          "source",
+          "as_of"
+        ],
+        "title": "BaselineRate",
+        "description": "The published rate for the as-of date that balances in a currency are\nvalued at."
+      },
+      "BaselineTotals": {
+        "properties": {
+          "cash": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cash",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "liquid": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Liquid",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "investments": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Investments",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "debts": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Debts",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "other_liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Other Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_assets": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Assets",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_liabilities": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Liabilities",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "net_worth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "cash",
+          "liquid",
+          "investments",
+          "other_assets",
+          "debts",
+          "other_liabilities",
+          "total_assets",
+          "total_liabilities",
+          "net_worth"
+        ],
+        "title": "BaselineTotals",
+        "description": "In the base currency, at the as-of rates."
+      },
       "BriefingAction": {
         "properties": {
           "type": {
@@ -13570,12 +14610,16 @@
             },
             "type": "array",
             "title": "Months"
+          },
+          "average": {
+            "$ref": "#/components/schemas/AverageCashFlow"
           }
         },
         "type": "object",
         "required": [
           "currency",
-          "months"
+          "months",
+          "average"
         ],
         "title": "CashFlow"
       },
@@ -13649,6 +14693,13 @@
             },
             "type": "array",
             "title": "Flows"
+          },
+          "fx": {
+            "items": {
+              "$ref": "#/components/schemas/ExchangeRate"
+            },
+            "type": "array",
+            "title": "Fx"
           },
           "notes": {
             "items": {
@@ -14922,6 +15973,17 @@
             "type": "boolean",
             "title": "Is Active"
           },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -14992,6 +16054,17 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
           }
         },
         "type": "object",
@@ -15073,6 +16146,17 @@
               }
             ],
             "title": "Is Active"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
           }
         },
         "type": "object",
@@ -15271,6 +16355,61 @@
         ],
         "title": "EntryProvenance"
       },
+      "ExchangeRate": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rate",
+          "source",
+          "as_of"
+        ],
+        "title": "ExchangeRate",
+        "description": "A published rate the cash total is in the base currency at: the one\nfor the as-of date, as every baseline figure uses."
+      },
       "ExpectedFlow": {
         "properties": {
           "date": {
@@ -15314,7 +16453,8 @@
             "type": "string",
             "enum": [
               "recurring",
-              "subscription"
+              "subscription",
+              "change"
             ],
             "title": "Source"
           }
@@ -15752,6 +16892,59 @@
         "title": "FiAssumptionsUpdate",
         "description": "Set the user's own planning assumptions. Only the fields sent change;\nan explicit null clears one (a placeholder, or the FIRE strategy's figure,\nstands in again). Set a real return or a nominal one, not both; a nominal\nreturn needs inflation."
       },
+      "FiDate": {
+        "properties": {
+          "months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "months",
+          "month"
+        ],
+        "title": "FiDate",
+        "description": "When FI is reached in one scenario."
+      },
+      "FiDates": {
+        "properties": {
+          "conservative": {
+            "$ref": "#/components/schemas/FiDate"
+          },
+          "base": {
+            "$ref": "#/components/schemas/FiDate"
+          },
+          "growth": {
+            "$ref": "#/components/schemas/FiDate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conservative",
+          "base",
+          "growth"
+        ],
+        "title": "FiDates"
+      },
       "FiNominalPoint": {
         "properties": {
           "conservative": {
@@ -16146,38 +17339,26 @@
             ],
             "title": "Swr"
           },
-          "fire_year_conservative": {
+          "fi_by": {
             "anyOf": [
               {
-                "type": "integer"
+                "$ref": "#/components/schemas/FiDates"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Fire Year Conservative"
+            ]
           },
-          "fire_year_base": {
+          "as_of": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fire Year Base"
-          },
-          "fire_year_growth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fire Year Growth"
+            "title": "As Of"
           },
           "current_portfolio": {
             "anyOf": [
@@ -16410,18 +17591,18 @@
             "type": "string",
             "title": "Debt To Asset"
           },
-          "projected_fi_years": {
+          "projected_fi_months": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Projected Fi Years"
+            "title": "Projected Fi Months"
           },
-          "projected_fi_date": {
+          "projected_fi_month": {
             "anyOf": [
               {
                 "type": "string"
@@ -16430,7 +17611,18 @@
                 "type": "null"
               }
             ],
-            "title": "Projected Fi Date"
+            "title": "Projected Fi Month"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
           },
           "components": {
             "items": {
@@ -19419,6 +20611,14 @@
               }
             ],
             "title": "Savings Rate"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "observed": {
+            "type": "boolean",
+            "title": "Observed"
           }
         },
         "type": "object",
@@ -19427,7 +20627,9 @@
           "income",
           "expenses",
           "net",
-          "savings_rate"
+          "savings_rate",
+          "complete",
+          "observed"
         ],
         "title": "MonthCashFlow"
       },
@@ -20177,6 +21379,17 @@
               "USD"
             ]
           },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "debts": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedDebt"
+            },
+            "type": "array",
+            "title": "Debts"
+          },
           "months_to_payoff": {
             "anyOf": [
               {
@@ -20187,6 +21400,28 @@
               }
             ],
             "title": "Months To Payoff"
+          },
+          "first_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Month"
+          },
+          "debt_free_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Free Month"
           },
           "total_interest_paid": {
             "type": "string",
@@ -20209,7 +21444,11 @@
         "required": [
           "strategy",
           "currency",
+          "as_of",
+          "debts",
           "months_to_payoff",
+          "first_month",
+          "debt_free_month",
           "total_interest_paid",
           "schedule"
         ],
@@ -20220,6 +21459,14 @@
           "month": {
             "type": "integer",
             "title": "Month"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
           },
           "debt_name": {
             "type": "string",
@@ -20265,6 +21512,8 @@
         "type": "object",
         "required": [
           "month",
+          "period",
+          "debt_id",
           "debt_name",
           "payment",
           "principal_paid",
@@ -20568,6 +21817,56 @@
           "last_used_at"
         ],
         "title": "PersonalAccessToken"
+      },
+      "PlannedDebt": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "account",
+              "declared"
+            ],
+            "title": "Source"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "debt_id",
+          "name",
+          "balance",
+          "source",
+          "account_id"
+        ],
+        "title": "PlannedDebt",
+        "description": "A debt the plan pays off, and what it starts from."
       },
       "PolicyRequest": {
         "properties": {
@@ -21634,6 +22933,10 @@
               "USD"
             ]
           },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
           "fi_number": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
@@ -21745,6 +23048,7 @@
         "required": [
           "amount",
           "currency",
+          "as_of",
           "fi_number",
           "fi_asset_base_before",
           "monthly_surplus",
@@ -22926,6 +24230,13 @@
             "type": "array",
             "title": "Committed"
           },
+          "fx": {
+            "items": {
+              "$ref": "#/components/schemas/ExchangeRate"
+            },
+            "type": "array",
+            "title": "Fx"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -23836,6 +25147,17 @@
               "USD"
             ]
           },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "months_observed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months Observed"
+          },
           "income_by_source": {
             "additionalProperties": {
               "type": "string",
@@ -23907,6 +25229,8 @@
         "type": "object",
         "required": [
           "currency",
+          "as_of",
+          "months_observed",
           "income_by_source",
           "expense_by_category",
           "expense_by_need",
@@ -23916,7 +25240,7 @@
           "savings_rate"
         ],
         "title": "SurplusBreakdown",
-        "description": "Monthly averages over the trailing 12 months."
+        "description": "Monthly averages over the full months observed (the baseline's: at\nmost twelve, before this one, from the first with income or expenses).\nThe totals are the baseline's monthly income and expenses."
       },
       "SyncedAccount": {
         "properties": {
@@ -26836,6 +28160,22 @@
               }
             ],
             "title": "Tax Role"
+          },
+          "asset_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "investment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Role"
           }
         },
         "type": "object",

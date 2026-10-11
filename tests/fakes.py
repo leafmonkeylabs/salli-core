@@ -74,7 +74,9 @@ class FakeRecords:
         if await self.get(user_id, record_id) is None:
             return
         row = self.rows[record_id]
-        row.update({k: v for k, v in updates.items() if v is not None})
+        # As the SQL repositories do: None leaves a field as it is, except a
+        # reference to an account, where it removes the reference.
+        row.update({k: v for k, v in updates.items() if v is not None or k == "account_id"})
         row["updated_at"] = datetime.now(UTC).isoformat()
 
     async def delete(self, user_id: str, record_id: str) -> None:
@@ -226,6 +228,9 @@ class FakeLedgerReader:
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
         return self.accounts
 
+    async def get_account(self, user_id: str, account_id: str) -> Any:
+        return next((a for a in self.accounts if a.id == account_id), None)
+
     async def get_entries(
         self, user_id: str, from_date: str | None = None, to_date: str | None = None
     ) -> list[Any]:
@@ -319,3 +324,192 @@ class FakeLLM:
 
     def chat_model(self, **options: Any) -> Any:
         raise NotImplementedError("FakeLLM has no chat model")
+
+
+class FakeFx:
+    """The FX port (application/ports.FxRatePort) from a table of published
+    rates: `(from, to, date)` → `(rate, source)` or `(rate, source, the day
+    the rate is for)`, where a date of None is a rate for any day. Anything
+    else is FxUnavailableError, as the real port raises."""
+
+    def __init__(self, rates: dict[tuple[str, str, str | None], tuple[Any, ...]]) -> None:
+        self.rates = dict(rates)
+        self.asked: list[tuple[str, str, str]] = []
+
+    async def rate(self, from_currency: str, to_currency: str, on_date: str) -> Any:
+        from salli.application.ports import FxQuote, FxUnavailableError
+
+        self.asked.append((from_currency, to_currency, on_date))
+        if from_currency == to_currency:
+            return FxQuote(rate=Decimal(1), source="identity", as_of=on_date)
+        for key in ((from_currency, to_currency, on_date), (from_currency, to_currency, None)):
+            if key in self.rates:
+                rate, source, *published = self.rates[key]
+                return FxQuote(
+                    rate=rate, source=source, as_of=published[0] if published else on_date
+                )
+        raise FxUnavailableError(f"No {from_currency}→{to_currency} rate for {on_date}")
+
+
+class FakeLedger:
+    """The ledger repository over accounts and entries held in memory, scoped
+    to their owner as the SQL repository is: each query answers for one user."""
+
+    def __init__(self) -> None:
+        self.accounts: list[Any] = []
+        self.entries: list[Any] = []
+
+    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
+        return sorted(
+            (
+                a
+                for a in self.accounts
+                if a.user_id == user_id and (include_inactive or a.is_active)
+            ),
+            key=lambda a: a.code,
+        )
+
+    async def get_account(self, user_id: str, account_id: str) -> Any:
+        return next((a for a in self.accounts if a.id == account_id and a.user_id == user_id), None)
+
+    async def get_entries(
+        self, user_id: str, from_date: str | None = None, to_date: str | None = None
+    ) -> list[Any]:
+        return sorted(
+            (
+                e
+                for e in self.entries
+                if e.user_id == user_id
+                and (from_date is None or e.entry_date >= from_date)
+                and (to_date is None or e.entry_date <= to_date)
+            ),
+            key=lambda e: e.entry_date,
+        )
+
+    async def posting_totals(
+        self, user_id: str, account_ids: Any, to_date: str | None = None
+    ) -> list[tuple[str, str, Decimal, Decimal]]:
+        """Per account and currency: the signed amount and its base value, as
+        the database sums them (entries on or before `to_date`, if given)."""
+        wanted = set(account_ids)
+        sums: dict[tuple[str, str], list[Decimal]] = {}
+        for e in await self.get_entries(user_id, to_date=to_date):
+            for p in e.postings:
+                if p.account_id in wanted:
+                    signed = Decimal(p.direction.value) * p.amount
+                    pair = sums.setdefault((p.account_id, p.currency), [Decimal(0), Decimal(0)])
+                    pair[0] += signed
+                    pair[1] += signed * p.fx_rate
+        return [(a, c, amount, base) for (a, c), (amount, base) in sums.items()]
+
+    async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
+        balances: dict[str, Decimal] = {}
+        for e in await self.get_entries(user_id):
+            if e.entry_date < before:
+                for p in e.postings:
+                    balances[p.account_id] = balances.get(p.account_id, Decimal(0)) + p.base_signed
+        return balances
+
+    async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
+        """The date of the user's first entry touching an income or an expense
+        account (on or before `to_date`, if given), leaving out a reversed
+        entry and its reversal."""
+        kinds = {a.id for a in self.accounts if a.type in ("income", "expense")}
+        entries = await self.get_entries(user_id, to_date=to_date)
+        reversals = {e.reversed_by for e in self.entries if e.reversed_by}
+        for e in entries:
+            if e.reversed_by or e.id in reversals:
+                continue
+            if any(p.account_id in kinds for p in e.postings):
+                return e.entry_date
+        return None
+
+
+class FakeGoals:
+    def __init__(self) -> None:
+        self.goals: list[dict[str, Any]] = []
+        self.allocations: list[dict[str, Any]] = []
+
+    async def list(self, user_id: str, active_only: bool = True) -> list[dict[str, Any]]:
+        return [dict(g) for g in self.goals]
+
+    async def list_allocations(
+        self, user_id: str, goal_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        return [dict(a) for a in self.allocations if goal_id in (None, a["goal_id"])]
+
+
+class FakeScores:
+    """Stored FI scores, oldest first, as `fi_scores` keeps them."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+
+    async def save(self, user_id: str, score: dict[str, Any]) -> str:
+        self.rows.append(dict(score))
+        return str(len(self.rows))
+
+    async def get_latest(self, user_id: str) -> dict[str, Any] | None:
+        return dict(self.rows[-1]) if self.rows else None
+
+    async def history(self, user_id: str) -> list[dict[str, Any]]:
+        return [
+            {"score": float(r["overall_score"]), "net_worth": r.get("net_worth"), "created_at": ""}
+            for r in reversed(self.rows)
+        ]
+
+
+class FakeStrategies:
+    def __init__(self, strategy: dict[str, Any] | None = None) -> None:
+        self.strategy = strategy
+
+    async def get_latest(self, user_id: str) -> dict[str, Any] | None:
+        return self.strategy
+
+    async def get_history(self, user_id: str) -> list[dict[str, Any]]:
+        return [self.strategy] if self.strategy else []
+
+
+class FakeFeeds:
+    """Statements and bank connections: none, unless a test adds them."""
+
+    def __init__(self) -> None:
+        self.statements: list[dict[str, Any]] = []
+        self.connections: list[dict[str, Any]] = []
+        self.pending: list[Any] = []
+
+    async def list_statements(self, user_id: str, limit: int = 1000) -> list[dict[str, Any]]:
+        return list(self.statements)
+
+    async def get_all_pending(self, user_id: str) -> list[Any]:
+        return list(self.pending)
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        return list(self.connections)
+
+
+class FakeUoW:
+    """A unit of work over one in-memory ledger and what a user declares
+    beside it: enough for FI, insights, the forecast, debts and the baseline."""
+
+    def __init__(self, base_currency: str = "EUR") -> None:
+        self.user_profiles = FakeProfiles(base_currency)
+        self.ledger = FakeLedger()
+        self.goals = FakeGoals()
+        self.fi_scores = FakeScores()
+        self.fire_strategies = FakeStrategies()
+        self.debts = FakeRecords(is_active=True, account_id=None)
+        self.recurring_subscriptions = FakeRecords(is_active=True)
+        self.statements = FakeFeeds()
+        self.bank_connections = self.statements
+        self.advisories = FakeRecords()
+
+    async def __aenter__(self) -> FakeUoW:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        pass
+
+    def factory(self) -> Any:
+        """A uow_factory handing out this unit of work."""
+        return lambda: self

@@ -466,3 +466,17 @@ def test_purchase_baseline_agrees_with_the_headline_years():
     assert impact.baseline_months_to_fi is not None
     ceil_years = -(-impact.baseline_months_to_fi // 12)
     assert ceil_years == int(score.projected_fi_years)
+
+
+def test_the_fi_date_is_a_month_within_the_headline_year():
+    """The score's own month (what the FI date is now) is the purchase's
+    baseline month, and falls in the year the yearly walk says."""
+    snap = _buyer()
+    score = _score(snap)
+    impact = _impact(snap, Decimal("450000"))
+
+    assert score.projected_fi_months == impact.baseline_months_to_fi
+    assert score.projected_fi_months is not None and score.projected_fi_years is not None
+    assert -(-score.projected_fi_months // 12) == int(score.projected_fi_years)
+    # Unreachable or unknowable is None, never 0.
+    assert _score(_snapshot(monthly_expenses=Decimal(0))).projected_fi_months is None

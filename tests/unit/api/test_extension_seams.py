@@ -33,9 +33,11 @@ def _projections() -> dict[str, Any]:
         # As the service sends them: in a currency, with its decimals.
         "currency": "LKR",
         "points": [{"year": 1, "conservative": "100.00", "base": "110.00", "growth": "120.00"}],
-        "fire_year_conservative": 14,
-        "fire_year_base": 12,
-        "fire_year_growth": 10,
+        "fi_by": {
+            "conservative": {"months": 168, "month": "2040-10"},
+            "base": {"months": 144, "month": "2038-10"},
+            "growth": {"months": 120, "month": "2036-10"},
+        },
     }
 
 

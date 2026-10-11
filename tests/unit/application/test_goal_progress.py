@@ -8,52 +8,13 @@ app sat at 0% forever while both UIs claimed progress came from the ledger.
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from decimal import Decimal
 
 import pytest
 
 from salli.application.services.fi_service import FiService
-from salli.domain.accounting.models import Direction, Posting, StoredJournalEntry
-from tests.fakes import FakeProfiles
-
-
-class FakeLedgerRepo:
-    def __init__(self, entries):
-        self._entries = entries
-
-    async def get_accounts(self, user_id, include_inactive=False):
-        return []
-
-    async def get_entries(self, user_id, from_date=None, to_date=None):
-        return self._entries
-
-
-class FakeGoalRepo:
-    def __init__(self, goals, allocations):
-        self._goals = goals
-        self._allocations = allocations
-
-    async def list(self, user_id, active_only=True):
-        return self._goals
-
-    async def list_allocations(self, user_id, goal_id=None):
-        if goal_id:
-            return [a for a in self._allocations if a["goal_id"] == goal_id]
-        return self._allocations
-
-
-class FakeUoW:
-    def __init__(self, ledger, goals):
-        self.ledger = ledger
-        self.goals = goals
-        self.user_profiles = FakeProfiles()
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *_):
-        pass
+from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
+from tests.fakes import FakeUoW as LedgerUoW
 
 
 def _balance_entry(account_id: str, amount: str) -> StoredJournalEntry:
@@ -93,14 +54,18 @@ def _goal(goal_id: str, target: str, priority: int = 2) -> dict:
 
 
 def _service(goals, allocations, balance="1000000"):
-    ledger = FakeLedgerRepo([_balance_entry("sav", balance)])
-    repo = FakeGoalRepo(goals, allocations)
-
-    @asynccontextmanager
-    async def factory():
-        yield FakeUoW(ledger, repo)
-
-    return FiService(factory)
+    """FI over one savings account holding `balance`, as the baseline reads it."""
+    uow = LedgerUoW("LKR")
+    uow.ledger.accounts = [
+        Account(id="sav", user_id="u1", code="1100", name="Savings", type="asset", currency="LKR"),
+        Account(
+            id="equity", user_id="u1", code="3000", name="Equity", type="equity", currency="LKR"
+        ),
+    ]
+    uow.ledger.entries = [_balance_entry("sav", balance)]
+    uow.goals.goals = goals
+    uow.goals.allocations = allocations
+    return FiService(uow.factory())
 
 
 def _alloc(goal_id: str, amount: str, account: str = "sav") -> dict:

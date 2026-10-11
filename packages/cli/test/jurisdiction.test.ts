@@ -111,7 +111,7 @@ describe('FI planning assumptions: real terms, placeholders, your own figures', 
     expect(both.stdout).toMatchInlineSnapshot(`
       "FI number     USD 663,705.00
       Invested now  USD 12,834.50
-      FI in         19 years / 14 years / 11 years (conservative / base / growth)
+      FI by         Oct 2045 / Oct 2040 / Oct 2037 (conservative / base / growth)
 
       YEAR  CONSERVATIVE       BASE     GROWTH  BASE (THEN)  FI NUMBER (THEN)
          0     30,000.00  30,000.00  30,000.00    30,000.00        663,705.00

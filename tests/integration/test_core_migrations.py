@@ -51,8 +51,9 @@ def test_an_unbalanced_entry_cannot_commit(core_db):
     with pytest.raises(Exception, match="Unbalanced journal entry"), engine.begin() as conn:
         conn.execute(
             text(
-                "insert into accounts (id, user_id, code, name, type, currency, is_active, created_at)"
-                " values ('a1', 'u1', '1000', 'Cash', 'asset', 'LKR', true, now())"
+                "insert into accounts (id, user_id, code, name, type, currency, is_active,"
+                " created_at, asset_role)"
+                " values ('a1', 'u1', '1000', 'Cash', 'asset', 'LKR', true, now(), 'cash')"
             )
         )
         conn.execute(

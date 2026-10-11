@@ -18,7 +18,7 @@ import type { App } from '../app';
 import { problemFor } from '../errors';
 import { safeToSpendLine, signalLines } from './insights';
 import { displayWidth, padEnd, padStart, singleLine, truncate } from '../output/text';
-import { displayDate, displayRange, isoDate, monthPeriod, monthToDate } from '../util/dates';
+import { displayDate, displayMonth, displayRange, isoDate, monthPeriod, monthToDate } from '../util/dates';
 
 /** "budget_overspend" → "Budget overspend". */
 export function humanize(kind: string): string {
@@ -142,10 +142,10 @@ export function registerStatus(program: Command, app: App): void {
             const progress = out.percent(fi.progress_to_fi);
             lines.push(`${label(c.bold('FI score'))}${singleLine(fi.overall_score)} (${singleLine(fi.grade)}) · ${progress} of the way to financial independence`);
             lines.push(`${label('Savings rate', 2)}${out.percent(fi.savings_rate)} of income`);
-            if (fi.projected_fi_date) {
+            if (fi.projected_fi_month) {
               // A date resting on a placeholder return or withdrawal rate says so.
               const placeholder = fi.assumptions?.status === 'placeholder' ? ` ${c.dim('(placeholder assumptions: salli fi assumptions)')}` : '';
-              lines.push(`${label('FI by', 2)}${displayDate(fi.projected_fi_date, out.locale)}${placeholder}`);
+              lines.push(`${label('FI by', 2)}${displayMonth(fi.projected_fi_month, out.locale)}${placeholder}`);
             }
             lines.push('');
           }

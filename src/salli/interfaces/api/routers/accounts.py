@@ -33,6 +33,12 @@ TaxRoleIn = Annotated[
 ]
 TaxRoleStr = TaxRoleIn
 
+# What an asset account holds (domain/accounting/models.AssetRole): planning
+# reads it, never the account's name. "cash" counts as money to spend or fall
+# back on, "investment" grows at the real return, "other" (a home, a car)
+# counts in net worth only.
+AssetRoleStr = Literal["cash", "investment", "other"]
+
 
 class AddAccountRequest(BaseModel):
     code: str
@@ -42,6 +48,9 @@ class AddAccountRequest(BaseModel):
     currency: str | None = None
     parent_id: str | None = None
     tax_role: TaxRoleIn | None = None
+    #: For an asset account: cash (the default), investment or other. Only an
+    #: asset account takes one.
+    asset_role: AssetRoleStr | None = None
 
 
 class UpdateAccountRequest(BaseModel):
@@ -51,6 +60,9 @@ class UpdateAccountRequest(BaseModel):
     #: Omitted: unchanged. Only changes while the account has no entries.
     currency: str | None = None
     tax_role: TaxRoleIn | None = None
+    #: Omitted: unchanged (an account that becomes an asset is cash). Only an
+    #: asset account takes one.
+    asset_role: AssetRoleStr | None = None
 
 
 class Account(BaseModel):
@@ -63,6 +75,9 @@ class Account(BaseModel):
     parent_id: str | None
     is_active: bool
     tax_role: TaxRoleStr | None = None
+    #: An asset account's role: cash, investment or other. Null for any
+    #: other type of account.
+    asset_role: AssetRoleStr | None = None
 
 
 class AccountActivity(BaseModel):
@@ -102,6 +117,7 @@ def _account(a: DomainAccount) -> Account:
         parent_id=a.parent_id,
         is_active=a.is_active,
         tax_role=a.tax_role,
+        asset_role=a.asset_role,
     )
 
 
@@ -120,6 +136,7 @@ async def add_account(body: AddAccountRequest, user_id: CurrentUser, svc: AppSer
         currency=body.currency,
         parent_id=body.parent_id,
         tax_role=body.tax_role,
+        asset_role=body.asset_role,
     )
     return Ref(id=account_id)
 
@@ -175,6 +192,8 @@ async def update_account(
         type=body.type,
         currency=body.currency,
         tax_role=tax_role,
+        # None keeps the account's role (LedgerService.update_account).
+        asset_role=body.asset_role,
     )
     return Ref(id=account_id)
 

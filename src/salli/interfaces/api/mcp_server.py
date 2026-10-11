@@ -43,6 +43,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl, BaseModel, Field
 
 from salli.application.permissions import Actor
+from salli.application.services.fi_service import decimal_arg
 from salli.application.services.mcp_oauth_service import McpOAuthService
 from salli.application.services.tax_rule_service import TaxRuleError
 from salli.domain.agents.tools import computation_for_agent
@@ -154,6 +155,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     parsing_svc = services.parsing
     rules_svc = services.rules
     fi_svc = services.fi
+    baseline_svc = services.baseline
     tax_rules_svc = services.tax_rules
 
     mcp = FastMCP(
@@ -166,10 +168,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "saved documents/memories, and the Wealth Advisor. Numbers returned by "
             "read tools are authoritative and already computed by Salli: quote them, "
             "never recompute, estimate or adjust them. Tools that write "
-            "(create_account, create_reminder, post_journal_entry, "
+            "(create_account, update_account, create_reminder, post_journal_entry, "
             "categorize_transactions, post_transactions, discard_transactions, "
             "create_rule, set_fi_assumption, and the document/memory writers) take effect "
             "immediately: show the user what you will do and get their go-ahead first. "
+            "Every money figure comes from one model of the user's money as of a day; "
+            "get_baseline shows it with the definitions behind it (months averaged, "
+            "exchange rates and their source, account roles, assumptions). "
             "Financial-independence figures are in real terms (today's money); where "
             "the user has set no return or withdrawal rate, a labelled placeholder "
             "stands in: when a result's assumptions.status is 'placeholder', say so, "
@@ -222,12 +227,21 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     @mcp.tool()
     async def get_accounts() -> dict[str, Any]:
-        """List all accounts in the user's chart of accounts."""
+        """List all accounts in the user's chart of accounts. An asset account
+        has an asset_role: cash, investment or other (a home, a car); planning
+        reads it, never the account's name."""
         user_id = _current_user_id()
         accounts = await ledger_svc.list_accounts(user_id)
         return {
             "accounts": [
-                {"id": a.id, "code": a.code, "name": a.name, "type": a.type, "currency": a.currency}
+                {
+                    "id": a.id,
+                    "code": a.code,
+                    "name": a.name,
+                    "type": a.type,
+                    "currency": a.currency,
+                    "asset_role": a.asset_role,
+                }
                 for a in accounts
             ]
         }
@@ -312,11 +326,18 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         extra_monthly_payment: str = "0",
         strategy: str = "avalanche",
     ) -> dict[str, Any]:
-        """Return an avalanche or snowball payoff plan for the user's active debts."""
+        """Return an avalanche or snowball payoff plan for the user's active
+        debts, on calendar months from next month: each debt from what it owes
+        (a linked debt: its ledger account), the debt-free month, the interest
+        paid and the schedule. extra_monthly_payment is a decimal string from
+        0, paid on top of the minimums each month. Quote the figures exactly."""
         if strategy not in ("avalanche", "snowball"):
             return {"error": f"Unknown strategy '{strategy}'. Use 'avalanche' or 'snowball'."}
-        user_id = _current_user_id()
-        return await debt_svc.get_payoff_plan(user_id, Decimal(extra_monthly_payment), strategy)
+        try:
+            extra = decimal_arg(extra_monthly_payment, "an extra monthly payment")
+            return await debt_svc.get_payoff_plan(_current_user_id(), extra, strategy)
+        except (ArithmeticError, ValueError) as exc:
+            return {"error": f"Could not plan that: {exc}"}
 
     @mcp.tool()
     async def get_portfolio_summary(target_allocation: str | None = None) -> dict[str, Any]:
@@ -506,16 +527,71 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         name: str,
         account_type: str,
         currency: str = "",
+        asset_role: Literal["cash", "investment", "other"] | None = None,
     ) -> dict[str, Any]:
         """Create a new account in the chart of accounts. account_type is one of:
         asset, liability, equity, income, expense. currency is the ISO 4217 code
-        the account is held in; leave it empty for the user's base currency."""
+        the account is held in; leave it empty for the user's base currency.
+        asset_role, for an asset account only: cash (the default: a bank
+        account, savings, a wallet), investment (a brokerage, a pension fund)
+        or other (a home, a car)."""
         user_id = _current_user_id()
         currency = currency or await ledger_svc.base_currency(user_id)
-        params = {"code": code, "name": name, "type": account_type, "currency": currency}
-        account_id = await ledger_svc.add_account(user_id, code, name, account_type, currency)
+        params = {
+            "code": code,
+            "name": name,
+            "type": account_type,
+            "currency": currency,
+            "asset_role": asset_role,
+        }
+        try:
+            account_id = await ledger_svc.add_account(
+                user_id, code, name, account_type, currency, asset_role=asset_role
+            )
+        except (ValueError, LookupError) as exc:
+            return {"error": f"Could not create the account: {exc}"}
         await _log_audit(ledger_svc, user_id, "create_account", params)
         return {"account_id": account_id, "code": code, "name": name, "created": True}
+
+    @mcp.tool()
+    async def update_account(
+        account_id: str,
+        code: str | None = None,
+        name: str | None = None,
+        asset_role: Literal["cash", "investment", "other"] | None = None,
+    ) -> dict[str, Any]:
+        """Change an account's code, name or asset role; what you leave out
+        stays as it is. asset_role, for an asset account only: cash,
+        investment or other (a home, a car). Planning reads the role, never the
+        name: mark a brokerage or a pension fund as an investment so its growth
+        is projected, and a home as other so it isn't counted as cash. Writes
+        immediately: show the user the change and get their go-ahead first."""
+        user_id = _current_user_id()
+        account = await ledger_svc.get_account(user_id, account_id)
+        if account is None:
+            return {"error": f"Account not found: {account_id}"}
+        params = {"account_id": account_id, "code": code, "name": name, "asset_role": asset_role}
+        try:
+            await ledger_svc.update_account(
+                user_id,
+                account_id,
+                code=code or account.code,
+                name=name or account.name,
+                type=account.type,
+                tax_role=account.tax_role,
+                asset_role=asset_role,
+            )
+        except (ValueError, LookupError) as exc:
+            return {"error": f"Could not update the account: {exc}"}
+        await _log_audit(ledger_svc, user_id, "update_account", params)
+        updated = await ledger_svc.get_account(user_id, account_id)
+        return {
+            "account_id": account_id,
+            "code": updated.code if updated else code,
+            "name": updated.name if updated else name,
+            "asset_role": updated.asset_role if updated else asset_role,
+            "updated": True,
+        }
 
     @mcp.tool()
     async def create_reminder(description: str, due_date: str) -> dict[str, Any]:
@@ -637,14 +713,16 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         amount: str, term_months: int | None = None, annual_interest_rate: str = "0"
     ) -> dict[str, Any]:
         """What a purchase costs in months of financial freedom: paid in cash,
-        and (given term_months) in installments at annual_interest_rate (a
-        fraction: "0.18" is 18%). amount is a decimal string in the base currency."""
+        and (given term_months, 1 to 600) in installments at
+        annual_interest_rate (a fraction from 0 to 1: "0.18" is 18%). amount is
+        a decimal string from 0 in the base currency. The same bounds as the
+        API: anything outside them is refused, not costed."""
         try:
             return await fi_svc.simulate_purchase(
                 _current_user_id(),
-                Decimal(amount),
+                decimal_arg(amount, "an amount"),
                 term_months=term_months,
-                annual_interest_rate=Decimal(annual_interest_rate),
+                annual_interest_rate=decimal_arg(annual_interest_rate, "a yearly rate"),
             )
         except (ArithmeticError, ValueError) as exc:
             return {"error": f"Could not simulate that purchase: {exc}"}
@@ -666,6 +744,30 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         and where each came from (applied), what the user set with their
         sources (own), and the placeholders that stand in for the rest."""
         return await fi_svc.assumptions(_current_user_id())
+
+    @mcp.tool()
+    async def get_baseline(as_of: str | None = None, horizon_years: int = 10) -> dict[str, Any]:
+        """The user's money as of a day (as_of, YYYY-MM-DD; omit for today):
+        the one model FI, insights, the cash forecast and the debt plan compute
+        from. It says the definitions it used: the full months income and
+        expenses are averaged over (months_observed), the published exchange
+        rates balances are valued at and their source (rates), each account's
+        role (cash, investment, other_asset, liability), debts counted once
+        (source: account or declared), the assumptions and which are
+        placeholders. Two timelines: cash month-ends for the next twelve
+        months with the lowest point (cash; the day-by-day series is in the
+        API), and net worth, cash, investments and debts at each month's end
+        to horizon_years (1 to 50) in today's money (monthly). Quote these
+        figures; never compute your own."""
+        try:
+            day = datetime.date.fromisoformat(as_of) if as_of else None
+            if day is not None and day > baseline_svc.today():
+                return {"error": "The as-of date can't be after today"}
+            return await baseline_svc.get_baseline(
+                _current_user_id(), day, horizon_years, daily=False
+            )
+        except ValueError as exc:
+            return {"error": f"Could not read the baseline: {exc}"}
 
     @mcp.tool()
     async def set_fi_assumption(
@@ -1096,6 +1198,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_memory,
         list_memories,
         create_account,
+        update_account,
         create_reminder,
         post_journal_entry,
         get_cash_flow,
@@ -1108,6 +1211,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         simulate_purchase,
         get_fi_projections,
         get_fi_assumptions,
+        get_baseline,
         set_fi_assumption,
         set_planning_assumptions,
         list_pending_transactions,

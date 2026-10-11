@@ -10,6 +10,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
   Account,
+  Baseline,
   AiModelChoice,
   AiModels,
   AiSettings,
@@ -41,6 +42,7 @@ import type {
   Meta,
   PersonalAccessToken,
   Profile,
+  PayoffPlan,
   PurchaseImpact,
   RuleDraft,
   RuleSuggestion,
@@ -629,9 +631,11 @@ export class MockSalli {
           ),
           fi_number: '663705.00',
           swr: '0.035',
-          fire_year_conservative: 19,
-          fire_year_base: 14,
-          fire_year_growth: 11,
+          fi_by: {
+            conservative: { months: 228, month: '2045-10' },
+            base: { months: 168, month: '2040-10' },
+            growth: { months: 132, month: '2037-10' },
+          },
           current_portfolio: '12834.50',
           real_returns: { conservative: '0.02', base: '0.04', growth: '0.06' },
           inflation: this.data.fiInflation ?? null,
@@ -646,6 +650,7 @@ export class MockSalli {
       this.data.bodies.push({ method, path, body: req.json });
       const impact: PurchaseImpact = {
         amount: (req.json as { amount: string }).amount,
+        as_of: '2026-10-09',
         currency: 'USD',
         fi_number: '663705.00',
         fi_asset_base_before: '12834.50',
@@ -669,19 +674,108 @@ export class MockSalli {
       };
       return { status: 200, body: impact };
     }
+    if (method === 'GET' && path === '/v1/baseline') {
+      this.data.bodies.push({ method, path, body: Object.fromEntries(req.query) });
+      const point = (month: string, date: string, cash: string, investments: string, debts: string, netWorth: string) => ({
+        month,
+        date,
+        cash,
+        investments,
+        other_assets: '250000.00',
+        debts,
+        other_liabilities: '0.00',
+        net_worth: netWorth,
+      });
+      const points = [point('2026-10', '2026-10-09', '9400.00', '30000.00', '8400.00', '281000.00')];
+      for (let i = 0; i <= 12 * 20; i++) {
+        points.push(point('2026-10', '2026-10-31', '9400.00', '30000.00', '8400.00', '281000.00'));
+      }
+      points[13] = point('2027-10', '2027-10-31', '40200.00', '31200.00', '5100.00', '316300.00');
+      points[61] = point('2031-10', '2031-10-31', '171000.00', '36500.00', '0.00', '457500.00');
+      points[121] = point('2036-10', '2036-10-31', '346000.00', '44400.00', '0.00', '640400.00');
+      points[241] = point('2046-10', '2046-10-31', '696000.00', '65800.00', '0.00', '1011800.00');
+      const body: Baseline = {
+        as_of: '2026-10-09',
+        currency: 'USD',
+        months_observed: ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'],
+        flows: {
+          monthly_income: '5000.00',
+          monthly_expenses: '2212.35',
+          monthly_surplus: '2787.65',
+          savings_rate: '0.5575',
+          essential_monthly: '1800.00',
+          need_coverage: '0.8136',
+          by_month: [],
+        },
+        rates: [{ currency: 'EUR', rate: '1.0823', source: 'ecb', as_of: '2026-10-09' }],
+        balances: [
+          { account_id: uid(1), code: '1000', name: 'Cash', role: 'cash', currency: 'USD', amount: '250.00', value: '250.00', in_cash: true, debt_id: null },
+          { account_id: uid(3), code: '1200', name: 'Euro Savings', role: 'cash', currency: 'EUR', amount: '8452.00', value: '9147.60', in_cash: true, debt_id: null },
+          { account_id: uid(4), code: '2000', name: 'Credit Card', role: 'liability', currency: 'USD', amount: '-8400.00', value: '-8400.00', in_cash: false, debt_id: uid(412) },
+        ],
+        totals: {
+          cash: '9397.60',
+          liquid: '9397.60',
+          investments: '30000.00',
+          other_assets: '250000.00',
+          debts: '8400.00',
+          other_liabilities: '0.00',
+          total_assets: '289397.60',
+          total_liabilities: '8400.00',
+          net_worth: '280997.60',
+        },
+        debts: [
+          {
+            debt_id: uid(412),
+            name: 'Card',
+            source: 'account',
+            account_id: uid(4),
+            balance: '8400.00',
+            apr: '0.069',
+            minimum_payment: '310.00',
+            already_paid: '48.30',
+            paid_off: '2029-07',
+            total_interest: '845.12',
+          },
+        ],
+        debt_free: '2029-07',
+        cash: {
+          start: '2026-10-09',
+          end: '2027-10-31',
+          today: '9397.60',
+          lowest: '8801.12',
+          lowest_date: '2026-10-24',
+          month_ends: [{ month: '2027-10', cash: '40200.00', unscheduled: '-410.20' }],
+          daily: req.query.get('daily') === 'true' ? [{ date: '2026-10-09', balance: '9397.60' }] : null,
+        },
+        // eslint-disable-next-line no-restricted-syntax -- not money: a number of years
+        monthly: { horizon_years: Number(req.query.get('horizon_years') ?? 30), real_return: '0.04', inflation: null, points },
+        assumptions: FI_ASSUMPTIONS,
+        placeholders: ['real_return', 'inflation'],
+        notes: [],
+      };
+      return { status: 200, body };
+    }
     if (method === 'GET' && path === '/v1/debt/payoff-plan') {
       return {
         status: 200,
         body: {
-          strategy: req.query.get('strategy') ?? 'avalanche',
+          strategy: (req.query.get('strategy') ?? 'avalanche') as PayoffPlan['strategy'],
           currency: 'USD',
+          as_of: '2026-10-09',
+          debts: [
+            { debt_id: uid(411), name: 'Credit card', balance: '1200.00', source: 'declared', account_id: null },
+            { debt_id: uid(412), name: 'Car loan', balance: '8400.00', source: 'account', account_id: uid(4) },
+          ],
           months_to_payoff: 26,
+          first_month: '2026-11',
+          debt_free_month: '2028-12',
           total_interest_paid: '845.12',
           schedule: [
-            { month: 1, debt_name: 'Credit card', payment: '135.00', principal_paid: '111.01', interest_paid: '23.99', remaining_balance: '1088.99' },
-            { month: 1, debt_name: 'Car loan', payment: '310.00', principal_paid: '261.70', interest_paid: '48.30', remaining_balance: '8138.30' },
+            { month: 1, period: '2026-11', debt_id: uid(411), debt_name: 'Credit card', payment: '135.00', principal_paid: '111.01', interest_paid: '23.99', remaining_balance: '1088.99' },
+            { month: 1, period: '2026-11', debt_id: uid(412), debt_name: 'Car loan', payment: '310.00', principal_paid: '261.70', interest_paid: '48.30', remaining_balance: '8138.30' },
           ],
-        },
+        } satisfies PayoffPlan,
       };
     }
     if (method === 'GET' && path === '/v1/portfolio/summary') {
@@ -1079,9 +1173,11 @@ export class MockSalli {
           body: {
             currency: 'USD',
             months: [
-              { month: '2026-09', income: '5000.00', expenses: '2400.00', net: '2600.00', savings_rate: '0.52' },
-              { month: '2026-10', income: '5000.00', expenses: '2212.35', net: '2787.65', savings_rate: '0.5575' },
+              { month: '2026-08', income: '5000.00', expenses: '2600.00', net: '2400.00', savings_rate: '0.48', complete: true, observed: true },
+              { month: '2026-09', income: '5000.00', expenses: '2400.00', net: '2600.00', savings_rate: '0.52', complete: true, observed: true },
+              { month: '2026-10', income: '5000.00', expenses: '2212.35', net: '2787.65', savings_rate: '0.5575', complete: false, observed: false },
             ],
+            average: { months_observed: ['2026-08', '2026-09'], income: '5000.00', expenses: '2500.00', net: '2500.00', savings_rate: '0.5000' },
           } satisfies CashFlow,
         };
       case 'spending':

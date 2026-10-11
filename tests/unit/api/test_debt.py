@@ -8,17 +8,21 @@ decimal string it is stored as (a rate, not money).
 
 from __future__ import annotations
 
+import datetime as dt
+from decimal import Decimal
+
 from salli.application.services.debt_service import DebtService
-from tests.fakes import FakeRecordsUoW
+from tests.fakes import FakeUoW
 from tests.unit.api.conftest import AUTH
 
 USER = "test-user-1"
 CARD = {"name": "Card", "principal": 1000, "apr": 0.24, "minimum_payment": 100}
+TODAY = dt.date(2026, 10, 9)
 
 
-def _uow(mock_services, base_currency: str = "LKR") -> FakeRecordsUoW:
-    uow = FakeRecordsUoW(base_currency)
-    mock_services.debt = DebtService(lambda: uow)
+def _uow(mock_services, base_currency: str = "LKR") -> FakeUoW:
+    uow = FakeUoW(base_currency)
+    mock_services.debt = DebtService(uow.factory(), today=lambda: TODAY)
     return uow
 
 
@@ -69,20 +73,26 @@ async def test_the_payoff_plan_is_the_services_plan(client, mock_services):
     )
     assert r.status_code == 200
     plan = r.json()
-    assert plan == await mock_services.debt.get_payoff_plan(USER, 50, "snowball")
+    assert plan == await mock_services.debt.get_payoff_plan(USER, Decimal(50), "snowball")
     assert (plan["strategy"], plan["currency"], plan["months_to_payoff"]) == (
         "snowball",
         "LKR",
         8,
     )
+    debt_id = plan["debts"][0]["debt_id"]
+    # The first payment falls in the month after today's.
+    assert (plan["as_of"], plan["first_month"]) == ("2026-10-09", "2026-11")
     assert plan["schedule"][0] == {
         "month": 1,
+        "period": "2026-11",
+        "debt_id": debt_id,
         "debt_name": "Card",
         "payment": "150.00",
         "principal_paid": "130.00",
         "interest_paid": "20.00",
         "remaining_balance": "870.00",
     }
+    assert plan["debt_free_month"] == plan["schedule"][-1]["period"] == "2027-06"
 
 
 async def test_a_plan_with_nothing_owed_states_zero_in_the_currencys_precision(
@@ -95,7 +105,11 @@ async def test_a_plan_with_nothing_owed_states_zero_in_the_currencys_precision(
     assert plan == {
         "strategy": "avalanche",
         "currency": "LKR",
+        "as_of": "2026-10-09",
+        "debts": [],
         "months_to_payoff": 0,
+        "first_month": None,
+        "debt_free_month": None,
         "total_interest_paid": "0.00",
         "schedule": [],
     }
@@ -134,3 +148,29 @@ async def test_money_sent_as_a_string_is_kept_exactly(client, mock_services):
     )
     debt = (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()
     assert (debt["principal"], debt["minimum_payment"]) == ("12345678901234567.89", "1500.10")
+
+
+async def test_a_debt_links_to_its_ledger_account_and_null_unlinks_it(client, mock_services):
+    from salli.domain.accounting.models import Account
+
+    uow = _uow(mock_services, "NZD")
+    uow.ledger.accounts = [
+        Account(
+            id="loan", user_id=USER, code="2100", name="Loan", type="liability", currency="NZD"
+        ),
+        Account(id="bank", user_id=USER, code="1000", name="Bank", type="asset", currency="NZD"),
+    ]
+    debt_id = await _create(client, {**CARD, "account_id": "loan"})
+    assert (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()["account_id"] == "loan"
+
+    # A rename leaves the link alone; an explicit null removes it.
+    await client.patch(f"/v1/debt/{debt_id}", json={"name": "Car"}, headers=AUTH)
+    assert (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()["account_id"] == "loan"
+    await client.patch(f"/v1/debt/{debt_id}", json={"account_id": None}, headers=AUTH)
+    assert (await client.get(f"/v1/debt/{debt_id}", headers=AUTH)).json()["account_id"] is None
+
+    # Not a liability: 422. Not theirs (or nowhere): 404, alike.
+    r = await client.patch(f"/v1/debt/{debt_id}", json={"account_id": "bank"}, headers=AUTH)
+    assert r.status_code == 422
+    r = await client.post("/v1/debt/", json={**CARD, "account_id": "elsewhere"}, headers=AUTH)
+    assert (r.status_code, r.json()["detail"]) == (404, "Account not found: elsewhere")

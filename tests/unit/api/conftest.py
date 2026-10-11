@@ -118,6 +118,7 @@ def make_account(
     a.parent_id = None
     a.is_active = True
     a.tax_role = tax_role
+    a.asset_role = "cash"
     return a
 
 

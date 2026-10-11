@@ -67,11 +67,16 @@ class AdvisorService:
         context = await self.gather_context(user_id, email)
         llm = await self.llm_for(user_id, api_key)
         advice = await advisor_llm.generate_advice(context, llm=llm)
-        return await self.persist_report(user_id, trigger, advice)
+        report = await self.persist_report(user_id, trigger, advice)
+        # The run writes (its report), so it also records the score it
+        # advised on in the score history: gathering only reads.
+        await self._fi.record_score(user_id)
+        return report
 
     async def gather_context(self, user_id: str, email: str | None = None) -> dict[str, Any]:
         """Metered, deterministic gather step — reused by both run_advisor and
-        the briefing workflow's gather node. Never calls the LLM.
+        the briefing workflow's gather node. Never calls the LLM, and never
+        writes: the FI score it reads is computed, not stored.
 
         May raise UsageLimitReached (the API returns the meter's response); cron
         and the briefing workflow both catch it and skip/surface gracefully
@@ -118,7 +123,8 @@ class AdvisorService:
                 "fi_asset_base": score.get("fi_asset_base"),
                 "progress_to_fi": score.get("progress_to_fi"),
                 "debt_to_asset": score.get("debt_to_asset"),
-                "projected_fi_date": score.get("projected_fi_date"),
+                # The month FI is reached at the current pace ("YYYY-MM").
+                "projected_fi_month": score.get("projected_fi_month"),
                 "components": score.get("components"),
             },
             "fire_strategy": {
@@ -142,9 +148,8 @@ class AdvisorService:
                 # fi_score.fi_number above. Sending it twice previously let the two
                 # paths disagree and asked the model to reason about two targets.
                 "current_portfolio": fire_projections.get("current_portfolio"),
-                "fire_year_conservative": fire_projections.get("fire_year_conservative"),
-                "fire_year_base": fire_projections.get("fire_year_base"),
-                "fire_year_growth": fire_projections.get("fire_year_growth"),
+                # The month FI is reached in each scenario, and in how many months.
+                "fi_by": fire_projections.get("fi_by"),
                 # The REAL (after-inflation) returns the projections used: the
                 # user's, the strategy's, or placeholders (assumptions says which).
                 "real_returns_used": fire_projections.get("real_returns"),

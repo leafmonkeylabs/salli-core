@@ -42,7 +42,7 @@ Direct access to:
 - **Document tools**: save_document, read_document, list_documents, update_document, delete_document
 - **Memory tools**: save_memory, get_memory, list_memories (persist facts across sessions)
 - **get_financial_profile**: risk category, life stage, dependents, employment status
-- **get_freedom_snapshot**: Freedom score, Freedom number, investable assets, savings rate, years to FI
+- **get_freedom_snapshot**: Freedom score, Freedom number, investable assets, savings rate, the month FI is reached
 - **can_i_afford**: costs a prospective purchase in MONTHS OF FREEDOM, and compares cash vs. instalments
 - **get_budget_summary**: category limits vs. actual spend for a budget period
 - **get_payoff_plan**: avalanche/snowball debt payoff plan, months to payoff, total interest

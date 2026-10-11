@@ -7,6 +7,7 @@ import { registerAccounts } from './commands/accounts';
 import { registerAi } from './commands/ai';
 import { registerAuth } from './commands/auth';
 import { registerBanks } from './commands/banks';
+import { registerBaseline } from './commands/baseline';
 import { registerChat } from './commands/chat';
 import { registerCompletion } from './commands/completion';
 import { registerConfig } from './commands/config';
@@ -82,6 +83,7 @@ Start with:  salli login   then   salli status`,
   registerPlanning(program, app);
   registerPlanningAhead(program, app);
   registerInsights(program, app);
+  registerBaseline(program, app);
   registerMore(program, app);
 
   program.commandsGroup('Your data and settings:');

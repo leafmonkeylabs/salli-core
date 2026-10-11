@@ -233,7 +233,7 @@ class FakeFiService:
             "options": [{"key": "cash", "months_delay": 9}],
         }
 
-    async def get_or_compute_score(self, user_id):
+    async def compute_score(self, user_id):
         return {"overall_score": "61.01", "grade": "Strong"}
 
 

@@ -184,6 +184,7 @@ def _account_from_orm(row: AccountORM) -> Account:
         parent_id=row.parent_id,
         is_active=row.is_active,
         tax_role=row.tax_role,  # type: ignore[arg-type]
+        asset_role=row.asset_role,  # type: ignore[arg-type]
     )
 
 
@@ -369,12 +370,12 @@ class SQLLedgerRepository(LedgerRepository):
         return [_entry_from_orm(row) for row in result.scalars().all()]
 
     async def posting_totals(
-        self, user_id: str, account_ids: Collection[str]
+        self, user_id: str, account_ids: Collection[str], to_date: str | None = None
     ) -> list[tuple[str, str, Decimal, Decimal]]:
         if not account_ids:
             return []
         signed = PostingORM.direction * PostingORM.amount_minor
-        rows = await self._session.execute(
+        stmt = (
             select(
                 PostingORM.account_id,
                 PostingORM.currency,
@@ -385,6 +386,9 @@ class SQLLedgerRepository(LedgerRepository):
             .where(JournalEntryORM.user_id == user_id, PostingORM.account_id.in_(list(account_ids)))
             .group_by(PostingORM.account_id, PostingORM.currency)
         )
+        if to_date:
+            stmt = stmt.where(JournalEntryORM.entry_date <= to_date)
+        rows = await self._session.execute(stmt)
         totals: list[tuple[str, str, Decimal, Decimal]] = []
         for account_id, currency, amount, base in rows.all():
             places = -exponent(currency, strict=False)
@@ -413,6 +417,28 @@ class SQLLedgerRepository(LedgerRepository):
             balances[account_id] = balances.get(account_id, Decimal(0)) + scaled
         return balances
 
+    async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
+        # A reversed entry and its reversal net to nothing: neither says when
+        # the record of money in and out began.
+        reversals = select(JournalEntryORM.reversed_by).where(
+            JournalEntryORM.user_id == user_id, JournalEntryORM.reversed_by.is_not(None)
+        )
+        stmt = (
+            select(func.min(JournalEntryORM.entry_date))
+            .join(PostingORM, PostingORM.entry_id == JournalEntryORM.id)
+            .join(AccountORM, AccountORM.id == PostingORM.account_id)
+            .where(
+                JournalEntryORM.user_id == user_id,
+                AccountORM.user_id == user_id,
+                AccountORM.type.in_(("income", "expense")),
+                JournalEntryORM.reversed_by.is_(None),
+                JournalEntryORM.id.not_in(reversals),
+            )
+        )
+        if to_date:
+            stmt = stmt.where(JournalEntryORM.entry_date <= to_date)
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
         stmt = select(AccountORM).where(AccountORM.user_id == user_id).order_by(AccountORM.code)
         if not include_inactive:
@@ -434,6 +460,7 @@ class SQLLedgerRepository(LedgerRepository):
             parent_id=account.parent_id,
             is_active=account.is_active,
             tax_role=account.tax_role,
+            asset_role=account.asset_role,
         )
         # In a savepoint, so a code taken meanwhile (two onboardings at once)
         # is a typed error the caller can act on, not a failed commit.
@@ -473,6 +500,7 @@ class SQLLedgerRepository(LedgerRepository):
         type: str,
         currency: str,
         tax_role: str | None = None,
+        asset_role: str | None = None,
     ) -> None:
         stmt = select(AccountORM).where(AccountORM.id == account_id, AccountORM.user_id == user_id)
         result = await self._session.execute(stmt)
@@ -483,6 +511,7 @@ class SQLLedgerRepository(LedgerRepository):
             row.type = type
             row.currency = currency
             row.tax_role = tax_role
+            row.asset_role = asset_role
 
     async def deactivate_account(self, user_id: str, account_id: str) -> None:
         stmt = select(AccountORM).where(AccountORM.id == account_id, AccountORM.user_id == user_id)
@@ -2015,6 +2044,7 @@ def _debt_to_dict(r: DebtORM) -> dict[str, Any]:
         "apr": str(r.apr),
         "minimum_payment_minor": r.minimum_payment_minor,
         "is_active": r.is_active,
+        "account_id": r.account_id,
         "created_at": r.created_at.isoformat(),
         "updated_at": r.updated_at.isoformat(),
     }
@@ -2035,6 +2065,7 @@ class SQLDebtRepository(DebtRepository):
                 apr=debt["apr"],
                 minimum_payment_minor=int(debt["minimum_payment_minor"]),
                 is_active=debt.get("is_active", True),
+                account_id=debt.get("account_id"),
             )
         )
         await self._s.flush()
@@ -2066,6 +2097,9 @@ class SQLDebtRepository(DebtRepository):
         for k in ("name", "principal_minor", "apr", "minimum_payment_minor", "is_active"):
             if k in updates and updates[k] is not None:
                 setattr(r, k, updates[k])
+        # None is a value here: it unlinks the debt from its account.
+        if "account_id" in updates:
+            r.account_id = updates["account_id"]
         await self._s.flush()
 
     async def delete(self, user_id: str, debt_id: str) -> None:
@@ -2675,6 +2709,8 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # recurring_subscriptions.account_id -> accounts.id has no ondelete
         # cascade either, so it must be gone before accounts.
         await _delete(RecurringSubscriptionORM, RecurringSubscriptionORM.user_id)
+        # debts.account_id -> accounts.id likewise.
+        await _delete(DebtORM, DebtORM.user_id)
 
         # journal_entries cascade-deletes their own postings (ondelete="CASCADE"
         # on postings.entry_id); statements cascade-deletes parsed_transactions
@@ -2707,7 +2743,6 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(FireStrategyORM, FireStrategyORM.user_id)
         await _delete(AdvisoryReportORM, AdvisoryReportORM.user_id)
         await _delete(BudgetORM, BudgetORM.user_id)
-        await _delete(DebtORM, DebtORM.user_id)
         # Transactions cascade from their holding, but are deleted by owner
         # first, like goal allocations, rather than relying on the cascade.
         await _delete(HoldingTransactionORM, HoldingTransactionORM.user_id)

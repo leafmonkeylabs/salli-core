@@ -43,7 +43,7 @@ describe('salli status', () => {
 
       FI score        72.5 (B) · 1.9% of the way to financial independence
         Savings rate  55.8% of income
-        FI by         Oct 9, 2040 (placeholder assumptions: salli fi assumptions)
+        FI by         Oct 2040 (placeholder assumptions: salli fi assumptions)
 
       Needs attention
         ! Checking runs short on Nov 2
@@ -164,7 +164,7 @@ describe('salli status', () => {
           "progress_to_fi": "0.0193",
           "emergency_fund_months": "5.8",
           "debt_to_asset": "0.0788",
-          "projected_fi_years": "14",
+          "projected_fi_months": 168,
           "currency": "USD",
           "components": [
             {
@@ -182,7 +182,8 @@ describe('salli status', () => {
               "detail": "5.8 months covered"
             }
           ],
-          "projected_fi_date": "2040-10-09",
+          "projected_fi_month": "2040-10",
+          "as_of": "2026-10-09",
           "assumptions": {
             "status": "placeholder",
             "placeholders": [
@@ -442,6 +443,32 @@ describe('salli accounts', () => {
     const result = await run(['accounts', 'add', '1300', 'Brokerage', 'savings']);
     expect(result.code).toBe(2);
     expect(mock.requestsTo('POST', '/v1/accounts/')).toHaveLength(0);
+  });
+
+  it('says what an asset account holds', async () => {
+    const added = await run(['accounts', 'add', '1300', 'Brokerage', 'asset', '--asset-role', 'investment']);
+    expect(added.code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/accounts/')[0]?.json).toEqual({ code: '1300', name: 'Brokerage', type: 'asset', asset_role: 'investment' });
+
+    expect((await run(['accounts', 'update', '1100', '--asset-role', 'other'])).code).toBe(0);
+    expect(mock.requestsTo('PATCH', '/v1/accounts/')[0]?.json).toEqual({ code: '1100', name: 'Checking', type: 'asset', asset_role: 'other' });
+
+    // Only an asset account has one, and it is one of three.
+    expect((await run(['accounts', 'add', '5200', 'Fees', 'expense', '--asset-role', 'cash'])).code).toBe(2);
+    expect((await run(['accounts', 'add', '1400', 'Shares', 'asset', '--asset-role', 'stocks'])).code).not.toBe(0);
+    expect(mock.requestsTo('POST', '/v1/accounts/')).toHaveLength(1);
+  });
+
+  it('passes a tax role through for the server to check against your rule sets', async () => {
+    // No list of roles is built in: they are whatever the user's rule sets declare.
+    const added = await run(['accounts', 'add', '4100', 'Salary', 'income', '--tax-role', 'employment_income']);
+    expect(added.code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/accounts/')[0]?.json).toEqual({
+      code: '4100',
+      name: 'Salary',
+      type: 'income',
+      tax_role: 'employment_income',
+    });
   });
 });
 

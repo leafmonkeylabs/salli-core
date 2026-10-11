@@ -251,10 +251,13 @@ class FiScore(BaseModel):
     progress_to_fi: str
     emergency_fund_months: str
     debt_to_asset: str
-    #: Years to FI at the current pace; null when it cannot be reached or known.
-    projected_fi_years: str | None = None
-    #: The ISO date that is.
-    projected_fi_date: str | None = None
+    #: Months from the as-of date until FI at the current pace; null when it
+    #: cannot be reached (within 100 years) or known.
+    projected_fi_months: int | None = None
+    #: The calendar month that is ("YYYY-MM").
+    projected_fi_month: str | None = None
+    #: The day the score is as of (ISO 8601).
+    as_of: str | None = None
     components: list[FiScoreComponent]
     #: The assumptions it was computed with, and where each came from.
     assumptions: FiAssumptions | None = None
@@ -329,17 +332,18 @@ async def _gate_strategy_stream(
 # response, rather than sending them as null, is how it has always read.
 @router.get("/score", response_model_exclude_unset=True)
 async def get_score(user_id: CurrentUser, svc: AppServices) -> FiScore:
-    """Latest FI score, computing one on first access."""
-    score = await svc.fi.get_or_compute_score(user_id)
-    # A score stored before scores recorded their currency is in the base
-    # currency, which cannot change once anything is stored in it.
-    return _fi_score(score, score.get("currency") or await svc.ledger.base_currency(user_id))
+    """The FI score as of today, computed from the ledger as it is. Reading
+    it stores nothing: `POST /v1/fi/score/recompute` records one in the
+    history."""
+    score = await svc.fi.compute_score(user_id)
+    return _fi_score(score, score["currency"])
 
 
 @router.post("/score/recompute", response_model_exclude_unset=True)
 async def recompute_score(user_id: CurrentUser, svc: AppServices) -> FiScore:
-    """Recompute the FI score from the current ledger and store a snapshot."""
-    score = await svc.fi.compute_score(user_id)
+    """Compute today's FI score and record it in the score history (unless
+    the latest recorded one was computed from the same inputs)."""
+    score = await svc.fi.record_score(user_id)
     return _fi_score(score, score["currency"])
 
 
@@ -601,6 +605,21 @@ class FiProjectionPoint(BaseModel):
     nominal: FiNominalPoint | None = None
 
 
+class FiDate(BaseModel):
+    """When FI is reached in one scenario."""
+
+    #: Months from the as-of date; null when it is not reached within 100 years.
+    months: int | None
+    #: The calendar month ("YYYY-MM"); null alike.
+    month: str | None
+
+
+class FiDates(BaseModel):
+    conservative: FiDate
+    base: FiDate
+    growth: FiDate
+
+
 class FiProjections(BaseModel):
     """The FI asset base projected forward under three real-return scenarios,
     in today's money, and in each year's own money when the user set their
@@ -622,10 +641,11 @@ class FiProjections(BaseModel):
     #: The FI number the score reports.
     fi_number: Amount | None = None
     swr: str | None = None
-    #: Years to FI in each scenario; null when it is not reached.
-    fire_year_conservative: int | None = None
-    fire_year_base: int | None = None
-    fire_year_growth: int | None = None
+    #: When FI is reached in each scenario: the month, and the months from
+    #: the as-of date; both null when it is not reached.
+    fi_by: FiDates | None = None
+    #: The day the projections are as of (ISO 8601).
+    as_of: str | None = None
     current_portfolio: Amount | None = None
     #: The real (after-inflation) yearly returns the scenarios use.
     real_returns: FiScenarioReturns | None = None
@@ -639,9 +659,15 @@ class FiProjections(BaseModel):
 
 
 class SurplusBreakdown(BaseModel):
-    """Monthly averages over the trailing 12 months."""
+    """Monthly averages over the full months observed (the baseline's: at
+    most twelve, before this one, from the first with income or expenses).
+    The totals are the baseline's monthly income and expenses."""
 
     currency: CurrencyCode
+    #: The day these are as of (ISO 8601).
+    as_of: str
+    #: The months averaged over ("YYYY-MM"), oldest first.
+    months_observed: list[str]
     #: Income account name → monthly average.
     income_by_source: dict[str, Amount]
     #: Category tag (or account name) → monthly average, for the six largest.
@@ -685,7 +711,7 @@ async def get_projections(
 
 @router.get("/surplus")
 async def get_surplus_breakdown(user_id: CurrentUser, svc: AppServices) -> SurplusBreakdown:
-    """Income-by-source and expense-by-category breakdown from the trailing 12 months."""
+    """Income by source and spending by category, monthly, over the full months observed."""
     data = await svc.fi.get_surplus_breakdown(user_id)
     currency = data["currency"]
     by_name = ("income_by_source", "expense_by_category", "expense_by_need")
@@ -743,6 +769,8 @@ class PurchaseImpact(BaseModel):
 
     amount: Amount
     currency: CurrencyCode
+    #: The day the costing is as of (ISO 8601).
+    as_of: str
     fi_number: Amount
     fi_asset_base_before: Amount
     monthly_surplus: Amount

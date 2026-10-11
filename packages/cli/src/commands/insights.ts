@@ -50,8 +50,8 @@ export function registerInsights(program: Command, app: App): void {
 
   insights
     .command('cash-flow')
-    .description('Income, spending, what was left and the savings rate, month by month')
-    .option('-m, --months <n>', 'Months, ending this one (default 12)', countArg('--months'))
+    .description('Income, spending, what was left and the savings rate, month by month, and the monthly average')
+    .option('-m, --months <n>', 'Full months before this one (default 12); this month so far follows', countArg('--months'))
     .action(async (opts) => {
       const api = await app.api();
       const data = await api.call(insightsCashFlow, { query: opts.months ? { months: opts.months } : {} });
@@ -62,11 +62,26 @@ export function registerInsights(program: Command, app: App): void {
           const cur = d.currency;
           out.line(
             out.table(d.months, [
-              { header: 'MONTH', get: (m) => displayMonth(m.month, out.locale) },
+              { header: 'MONTH', get: (m) => displayMonth(m.month, out.locale) + (m.complete ? '' : ' (so far)') },
               { header: `INCOME (${cur})`, get: (m) => out.amount(m.income, cur), align: 'right' },
               { header: 'SPENDING', get: (m) => out.amount(m.expenses, cur), align: 'right' },
               { header: 'LEFT OVER', get: (m) => out.amount(m.net, cur), align: 'right', style: (t, m) => out.signed(t, m.net) },
               { header: 'SAVED', get: (m) => (m.savings_rate === null ? '—' : out.percent(m.savings_rate)), align: 'right' },
+            ]),
+          );
+          const a = d.average;
+          out.line();
+          if (!a.months_observed.length) {
+            out.note('No full month of income and spending yet, so no monthly average.');
+            return;
+          }
+          out.line(out.heading(`Monthly average over ${plural(a.months_observed.length, 'full month')}`));
+          out.line(
+            out.details([
+              ['Income', out.money(a.income, cur)],
+              ['Spending', out.money(a.expenses, cur)],
+              ['Left over', out.signed(out.money(a.net, cur), a.net)],
+              ['Saved', a.savings_rate === null ? '—' : out.percent(a.savings_rate)],
             ]),
           );
         },

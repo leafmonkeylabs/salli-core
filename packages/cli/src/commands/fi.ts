@@ -44,7 +44,7 @@ import {
 import type { App } from '../app';
 import { CliError, NotFoundError, UsageError } from '../errors';
 import { plural, singleLine } from '../output/text';
-import { displayDate, parseDate } from '../util/dates';
+import { displayDate, displayMonth, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { AccountBook, amountArg, confirmAction, countArg, rateArg } from './shared';
 
@@ -103,7 +103,7 @@ function scoreView(app: App, s: FiScore): void {
       ['Net worth', out.money(s.net_worth, cur)],
       ['Progress to FI', out.percent(s.progress_to_fi)],
       ['Emergency fund', `${out.decimal(s.emergency_fund_months, 1)} months`],
-      ['FI by', s.projected_fi_date ? displayDate(s.projected_fi_date, out.locale) : 'not yet in reach'],
+      ['FI by', s.projected_fi_month ? displayMonth(s.projected_fi_month, out.locale) : 'not yet in reach'],
     ]),
   );
   if (s.components.length) {
@@ -271,7 +271,7 @@ function registerFi(program: Command, app: App): void {
     });
 
   fi.command('projections')
-    .description('Your investments projected forward, and the year you reach FI in each scenario')
+    .description('Your investments projected forward, and the month you reach FI in each scenario')
     .action(async () => {
       const api = await app.api();
       const p = await api.call(fiProjections);
@@ -281,13 +281,15 @@ function registerFi(program: Command, app: App): void {
           const out = app.out;
           const currency = d.currency ?? '';
           const points = d.points ?? [];
-          const years = (n: number | null | undefined): string => (typeof n === 'number' ? plural(n, 'year') : 'not in reach');
+          const by = (date: { month: string | null } | undefined): string => (date?.month ? displayMonth(date.month, out.locale) : 'not in reach');
           const future = d.terms === 'real_and_nominal';
           out.line(
             out.details([
               ['FI number', out.money(d.fi_number, currency)],
               ['Invested now', out.money(d.current_portfolio, currency)],
-              ['FI in', `${years(d.fire_year_conservative)} / ${years(d.fire_year_base)} / ${years(d.fire_year_growth)} (conservative / base / growth)`],
+              d.fi_by
+                ? ['FI by', `${by(d.fi_by.conservative)} / ${by(d.fi_by.base)} / ${by(d.fi_by.growth)} (conservative / base / growth)`]
+                : false,
             ]),
           );
           if (points.length) {

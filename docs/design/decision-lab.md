@@ -280,6 +280,8 @@ Nudges are quiet, useful and rare:
 
 1. **Baseline and scenarios.** This is the foundation, and it fixes the
    inconsistencies.
+   - **Status:** 1a, the baseline, is built ([docs/baseline.md](../baseline.md)).
+     1b, scenarios, is next.
    - **The baseline:** the single income and expense definition, the
      investment-account role, debts linked to liabilities, rates for the *as of*
      date, an injectable *as of*, and pure reads (no writes on read).

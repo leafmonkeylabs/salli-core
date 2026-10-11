@@ -89,12 +89,12 @@ describe('debts', () => {
     const plan = await run(['debts', 'payoff-plan', '--strategy', 'snowball', '--extra', '100']);
     expect(plan.stdout).toMatchInlineSnapshot(`
       "Strategy       snowball
-      Debt-free in   26 months
+      Debt-free      after Dec 2028 (26 months)
       Interest paid  USD 845.12
 
-      MONTH  DEBT         PAYMENT  PRINCIPAL  INTEREST      LEFT
-          1  Credit card   135.00     111.01     23.99  1,088.99
-          1  Car loan      310.00     261.70     48.30  8,138.30
+      MONTH     DEBT         PAYMENT  PRINCIPAL  INTEREST      LEFT
+      Nov 2026  Credit card   135.00     111.01     23.99  1,088.99
+      Nov 2026  Car loan      310.00     261.70     48.30  8,138.30
       "
     `);
     expect(mock.requestsTo('GET', '/v1/debt/payoff-plan')[0]?.query.toString()).toBe('strategy=snowball&extra_monthly_payment=100');
@@ -104,6 +104,15 @@ describe('debts', () => {
     expect((await run(['debts', 'update', uid(411).slice(0, 8), '--paid-off'])).code).toBe(0);
     expect(lastBody(`/v1/debt/${uid(411)}`)).toEqual({ is_active: false });
     expect((await run(['debts', 'update', uid(411).slice(0, 8)])).code).toBe(2);
+  });
+
+  it('links a debt to the account that holds it, and unlinks it', async () => {
+    expect((await run(['debts', 'update', uid(411).slice(0, 8), '--account', '2000'])).code).toBe(0);
+    expect(lastBody(`/v1/debt/${uid(411)}`)).toEqual({ account_id: uid(4) });
+    expect((await run(['debts', 'update', uid(411).slice(0, 8), '--no-account'])).code).toBe(0);
+    expect(lastBody(`/v1/debt/${uid(411)}`)).toEqual({ account_id: null });
+    await run(['debts', 'add', 'Store card', '--balance', '600', '--apr', '21%', '--minimum', '30', '--account', 'credit']);
+    expect(lastBody('/v1/debt/')).toEqual({ name: 'Store card', principal: '600', apr: '0.21', minimum_payment: '30', account_id: uid(4) });
   });
 });
 
@@ -168,7 +177,7 @@ describe('financial independence and goals', () => {
       Net worth         USD 14,034.50
       Progress to FI    1.9%
       Emergency fund    5.8 months
-      FI by             Oct 9, 2040
+      FI by             Oct 2040
 
       PART            SCORE  WEIGHT  WHY
       Savings rate       90     30%  56% of income saved

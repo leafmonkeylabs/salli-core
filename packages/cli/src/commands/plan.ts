@@ -50,7 +50,7 @@ import {
 import type { App } from '../app';
 import { UsageError } from '../errors';
 import { plural, singleLine } from '../output/text';
-import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates';
+import { displayDate, displayMonth, displayRange, monthPeriod, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { registerInvestments, resolveHolding } from './investments';
 import { renderRecord } from './records';
@@ -238,6 +238,10 @@ function registerDebts(program: Command, app: App): void {
       { header: 'BALANCE', get: (d) => app.out.money(d.principal, d.currency), align: 'right' },
       { header: 'APR', get: (d) => app.out.percent(d.apr, 2), align: 'right' },
       { header: 'MINIMUM', get: (d) => app.out.money(d.minimum_payment, d.currency), align: 'right' },
+      // A linked debt's balance in planning is its account's, not the one declared here.
+      ...(rows.some((d) => d.account_id)
+        ? [{ header: 'ACCOUNT', get: (d: Debt) => (d.account_id ? d.account_id.slice(0, 8) : ''), style: (t: string) => app.out.colors.dim(t) }]
+        : []),
       { header: '', get: (d) => (d.is_active ? '' : 'paid off'), style: (t) => app.out.colors.dim(t) },
     ]);
 
@@ -277,14 +281,17 @@ function registerDebts(program: Command, app: App): void {
     .requiredOption('--balance <amount>', 'What you owe now')
     .requiredOption('--apr <rate>', 'Annual rate: 0.18 or 18%')
     .requiredOption('--minimum <amount>', 'The minimum monthly payment')
+    .option('--account <account>', 'The liability account that holds it in your ledger (code, name or id), so it is counted once')
     .action(async (name, opts) => {
       const api = await app.api();
+      const account = opts.account ? (await AccountBook.load(api)).resolve(opts.account) : undefined;
       const created = await api.call(debtsCreate, {
         body: {
           name,
           principal: amountArg(opts.balance, '--balance'),
           apr: rateArg(opts.apr, '--apr'),
           minimum_payment: amountArg(opts.minimum, '--minimum'),
+          ...(account ? { account_id: account.id } : {}),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
@@ -301,17 +308,21 @@ function registerDebts(program: Command, app: App): void {
     .option('--minimum <amount>', 'New minimum payment')
     .option('--paid-off', 'Mark it paid off (inactive)')
     .option('--active', 'Mark it active again')
+    .option('--account <account>', 'Link it to the liability account that holds it (code, name or id)')
+    .option('--no-account', 'Unlink it from its account (it then counts as declared)')
     .action(async (query, opts) => {
       const api = await app.api();
       const debt = await resolveDebt(api, query);
+      const account = typeof opts.account === 'string' ? (await AccountBook.load(api)).resolve(opts.account) : undefined;
       const body = changes({
         name: opts.name,
         principal: opts.balance ? amountArg(opts.balance, '--balance') : undefined,
         apr: opts.apr ? rateArg(opts.apr, '--apr') : undefined,
         minimum_payment: opts.minimum ? amountArg(opts.minimum, '--minimum') : undefined,
         is_active: opts.paidOff ? false : opts.active ? true : undefined,
+        account_id: account ? account.id : opts.account === false ? null : undefined,
       });
-      requireChanges(body, '--name, --balance, --apr, --minimum, --paid-off or --active');
+      requireChanges(body, '--name, --balance, --apr, --minimum, --paid-off, --active, --account or --no-account');
       const result = await api.call(debtsUpdate, { path: { debt_id: debt.id }, body });
       app.out.done(result, `Updated “${str(debt.name)}”.`);
     });
@@ -348,16 +359,26 @@ function registerDebts(program: Command, app: App): void {
           out.line(
             out.details([
               ['Strategy', p.strategy],
-              ['Debt-free in', p.months_to_payoff === null ? 'not within the planning horizon' : plural(p.months_to_payoff, 'month')],
+              [
+                'Debt-free',
+                p.months_to_payoff === null || !p.debt_free_month
+                  ? 'not within the planning horizon'
+                  : `after ${displayMonth(p.debt_free_month, out.locale)} (${plural(p.months_to_payoff, 'month')})`,
+              ],
               ['Interest paid', out.money(p.total_interest_paid, p.currency)],
             ]),
           );
+          // A linked debt starts from its ledger account's balance, not the one declared.
+          const fromAccounts = p.debts.filter((d) => d.source === 'account');
+          if (fromAccounts.length) {
+            out.note(`From your ledger: ${fromAccounts.map((d) => `${singleLine(d.name)} ${out.money(d.balance, p.currency)}`).join(', ')}.`);
+          }
           if (!p.schedule.length) return;
           out.line();
           const shown = p.schedule.filter((e) => e.month <= opts.months);
           out.line(
             out.table(shown, [
-              { header: 'MONTH', get: (e) => e.month, align: 'right' },
+              { header: 'MONTH', get: (e) => displayMonth(e.period, out.locale) },
               { header: 'DEBT', get: (e) => e.debt_name, shrink: true },
               { header: 'PAYMENT', get: (e) => out.amount(e.payment, p.currency), align: 'right' },
               { header: 'PRINCIPAL', get: (e) => out.amount(e.principal_paid, p.currency), align: 'right' },

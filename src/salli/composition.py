@@ -22,6 +22,7 @@ from salli.application.ports import (
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
 from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
+from salli.application.services.baseline_service import BaselineService
 from salli.application.services.budget_service import BudgetService
 from salli.application.services.chatgpt_connection_service import ChatGPTConnectionService
 from salli.application.services.data_portability_service import DataPortabilityService
@@ -90,6 +91,9 @@ class Services:
     tokens: PersonalAccessTokenService
     rules: RulesService
     insights: InsightsService
+    # One model of a user's money, as of a day (domain/baseline): what FI,
+    # insights, the forecast and the debt plan read.
+    baseline: BaselineService
     bank_connections: BankConnectionService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
@@ -163,12 +167,14 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
 
     fx = default_fx_rates()
     ledger = LedgerService(uow_factory, fx=fx)
+    # Balances at the published rate for the as-of date, as tax converts.
+    baseline = BaselineService(uow_factory, fx=fx)
     tax_rules = _build_tax_rules(uow_factory, fx)
     tax = TaxService(uow_factory, tax_rules)
     documents = DocumentService(uow_factory, storage)
-    fi = FiService(uow_factory, llm_credentials)
+    fi = FiService(uow_factory, llm_credentials, baselines=baseline)
     budget = BudgetService(uow_factory)
-    debt = DebtService(uow_factory)
+    debt = DebtService(uow_factory, baselines=baseline)
     portfolio = PortfolioService(uow_factory, fx=fx)
     subscription = SubscriptionService(uow_factory)
     insurance = InsuranceService(uow_factory)
@@ -278,7 +284,8 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         chatgpt=chatgpt,
         tokens=PersonalAccessTokenService(uow_factory),
         rules=rules,
-        insights=InsightsService(uow_factory),
+        insights=InsightsService(uow_factory, baselines=baseline),
+        baseline=baseline,
         bank_connections=_build_bank_connections(settings, uow_factory, parsing),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,

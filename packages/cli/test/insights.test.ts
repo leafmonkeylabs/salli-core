@@ -24,9 +24,16 @@ describe('salli insights', () => {
     const result = await run(['insights', 'cash-flow', '--months', '2']);
     expect(lastQuery('cash-flow')).toEqual({ months: '2' });
     expect(result.stdout).toMatchInlineSnapshot(`
-      "MONTH     INCOME (USD)  SPENDING  LEFT OVER  SAVED
-      Sep 2026      5,000.00  2,400.00   2,600.00    52%
-      Oct 2026      5,000.00  2,212.35   2,787.65  55.8%
+      "MONTH              INCOME (USD)  SPENDING  LEFT OVER  SAVED
+      Aug 2026               5,000.00  2,600.00   2,400.00    48%
+      Sep 2026               5,000.00  2,400.00   2,600.00    52%
+      Oct 2026 (so far)      5,000.00  2,212.35   2,787.65  55.8%
+
+      Monthly average over 2 full months
+      Income     USD 5,000.00
+      Spending   USD 2,500.00
+      Left over  USD 2,500.00
+      Saved      50%
       "
     `);
   });
