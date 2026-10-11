@@ -48,6 +48,17 @@ month, compounded). With none set, nominal amounts keep their real value,
 and the baseline says so among its placeholders. The daily timeline's
 month-ends are the monthly timeline's cash in each month's own money: the
 same figure, before deflating.
+
+**Changes** (`Changes`, a scenario's) add to both timelines: cash flows on
+their days (forecast `Flow`s, in their day's own money), money moved into
+investments (which then grow with them), loans taken out (owed from the
+month they are taken out, paid from the month after, their last payment
+clearing them), and extra payments on a debt for a run of months. A plain
+sequence of flows is changes of cash alone. The as-of point is always the
+baseline's own: changes start after it.
+
+`safe_to_spend` is the cash forecast's answer to "how much could go out
+today": the lowest the scheduled cash gets before money next comes in.
 """
 
 from __future__ import annotations
@@ -55,7 +66,7 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -84,6 +95,51 @@ class Period:
     end: dt.date
     #: The part of the month within the timeline: 1, except the as-of month.
     share: Decimal
+
+
+# ── Changes ──────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ExtraPayment:
+    """Paid on a debt on top of its minimum, each month from `start` to `end`
+    ("YYYY-MM", inclusive; None: until it is paid off), in each month's own
+    money. Debts are paid from the month after the as-of month, so an extra
+    payment starts no sooner."""
+
+    debt_id: str
+    start: str
+    end: str | None
+    amount: Decimal
+
+
+@dataclass(frozen=True)
+class Changes:
+    """What a scenario adds to the baseline's timelines."""
+
+    #: Cash flows on their days, in their day's own money (source "change").
+    flows: tuple[forecasting.Flow, ...] = ()
+    #: Money moved into investments: (date, amount in the base currency, in
+    #: that day's own money). Its cash side is one of `flows`.
+    invested: tuple[tuple[str, Decimal], ...] = ()
+    #: Loans taken out (`BaselineDebt.source` "scenario"). The money borrowed
+    #: arrives as one of `flows`.
+    loans: tuple[BaselineDebt, ...] = ()
+    #: Extra payments on the baseline's debts (or on a loan above).
+    extra: tuple[ExtraPayment, ...] = ()
+
+
+NO_CHANGES = Changes()
+
+
+def as_changes(changes: Changes | Sequence[forecasting.Flow]) -> Changes:
+    """`changes` as `Changes`: a plain sequence of flows is cash flows alone."""
+    return changes if isinstance(changes, Changes) else Changes(flows=tuple(changes))
+
+
+def month_index(month: str) -> int:
+    """A calendar month ("YYYY-MM") as a count of months, to subtract."""
+    return int(month[:4]) * 12 + int(month[5:7]) - 1
 
 
 def periods(as_of: dt.date, count: int) -> list[Period]:
@@ -132,35 +188,74 @@ class DebtPath:
     total_interest: Decimal
 
 
-def debt_paths(baseline: Baseline, months: Sequence[Period]) -> list[DebtPath]:
+def _extra_for(
+    d: BaselineDebt, extras: Sequence[ExtraPayment], first: str
+) -> Decimal | Callable[[int], Decimal]:
+    """What is paid on `d` beyond its minimum in its plan's month m (1 is the
+    month `first`): its own constant extra, and the extra payments named for
+    it in the months they run."""
+    mine = [x for x in extras if x.debt_id == d.debt_id]
+    if not mine:
+        return d.extra_payment
+
+    def extra(m: int) -> Decimal:
+        month = debt_engine.month_after(first, m - 1)
+        return d.extra_payment + sum(
+            (x.amount for x in mine if x.start <= month and (x.end is None or month <= x.end)),
+            Decimal(0),
+        )
+
+    return extra
+
+
+def debt_paths(
+    baseline: Baseline,
+    months: Sequence[Period],
+    changes: Changes | Sequence[forecasting.Flow] = NO_CHANGES,
+) -> list[DebtPath]:
     """Each debt amortised on its own terms (minimum plus any extra), its
-    first payment in the month after the as-of month."""
+    first payment in the month after the as-of month; then each loan the
+    changes take out, owed from the month it is taken out and paid from its
+    first payment's month, its last payment clearing it."""
+    added = as_changes(changes)
     paths: list[DebtPath] = []
     count = len(months)
-    for d in baseline.debts:
+    start = month_index(months[0].month)
+    for d in (*baseline.debts, *added.loans):
+        opened = 0 if d.opened is None else month_index(d.opened) - start
+        first = 1 if d.first_payment is None else max(month_index(d.first_payment) - start, 1)
         payments = [Decimal(0)] * count
-        owed = [d.balance] * count
+        owed = [Decimal(0) if i < opened else d.balance for i in range(count)]
         schedule: list[PayoffScheduleEntry] = []
         paid_off: str | None = None
         interest = Decimal(0)
-        if d.balance > 0 and count > 1:
+        if d.balance > 0 and opened < count and first < count:
             plan = debt_engine.compute_payoff_plan(
-                [Debt(d.name, d.balance, d.apr, d.minimum_payment, id=d.debt_id)],
-                d.extra_payment,
+                [
+                    Debt(
+                        d.name,
+                        d.balance,
+                        d.apr,
+                        d.minimum_payment,
+                        id=d.debt_id,
+                        term_months=d.term_months,
+                    )
+                ],
+                _extra_for(d, added.extra, months[first].month),
                 "avalanche",
-                max_months=count - 1,
+                max_months=count - first,
                 money_quantum=quantum(baseline.currency),
-                first_month=months[1].month,
+                first_month=months[first].month,
             )
             schedule = plan.schedule
             interest = plan.total_interest_paid
             paid_off = plan.debt_free_period
             for e in schedule:
-                payments[e.month] = e.payment
+                payments[first - 1 + e.month] = e.payment
             remaining = d.balance
-            by_month = {e.month: e.remaining_balance for e in schedule}
-            for i in range(1, count):
-                remaining = by_month.get(i, Decimal(0) if paid_off else remaining)
+            by_index = {first - 1 + e.month: e.remaining_balance for e in schedule}
+            for i in range(first, count):
+                remaining = by_index.get(i, Decimal(0) if paid_off else remaining)
                 owed[i] = remaining
         paths.append(DebtPath(d, tuple(payments), tuple(owed), tuple(schedule), paid_off, interest))
     return paths
@@ -208,7 +303,7 @@ def cash_plan(
     baseline: Baseline,
     months: Sequence[Period],
     paths: Sequence[DebtPath],
-    changes: Sequence[forecasting.Flow] = (),
+    changes: Changes | Sequence[forecasting.Flow] = NO_CHANGES,
 ) -> list[MonthPlan]:
     """The cash plan for `months` (the as-of month first, at least the daily
     timeline's thirteen).
@@ -228,7 +323,7 @@ def cash_plan(
     already = sum((p.debt.already_paid for p in paths), Decimal(0))
     added: dict[str, Decimal] = defaultdict(Decimal)
     first = months[0].start.isoformat()
-    for flow in changes:
+    for flow in as_changes(changes).flows:
         value = _in_base(baseline, flow)
         if value is not None and flow.date >= first:
             added[flow.date[:7]] += value
@@ -289,13 +384,23 @@ def scheduled_flows(
     ]
 
 
+def _within(flows: Sequence[forecasting.Flow], end: dt.date) -> list[forecasting.Flow]:
+    last = end.isoformat()
+    return [f for f in flows if f.date <= last]
+
+
 def forecast(
-    baseline: Baseline, end: dt.date, changes: Sequence[forecasting.Flow] = ()
+    baseline: Baseline,
+    end: dt.date,
+    changes: Changes | Sequence[forecasting.Flow] = NO_CHANGES,
 ) -> tuple[forecasting.Forecast, list[str]]:
-    """The cash forecast: only what is scheduled (and the changes added),
-    from the as-of date to `end`, the total at the as-of rates."""
+    """The cash forecast: only what is scheduled (and the changes' cash
+    flows), from the as-of date to `end`, the total at the as-of rates."""
     notes: list[str] = []
-    flows = [*scheduled_flows(baseline, baseline.as_of, end, notes), *changes]
+    flows = [
+        *scheduled_flows(baseline, baseline.as_of, end, notes),
+        *_within(as_changes(changes).flows, end),
+    ]
     result = forecasting.project(
         baseline.cash_accounts, flows, to_base(baseline), baseline.currency, baseline.as_of, end
     )
@@ -318,11 +423,15 @@ def _spread(
     return out
 
 
-def daily(baseline: Baseline, changes: Sequence[forecasting.Flow] = ()) -> CashTimeline:
+def daily(
+    baseline: Baseline, changes: Changes | Sequence[forecasting.Flow] = NO_CHANGES
+) -> CashTimeline:
+    added = as_changes(changes)
     months = periods(baseline.as_of, DAILY_MONTHS)
     end = months[-1].end
-    paths = debt_paths(baseline, months)
-    plan = cash_plan(baseline, months, paths, changes)
+    flows = _within(added.flows, end)
+    paths = debt_paths(baseline, months, added)
+    plan = cash_plan(baseline, months, paths, flows)
     notes: list[str] = []
     scheduled = scheduled_flows(baseline, baseline.as_of, end, notes)
     net = scheduled_net(baseline, months)
@@ -349,7 +458,7 @@ def daily(baseline: Baseline, changes: Sequence[forecasting.Flow] = ()) -> CashT
 
     result = forecasting.project(
         baseline.cash_accounts,
-        [*scheduled, *changes, *rest],
+        [*scheduled, *flows, *rest],
         to_base(baseline),
         baseline.currency,
         baseline.as_of,
@@ -412,12 +521,24 @@ def horizon_months(horizon_years: int) -> int:
 
 
 def monthly(
-    baseline: Baseline, horizon_years: int, changes: Sequence[forecasting.Flow] = ()
+    baseline: Baseline,
+    horizon_years: int,
+    changes: Changes | Sequence[forecasting.Flow] = NO_CHANGES,
+    *,
+    real_return: Decimal | None = None,
 ) -> MonthlyTimeline:
+    """The monthly timeline to `horizon_years`, with `changes` added; the
+    investments grow at `real_return` (the base scenario's when None)."""
+    added = as_changes(changes)
     months = periods(baseline.as_of, horizon_months(horizon_years))
-    paths = debt_paths(baseline, months)
-    plan = cash_plan(baseline, months, paths, changes)
-    real_return = baseline.assumptions.real_returns.base
+    paths = debt_paths(baseline, months, added)
+    plan = cash_plan(baseline, months, paths, added)
+    real_return = baseline.assumptions.real_returns.base if real_return is None else real_return
+    invested: dict[str, Decimal] = defaultdict(Decimal)
+    first = baseline.as_of.isoformat()
+    for day, amount in added.invested:
+        if day >= first:
+            invested[day[:7]] += amount
 
     cash = baseline.cash
     investments = baseline.investments
@@ -438,8 +559,10 @@ def monthly(
     ]
     for i, month in enumerate(plan):
         cash += month.cash_change
-        investments *= Decimal(1) + real_return / _TWELVE * month.period.share
         level = month.deflator
+        investments *= Decimal(1) + real_return / _TWELVE * month.period.share
+        # Money moved in during a month grows from the next, in today's money.
+        investments += invested.get(month.period.month, Decimal(0)) / level
         owed = sum((path.owed[i] for path in paths), Decimal(0))
         points.append(
             MonthPoint(
@@ -468,3 +591,62 @@ def monthly(
         else None
     )
     return MonthlyTimeline(tuple(points), outlooks, debt_free, real_return)
+
+
+# ── Safe to spend ────────────────────────────────────────────────────────────
+
+#: How far ahead safe-to-spend looks for the next income, and the window it
+#: takes when the ledger expects none.
+SAFE_LOOKAHEAD_DAYS = 45
+SAFE_WINDOW_DAYS = 30
+
+
+@dataclass(frozen=True)
+class SafeToSpend:
+    """How much could go out on the as-of date without the scheduled cash
+    dropping below zero before money next comes in."""
+
+    #: The lowest the cash total gets until `until`, never below zero.
+    amount: Decimal
+    cash_today: Decimal
+    #: The next income's day, or 30 days on when the ledger expects none.
+    until: str
+    next_income: forecasting.Flow | None
+    #: What goes out before then. Money moved between two cash accounts is
+    #: neither income nor committed: it never leaves cash.
+    committed: tuple[forecasting.Flow, ...]
+    forecast: forecasting.Forecast
+    notes: tuple[str, ...] = ()
+
+
+def safe_to_spend(
+    baseline: Baseline, changes: Changes | Sequence[forecasting.Flow] = NO_CHANGES
+) -> SafeToSpend:
+    """Safe-to-spend from the cash forecast (what is scheduled, and the
+    changes' cash flows): the lowest the total gets from the as-of date until
+    the day before the next income the ledger expects (a change's money in is
+    not one, so a scenario is measured over the baseline's window), or over
+    30 days when it expects none; never below zero."""
+    as_of = baseline.as_of
+    result, notes = forecast(baseline, as_of + dt.timedelta(days=SAFE_LOOKAHEAD_DAYS), changes)
+    today = as_of.isoformat()
+    income = next(
+        (
+            f
+            for f in result.flows
+            if f.amount > 0 and f.source == "recurring" and not f.transfer and f.date > today
+        ),
+        None,
+    )
+    until = income.date if income else (as_of + dt.timedelta(days=SAFE_WINDOW_DAYS)).isoformat()
+    window = [v for d, v in result.daily if d < until] or [result.today]
+    committed = tuple(f for f in result.flows if f.amount < 0 and not f.transfer and f.date < until)
+    return SafeToSpend(
+        amount=max(min(window), Decimal(0)),
+        cash_today=result.today,
+        until=until,
+        next_income=income,
+        committed=committed,
+        forecast=result,
+        notes=tuple(dict.fromkeys(notes)),
+    )

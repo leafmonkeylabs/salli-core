@@ -174,6 +174,17 @@ class BaselineMonthly(BaseModel):
     points: list[BaselineMonthPoint]
 
 
+class BaselineRuleSet(BaseModel):
+    """An active tax rule set version that applies on the as-of date."""
+
+    country: str
+    region: str | None
+    year: str
+    rule_set_id: str
+    version: int
+    content_hash: str
+
+
 class Baseline(BaseModel):
     """The user's money as of a day, and the definitions behind every figure."""
 
@@ -197,6 +208,12 @@ class Baseline(BaseModel):
     #: Which assumptions are placeholders: real_return, safe_withdrawal_rate,
     #: and inflation when none is set.
     placeholders: list[Literal["real_return", "safe_withdrawal_rate", "inflation"]]
+    #: The active tax rule sets in your tax residency whose year covers the
+    #: as-of date.
+    rule_sets: list[BaselineRuleSet]
+    #: A content hash of everything the baseline was built from: the same
+    #: inputs, the same baseline (a scenario's result records it).
+    fingerprint: str
     #: What was left out, and why.
     notes: list[str]
 

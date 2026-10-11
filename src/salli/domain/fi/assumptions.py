@@ -267,6 +267,10 @@ class StrategyFigures:
     safe_withdrawal_rate: Decimal
     real_returns: Scenarios | None = None
     version: int | None = None
+    #: The monthly spending the strategy aims to live on once independent,
+    #: when it names one: the FI number is built on it instead of today's
+    #: spending.
+    target_monthly_expenses: Decimal | None = None
 
     @classmethod
     def from_stored(cls, data: Mapping[str, Any] | None) -> StrategyFigures | None:
@@ -287,10 +291,12 @@ class StrategyFigures:
             else None
         )
         version = data.get("version")
+        target = data.get("target_monthly_expenses")
         return cls(
             safe_withdrawal_rate=rate("swr"),
             real_returns=returns,
             version=version if isinstance(version, int) else None,
+            target_monthly_expenses=rate("target_monthly_expenses") if target else None,
         )
 
 

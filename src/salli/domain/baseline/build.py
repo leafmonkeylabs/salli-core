@@ -14,7 +14,11 @@ Building the baseline from what the application gathered. Pure.
 - **What keeps happening** is what the cash forecast projects: the rhythms
   in the ledger, and the declared subscriptions no rhythm shows.
 - **Assumptions** are the user's, then their FIRE strategy's, then labelled
-  placeholders (`fi.assumptions.resolve`).
+  placeholders (`fi.assumptions.resolve`); the active tax rule sets that
+  cover the as-of date are recorded with them.
+- **A fingerprint** of the inputs (`fingerprint`): a content hash a result
+  computed from the baseline records, so the same inputs are known to give
+  the same figures.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ import datetime as dt
 from collections.abc import Mapping, Sequence
 from decimal import ROUND_HALF_UP, Decimal
 
+from salli.domain import canonical
 from salli.domain.accounting.models import Account
 from salli.domain.baseline.flows import summarize
 from salli.domain.baseline.models import (
@@ -109,6 +114,32 @@ def _debts(
             )
         )
     return debts, notes
+
+
+def fingerprint(inputs: BaselineInputs) -> str:
+    """A content hash of everything the baseline is built from, in a
+    canonical order (accounts, entries, debts and subscriptions by id;
+    totals by account), so the same inputs always hash alike."""
+    return canonical.digest(
+        {
+            "as_of": inputs.as_of,
+            "currency": inputs.currency,
+            "accounts": sorted(inputs.accounts, key=lambda a: a.id),
+            "totals": sorted(inputs.totals, key=lambda t: (t[0], t[1])),
+            "rates": dict(inputs.rates),
+            "entries": sorted(inputs.entries, key=lambda e: (e.entry_date, e.id)),
+            "first_flow": inputs.first_flow,
+            "debts": sorted(inputs.debts, key=lambda d: d.id),
+            "subscriptions": sorted(
+                (dict(row) for row in inputs.subscriptions), key=lambda r: str(r.get("id"))
+            ),
+            "statement_accounts": inputs.statement_accounts,
+            "own_assumptions": inputs.own_assumptions,
+            "strategy": inputs.strategy,
+            "rule_sets": sorted(inputs.rule_sets, key=lambda r: (r.rule_set_id, r.version)),
+        },
+        floats=True,
+    )
 
 
 def build(inputs: BaselineInputs) -> Baseline:
@@ -227,4 +258,7 @@ def build(inputs: BaselineInputs) -> Baseline:
         first_flow=inputs.first_flow,
         cash_notes=tuple(dict.fromkeys(cash_notes)),
         latest_entry=max((e.entry_date for e in entries), default=None),
+        strategy=inputs.strategy,
+        rule_sets=tuple(inputs.rule_sets),
+        fingerprint=fingerprint(inputs),
     )
