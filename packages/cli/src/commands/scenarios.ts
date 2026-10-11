@@ -476,13 +476,13 @@ export function registerScenarios(program: Command, app: App): void {
     .command('whatif')
     .alias('what-if')
     .description('What a change would do: every figure against your baseline (stores nothing)')
-    .option('--buy <amount[@date]>', 'Buy something: money out once (repeatable)', collect, [])
-    .option('--loan <amount@ratexmonths[@date]>', 'Borrow, repaid monthly: 18000@6.9%x48 (repeatable)', collect, [])
-    .option('--recurring <amount/period[@date]>', 'The same amount again and again: -450/month, +80/week (repeatable)', collect, [])
-    .option('--income <amount/month[@date]>', 'Your monthly net income changes: +600/month (repeatable)', collect, [])
-    .option('--extra-payment <debt:amount/month[@date]>', 'Pay more on a debt each month: "car loan:200/month" (repeatable)', collect, [])
-    .option('--invest <amount[@date]>', 'Move cash into your investments (repeatable)', collect, [])
-    .option('--cancel <recurring[@date]>', 'Stop a recurring payment, by its key or payee (repeatable)', collect, [])
+    .option('--buy <amount[@date]>', 'Buy something: money out once (repeatable)', collect)
+    .option('--loan <amount@ratexmonths[@date]>', 'Borrow, repaid monthly: 18000@6.9%x48 (repeatable)', collect)
+    .option('--recurring <amount/period[@date]>', 'The same amount again and again: -450/month, +80/week (repeatable)', collect)
+    .option('--income <amount/month[@date]>', 'Your monthly net income changes: +600/month (repeatable)', collect)
+    .option('--extra-payment <debt:amount/month[@date]>', 'Pay more on a debt each month: "car loan:200/month" (repeatable)', collect)
+    .option('--invest <amount[@date]>', 'Move cash into your investments (repeatable)', collect)
+    .option('--cancel <recurring[@date]>', 'Stop a recurring payment, by its key or payee (repeatable)', collect)
     .option('--account <account>', 'The cash account the changes move (default: your cash total)')
     .option('--years <n>', 'How far the monthly figures run (1 to 50, default 20)', countArg('--years'))
     .option('--as-of <date>', 'The day your baseline is as of (default today)')
@@ -509,7 +509,17 @@ Examples:
   $ salli whatif --cancel streamflix
   $ salli whatif --file scenario.json --json`,
     )
-    .action(async (opts) => {
+    .action(async (options) => {
+      const opts = {
+        ...options,
+        buy: options.buy ?? [],
+        loan: options.loan ?? [],
+        recurring: options.recurring ?? [],
+        income: options.income ?? [],
+        extraPayment: options.extraPayment ?? [],
+        invest: options.invest ?? [],
+        cancel: options.cancel ?? [],
+      };
       const flagged =
         opts.buy.length + opts.loan.length + opts.recurring.length + opts.income.length + opts.extraPayment.length + opts.invest.length + opts.cancel.length;
       if (opts.file && flagged) throw new UsageError('Give changes as flags or as --file, not both.');
