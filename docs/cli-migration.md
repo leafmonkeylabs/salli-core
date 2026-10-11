@@ -97,7 +97,7 @@ with the server under `salli-server`; **3** have no replacement yet (below).
 | `salli fi assumptions` | `salli fi assumptions` | fi.assumptions |
 | `salli profile update --fi-*` | `salli fi assumptions set <name> <rate> --source …`, `salli fi assumptions clear` **(new)** | fi.assumptions.set |
 | `salli fi surplus` | `salli fi surplus` | fi.surplus |
-| `salli fi simulate-purchase` | `salli fi simulate-purchase` (or fi afford) | fi.simulatePurchase |
+| `salli fi simulate-purchase` | `salli whatif --buy …`, `salli compare` (a purchase is a scenario now) | scenarios.run, scenarios.compare |
 | `salli fi goals list` | `salli goals list` | goals.list |
 | `salli fi goals add` | `salli goals add` | goals.create |
 | `salli fi goals update` | `salli goals update` | goals.update |

@@ -786,10 +786,12 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     @mcp.tool()
     async def get_fi_projections() -> dict[str, Any]:
-        """The user's financial-independence projections: their investable
-        assets projected under conservative, base and growth real-return
-        scenarios, the FI number and the years to reach it in each, in today's
-        money (and each year's own money too, when they set their inflation).
+        """The user's financial-independence projections: their cash and
+        investments less their debts, on the baseline's monthly timeline (cash
+        earns nothing, investments grow at the real return), under
+        conservative, base and growth real returns, with the FI number and the
+        month it is reached in each, in today's money (and each year's own
+        money too, when they set their inflation).
         assumptions.status is "placeholder" while a round stand-in is used for
         the return or the withdrawal rate (assumptions.placeholders says which):
         say so, and quote assumptions.message. Quote the figures exactly."""

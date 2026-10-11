@@ -3,8 +3,8 @@
 The baseline is one model of your money as of a day. Salli builds it from your
 ledger and what you have declared, and every figure that looks ahead starts
 from it: your FI score and projections, the cash forecast, safe-to-spend, the
-debt plan and, soon, the decision lab's scenarios. So they never disagree
-about what you earn, spend, own or owe.
+debt plan and the decision lab's [scenarios](scenarios.md). So they never
+disagree about what you earn, spend, own or owe.
 
 See it with `salli baseline`, `GET /v1/baseline`, or the MCP tool
 `get_baseline`. Each shows the definitions below as data: the months it
@@ -120,10 +120,26 @@ set it (`salli fi assumptions set inflation 2.4% --source "<where from>"`).
 Placeholders are round figures, not forecasts. Every response says which it
 used.
 
+## Financial independence
+
+FI reads the monthly timeline. The FI number is a year of your spending (or
+your FIRE strategy's target) over your safe withdrawal rate; the month FI is
+reached is the first whose end your cash and investments, less your debts,
+reach it, looked for up to 50 years ahead. The projections are the same
+timeline with your investments at each scenario's real return. So the
+surplus you keep in cash, which earns nothing, doesn't count as invested: a
+[scenario](scenarios.md) that invests it says so, and shows the months it
+gains.
+
+## What it records
+
+Each baseline keeps a fingerprint of everything it was built from, and the
+active tax rule sets in your tax residency that cover its as-of date. A
+scenario's result records both, so the same inputs can be shown to give the
+same figures.
+
 ## What is not modelled yet
 
-- Investing the surplus, extra payments and new loans are changes a scenario
-  makes (the decision lab's next phase); the baseline is where they start.
-- FI still assumes your investable assets (cash and investments, less debts)
-  earn the real return together; the monthly timeline keeps them apart.
+- Investing the surplus month by month, extra payments and new loans are
+  changes a [scenario](scenarios.md) makes; the baseline is where they start.
 - A payment's day within its month.

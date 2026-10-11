@@ -280,8 +280,19 @@ Nudges are quiet, useful and rare:
 
 1. **Baseline and scenarios.** This is the foundation, and it fixes the
    inconsistencies.
-   - **Status:** 1a, the baseline, is built ([docs/baseline.md](../baseline.md)).
-     1b, scenarios, is next.
+   - **Status:** built. 1a, the baseline ([docs/baseline.md](../baseline.md));
+     1b, scenarios, comparison, sensitivity and break-evens
+     ([docs/scenarios.md](../scenarios.md)), with FI's month and projections
+     read from the baseline's monthly timeline. Phase 2 is next.
+   - **As built in 1b:** the schema's seven change types (one-off, recurring,
+     income change, loan, extra debt payment, invest, stop a recurring flow);
+     results as baseline / scenario / delta, with a content hash of the
+     scenario and the baseline's fingerprint; comparisons report the trade as
+     figure deltas, sensitivity at the conservative and growth returns, and
+     three break-evens solved by bisection to the cent or the basis point
+     (investing against paying down a debt, a recurring cost's cash floor, a
+     loan's rate against another option). `POST /v1/fi/simulate-purchase` is
+     gone: a purchase is a scenario, compared cash against instalments.
    - **The baseline:** the single income and expense definition, the
      investment-account role, debts linked to liabilities, rates for the *as of*
      date, an injectable *as of*, and pure reads (no writes on read).

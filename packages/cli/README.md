@@ -151,7 +151,9 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Ask about a document | `salli ask "what is this charge?" --attach receipt.pdf` |
 | Budgets, debts | `salli budgets summary <id>`, `salli debts payoff-plan` |
 | Investments | `salli portfolio`, `salli portfolio transactions add VTI buy --quantity 10 --price 240`, `salli portfolio performance` |
-| Financial independence | `salli fi score`, `salli fi assumptions`, `salli fi afford 2400 --months 12` |
+| Financial independence | `salli fi score`, `salli fi projections`, `salli fi assumptions` |
+| What a change would do | `salli whatif --buy 2400@2026-11-01`, `salli whatif --loan 18000@6.9%x48 --buy 18000` |
+| Options side by side | `salli compare cash.json instalments.json` (make them with `salli whatif … --save`) |
 | A review from the advisor | `salli advisor run`, or `salli advisor briefing` to approve a monthly briefing before it is saved |
 | Tax | `salli tax year`, `salli tax compute`, `salli tax explain <line>`, `salli tax return prepare`, `salli profile set --tax-residency GB` |
 | Your own tax rules | `salli tax rules list`, `salli tax rules diff "XA 2031"`, `salli tax rules activate "XA 2031"` (see below) |

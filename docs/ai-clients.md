@@ -8,7 +8,9 @@ does the arithmetic itself.
 Once connected, your AI can:
 - read your cash flow, spending, net worth over time, recurring payments and your
   cash forecast;
-- answer "can I afford…?" from your forecast and your FI plan;
+- weigh a decision (can I afford it, cash or instalments, pay down a debt or
+  invest) by building the options as scenarios Salli runs and compares, never
+  by its own sums, and without ranking them for you;
 - show your financial-independence projections, in today's money, and research
   your own planning assumptions (inflation, returns, withdrawal rate) from
   citable sources, setting them once you agree;
@@ -32,10 +34,19 @@ rules** (for a country and year).
 
 | Tool | What it does |
 |---|---|
-| `get_fi_projections` | Your investable assets projected under conservative, base and growth real-return scenarios, the FI number and the years to it, in today's money (and each year's own money once you set inflation). |
+| `get_fi_projections` | Your cash and investments less your debts, projected on the baseline's monthly timeline under conservative, base and growth real returns, the FI number and the month you reach it, in today's money (and each year's own money once you set inflation). |
 | `get_fi_assumptions` | The planning assumptions behind those figures: which apply and where each came from, what you set, and the placeholders. |
 | `set_fi_assumption` | Sets (or clears) one of your figures, with its source. A write: the AI shows you the figure and its source first. |
-| `simulate_purchase` | What a purchase costs in months of freedom, cash against instalments. |
+
+### Scenario tools
+
+| Tool | What it does |
+|---|---|
+| `get_scenario_schema` | The scenario document's JSON Schema (`salli.scenario/1`), to write options against. |
+| `run_scenario` | One scenario on your baseline: every figure under your baseline and under the scenario, with the change, the assumptions and a hash of its inputs. Nothing is stored. |
+| `compare_options` | Two to five options side by side: what each gains and gives up against the others, the same at the conservative and growth returns, and the break-evens. Never a ranking. |
+
+See [scenarios](scenarios.md) for the document and how to read the results.
 
 FI figures are in real terms. Where you have set no return or withdrawal rate, a
 round placeholder (4%) stands in, and every result says so (`assumptions.status`

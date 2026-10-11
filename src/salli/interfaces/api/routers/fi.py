@@ -251,8 +251,8 @@ class FiScore(BaseModel):
     progress_to_fi: str
     emergency_fund_months: str
     debt_to_asset: str
-    #: Months from the as-of date until FI at the current pace; null when it
-    #: cannot be reached (within 100 years) or known.
+    #: Months from the as-of month until FI, on the baseline's monthly timeline;
+    #: null when it isn't reached within 50 years, or can't be known.
     projected_fi_months: int | None = None
     #: The calendar month that is ("YYYY-MM").
     projected_fi_month: str | None = None
@@ -608,7 +608,7 @@ class FiProjectionPoint(BaseModel):
 class FiDate(BaseModel):
     """When FI is reached in one scenario."""
 
-    #: Months from the as-of date; null when it is not reached within 100 years.
+    #: Months from the as-of month; null when it is not reached within 50 years.
     months: int | None
     #: The calendar month ("YYYY-MM"); null alike.
     month: str | None
