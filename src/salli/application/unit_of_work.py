@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from salli.adapters.db.decisions import SQLDecisionRepository, SQLPrincipleRepository
 from salli.adapters.db.repositories import (
     SQLAdvisoryRepository,
     SQLAgentDocumentRepository,
@@ -52,6 +53,7 @@ from salli.application.ports import (
     BudgetRepository,
     DataPortabilityRepository,
     DebtRepository,
+    DecisionRepository,
     FireStrategyRepository,
     FiScoreRepository,
     GoalRepository,
@@ -66,6 +68,7 @@ from salli.application.ports import (
     PersonalAccessTokenRepository,
     PolicyRepository,
     PortfolioRepository,
+    PrincipleRepository,
     RecurringSubscriptionRepository,
     ReminderRepository,
     RuleRepository,
@@ -110,6 +113,8 @@ class UnitOfWork:
     personal_access_tokens: PersonalAccessTokenRepository
     rules: RuleRepository
     bank_connections: BankConnectionRepository
+    principles: PrincipleRepository
+    decisions: DecisionRepository
 
     def __init__(
         self,
@@ -152,6 +157,8 @@ class UnitOfWork:
         self.personal_access_tokens = SQLPersonalAccessTokenRepository(self._session)
         self.rules = SQLRuleRepository(self._session)
         self.bank_connections = SQLBankConnectionRepository(self._session)
+        self.principles = SQLPrincipleRepository(self._session)
+        self.decisions = SQLDecisionRepository(self._session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:

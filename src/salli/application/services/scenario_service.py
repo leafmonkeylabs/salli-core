@@ -91,12 +91,16 @@ class ScenarioService:
     def today(self) -> dt.date:
         return self._today()
 
+    @property
+    def baselines(self) -> BaselineService:
+        return self._baselines
+
     @staticmethod
     def schema() -> dict[str, Any]:
         """The scenario document's JSON Schema, for agents writing one."""
         return schema.json_schema()
 
-    async def _check_own(self, user_id: str, scenarios: Sequence[schema.Scenario]) -> None:
+    async def check_own(self, user_id: str, scenarios: Sequence[schema.Scenario]) -> None:
         """AccountNotFound / DebtNotFound unless every id the changes name is
         the user's own (an active debt, for a debt)."""
         debts = debts_named(scenarios)
@@ -107,13 +111,14 @@ class ScenarioService:
                 if debts - mine:
                     raise DebtNotFound(debts - mine)
 
-    def _as_of(self, scenarios: Sequence[schema.Scenario]) -> dt.date:
+    def as_of_for(self, scenarios: Sequence[schema.Scenario], *, options: bool = False) -> dt.date:
         """The day the baseline is as of: the scenarios' (one day, for every
-        option that gives one), or today; never after today."""
+        option that gives one), or today; never after today. `options`: the
+        scenarios are a request's `options`, so problems are under it."""
         today = self._today()
         given = sorted({s.as_of for s in scenarios if s.as_of is not None})
         problems: list[Problem] = []
-        many = len(scenarios) > 1
+        many = len(scenarios) > 1 or options
         for i, s in enumerate(scenarios):
             at = join_path("options", i, "as_of") if many else "as_of"
             if s.as_of is not None and s.as_of > today:
@@ -132,8 +137,8 @@ class ScenarioService:
         """The scenario on the user's baseline: every figure under the
         baseline and under the scenario, and the delta. Stores nothing."""
         scenario = load_scenario(data)
-        as_of = self._as_of([scenario])
-        await self._check_own(user_id, [scenario])
+        as_of = self.as_of_for([scenario])
+        await self.check_own(user_id, [scenario])
         baseline = await self._baselines.build(user_id, as_of)
         return views.result_view(engine.run(baseline, scenario))
 
@@ -162,7 +167,7 @@ class ScenarioService:
                 problems += error.problems
         if problems:
             raise ScenarioError(problems)
-        as_of = self._as_of(scenarios)
-        await self._check_own(user_id, scenarios)
+        as_of = self.as_of_for(scenarios)
+        await self.check_own(user_id, scenarios)
         baseline = await self._baselines.build(user_id, as_of)
         return views.comparison_view(comparison.compare(baseline, scenarios))
