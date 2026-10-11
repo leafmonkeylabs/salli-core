@@ -307,6 +307,21 @@ async def test_an_unknown_email_is_checked_against_a_hash_all_the_same(world):
     assert world.hasher.verified[0] != ""
 
 
+async def test_a_known_email_costs_the_same_work_as_an_unknown_one(world):
+    """Hash and verify counts match either way, the first time as after."""
+    await _account(world)
+    hashed, verified = world.hasher.hashed, len(world.hasher.verified)
+    with pytest.raises(SignInRefused):
+        await world.service.authenticate("ada@example.org", "a wrong password")
+    known = (world.hasher.hashed - hashed, len(world.hasher.verified) - verified)
+
+    other = LoginService(world.service._uow_factory, world.hasher, clock=world.clock)  # noqa: SLF001
+    hashed, verified = world.hasher.hashed, len(world.hasher.verified)
+    with pytest.raises(SignInRefused):
+        await other.authenticate("nobody@example.org", "a wrong password")
+    assert (world.hasher.hashed - hashed, len(world.hasher.verified) - verified) == known
+
+
 async def test_a_password_too_long_to_be_anyone_s_is_not_hashed(world):
     await _account(world)
     with pytest.raises(SignInRefused):

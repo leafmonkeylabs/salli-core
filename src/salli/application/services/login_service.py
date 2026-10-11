@@ -270,12 +270,15 @@ class LoginService:
                     raise SignInThrottled(math.ceil((frees_at - now).total_seconds()))
             login: dict[str, Any] | None = await uow.logins.get_by_email(tried)
 
+        # Made (once) before anything depends on whether the email has an
+        # account, so not even the first unknown email takes longer.
+        dummy = await self._dummy()
         if len(password) > MAX_PASSWORD_LENGTH:
             matched = False  # never a password anyone could have set; not hashed
         elif login is None:
             # The same work as a real check, so the time taken says nothing
             # about whether the email has an account.
-            await self._hasher.verify(await self._dummy(), password)
+            await self._hasher.verify(dummy, password)
             matched = False
         else:
             matched = await self._hasher.verify(login["password_hash"], password)
