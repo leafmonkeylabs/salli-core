@@ -30,6 +30,10 @@ Grammar (lowest precedence first):
   building block compiles to (`line.general.band_1.tax`).
 - Strings exist only where a function needs a name: a rounding mode, a band
   table, a choice's options. Their content is a key (`"nearest"`, `"joint"`).
+- In figure mode (`parse(text, figures=True)`, the language a principle's
+  check is written in: domain/decisions), a plain name that is no function
+  or keyword is a figure, `Ref("figure", name)` (`emergency_months >= 6`), and
+  the dotted references above don't exist. A figure prints as its bare name.
 
 Functions, the only ones there are:
 
@@ -81,8 +85,12 @@ MAX_ARGUMENTS = 64
 KEY_PATTERN = r"[a-z][a-z0-9_]*"
 _KEY = re.compile(KEY_PATTERN)
 
-Namespace = Literal["role", "answer", "line"]
+Namespace = Literal["role", "answer", "line", "figure"]
+#: The namespaces written with a prefix (`role.<key>`); a figure is written
+#: bare, and only in figure mode.
 NAMESPACES: tuple[Namespace, ...] = ("role", "answer", "line")
+#: The namespace of a bare name in figure mode.
+FIGURE: Namespace = "figure"
 
 Value = Decimal | bool | str
 
@@ -168,7 +176,7 @@ class Ref:
     pos: int = field(default=0, compare=False)
 
     def __str__(self) -> str:
-        return f"{self.namespace}.{self.key}"
+        return self.key if self.namespace == FIGURE else f"{self.namespace}.{self.key}"
 
 
 UnaryOp = Literal["-", "not"]
@@ -236,7 +244,7 @@ class _Token:
     pos: int
 
 
-def _tokenize(text: str) -> list[_Token]:
+def _tokenize(text: str, figures: bool = False) -> list[_Token]:
     tokens: list[_Token] = []
     i = 0
     n = len(text)
@@ -275,7 +283,7 @@ def _tokenize(text: str) -> list[_Token]:
         if c.isascii() and (c.isalpha() or c == "_"):
             m = _NAME.match(text, i)
             assert m is not None
-            tokens.append(_classify_name(m.group(0), text, i))
+            tokens.append(_classify_name(m.group(0), text, i, figures))
             i = m.end()
             continue
         for op in _OPERATORS:
@@ -289,8 +297,12 @@ def _tokenize(text: str) -> list[_Token]:
     return tokens
 
 
-def _classify_name(word: str, text: str, pos: int) -> _Token:
+def _classify_name(word: str, text: str, pos: int, figures: bool = False) -> _Token:
     head, _, rest = word.partition(".")
+    if figures and "." in word:
+        raise ExprSyntaxError(
+            f"Name a figure plainly, like emergency_months, not {word!r}", text, pos
+        )
     if head in NAMESPACES:
         if not rest:
             raise ExprSyntaxError(f"Expected {head}.<key>", text, pos)
@@ -400,9 +412,10 @@ _ATOM_POWER = 8
 
 
 class _Parser:
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, figures: bool = False) -> None:
         self.text = text
-        self.tokens = _tokenize(text)
+        self.figures = figures
+        self.tokens = _tokenize(text, figures)
         self.i = 0
         self.nodes = 0
         self.nesting = 0
@@ -485,6 +498,10 @@ class _Parser:
         if token.kind == "number":
             return self.make(Num(_number(token, self.text), token.pos))
         if token.kind == "ref":
+            if self.figures:
+                raise self.error_at(
+                    token, f"Name a figure plainly, like emergency_months, not {token.text!r}"
+                )
             namespace, _, key = token.text.partition(".")
             return self.make(Ref(cast(Namespace, namespace), key, token.pos))
         if token.kind == "string":
@@ -514,8 +531,22 @@ class _Parser:
                 raise self.error_at(token, f"Expected a value before {word!r}")
             if word in FUNCTIONS:
                 return self.call(token)
+            if self.figures:
+                return self.figure(token)
             raise self.error_at(token, f"Unknown function or name {word!r}")
         raise self.error_at(token, "The expression ends too soon")
+
+    def figure(self, token: _Token) -> Node:
+        after = self.peek()
+        if after.kind == "op" and after.text == "(":
+            raise self.error_at(token, f"Unknown function {token.text!r}")
+        if not _KEY.fullmatch(token.text):
+            raise self.error_at(
+                token,
+                f"{token.text!r} is not a figure's name: names are lower-case letters, digits "
+                "and underscores, starting with a letter",
+            )
+        return self.make(Ref(FIGURE, token.text, token.pos))
 
     def call(self, name: _Token) -> Node:
         sig = FUNCTIONS[name.text]
@@ -594,8 +625,9 @@ def _number(token: _Token, text: str) -> Decimal:
     return value
 
 
-def parse(text: str) -> Expr:
-    """Parse `text`, or raise `ExprSyntaxError` / `ExprLimitError`."""
+def parse(text: str, *, figures: bool = False) -> Expr:
+    """Parse `text`, or raise `ExprSyntaxError` / `ExprLimitError`. With
+    `figures`, plain names are figures (see the module)."""
     if not isinstance(text, str):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise ExprSyntaxError("An expression must be text", "", 0)
     if len(text) > MAX_LENGTH:
@@ -604,7 +636,7 @@ def parse(text: str) -> Expr:
         )
     if not text.strip():
         raise ExprSyntaxError("The expression is empty", text, 0)
-    return Expr(_Parser(text).parse(), text)
+    return Expr(_Parser(text, figures).parse(), text)
 
 
 # ── walking and printing ───────────────────────────────────────────────────────

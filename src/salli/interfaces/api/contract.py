@@ -274,6 +274,23 @@ OPERATION_IDS: dict[Route, str] = {
     # scenarios: what-ifs on the baseline (domain/scenarios); they store nothing
     ("POST", "/scenarios/run"): "scenarios.run",
     ("POST", "/scenarios/compare"): "scenarios.compare",
+    # principles: the user's own rules of thumb, checked against options
+    ("GET", "/principles"): "principles.list",
+    ("POST", "/principles"): "principles.create",
+    ("GET", "/principles/figures"): "principles.figures",
+    ("POST", "/principles/check"): "principles.check",
+    ("PATCH", "/principles/{principle_id}"): "principles.update",
+    ("POST", "/principles/{principle_id}/archive"): "principles.archive",
+    # the decision journal: append-only, with notes and reviews
+    ("GET", "/decisions"): "decisions.list",
+    ("POST", "/decisions"): "decisions.record",
+    ("GET", "/decisions/reviews"): "decisions.reviews.due",
+    ("GET", "/decisions/export"): "decisions.export",
+    ("GET", "/decisions/export/markdown"): "decisions.exportMarkdown",
+    ("GET", "/decisions/{decision_id}"): "decisions.get",
+    ("GET", "/decisions/{decision_id}/markdown"): "decisions.markdown",
+    ("POST", "/decisions/{decision_id}/notes"): "decisions.notes.add",
+    ("POST", "/decisions/{decision_id}/review"): "decisions.review",
     # insights
     ("GET", "/insights/cash-flow"): "insights.cashFlow",
     ("GET", "/insights/spending"): "insights.spending",

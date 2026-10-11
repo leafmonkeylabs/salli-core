@@ -15,7 +15,9 @@ Once connected, your AI can:
   cash forecast;
 - weigh a decision (can I afford it, cash or instalments, pay down a debt or
   invest) by building the options as scenarios Salli runs and compares, never
-  by its own sums, and without ranking them for you;
+  by its own sums, and without ranking them for you; check them against your
+  own principles, and, once you have decided and say so, record the decision
+  and your reasons in your journal, and look back on it when it is due;
 - show your financial-independence projections, in today's money, and research
   your own planning assumptions (inflation, returns, withdrawal rate) from
   citable sources, and ask what share of your surplus you invest, setting them
@@ -53,6 +55,20 @@ rules** (for a country and year).
 | `compare_options` | Two to five options side by side: what each gains and gives up against the others, the same at the conservative and growth returns, and the break-evens. Never a ranking. |
 
 See [scenarios](scenarios.md) for the document and how to read the results.
+
+### Principles and the decision journal
+
+| Tool | What it does |
+|---|---|
+| `list_principles` | Your principles (your own rules of thumb) and the figures a check may read. |
+| `add_principle` | Keeps a principle the AI suggested, only once you have said yes to its exact label and check (`confirmed_by_user`); recorded as the agent's. |
+| `check_principles` | Which principles your baseline and each option keep, break or can't tell, with the figures and the reason. Never a ranking. |
+| `record_decision` | Records a decision in your journal, which can't be edited or deleted: Salli runs the options itself, with your reasons in your words. Only once you confirm (`confirmed_by_user`). |
+| `list_decisions`, `get_decision` | Your journal, and one entry as recorded, with whether its hash still matches. |
+| `list_due_reviews` | Decisions whose review date has come, with what the option you chose projected against what happened. |
+| `review_decision` | Appends your reflection, with Salli's comparison, once you agree to the words. |
+
+See [principles and the decision journal](decisions.md).
 
 FI figures are in real terms. Where you have set no return or withdrawal rate, a
 round placeholder (4%) stands in, and every result says so (`assumptions.status`

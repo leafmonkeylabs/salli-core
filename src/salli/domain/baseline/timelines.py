@@ -644,6 +644,10 @@ class MonthPoint:
     net_worth: Decimal
     #: Divide the month's own money by this to get today's money.
     deflator: Decimal
+    #: What moved into investments over the month, in its own money: the
+    #: share of the regular surplus and a scenario's investments (nothing at
+    #: the as-of point).
+    invested: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True)
@@ -655,6 +659,11 @@ class DebtOutlook:
     paid_off: str | None
     total_interest: Decimal
     schedule: tuple[PayoffScheduleEntry, ...]
+    #: Its yearly rate, a fraction.
+    apr: Decimal = Decimal(0)
+    #: What it owes at the end of each of the timeline's months (the points
+    #: after the as-of point), in each month's own money.
+    owed: tuple[Decimal, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -728,7 +737,8 @@ def monthly(
         investments *= Decimal(1) + real_return / _TWELVE * month.period.share
         # Money moved in during a month (a scenario's investment, and the
         # share of the regular surplus) grows from the next, in today's money.
-        investments += (invested.get(month.period.month, Decimal(0)) + month.invested) / level
+        moved = invested.get(month.period.month, Decimal(0)) + month.invested
+        investments += moved / level
         owed = sum((path.owed[i] for path in paths), Decimal(0))
         points.append(
             MonthPoint(
@@ -743,11 +753,20 @@ def monthly(
                 # moved between cash and a debt changes it by nothing.
                 net_worth=(cash - owed - other_liabilities) / level + investments + other_assets,
                 deflator=level,
+                invested=moved,
             )
         )
 
     outlooks = tuple(
-        DebtOutlook(p.debt.debt_id, p.debt.name, p.paid_off, p.total_interest, p.schedule)
+        DebtOutlook(
+            p.debt.debt_id,
+            p.debt.name,
+            p.paid_off,
+            p.total_interest,
+            p.schedule,
+            apr=p.debt.apr,
+            owed=p.owed,
+        )
         for p in paths
     )
     owing = [p for p in paths if p.debt.balance > 0]

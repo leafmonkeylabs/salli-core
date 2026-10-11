@@ -302,6 +302,91 @@ class ReminderRepository(ABC):
         ...
 
 
+class PrincipleRepository(ABC):
+    """A user's principles (domain/decisions/principles.py): preferences,
+    so they are edited and archived, never deleted. Every read and write
+    names the owner. A row is a dict: id, label, check, account, note,
+    version, author_kind, author_name, created_at, updated_at, archived_at."""
+
+    @abstractmethod
+    async def list(self, user_id: str, include_archived: bool = False) -> list[dict[str, Any]]:
+        """Oldest first."""
+        ...
+
+    @abstractmethod
+    async def get(self, user_id: str, principle_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def add(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        """`record`: label, check, account, note, author_kind, author_name."""
+        ...
+
+    @abstractmethod
+    async def update(
+        self, user_id: str, principle_id: str, changes: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Change label, check, account or note (those `changes` names), and
+        count the version up. None when it isn't the user's, or archived."""
+        ...
+
+    @abstractmethod
+    async def archive(self, user_id: str, principle_id: str) -> dict[str, Any] | None:
+        """Stop using it: it stays, archived. None when it isn't the user's."""
+        ...
+
+
+class DecisionRepository(ABC):
+    """The decision journal (domain/decisions/journal.py): append-only.
+    There is no way here to change or delete an entry, a note or a review;
+    the database refuses it too (core_0017). Every read names the owner.
+
+    An entry row: id, question, chosen, currency, as_of, review_on,
+    recorded_at, content, hash; `get` and `list_full` add `notes` and
+    `reviews` (each id, content, hash, created_at, oldest first), `list` and
+    `due` add `notes` and `reviews` as counts and `last_reviewed_at`."""
+
+    @abstractmethod
+    async def record(self, user_id: str, entry: dict[str, Any]) -> dict[str, Any]:
+        """`entry`: id, question, chosen, currency, as_of, review_on,
+        recorded_at, content, hash."""
+        ...
+
+    @abstractmethod
+    async def get(self, user_id: str, decision_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """Newest first, without their documents."""
+        ...
+
+    @abstractmethod
+    async def list_full(self, user_id: str) -> list[dict[str, Any]]:
+        """Every entry with its notes and reviews, oldest first: the export."""
+        ...
+
+    @abstractmethod
+    async def due(self, user_id: str, on: date) -> list[dict[str, Any]]:
+        """Entries whose review date is on or before `on` and that have no
+        review yet, soonest due first."""
+        ...
+
+    @abstractmethod
+    async def add_note(
+        self, user_id: str, decision_id: str, note: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """`note`: id, content, hash, created_at. None when the entry isn't
+        the user's."""
+        ...
+
+    @abstractmethod
+    async def add_review(
+        self, user_id: str, decision_id: str, review: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """`review`: id, as_of, content, hash, created_at. None when the
+        entry isn't the user's."""
+        ...
+
+
 class StatementRepository(ABC):
     """Imported statements and their parsed transactions. A parsed transaction
     read back carries its statement's `account_id` ("" when it has none)."""
@@ -523,6 +608,30 @@ class DebtNotFound(KeyError):
 
     def __str__(self) -> str:
         return "Debt not found: " + ", ".join(self.debt_ids)
+
+
+class PrincipleNotFound(KeyError):
+    """A principle that is not the caller's: one that does not exist, or
+    another user's. They look the same."""
+
+    def __init__(self, principle_id: str) -> None:
+        self.principle_id = principle_id
+        super().__init__(principle_id)
+
+    def __str__(self) -> str:
+        return f"Principle not found: {self.principle_id}"
+
+
+class DecisionNotFound(KeyError):
+    """A decision that is not the caller's: one that does not exist, or
+    another user's. They look the same."""
+
+    def __init__(self, decision_id: str) -> None:
+        self.decision_id = decision_id
+        super().__init__(decision_id)
+
+    def __str__(self) -> str:
+        return f"Decision not found: {self.decision_id}"
 
 
 class ProfileMissing(LookupError):

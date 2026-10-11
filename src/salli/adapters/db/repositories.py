@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import Select, delete, func, or_, select, update
+from sqlalchemy import Select, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,9 @@ from salli.adapters.db.models import (
     BudgetORM,
     CategorizationRuleORM,
     DebtORM,
+    DecisionNoteORM,
+    DecisionORM,
+    DecisionReviewORM,
     DocumentORM,
     FireStrategyORM,
     FiScoreORM,
@@ -53,6 +56,7 @@ from salli.adapters.db.models import (
     PolicyORM,
     PostingORM,
     PostingTagORM,
+    PrincipleORM,
     RecurringSubscriptionORM,
     ReminderORM,
     StatementORM,
@@ -2713,6 +2717,19 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # recurring_subscriptions.account_id -> accounts.id has no ondelete
         # cascade either, so it must be gone before accounts.
         await _delete(RecurringSubscriptionORM, RecurringSubscriptionORM.user_id)
+        # principles.account_id -> accounts.id likewise.
+        await _delete(PrincipleORM, PrincipleORM.user_id)
+        # The decision journal is append-only, and the database refuses a
+        # DELETE on it (core_0017) unless the transaction says whose account
+        # it is erasing. Notes and reviews point at their entry, so go first.
+        await self._s.execute(
+            text("select set_config('salli.erase_user', :user_id, true)").bindparams(
+                user_id=user_id
+            )
+        )
+        await _delete(DecisionReviewORM, DecisionReviewORM.user_id)
+        await _delete(DecisionNoteORM, DecisionNoteORM.user_id)
+        await _delete(DecisionORM, DecisionORM.user_id)
         # debts.account_id -> accounts.id likewise.
         await _delete(DebtORM, DebtORM.user_id)
 

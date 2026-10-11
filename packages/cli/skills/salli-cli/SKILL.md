@@ -94,6 +94,34 @@ other), `sensitivity` (the same at the conservative and growth returns) and
 quote it. If `is_stale` is true, ask the user to bring their ledger up to
 date before deciding. Name the `placeholders` the figures rest on.
 
+## Principles and the decision journal
+
+The user's principles are their own rules of thumb, a label and a check
+over Salli's figures (`salli principles figures --json` lists them):
+
+    salli principles list --json
+    salli principles check cash.json instalments.json --json   # keeps / breaks / can't tell
+    salli principles add "Six months of essentials in cash" --check "emergency_months >= 6"
+
+Respect them, and quote each result's `reason`. You may suggest a principle
+from what the user says matters to them; add one only after they have seen
+the exact label and check and said yes.
+
+When they decide, offer to record it: their question, the options (scenario
+files), the one they chose, their reasons in their own words (never yours),
+and when to look back. An entry can't be edited or deleted, so record it
+only once they confirm:
+
+    salli decisions record --question "…" --option cash.json --option wait.json \
+      --chosen "Pay cash" --reasons "<their words>" --review-on 2027-04-11 --yes
+    salli decisions reviews --json      # due: what was projected against what happened
+    salli decisions review <id> --reflection "<their words>"
+    salli decisions note <id> "<text>"
+    salli decisions export --format markdown
+
+Walk them through a due review with Salli's comparison, ask what they make
+of it, and record their reflection only when they agree.
+
 ## Running it
 
 `salli` must be installed (`npm install --global @leafmonkeylabs/salli`) and
@@ -116,6 +144,8 @@ Other ids can be shortened to any unique prefix.
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
 | `baseline` | the one model every figure comes from, as of a day (`--as-of`): months averaged, exchange rates and their source, account roles, debts, assumptions, and timelines to `--years` |
 | `whatif`, `compare` | a scenario's figures against the baseline (from flags, or `--file`); two to five options side by side, with the trade, sensitivity and break-evens |
+| `principles` | the user's rules of thumb: `list`, `add`, `edit`, `archive`, `check [files…]`, `figures` |
+| `decisions` | the decision journal: `list`, `show`, `record`, `note`, `reviews`, `review`, `export`; entries are never edited or deleted |
 | `tax` | your tax from your own active rules: `year`, `compute`, `latest`, `explain <line>`; `return prepare`, `return review <thread>`; `schema` (the rule-set JSON Schema) |
 | `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`, `accounts <set> [--apply]`; `activate` is the user's, never yours |
 | `budgets`, `debts`, `insurance`, `subscriptions` | each domain's records and reports |

@@ -15,8 +15,8 @@ Salli no longer leans on an outside auth service: it keeps its own accounts
 There are no real users yet, so nothing is carried over from the auth
 service an instance used before: its owner runs `salli-server setup` again.
 
-Revision ID: core_0017_local_auth
-Revises: core_0016_decision_baseline
+Revision ID: core_0018_local_auth
+Revises: core_0017_decision_journal
 Create Date: 2026-10-11
 """
 
@@ -25,8 +25,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "core_0017_local_auth"
-down_revision: str | None = "core_0016_decision_baseline"
+revision: str = "core_0018_local_auth"
+down_revision: str | None = "core_0017_decision_journal"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

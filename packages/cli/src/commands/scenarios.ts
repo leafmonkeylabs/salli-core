@@ -152,7 +152,7 @@ export function investArg(value: string, day: string, now: Date, account?: strin
 }
 
 /** Reads a scenario document: a file, or stdin for "-". */
-async function readScenario(app: App, path: string): Promise<Record<string, unknown>> {
+export async function readScenario(app: App, path: string): Promise<Record<string, unknown>> {
   let text: string;
   if (path === '-') {
     text = await readAllStdin(app.runtime.stdin);

@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from salli.domain.reports.insights import MonthFlow, Recurring, SpendingLine
 from salli.domain.reports.signals import (
+    decision_reviews_due,
     low_balance_ahead,
     new_recurring,
     price_changes,
@@ -102,3 +103,15 @@ def test_review_waiting_grows_more_pressing_with_age_and_ranking_puts_high_first
     assert review_waiting(0, None, TODAY) == []
     [high] = low_balance_ahead(Decimal("-1"), "2026-11-01", Decimal(5), None, "USD")
     assert [s.severity for s in ranked([fresh, stale, high])] == ["high", "medium", "info"]
+
+
+def test_a_decision_due_for_review_is_an_invitation_not_an_alarm():
+    [signal] = decision_reviews_due([("d-1", "Laptop:\n cash or not?", "2027-04-11")])
+    assert (signal.kind, signal.severity, signal.action, signal.refs, signal.date) == (
+        "decision_review_due",
+        "info",
+        "review_decision",
+        ("d-1",),
+        "2027-04-11",
+    )
+    assert '"Laptop: cash or not?"' in signal.detail

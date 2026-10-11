@@ -154,6 +154,8 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Financial independence | `salli fi score`, `salli fi projections`, `salli fi assumptions` |
 | What a change would do | `salli whatif --buy 2400@2026-11-01`, `salli whatif --loan 18000@6.9%x48 --buy 18000` |
 | Options side by side | `salli compare cash.json instalments.json` (make them with `salli whatif … --save`) |
+| Your rules of thumb | `salli principles add "Six months in cash" --check "emergency_months >= 6"`, `salli principles check cash.json instalments.json` |
+| Your decision journal | `salli decisions record …`, `salli decisions reviews`, `salli decisions export` |
 | A review from the advisor | `salli advisor run`, or `salli advisor briefing` to approve a monthly briefing before it is saved |
 | Tax | `salli tax year`, `salli tax compute`, `salli tax explain <line>`, `salli tax return prepare`, `salli profile set --tax-residency GB` |
 | Your own tax rules | `salli tax rules list`, `salli tax rules diff "XA 2031"`, `salli tax rules activate "XA 2031"` (see below) |

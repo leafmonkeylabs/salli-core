@@ -23,8 +23,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from salli.application.ports import (
     AccountNotFound,
     DebtNotFound,
+    DecisionNotFound,
     FetchRefused,
     FxUnavailableError,
+    PrincipleNotFound,
     ProfileMissing,
 )
 from salli.application.services.tax_rule_service import (
@@ -39,6 +41,8 @@ from salli.application.services.tax_rule_service import (
 from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import database_url, get_settings
+from salli.domain.decisions.journal import JournalError
+from salli.domain.decisions.principles import PrincipleError
 from salli.domain.llm import LLMError
 from salli.domain.scenarios import ScenarioError
 from salli.domain.secrets import redact
@@ -58,6 +62,7 @@ from salli.interfaces.api.routers import (
     baseline,
     budget,
     debt,
+    decisions,
     documents,
     entries,
     exports,
@@ -71,6 +76,7 @@ from salli.interfaces.api.routers import (
     meta,
     onboarding,
     portfolio,
+    principles,
     reminders,
     reports,
     rules,
@@ -287,6 +293,10 @@ def create_app() -> FastAPI:
     app.include_router(mcp_oauth.router)
     # A server-rendered page for people, not an API operation: kept out of the schema.
     app.include_router(mcp_consent_page.router, include_in_schema=False)
+    # New in /v1 too (after the protocol routes only to keep the API
+    # document's order stable).
+    app.include_router(principles.router, prefix=API_PREFIX)
+    app.include_router(decisions.router, prefix=API_PREFIX)
 
     # ── Exception handlers ────────────────────────────────────────────────────
     # Every error is RFC 9457 problem details (contract.Problem). `detail` keeps
@@ -324,6 +334,39 @@ def create_app() -> FastAPI:
             "Not a scenario Salli can run",
             [{"loc": ["body", *_path_parts(p.path)], "msg": p.message} for p in exc.problems],
         )
+
+    # A principle Salli can't keep, or a decision, note or review it can't
+    # record: each problem with its path, in a validation error's shape.
+    @app.exception_handler(PrincipleError)
+    async def principle_error_handler(request: Request, exc: PrincipleError) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid-principle",
+            "Not a principle Salli can keep",
+            [
+                {"loc": ["body", *_path_parts(p.path)], "msg": p.message, "snippet": p.snippet}
+                for p in exc.problems
+            ],
+        )
+
+    @app.exception_handler(JournalError)
+    async def journal_error_handler(request: Request, exc: JournalError) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid-decision",
+            "Not something Salli can record in the decision journal",
+            [{"loc": ["body", *_path_parts(p.path)], "msg": p.message} for p in exc.problems],
+        )
+
+    # A principle or a decision that is not the caller's (missing, or
+    # another user's: they look the same).
+    @app.exception_handler(PrincipleNotFound)
+    async def principle_not_found_handler(request: Request, exc: PrincipleNotFound) -> JSONResponse:
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
+
+    @app.exception_handler(DecisionNotFound)
+    async def decision_not_found_handler(request: Request, exc: DecisionNotFound) -> JSONResponse:
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
 
     @app.exception_handler(KeyError)
     async def key_error_handler(request: Request, exc: KeyError) -> JSONResponse:

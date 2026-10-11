@@ -148,6 +148,7 @@ class DataPortabilityService:
             "statements": await self._statements(user_id),
             "bank_connections": await self._bank_connections(user_id),
             "tax_rule_sets": await self._tax_rule_sets(user_id),
+            **await self._decisions(user_id),
         }
         for export in self._exporters:
             data.update(await export(user_id))
@@ -170,6 +171,35 @@ class DataPortabilityService:
         version's document, status and validation report."""
         async with self._uow_factory() as uow:
             return list(await uow.tax_rule_sets.export(user_id))
+
+    async def _decisions(self, user_id: str) -> dict[str, Any]:
+        """Every principle (archived ones too), and the decision journal
+        exactly as recorded: each entry, note and review with its hash."""
+        import datetime as dt
+
+        from salli.application.services.principle_service import principle_view
+        from salli.domain.decisions import journal
+
+        async with self._uow_factory() as uow:
+            principles = await uow.principles.list(user_id, include_archived=True)
+            entries = await uow.decisions.list_full(user_id)
+        records = [
+            {
+                "entry": r["content"],
+                "hash": r["hash"],
+                "notes": [{"note": n["content"], "hash": n["hash"]} for n in r["notes"]],
+                "reviews": [{"review": v["content"], "hash": v["hash"]} for v in r["reviews"]],
+            }
+            for r in entries
+        ]
+        exported = journal.export(records, dt.datetime.now(dt.UTC))
+        # The export as a whole says when it was made; the journal's own
+        # stamp would only make two exports of the same data differ.
+        del exported["exported_at"]
+        return {
+            "principles": [principle_view(p) for p in principles],
+            "decision_journal": exported,
+        }
 
     async def _bank_connections(self, user_id: str) -> list[dict[str, Any]]:
         """Each bank connection with its accounts, their mappings and the

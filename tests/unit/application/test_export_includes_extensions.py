@@ -30,6 +30,8 @@ def _service(exporters=(), statements=(), banks=(), rule_sets=()):
             statements=SimpleNamespace(export=AsyncMock(return_value=statements)),
             bank_connections=SimpleNamespace(list=AsyncMock(return_value=banks)),
             tax_rule_sets=SimpleNamespace(export=AsyncMock(return_value=rule_sets)),
+            principles=SimpleNamespace(list=AsyncMock(return_value=[])),
+            decisions=SimpleNamespace(list_full=AsyncMock(return_value=[])),
         )
 
     return DataPortabilityService(uow, *svcs, exporters=exporters)

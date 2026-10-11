@@ -576,6 +576,146 @@ class ReminderORM(Base):
     )
 
 
+# ── Decisions (docs/decisions.md) ─────────────────────────────────────────────
+
+#: A content hash: "sha256:" and 64 hex digits (domain/canonical.py).
+_HASH_CHECK = "hash ~ '^sha256:[0-9a-f]{64}$'"
+
+
+class PrincipleORM(Base):
+    """A user's own rule of thumb (`salli.principle/1`): a label, and a check
+    in the safe expression language over the decision figures
+    (domain/decisions/principles.py).
+
+    Principles are preferences, not records: they can be edited (each edit
+    counts up `version`) and archived (`archived_at`), never deleted. A
+    decision records each principle as it stood, with its version and
+    content hash, so an edit never changes what a recorded decision says.
+    `account_id` is the cash account `account_lowest` reads; the service
+    checks it is the user's own."""
+
+    __tablename__ = "principles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    # The check, as the user (or their agent) wrote it. `check` is a keyword.
+    expression: Mapped[str] = mapped_column(Text, nullable=False)
+    account_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("accounts.id"), nullable=True
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # "agent" when an agent wrote it and the user confirmed it.
+    author_kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    author_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("version > 0", name="ck_principles_version"),
+        CheckConstraint("author_kind IN ('user','agent')", name="ck_principles_author_kind"),
+    )
+
+
+class DecisionORM(Base):
+    """An entry in the decision journal (`salli.decision/1`): the question,
+    the options as scenario snapshots, the principles' checks, the option
+    chosen and the person's reasons, as one self-describing document
+    (`content`) and its content hash (domain/decisions/journal.py).
+
+    Append-only. The repository has no way to change or delete an entry,
+    and a trigger (core_0017) refuses an UPDATE or a DELETE as defence in
+    depth: only erasing the user's whole account, which says so for the
+    transaction (`salli.erase_user`), deletes one. Later thoughts are notes
+    and reviews, appended beside it. The columns beside `content` repeat
+    what lists and the due reviews are found by.
+
+    Money lives only inside `content`, as decimal strings in the currency's
+    precision, the way a tax computation keeps its lines: the document is
+    the record, and its hash covers every figure."""
+
+    __tablename__ = "decisions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    chosen: Mapped[str] = mapped_column(String(200), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    as_of: Mapped[date] = mapped_column(Date, nullable=False)
+    review_on: Mapped[date] = mapped_column(Date, nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        # What notes' and reviews' composite foreign keys point at: an entry
+        # and its owner.
+        UniqueConstraint("id", "user_id", name="uq_decisions_id_user"),
+        Index("ix_decisions_user_review_on", "user_id", "review_on"),
+        CheckConstraint("jsonb_typeof(content) = 'object'", name="ck_decisions_content"),
+        CheckConstraint(_HASH_CHECK, name="ck_decisions_hash"),
+    )
+
+
+class DecisionNoteORM(Base):
+    """A note appended to a decision (`salli.decision-note/1`), naming the
+    entry's hash. Append-only, like the entry (core_0017's trigger)."""
+
+    __tablename__ = "decision_notes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    decision_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["decision_id", "user_id"],
+            ["decisions.id", "decisions.user_id"],
+            name="fk_decision_notes_decision",
+        ),
+        Index("ix_decision_notes_user_decision", "user_id", "decision_id"),
+        CheckConstraint("jsonb_typeof(content) = 'object'", name="ck_decision_notes_content"),
+        CheckConstraint(_HASH_CHECK, name="ck_decision_notes_hash"),
+    )
+
+
+class DecisionReviewORM(Base):
+    """A review appended to a decision (`salli.decision-review/1`): the
+    person's reflection and the comparison of what was projected with what
+    happened, naming the entry's hash. Append-only (core_0017's trigger)."""
+
+    __tablename__ = "decision_reviews"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    decision_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    # The day the review compared as of.
+    as_of: Mapped[date] = mapped_column(Date, nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["decision_id", "user_id"],
+            ["decisions.id", "decisions.user_id"],
+            name="fk_decision_reviews_decision",
+        ),
+        Index("ix_decision_reviews_user_decision", "user_id", "decision_id"),
+        CheckConstraint("jsonb_typeof(content) = 'object'", name="ck_decision_reviews_content"),
+        CheckConstraint(_HASH_CHECK, name="ck_decision_reviews_hash"),
+    )
+
+
 # ── User profile ─────────────────────────────────────────────────────────────
 
 
