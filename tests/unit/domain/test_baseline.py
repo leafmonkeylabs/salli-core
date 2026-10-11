@@ -269,6 +269,27 @@ def test_net_worth_is_everything_owned_less_everything_owed_at_every_point():
         )
 
 
+def test_the_rest_of_the_as_of_month_is_at_its_own_prices():
+    """Not at the next twelve months' average: with inflation set, the as-of
+    month's share of an average month's surplus grows by the as-of month's
+    own inflation only (a twelfth of 2.4% for its 14 days of 31), not by
+    what the year ahead averages."""
+    books = _household()
+    plain = books.baseline(AS_OF)
+    books.assume(inflation="0.024")
+    inflated = books.baseline(AS_OF)
+    months = timelines.periods(AS_OF, 13)
+    before = timelines.cash_plan(plain, months, [])[0]
+    after = timelines.cash_plan(inflated, months, [])[0]
+    level = 1 + Decimal("0.002") * Decimal(14) / 31
+    assert after.deflator == level
+    # 3,800 × 0.0903% × 14/31 = 1.55. At the year ahead's average prices
+    # it would be about 24.
+    own = plain.flows.surplus * (level - 1) * months[0].share
+    assert abs((after.planned - before.planned) - own) <= Decimal("0.01")
+    assert after.planned - before.planned == Decimal("1.55")
+
+
 def test_the_daily_timeline_ends_each_month_where_the_plan_does():
     baseline = _household().baseline(AS_OF)
     daily = timelines.daily(baseline)

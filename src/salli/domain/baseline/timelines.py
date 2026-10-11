@@ -311,10 +311,11 @@ def cash_plan(
     A full month: the surplus (with what of the debts' payments it already
     pays), in that month's money, less the debts' payments. The as-of month:
     what is scheduled for the rest of it, and its share of what an average
-    month's surplus is beyond its schedule (averaged over the daily
-    timeline's twelve full months). Not its share of the whole surplus: a
-    salary still to come this month is not a share of one. Debts are paid
-    from the next month on, so they don't touch it.
+    month's surplus is beyond its schedule (the schedule averaged over the
+    daily timeline's twelve full months), in the as-of month's money. Not its
+    share of the whole surplus: a salary still to come this month is not a
+    share of one. Debts are paid from the next month on, so they don't touch
+    it.
 
     Every month's amount is rounded to the currency's smallest unit, so the
     daily timeline, which spreads it over the days, sums to it exactly."""
@@ -334,11 +335,13 @@ def cash_plan(
         paid = sum((path.payments[i] for path in paths), Decimal(0))
         full.append(_money((surplus + already) * levels[i] - paid, currency))
 
+    # The as-of month's rest: what an average month's surplus is beyond its
+    # schedule (the schedule averaged over the daily timeline's twelve full
+    # months), at the as-of month's own prices, not at the average of the
+    # next twelve months'.
     net = scheduled_net(baseline, months)
-    rests = [
-        surplus * levels[i] - net.get(months[i].month, Decimal(0)) for i in range(1, DAILY_MONTHS)
-    ]
-    average_rest = sum(rests, Decimal(0)) / Decimal(len(rests))
+    schedule = [net.get(months[i].month, Decimal(0)) for i in range(1, DAILY_MONTHS)]
+    average_rest = surplus * levels[0] - sum(schedule, Decimal(0)) / Decimal(len(schedule))
     full[0] = _money(
         net.get(months[0].month, Decimal(0)) + average_rest * months[0].share, currency
     )
