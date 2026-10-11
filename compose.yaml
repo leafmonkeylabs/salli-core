@@ -1,0 +1,116 @@
+# Salli, self-hosted: the server and its Postgres database.
+#
+#   docker compose up -d
+#   docker compose exec salli salli-server setup
+#
+# Then, on your own computer: npm install --global @leafmonkeylabs/salli
+# and salli login. docs/self-host.md has the rest: settings, HTTPS on your own
+# domain, backups and upgrades.
+#
+# Settings go in a .env file next to this one (see .env.example); none is
+# needed to start. Secrets are generated on the first run and kept in the
+# `secrets` volume: none is ever written here.
+
+name: salli
+
+services:
+  # Generates the server's secrets on the first run (the database password,
+  # the encryption key for users' own AI keys, the MCP signing secret, the
+  # cron secret), one file each, and never replaces one. Then exits.
+  secrets:
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:latest}
+    command: ["salli-server", "secrets", "init", "--dir", "/var/lib/salli/secrets"]
+    volumes:
+      - secrets:/var/lib/salli/secrets
+    network_mode: none
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: salli
+      POSTGRES_DB: salli
+      POSTGRES_PASSWORD_FILE: /run/salli-secrets/database_password
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - secrets:/run/salli-secrets:ro
+    depends_on:
+      secrets:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=salli --dbname=salli"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    # Only Salli reaches the database: it is on no network with a way out,
+    # and publishes no port.
+    networks: [database]
+
+  salli:
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:latest}
+    # A checkout builds the image from source (`docker compose build`); with
+    # just this file, the published image is pulled.
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Every setting in .env reaches Salli (docs/self-host.md lists them). The
+    # file is optional.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://salli@postgres:5432/salli
+      SALLI_SECRETS_DIR: /var/lib/salli/secrets
+      SALLI_PUBLIC_URL: ${SALLI_PUBLIC_URL:-http://localhost:8000}
+      # Trust X-Forwarded-For from whatever reaches the port: by default only
+      # this machine (the port is bound to 127.0.0.1) and Caddy (the tls
+      # profile). Sign-in throttling counts by the address it gives. If you
+      # publish the port beyond this machine without a proxy, set this to
+      # 127.0.0.1 in .env.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+    ports:
+      - "${SALLI_BIND:-127.0.0.1}:${SALLI_PORT:-8000}:8000"
+    volumes:
+      - files:/var/lib/salli/files
+      - secrets:/var/lib/salli/secrets:ro
+    networks: [database, default]
+
+  # HTTPS on your own domain: `docker compose --profile tls up -d`, with
+  # SALLI_DOMAIN and SALLI_PUBLIC_URL (https://<domain>) in .env, and the
+  # domain's DNS pointing here. Caddy gets and renews the certificate.
+  caddy:
+    image: caddy:2.10-alpine
+    profiles: [tls]
+    restart: unless-stopped
+    depends_on:
+      - salli
+    environment:
+      SALLI_DOMAIN: ${SALLI_DOMAIN:-}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        test -n "$$SALLI_DOMAIN" || { echo "Set SALLI_DOMAIN in .env (see docs/self-host.md)." >&2; exit 1; };
+        exec caddy reverse-proxy --from "$$SALLI_DOMAIN" --to salli:8000
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+networks:
+  database:
+    internal: true
+
+volumes:
+  postgres:
+  files:
+  secrets:
+  caddy_data:
+  caddy_config:
