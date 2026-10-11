@@ -1,6 +1,6 @@
 {
   "name": "@leafmonkeylabs/salli",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "salli: your personal finances from the terminal. A client for a Salli server.",
   "license": "Apache-2.0",
   "author": "Leaf Monkey Labs",
