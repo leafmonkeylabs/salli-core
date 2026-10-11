@@ -1,6 +1,6 @@
 # The decision lab: better money decisions, computed by Salli, reasoned by your agent
 
-Status: **proposal, awaiting sign-off.** Nothing here is built yet.
+Status: **approved (2026-10-11).** The decisions are recorded at the end. Each phase is its own PR.
 
 ## Why
 
@@ -321,19 +321,12 @@ compatibility.
   Mitigation: golden tests for each engine are written first, from today's
   behaviour, so every changed figure changes on purpose and the test says why.
 
-## Questions for sign-off
+## Decisions (2026-10-11)
 
-1. **How prescriptive:**
-   - Salli shows consequences, sensitivity and break-evens, and never ranks.
-   - The user's agent advises, within guardrails.
-   - Any "should" in Salli is the user's own principles.
-
-   Recommended. Yes, or a different line?
-2. **Who first:** people who run Salli and talk to it through an AI agent (Claude,
-   Claude Code, ChatGPT) or the CLI, the users Salli serves today. The hosted apps
-   get the same API later. Agreed?
-3. **Nudges:** in-product, agent-pulled and CLI first. A notification port for
-   email, push or chat comes later, implemented outside core. Agreed?
-4. **Principles in phase 2:** worth it, or leave them out at first?
-5. **Reconciling FI:** changing FI's figures where the definitions change, with
-   golden tests documenting each change. Agreed?
+| # | Question | Decision |
+|---|---|---|
+| 1 | How prescriptive | Salli shows consequences, sensitivity and break-evens, and never ranks. The user's agent advises, within guardrails. Any "should" in Salli is the user's own principles. |
+| 2 | Who first | People who run Salli and talk to it through an AI agent (Claude, Claude Code, ChatGPT) or the CLI. The hosted apps get the same API later. |
+| 3 | Nudges | In-product, agent-pulled and CLI first. A notification port for email, push or chat comes later, implemented outside core. |
+| 4 | Principles | In phase 2. |
+| 5 | Reconciling FI | FI's figures change where the definitions change, with golden tests documenting each change. Nothing is kept for compatibility. |
