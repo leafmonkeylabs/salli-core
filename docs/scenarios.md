@@ -79,6 +79,19 @@ The rules:
 
 Fields marked ? are optional.
 
+**Regular, or a move.** Recurring changes, income changes and stopped flows
+are part of your regular surplus, and are shared out like your baseline's
+own: the share of it you invest (`surplus_invested`, all of it as a
+placeholder) goes into your investments at each month's end, the rest stays
+in cash. One-offs, a loan's money, investments and extra payments are moves:
+they go in or out of cash, and only where they say. A loan's payments, like
+your debts', are scheduled: they come out of the regular surplus, and once
+the loan or debt is paid off its payment is freed into it, including when an
+extra payment cleared it early. A month whose regular surplus is a deficit
+invests nothing and draws on cash, never on your investments; if cash runs
+out, it goes below zero and the result's `notes` say from when. See
+[the baseline](baseline.md#your-surplus-and-what-you-invest-of-it).
+
 **Today's money or the day's own.** Recurring amounts, income changes and
 stopped flows are in today's money: with your inflation set, each rises with
 it, as your average spending does. One-offs, investments, loan payments and
@@ -99,8 +112,11 @@ string in your currency's precision. A month's change is in months
 | **Resilience** | The months of spending your cash covers at its low point and at the end of the year: over essential spending when your spending carries need tags, over all of it otherwise. |
 | **FI** | The FI number, the month you reach it, and the months gained (positive) or lost. |
 
-Cash earns nothing, investments grow at your real return, and debts follow
-their schedules, as on the [baseline's monthly timeline](baseline.md#the-two-timelines).
+The share of your surplus you invest grows with your investments at your
+real return, cash earns nothing, and debts follow their schedules, as on the
+[baseline's monthly timeline](baseline.md#the-two-timelines). The lowest cash
+counts the share you invest leaving cash at each month's end; the
+emergency-fund months count cash alone.
 The FI month and the debts' payoff are found wherever they fall within 50
 years, whatever horizon you choose.
 
@@ -155,6 +171,9 @@ option without a label is named after its file, or "Option n".
     option invests and the other pays a debt down instead: the lowest real
     return, to a basis point (0.01%), between -5% and 15%, at which the
     investing option ends the horizon with at least the other's net worth.
+    The payments paying down frees are invested at your share, as the
+    investing option's money is, so at a share of 100% it falls at the
+    debt's own rate (see below).
   - **The most a recurring cost can be** with cash staying above zero, as for
     one scenario.
   - **The loan rate at which two financing options cost the same**, where an
@@ -167,8 +186,32 @@ option without a label is named after its file, or "Option n".
   is ahead across the whole range (`ahead`).
 
 A break-even turns "it depends" into "it depends on whether you expect more
-than 1.9% a year after inflation". That is a question you can answer, or ask
+than 4.5% a year after inflation". That is a question you can answer, or ask
 your agent to research with sources.
+
+### Reading one: a bonus on the debt, or invested
+
+A bonus of 5,000.00 in December, paid off a student loan at 4.5% or
+invested, over ten years. Both come out of cash. Paying down clears the loan
+in 2029-01 rather than 2033-03 and saves 1,025.83 of interest; from then on
+its 120.00 a month is freed and, at a share of 100%, invested.
+
+| | Invest | Pay down |
+|---|---:|---:|
+| Net worth in 10 years, against the baseline, at 4% | +2,404.72 | +2,558.51 |
+| Lead at 2% / 4% / 6% (Invest less Pay down) | -661.78 / -153.80 / +536.35 | |
+| The break-even return | 4.51% | |
+
+At the loan's own 4.5%, the 5,000.00 invested and the payments that paying
+it down frees grow to the same, but for the cents the loan's interest is
+rounded to each month: so investing first comes out at least level at
+4.51%, a basis point above. That is the standard answer, and the one to expect when both sides
+are treated alike: invest only if you expect more than the debt costs.
+
+Set your share to 0 and the break-even falls to 1.90%: the payments paying
+down frees then sit in cash, which earns nothing, while the 5,000.00
+invested compounds. That compares money that grows with money that doesn't,
+so set the share to what you really invest before reading a break-even.
 
 ### Reading one: cash or instalments
 
@@ -176,15 +219,20 @@ A laptop for 2,400.00, paid at once or over 12 months at 6.9%:
 
 | | Baseline | Pay cash | Instalments |
 |---|---:|---:|---:|
-| Lowest cash | 15,740.01 | 15,072.91 | 15,740.01 |
+| Lowest cash | 13,998.91 | 11,598.91 | 13,821.01 |
 | Interest on debts | 2,009.25 | 2,009.25 | 2,099.93 |
-| Net worth in 5 years | 473,816.13 | 471,416.13 | 471,325.45 |
+| Net worth in 5 years | 485,551.81 | 483,151.81 | 482,585.47 |
 
-Instalments keep the low point where it was and cost 90.68 of interest
-(eleven payments of 207.55 and a last of 207.63); paying cash costs no
-interest and takes the low point down by 667.10. The loan-rate break-even is
-0%: with no inflation set, any rate above it costs more than paying cash.
-Which matters more, the buffer or the 90.68, is yours to say.
+With all of the surplus invested (the placeholder), paying cash takes the
+price out of cash for good: the surplus you invest doesn't rebuild it, so
+the low point is 2,400.00 lower. Instalments keep the low point within
+177.90 of where it was and cost 90.68 of interest (eleven payments of 207.55
+and a last of 207.63), but the payments come out of the surplus you would
+invest, and what it would have earned goes with them: by five years they
+cost 566.34 more than paying cash. So paying cash ends ahead at every loan
+rate, and there is no break-even in range. Set your share to 0 and both come
+out of cash: the break-even is then 0%, any rate above it costing more.
+Which matters more, the buffer or the money, is yours to say.
 
 ## For agents
 
@@ -195,6 +243,11 @@ Which matters more, the buffer or the 90.68, is yours to say.
   break-even.
 - Name the assumptions that are placeholders. If `is_stale` is true, ask the
   user to bring their ledger up to date before deciding.
+- Say what share of the surplus the figures assume invested
+  (`assumptions.surplus_invested`): it decides the FI month and every
+  comparison of investing against paying down a debt. While it is the
+  placeholder, ask the user what they really invest, and set it only once
+  they agree.
 - Never say which option is best. Lay out the trade, the sensitivity and
   what would change the answer, and leave the choice to the user.
 - A problem comes back with its path (`changes[0].date: is before the as-of
@@ -203,9 +256,8 @@ Which matters more, the buffer or the 90.68, is yours to say.
 ## Not modelled yet
 
 - Tax: a change to your income doesn't yet run through your tax rules.
-- A recurring surplus invested each month: an `invest` change moves one
-  amount on one day. Your surplus stays in cash, which earns nothing, as on
-  the baseline.
+- A target for your cash: after a one-off has spent some of it, the share of
+  the surplus you invest doesn't rebuild it.
 - What a purchase buys, as an asset you own.
 - Amounts in a currency other than your base currency, and accounts held in
   one.

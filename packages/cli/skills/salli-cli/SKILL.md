@@ -32,8 +32,9 @@ server.
    them as strings; pass amounts as plain numbers (`1500`, `1500.50`), no
    currency symbols.
 6. **Say when a figure rests on a placeholder.** FI figures are in real terms
-   (today's money). Where the user has set no return or withdrawal rate, a
-   round placeholder stands in: when a result's `assumptions.status` is
+   (today's money). Where the user has set no return, withdrawal rate or share
+   of their surplus invested, a round placeholder stands in: when a result's
+   `assumptions.status` is
    `"placeholder"`, tell the user, quoting `assumptions.message`, and offer to
    set their own (below). Salli knows no country's figures, and neither should
    you invent one.
@@ -46,6 +47,7 @@ The user's own figures, each with where it comes from:
     salli fi assumptions set real-return 5% --source "<url or publication>" --json
     salli fi assumptions set swr 3.5% --source "<…>" --json
     salli fi assumptions set inflation 3% --source "<…>" --json   # adds future-money figures
+    salli fi assumptions set surplus-invested 80% --source "<what it rests on>" --json
     salli fi assumptions clear inflation --json
 
 `real-return` is after inflation; or set `nominal-return` together with
@@ -53,6 +55,13 @@ The user's own figures, each with where it comes from:
 office or central bank for inflation, long-run studies for returns), show the
 user the figure and its source, and set it only once they agree. Projections
 show nominal (future-money) figures only once inflation is set.
+
+`surplus-invested` is the share, from 0 to 100%, of each month's surplus the
+user actually invests; the rest stays in cash, which earns nothing. The
+placeholder assumes all of it. It is no rate to research: ask the user, or
+show them their regular transfers to investment accounts
+(`salli insights recurring`), and never guess. It moves the FI month and
+every comparison of investing against paying down a debt.
 
 ## Decisions: what-ifs and options
 

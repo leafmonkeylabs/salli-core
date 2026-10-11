@@ -13,7 +13,8 @@ Once connected, your AI can:
   by its own sums, and without ranking them for you;
 - show your financial-independence projections, in today's money, and research
   your own planning assumptions (inflation, returns, withdrawal rate) from
-  citable sources, setting them once you agree;
+  citable sources, and ask what share of your surplus you invest, setting them
+  once you agree;
 - sort imported transactions, then book what you approve;
 - create rules, so the next statement sorts itself;
 - run the Wealth Advisor and read budgets, debts, portfolio and insurance;
@@ -50,9 +51,10 @@ See [scenarios](scenarios.md) for the document and how to read the results.
 
 FI figures are in real terms. Where you have set no return or withdrawal rate, a
 round placeholder (4%) stands in, and every result says so (`assumptions.status`
-is `placeholder`): it is no forecast and no country's figure. Salli keeps no
-table of figures by country; your own, with their sources, replace the
-placeholders.
+is `placeholder`): it is no forecast and no country's figure. Nor is the share of
+your monthly surplus you invest: until you set it (`surplus_invested`), a
+placeholder assumes all of it. Salli keeps no table of figures by country; your
+own, with their sources, replace the placeholders.
 
 ### Tax tools
 

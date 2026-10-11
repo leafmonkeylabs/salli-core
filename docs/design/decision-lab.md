@@ -293,6 +293,16 @@ Nudges are quiet, useful and rare:
      (investing against paying down a debt, a recurring cost's cash floor, a
      loan's rate against another option). `POST /v1/fi/simulate-purchase` is
      gone: a purchase is a scenario, compared cash against instalments.
+   - **The surplus invested:** each month's regular surplus (the average
+     surplus, less debts' scheduled payments, freed ones added back, plus a
+     scenario's recurring changes) is split by a new planning assumption,
+     `surplus_invested` (0 to 1, a labelled placeholder of 1): that share
+     grows at the real return, the rest stays in cash. One-offs, a loan's
+     money, investments and extra payments are moves that go where they
+     say. So a debt-or-invest comparison treats both sides alike, and
+     breaks even at the debt's own rate (the first draft kept the whole
+     surplus in cash and found 1.9% against a 4.5% loan); FI moved back to
+     roughly where the pre-baseline engine had it.
    - **The baseline:** the single income and expense definition, the
      investment-account role, debts linked to liabilities, rates for the *as of*
      date, an injectable *as of*, and pure reads (no writes on read).
