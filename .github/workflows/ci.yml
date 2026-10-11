@@ -33,11 +33,11 @@ jobs:
         run: |
           uv run ruff check src tests
           uv run ruff format --check src tests
-      - name: Type-check the extension seam, salli-server and the money path
+      - name: Type-check the extension seam, salli-server, sign-in and the money path
         # The rest of the codebase predates strict typing; these modules are
         # held to it so the seam extensions build on (salli-server's commands
-        # among it), and the code every amount and exchange rate passes
-        # through, stay precise.
+        # among it), how people sign in, and the code every amount and
+        # exchange rate passes through, stay precise.
         run: >-
           uv run pyright
           src/salli/extensions.py src/salli/application/defaults.py
@@ -75,6 +75,9 @@ jobs:
           src/salli/application/permissions.py src/salli/adapters/net
           src/salli/application/services/personal_access_token_service.py
           src/salli/interfaces/api/routers/tokens.py src/salli/interfaces/api/routers/auth.py
+          src/salli/application/services/login_service.py src/salli/adapters/auth
+          src/salli/interfaces/api/routers/mcp_consent_page.py src/salli/config.py
+          src/salli/adapters/storage/local.py
           src/salli/adapters/db/tax_rule_sets.py src/salli/adapters/db/tax_computations.py
           src/salli/application/services/tax_rule_service.py
           src/salli/application/services/tax_service.py src/salli/application/tax_deadlines.py
