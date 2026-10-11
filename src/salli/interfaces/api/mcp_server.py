@@ -43,11 +43,17 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl, BaseModel, Field, WithJsonSchema
 
 from salli.application.permissions import Actor
-from salli.application.ports import AccountNotFound, DebtNotFound
+from salli.application.ports import (
+    AccountNotFound,
+    DebtNotFound,
+    DecisionNotFound,
+)
 from salli.application.services.fi_service import decimal_arg
 from salli.application.services.mcp_oauth_service import McpOAuthService
 from salli.application.services.tax_rule_service import TaxRuleError
 from salli.domain.agents.tools import computation_for_agent
+from salli.domain.decisions.journal import JournalError
+from salli.domain.decisions.principles import PrincipleError
 from salli.domain.scenarios import schema as scenario_schema
 from salli.domain.scenarios.engine import ScenarioError
 
@@ -62,6 +68,25 @@ ScenarioOptions = Annotated[
         {
             "type": "array",
             "minItems": 2,
+            "maxItems": 5,
+            "items": scenario_schema.inline_json_schema(),
+        }
+    ),
+]
+
+
+#: None to five options, for checking principles against.
+CheckedOptions = Annotated[
+    list[dict[str, Any]],
+    WithJsonSchema({"type": "array", "maxItems": 5, "items": scenario_schema.inline_json_schema()}),
+]
+#: One to five options, for a decision: each a scenario with its own label.
+DecisionOptions = Annotated[
+    list[dict[str, Any]],
+    WithJsonSchema(
+        {
+            "type": "array",
+            "minItems": 1,
             "maxItems": 5,
             "items": scenario_schema.inline_json_schema(),
         }
@@ -177,6 +202,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     fi_svc = services.fi
     baseline_svc = services.baseline
     scenario_svc = services.scenarios
+    principle_svc = services.principles
+    decision_svc = services.decisions
     tax_rules_svc = services.tax_rules
 
     mcp = FastMCP(
@@ -201,7 +228,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "(get_scenario_schema) and let Salli run and compare them (run_scenario, "
             "compare_options): never subtract, add or project anything yourself. Salli "
             "doesn't rank options: lay out the trade, the sensitivity and the "
-            "break-evens, and leave the choice to the user. "
+            "break-evens, and leave the choice to the user. The user's principles "
+            "(list_principles) are their own rules of thumb: check_principles says which "
+            "each option keeps or breaks; respect them, and suggest one only as a "
+            "suggestion (add_principle stores it only once they say yes). When they "
+            "decide, offer to record it in their decision journal (record_decision) with "
+            "their reasons in their own words; never record a decision they haven't "
+            "confirmed. list_due_reviews shows decisions ready to look back on. "
             "Financial-independence figures are in real terms (today's money); where "
             "the user has set no return or withdrawal rate, a labelled placeholder "
             "stands in: when a result's assumptions.status is 'placeholder', say so, "
@@ -784,6 +817,170 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except (AccountNotFound, DebtNotFound) as exc:
             return {"error": str(exc)}
 
+    # ── Principles and the decision journal (docs/decisions.md) ─────────────
+
+    async def _client_name() -> str | None:
+        client_id = _current_client_id()
+        return await services.mcp_oauth.client_name(client_id) if client_id else None
+
+    @mcp.tool()
+    async def list_principles() -> dict[str, Any]:
+        """The user's principles: their own rules of thumb, each a label and a
+        check over Salli's decision figures (emergency_months >= 6). Also the
+        figures a check may read (`figures`), each with its unit and whether
+        it is in today's money (real) or each day's own (nominal). Salli
+        doesn't decide what is wise: these are the user's, and the only
+        "should" Salli reports."""
+        user_id = _current_user_id()
+        return {**await principle_svc.list(user_id), **principle_svc.figures()}
+
+    @mcp.tool()
+    async def add_principle(
+        label: str,
+        check: str,
+        confirmed_by_user: Literal[True],
+        account: str | None = None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Store one of the user's principles. You may suggest one from what
+        they tell you matters to them; call this only after they have seen
+        this exact label and check and said yes, and pass
+        confirmed_by_user: true to say so. Never add one they haven't agreed
+        to. check is true or false over the figures list_principles gives
+        ("emergency_months >= 6", "max_debt_rate_while_investing <= 0.07");
+        account_lowest reads the cash account named in account (an id from
+        get_accounts). A problem comes back with its path, to fix."""
+        user_id = _current_user_id()
+        try:
+            stored = await principle_svc.add(
+                user_id,
+                {"label": label, "check": check, "account": account, "note": note},
+                author="agent",
+                agent=await _client_name(),
+            )
+        except PrincipleError as exc:
+            return _refusal(exc)
+        except AccountNotFound as exc:
+            return {"error": str(exc)}
+        await _log_audit(ledger_svc, user_id, "add_principle", {"label": label, "check": check})
+        return stored
+
+    @mcp.tool()
+    async def check_principles(options: CheckedOptions | None = None) -> dict[str, Any]:
+        """Check the user's principles against their baseline and up to five
+        options (scenarios, as run_scenario takes; none checks the baseline
+        alone): for each, which principles it keeps, breaks or can't tell,
+        with the figures each check read and the reason. Never a ranking:
+        don't count or rank them yourself either. Stores nothing."""
+        try:
+            return await principle_svc.check(_current_user_id(), options or [])
+        except ScenarioError as exc:
+            return _refusal(exc)
+        except (AccountNotFound, DebtNotFound) as exc:
+            return {"error": str(exc)}
+
+    @mcp.tool()
+    async def record_decision(
+        question: str,
+        options: DecisionOptions,
+        chosen: str,
+        reasons: str,
+        review_on: str,
+        confirmed_by_user: Literal[True],
+        agent_summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Record a decision in the user's decision journal, where it can
+        never be edited or deleted. Only once the person has decided and
+        said they want it recorded: show them the question, the options,
+        the one they chose, their reasons and the review date, get their
+        yes, and pass confirmed_by_user: true. Never record a decision they
+        haven't confirmed, and never choose for them. options are the
+        scenarios they weighed (one to five, each with its own label; Salli
+        runs them itself), chosen is one label, reasons are THEIR words (not
+        yours), review_on (YYYY-MM-DD, from the end of this month on) is when
+        they want to look back. agent_summary is yours, and is recorded as
+        the agent's. A problem comes back with its path, to fix."""
+        user_id = _current_user_id()
+        client = await _client_name()
+        try:
+            recorded = await decision_svc.record(
+                user_id,
+                {
+                    "question": question,
+                    "options": options,
+                    "chosen": chosen,
+                    "reasons": reasons,
+                    "review_on": review_on,
+                    "agent_summary": agent_summary,
+                },
+                via={"channel": "mcp", "client": client, "confirmed_by_user": True},
+            )
+        except (ScenarioError, JournalError) as exc:
+            return _refusal(exc)
+        except (AccountNotFound, DebtNotFound) as exc:
+            return {"error": str(exc)}
+        await _log_audit(
+            ledger_svc,
+            user_id,
+            "record_decision",
+            {"decision_id": recorded["id"], "hash": recorded["hash"]},
+        )
+        return recorded
+
+    @mcp.tool()
+    async def list_decisions() -> dict[str, Any]:
+        """The user's decision journal, newest first: each decision's
+        question, the option chosen, its review date and whether it is
+        awaiting review, due, or reviewed. get_decision has the whole entry."""
+        return await decision_svc.list(_current_user_id())
+
+    @mcp.tool()
+    async def get_decision(decision_id: str) -> dict[str, Any]:
+        """One decision as recorded: the options with their figures and
+        projections, the principles' checks, the choice, the person's
+        reasons, notes and reviews, and whether its hash still matches
+        (verified). Quote it; never change what it says."""
+        try:
+            return await decision_svc.get(_current_user_id(), decision_id)
+        except DecisionNotFound as exc:
+            return {"error": str(exc)}
+
+    @mcp.tool()
+    async def list_due_reviews() -> dict[str, Any]:
+        """Decisions whose review date has come and that have no review yet,
+        each with the person's reasons and what the chosen option projected
+        against what happened (cash, investments, what is owed, net worth,
+        spending a month): Salli's comparison, to quote. Walk the person
+        through it, ask what they make of it, and record their reflection
+        with review_decision once they agree. Stores nothing."""
+        return await decision_svc.due(_current_user_id())
+
+    @mcp.tool()
+    async def review_decision(
+        decision_id: str, reflection: str, confirmed_by_user: Literal[True]
+    ) -> dict[str, Any]:
+        """Append a review to a decision whose review date has come: Salli
+        compares what the chosen option projected with what happened, and
+        records it with the person's reflection. The reflection is THEIR
+        words, which they have seen and agreed to record: pass
+        confirmed_by_user: true to say so. The decision itself never
+        changes."""
+        user_id = _current_user_id()
+        try:
+            reviewed = await decision_svc.review(
+                user_id,
+                decision_id,
+                reflection,
+                author="agent",
+                agent=await _client_name(),
+            )
+        except JournalError as exc:
+            return _refusal(exc)
+        except DecisionNotFound as exc:
+            return {"error": str(exc)}
+        await _log_audit(ledger_svc, user_id, "review_decision", {"decision_id": decision_id})
+        return reviewed
+
     @mcp.tool()
     async def get_fi_projections() -> dict[str, Any]:
         """The user's financial-independence projections: their cash and
@@ -1294,6 +1491,14 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_scenario_schema,
         run_scenario,
         compare_options,
+        list_principles,
+        add_principle,
+        check_principles,
+        record_decision,
+        list_decisions,
+        get_decision,
+        list_due_reviews,
+        review_decision,
         get_fi_projections,
         get_fi_assumptions,
         get_baseline,

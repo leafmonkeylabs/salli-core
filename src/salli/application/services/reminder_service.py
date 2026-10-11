@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from datetime import date
 from typing import Any
 
 from salli.application.tax_deadlines import sync_deadlines
@@ -77,7 +78,7 @@ class ReminderService:
     async def sync_alerts(self, user_id: str, today: str) -> dict[str, int]:
         """
         Detect current alert-worthy conditions across Budget/Subscription/
-        Insurance and upsert them as reminders (alert_type/source_domain/
+        Insurance, and decisions due for review, and upsert them as reminders (alert_type/source_domain/
         source_id/severity set). Idempotent: re-running against a still-active
         condition updates the existing row rather than duplicating it.
 
@@ -150,6 +151,25 @@ class ReminderService:
                         "critical",
                     )
                 )
+
+        # A decision whose review date has come, unreviewed (DecisionService
+        # sets its reminder when it is recorded, and marks it done on review).
+        async with self._uow_factory() as uow:
+            due = await uow.decisions.due(user_id, date.fromisoformat(today))
+        for decision in due:
+            question = " ".join(str(decision["question"]).split())
+            kind = f"Review your decision: {question}"
+            review_on = decision["review_on"]
+            to_upsert.append(
+                (
+                    "decision_review",
+                    "decision",
+                    str(decision["id"]),
+                    kind if len(kind) <= 500 else kind[:499] + "…",
+                    review_on.isoformat() if isinstance(review_on, date) else str(review_on),
+                    "info",
+                )
+            )
 
         counts: dict[str, int] = {}
         async with self._uow_factory() as uow:

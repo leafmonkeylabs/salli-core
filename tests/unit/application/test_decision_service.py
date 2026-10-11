@@ -250,3 +250,22 @@ async def test_the_journal_exports_as_json_and_markdown():
     assert journal.verify(item["notes"][0]["note"], item["notes"][0]["hash"])
     text = await books.decisions.export(h.USER, "markdown", recorded["id"])
     assert isinstance(text, str) and "## Laptop: pay cash now, or wait?" in text
+
+
+async def test_a_due_review_is_synced_with_the_other_alerts():
+    from salli.application.services.reminder_service import ReminderService
+
+    books = Books()
+    recorded = await books.decisions.record(h.USER, decision(), via={"channel": "api"})
+    [reminder] = books.uow.reminders.rows.values()
+    assert (reminder["source_domain"], reminder["source_id"], reminder["due_date"]) == (
+        "decision",
+        recorded["id"],
+        "2027-04-11",
+    )
+    reminder["status"] = "done"  # dismissed by the person before it was due
+    reminders = ReminderService(books.uow.factory())
+    assert await reminders.sync_alerts(h.USER, "2027-04-10") == {}
+    assert await reminders.sync_alerts(h.USER, "2027-04-11") == {"decision_review": 1}
+    [reminder] = books.uow.reminders.rows.values()
+    assert reminder["status"] == "pending"

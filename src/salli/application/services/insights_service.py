@@ -338,6 +338,8 @@ class InsightsService:
         }
         pending = await self._pending(user_id)
         oldest = min((t.raw.date for t in pending), default=None)
+        async with self._uow_factory() as uow:
+            due = await uow.decisions.due(user_id, today)
         detected = [
             *signal_rules.low_balance_ahead(
                 run.result.lowest, run.result.lowest_date, run.result.today, usual_spending, base
@@ -349,6 +351,9 @@ class InsightsService:
             ),
             *signal_rules.savings_rate_drop(flows),
             *signal_rules.review_waiting(len(pending), oldest, today),
+            *signal_rules.decision_reviews_due(
+                [(str(d["id"]), str(d["question"]), _iso(d["review_on"])) for d in due]
+            ),
         ]
 
         def money(value: Decimal | None, currency: str | None) -> str | None:
@@ -376,6 +381,10 @@ class InsightsService:
     async def _pending(self, user_id: str) -> list[Any]:
         async with self._uow_factory() as uow:
             return await uow.statements.get_all_pending(user_id)
+
+
+def _iso(value: object) -> str:
+    return value.isoformat() if isinstance(value, dt.date) else str(value)
 
 
 def _rates(baseline: Baseline) -> list[dict[str, str | None]]:

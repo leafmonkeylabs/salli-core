@@ -11367,6 +11367,819 @@
         }
       }
     },
+    "/v1/principles": {
+      "get": {
+        "tags": [
+          "principles"
+        ],
+        "summary": "List Principles",
+        "description": "Your principles, oldest first: those in use, or every one with\ninclude_archived.",
+        "operationId": "principles.list",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Archived"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrincipleList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "principles"
+        ],
+        "summary": "Add Principle",
+        "description": "Keep a principle. Its check is validated first: a figure that doesn't\nexist, a check that isn't true or false, or account_lowest without an\naccount is a 422 with each problem's path.",
+        "operationId": "principles.create",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrincipleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Principle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your principles, or not one of your accounts"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/principles/figures": {
+      "get": {
+        "tags": [
+          "principles"
+        ],
+        "summary": "Principle Figures",
+        "description": "The figures a check may read, each with its unit and whether it is in\ntoday's money (real) or each day's own (nominal).",
+        "operationId": "principles.figures",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionFigures"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/principles/check": {
+      "post": {
+        "tags": [
+          "principles"
+        ],
+        "summary": "Check Principles",
+        "description": "Check your principles against your baseline and each option: which\neach keeps, breaks or can't tell, with the figures each check read.\nNever a ranking. Stores nothing.",
+        "operationId": "principles.check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrinciplesCheck"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your principles, or not one of your accounts"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/principles/{principle_id}": {
+      "patch": {
+        "tags": [
+          "principles"
+        ],
+        "summary": "Update Principle",
+        "description": "Edit a principle in use; its version counts up. Decisions already\nrecorded keep the principle as it stood.",
+        "operationId": "principles.update",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "principle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Principle Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrincipleChanges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Principle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your principles, or not one of your accounts"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/principles/{principle_id}/archive": {
+      "post": {
+        "tags": [
+          "principles"
+        ],
+        "summary": "Archive Principle",
+        "description": "Stop checking against a principle. It stays, archived: nothing is deleted.",
+        "operationId": "principles.archive",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "principle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Principle Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Principle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your principles, or not one of your accounts"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "List Decisions",
+        "description": "Your decision journal, newest first.",
+        "operationId": "decisions.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Record Decision",
+        "description": "Record a decision: Salli runs every option on your baseline, checks\nyour principles, and keeps the entry, its projection and its hash, with\nyour reasons. A review reminder is set for the review date. Entries\ncan't be edited or deleted: append notes and reviews.",
+        "operationId": "decisions.record",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your decisions, or an account or debt that isn't yours"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/decisions/reviews": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Due Reviews",
+        "description": "Decisions whose review date has come and that have no review yet,\neach with what the chosen option projected against what happened.\nStores nothing.",
+        "operationId": "decisions.reviews.due",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DueReviews"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/decisions/export": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Export Decisions",
+        "description": "The whole journal as JSON: every entry, note and review exactly as\nrecorded, with its hash.",
+        "operationId": "decisions.export",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionJournal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/decisions/export/markdown": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Export Decisions Markdown",
+        "description": "The whole journal as Markdown, to read or keep.",
+        "operationId": "decisions.exportMarkdown",
+        "responses": {
+          "200": {
+            "description": "The journal, as Markdown.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/markdown": {}
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/decisions/{decision_id}": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Get Decision",
+        "description": "An entry with its notes and reviews, each hashed again (`verified`).",
+        "operationId": "decisions.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "decision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Decision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your decisions, or an account or debt that isn't yours"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions/{decision_id}/markdown": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Decision Markdown",
+        "description": "One entry, with its notes and reviews, as Markdown.",
+        "operationId": "decisions.markdown",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "decision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Decision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The journal, as Markdown.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/markdown": {}
+            }
+          },
+          "404": {
+            "description": "Not one of your decisions, or an account or debt that isn't yours"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions/{decision_id}/notes": {
+      "post": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Add Decision Note",
+        "description": "Append a note to an entry. The entry doesn't change.",
+        "operationId": "decisions.notes.add",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "decision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Decision Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionNote"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your decisions, or an account or debt that isn't yours"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions/{decision_id}/review": {
+      "post": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Review Decision",
+        "description": "Review a decision, from its review date on: Salli compares what the\nchosen option projected with what happened, and appends it with your\nreflection. The entry doesn't change.",
+        "operationId": "decisions.review",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "decision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Decision Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionReview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not one of your decisions, or an account or debt that isn't yours"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -15576,6 +16389,121 @@
         ],
         "title": "ChatUserMessage"
       },
+      "CheckOptions": {
+        "properties": {
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "title": "CheckOptions",
+        "description": "None to five scenarios, with one as-of date between them."
+      },
+      "CheckedFigures": {
+        "properties": {
+          "figures": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Figures"
+          },
+          "unavailable": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Unavailable"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PrincipleCheckResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "figures",
+          "unavailable",
+          "results"
+        ],
+        "title": "CheckedFigures"
+      },
+      "CheckedOption": {
+        "properties": {
+          "figures": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Figures"
+          },
+          "unavailable": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Unavailable"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PrincipleCheckResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "scenario_hash": {
+            "type": "string",
+            "title": "Scenario Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "figures",
+          "unavailable",
+          "results",
+          "label",
+          "scenario_hash"
+        ],
+        "title": "CheckedOption"
+      },
       "CommittedFlow": {
         "properties": {
           "date": {
@@ -15632,6 +16560,128 @@
         ],
         "title": "CompareOptions",
         "description": "The options to compare: two to five scenarios with one as-of date and\none horizon, each with its own label."
+      },
+      "ComparisonOther": {
+        "properties": {
+          "option": {
+            "type": "string",
+            "title": "Option"
+          },
+          "cash": {
+            "type": "string",
+            "title": "Cash"
+          },
+          "investments": {
+            "type": "string",
+            "title": "Investments"
+          },
+          "owed": {
+            "type": "string",
+            "title": "Owed"
+          },
+          "net_worth": {
+            "type": "string",
+            "title": "Net Worth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option",
+          "cash",
+          "investments",
+          "owed",
+          "net_worth"
+        ],
+        "title": "ComparisonOther",
+        "description": "What another option projected for the same month's end: what it\nexpected, never what would have happened."
+      },
+      "ComparisonRow": {
+        "properties": {
+          "figure": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "investments",
+              "owed",
+              "net_worth"
+            ],
+            "title": "Figure"
+          },
+          "projected": {
+            "type": "string",
+            "title": "Projected"
+          },
+          "actual": {
+            "type": "string",
+            "title": "Actual"
+          },
+          "difference": {
+            "type": "string",
+            "title": "Difference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "figure",
+          "projected",
+          "actual",
+          "difference"
+        ],
+        "title": "ComparisonRow",
+        "description": "A figure the chosen option projected, what happened, and actual less\nprojected, in the day's own money."
+      },
+      "ComparisonSpending": {
+        "properties": {
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months"
+          },
+          "projected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "months",
+          "projected",
+          "actual",
+          "difference"
+        ],
+        "title": "ComparisonSpending",
+        "description": "Spending a month, on average over the full months since the decision."
       },
       "ConnectBank": {
         "properties": {
@@ -16126,6 +17176,21 @@
             "type": "array",
             "title": "Bank Connections",
             "description": "Each bank connection as in `bank-connections.list`: its accounts, where\neach is imported, and the bank's last balances. Never its credential."
+          },
+          "principles": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Principles",
+            "description": "Every principle as in `principles.list`, archived ones included."
+          },
+          "decision_journal": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Decision Journal",
+            "description": "The decision journal as `decisions.export` gives it: every entry,\nnote and review exactly as recorded, with its hash."
           }
         },
         "additionalProperties": true,
@@ -16407,6 +17472,873 @@
         "type": "object",
         "title": "DebtUpdateRequest"
       },
+      "Decision": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_review",
+              "review_due",
+              "reviewed"
+            ],
+            "title": "Status"
+          },
+          "entry": {
+            "$ref": "#/components/schemas/DecisionEntry"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionNote"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionReview"
+            },
+            "type": "array",
+            "title": "Reviews"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "hash",
+          "verified",
+          "status",
+          "entry",
+          "notes",
+          "reviews"
+        ],
+        "title": "Decision",
+        "description": "An entry as recorded, with what was appended to it."
+      },
+      "DecisionEntry": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.decision/1",
+            "title": "Schema"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "recorded_at": {
+            "type": "string",
+            "title": "Recorded At"
+          },
+          "recorded_via": {
+            "properties": {
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "api",
+                  "mcp"
+                ],
+                "title": "Channel"
+              },
+              "client": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Client"
+              },
+              "confirmed_by_user": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Confirmed By User"
+              }
+            },
+            "type": "object",
+            "required": [
+              "channel"
+            ],
+            "title": "_Via"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "basis": {
+            "properties": {
+              "baseline_fingerprint": {
+                "type": "string",
+                "title": "Baseline Fingerprint"
+              },
+              "versions": {
+                "$ref": "#/components/schemas/ScenarioVersions"
+              },
+              "assumptions": {
+                "$ref": "#/components/schemas/FiAssumptions"
+              },
+              "placeholders": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "title": "Placeholders"
+              },
+              "data_as_of": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data As Of"
+              },
+              "is_stale": {
+                "type": "boolean",
+                "title": "Is Stale"
+              }
+            },
+            "type": "object",
+            "required": [
+              "baseline_fingerprint",
+              "versions",
+              "assumptions",
+              "placeholders",
+              "data_as_of",
+              "is_stale"
+            ],
+            "title": "_Basis",
+            "description": "What every option rests on."
+          },
+          "principles": {
+            "items": {
+              "$ref": "#/components/schemas/PrincipleRef"
+            },
+            "type": "array",
+            "title": "Principles"
+          },
+          "baseline": {
+            "properties": {
+              "figures": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object",
+                "title": "Figures"
+              },
+              "unavailable": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object",
+                "title": "Unavailable"
+              },
+              "principles": {
+                "items": {
+                  "$ref": "#/components/schemas/PrincipleCheckResult"
+                },
+                "type": "array",
+                "title": "Principles"
+              }
+            },
+            "type": "object",
+            "required": [
+              "figures",
+              "unavailable",
+              "principles"
+            ],
+            "title": "_Checked"
+          },
+          "options": {
+            "items": {
+              "properties": {
+                "figures": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": "object",
+                  "title": "Figures"
+                },
+                "unavailable": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Unavailable"
+                },
+                "principles": {
+                  "items": {
+                    "$ref": "#/components/schemas/PrincipleCheckResult"
+                  },
+                  "type": "array",
+                  "title": "Principles"
+                },
+                "label": {
+                  "type": "string",
+                  "title": "Label"
+                },
+                "scenario": {
+                  "$ref": "#/components/schemas/Scenario"
+                },
+                "scenario_hash": {
+                  "type": "string",
+                  "title": "Scenario Hash"
+                },
+                "projection": {
+                  "items": {
+                    "properties": {
+                      "month": {
+                        "type": "string",
+                        "title": "Month"
+                      },
+                      "date": {
+                        "type": "string",
+                        "title": "Date"
+                      },
+                      "cash": {
+                        "type": "string",
+                        "title": "Cash"
+                      },
+                      "investments": {
+                        "type": "string",
+                        "title": "Investments"
+                      },
+                      "owed": {
+                        "type": "string",
+                        "title": "Owed"
+                      },
+                      "net_worth": {
+                        "type": "string",
+                        "title": "Net Worth"
+                      },
+                      "spending": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Spending"
+                      }
+                    },
+                    "type": "object",
+                    "required": [
+                      "month",
+                      "date",
+                      "cash",
+                      "investments",
+                      "owed",
+                      "net_worth",
+                      "spending"
+                    ],
+                    "title": "_ProjectionPoint",
+                    "description": "A month's end (the first point is the as-of date), in its own money."
+                  },
+                  "type": "array",
+                  "title": "Projection"
+                },
+                "notes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Notes"
+                }
+              },
+              "type": "object",
+              "required": [
+                "figures",
+                "unavailable",
+                "principles",
+                "label",
+                "scenario",
+                "scenario_hash",
+                "projection",
+                "notes"
+              ],
+              "title": "_Option"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "chosen": {
+            "type": "string",
+            "title": "Chosen"
+          },
+          "reasons": {
+            "type": "string",
+            "title": "Reasons"
+          },
+          "agent_summary": {
+            "anyOf": [
+              {
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "title": "Text"
+                  },
+                  "author": {
+                    "type": "string",
+                    "const": "agent",
+                    "title": "Author"
+                  },
+                  "agent": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Agent"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "text",
+                  "author",
+                  "agent"
+                ],
+                "title": "_AgentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_on": {
+            "type": "string",
+            "title": "Review On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "recorded_at",
+          "recorded_via",
+          "question",
+          "as_of",
+          "currency",
+          "basis",
+          "principles",
+          "baseline",
+          "options",
+          "chosen",
+          "reasons",
+          "agent_summary",
+          "review_on"
+        ],
+        "title": "DecisionEntryDocument",
+        "description": "`salli.decision/1`: a decision as recorded. Its hash is the SHA-256 of\nits canonical JSON (sorted keys, no whitespace, ASCII)."
+      },
+      "DecisionFigure": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "amount",
+              "months",
+              "rate",
+              "count",
+              "boolean"
+            ],
+            "title": "Kind"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "terms": {
+            "type": "string",
+            "enum": [
+              "nominal",
+              "real",
+              "none"
+            ],
+            "title": "Terms"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "resilience",
+              "monthly",
+              "debts",
+              "fi"
+            ],
+            "title": "Group"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "unit",
+          "terms",
+          "group",
+          "description"
+        ],
+        "title": "DecisionFigure",
+        "description": "A figure a check may read."
+      },
+      "DecisionFigures": {
+        "properties": {
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionFigure"
+            },
+            "type": "array",
+            "title": "Figures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "figures"
+        ],
+        "title": "DecisionFigures"
+      },
+      "DecisionIn": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Options"
+          },
+          "chosen": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Chosen"
+          },
+          "reasons": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Reasons"
+          },
+          "agent_summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Summary"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          },
+          "review_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Review On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "options",
+          "chosen",
+          "reasons",
+          "review_on"
+        ],
+        "title": "DecisionIn",
+        "description": "A decision to record. Salli runs every option itself."
+      },
+      "DecisionJournal": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.decision-journal/1",
+            "title": "Schema"
+          },
+          "exported_at": {
+            "type": "string",
+            "title": "Exported At"
+          },
+          "verify": {
+            "type": "string",
+            "title": "Verify"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/JournalExportEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "exported_at",
+          "verify",
+          "entries"
+        ],
+        "title": "DecisionJournal",
+        "description": "`salli.decision-journal/1`: every entry, note and review as recorded."
+      },
+      "DecisionList": {
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionSummary"
+            },
+            "type": "array",
+            "title": "Decisions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decisions"
+        ],
+        "title": "DecisionList"
+      },
+      "DecisionNote": {
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/DecisionNoteEntry"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note",
+          "hash",
+          "verified"
+        ],
+        "title": "DecisionNote"
+      },
+      "DecisionNoteEntry": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.decision-note/1",
+            "title": "Schema"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "decision_id": {
+            "type": "string",
+            "title": "Decision Id"
+          },
+          "entry_hash": {
+            "type": "string",
+            "title": "Entry Hash"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "author": {
+            "type": "string",
+            "enum": [
+              "user",
+              "agent"
+            ],
+            "title": "Author"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "decision_id",
+          "entry_hash",
+          "at",
+          "text",
+          "author",
+          "agent"
+        ],
+        "title": "DecisionNoteDocument",
+        "description": "`salli.decision-note/1`: a note appended to an entry."
+      },
+      "DecisionReview": {
+        "properties": {
+          "review": {
+            "$ref": "#/components/schemas/DecisionReviewEntry"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "review",
+          "hash",
+          "verified"
+        ],
+        "title": "DecisionReview"
+      },
+      "DecisionReviewEntry": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.decision-review/1",
+            "title": "Schema"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "decision_id": {
+            "type": "string",
+            "title": "Decision Id"
+          },
+          "entry_hash": {
+            "type": "string",
+            "title": "Entry Hash"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "reflection": {
+            "type": "string",
+            "title": "Reflection"
+          },
+          "author": {
+            "type": "string",
+            "enum": [
+              "user",
+              "agent"
+            ],
+            "title": "Author"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/ReviewComparison"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "decision_id",
+          "entry_hash",
+          "at",
+          "as_of",
+          "reflection",
+          "author",
+          "agent",
+          "comparison"
+        ],
+        "title": "DecisionReviewDocument",
+        "description": "`salli.decision-review/1`: a review appended to an entry."
+      },
+      "DecisionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "chosen": {
+            "type": "string",
+            "title": "Chosen"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "review_on": {
+            "type": "string",
+            "title": "Review On"
+          },
+          "recorded_at": {
+            "type": "string",
+            "title": "Recorded At"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "notes": {
+            "type": "integer",
+            "title": "Notes"
+          },
+          "reviews": {
+            "type": "integer",
+            "title": "Reviews"
+          },
+          "last_reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reviewed At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_review",
+              "review_due",
+              "reviewed"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "question",
+          "chosen",
+          "currency",
+          "as_of",
+          "review_on",
+          "recorded_at",
+          "hash",
+          "notes",
+          "reviews",
+          "last_reviewed_at",
+          "status"
+        ],
+        "title": "DecisionSummary"
+      },
       "DeclaredEntries": {
         "properties": {
           "entries_created": {
@@ -16523,6 +18455,116 @@
           "discarded"
         ],
         "title": "DiscardedStatementTransactions"
+      },
+      "DueReview": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "chosen": {
+            "type": "string",
+            "title": "Chosen"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "review_on": {
+            "type": "string",
+            "title": "Review On"
+          },
+          "recorded_at": {
+            "type": "string",
+            "title": "Recorded At"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "notes": {
+            "type": "integer",
+            "title": "Notes"
+          },
+          "reviews": {
+            "type": "integer",
+            "title": "Reviews"
+          },
+          "last_reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reviewed At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_review",
+              "review_due",
+              "reviewed"
+            ],
+            "title": "Status"
+          },
+          "reasons": {
+            "type": "string",
+            "title": "Reasons"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/ReviewComparison"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "question",
+          "chosen",
+          "currency",
+          "as_of",
+          "review_on",
+          "recorded_at",
+          "hash",
+          "notes",
+          "reviews",
+          "last_reviewed_at",
+          "status",
+          "reasons",
+          "comparison"
+        ],
+        "title": "DueReview"
+      },
+      "DueReviews": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/DueReview"
+            },
+            "type": "array",
+            "title": "Reviews"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "reviews"
+        ],
+        "title": "DueReviews"
       },
       "EntryProvenance": {
         "properties": {
@@ -18131,7 +20173,8 @@
               "new_recurring",
               "spending_spike",
               "savings_rate_drop",
-              "review_waiting"
+              "review_waiting",
+              "decision_review_due"
             ],
             "title": "Kind"
           },
@@ -18159,7 +20202,8 @@
               "see_recurring",
               "see_spending",
               "see_cash_flow",
-              "review"
+              "review",
+              "review_decision"
             ],
             "title": "Action"
           },
@@ -20694,6 +22738,39 @@
         ],
         "title": "JournalEntry"
       },
+      "JournalExportEntry": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/DecisionEntry"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionNote"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionReview"
+            },
+            "type": "array",
+            "title": "Reviews"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry",
+          "hash",
+          "notes",
+          "reviews"
+        ],
+        "title": "JournalExportEntry"
+      },
       "JsonValue": {},
       "LatestTaxComputation": {
         "properties": {
@@ -21542,6 +23619,22 @@
           "currency"
         ],
         "title": "NextIncome"
+      },
+      "NoteIn": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "NoteIn"
       },
       "OAuthErrorBody": {
         "properties": {
@@ -23054,6 +25147,401 @@
         "title": "PriceRequest",
         "description": "A closing price, as quoted that day. Recording another for the same\nsymbol, currency and day replaces it."
       },
+      "Principle": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.principle/1",
+            "title": "Schema"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "check": {
+            "type": "string",
+            "title": "Check"
+          },
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "author": {
+            "type": "string",
+            "enum": [
+              "user",
+              "agent"
+            ],
+            "title": "Author"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "label",
+          "check",
+          "account",
+          "note",
+          "version",
+          "hash",
+          "author",
+          "agent",
+          "status",
+          "created_at",
+          "updated_at",
+          "archived_at"
+        ],
+        "title": "Principle"
+      },
+      "PrincipleChanges": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check"
+          },
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PrincipleChanges",
+        "description": "What to change; a field left out stays as it is, and a null account or\nnote removes it."
+      },
+      "PrincipleCheckResult": {
+        "properties": {
+          "principle_id": {
+            "type": "string",
+            "title": "Principle Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "keeps",
+              "breaks",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "figures": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Figures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "principle_id",
+          "label",
+          "status",
+          "reason",
+          "figures"
+        ],
+        "title": "PrincipleCheckResult",
+        "description": "Whether an option keeps a principle, breaks it, or can't tell (a\nfigure it reads is missing, or the arithmetic failed); why; and the\nfigures the check read."
+      },
+      "PrincipleIn": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "check": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Check"
+          },
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "check"
+        ],
+        "title": "PrincipleIn",
+        "description": "A principle to keep: what it is called and the check that says\nwhether an option keeps it."
+      },
+      "PrincipleList": {
+        "properties": {
+          "principles": {
+            "items": {
+              "$ref": "#/components/schemas/Principle"
+            },
+            "type": "array",
+            "title": "Principles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "principles"
+        ],
+        "title": "PrincipleList"
+      },
+      "PrincipleRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "check": {
+            "type": "string",
+            "title": "Check"
+          },
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "check",
+          "account",
+          "version",
+          "hash"
+        ],
+        "title": "PrincipleRef",
+        "description": "A principle as it stood when it was checked."
+      },
+      "PrinciplesCheck": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "principles": {
+            "items": {
+              "$ref": "#/components/schemas/PrincipleRef"
+            },
+            "type": "array",
+            "title": "Principles"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/CheckedFigures"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/CheckedOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "placeholders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "currency",
+          "principles",
+          "baseline",
+          "options",
+          "placeholders",
+          "data_as_of"
+        ],
+        "title": "PrinciplesCheck",
+        "description": "Your principles against the baseline and each option. Not a ranking."
+      },
       "Profile": {
         "properties": {
           "id": {
@@ -24169,6 +26657,119 @@
           "decision"
         ],
         "title": "ResumeRequest"
+      },
+      "ReviewComparison": {
+        "properties": {
+          "option": {
+            "type": "string",
+            "title": "Option"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "terms": {
+            "type": "string",
+            "const": "nominal",
+            "title": "Terms"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonRow"
+            },
+            "type": "array",
+            "title": "Figures"
+          },
+          "spending": {
+            "$ref": "#/components/schemas/ComparisonSpending"
+          },
+          "others": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonOther"
+            },
+            "type": "array",
+            "title": "Others"
+          },
+          "baseline_fingerprint": {
+            "type": "string",
+            "title": "Baseline Fingerprint"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "is_stale": {
+            "type": "boolean",
+            "title": "Is Stale"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option",
+          "at",
+          "month",
+          "currency",
+          "terms",
+          "figures",
+          "spending",
+          "others",
+          "baseline_fingerprint",
+          "data_as_of",
+          "is_stale",
+          "notes"
+        ],
+        "title": "ReviewComparison",
+        "description": "What the chosen option projected at a month's end, against the\nbaseline as of that day."
+      },
+      "ReviewIn": {
+        "properties": {
+          "reflection": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Reflection"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reflection"
+        ],
+        "title": "ReviewIn"
       },
       "RiskBreakdown": {
         "properties": {

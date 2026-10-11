@@ -417,6 +417,11 @@ class DataExport(BaseModel):
     bank_connections: list[dict[str, Any]] = Field(default_factory=list)
     """Each bank connection as in `bank-connections.list`: its accounts, where
     each is imported, and the bank's last balances. Never its credential."""
+    principles: list[dict[str, Any]] = Field(default_factory=list)
+    """Every principle as in `principles.list`, archived ones included."""
+    decision_journal: dict[str, Any] = Field(default_factory=dict)
+    """The decision journal as `decisions.export` gives it: every entry,
+    note and review exactly as recorded, with its hash."""
 
 
 @router.get("/export")
