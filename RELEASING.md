@@ -91,7 +91,9 @@ which `docker buildx imagetools inspect ghcr.io/leafmonkeylabs/salli:<version>
 --format '{{ json .Provenance }}'` shows.
 
 1. Bump `version` in `pyproject.toml` in a pull request (`uv lock` updates the lock
-   file's entry for Salli). The pull request builds the image and runs
+   file's entry for Salli). The OpenAPI document carries the version, so
+   regenerate it too: `uv run python -m salli.interfaces.api.spec >
+   openapi/openapi.json`. The pull request builds the image and runs
    `compose.yaml` end to end. Merge it.
 2. Tag the merge commit and push the tag:
 
