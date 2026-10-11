@@ -36,8 +36,10 @@ async def test_gathering_the_context_stores_no_score(monkeypatch):
     context = await _advisor(uow, monkeypatch).gather_context(h.USER)
 
     assert uow.fi_scores.rows == []
-    assert context["fi_score"]["projected_fi_month"] == "2043-03"
-    assert context["fire_projections"]["fi_by"]["base"] == {"months": 197, "month": "2043-03"}
+    # 1b: was 2043-03 (197 months): FI's month is the baseline timeline's
+    # now (tests/golden/test_household_fi.py says why).
+    assert context["fi_score"]["projected_fi_month"] == "2047-05"
+    assert context["fire_projections"]["fi_by"]["base"] == {"months": 247, "month": "2047-05"}
 
 
 async def test_a_run_records_the_score_it_advised_on(monkeypatch):

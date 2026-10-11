@@ -45,80 +45,6 @@ class FireStrategy:
 
 
 @dataclass(frozen=True)
-class NominalPoint:
-    """A year's projected values in the money of that year: the real ones
-    grown by the user's inflation. Only ever computed from their own figure."""
-
-    conservative: Decimal
-    base: Decimal
-    growth: Decimal
-
-
-@dataclass(frozen=True)
-class ProjectionPoint:
-    """A single year's projected portfolio value under each return scenario,
-    in today's money; and in that year's money when the user set inflation."""
-
-    year: int
-    conservative: Decimal
-    base: Decimal
-    growth: Decimal
-    nominal: NominalPoint | None = None
-
-
-@dataclass(frozen=True)
-class PurchaseOption:
-    """One way of funding a purchase, costed in months of freedom."""
-
-    key: str  # "cash" | "installments"
-    label: str
-    total_cost: Decimal  # total money handed over across the whole term
-    interest_cost: Decimal  # total_cost − purchase amount (0 for cash)
-    monthly_payment: Decimal | None  # None for cash
-    term_months: int | None  # None for cash
-    months_to_fi: int | None  # None = target not reachable within the horizon
-    # Months of freedom this option costs, vs. not buying at all. None when
-    # either figure is unknowable — never 0, which would read as "costs nothing".
-    months_delay: int | None
-    # True when the monthly payment exceeds the user's current monthly surplus:
-    # the purchase is not merely slower, it is cash-flow negative.
-    exceeds_monthly_surplus: bool
-
-
-@dataclass(frozen=True)
-class PurchaseImpact:
-    """
-    What a prospective purchase does to a user's balance sheet and FI date.
-
-    Every figure here is computed deterministically by the engine. The LLM may
-    narrate this object but must never derive a number of its own from it
-    (CLAUDE.md: "LLM never computes money or tax").
-    """
-
-    amount: Decimal
-    currency: str
-    fi_number: Decimal
-    fi_asset_base_before: Decimal
-    monthly_surplus: Decimal
-    baseline_months_to_fi: int | None  # None = not reachable within the horizon
-    # Cash-flow feasibility, distinct from FI impact: can this be paid outright
-    # from liquid savings, and what does that leave in the emergency fund?
-    payable_from_liquid: bool
-    emergency_months_before: Decimal
-    emergency_months_after_cash: Decimal
-    emergency_fund_target_months: int
-    options: list[PurchaseOption]
-    # Key of the option costing the fewest months of freedom, or None when no
-    # option produced a comparable figure.
-    cheapest_option_key: str | None
-    # ISO date of the newest ledger entry behind this snapshot, and whether that
-    # is fresh enough to answer on. A confident answer from a stale balance sheet
-    # is worse than no answer.
-    data_as_of: str | None = None
-    is_stale: bool = False
-
-
-@dataclass(frozen=True)
 class SurplusBreakdown:
     """Ledger-derived income and expense breakdown for the surplus flow chart."""
 
@@ -194,9 +120,10 @@ class FiScore:
     progress_to_fi: Decimal  # 0..1+ — UNCLAMPED, so ≥100% is visible
     emergency_fund_months: Decimal
     debt_to_asset: Decimal  # 0..1 — a FRACTION, not a percentage
-    projected_fi_years: Decimal | None  # None = not reachable / not yet knowable
     currency: str
 
     components: list[FiComponent] = field(default_factory=list[FiComponent])
-    #: The same, to the month: months from the as-of date. None alike.
+    #: Months from the as-of month to the month FI is reached, from the
+    #: baseline's monthly timeline (domain/baseline/fi.py). None when it
+    #: isn't reached within 50 years, or there is no FI number yet.
     projected_fi_months: int | None = None

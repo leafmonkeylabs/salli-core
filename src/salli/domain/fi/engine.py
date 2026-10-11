@@ -1,8 +1,7 @@
 """
 Deterministic Financial Independence engine.
 
-Pure function: compute(snapshot, pack) -> FiScore. No I/O, no LLM, no Date.now —
-the FI-date *years* are computed here; the calendar date is derived by the caller.
+Pure function: compute(snapshot, pack) -> FiScore. No I/O, no LLM, no Date.now.
 
 Methodology (FIRE composite):
   • FI number      = target annual expenses / safe withdrawal rate (4% rule → ×25)
@@ -17,25 +16,17 @@ Units: every ratio returned here is a FRACTION (0..1), never a percentage. Only
 `overall_score` and `FiComponent.score` are on a 0..100 scale. Clients must
 multiply the fractions by 100 themselves.
 
-Two invariants this module exists to hold, both of which were previously broken
-by having parallel implementations:
-  1. ONE withdrawal rate drives the FI number, the progress and the projection.
-     Callers pass `swr`; there is no second rate hiding in a service.
-  2. ONE compounding routine (`_fv_after_months`) backs both the projected series
-     and years-to-FI, so "13 years" always agrees with where the chart crosses.
+ONE withdrawal rate drives the FI number and the progress: callers pass
+`swr`; there is no second rate hiding in a service.
 
-Projections run in REAL terms (today's money): every return is after
-inflation, which keeps the flat FI target line valid and stops years-to-FI being
-flattered by inflation. Callers pass the withdrawal rate and real returns
-explicitly (domain/fi/assumptions.py decides them); the pack holds none. When
-the user set an inflation figure, the same projection is also shown in each
-year's own money (`in_future_money`), from the real walk, so the two never
-disagree about when FI is reached.
+When FI is reached is not walked here. It comes from the baseline's monthly
+timeline (domain/baseline/fi.py), where cash, investments and debts are kept
+apart, and the caller passes the month in (`projected_fi_months`), so the
+score, the projections and every scenario say the same month.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -45,10 +36,6 @@ from salli.domain.fi.models import (
     FinancialSnapshot,
     FiPack,
     FiScore,
-    NominalPoint,
-    ProjectionPoint,
-    PurchaseImpact,
-    PurchaseOption,
     SurplusBreakdown,
 )
 
@@ -56,18 +43,12 @@ __all__ = [
     "compute",
     "compute_surplus_breakdown",
     "fi_asset_base",
-    "in_future_money",
     "installment_payment",
-    "months_to_target",
     "nominal_return",
-    "project_portfolio",
     "real_return",
-    "simulate_purchase",
-    "years_to_target",
 ]
 
 _HUNDRED = Decimal(100)
-_MAX_PROJECTION_YEARS = 100
 
 
 def _clamp(value: Decimal, lo: Decimal = Decimal(0), hi: Decimal = _HUNDRED) -> Decimal:
@@ -90,31 +71,6 @@ def _grade(score: Decimal) -> str:
     return "Just starting"
 
 
-def in_future_money(value: Decimal, inflation: Decimal, years: int) -> Decimal:
-    """`value` in today's money, in the money of `years` from now at a yearly
-    `inflation`, to the cent. Only ever applied with the user's own figure."""
-    return _q2(value * (Decimal(1) + inflation) ** years)
-
-
-def _fv_after_months(
-    pv: Decimal, monthly_contribution: Decimal, annual_rate: Decimal, months: int
-) -> Decimal:
-    """
-    Future value of a lump sum plus an ordinary monthly annuity.
-
-    The single compounding routine in this module — `project_portfolio` and
-    `years_to_target` both call it, which is what guarantees the chart and the
-    years-to-FI figure can never disagree. `annual_rate` is a nominal annual rate
-    compounded monthly, so a stated 10% realises 10.47% effective; that is the
-    convention, applied consistently.
-    """
-    r = annual_rate / Decimal(12)
-    if r == 0:
-        return pv + monthly_contribution * months
-    growth = (Decimal(1) + r) ** months
-    return pv * growth + monthly_contribution * (growth - Decimal(1)) / r
-
-
 def fi_asset_base(snapshot: FinancialSnapshot) -> Decimal:
     """
     The assets that can actually fund a safe-withdrawal-rate drawdown: investable
@@ -125,75 +81,6 @@ def fi_asset_base(snapshot: FinancialSnapshot) -> Decimal:
     base used by BOTH progress-to-FI and the projection so the two agree.
     """
     return snapshot.liquid_savings + snapshot.investments - snapshot.total_liabilities
-
-
-def years_to_target(
-    starting: Decimal,
-    monthly_contribution: Decimal,
-    annual_rate: Decimal,
-    target: Decimal,
-    max_years: int = _MAX_PROJECTION_YEARS,
-) -> Decimal | None:
-    """
-    Years until `starting` plus monthly contributions reaches `target`.
-
-    Returns None when the answer is unknowable rather than pretending it is zero:
-    a user with no recorded expenses has no FI target yet, and answering "0 years"
-    (as an earlier version did) told brand-new users they were already retired.
-    """
-    if target <= 0:
-        return None
-    if starting >= target:
-        return Decimal(0)
-    if monthly_contribution <= 0 and annual_rate <= 0:
-        return None
-    # Quantised to cents each year, exactly as `project_portfolio` does, so the
-    # two walk identical values. Comparing full precision here against a
-    # cents-rounded series made a balance of 299.996 cross in the chart (rounds to
-    # 300.00) but not in the solver — a knife-edge one-year disagreement.
-    value = _q2(starting)
-    for year in range(1, max_years + 1):
-        value = _q2(_fv_after_months(value, monthly_contribution, annual_rate, 12))
-        if value >= target:
-            return Decimal(year)
-    return None
-
-
-def months_to_target(
-    starting: Decimal,
-    annual_rate: Decimal,
-    target: Decimal,
-    contribution_for_month: Callable[[int], Decimal],
-    max_years: int = _MAX_PROJECTION_YEARS,
-) -> int | None:
-    """
-    Months until `starting` plus a (possibly varying) monthly contribution reaches
-    `target`. The month-resolution sibling of `years_to_target`.
-
-    Quantisation is deliberately asymmetric: the running value is rounded to cents
-    ONLY at year boundaries, while the target is checked every month. That is what
-    makes this reconcile exactly with `years_to_target` — at month 12k the value is
-    the same one that walk carries, so a crossing here at month m always satisfies
-    `ceil(m / 12) == years_to_target(...)`. Rounding every month instead would
-    accumulate twelve roundings a year against that walk's one and could report a
-    crossing a year apart from the headline figure — the same class of
-    chart-vs-solver disagreement the earlier FI audit had to fix.
-
-    `contribution_for_month` takes a 1-based month index so a funding plan whose
-    payments stop partway through (installments) can be expressed directly.
-    """
-    if target <= 0:
-        return None
-    value = _q2(starting)
-    if value >= target:
-        return 0
-    for month in range(1, max_years * 12 + 1):
-        value = _fv_after_months(value, contribution_for_month(month), annual_rate, 1)
-        if month % 12 == 0:
-            value = _q2(value)
-        if value >= target:
-            return month
-    return None
 
 
 def installment_payment(amount: Decimal, annual_rate: Decimal, term_months: int) -> Decimal:
@@ -212,150 +99,24 @@ def installment_payment(amount: Decimal, annual_rate: Decimal, term_months: int)
     return amount * r / (Decimal(1) - discount)
 
 
-def simulate_purchase(
-    snapshot: FinancialSnapshot,
-    pack: FiPack,
-    amount: Decimal,
-    *,
-    swr: Decimal,
-    annual_real_return: Decimal,
-    target_monthly_expenses: Decimal | None = None,
-    term_months: int | None = None,
-    annual_interest_rate: Decimal = Decimal(0),
-    data_as_of: str | None = None,
-    is_stale: bool = False,
-) -> PurchaseImpact:
-    """
-    Cost a prospective purchase in months of freedom.
-
-    The two funding options are modelled so that neither double-counts:
-
-    * **Cash** — the asset base drops by the full amount today; the monthly
-      contribution is untouched. Total drag is exactly the purchase price.
-    * **Installments** — the asset base is untouched today (the money is still
-      invested; the debt is owed to the seller) and the monthly contribution
-      falls by the payment for the length of the term. Total drag is
-      `payment × term`, i.e. the price plus interest.
-
-    Booking the liability *and* deducting the repayments would charge the
-    principal twice, so exactly one of the two is applied per option.
-
-    `swr` / `target_monthly_expenses` / `annual_real_return` mirror `compute()`
-    and must be passed the same values, or the FI target this measures against
-    will differ from the one on the user's dashboard.
-    """
-    swr_eff = swr
-    expenses = snapshot.monthly_expenses
-    target_expenses = (
-        target_monthly_expenses
-        if (target_monthly_expenses is not None and target_monthly_expenses > 0)
-        else expenses
-    )
-    annual_expenses = target_expenses * 12
-    fi_number = (annual_expenses / swr_eff) if annual_expenses > 0 and swr_eff > 0 else Decimal(0)
-
-    rate = annual_real_return
-    base = fi_asset_base(snapshot)
-    surplus = snapshot.monthly_income - expenses
-
-    baseline = months_to_target(base, rate, fi_number, lambda _m: surplus)
-
-    def _delay(after: int | None) -> int | None:
-        if after is None or baseline is None:
-            return None
-        return after - baseline
-
-    options: list[PurchaseOption] = []
-
-    # ── Option 1: pay cash ────────────────────────────────────────────────────
-    cash_months = months_to_target(base - amount, rate, fi_number, lambda _m: surplus)
-    options.append(
-        PurchaseOption(
-            key="cash",
-            label="Pay in full",
-            total_cost=_q2(amount),
-            interest_cost=Decimal("0.00"),
-            monthly_payment=None,
-            term_months=None,
-            months_to_fi=cash_months,
-            months_delay=_delay(cash_months),
-            exceeds_monthly_surplus=False,
-        )
-    )
-
-    # ── Option 2: installments ────────────────────────────────────────────────
-    if term_months and term_months > 0:
-        payment = installment_payment(amount, annual_interest_rate, term_months)
-        total = payment * Decimal(term_months)
-        term = term_months
-
-        def _contribution(month: int, _p: Decimal = payment, _t: int = term) -> Decimal:
-            return surplus - _p if month <= _t else surplus
-
-        inst_months = months_to_target(base, rate, fi_number, _contribution)
-        options.append(
-            PurchaseOption(
-                key="installments",
-                label=f"{term_months} monthly payments",
-                total_cost=_q2(total),
-                # Floored at zero. The annuity payment is an exact (often
-                # repeating) decimal, so at 0% `payment × term` lands a hair
-                # under the price and the raw difference quantises to "-0.00" —
-                # a negative interest cost, which is both meaningless and, on a
-                # product selling trustworthy figures, reads as broken.
-                interest_cost=max(Decimal("0.00"), _q2(total - amount)),
-                monthly_payment=_q2(payment),
-                term_months=term_months,
-                months_to_fi=inst_months,
-                months_delay=_delay(inst_months),
-                exceeds_monthly_surplus=payment > surplus,
-            )
-        )
-
-    comparable = [o for o in options if o.months_delay is not None]
-    cheapest = min(comparable, key=lambda o: o.months_delay or 0).key if comparable else None
-
-    liquid = snapshot.liquid_savings
-    return PurchaseImpact(
-        amount=_q2(amount),
-        currency=snapshot.currency,
-        # NOT quantised, deliberately: `compute()` returns the raw quotient, and
-        # these two must be bit-identical so a purchase can never be costed
-        # against a different Freedom number than the dashboard shows. Rounding
-        # for display is the client's job.
-        fi_number=fi_number,
-        fi_asset_base_before=_q2(base),
-        monthly_surplus=_q2(surplus),
-        baseline_months_to_fi=baseline,
-        payable_from_liquid=liquid >= amount,
-        emergency_months_before=_q2(liquid / expenses) if expenses > 0 else Decimal(0),
-        emergency_months_after_cash=(
-            _q2((liquid - amount) / expenses) if expenses > 0 else Decimal(0)
-        ),
-        emergency_fund_target_months=pack.emergency_fund_target_months,
-        options=options,
-        cheapest_option_key=cheapest,
-        data_as_of=data_as_of,
-        is_stale=is_stale,
-    )
-
-
 def compute(
     snapshot: FinancialSnapshot,
     pack: FiPack,
     *,
     swr: Decimal,
-    annual_real_return: Decimal,
     target_monthly_expenses: Decimal | None = None,
+    projected_fi_months: int | None = None,
 ) -> FiScore:
     """
     Score a snapshot.
 
-    `swr` and `annual_real_return` (the base scenario's) are the assumptions
-    that apply to the user; `target_monthly_expenses` comes from their FIRE
-    strategy when it names one. They are parameters, never pack lookups,
-    precisely so the projection path cannot diverge from this one — pass the
-    same values to `project_portfolio` and every figure on the page reconciles.
+    `swr` is the withdrawal rate that applies to the user;
+    `target_monthly_expenses` comes from their FIRE strategy when it names
+    one. They are parameters, never pack lookups, so the FI number here is
+    the one the baseline's timeline measures FI against
+    (domain/baseline/fi.py, given the same values). `projected_fi_months` is
+    that timeline's answer: months from the as-of month to the month FI is
+    reached, or None.
 
     Note `target_monthly_expenses` moves the FI *target* only. Contributions stay
     at the actual surplus, because aspiring to spend less in retirement does not
@@ -434,14 +195,6 @@ def compute(
         )
 
     overall = _q2(_clamp(overall))
-    projected_years = years_to_target(asset_base, surplus, annual_real_return, fi_number)
-    # The FI date to the month: the same walk, checked every month, so it
-    # always falls within the year `projected_years` says.
-    projected_months = (
-        months_to_target(asset_base, annual_real_return, fi_number, lambda _m: surplus)
-        if projected_years is not None
-        else None
-    )
 
     return FiScore(
         pack_version=pack.version,
@@ -459,80 +212,10 @@ def compute(
         progress_to_fi=progress,
         emergency_fund_months=ef_months,
         debt_to_asset=debt_ratio,
-        projected_fi_years=projected_years,
-        projected_fi_months=projected_months,
+        projected_fi_months=projected_fi_months,
         currency=snapshot.currency,
         components=components,
     )
-
-
-def project_portfolio(
-    snapshot: FinancialSnapshot,
-    real_returns: Mapping[str, Decimal],
-    horizon_years: int = 15,
-    *,
-    inflation: Decimal | None = None,
-) -> list[ProjectionPoint]:
-    """
-    Project the FI asset base forward under three REAL return scenarios
-    (`real_returns`: conservative, base and growth, after inflation).
-
-    Real, not nominal: the FI target is expressed in today's money, so growing the
-    portfolio at nominal rates against it would cross years too early. Starts from
-    `fi_asset_base` — the same base `compute()` measures progress against. The
-    monthly contribution is today's surplus, held level in real terms.
-
-    With the user's `inflation`, each point also carries the same values in that
-    year's money (`in_future_money`), derived from the real walk, never walked
-    separately.
-    """
-    starting = fi_asset_base(snapshot)
-    monthly_contribution = snapshot.monthly_income - snapshot.monthly_expenses
-    rates = {name: real_returns[name] for name in ("conservative", "base", "growth")}
-
-    start = _q2(starting)
-    points: list[ProjectionPoint] = [
-        ProjectionPoint(year=0, conservative=start, base=start, growth=start)
-    ]
-
-    # Values are carried forward already quantised to cents — the same walk
-    # `years_to_target` performs, which is what keeps the crossing year and the
-    # headline figure identical.
-    #
-    # Deliberately NOT floored at zero: flooring made a net-debt starting position
-    # climb faster here than in the solver. A line that dips below zero is the
-    # honest picture for someone whose debts exceed their investments.
-    values = {name: start for name in rates}
-    for year in range(1, horizon_years + 1):
-        values = {
-            name: _q2(_fv_after_months(values[name], monthly_contribution, rate, 12))
-            for name, rate in rates.items()
-        }
-        points.append(
-            ProjectionPoint(
-                year=year,
-                conservative=values["conservative"],
-                base=values["base"],
-                growth=values["growth"],
-            )
-        )
-
-    if inflation is None:
-        return points
-    return [
-        ProjectionPoint(
-            year=p.year,
-            conservative=p.conservative,
-            base=p.base,
-            growth=p.growth,
-            nominal=NominalPoint(
-                conservative=in_future_money(p.conservative, inflation, p.year),
-                base=in_future_money(p.base, inflation, p.year),
-                growth=in_future_money(p.growth, inflation, p.year),
-            ),
-        )
-        for p in points
-    ]
 
 
 def compute_surplus_breakdown(

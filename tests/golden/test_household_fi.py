@@ -6,6 +6,18 @@ each figure the reconciliation changed is updated here with a comment saying
 why ("was …"). FI now reads the baseline: its income and expenses (netted per
 month, over the full months observed), its asset split by account role, its
 balances at the published rate for the as-of date, and its debts counted once.
+
+Phase 1b ("1b: was …"): when FI is reached, and the projections, come from
+the baseline's monthly timeline, where cash, investments and debts are kept
+apart, instead of a walk that grew the whole asset base at the real return
+with the surplus invested. On the timeline the surplus stays in cash, which
+earns nothing; only the investments (38,000 here) grow at the real return;
+the debts follow their schedules, and their payments stay in cash once each
+is paid off. So FI comes later, and the three return scenarios sit closer
+together: most of the base is cash. A scenario that invests says so, and
+shows the months it gains. What a purchase costs is a scenario too now
+(tests/golden/test_household_scenarios.py), so the purchase costing that
+was pinned here is gone with the engine's own walk.
 """
 
 from __future__ import annotations
@@ -83,9 +95,14 @@ async def test_the_score(fi):
     assert Decimal(score["emergency_fund_months"]).quantize(Decimal("0.01")) == Decimal("8.10")
     assert Decimal(score["debt_to_asset"]).quantize(Decimal("0.0001")) == Decimal("0.0524")
     # Was 5 whole years and the date that many years on (2031-10-11): now
-    # the month, from the same walk, and the base is far smaller.
+    # the month, and the base is far smaller.
     assert "projected_fi_years" not in score and "projected_fi_date" not in score
-    assert (score["projected_fi_months"], score["projected_fi_month"]) == (197, "2043-03")
+    # 1b: was 197 months (2043-03), the base of 35,901.47 compounding at 4%
+    # with 1,962.91 a month invested. Now the timeline's month: cash takes the
+    # surplus and earns nothing, only the 38,000 invested grows at 4%, and the
+    # debts' payments stay in cash once paid off (the car loan from 2029-06,
+    # the student loan from 2033-04).
+    assert (score["projected_fi_months"], score["projected_fi_month"]) == (247, "2047-05")
     assert score["as_of"] == "2026-10-11"
 
 
@@ -105,22 +122,36 @@ async def test_the_projections(fi):
     projections = await fi.get_projections(h.USER)
 
     assert projections["fi_number"] == "611127"  # was 529,632.375
-    assert projections["current_portfolio"] == "35901.4700"  # was 344,026.47
+    # Was 344,026.47; then 35901.4700. 1b: the timeline's as-of point, cash
+    # 15,801.47 + investments 38,000 − debts 17,900, in the currency's
+    # precision.
+    assert projections["current_portfolio"] == "35901.47"
     # Was 7, 5 and 4 whole years: now the month in each scenario.
+    # 1b: was 233 (2046-03), 197 (2043-03) and 171 (2041-01): each is now the
+    # timeline with its investments at 2%, 4% and 6% while cash earns
+    # nothing, so they are later and closer together (see the score).
     assert projections["fi_by"] == {
-        "conservative": {"months": 233, "month": "2046-03"},
-        "base": {"months": 197, "month": "2043-03"},
-        "growth": {"months": 171, "month": "2041-01"},
+        "conservative": {"months": 260, "month": "2048-06"},
+        "base": {"months": 247, "month": "2047-05"},
+        "growth": {"months": 231, "month": "2046-01"},
     }
     year_one = projections["points"][1]
-    # Was 371,976.99 / 379,243.22 / 386,642.03, from the larger base.
+    # Was 371,976.99 / 379,243.22 / 386,642.03, from the larger base; then
+    # 60,398.16 / 61,355.75 / 62,329.39, the base compounding as one.
+    # 1b: the timeline's point at the end of 2027-10, cash 39,200.21 less
+    # debts 13,082.15, plus the investments: at 4%, 38,000 × (1 + 0.04/12 ×
+    # 21/31) × (1 + 0.04/12)^12 = 39,637.48 (the as-of month's 21 days
+    # left, then twelve months), so 65,755.54; at 2% and 6%, 38,810.77 and
+    # 40,480.41.
     assert (year_one["conservative"], year_one["base"], year_one["growth"]) == (
-        "60398.16",
-        "61355.75",
-        "62329.39",
+        "64928.83",
+        "65755.54",
+        "66598.47",
     )
     # Was 16 (years 0 to 15): the chart runs on to show the crossing.
-    assert len(projections["points"]) == 23
+    # 1b: was 23; the conservative crossing is now in year 22 (260 months),
+    # and the chart runs two years past it.
+    assert len(projections["points"]) == 25
 
 
 async def test_the_surplus_breakdown(fi):
@@ -150,36 +181,3 @@ async def test_the_surplus_breakdown(fi):
     assert surplus["gross_monthly_expenses"] == "2037.09"
     assert surplus["monthly_surplus"] == "1962.91"
     assert surplus["savings_rate"] == "0.49"
-
-
-async def test_costing_a_purchase(fi):
-    impact = await fi.simulate_purchase(
-        h.USER, Decimal("2400"), term_months=12, annual_interest_rate=Decimal("0.069")
-    )
-
-    assert impact["fi_asset_base_before"] == "35901.47"  # was 344,026.47
-    assert impact["monthly_surplus"] == "1962.91"  # was 1,734.56
-    assert impact["baseline_months_to_fi"] == 197  # was 59
-    assert impact["emergency_months_before"] == "8.10"  # was 186.71
-    assert impact["emergency_months_after_cash"] == "6.92"  # was 185.35
-    cash, instalments = impact["options"]
-    assert (cash["months_to_fi"], cash["months_delay"]) == (198, 1)  # was (60, 1)
-    assert (instalments["monthly_payment"], instalments["interest_cost"]) == ("207.55", "90.64")
-    assert (instalments["months_to_fi"], instalments["months_delay"]) == (198, 1)  # was (60, 1)
-    assert impact["data_as_of"] == "2026-10-09"
-    assert impact["is_stale"] is False
-    assert impact["as_of"] == "2026-10-11"
-
-
-async def test_a_purchase_out_of_bounds_is_refused_whoever_asks(fi):
-    """Was checked by the API alone: MCP and the agent passed anything on."""
-    for amount, term, rate in (
-        (Decimal("-1"), None, Decimal(0)),
-        (Decimal("100"), 0, Decimal(0)),
-        (Decimal("100"), 601, Decimal(0)),
-        (Decimal("100"), 12, Decimal("18")),
-        (Decimal("100"), 12, Decimal("-0.01")),
-        (Decimal("1E+19"), None, Decimal(0)),
-    ):
-        with pytest.raises(ValueError):
-            await fi.simulate_purchase(h.USER, amount, term_months=term, annual_interest_rate=rate)
