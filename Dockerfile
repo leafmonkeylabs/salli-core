@@ -70,7 +70,8 @@ ENV PATH=/opt/salli/bin:$PATH \
     ENVIRONMENT=production \
     SALLI_STORAGE_DIR=/var/lib/salli/files
 
-USER salli:salli
+# Numeric, so a runtime can tell it isn't root without resolving names.
+USER 10001:10001
 WORKDIR /var/lib/salli
 EXPOSE 8000
 
