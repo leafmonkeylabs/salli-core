@@ -147,13 +147,14 @@ export const FI_SCORE = {
   progress_to_fi: '0.0193',
   emergency_fund_months: '5.8',
   debt_to_asset: '0.0788',
-  projected_fi_years: '14',
+  projected_fi_months: 168,
   currency: 'USD',
   components: [
     { key: 'savings_rate', label: 'Savings rate', score: '90', weight: '0.3', detail: '56% of income saved' },
     { key: 'emergency_fund', label: 'Emergency fund', score: '80', weight: '0.2', detail: '5.8 months covered' },
   ],
-  projected_fi_date: '2040-10-09',
+  projected_fi_month: '2040-10',
+  as_of: '2026-10-09',
   assumptions: FI_ASSUMPTIONS,
   inputs_hash: 'abc',
 } satisfies FiScore;

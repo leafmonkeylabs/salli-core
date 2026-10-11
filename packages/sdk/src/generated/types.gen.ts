@@ -2755,6 +2755,31 @@ export type FiAssumptionsUpdate = {
 };
 
 /**
+ * FiDate
+ *
+ * When FI is reached in one scenario.
+ */
+export type FiDate = {
+    /**
+     * Months
+     */
+    months: number | null;
+    /**
+     * Month
+     */
+    month: string | null;
+};
+
+/**
+ * FiDates
+ */
+export type FiDates = {
+    conservative: FiDate;
+    base: FiDate;
+    growth: FiDate;
+};
+
+/**
  * FiNominalPoint
  *
  * A year's projected values in that year's own money, from the user's inflation.
@@ -2917,18 +2942,11 @@ export type FiProjections = {
      * Swr
      */
     swr?: string | null;
+    fi_by?: FiDates | null;
     /**
-     * Fire Year Conservative
+     * As Of
      */
-    fire_year_conservative?: number | null;
-    /**
-     * Fire Year Base
-     */
-    fire_year_base?: number | null;
-    /**
-     * Fire Year Growth
-     */
-    fire_year_growth?: number | null;
+    as_of?: string | null;
     /**
      * Current Portfolio
      */
@@ -3050,13 +3068,17 @@ export type FiScore = {
      */
     debt_to_asset: string;
     /**
-     * Projected Fi Years
+     * Projected Fi Months
      */
-    projected_fi_years?: string | null;
+    projected_fi_months?: number | null;
     /**
-     * Projected Fi Date
+     * Projected Fi Month
      */
-    projected_fi_date?: string | null;
+    projected_fi_month?: string | null;
+    /**
+     * As Of
+     */
+    as_of?: string | null;
     /**
      * Components
      */
@@ -5882,6 +5904,10 @@ export type PurchaseImpact = {
      */
     currency: string;
     /**
+     * As Of
+     */
+    as_of: string;
+    /**
      * Fi Number
      *
      * Decimal string in the currency's own precision; never a float.
@@ -7144,7 +7170,9 @@ export type SubscriptionUpdateRequest = {
 /**
  * SurplusBreakdown
  *
- * Monthly averages over the trailing 12 months.
+ * Monthly averages over the full months observed (the baseline's: at
+ * most twelve, before this one, from the first with income or expenses).
+ * The totals are the baseline's monthly income and expenses.
  */
 export type SurplusBreakdown = {
     /**
@@ -7153,6 +7181,14 @@ export type SurplusBreakdown = {
      * ISO 4217 currency code
      */
     currency: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Months Observed
+     */
+    months_observed: Array<string>;
     /**
      * Income By Source
      */

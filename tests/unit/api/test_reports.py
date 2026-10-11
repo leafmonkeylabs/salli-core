@@ -45,7 +45,7 @@ async def test_the_balance_sheet(client, reports):
 
 async def test_the_net_worth_statement_reads_stored_scores_in_the_currency(client, reports):
     """Stored scores carry str(Decimal), and the oldest ones no currency at all."""
-    reports.fi.get_or_compute_score.return_value = {"net_worth": "1300.5"}
+    reports.fi.compute_score.return_value = {"net_worth": "1300.5"}
     reports.fi.get_score_history.return_value = [
         {"score": 54.25, "net_worth": "1300.5", "created_at": "2026-10-01T06:00:00+00:00"},
         {"score": 50.0, "net_worth": None, "created_at": "2026-09-01T06:00:00+00:00"},

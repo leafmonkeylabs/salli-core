@@ -35,6 +35,7 @@ def _impact() -> dict:
         "cheapest_option_key": "cash",
         "is_stale": False,
         "data_as_of": "2026-07-23",
+        "as_of": "2026-07-25",
         "stale_after_days": 45,
         "real_return_used": "0.04",
         "swr": "0.04",
@@ -152,7 +153,7 @@ def _score() -> dict:
         "progress_to_fi": "0.02666666666666666666666666667",
         "emergency_fund_months": "6.666666666666666666666666667",
         "debt_to_asset": "0",
-        "projected_fi_years": "13",
+        "projected_fi_months": 156,
         "currency": "LKR",
         "components": [
             {
@@ -163,7 +164,8 @@ def _score() -> dict:
                 "detail": "Saving 55.00% of income",
             }
         ],
-        "projected_fi_date": "2039-10-09",
+        "projected_fi_month": "2039-10",
+        "as_of": "2026-10-09",
         "inputs_hash": "9f86d081",
     }
 
@@ -171,7 +173,7 @@ def _score() -> dict:
 async def test_score_amounts_leave_as_plain_decimals_in_the_currency(client, mock_services):
     """An exact quotient renders as "4.500000E+7" from Decimal; an amount never
     leaves the API like that, nor with more decimals than its currency has."""
-    mock_services.fi.get_or_compute_score.return_value = _score()
+    mock_services.fi.compute_score.return_value = _score()
 
     body = (await client.get("/v1/fi/score", headers=AUTH)).json()
 
@@ -183,20 +185,19 @@ async def test_score_amounts_leave_as_plain_decimals_in_the_currency(client, moc
     assert (body["debt_to_asset"], body["emergency_fund_months"]) == ("0.0000", "6.67")
 
 
-async def test_a_score_stored_by_an_earlier_version_still_reads(client, mock_services):
-    legacy = _score()
-    for key in ("currency", "swr", "annual_expenses", "fi_asset_base", "inputs_hash"):
-        del legacy[key]
-    mock_services.fi.get_or_compute_score.return_value = legacy
+async def test_reading_the_score_computes_it_and_recomputing_records_it(client, mock_services):
+    """A read computes and stores nothing; only the explicit recompute records
+    a score in the history. The FI date is a month."""
+    mock_services.fi.compute_score.return_value = _score()
+    mock_services.fi.record_score.return_value = _score()
 
-    r = await client.get("/v1/fi/score", headers=AUTH)
+    body = (await client.get("/v1/fi/score", headers=AUTH)).json()
+    assert (body["projected_fi_months"], body["projected_fi_month"]) == (156, "2039-10")
+    assert "projected_fi_date" not in body and "projected_fi_years" not in body
+    mock_services.fi.record_score.assert_not_awaited()
 
-    assert r.status_code == 200
-    body = r.json()
-    # In the base currency, which cannot change once anything is stored in it.
-    assert body["currency"] == "LKR"
-    # What it lacks stays absent rather than turning up as null.
-    assert not {"swr", "annual_expenses", "fi_asset_base", "inputs_hash"} & body.keys()
+    await client.post("/v1/fi/score/recompute", headers=AUTH)
+    mock_services.fi.record_score.assert_awaited_once_with("test-user-1")
 
 
 async def test_score_history_says_what_currency_it_is_in(client, mock_services):
@@ -221,9 +222,11 @@ def _projections(currency: str) -> dict:
         ],
         "fi_number": "3.00000E+7",
         "swr": "0.04",
-        "fire_year_conservative": 21,
-        "fire_year_base": 17,
-        "fire_year_growth": 14,
+        "fi_by": {
+            "conservative": {"months": 252, "month": "2047-10"},
+            "base": {"months": 204, "month": "2043-10"},
+            "growth": {"months": 168, "month": "2040-10"},
+        },
         "current_portfolio": "1200000",
         "real_returns": {"conservative": "0.02", "base": "0.04", "growth": "0.06"},
         "terms": "real_and_nominal",
@@ -266,7 +269,7 @@ class _WithholdingView:
     """Withholds the growth scenario and says so, as a deployment's policy may."""
 
     def shape(self, surface, payload):
-        shaped = {k: v for k, v in payload.items() if k != "fire_year_growth"}
+        shaped = {k: v for k, v in payload.items() if k != "fi_by"}
         shaped["points"] = [{k: v for k, v in p.items() if k != "growth"} for p in shaped["points"]]
         return {**shaped, "growth_locked": True}
 
@@ -284,7 +287,7 @@ async def test_what_a_policy_withholds_stays_out_and_what_it_adds_comes_through(
 
     body = (await client.get("/v1/fi/projections", headers=AUTH)).json()
 
-    assert "fire_year_growth" not in body
+    assert "fi_by" not in body
     assert all("growth" not in p for p in body["points"])
     assert body["growth_locked"] is True
 

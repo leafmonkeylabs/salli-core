@@ -64,7 +64,7 @@ class ReportService:
         }
 
     async def get_net_worth_statement(self, user_id: str) -> dict[str, Any]:
-        latest = await self._fi.get_or_compute_score(user_id)
+        latest = await self._fi.compute_score(user_id)
         history = await self._fi.get_score_history(user_id)
         # history is ordered most-recent-first; a trend line reads naturally chronologically.
         # `latest` is the bare result_json (no created_at — that lives on the ORM row, not

@@ -58,6 +58,7 @@ __all__ = [
     "fi_asset_base",
     "in_future_money",
     "installment_payment",
+    "months_to_target",
     "nominal_return",
     "project_portfolio",
     "real_return",
@@ -158,7 +159,7 @@ def years_to_target(
     return None
 
 
-def _months_to_target(
+def months_to_target(
     starting: Decimal,
     annual_rate: Decimal,
     target: Decimal,
@@ -257,7 +258,7 @@ def simulate_purchase(
     base = fi_asset_base(snapshot)
     surplus = snapshot.monthly_income - expenses
 
-    baseline = _months_to_target(base, rate, fi_number, lambda _m: surplus)
+    baseline = months_to_target(base, rate, fi_number, lambda _m: surplus)
 
     def _delay(after: int | None) -> int | None:
         if after is None or baseline is None:
@@ -267,7 +268,7 @@ def simulate_purchase(
     options: list[PurchaseOption] = []
 
     # ── Option 1: pay cash ────────────────────────────────────────────────────
-    cash_months = _months_to_target(base - amount, rate, fi_number, lambda _m: surplus)
+    cash_months = months_to_target(base - amount, rate, fi_number, lambda _m: surplus)
     options.append(
         PurchaseOption(
             key="cash",
@@ -291,7 +292,7 @@ def simulate_purchase(
         def _contribution(month: int, _p: Decimal = payment, _t: int = term) -> Decimal:
             return surplus - _p if month <= _t else surplus
 
-        inst_months = _months_to_target(base, rate, fi_number, _contribution)
+        inst_months = months_to_target(base, rate, fi_number, _contribution)
         options.append(
             PurchaseOption(
                 key="installments",
@@ -434,6 +435,13 @@ def compute(
 
     overall = _q2(_clamp(overall))
     projected_years = years_to_target(asset_base, surplus, annual_real_return, fi_number)
+    # The FI date to the month: the same walk, checked every month, so it
+    # always falls within the year `projected_years` says.
+    projected_months = (
+        months_to_target(asset_base, annual_real_return, fi_number, lambda _m: surplus)
+        if projected_years is not None
+        else None
+    )
 
     return FiScore(
         pack_version=pack.version,
@@ -452,6 +460,7 @@ def compute(
         emergency_fund_months=ef_months,
         debt_to_asset=debt_ratio,
         projected_fi_years=projected_years,
+        projected_fi_months=projected_months,
         currency=snapshot.currency,
         components=components,
     )
@@ -529,9 +538,14 @@ def project_portfolio(
 def compute_surplus_breakdown(
     entries: list[Any],
     accounts: list[Any],
-    months: int = 12,
+    months: int,
 ) -> SurplusBreakdown:
-    """Group income and expenses from trailing-N-month entries.
+    """Group income and expenses over `months` months, monthly.
+
+    `entries` are the months' own: the baseline's months observed
+    (domain/baseline), so the totals here are its monthly income and
+    expenses, every posting counted, a category that netted to money back
+    included. Only the breakdowns leave out what nets to nothing or less.
 
     Expenses group by their `category` tag where one exists, falling back to the
     account name. That fallback matters: onboarding seeds a single personal
@@ -568,6 +582,9 @@ def compute_surplus_breakdown(
                 if need:
                     expense_by_need[need] = expense_by_need.get(need, Decimal(0)) + p.base_signed
 
+    if months <= 0:
+        zero = Decimal("0.00")
+        return SurplusBreakdown({}, {}, zero, zero, zero, zero, {})
     m = Decimal(months)
     # Drop anything that nets to zero or below — a fully reversed category is
     # not a category the user spent in.
@@ -575,8 +592,9 @@ def compute_surplus_breakdown(
     expense_monthly = {k: _q2(v / m) for k, v in expense_by_category.items() if v > 0}
     need_monthly = {k: _q2(v / m) for k, v in expense_by_need.items() if v > 0}
 
-    gross_income = sum(income_monthly.values(), Decimal(0))
-    gross_expenses = sum(expense_monthly.values(), Decimal(0))
+    # The totals: every posting, before any rounding of the parts.
+    gross_income = sum(income_by_source.values(), Decimal(0)) / m
+    gross_expenses = sum(expense_by_category.values(), Decimal(0)) / m
     surplus = gross_income - gross_expenses
     savings_rate = (surplus / gross_income) if gross_income > 0 else Decimal(0)
 

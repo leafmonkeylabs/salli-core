@@ -153,7 +153,9 @@ async def test_the_record_of_money_in_and_out_begins_with_its_first_unreversed_e
     mistake = await ledger.add_entry("u2", "2026-02-10", "OOPS", "manual", legs(food, bank, "5"))
     await ledger.reverse_entry("u2", mistake)
     await ledger.add_entry("u2", "2026-04-02", "GROCER", "manual", legs(food, bank, "20"))
-    await ledger.add_entry("u3", "2025-01-01", "GROCER", "manual", legs(other_food, other_bank, "1"))
+    await ledger.add_entry(
+        "u3", "2025-01-01", "GROCER", "manual", legs(other_food, other_bank, "1")
+    )
 
     async with uow_factory() as uow:
         # Not the opening balance (no income or expense), not the reversed

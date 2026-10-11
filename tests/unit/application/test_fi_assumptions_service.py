@@ -9,7 +9,6 @@ inflation figure.
 from __future__ import annotations
 
 import datetime
-from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
 
@@ -17,6 +16,7 @@ import pytest
 
 from salli.application.services.fi_service import FiService
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
+from tests.fakes import FakeUoW
 
 USER = "u1"
 
@@ -53,32 +53,15 @@ def _entry(n: int, day: datetime.date, debit: str, credit: str, amount: str) -> 
     )
 
 
-class _Ledger:
-    accounts = [
-        Account(
-            id="salary", user_id=USER, code="4000", name="Salary", type="income", currency="USD"
-        ),
-        Account(id="cash", user_id=USER, code="1000", name="Savings", type="asset", currency="USD"),
-        Account(id="rent", user_id=USER, code="5000", name="Rent", type="expense", currency="USD"),
-    ]
-    entries = [
-        _entry(1, _last_month(1), "cash", "salary", "5000"),
-        _entry(2, _last_month(2), "rent", "cash", "2000"),
-    ]
-
-    async def get_accounts(self, user_id, include_inactive=False):
-        return self.accounts
-
-    async def get_entries(self, user_id, from_date=None, to_date=None):
-        return [e for e in self.entries if from_date is None or e.entry_date >= from_date]
-
-
-class _Goals:
-    async def list(self, user_id, active_only=True):
-        return []
-
-    async def list_allocations(self, user_id, goal_id=None):
-        return []
+ACCOUNTS = [
+    Account(id="salary", user_id=USER, code="4000", name="Salary", type="income", currency="USD"),
+    Account(id="cash", user_id=USER, code="1000", name="Savings", type="asset", currency="USD"),
+    Account(id="rent", user_id=USER, code="5000", name="Rent", type="expense", currency="USD"),
+]
+ENTRIES = [
+    _entry(1, _last_month(1), "cash", "salary", "5000"),
+    _entry(2, _last_month(2), "rent", "cash", "2000"),
+]
 
 
 class _Scores:
@@ -121,18 +104,13 @@ class _Profiles:
 def _service(base: str = "USD", strategy: dict[str, Any] | None = None, **row: Any):
     profiles = _Profiles(base, **row)
     scores = _Scores()
-
-    class _UoW:
-        ledger = _Ledger()
-        goals = _Goals()
-        fi_scores = scores
-        fire_strategies = _Strategies(strategy)
-        user_profiles = profiles
-
-    @asynccontextmanager
-    async def factory():
-        yield _UoW()
-
+    uow = FakeUoW(base)
+    uow.ledger.accounts = list(ACCOUNTS)
+    uow.ledger.entries = list(ENTRIES)
+    uow.fi_scores = scores  # type: ignore[assignment]
+    uow.fire_strategies = _Strategies(strategy)  # type: ignore[assignment]
+    uow.user_profiles = profiles  # type: ignore[assignment]
+    factory = uow.factory()
     return FiService(factory), profiles, scores, factory
 
 
@@ -174,10 +152,11 @@ async def test_with_nothing_set_every_currency_gets_the_same_labelled_placeholde
 async def test_projections_never_block_on_missing_assumptions():
     svc, *_ = _service("USD")
     projections = await svc.get_projections(USER)
-    # 2,000 of rent over the two months the ledger covers (last month and this
-    # one) is 1,000 a month:
-    # 12,000 a year, at the 4% placeholder rate, is 300,000.
-    assert Decimal(projections["fi_number"]) == Decimal("300000")
+    # 2,000 of rent over the one full month the ledger covers (last month;
+    # this one isn't over, so it isn't averaged in) is 2,000 a month: 24,000
+    # a year, at the 4% placeholder rate, is 600,000. It was 300,000, when
+    # this month counted as a month of no rent.
+    assert Decimal(projections["fi_number"]) == Decimal("600000")
     assert projections["points"][0]["year"] == 0
     assert len(projections["points"]) >= 16
 
@@ -278,15 +257,17 @@ async def test_a_strategy_stored_with_nominal_returns_contributes_only_its_rate(
     assert projections["swr"] == "0.045"
 
 
-async def test_changing_ones_own_figure_recomputes_the_stored_score():
+async def test_a_score_is_recorded_when_its_inputs_change_and_never_by_reading():
     svc, profiles, scores, _ = _service("USD")
-    first = await svc.get_or_compute_score(USER)
-    assert len(scores.rows) == 1
-    assert await svc.get_or_compute_score(USER) is first  # nothing moved
+    first = await svc.compute_score(USER)
+    assert scores.rows == []  # reading stores nothing
+    await svc.record_score(USER)
+    await svc.record_score(USER)  # nothing moved: not stored twice
+    assert [r["inputs_hash"] for r in scores.rows] == [first["inputs_hash"]]
 
     # Even a figure the score does not use (inflation) changes what it reports.
     profiles.row["fi_assumptions"] = _own(inflation="0.04")
-    second = await svc.get_or_compute_score(USER)
+    second = await svc.record_score(USER)
     assert len(scores.rows) == 2
     assert second["assumptions"]["inflation"]["origin"] == "user"
 

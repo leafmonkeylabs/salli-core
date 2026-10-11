@@ -43,7 +43,7 @@ describe('salli status', () => {
 
       FI score        72.5 (B) · 1.9% of the way to financial independence
         Savings rate  55.8% of income
-        FI by         Oct 9, 2040 (placeholder assumptions: salli fi assumptions)
+        FI by         Oct 2040 (placeholder assumptions: salli fi assumptions)
 
       Needs attention
         ! Checking runs short on Nov 2
@@ -164,7 +164,7 @@ describe('salli status', () => {
           "progress_to_fi": "0.0193",
           "emergency_fund_months": "5.8",
           "debt_to_asset": "0.0788",
-          "projected_fi_years": "14",
+          "projected_fi_months": 168,
           "currency": "USD",
           "components": [
             {
@@ -182,7 +182,8 @@ describe('salli status', () => {
               "detail": "5.8 months covered"
             }
           ],
-          "projected_fi_date": "2040-10-09",
+          "projected_fi_month": "2040-10",
+          "as_of": "2026-10-09",
           "assumptions": {
             "status": "placeholder",
             "placeholders": [

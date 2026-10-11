@@ -206,7 +206,7 @@ def make_manager_tools(
       - get_coverage_report (insurance coverage gap, missing types, expiring-soon policies)
       - get_latest_advisor_report (most recent Wealth Advisor report, no new LLM call)
       - run_wealth_advisor (generate a fresh Wealth Advisor report now; a fresh model run)
-      - get_freedom_snapshot (FI score, Freedom number, progress, years to FI)
+      - get_freedom_snapshot (FI score, Freedom number, progress, the month FI is reached)
       - can_i_afford (costs a prospective purchase in months of freedom)
       - get_accounts (the user's chart of accounts — call before create_account/post_journal_entry)
       - create_account, create_reminder, post_journal_entry (all need user approval)
@@ -399,7 +399,7 @@ def make_manager_tools(
         """
         Return the user's Freedom (financial independence) position: overall score
         and grade, Freedom number, investable asset base net of debt, monthly
-        surplus, savings rate, emergency-fund months, and projected years to FI.
+        surplus, savings rate, emergency-fund months, and the month FI is reached.
 
         Use this for "how am I doing?", "when can I retire?", or before discussing
         any trade-off between spending now and retiring sooner. Figures are
@@ -414,7 +414,7 @@ def make_manager_tools(
         if fi_svc is None:
             return {"error": "Freedom service unavailable"}
         user_id = _current_user.get()
-        return await fi_svc.get_or_compute_score(user_id)
+        return await fi_svc.compute_score(user_id)
 
     @tool
     async def can_i_afford(

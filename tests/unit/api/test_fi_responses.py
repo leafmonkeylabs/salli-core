@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import datetime
 import re
-from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
 
@@ -18,7 +17,7 @@ import pytest
 
 from salli.application.services.fi_service import FiService
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
-from tests.fakes import FakeProfiles
+from tests.fakes import FakeUoW
 from tests.unit.api.conftest import AUTH
 
 pytestmark = pytest.mark.asyncio
@@ -62,14 +61,6 @@ _ENTRIES = [
     _entry(3, 20, "food", "card", "45000.50"),
     _entry(4, 10, "funds", "savings", "200000.00"),
 ]
-
-
-class _Ledger:
-    async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Account]:
-        return _ACCOUNTS
-
-    async def get_entries(self, user_id: str, from_date: str | None = None, to_date=None):
-        return [e for e in _ENTRIES if from_date is None or e.entry_date >= from_date]
 
 
 class _Goals:
@@ -145,20 +136,13 @@ class _Strategies:
 
 @pytest.fixture
 def fi(mock_services) -> FiService:
-    scores = _Scores()
-
-    class _UoW:
-        ledger = _Ledger()
-        goals = _Goals()
-        fi_scores = scores
-        fire_strategies = _Strategies()
-        user_profiles = FakeProfiles("KES")
-
-    @asynccontextmanager
-    async def factory():
-        yield _UoW()
-
-    mock_services.fi = FiService(factory)
+    uow = FakeUoW("KES")
+    uow.ledger.accounts = list(_ACCOUNTS)
+    uow.ledger.entries = list(_ENTRIES)
+    uow.goals = _Goals()  # type: ignore[assignment]
+    uow.fi_scores = _Scores()  # type: ignore[assignment]
+    uow.fire_strategies = _Strategies()  # type: ignore[assignment]
+    mock_services.fi = FiService(uow.factory())
     return mock_services.fi
 
 

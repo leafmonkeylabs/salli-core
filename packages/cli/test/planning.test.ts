@@ -177,7 +177,7 @@ describe('financial independence and goals', () => {
       Net worth         USD 14,034.50
       Progress to FI    1.9%
       Emergency fund    5.8 months
-      FI by             Oct 9, 2040
+      FI by             Oct 2040
 
       PART            SCORE  WEIGHT  WHY
       Savings rate       90     30%  56% of income saved

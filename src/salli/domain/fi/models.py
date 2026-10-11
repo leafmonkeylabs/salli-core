@@ -198,3 +198,5 @@ class FiScore:
     currency: str
 
     components: list[FiComponent] = field(default_factory=list[FiComponent])
+    #: The same, to the month: months from the as-of date. None alike.
+    projected_fi_months: int | None = None

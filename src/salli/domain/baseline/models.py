@@ -210,6 +210,9 @@ class Baseline:
     #: The notes about the cash accounts and what moves them: what the cash
     #: forecast says alongside its figures.
     cash_notes: tuple[str, ...] = ()
+    #: The date of the newest entry on or before the as-of date (within the
+    #: two years read), or None: how fresh the picture is.
+    latest_entry: str | None = None
 
     # ── Totals, in the base currency ─────────────────────────────────────────
 

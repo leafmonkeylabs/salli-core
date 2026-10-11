@@ -4711,7 +4711,7 @@
           "financial-independence"
         ],
         "summary": "Get Score",
-        "description": "Latest FI score, computing one on first access.",
+        "description": "The FI score as of today, computed from the ledger as it is. Reading\nit stores nothing: `POST /v1/fi/score/recompute` records one in the\nhistory.",
         "operationId": "fi.score.get",
         "responses": {
           "200": {
@@ -4748,7 +4748,7 @@
           "financial-independence"
         ],
         "summary": "Recompute Score",
-        "description": "Recompute the FI score from the current ledger and store a snapshot.",
+        "description": "Compute today's FI score and record it in the score history (unless\nthe latest recorded one was computed from the same inputs).",
         "operationId": "fi.score.recompute",
         "responses": {
           "200": {
@@ -5170,7 +5170,7 @@
           "financial-independence"
         ],
         "summary": "Get Surplus Breakdown",
-        "description": "Income-by-source and expense-by-category breakdown from the trailing 12 months.",
+        "description": "Income by source and spending by category, monthly, over the full months observed.",
         "operationId": "fi.surplus",
         "responses": {
           "200": {
@@ -15943,6 +15943,59 @@
         "title": "FiAssumptionsUpdate",
         "description": "Set the user's own planning assumptions. Only the fields sent change;\nan explicit null clears one (a placeholder, or the FIRE strategy's figure,\nstands in again). Set a real return or a nominal one, not both; a nominal\nreturn needs inflation."
       },
+      "FiDate": {
+        "properties": {
+          "months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "months",
+          "month"
+        ],
+        "title": "FiDate",
+        "description": "When FI is reached in one scenario."
+      },
+      "FiDates": {
+        "properties": {
+          "conservative": {
+            "$ref": "#/components/schemas/FiDate"
+          },
+          "base": {
+            "$ref": "#/components/schemas/FiDate"
+          },
+          "growth": {
+            "$ref": "#/components/schemas/FiDate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conservative",
+          "base",
+          "growth"
+        ],
+        "title": "FiDates"
+      },
       "FiNominalPoint": {
         "properties": {
           "conservative": {
@@ -16337,38 +16390,26 @@
             ],
             "title": "Swr"
           },
-          "fire_year_conservative": {
+          "fi_by": {
             "anyOf": [
               {
-                "type": "integer"
+                "$ref": "#/components/schemas/FiDates"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Fire Year Conservative"
+            ]
           },
-          "fire_year_base": {
+          "as_of": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fire Year Base"
-          },
-          "fire_year_growth": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fire Year Growth"
+            "title": "As Of"
           },
           "current_portfolio": {
             "anyOf": [
@@ -16601,18 +16642,18 @@
             "type": "string",
             "title": "Debt To Asset"
           },
-          "projected_fi_years": {
+          "projected_fi_months": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Projected Fi Years"
+            "title": "Projected Fi Months"
           },
-          "projected_fi_date": {
+          "projected_fi_month": {
             "anyOf": [
               {
                 "type": "string"
@@ -16621,7 +16662,18 @@
                 "type": "null"
               }
             ],
-            "title": "Projected Fi Date"
+            "title": "Projected Fi Month"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
           },
           "components": {
             "items": {
@@ -21835,6 +21887,10 @@
               "USD"
             ]
           },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
           "fi_number": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
@@ -21946,6 +22002,7 @@
         "required": [
           "amount",
           "currency",
+          "as_of",
           "fi_number",
           "fi_asset_base_before",
           "monthly_surplus",
@@ -24044,6 +24101,17 @@
               "USD"
             ]
           },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "months_observed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months Observed"
+          },
           "income_by_source": {
             "additionalProperties": {
               "type": "string",
@@ -24115,6 +24183,8 @@
         "type": "object",
         "required": [
           "currency",
+          "as_of",
+          "months_observed",
           "income_by_source",
           "expense_by_category",
           "expense_by_need",
@@ -24124,7 +24194,7 @@
           "savings_rate"
         ],
         "title": "SurplusBreakdown",
-        "description": "Monthly averages over the trailing 12 months."
+        "description": "Monthly averages over the full months observed (the baseline's: at\nmost twelve, before this one, from the first with income or expenses).\nThe totals are the baseline's monthly income and expenses."
       },
       "SyncedAccount": {
         "properties": {

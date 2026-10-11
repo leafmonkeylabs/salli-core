@@ -226,4 +226,5 @@ def build(inputs: BaselineInputs) -> Baseline:
         notes=tuple(dict.fromkeys([*cash_notes, *notes])),
         first_flow=inputs.first_flow,
         cash_notes=tuple(dict.fromkeys(cash_notes)),
+        latest_entry=max((e.entry_date for e in entries), default=None),
     )

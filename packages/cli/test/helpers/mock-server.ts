@@ -629,9 +629,11 @@ export class MockSalli {
           ),
           fi_number: '663705.00',
           swr: '0.035',
-          fire_year_conservative: 19,
-          fire_year_base: 14,
-          fire_year_growth: 11,
+          fi_by: {
+            conservative: { months: 228, month: '2045-10' },
+            base: { months: 168, month: '2040-10' },
+            growth: { months: 132, month: '2037-10' },
+          },
           current_portfolio: '12834.50',
           real_returns: { conservative: '0.02', base: '0.04', growth: '0.06' },
           inflation: this.data.fiInflation ?? null,
@@ -646,6 +648,7 @@ export class MockSalli {
       this.data.bodies.push({ method, path, body: req.json });
       const impact: PurchaseImpact = {
         amount: (req.json as { amount: string }).amount,
+        as_of: '2026-10-09',
         currency: 'USD',
         fi_number: '663705.00',
         fi_asset_base_before: '12834.50',

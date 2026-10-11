@@ -992,7 +992,9 @@ export const fiAssumptionsSet = <ThrowOnError extends boolean = false>(options: 
 /**
  * Get Score
  *
- * Latest FI score, computing one on first access.
+ * The FI score as of today, computed from the ledger as it is. Reading
+ * it stores nothing: `POST /v1/fi/score/recompute` records one in the
+ * history.
  */
 export const fiScoreGet = <ThrowOnError extends boolean = false>(options?: Options<FiScoreGetData, ThrowOnError>): RequestResult<FiScoreGetResponses, FiScoreGetErrors, ThrowOnError> => (options?.client ?? client).get<FiScoreGetResponses, FiScoreGetErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1003,7 +1005,8 @@ export const fiScoreGet = <ThrowOnError extends boolean = false>(options?: Optio
 /**
  * Recompute Score
  *
- * Recompute the FI score from the current ledger and store a snapshot.
+ * Compute today's FI score and record it in the score history (unless
+ * the latest recorded one was computed from the same inputs).
  */
 export const fiScoreRecompute = <ThrowOnError extends boolean = false>(options?: Options<FiScoreRecomputeData, ThrowOnError>): RequestResult<FiScoreRecomputeResponses, FiScoreRecomputeErrors, ThrowOnError> => (options?.client ?? client).post<FiScoreRecomputeResponses, FiScoreRecomputeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1121,7 +1124,7 @@ export const fiProjections = <ThrowOnError extends boolean = false>(options?: Op
 /**
  * Get Surplus Breakdown
  *
- * Income-by-source and expense-by-category breakdown from the trailing 12 months.
+ * Income by source and spending by category, monthly, over the full months observed.
  */
 export const fiSurplus = <ThrowOnError extends boolean = false>(options?: Options<FiSurplusData, ThrowOnError>): RequestResult<FiSurplusResponses, FiSurplusErrors, ThrowOnError> => (options?.client ?? client).get<FiSurplusResponses, FiSurplusErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

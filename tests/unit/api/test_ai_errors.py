@@ -90,60 +90,17 @@ async def test_a_limit_reached_mid_chat_is_the_streams_error_event(client, mock_
 async def test_the_strategy_stream_ends_with_the_plans_limit():
     """FiService turns a model error into the stream's last event."""
     from salli.application.services.fi_service import FiService
+    from tests.fakes import FakeUoW
 
-    service = FiService(uow_factory=None)  # type: ignore[arg-type]
-
-    async def nothing(*_: object, **__: object):
-        return None
+    service = FiService(FakeUoW("USD").factory())
 
     async def failing_llm_for(*_: object, **__: object):
         raise chatgpt_usage_limit()
 
-    service.build_snapshot = _snapshot  # type: ignore[method-assign]
-    service.list_goals = nothing  # type: ignore[method-assign]
-    service.get_strategy = nothing  # type: ignore[method-assign]
     service.llm_for = failing_llm_for  # type: ignore[method-assign]
-    service._uow_factory = _EmptyLedger  # type: ignore[assignment]
 
     events = [json.loads(c.removeprefix("data: ")) async for c in service.generate_strategy("u1")]
 
     assert events[-1]["type"] == "error"
     assert events[-1]["error"] == "chatgpt_usage_limit"
     assert events[-1]["link"] == "https://chatgpt.com/settings/usage"
-
-
-async def _snapshot(user_id: str):
-    from decimal import Decimal
-    from types import SimpleNamespace
-
-    return SimpleNamespace(
-        currency="USD",
-        monthly_income=Decimal("5000"),
-        monthly_expenses=Decimal("3000"),
-        liquid_savings=Decimal("1000"),
-        investments=Decimal("0"),
-        total_assets=Decimal("1000"),
-        total_liabilities=Decimal("0"),
-    )
-
-
-class _EmptyLedger:
-    class ledger:  # noqa: N801
-        @staticmethod
-        async def get_accounts(user_id: str) -> list:
-            return []
-
-        @staticmethod
-        async def get_entries(user_id: str, from_date: str | None = None) -> list:
-            return []
-
-    class user_profiles:  # noqa: N801
-        @staticmethod
-        async def get(user_id: str) -> None:
-            return None
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc: object) -> None:
-        return None

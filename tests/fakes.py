@@ -502,6 +502,7 @@ class FakeUoW:
         self.recurring_subscriptions = FakeRecords(is_active=True)
         self.statements = FakeFeeds()
         self.bank_connections = self.statements
+        self.advisories = FakeRecords()
 
     async def __aenter__(self) -> FakeUoW:
         return self

@@ -1,40 +1,50 @@
 """
-FiService — builds a FinancialSnapshot from the ledger, runs the deterministic FI
-engine, persists score snapshots, and manages goals. The LLM is only used in
-generate_strategy() to create the AI-generated FireStrategy.
+FiService — runs the deterministic FI engine on the baseline (domain/baseline),
+records score snapshots when asked to, and manages goals. The LLM is only used
+in generate_strategy() to create the AI-generated FireStrategy.
+
+Every figure starts from the baseline as of a day (today by this service's
+clock, which is injectable, or the `as_of` a caller gives): its monthly
+income and expenses (one definition, the same insights shows), its asset
+split by account role (cash, investments; never by an account's name), its
+balances at the published rates for that day, and its debts counted once.
+
+Reading never writes. A score is stored in the history only by `record_score`
+(`POST /v1/fi/score/recompute`, and the advisor's run, which records the
+score it advised on).
 """
 
 from __future__ import annotations
 
-import calendar
 import datetime
 import hashlib
 import json
-import re
 from collections.abc import AsyncGenerator, Callable, Mapping
 from dataclasses import asdict
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 from salli.application.ports import ProfileMissing
-from salli.domain.accounting import ledger as ledger_ops
-from salli.domain.accounting.models import Account, Direction, StoredJournalEntry
+from salli.application.services.baseline_service import BaselineService
+from salli.domain.baseline import Baseline
 from salli.domain.currency import quantize
+from salli.domain.debt.engine import month_after
 from salli.domain.fi import engine
 from salli.domain.fi.allocation import Claim, GoalFunding, compute_goal_funding
 from salli.domain.fi.assumptions import (
     NAMES,
     PLACEHOLDERS,
     SCENARIO_SPREAD,
-    Applied,
     FiAssumptions,
     OwnAssumptions,
     OwnFigure,
-    Scenarios,
-    StrategyFigures,
+    assumptions_dict,
     own_figure,
+    rate_text,
     resolve,
 )
+from salli.domain.fi.assumptions import StrategyFigures as _StrategyFigures
+from salli.domain.fi.assumptions import scenarios_dict as _scenarios_dict
 from salli.domain.fi.models import (
     AllocationBucket,
     FinancialSnapshot,
@@ -46,74 +56,7 @@ from salli.domain.fi.packs import registry
 from salli.domain.llm import LLMError
 from salli.domain.money import from_minor, to_minor
 
-# Account-name patterns that mark an asset account as an *investment* rather than
-# emergency-fund-eligible liquid savings.
-#
-# Anchored on word boundaries deliberately: an earlier unanchored substring list
-# matched "fd" inside "Refund" and "share" inside "Sharepoint", quietly moving
-# cash out of liquid savings and corrupting the emergency-fund component (15% of
-# the score). Stems that need to match plurals/derivatives spell that out.
-_INVESTMENT_PATTERN = re.compile(
-    r"\b(?:"
-    r"fixed deposits?"
-    r"|fd"
-    r"|invest\w*"
-    r"|stocks?"
-    r"|shares?"
-    r"|mutual"
-    r"|unit trusts?"
-    r"|bonds?"
-    r"|treasury"
-    r"|t-?bills?"
-    r"|crypto\w*"
-    r"|etfs?"
-    r"|pensions?"
-    r"|provident"
-    r"|portfolios?"
-    r")\b"
-)
-
-
-def _is_investment(acc: Account) -> bool:
-    return bool(_INVESTMENT_PATTERN.search(acc.name.lower()))
-
-
-def _months_ago_iso(months: int) -> str:
-    """
-    First day of the trailing window, on calendar months.
-
-    Previously approximated as 30-day steps, which made a "12 month" window 360
-    days while still dividing the total by 12 — understating monthly income and
-    expenses by ~1.4%.
-    """
-    today = datetime.date.today()
-    month_index = today.month - 1 - months
-    year = today.year + month_index // 12
-    month = month_index % 12 + 1
-    day = min(today.day, calendar.monthrange(year, month)[1])
-    return datetime.date(year, month, day).isoformat()
-
-
-def _months_observed(entries: list[StoredJournalEntry], cap: int = 12) -> Decimal:
-    """
-    Months of history the trailing window actually covers, clamped to 1..cap.
-
-    Measured as the span from the earliest entry to today, so a steady earner with
-    only four months of records is averaged over four months rather than twelve.
-    """
-    if not entries:
-        return Decimal(cap)
-    earliest = min(str(e.entry_date)[:10] for e in entries)
-    try:
-        start = datetime.date.fromisoformat(earliest)
-    except ValueError:
-        return Decimal(cap)
-    today = datetime.date.today()
-    months = (today.year - start.year) * 12 + (today.month - start.month)
-    # A partial current month still counts as one month of observation.
-    months += 1
-    return Decimal(max(1, min(cap, months)))
-
+__all__ = ["STALE_AFTER_DAYS", "FiService", "assumptions_dict"]
 
 # A balance sheet older than this is treated as too stale to advise a purchase
 # against. Chosen to be forgiving of a user who books a month late, while still
@@ -122,44 +65,56 @@ def _months_observed(entries: list[StoredJournalEntry], cap: int = 12) -> Decima
 # the user acts on it and cannot un-spend the money.
 STALE_AFTER_DAYS = 45
 
+#: The bounds a purchase is costed within, on every surface (the API's, MCP's
+#: and the agent's): an amount to 18 digits, a term of up to 50 years, and a
+#: yearly rate as a fraction from 0 to 1, so 18 typed for 18% is refused.
+MAX_TERM_MONTHS = 600
+_MAX_AMOUNT_DIGITS = 18
 
-def _latest_entry_date(entries: list[StoredJournalEntry]) -> str | None:
-    """Newest entry date in the ledger, ISO — the age of the picture we advise on."""
-    if not entries:
-        return None
-    return max(str(e.entry_date)[:10] for e in entries)
+
+def check_purchase(amount: Decimal, term_months: int | None, annual_interest_rate: Decimal) -> None:
+    """ValueError unless the purchase can be costed: an amount from 0 with
+    at most 18 digits, a term from 1 to 600 months (or none), and a yearly
+    rate as a fraction from 0 to 1."""
+    if not amount.is_finite() or amount < 0:
+        raise ValueError(f"A purchase is an amount from 0, not {amount}")
+    shape = amount.as_tuple()
+    exponent = int(shape.exponent)
+    digits = len(shape.digits) + exponent if exponent >= 0 else max(len(shape.digits), -exponent)
+    if digits > _MAX_AMOUNT_DIGITS:
+        raise ValueError(f"A purchase amount has at most {_MAX_AMOUNT_DIGITS} digits")
+    if term_months is not None and not 1 <= term_months <= MAX_TERM_MONTHS:
+        raise ValueError(f"A term is from 1 to {MAX_TERM_MONTHS} months, not {term_months}")
+    if not annual_interest_rate.is_finite() or not Decimal(0) <= annual_interest_rate <= 1:
+        raise ValueError(
+            f"annual_interest_rate is a yearly fraction from 0 to 1 (0.18 for 18%), "
+            f"not {annual_interest_rate}"
+        )
 
 
-def _is_stale(latest_iso: str | None, *, threshold_days: int = STALE_AFTER_DAYS) -> bool:
-    """
-    True when the ledger is too old to answer a purchase question from.
-
-    An empty ledger counts as stale: there is nothing to advise on, and that is a
-    far more honest response than costing a purchase against a zero balance sheet.
-    """
-    if latest_iso is None:
-        return True
+def decimal_arg(value: object, what: str) -> Decimal:
+    """`value` as a Decimal, or a ValueError naming `what`."""
+    if isinstance(value, float | bool):
+        raise ValueError(f"{what} is a decimal string, such as '1200.50'")
     try:
-        latest = datetime.date.fromisoformat(latest_iso)
-    except ValueError:
-        return True
-    return (datetime.date.today() - latest).days > threshold_days
+        number = Decimal(str(value))
+    except InvalidOperation:
+        raise ValueError(f"Could not read {value!r} as {what}") from None
+    if not number.is_finite():
+        raise ValueError(f"Could not read {value!r} as {what}")
+    return number
 
 
-def _plus_years_iso(years: int) -> str:
-    """Calendar-correct year arithmetic (365-day years drift on leap years)."""
-    today = datetime.date.today()
-    try:
-        return today.replace(year=today.year + years).isoformat()
-    except ValueError:  # 29 Feb → 28 Feb in a non-leap target year
-        return today.replace(year=today.year + years, day=28).isoformat()
+def _month_of(as_of: datetime.date, months: int | None) -> str | None:
+    """The calendar month ("YYYY-MM") `months` after the as-of date's."""
+    return None if months is None else month_after(as_of.isoformat()[:7], months)
 
 
-def _dec(v: Decimal) -> str:
-    return str(v)
+def _fi_by(as_of: datetime.date, months: int | None) -> dict[str, Any]:
+    return {"months": months, "month": _month_of(as_of, months)}
 
 
-def _score_to_dict(score: FiScore, projected_fi_date: str | None) -> dict[str, Any]:
+def _score_to_dict(score: FiScore, as_of: datetime.date) -> dict[str, Any]:
     d = asdict(score)
     # JSONB can't hold Decimal — stringify money/ratio fields (frontend formats)
     for k, v in list(d.items()):
@@ -168,7 +123,10 @@ def _score_to_dict(score: FiScore, projected_fi_date: str | None) -> dict[str, A
     d["components"] = [
         {**c, "score": str(c["score"]), "weight": str(c["weight"])} for c in d["components"]
     ]
-    d["projected_fi_date"] = projected_fi_date
+    # The FI date to the month, not in whole years.
+    d.pop("projected_fi_years", None)
+    d["projected_fi_month"] = _month_of(as_of, score.projected_fi_months)
+    d["as_of"] = as_of.isoformat()
     return d
 
 
@@ -186,88 +144,50 @@ def _own(profile: dict[str, Any] | None) -> OwnAssumptions:
     return OwnAssumptions.from_stored((profile or {}).get("fi_assumptions"))
 
 
-def _strategy_figures(strategy_data: dict[str, Any] | None) -> StrategyFigures | None:
-    """The real returns and withdrawal rate a stored FIRE strategy chose. The
-    model writes floats; they become Decimals here, once. A strategy stored
-    without real returns contributes only its withdrawal rate, and one without
-    a withdrawal rate contributes nothing."""
-    if strategy_data is None or strategy_data.get("swr") is None:
-        return None
-
-    def rate(key: str) -> Decimal:
-        return Decimal(str(strategy_data[key]))
-
-    keys = ("real_return_conservative", "real_return_base", "real_return_growth")
-    returns = (
-        Scenarios(*(rate(k) for k in keys))
-        if all(strategy_data.get(k) is not None for k in keys)
-        else None
-    )
-    version = strategy_data.get("version")
-    return StrategyFigures(
-        safe_withdrawal_rate=rate("swr"),
-        real_returns=returns,
-        version=version if isinstance(version, int) else None,
-    )
-
-
-def _rate(value: Decimal) -> str:
-    """A yearly fraction as a plain decimal string, never in exponent form,
-    without the trailing zeros a computed rate carries ("0.09", not
-    "0.0900000000000000000000000000")."""
-    return f"{value.normalize():f}"
-
-
-def _applied_dict(applied: Applied | None) -> dict[str, Any] | None:
-    if applied is None:
-        return None
-    return {
-        "value": _rate(applied.value),
-        "origin": applied.origin,
-        "source": applied.source,
-        "note": applied.note,
-    }
-
-
-def _scenarios_dict(scenarios: Scenarios | None) -> dict[str, str] | None:
-    if scenarios is None:
-        return None
-    return {k: _rate(v) for k, v in scenarios.as_dict().items()}
-
-
-def assumptions_dict(applied: FiAssumptions) -> dict[str, Any]:
-    """The assumptions behind a figure, as every FI response carries them:
-    whether any is a placeholder (and which), each figure with its origin and
-    source, and the scenarios' returns, real and (with the user's inflation)
-    nominal."""
-    return {
-        "status": applied.status,
-        "placeholders": list(applied.placeholders),
-        "message": applied.message,
-        "real_return": _applied_dict(applied.real_return),
-        "safe_withdrawal_rate": _applied_dict(applied.safe_withdrawal_rate),
-        "inflation": _applied_dict(applied.inflation),
-        "nominal_return": _applied_dict(applied.nominal_return),
-        "real_returns": _scenarios_dict(applied.real_returns),
-        "nominal_returns": _scenarios_dict(applied.nominal_returns),
-    }
+def _strategy_figures(strategy_data: dict[str, Any] | None) -> _StrategyFigures | None:
+    return _StrategyFigures.from_stored(strategy_data)
 
 
 def _own_dict(figure: OwnFigure | None) -> dict[str, Any] | None:
     if figure is None:
         return None
     return {
-        "value": _rate(figure.value),
+        "value": rate_text(figure.value),
         "source": figure.source,
         "note": figure.note,
         "set_at": figure.set_at,
     }
 
 
+def snapshot_of(baseline: Baseline, goal_progress: Decimal | None) -> FinancialSnapshot:
+    """The FI engine's inputs, from the baseline: its monthly income and
+    expenses; cash accounts as liquid savings and investment accounts as
+    investments (what each owns); everything owned and owed, the debts the
+    ledger doesn't hold among it."""
+    return FinancialSnapshot(
+        monthly_income=baseline.flows.income,
+        monthly_expenses=baseline.flows.expenses,
+        liquid_savings=baseline.liquid,
+        investments=sum((b.owned for b in baseline.balances if b.role == "investment"), Decimal(0)),
+        total_assets=baseline.total_assets,
+        total_liabilities=baseline.total_liabilities,
+        goal_progress=goal_progress,
+        currency=baseline.currency,
+    )
+
+
 class FiService:
-    def __init__(self, uow_factory: Callable[[], Any], credentials: Any = None) -> None:
+    def __init__(
+        self,
+        uow_factory: Callable[[], Any],
+        credentials: Any = None,
+        baselines: BaselineService | None = None,
+        today: Callable[[], datetime.date] = datetime.date.today,
+    ) -> None:
         self._uow_factory = uow_factory
         self._credentials = credentials
+        self._today = today
+        self._baselines = baselines or BaselineService(uow_factory, today=today)
 
     async def llm_for(self, user_id: str, api_key: Any = None) -> Any:
         """The model access to run on: the caller's already-resolved credential
@@ -296,73 +216,27 @@ class FiService:
             )
         return llm
 
-    # ── Snapshot ────────────────────────────────────────────────────────────────
+    # ── The baseline, and what FI reads of it ────────────────────────────────────
 
-    async def build_snapshot(self, user_id: str) -> FinancialSnapshot:
+    async def _baseline(self, user_id: str, as_of: datetime.date | None) -> Baseline:
+        return await self._baselines.build(user_id, as_of or self._today())
+
+    async def _goal_progress(self, user_id: str, baseline: Baseline) -> Decimal | None:
+        """Weighted goal progress, from what the goals' accounts hold.
+
+        Goals with nothing allocated are excluded rather than scored zero.
+        Goal progress carries 15% of the Freedom Score, so scoring an
+        unearmarked goal as 0% would mean merely *creating* a goal cost up to
+        15 points — punishing someone for setting a goal, which is backwards.
+
+        `engine.compute` drops the goals component and renormalises the
+        remaining weights when `goal_progress` is None, so a set of goals with
+        no allocations scores exactly as having no goals at all.
+        """
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
-            # Closed accounts too: a deactivated account with a balance is
-            # still owned or owed (as net worth over time counts it).
-            accounts: list[Account] = await uow.ledger.get_accounts(user_id, include_inactive=True)
-            all_entries: list[StoredJournalEntry] = await uow.ledger.get_entries(user_id)
-            recent: list[StoredJournalEntry] = await uow.ledger.get_entries(
-                user_id, from_date=_months_ago_iso(12)
-            )
             goals = await uow.goals.list(user_id, active_only=True)
-            funding = await self._goal_funding(uow, user_id, currency)
-
-        acc_map = {a.id: a for a in accounts}
-        balances = ledger_ops.trial_balance(all_entries)  # {account_id: signed}
-
-        total_assets = Decimal(0)
-        total_liabilities = Decimal(0)
-        liquid = Decimal(0)
-        investments = Decimal(0)
-        # Classify per account on its actual sign, rather than summing signed
-        # balances and clamping the aggregate at zero. Clamping let an overdrawn
-        # current account net silently against other assets (inflating net worth)
-        # instead of being recognised as the borrowing it is.
-        for a in accounts:
-            # An overdraft is debt, an overpaid card a receivable (ledger_ops).
-            owned, owed = ledger_ops.owned_and_owed(a.type, balances.get(a.id, Decimal(0)))
-            total_assets += owned
-            total_liabilities += owed
-            if a.type == "asset" and _is_investment(a):
-                investments += owned
-            else:
-                liquid += owned
-
-        # Trailing-12-month income & expenses (separately)
-        income = Decimal(0)
-        expenses = Decimal(0)
-        for e in recent:
-            for p in e.postings:
-                acc = acc_map.get(p.account_id)
-                if acc is None:
-                    continue
-                if acc.type == "income" and p.direction == Direction.CREDIT:
-                    income += abs(p.base_signed)
-                elif acc.type == "expense" and p.direction == Direction.DEBIT:
-                    expenses += abs(p.base_signed)
-        # Annualise over the period actually observed, not a blind 12 months.
-        # Dividing a new user's 3 months of income by 12 understates their monthly
-        # figure ~4x, which then propagates into savings_rate, the FI number and
-        # every projection built on them.
-        months_observed = _months_observed(recent)
-        monthly_income = income / months_observed
-        monthly_expenses = expenses / months_observed
-
-        # Weighted goal progress, from what the goal's accounts actually hold.
-        #
-        # Goals with nothing allocated are excluded rather than scored zero.
-        # Goal progress carries 15% of the Freedom Score, so scoring an
-        # unearmarked goal as 0% would mean merely *creating* a goal cost up to
-        # 15 points — punishing someone for setting a goal, which is backwards.
-        #
-        # `engine.compute` drops the goals component and renormalises the
-        # remaining weights when `goal_progress` is None, so a set of goals with
-        # no allocations scores exactly as having no goals at all.
-        goal_progress: Decimal | None = None
+            funding = await self._goal_funding(uow, user_id, baseline)
+        currency = baseline.currency
         prog = [
             min(
                 Decimal(1), funding[g["id"]].funded / from_minor(g["target_amount_minor"], currency)
@@ -372,21 +246,13 @@ class FiService:
             and g["id"] in funding
             and funding[g["id"]].funded > 0
         ]
-        if prog:
-            goal_progress = sum(prog, Decimal(0)) / Decimal(len(prog))
+        return sum(prog, Decimal(0)) / Decimal(len(prog)) if prog else None
 
-        # No aggregate clamping needed — every branch above contributes a
-        # non-negative amount to the bucket it actually belongs in.
-        return FinancialSnapshot(
-            monthly_income=monthly_income,
-            monthly_expenses=monthly_expenses,
-            liquid_savings=liquid,
-            investments=investments,
-            total_assets=total_assets,
-            total_liabilities=total_liabilities,
-            goal_progress=goal_progress,
-            currency=currency,
-        )
+    async def build_snapshot(
+        self, user_id: str, as_of: datetime.date | None = None
+    ) -> FinancialSnapshot:
+        baseline = await self._baseline(user_id, as_of)
+        return snapshot_of(baseline, await self._goal_progress(user_id, baseline))
 
     # ── Resolved strategy ──────────────────────────────────────────────────────
 
@@ -446,6 +312,24 @@ class FiService:
         applied = resolve(_own(profile), _strategy_figures(strategy_data))
         return self._resolve_strategy(strategy_data, applied), applied, registry.get_pack()
 
+    async def _inputs(
+        self, user_id: str, as_of: datetime.date | None
+    ) -> tuple[Baseline, FinancialSnapshot, FireStrategy, FiAssumptions, FiPack]:
+        """Everything a figure is computed from, read once: the baseline, the
+        snapshot from it, the strategy and the assumptions (the baseline's own),
+        and the pack."""
+        baseline = await self._baseline(user_id, as_of)
+        snapshot = snapshot_of(baseline, await self._goal_progress(user_id, baseline))
+        strategy_data = await self.get_strategy(user_id)
+        applied = baseline.assumptions
+        return (
+            baseline,
+            snapshot,
+            self._resolve_strategy(strategy_data, applied),
+            applied,
+            registry.get_pack(),
+        )
+
     async def assumptions(self, user_id: str) -> dict[str, Any]:
         """The planning assumptions behind the user's FI figures, what they
         set themselves (with sources), and the placeholders that stand in for
@@ -458,10 +342,10 @@ class FiService:
             "applied": assumptions_dict(applied),
             "own": {name: _own_dict(own.get(name)) for name in NAMES},
             "placeholder_values": {
-                name: {"value": _rate(p.value), "source": p.source}
+                name: {"value": rate_text(p.value), "source": p.source}
                 for name, p in PLACEHOLDERS.items()
             },
-            "scenario_spread": _rate(SCENARIO_SPREAD),
+            "scenario_spread": rate_text(SCENARIO_SPREAD),
         }
 
     async def set_assumptions(
@@ -520,10 +404,12 @@ class FiService:
 
     # ── Score ─────────────────────────────────────────────────────────────────
 
-    async def compute_score(self, user_id: str) -> dict[str, Any]:
-        snapshot = await self.build_snapshot(user_id)
-        strategy, applied, pack = await self._plan(user_id)
-
+    async def compute_score(
+        self, user_id: str, as_of: datetime.date | None = None
+    ) -> dict[str, Any]:
+        """The Freedom Score as of `as_of` (today when None). Reads only: the
+        score history is written by `record_score` alone."""
+        baseline, snapshot, strategy, applied, pack = await self._inputs(user_id, as_of)
         # Same swr / target / real return the projection uses, so the Freedom
         # Number on the card and the target on the chart are one number.
         score = engine.compute(
@@ -533,40 +419,25 @@ class FiService:
             target_monthly_expenses=strategy.target_monthly_expenses,
             annual_real_return=strategy.real_return_base,
         )
-
-        projected_date = None
-        if score.projected_fi_years is not None:
-            projected_date = _plus_years_iso(int(score.projected_fi_years))
-
-        result = _score_to_dict(score, projected_date)
+        result = _score_to_dict(score, baseline.as_of)
         result["assumptions"] = assumptions_dict(applied)
         result["inputs_hash"] = self._inputs_hash(snapshot, strategy, applied, pack)
+        return result
 
+    async def record_score(self, user_id: str) -> dict[str, Any]:
+        """Compute today's score and store it in the score history: the one
+        path that writes a score. A score whose inputs match the latest
+        stored one is not stored twice."""
+        result = await self.compute_score(user_id)
         async with self._uow_factory() as uow:
-            await uow.fi_scores.save(user_id, result)
+            latest = await uow.fi_scores.get_latest(user_id)
+            if latest is None or latest.get("inputs_hash") != result["inputs_hash"]:
+                await uow.fi_scores.save(user_id, result)
         return result
 
     async def get_latest_score(self, user_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
             return await uow.fi_scores.get_latest(user_id)
-
-    async def get_or_compute_score(self, user_id: str) -> dict[str, Any]:
-        """
-        Latest score, recomputed whenever its inputs have moved.
-
-        `inputs_hash` was previously written and never read, so the score card
-        served the first-ever snapshot indefinitely while the projection chart was
-        computed live — the two drifted apart with every posted entry.
-        """
-        latest = await self.get_latest_score(user_id)
-        if latest is None:
-            return await self.compute_score(user_id)
-
-        snapshot = await self.build_snapshot(user_id)
-        strategy, applied, pack = await self._plan(user_id)
-        if latest.get("inputs_hash") != self._inputs_hash(snapshot, strategy, applied, pack):
-            return await self.compute_score(user_id)
-        return latest
 
     async def get_score_history(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
@@ -608,15 +479,18 @@ class FiService:
             "created_at": g.get("created_at"),
         }
 
-    async def _goal_funding(self, uow: Any, user_id: str, currency: str) -> dict[str, GoalFunding]:
-        """Apportion live account balances across the claims made on them."""
+    async def _goal_funding(
+        self, uow: Any, user_id: str, baseline: Baseline
+    ) -> dict[str, GoalFunding]:
+        """Apportion account balances across the claims made on them: each
+        account's value in the baseline (at the published rate for its day),
+        as every other figure counts it."""
         goals = await uow.goals.list(user_id, active_only=True)
         allocations = await uow.goals.list_allocations(user_id)
         if not allocations:
             return {}
-
-        entries = await uow.ledger.get_entries(user_id)
-        balances = ledger_ops.trial_balance(entries)
+        currency = baseline.currency
+        balances = {b.account_id: b.value for b in baseline.balances if b.value is not None}
         priority = {g["id"]: int(g.get("priority", 2)) for g in goals}
         targets = {
             g["id"]: from_minor(g.get("target_amount_minor", 0), currency)
@@ -638,11 +512,11 @@ class FiService:
         return compute_goal_funding(claims, balances, targets)
 
     async def list_goals(self, user_id: str) -> list[dict[str, Any]]:
+        baseline = await self._baseline(user_id, None)
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
             goals = await uow.goals.list(user_id, active_only=True)
-            funding = await self._goal_funding(uow, user_id, currency)
-        return [self._goal_view(g, funding.get(g["id"]), currency) for g in goals]
+            funding = await self._goal_funding(uow, user_id, baseline)
+        return [self._goal_view(g, funding.get(g["id"]), baseline.currency) for g in goals]
 
     async def list_allocations(
         self, user_id: str, goal_id: str | None = None
@@ -727,21 +601,20 @@ class FiService:
 
         yield _sse({"type": "status", "message": "Gathering your financial profile..."})
 
-        snapshot = await self.build_snapshot(user_id)
+        baseline = await self._baseline(user_id, None)
+        snapshot = snapshot_of(baseline, await self._goal_progress(user_id, baseline))
         goals = await self.list_goals(user_id)
         previous = await self.get_strategy(user_id)
+        surplus_data = await self._breakdown(user_id, baseline)
 
         # Build raw account detail for LLM context (type, currency, name)
         async with self._uow_factory() as uow:
             accounts = await uow.ledger.get_accounts(user_id)
-            recent_entries = await uow.ledger.get_entries(user_id, from_date=_months_ago_iso(12))
             profile = await uow.user_profiles.get(user_id) or {}
 
         account_summary = [
             {"name": a.name, "type": a.type, "currency": a.currency} for a in accounts
         ]
-
-        surplus_data = engine.compute_surplus_breakdown(recent_entries, accounts, months=12)
 
         yield _sse({"type": "status", "message": "Applying FIRE theories to your data..."})
 
@@ -814,13 +687,15 @@ class FiService:
 
     # ── Projections ──────────────────────────────────────────────────────────────
 
-    async def get_projections(self, user_id: str) -> dict[str, Any]:
+    async def get_projections(
+        self, user_id: str, as_of: datetime.date | None = None
+    ) -> dict[str, Any]:
         """The FI asset base projected under three real-return scenarios, in
         today's money; and in each year's own money too when the user set
         their inflation. Never waits for assumptions: placeholders stand in,
-        and `assumptions` says which."""
-        snapshot = await self.build_snapshot(user_id)
-        strategy, applied, pack = await self._plan(user_id)
+        and `assumptions` says which. The month FI is reached, per scenario,
+        from the same walk."""
+        baseline, snapshot, strategy, applied, pack = await self._inputs(user_id, as_of)
         rates = applied.real_returns.as_dict()
         inflation = applied.inflation.value if applied.inflation is not None else None
 
@@ -837,17 +712,16 @@ class FiService:
         base = engine.fi_asset_base(snapshot)
         surplus = snapshot.monthly_income - snapshot.monthly_expenses
 
-        # Years come from the shared solver, NOT from scanning the plotted series:
-        # a 15-year chart cannot express an 18-year answer, and scanning one
-        # returned None (which the UI rendered as a fallback ISO date).
-        years = {
-            key: engine.years_to_target(base, surplus, rate, fi_number)
+        # Months come from the shared solver, NOT from scanning the plotted
+        # series: a 15-year chart cannot express an 18-year answer.
+        months = {
+            key: engine.months_to_target(base, rate, fi_number, lambda _m: surplus)
             for key, rate in rates.items()
         }
 
         # Stretch the chart far enough to actually show the crossing when there is
-        # one, so the plotted line and the headline number tell the same story.
-        reachable = [int(v) for v in years.values() if v is not None and v > 0]
+        # one, so the plotted line and the headline month tell the same story.
+        reachable = [-(-m // 12) for m in months.values() if m]
         horizon = min(40, max(15, (max(reachable) + 2) if reachable else 15))
         points = engine.project_portfolio(
             snapshot, rates, horizon_years=horizon, inflation=inflation
@@ -873,23 +747,22 @@ class FiService:
 
         return {
             "currency": snapshot.currency,
+            "as_of": baseline.as_of.isoformat(),
             # "real": every amount in today's money; "real_and_nominal": each
             # point also in its year's own money, from the user's inflation.
             "terms": "real" if inflation is None else "real_and_nominal",
             "points": [point(p) for p in points],
             "fi_number": str(fi_number),
-            "swr": _rate(strategy.swr),
-            "fire_year_conservative": (
-                int(years["conservative"]) if years["conservative"] is not None else None
-            ),
-            "fire_year_base": int(years["base"]) if years["base"] is not None else None,
-            "fire_year_growth": int(years["growth"]) if years["growth"] is not None else None,
+            "swr": rate_text(strategy.swr),
+            # The month FI is reached in each scenario, and how many months
+            # from the as-of date that is.
+            "fi_by": {key: _fi_by(baseline.as_of, m) for key, m in months.items()},
             "current_portfolio": str(base),
             # The real (after-inflation) rates the scenarios use.
             "real_returns": _scenarios_dict(applied.real_returns),
             # Their nominal equivalents and the inflation behind them: only
             # with the user's own inflation figure, never a guessed one.
-            "inflation": None if inflation is None else _rate(inflation),
+            "inflation": None if inflation is None else rate_text(inflation),
             "nominal_returns": _scenarios_dict(applied.nominal_returns),
             # Which assumptions these are, where each came from, and whether
             # any is a placeholder.
@@ -905,6 +778,7 @@ class FiService:
         *,
         term_months: int | None = None,
         annual_interest_rate: Decimal = Decimal(0),
+        as_of: datetime.date | None = None,
     ) -> dict[str, Any]:
         """
         Cost a prospective purchase in months of freedom.
@@ -912,15 +786,16 @@ class FiService:
         Uses the SAME swr / target-expenses / real-return values as
         `get_projections`, so the answer here can never contradict the user's
         Freedom page. Every figure is engine-computed; the caller (and the agent
-        above it) may present them but must not derive new ones.
+        above it) may present them but must not derive new ones. The bounds
+        are checked here (`check_purchase`), so every surface keeps them.
         """
-        snapshot = await self.build_snapshot(user_id)
-        strategy, applied, pack = await self._plan(user_id)
-
-        async with self._uow_factory() as uow:
-            entries = await uow.ledger.get_entries(user_id)
-        as_of = _latest_entry_date(entries)
-        stale = _is_stale(as_of)
+        check_purchase(amount, term_months, annual_interest_rate)
+        baseline, snapshot, strategy, applied, pack = await self._inputs(user_id, as_of)
+        latest = baseline.latest_entry
+        stale = (
+            latest is None
+            or (baseline.as_of - datetime.date.fromisoformat(latest)).days > STALE_AFTER_DAYS
+        )
 
         # The base scenario's real return — the same rate `get_projections`
         # reports as `real_returns.base` and draws the base line with.
@@ -935,13 +810,14 @@ class FiService:
             annual_real_return=rate,
             term_months=term_months,
             annual_interest_rate=annual_interest_rate,
-            data_as_of=as_of,
+            data_as_of=latest,
             is_stale=stale,
         )
 
         return {
             "amount": str(impact.amount),
             "currency": impact.currency,
+            "as_of": baseline.as_of.isoformat(),
             "fi_number": str(impact.fi_number),
             "fi_asset_base_before": str(impact.fi_asset_base_before),
             "monthly_surplus": str(impact.monthly_surplus),
@@ -968,22 +844,37 @@ class FiService:
             "data_as_of": impact.data_as_of,
             "is_stale": impact.is_stale,
             "stale_after_days": STALE_AFTER_DAYS,
-            "real_return_used": _rate(rate),
-            "swr": _rate(strategy.swr),
+            "real_return_used": rate_text(rate),
+            "swr": rate_text(strategy.swr),
             "assumptions": assumptions_dict(applied),
         }
 
     # ── Surplus Breakdown ────────────────────────────────────────────────────────
 
-    async def get_surplus_breakdown(self, user_id: str) -> dict[str, Any]:
+    async def _breakdown(self, user_id: str, baseline: Baseline) -> Any:
+        """Income by source and spending by category, over the baseline's
+        months observed: its totals are the baseline's own."""
+        months = baseline.flows.months
+        if not months:
+            return engine.compute_surplus_breakdown([], [], 0)
+        last = baseline.flows.by_month[-1].month
         async with self._uow_factory() as uow:
-            currency = await uow.user_profiles.base_currency(user_id)
-            accounts = await uow.ledger.get_accounts(user_id)
-            entries = await uow.ledger.get_entries(user_id, from_date=_months_ago_iso(12))
+            accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+            entries = await uow.ledger.get_entries(
+                user_id, from_date=f"{months[0]}-01", to_date=f"{last}-31"
+            )
+        return engine.compute_surplus_breakdown(entries, accounts, len(months))
 
-        breakdown = engine.compute_surplus_breakdown(entries, accounts, months=12)
+    async def get_surplus_breakdown(
+        self, user_id: str, as_of: datetime.date | None = None
+    ) -> dict[str, Any]:
+        baseline = await self._baseline(user_id, as_of)
+        breakdown = await self._breakdown(user_id, baseline)
         return {
-            "currency": currency,
+            "currency": baseline.currency,
+            "as_of": baseline.as_of.isoformat(),
+            # The full calendar months these are monthly averages over.
+            "months_observed": list(baseline.flows.months),
             "income_by_source": {k: str(v) for k, v in breakdown.income_by_source.items()},
             "expense_by_category": {k: str(v) for k, v in breakdown.expense_by_category.items()},
             # The needs/wants/savings split. Empty until spending carries `need`
@@ -997,5 +888,5 @@ class FiService:
         }
 
 
-def _sse(data: dict) -> str:
+def _sse(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
