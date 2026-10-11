@@ -441,19 +441,18 @@ def monthly(
         investments *= Decimal(1) + real_return / _TWELVE * month.period.share
         level = month.deflator
         owed = sum((path.owed[i] for path in paths), Decimal(0))
-        real_cash = cash / level
-        real_debts = owed / level
-        real_other = other_liabilities / level
         points.append(
             MonthPoint(
                 month=month.period.month,
                 date=month.period.end.isoformat(),
-                cash=real_cash,
+                cash=cash / level,
                 investments=investments,
                 other_assets=other_assets,
-                debts=real_debts,
-                other_liabilities=real_other,
-                net_worth=real_cash + investments + other_assets - real_debts - real_other,
+                debts=owed / level,
+                other_liabilities=other_liabilities / level,
+                # What is held in money, deflated once, so the same money
+                # moved between cash and a debt changes it by nothing.
+                net_worth=(cash - owed - other_liabilities) / level + investments + other_assets,
                 deflator=level,
             )
         )
