@@ -50,7 +50,7 @@ import {
 import type { App } from '../app';
 import { UsageError } from '../errors';
 import { plural, singleLine } from '../output/text';
-import { displayDate, displayRange, monthPeriod, parseDate } from '../util/dates';
+import { displayDate, displayMonth, displayRange, monthPeriod, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { registerInvestments, resolveHolding } from './investments';
 import { renderRecord } from './records';
@@ -359,16 +359,26 @@ function registerDebts(program: Command, app: App): void {
           out.line(
             out.details([
               ['Strategy', p.strategy],
-              ['Debt-free in', p.months_to_payoff === null ? 'not within the planning horizon' : plural(p.months_to_payoff, 'month')],
+              [
+                'Debt-free',
+                p.months_to_payoff === null || !p.debt_free_month
+                  ? 'not within the planning horizon'
+                  : `after ${displayMonth(p.debt_free_month, out.locale)} (${plural(p.months_to_payoff, 'month')})`,
+              ],
               ['Interest paid', out.money(p.total_interest_paid, p.currency)],
             ]),
           );
+          // A linked debt starts from its ledger account's balance, not the one declared.
+          const fromAccounts = p.debts.filter((d) => d.source === 'account');
+          if (fromAccounts.length) {
+            out.note(`From your ledger: ${fromAccounts.map((d) => `${singleLine(d.name)} ${out.money(d.balance, p.currency)}`).join(', ')}.`);
+          }
           if (!p.schedule.length) return;
           out.line();
           const shown = p.schedule.filter((e) => e.month <= opts.months);
           out.line(
             out.table(shown, [
-              { header: 'MONTH', get: (e) => e.month, align: 'right' },
+              { header: 'MONTH', get: (e) => displayMonth(e.period, out.locale) },
               { header: 'DEBT', get: (e) => e.debt_name, shrink: true },
               { header: 'PAYMENT', get: (e) => out.amount(e.payment, p.currency), align: 'right' },
               { header: 'PRINCIPAL', get: (e) => out.amount(e.principal_paid, p.currency), align: 'right' },

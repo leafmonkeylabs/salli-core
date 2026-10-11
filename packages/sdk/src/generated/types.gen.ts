@@ -5116,9 +5116,25 @@ export type PayoffPlan = {
      */
     currency: string;
     /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Debts
+     */
+    debts: Array<PlannedDebt>;
+    /**
      * Months To Payoff
      */
     months_to_payoff: number | null;
+    /**
+     * First Month
+     */
+    first_month: string | null;
+    /**
+     * Debt Free Month
+     */
+    debt_free_month: string | null;
     /**
      * Total Interest Paid
      *
@@ -5141,6 +5157,14 @@ export type PayoffScheduleEntry = {
      * Month
      */
     month: number;
+    /**
+     * Period
+     */
+    period: string;
+    /**
+     * Debt Id
+     */
+    debt_id: string;
     /**
      * Debt Name
      */
@@ -5332,6 +5356,36 @@ export type PersonalAccessToken = {
      * Last Used At
      */
     last_used_at: string | null;
+};
+
+/**
+ * PlannedDebt
+ *
+ * A debt the plan pays off, and what it starts from.
+ */
+export type PlannedDebt = {
+    /**
+     * Debt Id
+     */
+    debt_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    balance: string;
+    /**
+     * Source
+     */
+    source: 'account' | 'declared';
+    /**
+     * Account Id
+     */
+    account_id: string | null;
 };
 
 /**

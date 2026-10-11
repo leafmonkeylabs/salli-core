@@ -1381,7 +1381,9 @@ export const debtsCreate = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Get Payoff Plan
  *
- * Avalanche/snowball payoff plan — months to payoff, total interest, schedule.
+ * Avalanche/snowball payoff plan on calendar months, from what each debt owes
+ * today (a linked debt: its ledger account; another: its declared principal):
+ * months to payoff, the debt-free month, total interest, the schedule.
  */
 export const debtsPayoffPlan = <ThrowOnError extends boolean = false>(options?: Options<DebtsPayoffPlanData, ThrowOnError>): RequestResult<DebtsPayoffPlanResponses, DebtsPayoffPlanErrors, ThrowOnError> => (options?.client ?? client).get<DebtsPayoffPlanResponses, DebtsPayoffPlanErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

@@ -43,6 +43,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl, BaseModel, Field
 
 from salli.application.permissions import Actor
+from salli.application.services.fi_service import decimal_arg
 from salli.application.services.mcp_oauth_service import McpOAuthService
 from salli.application.services.tax_rule_service import TaxRuleError
 from salli.domain.agents.tools import computation_for_agent
@@ -321,11 +322,18 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         extra_monthly_payment: str = "0",
         strategy: str = "avalanche",
     ) -> dict[str, Any]:
-        """Return an avalanche or snowball payoff plan for the user's active debts."""
+        """Return an avalanche or snowball payoff plan for the user's active
+        debts, on calendar months from next month: each debt from what it owes
+        (a linked debt: its ledger account), the debt-free month, the interest
+        paid and the schedule. extra_monthly_payment is a decimal string from
+        0, paid on top of the minimums each month. Quote the figures exactly."""
         if strategy not in ("avalanche", "snowball"):
             return {"error": f"Unknown strategy '{strategy}'. Use 'avalanche' or 'snowball'."}
-        user_id = _current_user_id()
-        return await debt_svc.get_payoff_plan(user_id, Decimal(extra_monthly_payment), strategy)
+        try:
+            extra = decimal_arg(extra_monthly_payment, "an extra monthly payment")
+            return await debt_svc.get_payoff_plan(_current_user_id(), extra, strategy)
+        except (ArithmeticError, ValueError) as exc:
+            return {"error": f"Could not plan that: {exc}"}
 
     @mcp.tool()
     async def get_portfolio_summary(target_allocation: str | None = None) -> dict[str, Any]:
@@ -701,14 +709,16 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         amount: str, term_months: int | None = None, annual_interest_rate: str = "0"
     ) -> dict[str, Any]:
         """What a purchase costs in months of financial freedom: paid in cash,
-        and (given term_months) in installments at annual_interest_rate (a
-        fraction: "0.18" is 18%). amount is a decimal string in the base currency."""
+        and (given term_months, 1 to 600) in installments at
+        annual_interest_rate (a fraction from 0 to 1: "0.18" is 18%). amount is
+        a decimal string from 0 in the base currency. The same bounds as the
+        API: anything outside them is refused, not costed."""
         try:
             return await fi_svc.simulate_purchase(
                 _current_user_id(),
-                Decimal(amount),
+                decimal_arg(amount, "an amount"),
                 term_months=term_months,
-                annual_interest_rate=Decimal(annual_interest_rate),
+                annual_interest_rate=decimal_arg(annual_interest_rate, "a yearly rate"),
             )
         except (ArithmeticError, ValueError) as exc:
             return {"error": f"Could not simulate that purchase: {exc}"}

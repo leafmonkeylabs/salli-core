@@ -41,6 +41,7 @@ import type {
   Meta,
   PersonalAccessToken,
   Profile,
+  PayoffPlan,
   PurchaseImpact,
   RuleDraft,
   RuleSuggestion,
@@ -676,15 +677,22 @@ export class MockSalli {
       return {
         status: 200,
         body: {
-          strategy: req.query.get('strategy') ?? 'avalanche',
+          strategy: (req.query.get('strategy') ?? 'avalanche') as PayoffPlan['strategy'],
           currency: 'USD',
+          as_of: '2026-10-09',
+          debts: [
+            { debt_id: uid(411), name: 'Credit card', balance: '1200.00', source: 'declared', account_id: null },
+            { debt_id: uid(412), name: 'Car loan', balance: '8400.00', source: 'account', account_id: uid(4) },
+          ],
           months_to_payoff: 26,
+          first_month: '2026-11',
+          debt_free_month: '2028-12',
           total_interest_paid: '845.12',
           schedule: [
-            { month: 1, debt_name: 'Credit card', payment: '135.00', principal_paid: '111.01', interest_paid: '23.99', remaining_balance: '1088.99' },
-            { month: 1, debt_name: 'Car loan', payment: '310.00', principal_paid: '261.70', interest_paid: '48.30', remaining_balance: '8138.30' },
+            { month: 1, period: '2026-11', debt_id: uid(411), debt_name: 'Credit card', payment: '135.00', principal_paid: '111.01', interest_paid: '23.99', remaining_balance: '1088.99' },
+            { month: 1, period: '2026-11', debt_id: uid(412), debt_name: 'Car loan', payment: '310.00', principal_paid: '261.70', interest_paid: '48.30', remaining_balance: '8138.30' },
           ],
-        },
+        } satisfies PayoffPlan,
       };
     }
     if (method === 'GET' && path === '/v1/portfolio/summary') {

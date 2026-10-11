@@ -530,7 +530,12 @@ def make_manager_tools(
         if strategy not in ("avalanche", "snowball"):
             return {"error": f"Unknown strategy '{strategy}'. Use 'avalanche' or 'snowball'."}
         user_id = _current_user.get()
-        return await debt_svc.get_payoff_plan(user_id, Decimal(extra_monthly_payment), strategy)
+        try:
+            extra = Decimal(extra_monthly_payment)
+            # The service refuses an extra payment below zero, as the API does.
+            return await debt_svc.get_payoff_plan(user_id, extra, strategy)
+        except (InvalidOperation, ValueError) as exc:
+            return {"error": f"Could not plan that: {exc}"}
 
     # ── Portfolio tool ────────────────────────────────────────────────────────
 

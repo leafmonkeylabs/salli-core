@@ -174,7 +174,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     documents = DocumentService(uow_factory, storage)
     fi = FiService(uow_factory, llm_credentials, baselines=baseline)
     budget = BudgetService(uow_factory)
-    debt = DebtService(uow_factory)
+    debt = DebtService(uow_factory, baselines=baseline)
     portfolio = PortfolioService(uow_factory, fx=fx)
     subscription = SubscriptionService(uow_factory)
     insurance = InsuranceService(uow_factory)

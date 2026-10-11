@@ -6318,7 +6318,7 @@
           "debt"
         ],
         "summary": "Get Payoff Plan",
-        "description": "Avalanche/snowball payoff plan — months to payoff, total interest, schedule.",
+        "description": "Avalanche/snowball payoff plan on calendar months, from what each debt owes\ntoday (a linked debt: its ledger account; another: its declared principal):\nmonths to payoff, the debt-free month, total interest, the schedule.",
         "operationId": "debts.payoffPlan",
         "security": [
           {
@@ -20430,6 +20430,17 @@
               "USD"
             ]
           },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "debts": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedDebt"
+            },
+            "type": "array",
+            "title": "Debts"
+          },
           "months_to_payoff": {
             "anyOf": [
               {
@@ -20440,6 +20451,28 @@
               }
             ],
             "title": "Months To Payoff"
+          },
+          "first_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Month"
+          },
+          "debt_free_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Free Month"
           },
           "total_interest_paid": {
             "type": "string",
@@ -20462,7 +20495,11 @@
         "required": [
           "strategy",
           "currency",
+          "as_of",
+          "debts",
           "months_to_payoff",
+          "first_month",
+          "debt_free_month",
           "total_interest_paid",
           "schedule"
         ],
@@ -20473,6 +20510,14 @@
           "month": {
             "type": "integer",
             "title": "Month"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
           },
           "debt_name": {
             "type": "string",
@@ -20518,6 +20563,8 @@
         "type": "object",
         "required": [
           "month",
+          "period",
+          "debt_id",
           "debt_name",
           "payment",
           "principal_paid",
@@ -20821,6 +20868,56 @@
           "last_used_at"
         ],
         "title": "PersonalAccessToken"
+      },
+      "PlannedDebt": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "account",
+              "declared"
+            ],
+            "title": "Source"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "debt_id",
+          "name",
+          "balance",
+          "source",
+          "account_id"
+        ],
+        "title": "PlannedDebt",
+        "description": "A debt the plan pays off, and what it starts from."
       },
       "PolicyRequest": {
         "properties": {

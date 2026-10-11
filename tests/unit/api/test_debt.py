@@ -8,17 +8,21 @@ decimal string it is stored as (a rate, not money).
 
 from __future__ import annotations
 
+import datetime as dt
+from decimal import Decimal
+
 from salli.application.services.debt_service import DebtService
-from tests.fakes import FakeRecordsUoW
+from tests.fakes import FakeUoW
 from tests.unit.api.conftest import AUTH
 
 USER = "test-user-1"
 CARD = {"name": "Card", "principal": 1000, "apr": 0.24, "minimum_payment": 100}
+TODAY = dt.date(2026, 10, 9)
 
 
-def _uow(mock_services, base_currency: str = "LKR") -> FakeRecordsUoW:
-    uow = FakeRecordsUoW(base_currency)
-    mock_services.debt = DebtService(lambda: uow)
+def _uow(mock_services, base_currency: str = "LKR") -> FakeUoW:
+    uow = FakeUoW(base_currency)
+    mock_services.debt = DebtService(uow.factory(), today=lambda: TODAY)
     return uow
 
 
@@ -69,20 +73,26 @@ async def test_the_payoff_plan_is_the_services_plan(client, mock_services):
     )
     assert r.status_code == 200
     plan = r.json()
-    assert plan == await mock_services.debt.get_payoff_plan(USER, 50, "snowball")
+    assert plan == await mock_services.debt.get_payoff_plan(USER, Decimal(50), "snowball")
     assert (plan["strategy"], plan["currency"], plan["months_to_payoff"]) == (
         "snowball",
         "LKR",
         8,
     )
+    debt_id = plan["debts"][0]["debt_id"]
+    # The first payment falls in the month after today's.
+    assert (plan["as_of"], plan["first_month"]) == ("2026-10-09", "2026-11")
     assert plan["schedule"][0] == {
         "month": 1,
+        "period": "2026-11",
+        "debt_id": debt_id,
         "debt_name": "Card",
         "payment": "150.00",
         "principal_paid": "130.00",
         "interest_paid": "20.00",
         "remaining_balance": "870.00",
     }
+    assert plan["debt_free_month"] == plan["schedule"][-1]["period"] == "2027-06"
 
 
 async def test_a_plan_with_nothing_owed_states_zero_in_the_currencys_precision(
@@ -95,7 +105,11 @@ async def test_a_plan_with_nothing_owed_states_zero_in_the_currencys_precision(
     assert plan == {
         "strategy": "avalanche",
         "currency": "LKR",
+        "as_of": "2026-10-09",
+        "debts": [],
         "months_to_payoff": 0,
+        "first_month": None,
+        "debt_free_month": None,
         "total_interest_paid": "0.00",
         "schedule": [],
     }

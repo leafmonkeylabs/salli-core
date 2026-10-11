@@ -5,6 +5,7 @@ Debt router — structured debts and avalanche/snowball payoff planning.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -65,7 +66,11 @@ class DebtList(BaseModel):
 class PayoffScheduleEntry(BaseModel):
     """What one debt is paid in one month of the plan."""
 
+    #: 1 for the first payment, 2 for the next, ...
     month: int
+    #: The calendar month it falls in ("YYYY-MM").
+    period: str
+    debt_id: str
     debt_name: str
     payment: Amount
     principal_paid: Amount
@@ -74,11 +79,32 @@ class PayoffScheduleEntry(BaseModel):
     remaining_balance: Amount
 
 
+class PlannedDebt(BaseModel):
+    """A debt the plan pays off, and what it starts from."""
+
+    debt_id: str
+    name: str
+    #: What it owes on the as-of date.
+    balance: Amount
+    #: "account" when that is what its linked ledger account holds;
+    #: "declared" when it is the principal declared (no linked account).
+    source: Literal["account", "declared"]
+    account_id: str | None
+
+
 class PayoffPlan(BaseModel):
     strategy: PayoffStrategy
     currency: CurrencyCode
+    #: The day the plan starts from (ISO 8601).
+    as_of: str
+    debts: list[PlannedDebt]
     #: Null when the debts are not paid off within the plan's 50-year horizon.
     months_to_payoff: int | None
+    #: The calendar month of the first payment, the one after the as-of
+    #: date's; null with nothing owed.
+    first_month: str | None
+    #: The calendar month of the last payment; null when not within the horizon.
+    debt_free_month: str | None
     total_interest_paid: Amount
     schedule: list[PayoffScheduleEntry]
 
@@ -101,7 +127,9 @@ async def get_payoff_plan(
     extra_monthly_payment: AmountIn = Query(Decimal(0), ge=0),
     strategy: str = Query("avalanche", pattern="^(avalanche|snowball)$"),
 ) -> PayoffPlan:
-    """Avalanche/snowball payoff plan — months to payoff, total interest, schedule."""
+    """Avalanche/snowball payoff plan on calendar months, from what each debt owes
+    today (a linked debt: its ledger account; another: its declared principal):
+    months to payoff, the debt-free month, total interest, the schedule."""
     plan = await svc.debt.get_payoff_plan(
         user_id,
         extra_monthly_payment,
