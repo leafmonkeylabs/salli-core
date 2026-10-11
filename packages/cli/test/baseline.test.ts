@@ -51,18 +51,21 @@ describe('salli baseline', () => {
 
       Cash today       USD 9,397.60
       Lowest ahead     USD 8,801.12 on Oct 24, 2026
-      By Oct 31, 2027  USD 40,200.00
+      By Oct 31, 2027  USD 9,397.60
 
-      IN        MONTH     NET WORTH (USD)        CASH  INVESTMENTS     DEBTS
-      1 year    Oct 2027       316,300.00   40,200.00    31,200.00  5,100.00
-      5 years   Oct 2031       457,500.00  171,000.00    36,500.00      0.00
-      10 years  Oct 2036       640,400.00  346,000.00    44,400.00      0.00
-      20 years  Oct 2046     1,011,800.00  696,000.00    65,800.00      0.00
+      IN        MONTH     NET WORTH (USD)      CASH  INVESTMENTS     DEBTS
+      1 year    Oct 2027       316,300.00  9,397.60    62,002.40  5,100.00
+      5 years   Oct 2031       457,500.00  9,397.60   198,102.40      0.00
+      10 years  Oct 2036       640,400.00  9,397.60   381,002.40      0.00
+      20 years  Oct 2046     1,011,800.00  9,397.60   752,402.40      0.00
       "
     `);
     // Where the figures come from, on stderr beside them.
     expect(result.stderr).toContain('EUR at 1.0823 USD, published by ecb for Oct 9, 2026.');
-    expect(result.stderr).toContain('Placeholders: the real return; inflation (none set: nominal amounts keep their real value).');
+    expect(result.stderr).toContain(
+      'Placeholders: the real return; the share of your monthly surplus invested (all of it); inflation (none set: nominal amounts keep their real value).',
+    );
+    expect(result.stderr).toContain("100% of each month's surplus invested, at 4% a year after inflation.");
   });
 
   it('asks for a past day, and prints the API’s JSON', async () => {

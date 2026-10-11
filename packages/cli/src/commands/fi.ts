@@ -1,6 +1,7 @@
 /**
- * Financial independence (score, projections, purchases, strategy), goals
- * and the wealth advisor.
+ * Financial independence (score, projections, strategy), goals and the
+ * wealth advisor. What a purchase does is a scenario: `salli whatif`,
+ * `salli compare`.
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
@@ -19,7 +20,6 @@ import {
   fiScoreGet,
   fiScoreHistory,
   fiScoreRecompute,
-  fiSimulatePurchase,
   fiStrategyGet,
   fiStrategyHistory,
   fiSurplus,
@@ -43,7 +43,7 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { CliError, NotFoundError, UsageError } from '../errors';
-import { plural, singleLine } from '../output/text';
+import { singleLine } from '../output/text';
 import { displayDate, displayMonth, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
 import { AccountBook, amountArg, confirmAction, countArg, rateArg } from './shared';
@@ -63,6 +63,7 @@ const ASSUMPTIONS = {
   'nominal-return': { key: 'nominal_return', label: 'Nominal return' },
   inflation: { key: 'inflation', label: 'Inflation' },
   swr: { key: 'safe_withdrawal_rate', label: 'Safe withdrawal rate' },
+  'surplus-invested': { key: 'surplus_invested', label: 'Surplus invested' },
 } as const;
 type AssumptionName = keyof typeof ASSUMPTIONS;
 const ASSUMPTION_NAMES = Object.keys(ASSUMPTIONS) as AssumptionName[];
@@ -76,14 +77,19 @@ function assumptionName(value: string): AssumptionName {
   return known as AssumptionName;
 }
 
-const PLACEHOLDER_LABELS: Record<string, string> = { real_return: 'real return', safe_withdrawal_rate: 'safe withdrawal rate' };
+const PLACEHOLDER_LABELS: Record<string, string> = {
+  real_return: 'real return',
+  safe_withdrawal_rate: 'safe withdrawal rate',
+  surplus_invested: 'share of your monthly surplus invested',
+};
 
 /** Says, on stderr, when figures rest on placeholders, and how to set your own. */
 function assumptionsNote(app: App, assumptions: FiAssumptions | null | undefined): void {
   if (!assumptions || assumptions.status !== 'placeholder') return;
-  const names = assumptions.placeholders.map((p) => PLACEHOLDER_LABELS[p] ?? p).join(' and the ');
+  const labels = assumptions.placeholders.map((p) => `the ${PLACEHOLDER_LABELS[p] ?? p}`);
+  const names = labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}` : (labels[0] ?? '');
   app.out.note(
-    `Using placeholder assumptions for the ${names}: round figures, not forecasts. Set yours with \`salli fi assumptions set real-return 5% --source <where it comes from>\` (and swr).`,
+    `Using placeholder assumptions for ${names}: round figures, not forecasts. Set yours with \`salli fi assumptions set real-return 5% --source <where it comes from>\` (and swr, and surplus-invested).`,
   );
 }
 
@@ -155,7 +161,7 @@ function strategyView(app: App, s: FireStrategy): void {
 }
 
 function registerFi(program: Command, app: App): void {
-  const fi = program.command('fi').description('Financial independence: your score, projections, and what a purchase costs you');
+  const fi = program.command('fi').description('Financial independence: your score, projections, strategy and assumptions');
 
   fi.command('score')
     .description('Your FI score and the figures behind it')
@@ -213,7 +219,7 @@ function registerFi(program: Command, app: App): void {
   assumptions
     .command('set')
     .argument('<name>', `Which: ${ASSUMPTION_NAMES.join(', ')}`)
-    .argument('<rate>', 'A yearly rate: 0.03 or 3%')
+    .argument('<rate>', 'A yearly rate: 0.03 or 3%; for surplus-invested, the share you invest: 0.8 or 80%')
     .option('--source <source>', 'Where the figure comes from: a URL, or a publication and its date')
     .option('--note <note>', 'Anything else worth keeping with it')
     .description('Set one of your own planning assumptions, with its source')
@@ -348,48 +354,6 @@ function registerFi(program: Command, app: App): void {
           };
           section('INCOME', d.income_by_source);
           section('SPENDING', d.expense_by_category);
-        },
-      });
-    });
-
-  fi.command('simulate-purchase')
-    .alias('afford')
-    .argument('<amount>', 'The price')
-    .description('What a purchase costs you in months of freedom: cash against instalments')
-    .option('--months <n>', 'Pay in instalments over this many months', countArg('--months'))
-    .option('--rate <rate>', 'The instalments’ annual interest: 0.18 or 18%', '0')
-    .action(async (amountText, opts) => {
-      const api = await app.api();
-      const impact = await api.call(fiSimulatePurchase, {
-        body: {
-          amount: amountArg(amountText),
-          ...(opts.months !== undefined ? { term_months: opts.months } : {}),
-          annual_interest_rate: rateArg(opts.rate, '--rate'),
-        },
-      });
-      app.out.emit(impact, {
-        records: (d) => d.options,
-        human: (d) => {
-          const out = app.out;
-          out.line(out.heading(`Buying something for ${out.money(d.amount, d.currency)}`));
-          out.line(
-            out.table(d.options, [
-              { header: 'HOW', get: (o) => o.label + (o.key === d.cheapest_option_key ? ' (cheapest)' : '') },
-              { header: 'COSTS', get: (o) => out.amount(o.total_cost, d.currency), align: 'right' },
-              { header: 'INTEREST', get: (o) => out.amount(o.interest_cost, d.currency), align: 'right' },
-              { header: 'A MONTH', get: (o) => (o.monthly_payment ? out.amount(o.monthly_payment, d.currency) : ''), align: 'right' },
-              {
-                header: 'DELAYS FI BY',
-                get: (o) => (o.months_delay === null ? 'unknown' : plural(o.months_delay, 'month')),
-                align: 'right',
-                style: (t, o) => (o.exceeds_monthly_surplus ? out.colors.red(t) : t),
-              },
-            ]),
-          );
-          out.note(`Amounts in ${d.currency}.`);
-          if (!d.payable_from_liquid) out.warn('Paying cash would use more than your liquid savings.');
-          if (d.is_stale) out.warn(`Your ledger’s latest entry is from ${displayDate(d.data_as_of, out.locale)}: add recent entries for a truer answer.`);
-          assumptionsNote(app, d.assumptions);
         },
       });
     });

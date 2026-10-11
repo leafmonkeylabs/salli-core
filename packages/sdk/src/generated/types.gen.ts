@@ -645,6 +645,27 @@ export type AllocationSlice = {
 };
 
 /**
+ * AmountFigure
+ *
+ * A money figure under the baseline and under the scenario, and the
+ * scenario less the baseline.
+ */
+export type AmountFigure = {
+    /**
+     * Baseline
+     */
+    baseline: string | null;
+    /**
+     * Scenario
+     */
+    scenario: string | null;
+    /**
+     * Delta
+     */
+    delta: string | null;
+};
+
+/**
  * AuditLog
  */
 export type AuditLog = {
@@ -1119,7 +1140,15 @@ export type Baseline = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'inflation'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation'>;
+    /**
+     * Rule Sets
+     */
+    rule_sets: Array<BaselineRuleSet>;
+    /**
+     * Fingerprint
+     */
+    fingerprint: string;
     /**
      * Notes
      */
@@ -1231,6 +1260,12 @@ export type BaselineCashMonth = {
      * Decimal string in the currency's own precision; never a float.
      */
     unscheduled: string;
+    /**
+     * Invested
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    invested: string;
 };
 
 /**
@@ -1451,6 +1486,12 @@ export type BaselineMonthly = {
      */
     real_return: string;
     /**
+     * Surplus Invested
+     *
+     * Decimal string, exact; never a float.
+     */
+    surplus_invested: string;
+    /**
      * Inflation
      */
     inflation: string | null;
@@ -1485,6 +1526,38 @@ export type BaselineRate = {
      * As Of
      */
     as_of: string | null;
+};
+
+/**
+ * BaselineRuleSet
+ *
+ * An active tax rule set version that applies on the as-of date.
+ */
+export type BaselineRuleSet = {
+    /**
+     * Country
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
 };
 
 /**
@@ -2343,6 +2416,19 @@ export type CommittedFlow = {
 };
 
 /**
+ * CompareOptions
+ *
+ * The options to compare: two to five scenarios with one as-of date and
+ * one horizon, each with its own label.
+ */
+export type CompareOptions = {
+    /**
+     * Options
+     */
+    options: Array<Scenario>;
+};
+
+/**
  * ConnectBank
  */
 export type ConnectBank = {
@@ -2708,6 +2794,24 @@ export type DataExport = {
         [key: string]: unknown;
     }>;
     [key: string]: unknown;
+};
+
+/**
+ * DayFigure
+ */
+export type DayFigure = {
+    /**
+     * Baseline
+     */
+    baseline: string;
+    /**
+     * Scenario
+     */
+    scenario: string;
+    /**
+     * Delta Days
+     */
+    delta_days: number;
 };
 
 /**
@@ -3144,6 +3248,41 @@ export type ExportedPosting = {
 };
 
 /**
+ * ExtraDebtPaymentChange
+ *
+ * Paid on one of your debts on top of its minimum, each month from a
+ * day's month to another's (or until it is paid off).
+ */
+export type ExtraDebtPaymentChange = {
+    /**
+     * Type
+     */
+    type: 'extra_debt_payment';
+    /**
+     * Debt
+     */
+    debt: string;
+    /**
+     * Monthly
+     *
+     * A positive decimal amount as a string, like "5000.00".
+     */
+    monthly: string;
+    /**
+     * From
+     */
+    from: string;
+    /**
+     * To
+     */
+    to?: string | null;
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
  * FiAssumption
  *
  * One planning assumption a figure was computed with, and where it came from.
@@ -3184,13 +3323,14 @@ export type FiAssumptions = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested'>;
     /**
      * Message
      */
     message: string;
     real_return: FiAssumption;
     safe_withdrawal_rate: FiAssumption;
+    surplus_invested: FiAssumption;
     inflation?: FiAssumption | null;
     nominal_return?: FiAssumption | null;
     real_returns: FiScenarioReturns;
@@ -3226,6 +3366,7 @@ export type FiAssumptionsUpdate = {
     nominal_return?: FiOwnAssumptionIn | null;
     inflation?: FiOwnAssumptionIn | null;
     safe_withdrawal_rate?: FiOwnAssumptionIn | null;
+    surplus_invested?: FiOwnAssumptionIn | null;
 };
 
 /**
@@ -3332,6 +3473,7 @@ export type FiOwnAssumptions = {
     nominal_return?: FiOwnAssumption | null;
     inflation?: FiOwnAssumption | null;
     safe_withdrawal_rate?: FiOwnAssumption | null;
+    surplus_invested?: FiOwnAssumption | null;
 };
 
 /**
@@ -3356,6 +3498,7 @@ export type FiPlaceholder = {
 export type FiPlaceholderValues = {
     real_return: FiPlaceholder;
     safe_withdrawal_rate: FiPlaceholder;
+    surplus_invested: FiPlaceholder;
 };
 
 /**
@@ -4658,6 +4801,37 @@ export type HoldingUpdateRequest = {
 };
 
 /**
+ * IncomeChange
+ *
+ * Your monthly net income changes by an amount from a day: a raise
+ * (positive), a cut (negative). In today's money.
+ */
+export type IncomeChange = {
+    /**
+     * Type
+     */
+    type: 'income_change';
+    /**
+     * Monthly Net
+     *
+     * A signed decimal amount as a string: "-2400.00" out, "+600" in.
+     */
+    monthly_net: string;
+    /**
+     * From
+     */
+    from: string;
+    /**
+     * To
+     */
+    to?: string | null;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * IncomeDeclarationRequest
  */
 export type IncomeDeclarationRequest = {
@@ -4858,6 +5032,37 @@ export type InsurancePolicyList = {
 };
 
 /**
+ * InvestChange
+ *
+ * Cash moved into your investments on a day, where it then grows at
+ * your real return.
+ */
+export type InvestChange = {
+    /**
+     * Type
+     */
+    type: 'invest';
+    /**
+     * Amount
+     *
+     * A positive decimal amount as a string, like "5000.00".
+     */
+    amount: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * From
+     */
+    from?: string | null;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * JournalEntry
  */
 export type JournalEntry = {
@@ -4938,6 +5143,48 @@ export type LlmKeys = {
      * Keys
      */
     keys: Array<LlmKeyStatus>;
+};
+
+/**
+ * LoanChange
+ *
+ * Money borrowed on a day and repaid in level monthly payments from the
+ * month after, the last one clearing it. Its payments are fixed in money of
+ * their own day.
+ */
+export type LoanChange = {
+    /**
+     * Type
+     */
+    type: 'loan';
+    /**
+     * Principal
+     *
+     * A positive decimal amount as a string, like "5000.00".
+     */
+    principal: string;
+    /**
+     * Annual Rate
+     *
+     * A decimal number written as a string, like "1800000" or "0.15".
+     */
+    annual_rate: string;
+    /**
+     * Term Months
+     */
+    term_months: number;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * Into
+     */
+    into?: string | null;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -5170,6 +5417,47 @@ export type MonthEndNetWorth = {
      * Decimal string in the currency's own precision; never a float.
      */
     net_worth: string;
+};
+
+/**
+ * MonthFigure
+ *
+ * A calendar month under each (null: not within 50 years), and how many
+ * months later the scenario's is (negative: sooner).
+ */
+export type MonthFigure = {
+    /**
+     * Baseline
+     */
+    baseline: string | null;
+    /**
+     * Scenario
+     */
+    scenario: string | null;
+    /**
+     * Delta Months
+     */
+    delta_months: number | null;
+};
+
+/**
+ * MonthsFigure
+ *
+ * Months of spending covered ("8.29"), under each, and the delta.
+ */
+export type MonthsFigure = {
+    /**
+     * Baseline
+     */
+    baseline: string | null;
+    /**
+     * Scenario
+     */
+    scenario: string | null;
+    /**
+     * Delta
+     */
+    delta: string | null;
 };
 
 /**
@@ -5500,6 +5788,37 @@ export type OnboardingStatusResponse = {
 };
 
 /**
+ * OneOffChange
+ *
+ * Money in or out once, on a day: a purchase (negative), a gift
+ * received (positive). What a purchase buys isn't counted as an asset.
+ */
+export type OneOffChange = {
+    /**
+     * Type
+     */
+    type: 'one_off';
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Amount
+     *
+     * A signed decimal amount as a string: "-2400.00" out, "+600" in.
+     */
+    amount: string;
+    /**
+     * Account
+     */
+    account?: string | null;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * OpeningBalanceItem
  */
 export type OpeningBalanceItem = {
@@ -5527,6 +5846,19 @@ export type OpeningBalanceItem = {
      * Fx Rate
      */
     fx_rate?: number | string | null;
+};
+
+/**
+ * OptionSensitivity
+ */
+export type OptionSensitivity = {
+    /**
+     * Option
+     */
+    option: string;
+    conservative: SensitiveFigures;
+    base: SensitiveFigures;
+    growth: SensitiveFigures;
 };
 
 /**
@@ -6414,170 +6746,6 @@ export type ProvenanceSubscription = {
 };
 
 /**
- * PurchaseImpact
- *
- * What a purchase does to the balance sheet and the FI date. Every figure is the engine's.
- */
-export type PurchaseImpact = {
-    /**
-     * Amount
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    amount: string;
-    /**
-     * Currency
-     *
-     * ISO 4217 currency code
-     */
-    currency: string;
-    /**
-     * As Of
-     */
-    as_of: string;
-    /**
-     * Fi Number
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    fi_number: string;
-    /**
-     * Fi Asset Base Before
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    fi_asset_base_before: string;
-    /**
-     * Monthly Surplus
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    monthly_surplus: string;
-    /**
-     * Baseline Months To Fi
-     */
-    baseline_months_to_fi: number | null;
-    /**
-     * Payable From Liquid
-     */
-    payable_from_liquid: boolean;
-    /**
-     * Emergency Months Before
-     */
-    emergency_months_before: string;
-    /**
-     * Emergency Months After Cash
-     */
-    emergency_months_after_cash: string;
-    /**
-     * Emergency Fund Target Months
-     */
-    emergency_fund_target_months: number;
-    /**
-     * Options
-     */
-    options: Array<PurchaseOption>;
-    /**
-     * Cheapest Option Key
-     */
-    cheapest_option_key: 'cash' | 'installments' | null;
-    /**
-     * Data As Of
-     */
-    data_as_of: string | null;
-    /**
-     * Is Stale
-     */
-    is_stale: boolean;
-    /**
-     * Stale After Days
-     */
-    stale_after_days: number;
-    /**
-     * Real Return Used
-     */
-    real_return_used: string;
-    /**
-     * Swr
-     */
-    swr: string;
-    assumptions: FiAssumptions;
-};
-
-/**
- * PurchaseOption
- *
- * One way of paying, costed in months of freedom.
- */
-export type PurchaseOption = {
-    /**
-     * Key
-     */
-    key: 'cash' | 'installments';
-    /**
-     * Label
-     */
-    label: string;
-    /**
-     * Total Cost
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    total_cost: string;
-    /**
-     * Interest Cost
-     *
-     * Decimal string in the currency's own precision; never a float.
-     */
-    interest_cost: string;
-    /**
-     * Monthly Payment
-     */
-    monthly_payment: string | null;
-    /**
-     * Term Months
-     */
-    term_months: number | null;
-    /**
-     * Months To Fi
-     */
-    months_to_fi: number | null;
-    /**
-     * Months Delay
-     */
-    months_delay: number | null;
-    /**
-     * Exceeds Monthly Surplus
-     */
-    exceeds_monthly_surplus: boolean;
-};
-
-/**
- * PurchaseRequest
- *
- * Money arrives as a STRING and is parsed to Decimal, never float — a float in
- * the money path is a bug (CLAUDE.md). `annual_interest_rate` is a fraction
- * (0.18 = 18%), bounded so a caller passing 18 is rejected rather than
- * silently costing the plan ~100x too dearly.
- */
-export type PurchaseRequest = {
-    /**
-     * Amount
-     *
-     * Decimal string, read exactly; a JSON number goes through a float.
-     */
-    amount: string;
-    /**
-     * Term Months
-     */
-    term_months?: number | null;
-    /**
-     * Annual Interest Rate
-     */
-    annual_interest_rate?: number | string;
-};
-
-/**
  * QuotedPrice
  *
  * The price a holding is valued at.
@@ -6696,6 +6864,45 @@ export type RecordedPriceList = {
 };
 
 /**
+ * RecurringChange
+ *
+ * The same amount again and again: a new rent (negative), a side income
+ * (positive). In today's money: with your inflation set, it rises with it.
+ */
+export type RecurringChange = {
+    /**
+     * Type
+     */
+    type: 'recurring';
+    /**
+     * Amount
+     *
+     * A signed decimal amount as a string: "-2400.00" out, "+600" in.
+     */
+    amount: string;
+    /**
+     * Cadence
+     */
+    cadence: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * End
+     */
+    end?: string | null;
+    /**
+     * Account
+     */
+    account?: string | null;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * RecurringPayment
  */
 export type RecurringPayment = {
@@ -6703,6 +6910,10 @@ export type RecurringPayment = {
      * Payee
      */
     payee: string;
+    /**
+     * Key
+     */
+    key: string;
     /**
      * Cadence
      */
@@ -7212,6 +7423,538 @@ export type SaveKeyRequest = {
 };
 
 /**
+ * Scenario
+ *
+ * The baseline plus changes.
+ */
+export type Scenario = {
+    /**
+     * Schema
+     */
+    schema: 'salli.scenario/1';
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * As Of
+     */
+    as_of?: string | null;
+    /**
+     * Horizon Years
+     */
+    horizon_years?: number;
+    /**
+     * Changes
+     */
+    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange>;
+};
+
+/**
+ * ScenarioAccountCash
+ *
+ * A cash account at its lowest over the next twelve months, in its own
+ * currency.
+ */
+export type ScenarioAccountCash = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    lowest: AmountFigure;
+    lowest_date: DayFigure;
+    below_zero: ScenarioBelowZero;
+};
+
+/**
+ * ScenarioAccountsBelowZero
+ */
+export type ScenarioAccountsBelowZero = {
+    /**
+     * Baseline
+     */
+    baseline: Array<string>;
+    /**
+     * Scenario
+     */
+    scenario: Array<string>;
+};
+
+/**
+ * ScenarioBelowZero
+ */
+export type ScenarioBelowZero = {
+    /**
+     * Baseline
+     */
+    baseline: boolean;
+    /**
+     * Scenario
+     */
+    scenario: boolean;
+};
+
+/**
+ * ScenarioBreakEven
+ *
+ * A value at which the answer changes, solved exactly, or none in range.
+ */
+export type ScenarioBreakEven = {
+    /**
+     * Kind
+     */
+    kind: 'recurring_cash_floor' | 'invest_vs_debt_return' | 'loan_rate';
+    /**
+     * Options
+     */
+    options: Array<string>;
+    /**
+     * Option
+     */
+    option: string | null;
+    /**
+     * Change
+     */
+    change: number | null;
+    /**
+     * Status
+     */
+    status: 'found' | 'none_in_range';
+    /**
+     * Unit
+     */
+    unit: 'amount' | 'rate';
+    /**
+     * Value
+     */
+    value: string | null;
+    /**
+     * Low
+     *
+     * Decimal string, exact; never a float.
+     */
+    low: string;
+    /**
+     * High
+     *
+     * Decimal string, exact; never a float.
+     */
+    high: string;
+    /**
+     * Ahead
+     */
+    ahead: string | null;
+    /**
+     * Says
+     */
+    says: string;
+};
+
+/**
+ * ScenarioCash
+ *
+ * Cash over the as-of month and the twelve after it, in each day's money.
+ */
+export type ScenarioCash = {
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * End
+     */
+    end: string;
+    lowest: AmountFigure;
+    lowest_date: DayFigure;
+    at_end: AmountFigure;
+    safe_to_spend: AmountFigure;
+    /**
+     * Safe Until
+     */
+    safe_until: string;
+    /**
+     * Accounts
+     */
+    accounts: Array<ScenarioAccountCash>;
+    below_zero: ScenarioAccountsBelowZero;
+};
+
+/**
+ * ScenarioChange
+ *
+ * A change as Salli read it.
+ */
+export type ScenarioChange = {
+    /**
+     * Index
+     */
+    index: number;
+    /**
+     * Type
+     */
+    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Debt Id
+     */
+    debt_id: string | null;
+    /**
+     * Payment
+     */
+    payment: string | null;
+    /**
+     * First Payment
+     */
+    first_payment: string | null;
+    /**
+     * Monthly
+     */
+    monthly: string | null;
+    /**
+     * For Good
+     */
+    for_good: boolean | null;
+    /**
+     * Stopped
+     */
+    stopped: Array<ScenarioStopped>;
+};
+
+/**
+ * ScenarioCheckpoint
+ *
+ * The monthly timeline a whole number of years on, in today's money.
+ */
+export type ScenarioCheckpoint = {
+    /**
+     * Years
+     */
+    years: number;
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Date
+     */
+    date: string;
+    net_worth: AmountFigure;
+    cash: AmountFigure;
+    investments: AmountFigure;
+    debts: AmountFigure;
+};
+
+/**
+ * ScenarioComparison
+ *
+ * Options side by side: never ranked.
+ */
+export type ScenarioComparison = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Horizon Years
+     */
+    horizon_years: number;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Labels
+     */
+    labels: Array<string>;
+    /**
+     * Options
+     */
+    options: Array<ScenarioRun>;
+    /**
+     * Trade
+     */
+    trade: Array<ScenarioTrade>;
+    sensitivity: ScenarioSensitivity;
+    /**
+     * Break Evens
+     */
+    break_evens: Array<ScenarioBreakEven>;
+};
+
+/**
+ * ScenarioDebt
+ */
+export type ScenarioDebt = {
+    /**
+     * Debt Id
+     */
+    debt_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Source
+     */
+    source: 'account' | 'declared' | 'scenario';
+    paid_off: MonthFigure;
+    total_interest: AmountFigure;
+};
+
+/**
+ * ScenarioDebts
+ */
+export type ScenarioDebts = {
+    /**
+     * Items
+     */
+    items: Array<ScenarioDebt>;
+    total_interest: AmountFigure;
+    debt_free: MonthFigure;
+};
+
+/**
+ * ScenarioFi
+ */
+export type ScenarioFi = {
+    fi_number: AmountFigure;
+    monthly_spending: AmountFigure;
+    fi_month: MonthFigure;
+    /**
+     * Months Gained
+     */
+    months_gained: number | null;
+};
+
+/**
+ * ScenarioResilience
+ *
+ * Months of spending the cash covers, at its lowest over the next
+ * twelve months and at their end.
+ */
+export type ScenarioResilience = {
+    /**
+     * Basis
+     */
+    basis: 'essential' | 'all' | null;
+    /**
+     * Monthly Spending
+     */
+    monthly_spending: string | null;
+    lowest: MonthsFigure;
+    at_end: MonthsFigure;
+};
+
+/**
+ * ScenarioRuleSet
+ */
+export type ScenarioRuleSet = {
+    /**
+     * Country
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+};
+
+/**
+ * ScenarioRun
+ *
+ * A scenario's figures under the baseline and under the scenario.
+ */
+export type ScenarioRun = {
+    /**
+     * Schema
+     */
+    schema: 'salli.scenario/1';
+    /**
+     * Label
+     */
+    label: string | null;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Horizon Years
+     */
+    horizon_years: number;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Baseline Fingerprint
+     */
+    baseline_fingerprint: string;
+    scenario: Scenario;
+    /**
+     * Changes
+     */
+    changes: Array<ScenarioChange>;
+    cash: ScenarioCash;
+    /**
+     * Monthly
+     */
+    monthly: Array<ScenarioCheckpoint>;
+    debts: ScenarioDebts;
+    resilience: ScenarioResilience;
+    fi: ScenarioFi;
+    /**
+     * Break Evens
+     */
+    break_evens: Array<ScenarioBreakEven>;
+    assumptions: FiAssumptions;
+    /**
+     * Placeholders
+     */
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation'>;
+    versions: ScenarioVersions;
+    /**
+     * Data As Of
+     */
+    data_as_of: string | null;
+    /**
+     * Is Stale
+     */
+    is_stale: boolean;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
+ * ScenarioSensitivity
+ *
+ * The options at the horizon under each real return.
+ */
+export type ScenarioSensitivity = {
+    real_returns: SensitivityReturns;
+    /**
+     * Options
+     */
+    options: Array<OptionSensitivity>;
+};
+
+/**
+ * ScenarioStopped
+ *
+ * A recurring flow a stop stops: each time, signed.
+ */
+export type ScenarioStopped = {
+    /**
+     * Payee
+     */
+    payee: string;
+    /**
+     * Cadence
+     */
+    cadence: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+};
+
+/**
+ * ScenarioTrade
+ *
+ * What `option` gains and gives up against `against`.
+ */
+export type ScenarioTrade = {
+    /**
+     * Option
+     */
+    option: string;
+    /**
+     * Against
+     */
+    against: string;
+    /**
+     * Gains
+     */
+    gains: Array<TradeDelta>;
+    /**
+     * Gives Up
+     */
+    gives_up: Array<TradeDelta>;
+};
+
+/**
+ * ScenarioVersions
+ */
+export type ScenarioVersions = {
+    /**
+     * Schema
+     */
+    schema: string;
+    /**
+     * Engine
+     */
+    engine: string;
+    /**
+     * Fi Assumptions
+     */
+    fi_assumptions: string;
+    /**
+     * Fire Strategy
+     */
+    fire_strategy: number | null;
+    /**
+     * Rule Sets
+     */
+    rule_sets: Array<ScenarioRuleSet>;
+};
+
+/**
  * ScheduledAdvisorRuns
  *
  * The daily run, accepted: the advisor runs for each due user after this response.
@@ -7263,6 +8006,43 @@ export type SeededReminders = {
      * Removed
      */
     removed: Array<string>;
+};
+
+/**
+ * SensitiveFigures
+ */
+export type SensitiveFigures = {
+    net_worth: AmountFigure;
+    investments: AmountFigure;
+    fi_month: MonthFigure;
+    /**
+     * Months Gained
+     */
+    months_gained: number | null;
+};
+
+/**
+ * SensitivityReturns
+ */
+export type SensitivityReturns = {
+    /**
+     * Conservative
+     *
+     * Decimal string, exact; never a float.
+     */
+    conservative: string;
+    /**
+     * Base
+     *
+     * Decimal string, exact; never a float.
+     */
+    base: string;
+    /**
+     * Growth
+     *
+     * Decimal string, exact; never a float.
+     */
+    growth: string;
 };
 
 /**
@@ -7469,6 +8249,31 @@ export type StatementUpload = {
      * Transactions
      */
     transactions: Array<StatementTransaction>;
+};
+
+/**
+ * StopRecurringChange
+ *
+ * A recurring flow your ledger shows (a subscription, a bill, an income)
+ * stops from a day: cancel a subscription. Name it by its key.
+ */
+export type StopRecurringChange = {
+    /**
+     * Type
+     */
+    type: 'stop_recurring';
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * From
+     */
+    from: string;
+    /**
+     * Label
+     */
+    label?: string | null;
 };
 
 /**
@@ -9302,6 +10107,35 @@ export type TokenGrant = {
      * Scope
      */
     scope: string;
+};
+
+/**
+ * TradeDelta
+ *
+ * A figure where two options differ: this option's, the other's, and
+ * this less the other (in months, for a month).
+ */
+export type TradeDelta = {
+    /**
+     * Figure
+     */
+    figure: string;
+    /**
+     * Unit
+     */
+    unit: 'amount' | 'months_of_spending' | 'month';
+    /**
+     * This
+     */
+    this: string | null;
+    /**
+     * Other
+     */
+    other: string | null;
+    /**
+     * Delta
+     */
+    delta: string | number | null;
 };
 
 /**
@@ -12315,35 +13149,6 @@ export type FiSurplusResponses = {
 };
 
 export type FiSurplusResponse = FiSurplusResponses[keyof FiSurplusResponses];
-
-export type FiSimulatePurchaseData = {
-    body: PurchaseRequest;
-    path?: never;
-    query?: never;
-    url: '/v1/fi/simulate-purchase';
-};
-
-export type FiSimulatePurchaseErrors = {
-    /**
-     * The request failed validation; `detail` lists each field
-     */
-    422: Problem;
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type FiSimulatePurchaseError = FiSimulatePurchaseErrors[keyof FiSimulatePurchaseErrors];
-
-export type FiSimulatePurchaseResponses = {
-    /**
-     * Successful Response
-     */
-    200: PurchaseImpact;
-};
-
-export type FiSimulatePurchaseResponse = FiSimulatePurchaseResponses[keyof FiSimulatePurchaseResponses];
 
 export type GoalsAllocationsListData = {
     body?: never;
@@ -15604,6 +16409,72 @@ export type MetaGetResponses = {
 };
 
 export type MetaGetResponse = MetaGetResponses[keyof MetaGetResponses];
+
+export type ScenariosRunData = {
+    body: Scenario;
+    path?: never;
+    query?: never;
+    url: '/v1/scenarios/run';
+};
+
+export type ScenariosRunErrors = {
+    /**
+     * An account or a debt a change names is not one of yours
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ScenariosRunError = ScenariosRunErrors[keyof ScenariosRunErrors];
+
+export type ScenariosRunResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScenarioRun;
+};
+
+export type ScenariosRunResponse = ScenariosRunResponses[keyof ScenariosRunResponses];
+
+export type ScenariosCompareData = {
+    body: CompareOptions;
+    path?: never;
+    query?: never;
+    url: '/v1/scenarios/compare';
+};
+
+export type ScenariosCompareErrors = {
+    /**
+     * An account or a debt a change names is not one of yours
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ScenariosCompareError = ScenariosCompareErrors[keyof ScenariosCompareErrors];
+
+export type ScenariosCompareResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScenarioComparison;
+};
+
+export type ScenariosCompareResponse = ScenariosCompareResponses[keyof ScenariosCompareResponses];
 
 export type OauthAuthorizationServerMetadataData = {
     body?: never;

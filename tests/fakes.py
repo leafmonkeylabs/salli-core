@@ -470,6 +470,17 @@ class FakeStrategies:
         return [self.strategy] if self.strategy else []
 
 
+class FakeActiveRuleSets:
+    """The user's active tax rule set versions, as the repository returns
+    them: none, unless a test adds some."""
+
+    def __init__(self) -> None:
+        self.active: list[dict[str, Any]] = []
+
+    async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
+        return list(self.active)
+
+
 class FakeFeeds:
     """Statements and bank connections: none, unless a test adds them."""
 
@@ -503,6 +514,7 @@ class FakeUoW:
         self.statements = FakeFeeds()
         self.bank_connections = self.statements
         self.advisories = FakeRecords()
+        self.tax_rule_sets = FakeActiveRuleSets()
 
     async def __aenter__(self) -> FakeUoW:
         return self

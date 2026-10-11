@@ -164,7 +164,6 @@ async def test_the_service_raw_fi_number_is_an_exact_quotient_in_exponent_form(f
         ("get", "/v1/fi/score/history", None),
         ("get", "/v1/fi/projections", None),
         ("get", "/v1/fi/surplus", None),
-        ("post", "/v1/fi/simulate-purchase", {"amount": "450000", "term_months": 12}),
         ("get", "/v1/fi/goals", None),
         ("get", "/v1/fi/goals/house/allocations", None),
         ("get", "/v1/fi/strategy", None),
@@ -184,17 +183,6 @@ async def test_amounts_are_at_the_currency_precision(client, fi):
     assert score["fi_number"] == "45000000.00"
     assert score["currency"] == "KES"
 
-    impact = (
-        await client.post(
-            "/v1/fi/simulate-purchase", json={"amount": "450000", "term_months": 12}, headers=AUTH
-        )
-    ).json()
-    # The same Freedom number, however it was reached.
-    assert impact["fi_number"] == score["fi_number"]
-    installments = next(o for o in impact["options"] if o["key"] == "installments")
-    for key in ("total_cost", "interest_cost", "monthly_payment"):
-        assert _AMOUNT.fullmatch(installments[key]), installments[key]
-
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
     assert projections["fi_number"] == score["fi_number"]
     assert all(_AMOUNT.fullmatch(p["base"]) for p in projections["points"])
@@ -202,17 +190,15 @@ async def test_amounts_are_at_the_currency_precision(client, fi):
 
 async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
     """The stored strategy's rate and real returns, and no inflation: so no
-    placeholder, and no nominal figure."""
+    nominal figure, and only the share of the surplus invested is a
+    placeholder (a strategy chooses none), until the user sets it."""
     score = (await client.get("/v1/fi/score", headers=AUTH)).json()
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
-    impact = (
-        await client.post("/v1/fi/simulate-purchase", json={"amount": "450000"}, headers=AUTH)
-    ).json()
-
-    for body in (score, projections, impact):
+    for body in (score, projections):
         assumptions = body["assumptions"]
-        assert assumptions["status"] == "user"
-        assert assumptions["placeholders"] == []
+        assert assumptions["status"] == "placeholder"
+        assert assumptions["placeholders"] == ["surplus_invested"]
+        assert assumptions["surplus_invested"]["value"] == "1"
         assert assumptions["inflation"] is None
         assert assumptions["safe_withdrawal_rate"]["origin"] == "strategy"
         assert assumptions["real_return"]["origin"] == "strategy"
@@ -224,17 +210,59 @@ async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
     assert projections["terms"] == "real"
     assert projections["inflation"] is None
 
+    r = await client.patch(
+        "/v1/fi/assumptions",
+        json={"surplus_invested": {"value": "0.75", "source": "my standing orders"}},
+        headers=AUTH,
+    )
+    assert r.status_code == 200, r.text
+    for path in ("/v1/fi/score", "/v1/fi/projections"):
+        assumptions = (await client.get(path, headers=AUTH)).json()["assumptions"]
+        assert (assumptions["status"], assumptions["placeholders"]) == ("user", [])
+        assert assumptions["surplus_invested"] == {
+            "value": "0.75",
+            "origin": "user",
+            "source": "my standing orders",
+            "note": None,
+        }
+
+
+@pytest.mark.parametrize("value", ["80", "1.01", "-0.1"])
+async def test_the_share_of_the_surplus_invested_is_from_0_to_1(client, fi, value):
+    """A share, not a rate: out of range is a 422 that says how to write it,
+    and changes nothing."""
+    r = await client.patch(
+        "/v1/fi/assumptions", json={"surplus_invested": {"value": value}}, headers=AUTH
+    )
+    assert r.status_code == 422, r.text
+    assert "a share from 0 to 1 (0.8 for 80%)" in r.text
+    body = (await client.get("/v1/fi/assumptions", headers=AUTH)).json()
+    assert body["own"]["surplus_invested"] is None
+    for edge in ("0", "1"):
+        r = await client.patch(
+            "/v1/fi/assumptions", json={"surplus_invested": {"value": edge}}, headers=AUTH
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["applied"]["surplus_invested"]["value"] == edge
+
 
 async def test_the_assumptions_route_reports_what_applies_and_the_placeholders(client, fi):
     body = (await client.get("/v1/fi/assumptions", headers=AUTH)).json()
     assert body["applied"]["safe_withdrawal_rate"]["origin"] == "strategy"
     assert body["placeholder_values"]["safe_withdrawal_rate"]["value"] == "0.04"
     assert body["placeholder_values"]["real_return"]["source"].startswith("Placeholder:")
+    assert body["placeholder_values"]["surplus_invested"] == {
+        "value": "1",
+        "source": "Placeholder: all of your monthly surplus is assumed invested at the real "
+        "return; set what you actually invest.",
+    }
+    assert body["applied"]["surplus_invested"]["origin"] == "placeholder"
     assert body["own"] == {
         "real_return": None,
         "nominal_return": None,
         "inflation": None,
         "safe_withdrawal_rate": None,
+        "surplus_invested": None,
     }
     assert body["scenario_spread"] == "0.02"
 

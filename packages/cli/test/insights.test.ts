@@ -61,9 +61,9 @@ describe('salli insights', () => {
     `);
     const recurring = await run(['insights', 'recurring']);
     expect(recurring.stdout).toMatchInlineSnapshot(`
-      "PAYEE      EVERY     TYPICAL  NEXT          TRACKED
-      Streaming  month   USD 15.99  Oct 20, 2026  yes
-      Gym        month  ~USD 39.99  Nov 1, 2026   no
+      "PAYEE      KEY        EVERY     TYPICAL  NEXT          TRACKED
+      Streaming  streaming  month   USD 15.99  Oct 20, 2026  yes
+      Gym        gym        month  ~USD 39.99  Nov 1, 2026   no
       "
     `);
     expect(recurring.stderr).toContain('1 not tracked');

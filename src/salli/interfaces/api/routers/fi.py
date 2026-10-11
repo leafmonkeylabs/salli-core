@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from salli.application.ports import PayloadView, Surface
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref
+from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalIn, Ref
 from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
@@ -87,14 +87,19 @@ class FiAssumptions(BaseModel):
     #: "placeholder" while any figure used is one; "user" once every one was
     #: set by the user, their agent or their FIRE strategy.
     status: Literal["placeholder", "user"]
-    #: The placeholders in use: "real_return", "safe_withdrawal_rate".
-    placeholders: list[Literal["real_return", "safe_withdrawal_rate"]]
+    #: The placeholders in use: "real_return", "safe_withdrawal_rate",
+    #: "surplus_invested".
+    placeholders: list[Literal["real_return", "safe_withdrawal_rate", "surplus_invested"]]
     #: What to tell a person about these assumptions, in a sentence or two.
     message: str
     #: The base scenario's yearly return after inflation.
     real_return: FiAssumption
     #: What the FI number is built on: annual expenses / this.
     safe_withdrawal_rate: FiAssumption
+    #: The share (0 to 1) of each month's regular surplus that goes into
+    #: investments and grows at the real return; the rest stays in cash,
+    #: which earns nothing. Not a rate: "0.8" is 80% of the surplus.
+    surplus_invested: FiAssumption
     #: The user's inflation; null when they have not set one, and then every
     #: figure is in today's money only.
     inflation: FiAssumption | None = None
@@ -106,13 +111,16 @@ class FiAssumptions(BaseModel):
     nominal_returns: FiScenarioReturns | None = None
 
 
-AssumptionName = Literal["real_return", "nominal_return", "inflation", "safe_withdrawal_rate"]
+AssumptionName = Literal[
+    "real_return", "nominal_return", "inflation", "safe_withdrawal_rate", "surplus_invested"
+]
 
 
 class FiOwnAssumption(BaseModel):
     """A planning assumption the user (or their agent) set."""
 
-    #: A yearly fraction in a decimal string.
+    #: A yearly fraction in a decimal string (a share from 0 to 1, for
+    #: surplus_invested).
     value: str
     #: Where it comes from: a URL or a citation.
     source: str | None = None
@@ -130,6 +138,8 @@ class FiOwnAssumptions(BaseModel):
     nominal_return: FiOwnAssumption | None = None
     inflation: FiOwnAssumption | None = None
     safe_withdrawal_rate: FiOwnAssumption | None = None
+    #: The share of the monthly surplus invested.
+    surplus_invested: FiOwnAssumption | None = None
 
 
 class FiPlaceholder(BaseModel):
@@ -143,6 +153,7 @@ class FiPlaceholder(BaseModel):
 class FiPlaceholderValues(BaseModel):
     real_return: FiPlaceholder
     safe_withdrawal_rate: FiPlaceholder
+    surplus_invested: FiPlaceholder
 
 
 class FiAssumptionsReport(BaseModel):
@@ -162,7 +173,8 @@ class FiOwnAssumptionIn(BaseModel):
 
     #: A yearly fraction: "0.03" is 3%. Plausible ranges are enforced
     #: (a real return from -0.05 to 0.15, a withdrawal rate from 0.01 to 0.10,
-    #: inflation and a nominal return from -0.05 to 1).
+    #: inflation and a nominal return from -0.05 to 1). For surplus_invested,
+    #: a share from 0 to 1: "0.8" is 80% of the monthly surplus.
     value: DecimalIn
     #: Where the figure comes from: a URL, or a publication and its date.
     source: Annotated[str | None, Field(max_length=500)] = None
@@ -180,6 +192,8 @@ class FiAssumptionsUpdate(BaseModel):
     nominal_return: FiOwnAssumptionIn | None = None
     inflation: FiOwnAssumptionIn | None = None
     safe_withdrawal_rate: FiOwnAssumptionIn | None = None
+    #: The share (0 to 1) of each month's regular surplus you invest.
+    surplus_invested: FiOwnAssumptionIn | None = None
 
 
 @router.get("/assumptions")
@@ -251,8 +265,8 @@ class FiScore(BaseModel):
     progress_to_fi: str
     emergency_fund_months: str
     debt_to_asset: str
-    #: Months from the as-of date until FI at the current pace; null when it
-    #: cannot be reached (within 100 years) or known.
+    #: Months from the as-of month until FI, on the baseline's monthly timeline;
+    #: null when it isn't reached within 50 years, or can't be known.
     projected_fi_months: int | None = None
     #: The calendar month that is ("YYYY-MM").
     projected_fi_month: str | None = None
@@ -608,7 +622,7 @@ class FiProjectionPoint(BaseModel):
 class FiDate(BaseModel):
     """When FI is reached in one scenario."""
 
-    #: Months from the as-of date; null when it is not reached within 100 years.
+    #: Months from the as-of month; null when it is not reached within 50 years.
     months: int | None
     #: The calendar month ("YYYY-MM"); null alike.
     month: str | None
@@ -720,107 +734,6 @@ async def get_surplus_breakdown(user_id: CurrentUser, svc: AppServices) -> Surpl
         {
             **_priced(data, totals, currency),
             **{k: {name: money(v, currency) for name, v in data[k].items()} for k in by_name},
-        }
-    )
-
-
-# ── "Can I afford this?" ──────────────────────────────────────────────────────
-
-
-class PurchaseRequest(BaseModel):
-    """
-    Money arrives as a STRING and is parsed to Decimal, never float — a float in
-    the money path is a bug (CLAUDE.md). `annual_interest_rate` is a fraction
-    (0.18 = 18%), bounded so a caller passing 18 is rejected rather than
-    silently costing the plan ~100x too dearly.
-    """
-
-    #: In the base currency, at its own precision (no decimals for JPY, three for KWD).
-    amount: Annotated[AmountIn, Field(ge=0, max_digits=18)]
-    term_months: Annotated[int | None, Field(default=None, ge=1, le=600)] = None
-    annual_interest_rate: Annotated[Decimal, Field(default=Decimal(0), ge=0, le=1)] = Decimal(0)
-
-
-PurchaseOptionKey = Literal["cash", "installments"]
-
-
-class PurchaseOption(BaseModel):
-    """One way of paying, costed in months of freedom."""
-
-    key: PurchaseOptionKey
-    label: str
-    #: Everything handed over across the term.
-    total_cost: Amount
-    interest_cost: Amount
-    #: Null for cash.
-    monthly_payment: Amount | None
-    #: Null for cash.
-    term_months: int | None
-    #: Null when FI is not reached within the horizon.
-    months_to_fi: int | None
-    #: Months of freedom it costs against not buying; null when unknowable.
-    months_delay: int | None
-    #: The payment is more than the monthly surplus: not just slower, cash-flow negative.
-    exceeds_monthly_surplus: bool
-
-
-class PurchaseImpact(BaseModel):
-    """What a purchase does to the balance sheet and the FI date. Every figure is the engine's."""
-
-    amount: Amount
-    currency: CurrencyCode
-    #: The day the costing is as of (ISO 8601).
-    as_of: str
-    fi_number: Amount
-    fi_asset_base_before: Amount
-    monthly_surplus: Amount
-    #: Months to FI without the purchase; null when not reached within the horizon.
-    baseline_months_to_fi: int | None
-    payable_from_liquid: bool
-    #: Months of expenses liquid savings cover, before and after paying cash.
-    emergency_months_before: str
-    emergency_months_after_cash: str
-    emergency_fund_target_months: int
-    options: list[PurchaseOption]
-    #: The option costing the fewest months of freedom; null when none compares.
-    cheapest_option_key: PurchaseOptionKey | None
-    #: Date of the newest entry the answer rests on, and whether that is too old.
-    data_as_of: str | None
-    is_stale: bool
-    stale_after_days: int
-    #: The base scenario's real return the costing used, a fraction.
-    real_return_used: str
-    swr: str
-    #: The assumptions behind the costing, and where each came from.
-    assumptions: FiAssumptions
-
-
-@router.post("/simulate-purchase")
-async def simulate_purchase(
-    body: PurchaseRequest, user_id: CurrentUser, svc: AppServices
-) -> PurchaseImpact:
-    """
-    Cost a prospective purchase in months of freedom, comparing cash against
-    instalments.
-
-    Deliberately NOT metered: it is pure deterministic engine math with no LLM
-    call, and it is the loop the product exists for — throttling it would teach
-    users not to ask.
-    """
-    impact = await svc.fi.simulate_purchase(
-        user_id,
-        body.amount,
-        term_months=body.term_months,
-        annual_interest_rate=body.annual_interest_rate,
-    )
-    currency = impact["currency"]
-    option_money = ("total_cost", "interest_cost", "monthly_payment")
-    return PurchaseImpact.model_validate(
-        {
-            **_priced(
-                impact, ("amount", "fi_number", "fi_asset_base_before", "monthly_surplus"), currency
-            ),
-            "options": [_priced(o, option_money, currency) for o in impact["options"]],
         }
     )
 

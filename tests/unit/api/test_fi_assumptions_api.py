@@ -15,6 +15,7 @@ _REPORT = {
         "message": "Using placeholder assumptions for the real return.",
         "real_return": {"value": "0.04", "origin": "placeholder", "source": "Placeholder: x"},
         "safe_withdrawal_rate": {"value": "0.035", "origin": "user", "source": "a study"},
+        "surplus_invested": {"value": "0.8", "origin": "user", "source": "my standing orders"},
         "inflation": {"value": "0.03", "origin": "user", "source": "a statistics office"},
         "nominal_return": None,
         "real_returns": {"conservative": "0.02", "base": "0.04", "growth": "0.06"},
@@ -25,10 +26,12 @@ _REPORT = {
         "nominal_return": None,
         "inflation": {"value": "0.03", "source": "a statistics office", "note": None},
         "safe_withdrawal_rate": None,
+        "surplus_invested": {"value": "0.8", "source": "my standing orders", "note": None},
     },
     "placeholder_values": {
         "real_return": {"value": "0.04", "source": "Placeholder: x"},
         "safe_withdrawal_rate": {"value": "0.04", "source": "Placeholder: y"},
+        "surplus_invested": {"value": "1", "source": "Placeholder: z"},
     },
     "scenario_spread": "0.02",
 }
@@ -52,6 +55,22 @@ async def test_own_assumptions_are_set_with_sources_and_cleared(client, mock_ser
         "safe_withdrawal_rate": None,
     }
     assert r.json()["applied"]["status"] == "placeholder"
+
+
+async def test_the_share_of_the_surplus_invested_is_set_like_the_others(client, mock_services):
+    mock_services.fi.set_assumptions.return_value = _REPORT
+    r = await client.patch(
+        "/v1/fi/assumptions",
+        json={"surplus_invested": {"value": "0.8", "source": "my standing orders"}},
+        headers=AUTH,
+    )
+    assert r.status_code == 200, r.text
+    changes = mock_services.fi.set_assumptions.await_args.args[1]
+    assert changes == {
+        "surplus_invested": {"value": Decimal("0.8"), "source": "my standing orders", "note": None}
+    }
+    assert r.json()["applied"]["surplus_invested"]["value"] == "0.8"
+    assert r.json()["own"]["surplus_invested"]["source"] == "my standing orders"
 
 
 async def test_an_assumption_that_is_not_a_decimal_string_is_a_422(client, mock_services):

@@ -3,8 +3,8 @@
 The baseline is one model of your money as of a day. Salli builds it from your
 ledger and what you have declared, and every figure that looks ahead starts
 from it: your FI score and projections, the cash forecast, safe-to-spend, the
-debt plan and, soon, the decision lab's scenarios. So they never disagree
-about what you earn, spend, own or owe.
+debt plan and the decision lab's [scenarios](scenarios.md). So they never
+disagree about what you earn, spend, own or owe.
 
 See it with `salli baseline`, `GET /v1/baseline`, or the MCP tool
 `get_baseline`. Each shows the definitions below as data: the months it
@@ -82,8 +82,10 @@ months.
 
 Your average surplus already pays part of each debt's payment: a linked
 debt's interest, which your books record as spending, or an unlinked debt's
-whole minimum. Paying more than that comes out of your cash. When a debt is
-paid off, its payment stays with you.
+whole minimum. The rest of its scheduled payment comes out of your regular
+surplus (below). When a debt is paid off, its payment is freed and joins the
+surplus, and you invest your share of it. An extra payment on top of the
+schedule, which a [scenario](scenarios.md) can make, comes out of your cash.
 
 ## The two timelines
 
@@ -91,17 +93,19 @@ paid off, its payment stays with you.
 money. Your cash accounts carried through what keeps happening (the salary,
 the rent, the subscriptions your ledger shows, and those you declared but it
 hasn't shown yet), then the rest of an average month spread evenly over its
-days, so each month ends where the monthly plan says. `salli insights
-forecast` and safe-to-spend show the scheduled flows alone.
+days, and the share of the month's surplus you invest leaving cash on its
+last day. So each month ends where the monthly plan says, and the lowest
+point counts what you invested. `salli insights forecast` and safe-to-spend
+show the scheduled flows alone.
 
 **Monthly, to a horizon of up to 50 years,** at each calendar month's end, in
 today's money:
 
-- **Cash** grows by your average surplus each month. The surplus stays in
-  cash: the baseline doesn't assume you invest it. Cash earns nothing, so in
-  today's money it loses what inflation takes.
+- **Cash** keeps what you don't invest of each month's surplus (below). Cash
+  earns nothing, so in today's money it loses what inflation takes.
 - **Investments** grow at your real return (the base scenario's), a twelfth of
-  it a month, compounded.
+  it a month, compounded, and take the share of each month's surplus you
+  invest at its end.
 - **Other assets** keep their value in today's money.
 - **Debts** follow their schedules. Fixed payments are deflated by your
   inflation figure.
@@ -110,20 +114,80 @@ today's money:
 The daily timeline's month-ends are the monthly timeline's cash, before it is
 turned into today's money.
 
+## Your surplus, and what you invest of it
+
+Each month's money comes in two kinds:
+
+- **The regular surplus** is what happens month after month: your average
+  surplus, plus what of your debts' payments it already pays, less the
+  debts' scheduled payments. When a debt is paid off, its payment is freed
+  and joins it. In a [scenario](scenarios.md), recurring costs and income,
+  income changes and cancelled subscriptions add to it, and a new loan's
+  payments come out of it until the loan is paid off.
+- **Moves** go where they say: a one-off in or out of cash, the money a loan
+  brings in, money moved into your investments, an extra payment onto a
+  debt.
+
+The share of the regular surplus you invest goes into your investments at
+each month's end and grows at your real return; the rest stays in cash. It is
+a planning assumption, from 0 to 100%:
+
+    salli fi assumptions set surplus-invested 30% --source "my standing order"
+
+Until you set it, a placeholder assumes all of it, as projections of
+financial independence conventionally do, and every response lists it among
+the placeholders. Set what you actually invest: at 0% the whole surplus stays
+in cash.
+
+The rest of the as-of month counts too: what is scheduled for it (a salary
+still to come) and its share of an average month's unscheduled spending, at
+today's prices.
+
+A month whose regular surplus is a deficit invests nothing: the deficit comes
+out of cash, never out of your investments. If cash runs out, the timeline
+lets it go below zero and says from when (`notes`), rather than selling
+investments for you.
+
+A regular transfer to an investment account that your ledger shows is no part
+of your surplus: the daily timeline shows it on its day, and the rest of the
+month gives it back. What the timelines invest is the share.
+
+Your emergency-fund months and safe-to-spend count cash alone: what you
+invest never counts towards them.
+
 ## Assumptions and placeholders
 
 The real return and the safe withdrawal rate are yours where you set them,
-then your FIRE strategy's, then a round 4% placeholder. Inflation has no
+then your FIRE strategy's, then a round 4% placeholder. The share of your
+surplus invested is yours, or the placeholder's 100%. Inflation has no
 placeholder: with none set, nominal amounts (cash, fixed payments) keep their
 real value, and the baseline lists inflation among its placeholders until you
 set it (`salli fi assumptions set inflation 2.4% --source "<where from>"`).
 Placeholders are round figures, not forecasts. Every response says which it
 used.
 
+## Financial independence
+
+FI reads the monthly timeline. The FI number is a year of your spending (or
+your FIRE strategy's target) over your safe withdrawal rate; the month FI is
+reached is the first whose end your cash and investments, less your debts,
+reach it, looked for up to 50 years ahead. The projections are the same
+timeline with your investments at each scenario's real return. The share of
+your surplus you invest grows with your investments; what you keep in cash
+earns nothing. So the share you set moves the month: the less you invest,
+the later it comes.
+
+## What it records
+
+Each baseline keeps a fingerprint of everything it was built from, and the
+active tax rule sets in your tax residency that cover its as-of date. A
+scenario's result records both, so the same inputs can be shown to give the
+same figures.
+
 ## What is not modelled yet
 
-- Investing the surplus, extra payments and new loans are changes a scenario
-  makes (the decision lab's next phase); the baseline is where they start.
-- FI still assumes your investable assets (cash and investments, less debts)
-  earn the real return together; the monthly timeline keeps them apart.
+- Extra payments and new loans are changes a [scenario](scenarios.md) makes;
+  the baseline is where they start.
+- A target for your cash: once a one-off has spent some of it, the share of
+  the surplus you invest doesn't rebuild it.
 - A payment's day within its month.

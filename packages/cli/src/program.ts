@@ -23,6 +23,7 @@ import { registerOnboarding } from './commands/onboarding';
 import { registerPlanning } from './commands/plan';
 import { registerQuickAdd } from './commands/quickadd';
 import { registerRules } from './commands/rules';
+import { registerScenarios } from './commands/scenarios';
 import { registerSkills } from './commands/skills';
 import { registerStatements } from './commands/statements';
 import { registerStatus } from './commands/status';
@@ -84,6 +85,7 @@ Start with:  salli login   then   salli status`,
   registerPlanningAhead(program, app);
   registerInsights(program, app);
   registerBaseline(program, app);
+  registerScenarios(program, app);
   registerMore(program, app);
 
   program.commandsGroup('Your data and settings:');

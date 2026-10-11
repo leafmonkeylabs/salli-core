@@ -5201,63 +5201,6 @@
         ]
       }
     },
-    "/v1/fi/simulate-purchase": {
-      "post": {
-        "tags": [
-          "financial-independence"
-        ],
-        "summary": "Simulate Purchase",
-        "description": "Cost a prospective purchase in months of freedom, comparing cash against\ninstalments.\n\nDeliberately NOT metered: it is pure deterministic engine math with no LLM\ncall, and it is the loop the product exists for — throttling it would teach\nusers not to ask.",
-        "operationId": "fi.simulatePurchase",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PurchaseRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PurchaseImpact"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request failed validation; `detail` lists each field",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/v1/fi/goals/{goal_id}/allocations": {
       "get": {
         "tags": [
@@ -10797,6 +10740,126 @@
         }
       }
     },
+    "/v1/scenarios/run": {
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Run Scenario",
+        "description": "Run a scenario on your baseline: cash over the next twelve months, the\nmonthly figures at 1, 5, 10 and 20 years and the horizon, debts,\nresilience and FI, each under the baseline and the scenario with the\ndelta. Stores nothing.",
+        "operationId": "scenarios.run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Scenario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "An account or a debt a change names is not one of yours"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/scenarios/compare": {
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Compare Scenarios",
+        "description": "Compare two to five options side by side: each one's figures, what\neach gains and gives up against the others, their sensitivity to the\nreal return, and the break-evens. Never a ranking. Stores nothing.",
+        "operationId": "scenarios.compare",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioComparison"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "An account or a debt a change names is not one of yours"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/.well-known/oauth-authorization-server": {
       "get": {
         "tags": [
@@ -12521,6 +12584,66 @@
         ],
         "title": "AllocationSlice"
       },
+      "AmountFigure": {
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline",
+          "scenario",
+          "delta"
+        ],
+        "title": "AmountFigure",
+        "description": "A money figure under the baseline and under the scenario, and the\nscenario less the baseline."
+      },
       "AuditLog": {
         "properties": {
           "entries": {
@@ -13330,11 +13453,23 @@
               "enum": [
                 "real_return",
                 "safe_withdrawal_rate",
+                "surplus_invested",
                 "inflation"
               ]
             },
             "type": "array",
             "title": "Placeholders"
+          },
+          "rule_sets": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineRuleSet"
+            },
+            "type": "array",
+            "title": "Rule Sets"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint"
           },
           "notes": {
             "items": {
@@ -13359,6 +13494,8 @@
           "monthly",
           "assumptions",
           "placeholders",
+          "rule_sets",
+          "fingerprint",
           "notes"
         ],
         "title": "Baseline",
@@ -13548,13 +13685,23 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "invested": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Invested",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
         "required": [
           "month",
           "cash",
-          "unscheduled"
+          "unscheduled",
+          "invested"
         ],
         "title": "BaselineCashMonth"
       },
@@ -13918,6 +14065,15 @@
               "10.5"
             ]
           },
+          "surplus_invested": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Surplus Invested",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
           "inflation": {
             "anyOf": [
               {
@@ -13946,6 +14102,7 @@
         "required": [
           "horizon_years",
           "real_return",
+          "surplus_invested",
           "inflation",
           "points"
         ],
@@ -14010,6 +14167,52 @@
         ],
         "title": "BaselineRate",
         "description": "The published rate for the as-of date that balances in a currency are\nvalued at."
+      },
+      "BaselineRuleSet": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "region",
+          "year",
+          "rule_set_id",
+          "version",
+          "content_hash"
+        ],
+        "title": "BaselineRuleSet",
+        "description": "An active tax rule set version that applies on the as-of date."
       },
       "BaselineTotals": {
         "properties": {
@@ -15411,6 +15614,25 @@
         ],
         "title": "CommittedFlow"
       },
+      "CompareOptions": {
+        "properties": {
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 2,
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "options"
+        ],
+        "title": "CompareOptions",
+        "description": "The options to compare: two to five scenarios with one as-of date and\none horizon, each with its own label."
+      },
       "ConnectBank": {
         "properties": {
           "provider": {
@@ -15927,6 +16149,29 @@
         ],
         "title": "DataExport",
         "description": "Everything Salli has stored about the user, as one document.\n\nThe profile, accounts and journal entries are typed here; each other\nsection says where its records come from. An enabled extension may add\nsections of its own after these."
+      },
+      "DayFigure": {
+        "properties": {
+          "baseline": {
+            "type": "string",
+            "title": "Baseline"
+          },
+          "scenario": {
+            "type": "string",
+            "title": "Scenario"
+          },
+          "delta_days": {
+            "type": "integer",
+            "title": "Delta Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline",
+          "scenario",
+          "delta_days"
+        ],
+        "title": "DayFigure"
       },
       "Debt": {
         "properties": {
@@ -16702,6 +16947,69 @@
         ],
         "title": "ExportedPosting"
       },
+      "ExtraDebtPaymentChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "extra_debt_payment",
+            "title": "Type"
+          },
+          "debt": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Debt"
+          },
+          "monthly": {
+            "type": "string",
+            "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+            "title": "Monthly",
+            "description": "A positive decimal amount as a string, like \"5000.00\"."
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "From"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "debt",
+          "monthly",
+          "from"
+        ],
+        "title": "ExtraDebtPaymentChange",
+        "description": "Paid on one of your debts on top of its minimum, each month from a\nday's month to another's (or until it is paid off)."
+      },
       "FiAssumption": {
         "properties": {
           "value": {
@@ -16757,7 +17065,8 @@
               "type": "string",
               "enum": [
                 "real_return",
-                "safe_withdrawal_rate"
+                "safe_withdrawal_rate",
+                "surplus_invested"
               ]
             },
             "type": "array",
@@ -16771,6 +17080,9 @@
             "$ref": "#/components/schemas/FiAssumption"
           },
           "safe_withdrawal_rate": {
+            "$ref": "#/components/schemas/FiAssumption"
+          },
+          "surplus_invested": {
             "$ref": "#/components/schemas/FiAssumption"
           },
           "inflation": {
@@ -16814,6 +17126,7 @@
           "message",
           "real_return",
           "safe_withdrawal_rate",
+          "surplus_invested",
           "real_returns"
         ],
         "title": "FiAssumptions",
@@ -16878,6 +17191,16 @@
             ]
           },
           "safe_withdrawal_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumptionIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "surplus_invested": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/FiOwnAssumptionIn"
@@ -17147,6 +17470,16 @@
                 "type": "null"
               }
             ]
+          },
+          "surplus_invested": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiOwnAssumption"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -17179,12 +17512,16 @@
           },
           "safe_withdrawal_rate": {
             "$ref": "#/components/schemas/FiPlaceholder"
+          },
+          "surplus_invested": {
+            "$ref": "#/components/schemas/FiPlaceholder"
           }
         },
         "type": "object",
         "required": [
           "real_return",
-          "safe_withdrawal_rate"
+          "safe_withdrawal_rate",
+          "surplus_invested"
         ],
         "title": "FiPlaceholderValues"
       },
@@ -19858,6 +20195,56 @@
         "type": "object",
         "title": "HoldingUpdateRequest"
       },
+      "IncomeChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "income_change",
+            "title": "Type"
+          },
+          "monthly_net": {
+            "type": "string",
+            "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
+            "title": "Monthly Net",
+            "description": "A signed decimal amount as a string: \"-2400.00\" out, \"+600\" in."
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "From"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "monthly_net",
+          "from",
+          "label"
+        ],
+        "title": "IncomeChange",
+        "description": "Your monthly net income changes by an amount from a day: a raise\n(positive), a cut (negative). In today's money."
+      },
       "IncomeDeclarationRequest": {
         "properties": {
           "incomes": {
@@ -20191,6 +20578,56 @@
         ],
         "title": "InsurancePolicyList"
       },
+      "InvestChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "invest",
+            "title": "Type"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+            "title": "Amount",
+            "description": "A positive decimal amount as a string, like \"5000.00\"."
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "Date"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "amount",
+          "date",
+          "label"
+        ],
+        "title": "InvestChange",
+        "description": "Cash moved into your investments on a day, where it then grows at\nyour real return."
+      },
       "JournalEntry": {
         "properties": {
           "id": {
@@ -20334,6 +20771,70 @@
         ],
         "title": "LlmKeys",
         "description": "The user's own keys, as far as they are ever shown: the key itself is write-only."
+      },
+      "LoanChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "loan",
+            "title": "Type"
+          },
+          "principal": {
+            "type": "string",
+            "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+            "title": "Principal",
+            "description": "A positive decimal amount as a string, like \"5000.00\"."
+          },
+          "annual_rate": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Annual Rate",
+            "description": "A decimal number written as a string, like \"1800000\" or \"0.15\"."
+          },
+          "term_months": {
+            "type": "integer",
+            "maximum": 600.0,
+            "minimum": 1.0,
+            "title": "Term Months"
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "Start"
+          },
+          "into": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Into"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "principal",
+          "annual_rate",
+          "term_months",
+          "start",
+          "label"
+        ],
+        "title": "LoanChange",
+        "description": "Money borrowed on a day and repaid in level monthly payments from the\nmonth after, the last one clearing it. Its payments are fixed in money of\ntheir own day."
       },
       "LotConsumption": {
         "properties": {
@@ -20675,6 +21176,111 @@
           "net_worth"
         ],
         "title": "MonthEndNetWorth"
+      },
+      "MonthFigure": {
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "delta_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Months"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline",
+          "scenario",
+          "delta_months"
+        ],
+        "title": "MonthFigure",
+        "description": "A calendar month under each (null: not within 50 years), and how many\nmonths later the scenario's is (negative: sooner)."
+      },
+      "MonthsFigure": {
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline",
+          "scenario",
+          "delta"
+        ],
+        "title": "MonthsFigure",
+        "description": "Months of spending covered (\"8.29\"), under each, and the delta."
       },
       "NativeFigures": {
         "properties": {
@@ -21205,6 +21811,56 @@
         ],
         "title": "OnboardingStatusResponse"
       },
+      "OneOffChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "one_off",
+            "title": "Type"
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "Date"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
+            "title": "Amount",
+            "description": "A signed decimal amount as a string: \"-2400.00\" out, \"+600\" in."
+          },
+          "account": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "date",
+          "amount",
+          "label"
+        ],
+        "title": "OneOffChange",
+        "description": "Money in or out once, on a day: a purchase (negative), a gift\nreceived (positive). What a purchase buys isn't counted as an asset."
+      },
       "OpeningBalanceItem": {
         "properties": {
           "code": {
@@ -21266,6 +21922,31 @@
           "amount"
         ],
         "title": "OpeningBalanceItem"
+      },
+      "OptionSensitivity": {
+        "properties": {
+          "option": {
+            "type": "string",
+            "title": "Option"
+          },
+          "conservative": {
+            "$ref": "#/components/schemas/SensitiveFigures"
+          },
+          "base": {
+            "$ref": "#/components/schemas/SensitiveFigures"
+          },
+          "growth": {
+            "$ref": "#/components/schemas/SensitiveFigures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option",
+          "conservative",
+          "base",
+          "growth"
+        ],
+        "title": "OptionSensitivity"
       },
       "ParseEntryRequest": {
         "properties": {
@@ -22913,310 +23594,6 @@
         "title": "ProvenanceSubscription",
         "description": "A recurring subscription this entry looks like a payment of."
       },
-      "PurchaseImpact": {
-        "properties": {
-          "amount": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Amount",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$",
-            "title": "Currency",
-            "description": "ISO 4217 currency code",
-            "examples": [
-              "USD"
-            ]
-          },
-          "as_of": {
-            "type": "string",
-            "title": "As Of"
-          },
-          "fi_number": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Fi Number",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "fi_asset_base_before": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Fi Asset Base Before",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "monthly_surplus": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Monthly Surplus",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "baseline_months_to_fi": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Baseline Months To Fi"
-          },
-          "payable_from_liquid": {
-            "type": "boolean",
-            "title": "Payable From Liquid"
-          },
-          "emergency_months_before": {
-            "type": "string",
-            "title": "Emergency Months Before"
-          },
-          "emergency_months_after_cash": {
-            "type": "string",
-            "title": "Emergency Months After Cash"
-          },
-          "emergency_fund_target_months": {
-            "type": "integer",
-            "title": "Emergency Fund Target Months"
-          },
-          "options": {
-            "items": {
-              "$ref": "#/components/schemas/PurchaseOption"
-            },
-            "type": "array",
-            "title": "Options"
-          },
-          "cheapest_option_key": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "cash",
-                  "installments"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cheapest Option Key"
-          },
-          "data_as_of": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data As Of"
-          },
-          "is_stale": {
-            "type": "boolean",
-            "title": "Is Stale"
-          },
-          "stale_after_days": {
-            "type": "integer",
-            "title": "Stale After Days"
-          },
-          "real_return_used": {
-            "type": "string",
-            "title": "Real Return Used"
-          },
-          "swr": {
-            "type": "string",
-            "title": "Swr"
-          },
-          "assumptions": {
-            "$ref": "#/components/schemas/FiAssumptions"
-          }
-        },
-        "type": "object",
-        "required": [
-          "amount",
-          "currency",
-          "as_of",
-          "fi_number",
-          "fi_asset_base_before",
-          "monthly_surplus",
-          "baseline_months_to_fi",
-          "payable_from_liquid",
-          "emergency_months_before",
-          "emergency_months_after_cash",
-          "emergency_fund_target_months",
-          "options",
-          "cheapest_option_key",
-          "data_as_of",
-          "is_stale",
-          "stale_after_days",
-          "real_return_used",
-          "swr",
-          "assumptions"
-        ],
-        "title": "PurchaseImpact",
-        "description": "What a purchase does to the balance sheet and the FI date. Every figure is the engine's."
-      },
-      "PurchaseOption": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "enum": [
-              "cash",
-              "installments"
-            ],
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "total_cost": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Total Cost",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "interest_cost": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Interest Cost",
-            "description": "Decimal string in the currency's own precision; never a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "monthly_payment": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string in the currency's own precision; never a float.",
-                "examples": [
-                  "1234.50"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Monthly Payment"
-          },
-          "term_months": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Term Months"
-          },
-          "months_to_fi": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Months To Fi"
-          },
-          "months_delay": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Months Delay"
-          },
-          "exceeds_monthly_surplus": {
-            "type": "boolean",
-            "title": "Exceeds Monthly Surplus"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label",
-          "total_cost",
-          "interest_cost",
-          "monthly_payment",
-          "term_months",
-          "months_to_fi",
-          "months_delay",
-          "exceeds_monthly_surplus"
-        ],
-        "title": "PurchaseOption",
-        "description": "One way of paying, costed in months of freedom."
-      },
-      "PurchaseRequest": {
-        "properties": {
-          "amount": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Amount",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "term_months": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 600.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Term Months"
-          },
-          "annual_interest_rate": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Annual Interest Rate",
-            "default": "0"
-          }
-        },
-        "type": "object",
-        "required": [
-          "amount"
-        ],
-        "title": "PurchaseRequest",
-        "description": "Money arrives as a STRING and is parsed to Decimal, never float — a float in\nthe money path is a bug (CLAUDE.md). `annual_interest_rate` is a fraction\n(0.18 = 18%), bounded so a caller passing 18 is rejected rather than\nsilently costing the plan ~100x too dearly."
-      },
       "QuotedPrice": {
         "properties": {
           "date": {
@@ -23381,11 +23758,89 @@
         ],
         "title": "RecordedPriceList"
       },
+      "RecurringChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "recurring",
+            "title": "Type"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
+            "title": "Amount",
+            "description": "A signed decimal amount as a string: \"-2400.00\" out, \"+600\" in."
+          },
+          "cadence": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "title": "Cadence"
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "account": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "amount",
+          "cadence",
+          "start",
+          "label"
+        ],
+        "title": "RecurringChange",
+        "description": "The same amount again and again: a new rent (negative), a side income\n(positive). In today's money: with your inflation set, it rises with it."
+      },
       "RecurringPayment": {
         "properties": {
           "payee": {
             "type": "string",
             "title": "Payee"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
           },
           "cadence": {
             "type": "string",
@@ -23463,6 +23918,7 @@
         "type": "object",
         "required": [
           "payee",
+          "key",
           "cadence",
           "typical_amount",
           "varies",
@@ -24272,6 +24728,1044 @@
         ],
         "title": "SaveKeyRequest"
       },
+      "Scenario": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.scenario/1",
+            "title": "Schema"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "horizon_years": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Horizon Years",
+            "default": 20
+          },
+          "changes": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/OneOffChange"
+                },
+                {
+                  "$ref": "#/components/schemas/RecurringChange"
+                },
+                {
+                  "$ref": "#/components/schemas/IncomeChange"
+                },
+                {
+                  "$ref": "#/components/schemas/LoanChange"
+                },
+                {
+                  "$ref": "#/components/schemas/ExtraDebtPaymentChange"
+                },
+                {
+                  "$ref": "#/components/schemas/InvestChange"
+                },
+                {
+                  "$ref": "#/components/schemas/StopRecurringChange"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "extra_debt_payment": "#/components/schemas/ExtraDebtPaymentChange",
+                  "income_change": "#/components/schemas/IncomeChange",
+                  "invest": "#/components/schemas/InvestChange",
+                  "loan": "#/components/schemas/LoanChange",
+                  "one_off": "#/components/schemas/OneOffChange",
+                  "recurring": "#/components/schemas/RecurringChange",
+                  "stop_recurring": "#/components/schemas/StopRecurringChange"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Changes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema"
+        ],
+        "title": "Scenario",
+        "description": "The baseline plus changes."
+      },
+      "ScenarioAccountCash": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "lowest": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "lowest_date": {
+            "$ref": "#/components/schemas/DayFigure"
+          },
+          "below_zero": {
+            "$ref": "#/components/schemas/ScenarioBelowZero"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "name",
+          "currency",
+          "lowest",
+          "lowest_date",
+          "below_zero"
+        ],
+        "title": "ScenarioAccountCash",
+        "description": "A cash account at its lowest over the next twelve months, in its own\ncurrency."
+      },
+      "ScenarioAccountsBelowZero": {
+        "properties": {
+          "baseline": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Baseline"
+          },
+          "scenario": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scenario"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline",
+          "scenario"
+        ],
+        "title": "ScenarioAccountsBelowZero"
+      },
+      "ScenarioBelowZero": {
+        "properties": {
+          "baseline": {
+            "type": "boolean",
+            "title": "Baseline"
+          },
+          "scenario": {
+            "type": "boolean",
+            "title": "Scenario"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline",
+          "scenario"
+        ],
+        "title": "ScenarioBelowZero"
+      },
+      "ScenarioBreakEven": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "recurring_cash_floor",
+              "invest_vs_debt_return",
+              "loan_rate"
+            ],
+            "title": "Kind"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "option": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "none_in_range"
+            ],
+            "title": "Status"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "amount",
+              "rate"
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "low": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Low",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "high": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "High",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "ahead": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ahead"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "options",
+          "option",
+          "change",
+          "status",
+          "unit",
+          "value",
+          "low",
+          "high",
+          "ahead",
+          "says"
+        ],
+        "title": "ScenarioBreakEven",
+        "description": "A value at which the answer changes, solved exactly, or none in range."
+      },
+      "ScenarioCash": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "lowest": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "lowest_date": {
+            "$ref": "#/components/schemas/DayFigure"
+          },
+          "at_end": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "safe_to_spend": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "safe_until": {
+            "type": "string",
+            "title": "Safe Until"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioAccountCash"
+            },
+            "type": "array",
+            "title": "Accounts"
+          },
+          "below_zero": {
+            "$ref": "#/components/schemas/ScenarioAccountsBelowZero"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "lowest",
+          "lowest_date",
+          "at_end",
+          "safe_to_spend",
+          "safe_until",
+          "accounts",
+          "below_zero"
+        ],
+        "title": "ScenarioCash",
+        "description": "Cash over the as-of month and the twelve after it, in each day's money."
+      },
+      "ScenarioChange": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "one_off",
+              "recurring",
+              "income_change",
+              "loan",
+              "extra_debt_payment",
+              "invest",
+              "stop_recurring"
+            ],
+            "title": "Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "debt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Id"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment"
+          },
+          "first_payment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Payment"
+          },
+          "monthly": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly"
+          },
+          "for_good": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "For Good"
+          },
+          "stopped": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioStopped"
+            },
+            "type": "array",
+            "title": "Stopped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "type",
+          "label",
+          "debt_id",
+          "payment",
+          "first_payment",
+          "monthly",
+          "for_good",
+          "stopped"
+        ],
+        "title": "ScenarioChange",
+        "description": "A change as Salli read it."
+      },
+      "ScenarioCheckpoint": {
+        "properties": {
+          "years": {
+            "type": "integer",
+            "title": "Years"
+          },
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "net_worth": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "investments": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "debts": {
+            "$ref": "#/components/schemas/AmountFigure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "years",
+          "month",
+          "date",
+          "net_worth",
+          "cash",
+          "investments",
+          "debts"
+        ],
+        "title": "ScenarioCheckpoint",
+        "description": "The monthly timeline a whole number of years on, in today's money."
+      },
+      "ScenarioComparison": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "horizon_years": {
+            "type": "integer",
+            "title": "Horizon Years"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioRun"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "trade": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioTrade"
+            },
+            "type": "array",
+            "title": "Trade"
+          },
+          "sensitivity": {
+            "$ref": "#/components/schemas/ScenarioSensitivity"
+          },
+          "break_evens": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioBreakEven"
+            },
+            "type": "array",
+            "title": "Break Evens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "horizon_years",
+          "currency",
+          "labels",
+          "options",
+          "trade",
+          "sensitivity",
+          "break_evens"
+        ],
+        "title": "ScenarioComparison",
+        "description": "Options side by side: never ranked."
+      },
+      "ScenarioDebt": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "account",
+              "declared",
+              "scenario"
+            ],
+            "title": "Source"
+          },
+          "paid_off": {
+            "$ref": "#/components/schemas/MonthFigure"
+          },
+          "total_interest": {
+            "$ref": "#/components/schemas/AmountFigure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "debt_id",
+          "name",
+          "source",
+          "paid_off",
+          "total_interest"
+        ],
+        "title": "ScenarioDebt"
+      },
+      "ScenarioDebts": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioDebt"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total_interest": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "debt_free": {
+            "$ref": "#/components/schemas/MonthFigure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total_interest",
+          "debt_free"
+        ],
+        "title": "ScenarioDebts"
+      },
+      "ScenarioFi": {
+        "properties": {
+          "fi_number": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "monthly_spending": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "fi_month": {
+            "$ref": "#/components/schemas/MonthFigure"
+          },
+          "months_gained": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months Gained"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fi_number",
+          "monthly_spending",
+          "fi_month",
+          "months_gained"
+        ],
+        "title": "ScenarioFi"
+      },
+      "ScenarioResilience": {
+        "properties": {
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "essential",
+                  "all"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "monthly_spending": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Spending"
+          },
+          "lowest": {
+            "$ref": "#/components/schemas/MonthsFigure"
+          },
+          "at_end": {
+            "$ref": "#/components/schemas/MonthsFigure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "basis",
+          "monthly_spending",
+          "lowest",
+          "at_end"
+        ],
+        "title": "ScenarioResilience",
+        "description": "Months of spending the cash covers, at its lowest over the next\ntwelve months and at their end."
+      },
+      "ScenarioRuleSet": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "region",
+          "year",
+          "rule_set_id",
+          "version",
+          "content_hash"
+        ],
+        "title": "ScenarioRuleSet"
+      },
+      "ScenarioRun": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.scenario/1",
+            "title": "Schema"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "horizon_years": {
+            "type": "integer",
+            "title": "Horizon Years"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "baseline_fingerprint": {
+            "type": "string",
+            "title": "Baseline Fingerprint"
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/Scenario"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioChange"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/ScenarioCash"
+          },
+          "monthly": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioCheckpoint"
+            },
+            "type": "array",
+            "title": "Monthly"
+          },
+          "debts": {
+            "$ref": "#/components/schemas/ScenarioDebts"
+          },
+          "resilience": {
+            "$ref": "#/components/schemas/ScenarioResilience"
+          },
+          "fi": {
+            "$ref": "#/components/schemas/ScenarioFi"
+          },
+          "break_evens": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioBreakEven"
+            },
+            "type": "array",
+            "title": "Break Evens"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/FiAssumptions"
+          },
+          "placeholders": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "real_return",
+                "safe_withdrawal_rate",
+                "surplus_invested",
+                "inflation"
+              ]
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "versions": {
+            "$ref": "#/components/schemas/ScenarioVersions"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "is_stale": {
+            "type": "boolean",
+            "title": "Is Stale"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "label",
+          "as_of",
+          "horizon_years",
+          "currency",
+          "hash",
+          "baseline_fingerprint",
+          "scenario",
+          "changes",
+          "cash",
+          "monthly",
+          "debts",
+          "resilience",
+          "fi",
+          "break_evens",
+          "assumptions",
+          "placeholders",
+          "versions",
+          "data_as_of",
+          "is_stale",
+          "notes"
+        ],
+        "title": "ScenarioRun",
+        "description": "A scenario's figures under the baseline and under the scenario."
+      },
+      "ScenarioSensitivity": {
+        "properties": {
+          "real_returns": {
+            "$ref": "#/components/schemas/SensitivityReturns"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionSensitivity"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "real_returns",
+          "options"
+        ],
+        "title": "ScenarioSensitivity",
+        "description": "The options at the horizon under each real return."
+      },
+      "ScenarioStopped": {
+        "properties": {
+          "payee": {
+            "type": "string",
+            "title": "Payee"
+          },
+          "cadence": {
+            "type": "string",
+            "title": "Cadence"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "payee",
+          "cadence",
+          "amount",
+          "currency"
+        ],
+        "title": "ScenarioStopped",
+        "description": "A recurring flow a stop stops: each time, signed."
+      },
+      "ScenarioTrade": {
+        "properties": {
+          "option": {
+            "type": "string",
+            "title": "Option"
+          },
+          "against": {
+            "type": "string",
+            "title": "Against"
+          },
+          "gains": {
+            "items": {
+              "$ref": "#/components/schemas/TradeDelta"
+            },
+            "type": "array",
+            "title": "Gains"
+          },
+          "gives_up": {
+            "items": {
+              "$ref": "#/components/schemas/TradeDelta"
+            },
+            "type": "array",
+            "title": "Gives Up"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option",
+          "against",
+          "gains",
+          "gives_up"
+        ],
+        "title": "ScenarioTrade",
+        "description": "What `option` gains and gives up against `against`."
+      },
+      "ScenarioVersions": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "title": "Schema"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine"
+          },
+          "fi_assumptions": {
+            "type": "string",
+            "title": "Fi Assumptions"
+          },
+          "fire_strategy": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire Strategy"
+          },
+          "rule_sets": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioRuleSet"
+            },
+            "type": "array",
+            "title": "Rule Sets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "engine",
+          "fi_assumptions",
+          "fire_strategy",
+          "rule_sets"
+        ],
+        "title": "ScenarioVersions"
+      },
       "ScheduledAdvisorRuns": {
         "properties": {
           "due": {
@@ -24346,6 +25840,76 @@
           "removed"
         ],
         "title": "SeededReminders"
+      },
+      "SensitiveFigures": {
+        "properties": {
+          "net_worth": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "investments": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "fi_month": {
+            "$ref": "#/components/schemas/MonthFigure"
+          },
+          "months_gained": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months Gained"
+          }
+        },
+        "type": "object",
+        "required": [
+          "net_worth",
+          "investments",
+          "fi_month",
+          "months_gained"
+        ],
+        "title": "SensitiveFigures"
+      },
+      "SensitivityReturns": {
+        "properties": {
+          "conservative": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Conservative",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "base": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Base",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "growth": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Growth",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "conservative",
+          "base",
+          "growth"
+        ],
+        "title": "SensitivityReturns"
       },
       "SetAiModels": {
         "properties": {
@@ -24716,6 +26280,49 @@
           "transactions"
         ],
         "title": "StatementUpload"
+      },
+      "StopRecurringChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "stop_recurring",
+            "title": "Type"
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Key"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "From"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "key",
+          "from"
+        ],
+        "title": "StopRecurringChange",
+        "description": "A recurring flow your ledger shows (a subscription, a bill, an income)\nstops from a day: cancel a subscription. Name it by its key."
       },
       "Subscription": {
         "properties": {
@@ -28026,6 +29633,69 @@
         ],
         "title": "TokenGrant",
         "description": "RFC 6749 §5.1."
+      },
+      "TradeDelta": {
+        "properties": {
+          "figure": {
+            "type": "string",
+            "title": "Figure"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "amount",
+              "months_of_spending",
+              "month"
+            ],
+            "title": "Unit"
+          },
+          "this": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "This"
+          },
+          "other": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "figure",
+          "unit",
+          "this",
+          "other",
+          "delta"
+        ],
+        "title": "TradeDelta",
+        "description": "A figure where two options differ: this option's, the other's, and\nthis less the other (in months, for a month)."
       },
       "TransactionChoice": {
         "properties": {

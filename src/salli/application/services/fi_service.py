@@ -9,6 +9,12 @@ income and expenses (one definition, the same insights shows), its asset
 split by account role (cash, investments; never by an account's name), its
 balances at the published rates for that day, and its debts counted once.
 
+When FI is reached comes from the baseline's monthly timeline
+(domain/baseline/fi.py), where cash, investments and debts are kept apart:
+the score's month, the projections under each return scenario, and every
+scenario of the decision lab read it the same way. What a purchase costs is
+a scenario (`ScenarioService.compare`), not a separate costing.
+
 Reading never writes. A score is stored in the history only by `record_score`
 (`POST /v1/fi/score/recompute`, and the advisor's run, which records the
 score it advised on).
@@ -27,6 +33,7 @@ from typing import Any
 from salli.application.ports import ProfileMissing
 from salli.application.services.baseline_service import BaselineService
 from salli.domain.baseline import Baseline
+from salli.domain.baseline import fi as fi_timeline
 from salli.domain.currency import quantize
 from salli.domain.debt.engine import month_after
 from salli.domain.fi import engine
@@ -56,40 +63,7 @@ from salli.domain.fi.packs import registry
 from salli.domain.llm import LLMError
 from salli.domain.money import from_minor, to_minor
 
-__all__ = ["STALE_AFTER_DAYS", "FiService", "assumptions_dict"]
-
-# A balance sheet older than this is treated as too stale to advise a purchase
-# against. Chosen to be forgiving of a user who books a month late, while still
-# refusing to answer from a quarter-old picture: a confident "yes, you can
-# afford it" derived from stale data is worse than declining to answer, because
-# the user acts on it and cannot un-spend the money.
-STALE_AFTER_DAYS = 45
-
-#: The bounds a purchase is costed within, on every surface (the API's, MCP's
-#: and the agent's): an amount to 18 digits, a term of up to 50 years, and a
-#: yearly rate as a fraction from 0 to 1, so 18 typed for 18% is refused.
-MAX_TERM_MONTHS = 600
-_MAX_AMOUNT_DIGITS = 18
-
-
-def check_purchase(amount: Decimal, term_months: int | None, annual_interest_rate: Decimal) -> None:
-    """ValueError unless the purchase can be costed: an amount from 0 with
-    at most 18 digits, a term from 1 to 600 months (or none), and a yearly
-    rate as a fraction from 0 to 1."""
-    if not amount.is_finite() or amount < 0:
-        raise ValueError(f"A purchase is an amount from 0, not {amount}")
-    shape = amount.as_tuple()
-    exponent = int(shape.exponent)
-    digits = len(shape.digits) + exponent if exponent >= 0 else max(len(shape.digits), -exponent)
-    if digits > _MAX_AMOUNT_DIGITS:
-        raise ValueError(f"A purchase amount has at most {_MAX_AMOUNT_DIGITS} digits")
-    if term_months is not None and not 1 <= term_months <= MAX_TERM_MONTHS:
-        raise ValueError(f"A term is from 1 to {MAX_TERM_MONTHS} months, not {term_months}")
-    if not annual_interest_rate.is_finite() or not Decimal(0) <= annual_interest_rate <= 1:
-        raise ValueError(
-            f"annual_interest_rate is a yearly fraction from 0 to 1 (0.18 for 18%), "
-            f"not {annual_interest_rate}"
-        )
+__all__ = ["FiService", "assumptions_dict"]
 
 
 def decimal_arg(value: object, what: str) -> Decimal:
@@ -123,8 +97,7 @@ def _score_to_dict(score: FiScore, as_of: datetime.date) -> dict[str, Any]:
     d["components"] = [
         {**c, "score": str(c["score"]), "weight": str(c["weight"])} for c in d["components"]
     ]
-    # The FI date to the month, not in whole years.
-    d.pop("projected_fi_years", None)
+    # The FI date to the month, from the baseline's monthly timeline.
     d["projected_fi_month"] = _month_of(as_of, score.projected_fi_months)
     d["as_of"] = as_of.isoformat()
     return d
@@ -383,6 +356,7 @@ class FiService:
         strategy: FireStrategy,
         applied: FiAssumptions,
         pack: FiPack,
+        fi_month: str | None = None,
     ) -> str:
         """
         Fingerprint of everything the score depends on, and everything it
@@ -392,13 +366,16 @@ class FiService:
         regenerating a strategy with a different SWR, or setting one's own
         return, changes the figures, and setting a source or an inflation figure
         changes what the score says about them, so a score computed under the
-        old ones is stale even when the ledger has not moved.
+        old ones is stale even when the ledger has not moved. And the month FI
+        is reached, which the whole baseline (its debts' schedules among it)
+        decides, not the snapshot alone.
         """
         payload = {
             "snapshot": asdict(snapshot),
             "target_monthly_expenses": str(strategy.target_monthly_expenses),
             "assumptions": assumptions_dict(applied),
             "pack": pack.version,
+            "fi_month": fi_month,
         }
         return hashlib.sha256(json.dumps(payload, default=str, sort_keys=True).encode()).hexdigest()
 
@@ -410,18 +387,20 @@ class FiService:
         """The Freedom Score as of `as_of` (today when None). Reads only: the
         score history is written by `record_score` alone."""
         baseline, snapshot, strategy, applied, pack = await self._inputs(user_id, as_of)
-        # Same swr / target / real return the projection uses, so the Freedom
-        # Number on the card and the target on the chart are one number.
+        # When FI is reached: the baseline's monthly timeline, at the base
+        # return, against the FI number the score computes from the same
+        # withdrawal rate and target, so the card and the chart say one month.
+        outlook = fi_timeline.outlook(baseline, fi_timeline.full_timeline(baseline))
         score = engine.compute(
             snapshot,
             pack,
             swr=strategy.swr,
             target_monthly_expenses=strategy.target_monthly_expenses,
-            annual_real_return=strategy.real_return_base,
+            projected_fi_months=outlook.months,
         )
         result = _score_to_dict(score, baseline.as_of)
         result["assumptions"] = assumptions_dict(applied)
-        result["inputs_hash"] = self._inputs_hash(snapshot, strategy, applied, pack)
+        result["inputs_hash"] = self._inputs_hash(snapshot, strategy, applied, pack, outlook.month)
         return result
 
     async def record_score(self, user_id: str) -> dict[str, Any]:
@@ -693,71 +672,67 @@ class FiService:
         """The FI asset base projected under three real-return scenarios, in
         today's money; and in each year's own money too when the user set
         their inflation. Never waits for assumptions: placeholders stand in,
-        and `assumptions` says which. The month FI is reached, per scenario,
-        from the same walk."""
-        baseline, snapshot, strategy, applied, pack = await self._inputs(user_id, as_of)
+        and `assumptions` says which.
+
+        Each scenario is the baseline's monthly timeline with its
+        investments, the share of each month's surplus the user invests
+        among them, at that real return (cash earns nothing, debts follow
+        their schedules), and the month FI is reached is read from the same
+        timeline, so the chart and the month always agree."""
+        baseline, _, strategy, applied, _ = await self._inputs(user_id, as_of)
         rates = applied.real_returns.as_dict()
         inflation = applied.inflation.value if applied.inflation is not None else None
-
-        # The score's own FI number, from the same swr/target — not a second
-        # formula. These two used to disagree whenever the strategy SWR was not 4%.
-        score = engine.compute(
-            snapshot,
-            pack,
-            swr=strategy.swr,
-            annual_real_return=rates["base"],
-            target_monthly_expenses=strategy.target_monthly_expenses,
-        )
-        fi_number = score.fi_number
-        base = engine.fi_asset_base(snapshot)
-        surplus = snapshot.monthly_income - snapshot.monthly_expenses
-
-        # Months come from the shared solver, NOT from scanning the plotted
-        # series: a 15-year chart cannot express an 18-year answer.
-        months = {
-            key: engine.months_to_target(base, rate, fi_number, lambda _m: surplus)
+        currency = baseline.currency
+        fi_number = fi_timeline.fi_number(baseline)
+        runs = {
+            key: fi_timeline.full_timeline(baseline, real_return=rate)
             for key, rate in rates.items()
         }
+        months = {
+            key: fi_timeline.months_to_fi(timeline.points, fi_number)
+            for key, timeline in runs.items()
+        }
 
-        # Stretch the chart far enough to actually show the crossing when there is
-        # one, so the plotted line and the headline month tell the same story.
+        # Stretch the chart far enough to show the crossing when there is
+        # one, so the plotted line and the month tell the same story.
         reachable = [-(-m // 12) for m in months.values() if m]
         horizon = min(40, max(15, (max(reachable) + 2) if reachable else 15))
-        points = engine.project_portfolio(
-            snapshot, rates, horizon_years=horizon, inflation=inflation
-        )
+        by_year = {key: fi_timeline.year_points(t.points, horizon) for key, t in runs.items()}
 
-        def point(p: Any) -> dict[str, Any]:
+        def money(value: Decimal) -> str:
+            return str(quantize(value, currency, strict=False))
+
+        def point(year: int) -> dict[str, Any]:
+            at = {key: points[year] for key, points in by_year.items()}
             row: dict[str, Any] = {
-                "year": p.year,
-                "conservative": str(p.conservative),
-                "base": str(p.base),
-                "growth": str(p.growth),
+                "year": year,
+                **{key: money(fi_timeline.asset_base(p)) for key, p in at.items()},
             }
-            if p.nominal is not None and inflation is not None:
+            if inflation is not None:
+                # In that year's own money: the same values grown by the
+                # timeline's own deflator, never walked separately.
+                level = at["base"].deflator
                 row["nominal"] = {
-                    "conservative": str(p.nominal.conservative),
-                    "base": str(p.nominal.base),
-                    "growth": str(p.nominal.growth),
+                    **{key: money(fi_timeline.asset_base(p) * p.deflator) for key, p in at.items()},
                     # The FI number in that year's money: where the line it
                     # must cross has moved to by then.
-                    "fi_number": str(engine.in_future_money(fi_number, inflation, p.year)),
+                    "fi_number": money(fi_number * level),
                 }
             return row
 
         return {
-            "currency": snapshot.currency,
+            "currency": currency,
             "as_of": baseline.as_of.isoformat(),
             # "real": every amount in today's money; "real_and_nominal": each
             # point also in its year's own money, from the user's inflation.
             "terms": "real" if inflation is None else "real_and_nominal",
-            "points": [point(p) for p in points],
+            "points": [point(year) for year in range(len(by_year["base"]))],
             "fi_number": str(fi_number),
             "swr": rate_text(strategy.swr),
             # The month FI is reached in each scenario, and how many months
-            # from the as-of date that is.
+            # from the as-of month that is.
             "fi_by": {key: _fi_by(baseline.as_of, m) for key, m in months.items()},
-            "current_portfolio": str(base),
+            "current_portfolio": money(fi_timeline.asset_base(runs["base"].points[0])),
             # The real (after-inflation) rates the scenarios use.
             "real_returns": _scenarios_dict(applied.real_returns),
             # Their nominal equivalents and the inflation behind them: only
@@ -766,86 +741,6 @@ class FiService:
             "nominal_returns": _scenarios_dict(applied.nominal_returns),
             # Which assumptions these are, where each came from, and whether
             # any is a placeholder.
-            "assumptions": assumptions_dict(applied),
-        }
-
-    # ── Purchase simulation ("can I afford this?") ────────────────────────────────
-
-    async def simulate_purchase(
-        self,
-        user_id: str,
-        amount: Decimal,
-        *,
-        term_months: int | None = None,
-        annual_interest_rate: Decimal = Decimal(0),
-        as_of: datetime.date | None = None,
-    ) -> dict[str, Any]:
-        """
-        Cost a prospective purchase in months of freedom.
-
-        Uses the SAME swr / target-expenses / real-return values as
-        `get_projections`, so the answer here can never contradict the user's
-        Freedom page. Every figure is engine-computed; the caller (and the agent
-        above it) may present them but must not derive new ones. The bounds
-        are checked here (`check_purchase`), so every surface keeps them.
-        """
-        check_purchase(amount, term_months, annual_interest_rate)
-        baseline, snapshot, strategy, applied, pack = await self._inputs(user_id, as_of)
-        latest = baseline.latest_entry
-        stale = (
-            latest is None
-            or (baseline.as_of - datetime.date.fromisoformat(latest)).days > STALE_AFTER_DAYS
-        )
-
-        # The base scenario's real return — the same rate `get_projections`
-        # reports as `real_returns.base` and draws the base line with.
-        rate = applied.real_returns.base
-
-        impact = engine.simulate_purchase(
-            snapshot,
-            pack,
-            amount,
-            swr=strategy.swr,
-            target_monthly_expenses=strategy.target_monthly_expenses,
-            annual_real_return=rate,
-            term_months=term_months,
-            annual_interest_rate=annual_interest_rate,
-            data_as_of=latest,
-            is_stale=stale,
-        )
-
-        return {
-            "amount": str(impact.amount),
-            "currency": impact.currency,
-            "as_of": baseline.as_of.isoformat(),
-            "fi_number": str(impact.fi_number),
-            "fi_asset_base_before": str(impact.fi_asset_base_before),
-            "monthly_surplus": str(impact.monthly_surplus),
-            "baseline_months_to_fi": impact.baseline_months_to_fi,
-            "payable_from_liquid": impact.payable_from_liquid,
-            "emergency_months_before": str(impact.emergency_months_before),
-            "emergency_months_after_cash": str(impact.emergency_months_after_cash),
-            "emergency_fund_target_months": impact.emergency_fund_target_months,
-            "options": [
-                {
-                    "key": o.key,
-                    "label": o.label,
-                    "total_cost": str(o.total_cost),
-                    "interest_cost": str(o.interest_cost),
-                    "monthly_payment": str(o.monthly_payment) if o.monthly_payment else None,
-                    "term_months": o.term_months,
-                    "months_to_fi": o.months_to_fi,
-                    "months_delay": o.months_delay,
-                    "exceeds_monthly_surplus": o.exceeds_monthly_surplus,
-                }
-                for o in impact.options
-            ],
-            "cheapest_option_key": impact.cheapest_option_key,
-            "data_as_of": impact.data_as_of,
-            "is_stale": impact.is_stale,
-            "stale_after_days": STALE_AFTER_DAYS,
-            "real_return_used": rate_text(rate),
-            "swr": rate_text(strategy.swr),
             "assumptions": assumptions_dict(applied),
         }
 

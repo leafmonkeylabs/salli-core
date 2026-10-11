@@ -40,9 +40,9 @@ from salli.domain.subscription.engine import find_matches
 from salli.domain.subscription.models import Subscription
 
 #: Where a flow comes from: a rhythm in the ledger, a declared subscription,
-#: the rest of an average month (the baseline's cash timeline), or a change
-#: added to the forecast.
-FlowSource = Literal["recurring", "subscription", "average", "change"]
+#: the rest of an average month or the share of its surplus invested (the
+#: baseline's cash timeline), or a change added to the forecast.
+FlowSource = Literal["recurring", "subscription", "average", "invested", "change"]
 
 
 @dataclass(frozen=True)

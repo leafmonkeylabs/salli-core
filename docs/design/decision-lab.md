@@ -280,8 +280,29 @@ Nudges are quiet, useful and rare:
 
 1. **Baseline and scenarios.** This is the foundation, and it fixes the
    inconsistencies.
-   - **Status:** 1a, the baseline, is built ([docs/baseline.md](../baseline.md)).
-     1b, scenarios, is next.
+   - **Status:** built. 1a, the baseline ([docs/baseline.md](../baseline.md));
+     1b, scenarios, comparison, sensitivity and break-evens
+     ([docs/scenarios.md](../scenarios.md)), with FI's month and projections
+     read from the baseline's monthly timeline. Phase 2 is next.
+   - **As built in 1b:** the schema's seven change types (one-off, recurring,
+     income change, loan, extra debt payment, invest, stop a recurring flow);
+     results as baseline / scenario / delta, with a content hash of the
+     scenario and the baseline's fingerprint; comparisons report the trade as
+     figure deltas, sensitivity at the conservative and growth returns, and
+     three break-evens solved by bisection to the cent or the basis point
+     (investing against paying down a debt, a recurring cost's cash floor, a
+     loan's rate against another option). `POST /v1/fi/simulate-purchase` is
+     gone: a purchase is a scenario, compared cash against instalments.
+   - **The surplus invested:** each month's regular surplus (the average
+     surplus, less debts' scheduled payments, freed ones added back, plus a
+     scenario's recurring changes) is split by a new planning assumption,
+     `surplus_invested` (0 to 1, a labelled placeholder of 1): that share
+     grows at the real return, the rest stays in cash. One-offs, a loan's
+     money, investments and extra payments are moves that go where they
+     say. So a debt-or-invest comparison treats both sides alike, and
+     breaks even at the debt's own rate (the first draft kept the whole
+     surplus in cash and found 1.9% against a 4.5% loan); FI moved back to
+     roughly where the pre-baseline engine had it.
    - **The baseline:** the single income and expense definition, the
      investment-account role, debts linked to liabilities, rates for the *as of*
      date, an injectable *as of*, and pure reads (no writes on read).

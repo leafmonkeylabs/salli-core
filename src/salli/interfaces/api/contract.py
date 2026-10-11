@@ -134,7 +134,6 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/fi/score/history"): "fi.score.history",
     ("POST", "/fi/score/recompute"): "fi.score.recompute",
     ("GET", "/fi/projections"): "fi.projections",
-    ("POST", "/fi/simulate-purchase"): "fi.simulatePurchase",
     ("GET", "/fi/surplus"): "fi.surplus",
     ("GET", "/fi/assumptions"): "fi.assumptions",
     ("PATCH", "/fi/assumptions"): "fi.assumptions.set",
@@ -266,6 +265,9 @@ OPERATION_IDS: dict[Route, str] = {
     ("DELETE", "/rules/{rule_id}"): "rules.delete",
     # the baseline: one dated model of the user's money (domain/baseline)
     ("GET", "/baseline"): "baseline.get",
+    # scenarios: what-ifs on the baseline (domain/scenarios); they store nothing
+    ("POST", "/scenarios/run"): "scenarios.run",
+    ("POST", "/scenarios/compare"): "scenarios.compare",
     # insights
     ("GET", "/insights/cash-flow"): "insights.cashFlow",
     ("GET", "/insights/spending"): "insights.spending",

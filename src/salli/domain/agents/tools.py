@@ -192,6 +192,7 @@ def make_manager_tools(
     insurance_svc: Any = None,
     advisor_svc: Any = None,
     fi_svc: Any = None,
+    scenario_svc: Any = None,
 ) -> list[Any]:
     """
     Return the manager-only tools:
@@ -207,7 +208,8 @@ def make_manager_tools(
       - get_latest_advisor_report (most recent Wealth Advisor report, no new LLM call)
       - run_wealth_advisor (generate a fresh Wealth Advisor report now; a fresh model run)
       - get_freedom_snapshot (FI score, Freedom number, progress, the month FI is reached)
-      - can_i_afford (costs a prospective purchase in months of freedom)
+      - can_i_afford (a purchase built as scenarios, cash against instalments,
+        run and compared by Salli on the user's baseline)
       - get_accounts (the user's chart of accounts — call before create_account/post_journal_entry)
       - create_account, create_reminder, post_journal_entry (all need user approval)
     """
@@ -406,9 +408,10 @@ def make_manager_tools(
         engine-computed and authoritative — never recompute or estimate them.
 
         Everything is in real terms (today's money). If `assumptions.status` is
-        "placeholder", the return or withdrawal rate behind the figures is a
-        round stand-in (`assumptions.placeholders` says which), not a forecast:
-        say so, and suggest the user set their own, with a source
+        "placeholder", the return, the withdrawal rate or the share of the
+        surplus invested behind the figures is a round stand-in
+        (`assumptions.placeholders` says which), not a forecast: say so, and
+        suggest the user set their own, with a source
         (`salli fi assumptions set`).
         """
         if fi_svc is None:
@@ -418,69 +421,102 @@ def make_manager_tools(
 
     @tool
     async def can_i_afford(
-        amount: Annotated[str, "Purchase price as a decimal string, e.g. '450000'"],
+        amount: Annotated[
+            str, "The price as a decimal string in the base currency, e.g. '2400.00'"
+        ],
+        date: Annotated[str | None, "The day of the purchase, YYYY-MM-DD; omit for today"] = None,
         term_months: Annotated[
             int | None,
-            "If the user is considering paying in instalments, the number of months; "
-            "omit for a straight cash purchase",
+            "If paying in instalments is an option, over how many months (1 to 600); "
+            "omit for a cash purchase alone",
         ] = None,
         annual_interest_rate: Annotated[
             str,
-            "Annual interest/finance rate on the instalment plan as a DECIMAL FRACTION "
-            "(0.18 for 18%, never 18). Use '0' for a genuine 0% plan.",
+            "The instalments' yearly rate as a DECIMAL FRACTION (0.18 for 18%, never 18). "
+            "Use '0' for a genuine 0% plan.",
         ] = "0",
+        what: Annotated[str, "What it is, e.g. 'a laptop': the scenarios' label"] = "",
     ) -> dict[str, Any]:
         """
-        Cost a prospective purchase in MONTHS OF FREEDOM — the delay it adds to the
-        user's financial-independence date — and compare paying cash against
-        instalments.
+        Whether a purchase fits: Salli builds it as scenarios on the user's
+        baseline and runs them. "Pay cash" is the price going out on the day;
+        "Instalments" (given a term) is the same, plus a loan of the price at
+        the rate over the term. With both, Salli compares them; with cash
+        alone, it runs that one.
 
-        This is Salli's core question. Use it whenever the user asks whether they
-        can afford something, whether to finance it, or which way is cheaper.
+        Use it whenever the user asks whether they can afford something,
+        whether to finance it, or what it would do to their plans.
 
-        Returns, all engine-computed: the delay in months for each funding option,
-        total cost and interest, the monthly payment, whether that payment exceeds
-        their monthly surplus, whether the price is even coverable from liquid
-        savings, and what paying cash would leave in their emergency fund.
+        Returns Salli's figures, each under the baseline, under the option and
+        as the delta: the lowest cash in the next twelve months and when,
+        accounts going below zero, safe-to-spend, emergency-fund months, the
+        debts' interest and payoff, and the FI month with months gained or
+        lost; with two options, the trade between them, sensitivity to the
+        real return, and the loan rate at which they cost the same.
 
         Reporting rules:
-        - State the months of delay and the emergency-fund effect. A user can
-          usually "afford" something on paper while wrecking their buffer, and that
-          is the part they most need told plainly.
-        - `months_delay: null` means the FI date is not reachable on current
-          figures, NOT that the purchase is free. Say so.
-        - If `is_stale` is true, do NOT give an affordability verdict. Tell the user
-          their ledger's last entry is from `data_as_of` and ask them to bring it up
-          to date first — a confident answer from an old balance sheet is worse than
-          no answer.
-        - Never derive your own figures from these; quote them.
-        - If `assumptions.status` is "placeholder", say the costing rests on
-          placeholder assumptions (round stand-ins, not forecasts).
+        - Quote the figures. Never subtract, add or project anything yourself.
+        - Lead with the lowest cash and the emergency-fund months: a purchase
+          can fit on paper and still empty the buffer.
+        - Never say which option is best. Lay out the trade and what would
+          change it (the break-evens), and leave the choice to the user.
+        - `fi.fi_month.scenario: null` means FI isn't reached within 50 years
+          on these figures, not that the purchase is free. Say so.
+        - If `is_stale` is true, give NO verdict: say the ledger's newest
+          entry is from `data_as_of` and ask the user to bring it up to date.
+        - If `placeholders` is not empty, say which assumptions are round
+          stand-ins, not forecasts.
         """
-        if fi_svc is None:
-            return {"error": "Freedom service unavailable"}
+        if scenario_svc is None:
+            return {"error": "Scenarios unavailable"}
         user_id = _current_user.get()
         try:
-            value = Decimal(amount)
+            price = Decimal(amount)
         except (InvalidOperation, ValueError):
             return {"error": f"Could not read '{amount}' as an amount"}
-        if value < 0:
-            return {"error": "Purchase amount cannot be negative"}
+        if not price.is_finite() or price <= 0:
+            return {"error": "The price is an amount above zero"}
         try:
             rate = Decimal(annual_interest_rate)
         except (InvalidOperation, ValueError):
             return {"error": f"Could not read '{annual_interest_rate}' as a rate"}
         # A model that passes 18 for 18% would overstate the finance cost ~100x.
-        if not (Decimal(0) <= rate <= Decimal(1)):
+        if not rate.is_finite() or not (Decimal(0) <= rate <= Decimal(1)):
             return {
                 "error": (
                     f"annual_interest_rate must be a fraction between 0 and 1, got {rate}. "
                     "Use 0.18 for 18%."
                 )
             }
-        return await fi_svc.simulate_purchase(
-            user_id, value, term_months=term_months, annual_interest_rate=rate
-        )
+        label = what.strip() or "The purchase"
+        day = date or scenario_svc.today().isoformat()
+        # The options are documents, not arithmetic: the price as given, out on
+        # the day; Salli's engine computes every figure from them.
+        purchase = {"type": "one_off", "date": day, "amount": f"-{price}", "label": label}
+        cash = {"schema": "salli.scenario/1", "label": "Pay cash", "changes": [purchase]}
+        try:
+            if term_months is None:
+                return await scenario_svc.run(user_id, cash)
+            loan = {
+                "type": "loan",
+                "principal": str(price),
+                "annual_rate": str(rate),
+                "term_months": term_months,
+                "start": day,
+                "label": f"{label}: instalments",
+            }
+            instalments = {
+                "schema": "salli.scenario/1",
+                "label": "Instalments",
+                "changes": [purchase, loan],
+            }
+            return await scenario_svc.compare(user_id, [cash, instalments])
+        except (KeyError, ValueError) as exc:
+            problems = getattr(exc, "problems", ())
+            return {
+                "error": str(exc),
+                "problems": [{"path": p.path, "message": p.message} for p in problems],
+            }
 
     # ── Budget tool ───────────────────────────────────────────────────────────
 

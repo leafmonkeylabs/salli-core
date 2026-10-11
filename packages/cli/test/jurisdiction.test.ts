@@ -74,10 +74,13 @@ describe('FI planning assumptions: real terms, placeholders, your own figures', 
       Nominal return        not set
       Inflation             not set
       Safe withdrawal rate     3.5%  you          https://example.org/withdrawal-study
+      Surplus invested         100%  placeholder  Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.
       Scenarios (real): 2% / 4% / 6% (conservative / base / growth)
       "
     `);
-    expect(result.stderr).toContain('Using placeholder assumptions for the real return');
+    expect(result.stderr).toContain(
+      'Using placeholder assumptions for the real return and the share of your monthly surplus invested',
+    );
     expect(result.stderr).toContain('salli fi assumptions set <name> <rate> --source');
   });
 
@@ -98,6 +101,28 @@ describe('FI planning assumptions: real terms, placeholders, your own figures', 
 
     expect((await run(['fi', 'assumptions', 'set', 'growth', '3%'])).code).toBe(2);
     expect((await run(['fi', 'assumptions', 'set', 'inflation', 'three'])).code).toBe(2);
+  });
+
+  it('sets the share of your monthly surplus you invest, from 0 to 1', async () => {
+    const set = await run(['fi', 'assumptions', 'set', 'surplus-invested', '80%', '--source', 'my standing orders']);
+    expect(set.code).toBe(0);
+    expect(lastBody('/v1/fi/assumptions')).toEqual({
+      surplus_invested: { value: '0.8', source: 'my standing orders', note: null },
+    });
+    expect(set.stderr).toContain('Surplus invested set to 80% (source: my standing orders).');
+
+    // The API's own name works too, and a fraction as well as a percentage.
+    await run(['fi', 'assumptions', 'set', 'surplus_invested', '0.35']);
+    expect(lastBody('/v1/fi/assumptions')).toEqual({ surplus_invested: { value: '0.35', source: null, note: null } });
+
+    // Out of range, the server says why, and the command fails.
+    const refused = await run(['fi', 'assumptions', 'set', 'surplus-invested', '120%']);
+    expect(lastBody('/v1/fi/assumptions')).toEqual({ surplus_invested: { value: '1.2', source: null, note: null } });
+    expect(refused.code).toBe(5);
+    expect(refused.stderr).toContain('a share from 0 to 1 (0.8 for 80%)');
+
+    await run(['fi', 'assumptions', 'clear', 'surplus-invested']);
+    expect(lastBody('/v1/fi/assumptions')).toEqual({ surplus_invested: null });
   });
 
   it('shows projections in today’s money, then future money once inflation is set', async () => {
@@ -121,9 +146,9 @@ describe('FI planning assumptions: real terms, placeholders, your own figures', 
     expect(both.stderr).toContain('at your inflation of 3%');
   });
 
-  it('says when the score and a purchase rest on placeholders', async () => {
+  it('says when the score and a scenario rest on placeholders', async () => {
     expect((await run(['fi', 'score'])).stderr).toContain('Using placeholder assumptions for the real return');
-    expect((await run(['fi', 'afford', '2400'])).stderr).toContain('Using placeholder assumptions for the real return');
+    expect((await run(['whatif', '--buy', '2400'])).stderr).toContain('Placeholders: the real return; the safe withdrawal rate');
     // Machine output is the API's JSON, flag included.
     const json = JSON.parse((await run(['fi', 'score', '--json'])).stdout);
     expect(json.assumptions.status).toBe('placeholder');

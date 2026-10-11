@@ -29,6 +29,7 @@ from salli.domain.baseline import (
     build,
     timelines,
 )
+from salli.domain.baseline.models import RuleSetRef
 from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import (
     OwnAssumptions,
@@ -74,6 +75,40 @@ def declared_debts(rows: Iterable[dict[str, Any]], currency: str) -> list[Declar
     ]
 
 
+def covering_rule_sets(
+    rows: Iterable[dict[str, Any]], residency: str | None, as_of: dt.date
+) -> list[RuleSetRef]:
+    """The active rule set versions in the user's tax residency whose year
+    covers `as_of` (usually one; a region's and the nation's may both)."""
+    if not residency:
+        return []
+    found: list[RuleSetRef] = []
+    for row in rows:
+        version: dict[str, Any] = row.get("version") or {}
+        content: dict[str, Any] = version.get("content") or {}
+        year: dict[str, Any] = content.get("year") or {}
+        if row.get("country") != residency or not year:
+            continue
+        try:
+            start = dt.date.fromisoformat(str(year["start"]))
+            end = dt.date.fromisoformat(str(year["end"]))
+        except (KeyError, ValueError):
+            continue
+        if start <= as_of <= end:
+            region: str | None = row.get("region")
+            found.append(
+                RuleSetRef(
+                    country=str(row["country"]),
+                    region=region,
+                    year=str(row.get("year_label") or year.get("label") or ""),
+                    rule_set_id=str(row["id"]),
+                    version=int(version["version"]),
+                    content_hash=str(version["content_hash"]),
+                )
+            )
+    return found
+
+
 def _money(value: Decimal | None, currency: str) -> str | None:
     return None if value is None else str(quantize(value, currency, strict=False))
 
@@ -113,6 +148,7 @@ class BaselineService:
             subscriptions = await uow.recurring_subscriptions.list(user_id, active_only=True)
             fed = await statement_accounts(uow, user_id)
             strategy = await uow.fire_strategies.get_latest(user_id)
+            active_rules = await uow.tax_rule_sets.active_versions(user_id)
 
         rates: dict[str, Rate] = {}
         for currency in sorted({a.currency for a in money} - {base}):
@@ -137,6 +173,7 @@ class BaselineService:
                 statement_accounts=fed,
                 own_assumptions=OwnAssumptions.from_stored(profile.get("fi_assumptions")),
                 strategy=StrategyFigures.from_stored(strategy),
+                rule_sets=covering_rule_sets(active_rules, profile.get("tax_residency"), as_of),
             )
         )
 
@@ -251,8 +288,15 @@ def view(
             "lowest": _money(result.lowest, cur),
             "lowest_date": result.lowest_date,
             "month_ends": [
-                {"month": month, "cash": _money(value, cur), "unscheduled": _money(rest, cur)}
-                for (month, value), (_, rest) in zip(cash.month_ends, cash.unscheduled, strict=True)
+                {
+                    "month": month,
+                    "cash": _money(value, cur),
+                    "unscheduled": _money(rest, cur),
+                    "invested": _money(invested, cur),
+                }
+                for (month, value), (_, rest), (_, invested) in zip(
+                    cash.month_ends, cash.unscheduled, cash.invested, strict=True
+                )
             ],
             "daily": [{"date": d, "balance": _money(v, cur)} for d, v in result.daily]
             if daily
@@ -261,6 +305,7 @@ def view(
         "monthly": {
             "horizon_years": horizon_years,
             "real_return": rate_text(monthly.real_return),
+            "surplus_invested": rate_text(monthly.surplus_invested),
             "inflation": None if baseline.inflation is None else rate_text(baseline.inflation),
             "points": [
                 {
@@ -278,5 +323,17 @@ def view(
         },
         "assumptions": assumptions_dict(baseline.assumptions),
         "placeholders": list(baseline.placeholders),
-        "notes": list(dict.fromkeys([*baseline.notes, *cash.notes])),
+        "rule_sets": [
+            {
+                "country": r.country,
+                "region": r.region,
+                "year": r.year,
+                "rule_set_id": r.rule_set_id,
+                "version": r.version,
+                "content_hash": r.content_hash,
+            }
+            for r in baseline.rule_sets
+        ],
+        "fingerprint": baseline.fingerprint,
+        "notes": list(dict.fromkeys([*baseline.notes, *cash.notes, *monthly.notes])),
     }

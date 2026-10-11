@@ -182,6 +182,7 @@ class AgentService:
         insurance_svc: Any = None,
         advisor_svc: Any = None,
         fi_svc: Any = None,
+        scenario_svc: Any = None,
         checkpointer: Any = None,
         uow_factory: Any = None,
         credentials: Any = None,
@@ -197,6 +198,7 @@ class AgentService:
         self._insurance_svc = insurance_svc
         self._advisor_svc = advisor_svc
         self._fi_svc = fi_svc
+        self._scenario_svc = scenario_svc
         self._checkpointer = checkpointer
         self._uow_factory = uow_factory
         # LlmCredentialService: what a turn runs on when the caller did not
@@ -253,6 +255,7 @@ class AgentService:
                 self._insurance_svc,
                 self._advisor_svc,
                 self._fi_svc,
+                self._scenario_svc,
             )
             self._tools_cache["read"] = make_read_tools(self._ledger_svc, self._tax_svc)
         return self._tools_cache["manager"], self._tools_cache["read"]

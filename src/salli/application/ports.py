@@ -512,6 +512,19 @@ class AccountNotFound(KeyError):
         return "Account not found: " + ", ".join(self.account_ids)
 
 
+class DebtNotFound(KeyError):
+    """A request names a debt that is not one of the caller's active debts:
+    one that does not exist, one they closed, or another user's. They look
+    the same, so a debt id says nothing about anyone else's."""
+
+    def __init__(self, debt_ids: Collection[str]) -> None:
+        self.debt_ids = tuple(sorted(debt_ids))
+        super().__init__(self.debt_ids)
+
+    def __str__(self) -> str:
+        return "Debt not found: " + ", ".join(self.debt_ids)
+
+
 class ProfileMissing(LookupError):
     """The user has no profile row yet, so nothing that needs one (a base
     currency, a setting) can be read or written. Callers create it first:

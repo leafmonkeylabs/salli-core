@@ -42,6 +42,7 @@ from salli.application.services.portfolio_service import PortfolioService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
 from salli.application.services.rules_service import RulesService
+from salli.application.services.scenario_service import ScenarioService
 from salli.application.services.subscription_service import SubscriptionService
 from salli.application.services.tax_rule_service import TaxRuleService
 from salli.application.services.tax_service import TaxService
@@ -94,6 +95,8 @@ class Services:
     # One model of a user's money, as of a day (domain/baseline): what FI,
     # insights, the forecast and the debt plan read.
     baseline: BaselineService
+    # The decision lab's what-ifs on the baseline (domain/scenarios).
+    scenarios: ScenarioService
     bank_connections: BankConnectionService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
@@ -175,6 +178,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     fi = FiService(uow_factory, llm_credentials, baselines=baseline)
     budget = BudgetService(uow_factory)
     debt = DebtService(uow_factory, baselines=baseline)
+    scenarios = ScenarioService(uow_factory, baselines=baseline)
     portfolio = PortfolioService(uow_factory, fx=fx)
     subscription = SubscriptionService(uow_factory)
     insurance = InsuranceService(uow_factory)
@@ -205,6 +209,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         insurance,
         advisor,
         fi,
+        scenarios,
         checkpointer=checkpointer,
         uow_factory=uow_factory,
         credentials=llm_credentials,
@@ -286,6 +291,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         rules=rules,
         insights=InsightsService(uow_factory, baselines=baseline),
         baseline=baseline,
+        scenarios=scenarios,
         bank_connections=_build_bank_connections(settings, uow_factory, parsing),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,

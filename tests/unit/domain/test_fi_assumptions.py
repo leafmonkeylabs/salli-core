@@ -1,11 +1,12 @@
 """
-FI planning assumptions are in real terms, with one neutral placeholder that is
-always labelled as one, and give way to what the user (or their agent) sets,
+FI planning assumptions are in real terms, with neutral placeholders that are
+always labelled as such, and give way to what the user (or their agent) sets,
 each figure with its source.
 
 There is no table by country or currency: whatever the user's currency or
 residency, the placeholders are the same round figures, and inflation has none
-at all.
+at all. The share of the monthly surplus invested is a share, not a rate: from
+0 to 1, all of it as a placeholder.
 """
 
 from __future__ import annotations
@@ -19,10 +20,12 @@ from salli.domain.fi.assumptions import (
     NAMES,
     PLACEHOLDERS,
     SCENARIO_SPREAD,
+    SHARES,
     OwnAssumptions,
     OwnFigure,
     Scenarios,
     StrategyFigures,
+    assumptions_dict,
     check_consistent,
     check_value,
     nominal_return,
@@ -46,32 +49,46 @@ def _own(**figures: str) -> OwnAssumptions:
 def test_there_is_no_table_by_country_or_currency():
     names = {name.upper() for name in vars(assumptions)}
     assert not names & {"REGIONAL_DEFAULTS", "FALLBACK", "OTHER", "RETURNS", "OVERRIDES"}
-    # Only the real return and the withdrawal rate have a placeholder.
-    assert set(PLACEHOLDERS) == {"real_return", "safe_withdrawal_rate"}
+    # The real return, the withdrawal rate and the share of the surplus
+    # invested have a placeholder; inflation and a nominal return don't.
+    assert set(PLACEHOLDERS) == {"real_return", "safe_withdrawal_rate", "surplus_invested"}
 
 
 def test_the_placeholders_are_round_neutral_and_say_they_are_placeholders():
     assert PLACEHOLDERS["real_return"].value == D("0.04")
     assert PLACEHOLDERS["safe_withdrawal_rate"].value == D("0.04")
+    # All of the surplus: the convention FI projections start from.
+    assert PLACEHOLDERS["surplus_invested"].value == D(1)
+    assert PLACEHOLDERS["surplus_invested"].source == (
+        "Placeholder: all of your monthly surplus is assumed invested at the real return; "
+        "set what you actually invest."
+    )
     for placeholder in PLACEHOLDERS.values():
         assert placeholder.source.startswith("Placeholder:")
-        assert "Set your own" in placeholder.source
+        # Each says how to replace it.
+        assert "Set your own" in placeholder.source or "set what you actually" in (
+            placeholder.source
+        )
         assert "—" not in placeholder.source  # read by people, and by the agents
 
 
 def test_with_nothing_set_placeholders_stand_in_and_say_so():
     applied = resolve(OwnAssumptions())
     assert applied.status == "placeholder"
-    assert applied.placeholders == ("real_return", "safe_withdrawal_rate")
+    assert applied.placeholders == ("real_return", "safe_withdrawal_rate", "surplus_invested")
     assert applied.real_return.origin == applied.safe_withdrawal_rate.origin == "placeholder"
+    assert applied.surplus_invested.origin == "placeholder"
     assert applied.real_return.value == D("0.04")
     assert applied.safe_withdrawal_rate.value == D("0.04")
+    assert applied.surplus_invested.value == D(1)
+    assert applied.surplus_invested.source == PLACEHOLDERS["surplus_invested"].source
     # No inflation is ever assumed: everything is in today's money.
     assert applied.inflation is None
     assert applied.nominal_returns is None
-    assert "placeholder assumptions for the real return and the safe withdrawal rate" in (
-        applied.message
-    )
+    assert (
+        "placeholder assumptions for the real return, the safe withdrawal rate and the share "
+        "of your monthly surplus invested:"
+    ) in applied.message
     assert "today's money" in applied.message
 
 
@@ -89,6 +106,7 @@ def test_the_users_own_figures_come_first_with_their_sources():
     own = OwnAssumptions(
         real_return=own_figure("real_return", "0.035", "https://example.org/returns", "a note"),
         safe_withdrawal_rate=own_figure("safe_withdrawal_rate", "0.03"),
+        surplus_invested=own_figure("surplus_invested", "0.6", "my standing orders"),
     )
     applied = resolve(own, strategy)
     assert applied.status == "user"
@@ -100,14 +118,22 @@ def test_the_users_own_figures_come_first_with_their_sources():
     # A figure set without a source says so, rather than inventing one.
     assert applied.safe_withdrawal_rate.source == "Set by you; no source given."
     assert applied.real_returns == Scenarios(D("0.015"), D("0.035"), D("0.055"))
+    assert (applied.surplus_invested.value, applied.surplus_invested.origin) == (D("0.6"), "user")
+    assert applied.surplus_invested.source == "my standing orders"
     assert applied.message.startswith("Using your own assumptions.")
 
 
-def test_setting_only_one_figure_leaves_the_other_a_placeholder():
+def test_setting_only_one_figure_leaves_the_others_placeholders():
     applied = resolve(_own(real_return="0.05"))
     assert applied.status == "placeholder"
-    assert applied.placeholders == ("safe_withdrawal_rate",)
-    assert "for the safe withdrawal rate:" in applied.message
+    assert applied.placeholders == ("safe_withdrawal_rate", "surplus_invested")
+    assert (
+        "for the safe withdrawal rate and the share of your monthly surplus invested:"
+        in applied.message
+    )
+    only_share = resolve(_own(real_return="0.05", safe_withdrawal_rate="0.035"))
+    assert only_share.placeholders == ("surplus_invested",)
+    assert "for the share of your monthly surplus invested:" in only_share.message
 
 
 def test_inflation_brings_nominal_figures_and_leaves_the_real_return_real():
@@ -145,7 +171,6 @@ def test_a_nominal_return_without_inflation_is_never_used():
 def test_a_strategy_s_figures_come_before_the_placeholders():
     strategy = StrategyFigures(D("0.035"), Scenarios(D("0.01"), D("0.03"), D("0.05")), version=3)
     applied = resolve(OwnAssumptions(), strategy)
-    assert applied.status == "user"
     assert (applied.safe_withdrawal_rate.value, applied.safe_withdrawal_rate.origin) == (
         D("0.035"),
         "strategy",
@@ -153,13 +178,18 @@ def test_a_strategy_s_figures_come_before_the_placeholders():
     assert applied.real_returns == strategy.real_returns
     assert applied.real_return.origin == "strategy"
     assert "version 3" in applied.real_return.source
+    # A strategy chooses no share of the surplus: that is what the user does.
+    assert applied.placeholders == ("surplus_invested",)
+    assert applied.status == "placeholder"
+    shared = resolve(_own(surplus_invested="0.5"), strategy)
+    assert shared.status == "user" and shared.placeholders == ()
 
 
 def test_a_strategy_without_real_returns_gives_only_its_withdrawal_rate():
     applied = resolve(OwnAssumptions(), StrategyFigures(D("0.035")))
     assert applied.safe_withdrawal_rate.origin == "strategy"
     assert applied.real_return.origin == "placeholder"
-    assert applied.placeholders == ("real_return",)
+    assert applied.placeholders == ("real_return", "surplus_invested")
 
 
 # ── Checking what the user sets ──────────────────────────────────────────────
@@ -186,6 +216,43 @@ def test_a_percentage_typed_for_a_fraction_is_refused(name, value):
 def test_anything_but_a_decimal_is_refused(value):
     with pytest.raises(ValueError):
         check_value("inflation", value)
+
+
+@pytest.mark.parametrize("value", ["80", "1.01", "-0.1", "100"])
+def test_a_share_of_the_surplus_is_from_0_to_1(value):
+    """A share, not a rate: "80" typed for 80% is refused, with how to write it."""
+    with pytest.raises(ValueError, match=r"a share from 0 to 1 \(0.8 for 80%\)"):
+        check_value("surplus_invested", value)
+
+
+def test_a_share_of_the_surplus_is_kept_exactly_at_its_bounds_and_between():
+    assert {"surplus_invested"} == SHARES
+    assert check_value("surplus_invested", "0") == D(0)
+    assert check_value("surplus_invested", "1") == D(1)
+    assert check_value("surplus_invested", "1.00") == D(1)
+    assert check_value("surplus_invested", "0.80") == D("0.8")
+    assert check_value("surplus_invested", "0.333") == D("0.333")
+    with pytest.raises(ValueError):
+        check_value("surplus_invested", 0.8)  # a float: never
+
+
+def test_the_share_of_the_surplus_is_carried_with_the_other_assumptions():
+    shown = assumptions_dict(resolve(OwnAssumptions()))
+    assert shown["surplus_invested"] == {
+        "value": "1",
+        "origin": "placeholder",
+        "source": PLACEHOLDERS["surplus_invested"].source,
+        "note": None,
+    }
+    assert shown["placeholders"] == ["real_return", "safe_withdrawal_rate", "surplus_invested"]
+    mine = assumptions_dict(resolve(_own(surplus_invested="0.25")))
+    assert mine["surplus_invested"] == {
+        "value": "0.25",
+        "origin": "user",
+        "source": "source of surplus_invested",
+        "note": None,
+    }
+    assert "surplus_invested" not in mine["placeholders"]
 
 
 def test_plausible_figures_are_kept_exactly():
@@ -250,7 +317,18 @@ def test_stored_figures_round_trip_and_are_read_leniently():
         == OwnAssumptions()
     )
     assert OwnAssumptions.from_stored(None) == OwnAssumptions()
-    assert set(NAMES) == {"real_return", "nominal_return", "inflation", "safe_withdrawal_rate"}
+    assert set(NAMES) == {
+        "real_return",
+        "nominal_return",
+        "inflation",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+    }
+    shared = OwnAssumptions(surplus_invested=own_figure("surplus_invested", "0.7", "my notes"))
+    assert shared.as_stored() == {"surplus_invested": {"value": "0.7", "source": "my notes"}}
+    assert OwnAssumptions.from_stored(shared.as_stored()) == shared
+    # A share out of range is left out, like any malformed entry.
+    assert OwnAssumptions.from_stored({"surplus_invested": {"value": "80"}}) == OwnAssumptions()
 
 
 def test_the_fisher_relation_both_ways():

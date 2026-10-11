@@ -189,6 +189,7 @@ class InsightsService:
             items.append(
                 {
                     "payee": r.payee,
+                    "key": r.key,
                     "cadence": r.cadence,
                     "typical_amount": str(quantize(r.typical_amount, r.currency, strict=False)),
                     "varies": r.varies,
@@ -278,32 +279,23 @@ class InsightsService:
         """How much could go out today without the cash forecast dropping below
         zero before money next comes in: the lowest the total gets from today
         until the day before the next income the ledger expects (or over 30
-        days, when it expects none), never below zero. Money moved between two
+        days, when it expects none), never below zero (`timelines.
+        safe_to_spend`, which scenarios read too). Money moved between two
         cash accounts (paying the card from checking) is neither income nor
         committed: it never leaves cash."""
-        run = await self._project(user_id, 45, changes)
-        today = self._today().isoformat()
-        income = next(
-            (
-                f
-                for f in run.result.flows
-                if f.amount > 0 and f.source == "recurring" and not f.transfer and f.date > today
-            ),
-            None,
-        )
-        until = income.date if income else (self._today() + dt.timedelta(days=30)).isoformat()
-        window = [v for d, v in run.result.daily if d < until] or [run.result.today]
-        lowest = min(window)
-        before = [f for f in run.result.flows if f.amount < 0 and not f.transfer and f.date < until]
-        base = run.base
+        baseline = await self._baselines.build(user_id, self._today())
+        safe = timelines.safe_to_spend(baseline, changes)
+        income, before, until = safe.next_income, safe.committed, safe.until
+        base = baseline.currency
+        notes = [*baseline.cash_notes, *safe.notes]
 
         def money(value: Decimal, currency: str = base) -> str:
             return str(quantize(value, currency, strict=False))
 
         return {
             "currency": base,
-            "amount": money(max(lowest, Decimal(0))),
-            "cash_today": money(run.result.today),
+            "amount": money(safe.amount),
+            "cash_today": money(safe.cash_today),
             "until": until,
             "next_income": None
             if income is None
@@ -322,8 +314,8 @@ class InsightsService:
                 }
                 for f in before
             ],
-            "fx": _rates(run.baseline),
-            "notes": list(dict.fromkeys(run.notes)),
+            "fx": _rates(baseline),
+            "notes": list(dict.fromkeys(notes)),
         }
 
     async def signals(self, user_id: str) -> dict[str, Any]:

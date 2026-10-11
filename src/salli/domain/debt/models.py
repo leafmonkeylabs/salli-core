@@ -26,6 +26,11 @@ class Debt:
     #: What tells it apart from another debt of the same name; its name when
     #: not given. Two cards both called "Card" are still two debts.
     id: str = ""
+    #: A loan's term in months, when it has one: its last scheduled payment
+    #: (that month's) pays whatever is left, so a level payment rounded to
+    #: the currency's smallest unit still clears it on time. None for a debt
+    #: paid until it is paid (a card, a declared debt).
+    term_months: int | None = None
 
     @property
     def key(self) -> str:

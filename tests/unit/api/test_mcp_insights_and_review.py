@@ -128,9 +128,14 @@ async def test_the_prompts_lean_on_salli_s_tools_not_the_model_s_arithmetic():
     text = review.messages[0].content.text  # type: ignore[union-attr]
     assert "October" in text and "get_cash_forecast" in text and "never compute" in text
 
+    # Was: simulate_purchase, beside a forecast the agent read itself. Now the
+    # purchase is built as scenarios Salli compares, and the agent never
+    # subtracts anything, nor picks for the user.
     afford = await server.get_prompt("can_i_afford", {"amount": "2000 USD", "what": "a trip"})
     text = afford.messages[0].content.text  # type: ignore[union-attr]
-    assert "simulate_purchase" in text and "never your own arithmetic" in text
+    assert "compare_options" in text and "get_scenario_schema" in text
+    assert "Never subtract" in text and "Don't tell me which to choose" in text
+    assert "simulate_purchase" not in text
 
     sort = await server.get_prompt("sort_pending_transactions", {})
     text = sort.messages[0].content.text  # type: ignore[union-attr]
@@ -174,9 +179,58 @@ async def test_an_agent_sets_an_assumption_with_its_source_and_it_is_audited(ser
     services.audit.log.assert_not_awaited()
 
 
+async def test_an_agent_sets_the_share_of_the_surplus_invested_within_its_bounds(services):
+    """Through the real service: a share from 0 to 1, with its source; out
+    of range is refused with how to write it, nothing changes and nothing is
+    audited."""
+    from salli.application.services.fi_service import FiService
+    from tests.fakes import FakeUoW
+
+    uow = FakeUoW("NOK")
+    uow.user_profiles.rows["u1"] = {"fi_assumptions": {}}
+    services.fi = FiService(uow.factory())
+    result = await _call(
+        services,
+        "set_fi_assumption",
+        {"name": "surplus_invested", "value": "0.8", "source": "my standing orders"},
+    )
+    assert result["applied"]["surplus_invested"] == {
+        "value": "0.8",
+        "origin": "user",
+        "source": "my standing orders",
+        "note": None,
+    }
+    assert "surplus_invested" not in result["applied"]["placeholders"]
+    stored = uow.user_profiles.rows["u1"]["fi_assumptions"]["surplus_invested"]
+    assert (stored["value"], stored["source"]) == ("0.8", "my standing orders")
+    services.audit.log.assert_awaited_once()
+
+    services.audit.log.reset_mock()
+    for value in ("80", "1.2", "-0.5"):
+        refused = await _call(
+            services, "set_fi_assumption", {"name": "surplus_invested", "value": value}
+        )
+        assert "a share from 0 to 1 (0.8 for 80%)" in refused["error"], value
+    assert uow.user_profiles.rows["u1"]["fi_assumptions"]["surplus_invested"]["value"] == "0.8"
+    services.audit.log.assert_not_awaited()
+
+    # Cleared, the placeholder stands in again.
+    cleared = await _call(
+        services, "set_fi_assumption", {"name": "surplus_invested", "value": None}
+    )
+    assert cleared["applied"]["surplus_invested"]["origin"] == "placeholder"
+
+
 async def test_the_planning_assumptions_prompt_asks_for_sources_and_consent():
     server = mcp_server.build_mcp_server(MagicMock(), "https://api.test")
     prompt = await server.get_prompt("set_planning_assumptions", {"country": "KE"})
     text = prompt.messages[0].content.text  # type: ignore[union-attr]
-    for phrase in ("for KE", "get_fi_assumptions", "real terms", "source", "only after I agree"):
+    for phrase in (
+        "for KE",
+        "get_fi_assumptions",
+        "real terms",
+        "source",
+        "only after I agree",
+        "share of my monthly surplus I actually invest",
+    ):
         assert phrase in text, phrase

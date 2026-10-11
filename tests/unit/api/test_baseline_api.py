@@ -64,7 +64,18 @@ async def test_the_baseline_says_the_definitions_behind_every_figure(client, uow
         ("debt-car", "account"),
         ("debt-student", "declared"),
     ]
-    assert body["placeholders"] == ["real_return", "safe_withdrawal_rate", "inflation"]
+    assert body["placeholders"] == [
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+        "inflation",
+    ]
+    # The share of each month's regular surplus invested: the placeholder's
+    # all of it, which leaves cash on each month's last day.
+    assert body["assumptions"]["surplus_invested"]["origin"] == "placeholder"
+    assert body["monthly"]["surplus_invested"] == "1"
+    assert [m["invested"] for m in body["cash"]["month_ends"][:2]] == ["3459.66", "1661.59"]
+    assert {m["cash"] for m in body["cash"]["month_ends"]} == {"15801.47"}
     # The as-of month and the twelve after it, every day of them.
     assert (body["cash"]["start"], body["cash"]["end"]) == ("2026-10-11", "2027-10-31")
     assert len(body["cash"]["month_ends"]) == 13

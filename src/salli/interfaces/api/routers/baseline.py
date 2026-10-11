@@ -125,10 +125,14 @@ class BaselineDebt(BaseModel):
 
 class BaselineCashMonth(BaseModel):
     month: Month
-    #: The cash at the month's end, in that month's own money.
+    #: The cash at the month's end, in that month's own money, after the
+    #: share invested has left it.
     cash: Amount
     #: The rest of the month's plan beyond what is scheduled.
     unscheduled: Amount
+    #: The share of the month's regular surplus moved into investments on
+    #: its last day (`monthly.surplus_invested`).
+    invested: Amount
 
 
 class BaselineDay(BaseModel):
@@ -168,10 +172,24 @@ class BaselineMonthly(BaseModel):
     horizon_years: int
     #: The base scenario's real return the investments grow at.
     real_return: DecimalOut
+    #: The share (0 to 1) of each month's regular surplus moved into the
+    #: investments; the rest stays in cash, which earns nothing.
+    surplus_invested: DecimalOut
     #: The user's inflation; null when none is set (nominal amounts then keep
     #: their real value, a placeholder).
     inflation: DecimalOut | None
     points: list[BaselineMonthPoint]
+
+
+class BaselineRuleSet(BaseModel):
+    """An active tax rule set version that applies on the as-of date."""
+
+    country: str
+    region: str | None
+    year: str
+    rule_set_id: str
+    version: int
+    content_hash: str
 
 
 class Baseline(BaseModel):
@@ -195,8 +213,16 @@ class Baseline(BaseModel):
     #: The FI assumptions planning rests on, and where each came from.
     assumptions: FiAssumptions
     #: Which assumptions are placeholders: real_return, safe_withdrawal_rate,
-    #: and inflation when none is set.
-    placeholders: list[Literal["real_return", "safe_withdrawal_rate", "inflation"]]
+    #: surplus_invested, and inflation when none is set.
+    placeholders: list[
+        Literal["real_return", "safe_withdrawal_rate", "surplus_invested", "inflation"]
+    ]
+    #: The active tax rule sets in your tax residency whose year covers the
+    #: as-of date.
+    rule_sets: list[BaselineRuleSet]
+    #: A content hash of everything the baseline was built from: the same
+    #: inputs, the same baseline (a scenario's result records it).
+    fingerprint: str
     #: What was left out, and why.
     notes: list[str]
 

@@ -2,7 +2,8 @@
 Properties of the baseline (domain/baseline), over random ledgers:
 
 - the daily cash timeline's month-ends are the monthly timeline's cash in
-  each month's own money: exactly, when the user set no inflation;
+  each month's own money, whatever share of the surplus is invested:
+  exactly, when the user set no inflation;
 - an entry and its reversal change nothing;
 - taking on a debt never raises net worth at the horizon, and paying one off
   faster never lowers it;
@@ -25,6 +26,8 @@ AS_OF = dt.date(2026, 10, 11)
 MONTHS = [f"2025-{m:02d}" for m in range(11, 13)] + [f"2026-{m:02d}" for m in range(1, 11)]
 
 amounts = st.decimals(min_value=Decimal("1"), max_value=Decimal("5000"), places=2)
+#: Shares of the surplus invested a user might set.
+SHARES = ("0", "0.35", "0.8", "1")
 days = st.integers(min_value=1, max_value=28)
 
 
@@ -88,8 +91,16 @@ def ledgers(draw: st.DrawFn) -> Ledger:
         )
     if draw(st.booleans()):
         books.debt("student", str(draw(amounts) * 10), "0.045", "800")
+    figures: dict[str, str] = {}
     if draw(st.booleans()):
-        books.assume(inflation=draw(st.sampled_from(["0.015", "0.024", "0.06"])))
+        figures["inflation"] = draw(st.sampled_from(["0.015", "0.024", "0.06"]))
+    # The share of the surplus invested: the placeholder's all of it, or the
+    # user's own.
+    share = draw(st.sampled_from([None, *SHARES]))
+    if share is not None:
+        figures["surplus_invested"] = share
+    if figures:
+        books.assume(**figures)
     return books
 
 

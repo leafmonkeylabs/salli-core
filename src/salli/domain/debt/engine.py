@@ -23,10 +23,17 @@ narrow property of discretized amortization, not specific to this implementation
 Calendar months: given the month of the first payment (`first_month`,
 "YYYY-MM"), every schedule entry says the calendar month it falls in, and the
 plan the month of its last payment. The day within the month is not modelled.
+
+A loan with a term (`Debt.term_months`) pays what is left in its last month:
+its level payment is rounded to the currency's smallest unit, so the last one
+takes the cents the rounding moved. The extra payment may differ from month
+to month (a function of the 1-based month), for a scenario's extra payments
+that start or stop.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal
 
 from salli.domain.debt.models import Debt, PayoffPlan, PayoffScheduleEntry, PayoffStrategy
@@ -57,7 +64,7 @@ def month_after(period: str, months: int) -> str:
 
 def compute_payoff_plan(
     debts: list[Debt],
-    extra_monthly_payment: Decimal,
+    extra_monthly_payment: Decimal | Callable[[int], Decimal],
     strategy: PayoffStrategy,
     max_months: int = _DEFAULT_MAX_MONTHS,
     money_quantum: Decimal = _CENT,
@@ -72,6 +79,12 @@ def compute_payoff_plan(
     balances = {d.key: d.principal for d in order}
     monthly_rate = {d.key: d.apr / Decimal(12) for d in order}
     min_payment = {d.key: d.minimum_payment for d in order}
+    term = {d.key: d.term_months for d in order}
+
+    def extra_for(month: int) -> Decimal:
+        if callable(extra_monthly_payment):
+            return extra_monthly_payment(month)
+        return extra_monthly_payment
 
     schedule: list[PayoffScheduleEntry] = []
     total_interest = Decimal(0)
@@ -93,18 +106,19 @@ def compute_payoff_plan(
             total_interest += interest
             balances[d.key] = bal + interest
 
-        # Apply minimum payments.
+        # Apply minimum payments: a loan's last scheduled one pays what is left.
         for d in order:
             bal = balances[d.key]
             if bal <= 0:
                 continue
-            payment = min(min_payment[d.key], bal)
+            last = term[d.key]
+            payment = bal if last is not None and month >= last else min(min_payment[d.key], bal)
             balances[d.key] = bal - payment
             payment_this_month[d.key] += payment
 
         # Cascade the extra pool through debts in priority order — a debt paid
         # off with less than the full pool passes the remainder to the next.
-        pool = extra_monthly_payment + freed_minimums
+        pool = extra_for(month) + freed_minimums
         for d in order:
             if pool <= 0:
                 break

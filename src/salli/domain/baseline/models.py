@@ -132,27 +132,52 @@ class DeclaredDebt:
 
 @dataclass(frozen=True)
 class BaselineDebt:
-    """A debt with terms, counted once."""
+    """A debt with terms, counted once; or a loan a scenario takes out."""
 
     debt_id: str
     name: str
     apr: Decimal
     minimum_payment: Decimal
     #: What is owed on the as-of date: the linked account's balance, or the
-    #: declared principal.
+    #: declared principal. A scenario's loan: what it borrows.
     balance: Decimal
     #: "account" when the balance is the linked ledger account's, "declared"
-    #: when the ledger doesn't hold it.
-    source: Literal["account", "declared"]
+    #: when the ledger doesn't hold it, "scenario" for a loan a scenario
+    #: takes out.
+    source: Literal["account", "declared", "scenario"]
     account_id: str | None
     #: The part of each month's payment the average surplus already pays:
     #: a linked debt's interest this month (its principal moves between
     #: accounts, so isn't spending); an unlinked debt's minimum payment (its
-    #: payments were spending). Payments beyond it come out of cash; when the
-    #: debt is paid off, it stays in cash.
+    #: payments were spending). The rest of its scheduled payment comes out
+    #: of the regular surplus; once the debt is paid off, the payment is
+    #: freed and joins it (`timelines.cash_plan`). Nothing, for a scenario's
+    #: loan.
     already_paid: Decimal
-    #: Paid on top of the minimum each month, from the first payment.
+    #: Paid on top of the minimum each month, from the first payment: out of
+    #: cash, not the regular surplus.
     extra_payment: Decimal = Decimal(0)
+    #: The calendar month ("YYYY-MM") a scenario's loan is taken out, owed
+    #: from that month's end; None for a debt owed on the as-of date.
+    opened: str | None = None
+    #: The month of the first payment; None: the month after the as-of month.
+    first_payment: str | None = None
+    #: A loan's term in months: its last payment clears it.
+    term_months: int | None = None
+
+
+@dataclass(frozen=True)
+class RuleSetRef:
+    """An active tax rule set version whose year covers the as-of date, in
+    the user's tax residency: which rules apply, recorded with every figure
+    that rests on the baseline."""
+
+    country: str
+    region: str | None
+    year: str
+    rule_set_id: str
+    version: int
+    content_hash: str
 
 
 @dataclass(frozen=True)
@@ -183,6 +208,8 @@ class BaselineInputs:
     statement_accounts: frozenset[str] = frozenset()
     own_assumptions: OwnAssumptions = field(default_factory=OwnAssumptions)
     strategy: StrategyFigures | None = None
+    #: The active tax rule sets whose year covers the as-of date.
+    rule_sets: Sequence[RuleSetRef] = ()
 
 
 @dataclass(frozen=True)
@@ -213,6 +240,14 @@ class Baseline:
     #: The date of the newest entry on or before the as-of date (within the
     #: two years read), or None: how fresh the picture is.
     latest_entry: str | None = None
+    #: The FIRE strategy's figures, when there is one (its version, and the
+    #: monthly spending it aims at, if it names one).
+    strategy: StrategyFigures | None = None
+    #: The active tax rule sets whose year covers the as-of date.
+    rule_sets: tuple[RuleSetRef, ...] = ()
+    #: A content hash of everything the baseline was built from
+    #: (`fingerprint.of`): the same inputs, the same baseline.
+    fingerprint: str = ""
 
     # ── Totals, in the base currency ─────────────────────────────────────────
 
@@ -293,6 +328,12 @@ class Baseline:
     @property
     def inflation(self) -> Decimal | None:
         return self.assumptions.inflation.value if self.assumptions.inflation else None
+
+    @property
+    def surplus_invested(self) -> Decimal:
+        """The share (0 to 1) of each month's regular surplus that goes into
+        investments (`timelines.cash_plan`); the user's, or the placeholder."""
+        return self.assumptions.surplus_invested.value
 
     @property
     def placeholders(self) -> tuple[str, ...]:

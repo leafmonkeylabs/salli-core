@@ -117,14 +117,21 @@ export const TRIAL_BALANCE = {
   net: '0.00',
 } satisfies TrialBalance;
 
-/** Your own withdrawal rate, a placeholder real return, and no inflation set. */
+/** Your own withdrawal rate, a placeholder real return and share of the
+ * surplus invested, and no inflation set. */
 export const FI_ASSUMPTIONS: FiAssumptions = {
   status: 'placeholder',
-  placeholders: ['real_return'],
+  placeholders: ['real_return', 'surplus_invested'],
   message:
-    "Using placeholder assumptions for the real return: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "Using placeholder assumptions for the real return and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
   real_return: { value: '0.04', origin: 'placeholder', source: 'Placeholder: a round 4% a year after inflation.', note: null },
   safe_withdrawal_rate: { value: '0.035', origin: 'user', source: 'https://example.org/withdrawal-study', note: null },
+  surplus_invested: {
+    value: '1',
+    origin: 'placeholder',
+    source: 'Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.',
+    note: null,
+  },
   inflation: null,
   nominal_return: null,
   real_returns: { conservative: '0.02', base: '0.04', growth: '0.06' },

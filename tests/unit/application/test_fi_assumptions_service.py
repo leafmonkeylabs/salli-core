@@ -131,11 +131,19 @@ async def test_with_nothing_set_every_currency_gets_the_same_labelled_placeholde
     projections = await svc.get_projections(USER)
     assumptions = projections["assumptions"]
     assert assumptions["status"] == "placeholder"
-    assert assumptions["placeholders"] == ["real_return", "safe_withdrawal_rate"]
+    assert assumptions["placeholders"] == [
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+    ]
     assert assumptions["real_return"]["origin"] == "placeholder"
     assert assumptions["real_return"]["value"] == "0.04"
     assert assumptions["real_return"]["source"].startswith("Placeholder:")
     assert assumptions["safe_withdrawal_rate"]["value"] == "0.04"
+    assert assumptions["surplus_invested"]["value"] == "1"
+    assert assumptions["surplus_invested"]["source"].startswith(
+        "Placeholder: all of your monthly surplus is assumed invested"
+    )
     assert "placeholder assumptions" in assumptions["message"]
     # No inflation is assumed, so no nominal figure appears anywhere.
     assert assumptions["inflation"] is None
@@ -164,11 +172,15 @@ async def test_projections_never_block_on_missing_assumptions():
 async def test_every_fi_figure_carries_the_flag():
     svc, *_ = _service("USD")
     score = await svc.compute_score(USER)
-    impact = await svc.simulate_purchase(USER, Decimal("1000"))
-    for result in (score, impact):
+    projections = await svc.get_projections(USER)
+    for result in (score, projections):
         assert result["assumptions"]["status"] == "placeholder"
-        assert result["assumptions"]["placeholders"] == ["real_return", "safe_withdrawal_rate"]
-    assert impact["real_return_used"] == "0.04"
+        assert result["assumptions"]["placeholders"] == [
+            "real_return",
+            "safe_withdrawal_rate",
+            "surplus_invested",
+        ]
+    assert projections["real_returns"]["base"] == "0.04"
 
 
 # ── The user's own ───────────────────────────────────────────────────────────
@@ -180,6 +192,7 @@ async def test_the_users_own_figures_apply_with_their_sources_and_say_so():
         fi_assumptions=_own(
             real_return={"value": "0.05", "source": "https://example.org/returns"},
             safe_withdrawal_rate={"value": "0.035", "note": "a cautious rate"},
+            surplus_invested={"value": "0.6", "source": "my standing orders"},
         ),
     )
     score = await svc.compute_score(USER)
@@ -194,6 +207,12 @@ async def test_the_users_own_figures_apply_with_their_sources_and_say_so():
     }
     assert assumptions["safe_withdrawal_rate"]["note"] == "a cautious rate"
     assert assumptions["safe_withdrawal_rate"]["source"] == "Set by you; no source given."
+    assert assumptions["surplus_invested"] == {
+        "value": "0.6",
+        "origin": "user",
+        "source": "my standing orders",
+        "note": None,
+    }
     assert score["swr"] == "0.035"
 
 
@@ -207,22 +226,46 @@ async def test_nominal_figures_appear_only_with_the_users_inflation():
     assert projections["inflation"] == "0.02"
     # (1.04 × 1.02) − 1 = 0.0608.
     assert projections["nominal_returns"]["base"] == "0.0608"
-    # The real projection is the same as without inflation; each point adds
-    # its year's own money, and the FI number grows with it.
+    # 1b: was "the real projection is the same as without inflation"; then,
+    # the surplus kept in cash, which loses real value with inflation, "the
+    # real line can only be lower". Surplus invested at the placeholder
+    # 100%, it keeps its real value in the investments whatever inflation
+    # does, and only cash loses it. This ledger's baseline holds no cash, so
+    # the real line is the one without inflation, to the cents each month's
+    # own money is rounded to. Each point adds its year's own money, grown by
+    # the timeline's own deflator (a twelfth of 2% a month), and the FI
+    # number grows with it.
     plain, *_ = _service("EUR")
     real = (await plain.get_projections(USER))["points"]
-    for point, same in zip(projections["points"], real, strict=True):
-        assert {k: point[k] for k in ("year", "conservative", "base", "growth")} == same
+    # (Inflation could move FI later, so the chart may run longer: the years
+    # both show.)
+    for point, without in zip(projections["points"], real, strict=False):
+        assert abs(Decimal(point["base"]) - Decimal(without["base"])) <= Decimal("0.05")
+    # With the surplus kept in cash instead, inflation takes from it, and the
+    # real line is lower from the first year on.
+    kept_in_cash = {"surplus_invested": {"value": "0"}}
+    deflating, *_ = _service(
+        "EUR",
+        fi_assumptions=_own(inflation={"value": "0.02"}, **kept_in_cash),
+    )
+    level, *_ = _service("EUR", fi_assumptions=_own(**kept_in_cash))
+    lower = (await deflating.get_projections(USER))["points"]
+    flat = (await level.get_projections(USER))["points"]
+    for point, without in list(zip(lower, flat, strict=False))[1:]:
+        assert Decimal(point["base"]) < Decimal(without["base"])
     year_two = projections["points"][2]
-    assert Decimal(year_two["nominal"]["base"]) == (
-        Decimal(year_two["base"]) * Decimal("1.02") ** 2
-    ).quantize(Decimal("0.01"))
-    assert Decimal(year_two["nominal"]["fi_number"]) == (
-        Decimal(projections["fi_number"]) * Decimal("1.0404")
-    ).quantize(Decimal("0.01"))
+    level = Decimal(year_two["nominal"]["fi_number"]) / Decimal(projections["fi_number"])
+    assert Decimal("1.0404") < level < Decimal("1.0420")
+    nominal = Decimal(year_two["nominal"]["base"])
+    assert abs(nominal - Decimal(year_two["base"]) * level) <= Decimal("0.02")
     assert projections["points"][0]["nominal"]["base"] == projections["points"][0]["base"]
-    # Still a placeholder for the return and the rate: inflation is not one of them.
-    assert projections["assumptions"]["placeholders"] == ["real_return", "safe_withdrawal_rate"]
+    # Still placeholders for the return, the rate and the share: inflation is
+    # not one of them.
+    assert projections["assumptions"]["placeholders"] == [
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+    ]
 
 
 async def test_a_strategy_s_real_returns_apply_unless_the_user_set_their_own():
@@ -234,17 +277,18 @@ async def test_a_strategy_s_real_returns_apply_unless_the_user_set_their_own():
         "real_return_growth": 0.05,
     }
     svc, *_ = _service("USD", strategy=strategy)
-    impact = await svc.simulate_purchase(USER, Decimal("1000"))
-    assert impact["assumptions"]["safe_withdrawal_rate"]["origin"] == "strategy"
-    assert impact["assumptions"]["real_return"]["origin"] == "strategy"
-    assert impact["assumptions"]["status"] == "user"
-    assert impact["swr"] == "0.045"
-    assert impact["real_return_used"] == "0.03"
+    projections = await svc.get_projections(USER)
+    assert projections["assumptions"]["safe_withdrawal_rate"]["origin"] == "strategy"
+    assert projections["assumptions"]["real_return"]["origin"] == "strategy"
+    # A strategy chooses no share of the surplus: that stays a placeholder.
+    assert projections["assumptions"]["placeholders"] == ["surplus_invested"]
+    assert projections["swr"] == "0.045"
+    assert projections["real_returns"] == {"conservative": "0.01", "base": "0.03", "growth": "0.05"}
 
     svc, *_ = _service("USD", strategy=strategy, fi_assumptions=_own(safe_withdrawal_rate="0.03"))
-    impact = await svc.simulate_purchase(USER, Decimal("1000"))
-    assert impact["assumptions"]["safe_withdrawal_rate"]["origin"] == "user"
-    assert impact["swr"] == "0.03"
+    projections = await svc.get_projections(USER)
+    assert projections["assumptions"]["safe_withdrawal_rate"]["origin"] == "user"
+    assert projections["swr"] == "0.03"
 
 
 async def test_a_strategy_stored_with_nominal_returns_contributes_only_its_rate():
@@ -253,7 +297,7 @@ async def test_a_strategy_stored_with_nominal_returns_contributes_only_its_rate(
     strategy = {"swr": 0.045, "return_conservative": 0.06, "return_base": 0.1}
     svc, *_ = _service("USD", strategy=strategy)
     projections = await svc.get_projections(USER)
-    assert projections["assumptions"]["placeholders"] == ["real_return"]
+    assert projections["assumptions"]["placeholders"] == ["real_return", "surplus_invested"]
     assert projections["swr"] == "0.045"
 
 
@@ -283,8 +327,10 @@ async def test_the_report_has_what_applies_the_users_own_and_the_placeholders():
         "nominal_return": None,
         "inflation": None,
         "safe_withdrawal_rate": None,
+        "surplus_invested": None,
     }
     assert report["placeholder_values"]["real_return"]["value"] == "0.04"
+    assert report["placeholder_values"]["surplus_invested"]["value"] == "1"
     assert report["placeholder_values"]["safe_withdrawal_rate"]["source"].startswith("Placeholder:")
     assert report["scenario_spread"] == "0.02"
 
@@ -310,6 +356,34 @@ async def test_the_users_own_figures_are_set_with_sources_and_cleared():
     report = await svc.set_assumptions(USER, {"nominal_return": None, "inflation": None})
     assert profiles.row["fi_assumptions"] == {}
     assert report["applied"]["status"] == "placeholder"
+
+
+async def test_the_share_of_the_surplus_invested_is_set_with_its_source_and_bounded():
+    svc, profiles, *_ = _service("USD")
+    report = await svc.set_assumptions(
+        USER, {"surplus_invested": {"value": "0.8", "source": "my standing orders"}}
+    )
+    stored = profiles.row["fi_assumptions"]["surplus_invested"]
+    assert (stored["value"], stored["source"]) == ("0.8", "my standing orders")
+    assert report["own"]["surplus_invested"]["value"] == "0.8"
+    assert report["applied"]["surplus_invested"]["origin"] == "user"
+    assert "surplus_invested" not in report["applied"]["placeholders"]
+    # The projections use it: the FI month moves with what is invested.
+    invested = await svc.get_projections(USER)
+    assert invested["assumptions"]["surplus_invested"]["value"] == "0.8"
+    await svc.set_assumptions(USER, {"surplus_invested": {"value": "0"}})
+    kept = await svc.get_projections(USER)
+    # Kept in cash, which earns nothing, the surplus reaches FI later.
+    sooner, later = invested["fi_by"]["base"]["months"], kept["fi_by"]["base"]["months"]
+    assert sooner is not None and later is not None and later > sooner
+    # A share is from 0 to 1: 80 typed for 80% is refused, and nothing changes.
+    for value in ("80", "1.5", "-0.2"):
+        with pytest.raises(ValueError, match="a share from 0 to 1"):
+            await svc.set_assumptions(USER, {"surplus_invested": {"value": value}})
+    assert profiles.row["fi_assumptions"]["surplus_invested"]["value"] == "0"
+    # Cleared, the placeholder stands in again.
+    report = await svc.set_assumptions(USER, {"surplus_invested": None})
+    assert "surplus_invested" in report["applied"]["placeholders"]
 
 
 async def test_a_figure_that_cannot_be_used_is_refused_and_nothing_changes():
