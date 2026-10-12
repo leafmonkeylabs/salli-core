@@ -17,6 +17,8 @@ export const BOOKS_PLACES = [
   { to: '/books', label: b.accounts, exact: true },
   { to: '/books/entries', label: b.entries, exact: true },
   { to: '/books/entries/new', label: b.add, exact: true },
+  { to: '/books/imports', label: b.imports },
+  { to: '/books/rules', label: b.rules, exact: true },
 ] as const;
 
 export function BooksNav() {

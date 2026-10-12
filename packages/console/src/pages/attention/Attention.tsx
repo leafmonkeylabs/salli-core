@@ -2,7 +2,7 @@
  * Attention (docs/design/console.md, section 5; `salli insights signals`,
  * `salli reminders`): what Salli has noticed, in the order it gives them,
  * each with its kind, its detail and where to look (the page that shows
- * it, or the decision in the journal); then the reminders, overdue, due
+ * it, the imports waiting for review, or the decision in the journal); then the reminders, overdue, due
  * today and coming up, each one marked done (`reminders.markDone`) or
  * deleted (`reminders.delete`) after a confirmation that says what Salli
  * will do. A decision's review reminder opens the decision in the journal.
@@ -22,7 +22,7 @@ import { whereStrings } from '../../where-strings';
 const t = whereStrings.attention;
 const INVALIDATE = ['reminders.list', 'insights.signals'];
 
-/** Where a signal points: a part of Cash, or the decision it names in the journal. */
+/** Where a signal points: a part of Cash, the review queue, or the decision it names in the journal. */
 function actionPath(signal: FinanceSignal): string | undefined {
   switch (signal.action) {
     case 'see_forecast':
@@ -33,6 +33,8 @@ function actionPath(signal: FinanceSignal): string | undefined {
       return '/cash#spending';
     case 'see_cash_flow':
       return '/cash#cash-flow';
+    case 'review':
+      return '/books/imports';
     case 'review_decision':
       return signal.refs[0] ? `/decide/journal/${encodeURIComponent(signal.refs[0])}` : '/decide/journal';
     default:
@@ -60,7 +62,11 @@ function SignalItem({ signal }: { signal: FinanceSignal }) {
           {signal.date ? ` · ${displayDate(signal.date, locale)}` : ''}
         </p>
       ) : null}
-      <p>{path ? <Link to={path}>{t.actions[signal.action] ?? signal.action}</Link> : <span className="muted">{t.reviewStatements}</span>}</p>
+      {path ? (
+        <p>
+          <Link to={path}>{t.actions[signal.action] ?? signal.action}</Link>
+        </p>
+      ) : null}
     </li>
   );
 }

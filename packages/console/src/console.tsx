@@ -143,6 +143,16 @@ const WHERE: ConsoleRoute[] = [
   { path: '/more', load: () => import('./pages/more/More') },
 ];
 
+/**
+ * Books, tax and settings (C4): imports and review, rules, tax with its
+ * rule sets, and the rest of Settings, each page a chunk of its own.
+ */
+const BOOKS_TAX_SETTINGS: ConsoleRoute[] = [
+  { path: '/books/imports', load: () => import('./pages/books/Imports') },
+  { path: '/books/imports/$statement', load: () => import('./pages/books/Review') },
+  { path: '/books/rules', load: () => import('./pages/books/Rules') },
+];
+
 function Settings() {
   return (
     <Suspense fallback={<Loading lines={6} />}>
@@ -156,7 +166,7 @@ function buildRouter(extensions: readonly ConsoleExtension[], history: (() => Ro
   const pages: AnyRoute[] = [
     createRoute({ getParentRoute: () => root, path: '/', component: Home }),
     createRoute({ getParentRoute: () => root, path: '/settings', component: Settings }),
-    ...[...WHERE, ...LAB].map((route) => createRoute({ getParentRoute: () => root, path: route.path, component: pageOf(route) })),
+    ...[...WHERE, ...LAB, ...BOOKS_TAX_SETTINGS].map((route) => createRoute({ getParentRoute: () => root, path: route.path, component: pageOf(route) })),
   ];
   for (const extension of extensions) {
     for (const route of extension.routes ?? []) {
