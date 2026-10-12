@@ -55,7 +55,14 @@ for (const theme of THEMES) {
 
       test('Settings', async ({ page }) => {
         const seen = await open(page, width, theme);
-        await page.getByRole('navigation', { name: 'Places' }).filter({ visible: true }).getByRole('link', { name: 'Settings' }).click();
+        // On a phone, Settings is under More (the bar holds five places).
+        const places = page.getByRole('navigation', { name: 'Places' }).filter({ visible: true });
+        if (width < 721) {
+          await places.getByRole('link', { name: 'More' }).click();
+          await page.getByRole('main').getByRole('link', { name: 'Settings' }).click();
+        } else {
+          await places.getByRole('link', { name: 'Settings' }).click();
+        }
         await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
         await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana');
         await settled(page);

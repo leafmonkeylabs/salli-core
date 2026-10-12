@@ -14,7 +14,7 @@ const PORT = 4173;
 
 export default defineConfig({
   testDir: 'e2e',
-  testMatch: ['console.spec.ts', 'lab.spec.ts'],
+  testMatch: ['console.spec.ts', 'lab.spec.ts', 'where.spec.ts'],
   outputDir: 'test-results/fixtures',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
