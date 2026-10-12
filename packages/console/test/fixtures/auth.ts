@@ -4,7 +4,7 @@
  * so they are written by hand; the SDK's types check their shape, so an API
  * change that moves them fails the type check.
  */
-import type { AuthIdentity, Meta, Profile, SignIn } from '@leafmonkeylabs/salli-sdk';
+import type { AuthIdentity, DataExport, McpConnection, Meta, Profile, SignIn } from '@leafmonkeylabs/salli-sdk';
 
 export const ORIGIN = 'http://localhost:8000';
 
@@ -101,3 +101,57 @@ export const SIGN_INS: SignIn[] = [
     current: false,
   },
 ];
+
+/**
+ * The AI clients connected over MCP. Like the sign-ins, they are how
+ * someone reaches the books, not the books, so they are written here by
+ * hand, typed by the SDK.
+ */
+export const MCP_CONNECTIONS: McpConnection[] = [
+  {
+    token_id: 'mcp-token-1',
+    client_id: 'client-claude',
+    client_name: 'Claude',
+    scope: 'salli',
+    connected_at: '2026-09-20T18:04:00+00:00',
+  },
+];
+
+/**
+ * "My data" (`account.export`), cut down to the person and two accounts,
+ * with an amount a float can't hold: the console saves exactly what Salli
+ * sent, never a figure changed on the way.
+ */
+export const MY_DATA: DataExport = {
+  user_id: 'household',
+  profile: PROFILE,
+  accounts: [
+    { id: 'chk', code: '1000', name: 'Checking', type: 'asset', currency: 'EUR', parent_id: null, is_active: true, tax_role: null },
+    { id: 'eq', code: '3000', name: 'Opening equity', type: 'equity', currency: 'EUR', parent_id: null, is_active: true, tax_role: null },
+  ],
+  journal_entries: [
+    {
+      id: 'e001',
+      entry_date: '2026-03-31',
+      description: 'Opening balance',
+      source: 'manual',
+      external_ref: null,
+      reversed_by: null,
+      postings: [
+        { account_id: 'chk', direction: 'DEBIT', amount: '9007199254740993.01', currency: 'EUR' },
+        { account_id: 'eq', direction: 'CREDIT', amount: '9007199254740993.01', currency: 'EUR' },
+      ],
+    },
+  ],
+  budgets: [],
+  debts: [],
+  holdings: [],
+  recurring_subscriptions: [],
+  insurance_policies: [],
+  insurance_targets: [],
+  goals: [],
+  fi_score_history: [],
+  advisor_reports: [],
+  reminders_and_alerts: [],
+  documents: [],
+};

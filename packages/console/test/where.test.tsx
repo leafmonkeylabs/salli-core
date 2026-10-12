@@ -355,6 +355,6 @@ describe('the places', () => {
     await click(within(bar).getByRole('link', { name: 'More' }));
     const more = await screen.findByRole('heading', { level: 1, name: 'More' });
     const list = more.closest('.page') as HTMLElement;
-    expect(within(list).getAllByRole('link').map((a) => a.textContent)).toEqual(['Attention', 'Independence', 'Settings']);
+    expect(within(list).getAllByRole('link').map((a) => a.textContent)).toEqual(['Tax', 'Attention', 'Independence', 'Settings']);
   });
 });
