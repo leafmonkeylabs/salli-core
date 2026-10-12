@@ -261,8 +261,10 @@ function describeChange(out: Output, run: ScenarioRun, index: number): string {
   switch (doc.type) {
     case 'one_off':
       return `${out.money(doc.amount, cur)} on ${on(doc.date)}${taxed(doc.tax_role)}`;
-    case 'recurring':
-      return `${out.money(doc.amount, cur)} a ${UNIT[doc.cadence]} from ${on(doc.start)}${doc.end ? ` to ${on(doc.end)}` : ''}${taxed(doc.tax_role)}`;
+    case 'recurring': {
+      const grows = doc.real_growth && !/^[+-]?0*(\.0*)?$/.test(doc.real_growth) ? `, growing ${out.percent(doc.real_growth, 2)} a year beyond inflation` : '';
+      return `${out.money(doc.amount, cur)} a ${UNIT[doc.cadence]} from ${on(doc.start)}${doc.end ? ` to ${on(doc.end)}` : ''}${grows}${taxed(doc.tax_role)}`;
+    }
     case 'income_change':
       return `${out.money(doc.monthly, cur)} a month from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}${taxed(doc.tax_role)}`;
     case 'loan':
@@ -273,6 +275,11 @@ function describeChange(out: Output, run: ScenarioRun, index: number): string {
       return `${out.money(doc.amount, cur)} on ${on(doc.date)}`;
     case 'set_aside':
       return `${out.money(doc.monthly, cur)} a month kept in cash from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}`;
+    case 'asset': {
+      const growth = doc.real_growth ? out.percent(doc.real_growth, 2) : '0% (a placeholder)';
+      const costs = doc.selling_costs ? `, selling costs ${out.percent(doc.selling_costs, 2)}` : '';
+      return `${out.money(doc.price, cur)} on ${on(doc.date)}, growing ${growth} a year beyond inflation${costs}`;
+    }
     case 'stop_recurring': {
       const stopped = applied?.stopped.map((s) => `${singleLine(s.payee)} (${out.money(s.amount, s.currency)} ${s.cadence})`).join(', ');
       return `from ${on(doc.from)}${stopped ? `: ${stopped}` : ''}`;
@@ -293,6 +300,7 @@ function notesFor(app: App, run: ScenarioRun): void {
       inflation: 'inflation (none set: nominal amounts keep their real value)',
       tax: 'tax (not computed: amounts tagged with a tax role count before tax)',
       tax_rules_carried_forward: 'your latest tax rules, carried forward to years with none of their own',
+      asset_growth: 'an asset’s growth (0% beyond inflation: not a forecast, set your own view)',
     };
     out.note(`Placeholders: ${run.placeholders.map((p) => names[p] ?? p).join('; ')}. Set yours with \`salli fi assumptions set\`.`);
   }
@@ -354,6 +362,7 @@ export function showRun(app: App, run: ScenarioRun): void {
   }
 
   if (run.monthly.length) {
+    const assets = run.monthly.some((p) => !/^-?0*(\.0*)?$/.test(p.other_assets.delta ?? '0'));
     out.line();
     out.line(
       out.table(run.monthly, [
@@ -363,10 +372,17 @@ export function showRun(app: App, run: ScenarioRun): void {
         { header: 'CHANGE', get: (p) => change(out, p.net_worth.delta, cur), align: 'right' },
         { header: 'CASH', get: (p) => change(out, p.cash.delta, cur), align: 'right' },
         { header: 'INVESTMENTS', get: (p) => change(out, p.investments.delta, cur), align: 'right' },
+        ...(assets ? [{ header: 'OTHER ASSETS', get: (p: (typeof run.monthly)[number]) => change(out, p.other_assets.delta, cur), align: 'right' as const }] : []),
         { header: 'DEBTS', get: (p) => change(out, p.debts.delta, cur), align: 'right' },
       ]),
     );
-    out.note('In today’s money. CASH, INVESTMENTS and DEBTS are the changes against the baseline.');
+    out.note(`In today’s money. CASH, INVESTMENTS${assets ? ', OTHER ASSETS' : ''} and DEBTS are the changes against the baseline.`);
+    if (assets) {
+      const last = run.monthly.at(-1);
+      out.note(
+        `An asset counts at what it would fetch: its value less its selling costs${last ? ` (other assets worth ${out.amount(last.other_assets_value.scenario, cur)} in ${plural(last.years, 'year')}, counted at ${out.amount(last.other_assets.scenario, cur)})` : ''}.`,
+      );
+    }
   }
 
   const debts = run.debts;

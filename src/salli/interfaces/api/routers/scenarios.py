@@ -90,6 +90,7 @@ class ScenarioChange(BaseModel):
         "invest",
         "stop_recurring",
         "set_aside",
+        "asset",
     ]
     label: str
     #: A loan's id in the debts below, or an extra payment's debt.
@@ -159,6 +160,11 @@ class ScenarioCheckpoint(BaseModel):
     cash: AmountFigure
     investments: AmountFigure
     debts: AmountFigure
+    #: Other assets as net worth counts them: an asset the scenario buys at
+    #: its value less its selling costs (what it would fetch).
+    other_assets: AmountFigure
+    #: The same before selling costs: what the assets are worth.
+    other_assets_value: AmountFigure
 
 
 class ScenarioDebt(BaseModel):
@@ -201,9 +207,10 @@ class ScenarioFi(BaseModel):
 class ScenarioBreakEven(BaseModel):
     """A value at which the answer changes, solved exactly, or none in range."""
 
-    kind: Literal["recurring_cash_floor", "invest_vs_debt_return", "loan_rate"]
+    kind: Literal["recurring_cash_floor", "invest_vs_debt_return", "loan_rate", "asset_growth"]
     options: list[str]
-    #: The option it varies (or, for invest_vs_debt_return, the one that invests).
+    #: The option it varies (or, for invest_vs_debt_return, the one that invests;
+    #: for asset_growth, the one that buys the asset).
     option: str | None
     #: The change it varies, by index in that option.
     change: int | None
@@ -339,8 +346,9 @@ class ScenarioRun(BaseModel):
     #: The FI assumptions the figures rest on, and where each came from.
     assumptions: FiAssumptions
     #: Which figures rest on placeholders: FI's assumptions, inflation, the
-    #: tax ("tax": not computed, so tagged amounts count before tax) and
-    #: tax rules carried forward to years with none of their own.
+    #: tax ("tax": not computed, so tagged amounts count before tax), tax
+    #: rules carried forward to years with none of their own, and an asset
+    #: with no growth of its own ("asset_growth": 0 beyond inflation).
     placeholders: list[
         Literal[
             "real_return",
@@ -349,6 +357,7 @@ class ScenarioRun(BaseModel):
             "inflation",
             "tax",
             "tax_rules_carried_forward",
+            "asset_growth",
         ]
     ]
     versions: ScenarioVersions

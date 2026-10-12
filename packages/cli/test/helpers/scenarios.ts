@@ -198,6 +198,16 @@ export const SCENARIO_RUN: ScenarioRun = {
         "baseline": "13082.15",
         "scenario": "27729.31",
         "delta": "14647.16"
+      },
+      "other_assets": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
+        "delta": "0.00"
       }
     },
     {
@@ -222,6 +232,16 @@ export const SCENARIO_RUN: ScenarioRun = {
       "debts": {
         "baseline": "1956.91",
         "scenario": "1956.91",
+        "delta": "0.00"
+      },
+      "other_assets": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
         "delta": "0.00"
       }
     },
@@ -248,6 +268,16 @@ export const SCENARIO_RUN: ScenarioRun = {
         "baseline": "0.00",
         "scenario": "0.00",
         "delta": "0.00"
+      },
+      "other_assets": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
+        "delta": "0.00"
       }
     },
     {
@@ -272,6 +302,16 @@ export const SCENARIO_RUN: ScenarioRun = {
       "debts": {
         "baseline": "0.00",
         "scenario": "0.00",
+        "delta": "0.00"
+      },
+      "other_assets": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
+        "baseline": "300000.00",
+        "scenario": "300000.00",
         "delta": "0.00"
       }
     }
@@ -587,6 +627,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "baseline": "13082.15",
             "scenario": "13082.15",
             "delta": "0.00"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
           }
         },
         {
@@ -611,6 +661,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "debts": {
             "baseline": "1956.91",
             "scenario": "1956.91",
+            "delta": "0.00"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
             "delta": "0.00"
           }
         },
@@ -637,6 +697,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "baseline": "0.00",
             "scenario": "0.00",
             "delta": "0.00"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
           }
         },
         {
@@ -661,6 +731,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "debts": {
             "baseline": "0.00",
             "scenario": "0.00",
+            "delta": "0.00"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
             "delta": "0.00"
           }
         }
@@ -971,6 +1051,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "baseline": "13082.15",
             "scenario": "13288.59",
             "delta": "206.44"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
           }
         },
         {
@@ -995,6 +1085,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "debts": {
             "baseline": "1956.91",
             "scenario": "1956.91",
+            "delta": "0.00"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
             "delta": "0.00"
           }
         },
@@ -1021,6 +1121,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "baseline": "0.00",
             "scenario": "0.00",
             "delta": "0.00"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
           }
         },
         {
@@ -1045,6 +1155,16 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "debts": {
             "baseline": "0.00",
             "scenario": "0.00",
+            "delta": "0.00"
+          },
+          "other_assets": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
+            "delta": "0.00"
+          },
+          "other_assets_value": {
+            "baseline": "300000.00",
+            "scenario": "300000.00",
             "delta": "0.00"
           }
         }
@@ -1719,6 +1839,16 @@ export const TAXED_RUN: ScenarioRun = {
         "baseline": "0.00",
         "scenario": "0.00",
         "delta": "0.00"
+      },
+      "other_assets": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
       }
     },
     {
@@ -1741,6 +1871,16 @@ export const TAXED_RUN: ScenarioRun = {
         "delta": "44682.09"
       },
       "debts": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      },
+      "other_assets": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
         "baseline": "0.00",
         "scenario": "0.00",
         "delta": "0.00"
@@ -1769,6 +1909,16 @@ export const TAXED_RUN: ScenarioRun = {
         "baseline": "0.00",
         "scenario": "0.00",
         "delta": "0.00"
+      },
+      "other_assets": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
       }
     },
     {
@@ -1791,6 +1941,16 @@ export const TAXED_RUN: ScenarioRun = {
         "delta": "245395.21"
       },
       "debts": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      },
+      "other_assets": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      },
+      "other_assets_value": {
         "baseline": "0.00",
         "scenario": "0.00",
         "delta": "0.00"

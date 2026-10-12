@@ -800,7 +800,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     async def get_scenario_schema() -> dict[str, Any]:
         """The JSON Schema of a scenario document (salli.scenario/1): the
         baseline plus changes (one_off, recurring, income_change, loan,
-        extra_debt_payment, invest, stop_recurring, set_aside). Amounts and
+        extra_debt_payment, invest, stop_recurring, set_aside, asset). Amounts and
         rates are decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD;
         account and debt ids come from get_accounts and get_payoff_plan, a
         recurring flow's key from get_recurring_payments. Build every option
@@ -813,7 +813,14 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         taxable bonus, a deductible pension contribution. Salli computes the
         change in each year's tax with the user's active rules; put answers
         to the rules' questions in the scenario's `tax.answers`. Never work
-        out a net figure yourself: tag the gross one."""
+        out a net figure yourself: tag the gross one.
+
+        An asset (a home) is bought from cash and counted at its value less
+        its selling costs, growing at its own real_growth (0 beyond
+        inflation when left out, labelled the asset_growth placeholder); a
+        mortgage is an ordinary loan. A recurring cost may grow beyond
+        inflation (real_growth). Growth is the person's own view: ask, never
+        supply one."""
         return scenario_schema.json_schema()
 
     @mcp.tool()

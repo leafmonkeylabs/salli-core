@@ -723,6 +723,16 @@ export const AFFORD_IT_START: DecisionStart = {
               "baseline": "13082.15",
               "scenario": "13082.15",
               "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
             }
           },
           {
@@ -747,6 +757,16 @@ export const AFFORD_IT_START: DecisionStart = {
             "debts": {
               "baseline": "1956.91",
               "scenario": "1956.91",
+              "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
               "delta": "0.00"
             }
           }
@@ -1057,6 +1077,16 @@ export const AFFORD_IT_START: DecisionStart = {
               "baseline": "13082.15",
               "scenario": "13288.59",
               "delta": "206.44"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
             }
           },
           {
@@ -1081,6 +1111,16 @@ export const AFFORD_IT_START: DecisionStart = {
             "debts": {
               "baseline": "1956.91",
               "scenario": "1956.91",
+              "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
               "delta": "0.00"
             }
           }
@@ -2008,6 +2048,16 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "baseline": "13082.15",
               "scenario": "13082.15",
               "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
             }
           },
           {
@@ -2032,6 +2082,16 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "debts": {
               "baseline": "1956.91",
               "scenario": "1956.91",
+              "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
               "delta": "0.00"
             }
           }
@@ -2322,6 +2382,16 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "baseline": "13082.15",
               "scenario": "13082.15",
               "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
             }
           },
           {
@@ -2346,6 +2416,16 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "debts": {
               "baseline": "1956.91",
               "scenario": "1956.91",
+              "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
               "delta": "0.00"
             }
           }
@@ -2636,6 +2716,16 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "baseline": "13082.15",
               "scenario": "13082.15",
               "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
             }
           },
           {
@@ -2660,6 +2750,16 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "debts": {
               "baseline": "1956.91",
               "scenario": "1956.91",
+              "delta": "0.00"
+            },
+            "other_assets": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
+              "delta": "0.00"
+            },
+            "other_assets_value": {
+              "baseline": "300000.00",
+              "scenario": "300000.00",
               "delta": "0.00"
             }
           }

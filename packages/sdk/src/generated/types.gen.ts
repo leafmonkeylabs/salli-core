@@ -666,6 +666,49 @@ export type AmountFigure = {
 };
 
 /**
+ * AssetChange
+ *
+ * Something bought that holds its value: a home. The price leaves cash
+ * on the day (a move, like an investment), and the asset is counted from
+ * that month's end among your other assets, growing at its `real_growth`
+ * a twelfth a month, compounded, from the next. It counts in net worth at
+ * what it would fetch: its value less its selling costs. Like your other
+ * assets, it funds no withdrawals in FI.
+ */
+export type AssetChange = {
+    /**
+     * Type
+     */
+    type: 'asset';
+    /**
+     * Price
+     *
+     * A positive decimal amount as a string, like "5000.00".
+     */
+    price: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * From
+     */
+    from?: string | null;
+    /**
+     * Real Growth
+     */
+    real_growth?: string | null;
+    /**
+     * Selling Costs
+     */
+    selling_costs?: string | null;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * AuditLog
  */
 export type AuditLog = {
@@ -7104,7 +7147,8 @@ export type OnboardingStatusResponse = {
  * OneOffChange
  *
  * Money in or out once, on a day: a purchase (negative), a gift
- * received (positive). What a purchase buys isn't counted as an asset.
+ * received (positive). What a purchase buys isn't counted as an asset
+ * (an `asset` change is).
  * With a `tax_role`, the amount is before tax: a taxable bonus in an
  * income role, a deductible cost in a deduction role.
  */
@@ -8419,8 +8463,9 @@ export type RecordedPriceList = {
  * RecurringChange
  *
  * The same amount again and again: a new rent (negative), a side income
- * (positive). In today's money: with your inflation set, it rises with it.
- * With a `tax_role`, each amount is before tax.
+ * (positive). In today's money: with your inflation set, it rises with it,
+ * and with a `real_growth`, by that much more a year. With a `tax_role`,
+ * each amount is before tax.
  */
 export type RecurringChange = {
     /**
@@ -8453,6 +8498,10 @@ export type RecurringChange = {
      * Tax Role
      */
     tax_role?: string | null;
+    /**
+     * Real Growth
+     */
+    real_growth?: string | null;
     /**
      * Label
      */
@@ -9072,7 +9121,7 @@ export type Scenario = {
     /**
      * Changes
      */
-    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange | SetAsideChange>;
+    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange | SetAsideChange | AssetChange>;
     tax?: ScenarioTax | null;
 };
 
@@ -9139,7 +9188,7 @@ export type ScenarioBreakEven = {
     /**
      * Kind
      */
-    kind: 'recurring_cash_floor' | 'invest_vs_debt_return' | 'loan_rate';
+    kind: 'recurring_cash_floor' | 'invest_vs_debt_return' | 'loan_rate' | 'asset_growth';
     /**
      * Options
      */
@@ -9228,7 +9277,7 @@ export type ScenarioChange = {
     /**
      * Type
      */
-    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring' | 'set_aside';
+    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring' | 'set_aside' | 'asset';
     /**
      * Label
      */
@@ -9281,6 +9330,8 @@ export type ScenarioCheckpoint = {
     cash: AmountFigure;
     investments: AmountFigure;
     debts: AmountFigure;
+    other_assets: AmountFigure;
+    other_assets_value: AmountFigure;
 };
 
 /**
@@ -9474,7 +9525,7 @@ export type ScenarioRun = {
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation' | 'tax' | 'tax_rules_carried_forward'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation' | 'tax' | 'tax_rules_carried_forward' | 'asset_growth'>;
     versions: ScenarioVersions;
     /**
      * Data As Of
