@@ -1,8 +1,7 @@
 # The Salli console: your books in a browser
 
-Status: **proposed (2026-10-12), for the owner's review.** Nothing here is
-built. The open questions are at the end, numbered from 1, each with a
-recommended answer. Each sub-phase is its own PR.
+Status: **approved (2026-10-12).** The owner accepted every recommended
+decision below. Building starts with C0. Each sub-phase is its own PR.
 
 ## Why
 
@@ -844,12 +843,12 @@ later: C5 more pages · C6 the sign-in methods seam (with the closed edition) ·
 If one sub-phase runs at a time after C1, C3 comes first: the decision lab is
 the heart of the console and of the demo.
 
-## Decisions
+## Decisions (2026-10-12)
 
-For the owner to approve. Each row is the recommendation; the sections above
-give the options weighed.
+The owner accepted each recommendation as it stands; the sections above give
+the options that were weighed.
 
-| # | Question | Recommended answer |
+| # | Question | Decision |
 |---|---|---|
 | 1 | Where the console lives | Served by the server at `/console`, static files built into the image. Not in the CLI, not a separate image. |
 | 2 | How `salli ui` works | Reads `console_url` from `/v1/meta` for the current context's server, opens it, and prints it (`--no-open` prints only). The CLI hands the browser nothing. |
