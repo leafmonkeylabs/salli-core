@@ -828,6 +828,15 @@ export const AFFORD_IT_START: DecisionStart = {
           "months_gained": -1
         },
         "break_evens": [],
+        "tax": {
+          "status": "none",
+          "reason": null,
+          "years": [],
+          "this_year": null,
+          "change_this_year": "0.00",
+          "total_change": "0.00",
+          "carried_forward": false
+        },
         "assumptions": {
           "status": "placeholder",
           "placeholders": [
@@ -1168,6 +1177,15 @@ export const AFFORD_IT_START: DecisionStart = {
           "months_gained": -2
         },
         "break_evens": [],
+        "tax": {
+          "status": "none",
+          "reason": null,
+          "years": [],
+          "this_year": null,
+          "change_this_year": "0.00",
+          "total_change": "0.00",
+          "carried_forward": false
+        },
         "assumptions": {
           "status": "placeholder",
           "placeholders": [
@@ -1578,7 +1596,8 @@ export const AFFORD_IT_START: DecisionStart = {
         "borrowed": "0.00",
         "fi_number": "611127.00",
         "fi_months": 187,
-        "fi_months_gained": 0
+        "fi_months_gained": 0,
+        "tax_change_this_year": "0.00"
       },
       "unavailable": {},
       "results": [
@@ -1626,7 +1645,8 @@ export const AFFORD_IT_START: DecisionStart = {
           "borrowed": "0.00",
           "fi_number": "611127.00",
           "fi_months": 188,
-          "fi_months_gained": -1
+          "fi_months_gained": -1,
+          "tax_change_this_year": "0.00"
         },
         "unavailable": {},
         "results": [
@@ -1675,7 +1695,8 @@ export const AFFORD_IT_START: DecisionStart = {
           "borrowed": "2400.00",
           "fi_number": "611127.00",
           "fi_months": 189,
-          "fi_months_gained": -2
+          "fi_months_gained": -2,
+          "tax_change_this_year": "0.00"
         },
         "unavailable": {},
         "results": [
@@ -2092,6 +2113,15 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "months_gained": 0
         },
         "break_evens": [],
+        "tax": {
+          "status": "none",
+          "reason": null,
+          "years": [],
+          "this_year": null,
+          "change_this_year": "0.00",
+          "total_change": "0.00",
+          "carried_forward": false
+        },
         "assumptions": {
           "status": "placeholder",
           "placeholders": [
@@ -2397,6 +2427,15 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "months_gained": -4
         },
         "break_evens": [],
+        "tax": {
+          "status": "none",
+          "reason": null,
+          "years": [],
+          "this_year": null,
+          "change_this_year": "0.00",
+          "total_change": "0.00",
+          "carried_forward": false
+        },
         "assumptions": {
           "status": "placeholder",
           "placeholders": [
@@ -2702,6 +2741,15 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "months_gained": -10
         },
         "break_evens": [],
+        "tax": {
+          "status": "none",
+          "reason": null,
+          "years": [],
+          "this_year": null,
+          "change_this_year": "0.00",
+          "total_change": "0.00",
+          "carried_forward": false
+        },
         "assumptions": {
           "status": "placeholder",
           "placeholders": [
@@ -3380,7 +3428,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "borrowed": "0.00",
         "fi_number": "611127.00",
         "fi_months": 187,
-        "fi_months_gained": 0
+        "fi_months_gained": 0,
+        "tax_change_this_year": "0.00"
       },
       "unavailable": {},
       "results": [
@@ -3428,7 +3477,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "borrowed": "0.00",
           "fi_number": "611127.00",
           "fi_months": 187,
-          "fi_months_gained": 0
+          "fi_months_gained": 0,
+          "tax_change_this_year": "0.00"
         },
         "unavailable": {},
         "results": [
@@ -3477,7 +3527,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "borrowed": "0.00",
           "fi_number": "611127.00",
           "fi_months": 191,
-          "fi_months_gained": -4
+          "fi_months_gained": -4,
+          "tax_change_this_year": "0.00"
         },
         "unavailable": {},
         "results": [
@@ -3526,7 +3577,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "borrowed": "0.00",
           "fi_number": "611127.00",
           "fi_months": 197,
-          "fi_months_gained": -10
+          "fi_months_gained": -10,
+          "tax_change_this_year": "0.00"
         },
         "unavailable": {},
         "results": [

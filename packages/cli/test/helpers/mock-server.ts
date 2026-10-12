@@ -63,7 +63,7 @@ import {
   uid,
 } from './fixtures';
 import { DecisionsMock } from './decisions';
-import { SCENARIO_COMPARISON, SCENARIO_RUN } from './scenarios';
+import { SCENARIO_COMPARISON, SCENARIO_RUN, TAXED_RUN } from './scenarios';
 import { TaxRulesMock } from './taxrules';
 
 export interface RecordedRequest {
@@ -662,7 +662,12 @@ export class MockSalli {
           '/problems/invalid-scenario',
         );
       }
-      return { status: 200, body: path === '/v1/scenarios/run' ? SCENARIO_RUN : SCENARIO_COMPARISON };
+      if (path === '/v1/scenarios/run') {
+        // A scenario tagging a change with a tax role: the taxed household's.
+        const tagged = (req.json as { changes?: Array<{ tax_role?: string }> }).changes?.some((c) => c.tax_role);
+        return { status: 200, body: tagged ? TAXED_RUN : SCENARIO_RUN };
+      }
+      return { status: 200, body: SCENARIO_COMPARISON };
     }
     if (method === 'GET' && path === '/v1/baseline') {
       this.data.bodies.push({ method, path, body: Object.fromEntries(req.query) });

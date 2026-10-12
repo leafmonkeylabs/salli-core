@@ -324,6 +324,14 @@ export const FIGURES: DecisionFigures = {
       "terms": "none",
       "group": "fi",
       "description": "Months sooner (positive) or later (negative) the option reaches FI than the baseline does; 0 for the baseline."
+    },
+    {
+      "name": "tax_change_this_year",
+      "kind": "amount",
+      "unit": "the base currency",
+      "terms": "nominal",
+      "group": "tax",
+      "description": "The change in the as-of date's tax year's tax (its `net`, after credits) the option makes, computed with your active tax rules from its changes tagged with a tax role; more tax is positive. 0 for the baseline and when nothing in the year is tagged; missing when the tax isn't computed (no active rules, say)."
     }
   ]
 };
@@ -381,7 +389,8 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
       "borrowed": "0.00",
       "fi_number": "611127.00",
       "fi_months": 187,
-      "fi_months_gained": 0
+      "fi_months_gained": 0,
+      "tax_change_this_year": "0.00"
     },
     "unavailable": {},
     "results": [
@@ -440,7 +449,8 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         "borrowed": "0.00",
         "fi_number": "611127.00",
         "fi_months": 188,
-        "fi_months_gained": -1
+        "fi_months_gained": -1,
+        "tax_change_this_year": "0.00"
       },
       "unavailable": {},
       "results": [
@@ -498,7 +508,8 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         "borrowed": "2400.00",
         "fi_number": "611127.00",
         "fi_months": 189,
-        "fi_months_gained": -2
+        "fi_months_gained": -2,
+        "tax_change_this_year": "0.00"
       },
       "unavailable": {},
       "results": [

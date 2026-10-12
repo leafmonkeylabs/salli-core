@@ -35,7 +35,7 @@ import { displayDate, displayMonth, parseDate } from '../util/dates';
 import { parseWholeNumber } from '../util/numbers';
 import { resolveById } from '../util/resolve';
 import { showCheck } from './decisions';
-import { showComparison } from './scenarios';
+import { showComparison, taxAnswersArg } from './scenarios';
 import { AccountBook, amountArg, collect, confirmAction, rateArg } from './shared';
 
 type Answers = Record<string, unknown>;
@@ -102,6 +102,8 @@ function fromText(app: App, q: TemplateQuestion, text: string, names: Names): un
       return names.debt(value);
     case 'account':
       return names.account(value);
+    case 'tax_role':
+      return value;
     case 'text':
       return value;
     case 'amounts':
@@ -242,6 +244,15 @@ async function ask(app: App, template: DecisionTemplate, given: Answers, names: 
         options: [{ value: undefined, label: 'My cash as a whole' }, ...cash.map((a) => ({ value: a.id, label: singleLine(a.name) }))],
         initialValue: undefined,
       });
+    } else if (q.type === 'tax_role') {
+      const roles = allowed(template, q.id) ?? [];
+      value = roles.length
+        ? await app.prompter.select<string | undefined>({
+            message: q.prompt,
+            options: [{ value: undefined, label: 'No: the amount is what reaches me' }, ...roles.map((r) => ({ value: r, label: r }))],
+            initialValue: undefined,
+          })
+        : undefined;
     } else if (q.type === 'loans') {
       app.out.note(q.help);
       value = await askLoans(app, q);
@@ -379,6 +390,7 @@ export function registerDecide(program: Command, app: App): void {
     .option('--answers <file>', 'Answers as a JSON object by question id (for scripts)')
     .option('--set <id=value>', 'Answer one question (repeatable): --set price=2400', collect)
     .option('--as-of <date>', 'The day your baseline is as of (default today)')
+    .option('--tax-answer <key=value>', 'An answer to one of your tax rules\' questions, for amounts before tax (repeatable)', collect)
     .option('--record', 'Record the decision afterwards (with --chosen, --reasons, --review-on)')
     .option('--chosen <label>', 'The label of the option you chose')
     .option('--reasons <text>', 'Your reasons, in your own words')
@@ -446,7 +458,15 @@ Examples:
       const scripted = opts.answers !== undefined || (opts.set ?? []).length > 0;
       if (app.prompter.interactive && !app.out.machine && !scripted) answers = await ask(app, template, answers, names);
       const asOf = opts.asOf ? parseDate(opts.asOf, app.runtime.now(), '--as-of') : undefined;
-      const data = await api.call(decisionsStart, { body: { template: template.id, answers, ...(asOf ? { as_of: asOf } : {}) } });
+      const taxAnswers = taxAnswersArg(opts.taxAnswer ?? []);
+      const data = await api.call(decisionsStart, {
+        body: {
+          template: template.id,
+          answers,
+          ...(asOf ? { as_of: asOf } : {}),
+          ...(Object.keys(taxAnswers).length ? { tax_answers: taxAnswers } : {}),
+        },
+      });
       if (!app.out.machine) showStart(app, data);
       const recorded = await record(app, api, data, opts);
       if (app.out.machine) {
