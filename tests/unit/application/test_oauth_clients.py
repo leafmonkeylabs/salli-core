@@ -21,6 +21,7 @@ import pytest
 from salli.application.services.mcp_oauth_service import (
     API,
     MCP,
+    ConsentError,
     DeviceFlowError,
     McpOAuthService,
     OAuthError,
@@ -34,12 +35,13 @@ class Clients:
     def __init__(self) -> None:
         self.rows: dict[str, dict[str, Any]] = {}
 
-    async def register(self, client_name, redirect_uris):
+    async def register(self, client_name, redirect_uris, first_party=False):
         client_id = f"c{len(self.rows) + 1}"
         self.rows[client_id] = {
             "client_id": client_id,
             "client_name": client_name,
             "redirect_uris": redirect_uris,
+            "first_party": first_party,
         }
         return self.rows[client_id]
 
@@ -205,9 +207,53 @@ async def _sign_in(service, client_id, redirect_uri, resource) -> dict[str, Any]
         client_id, redirect_uri, challenge, "S256", "", resource, "st"
     )
     rt = parse_qs(urlparse(consent).query)["rt"][0]
-    back = await service.complete_consent(rt, USER, approve=True)
+    back = await service.complete_consent(rt, USER, approve=True, password_checked=True)
     code = parse_qs(urlparse(back).query)["code"][0]
     return await service.exchange_authorization_code(code, redirect_uri, client_id, verifier)
+
+
+async def _consent(service, client_id, redirect_uri, resource, *, password_checked):
+    _, challenge = _pkce()
+    consent = await service.build_consent_redirect(
+        client_id, redirect_uri, challenge, "S256", "", resource, "st"
+    )
+    rt = parse_qs(urlparse(consent).query)["rt"][0]
+    return await service.complete_consent(rt, USER, approve=True, password_checked=password_checked)
+
+
+async def test_salli_s_own_client_needs_the_password_to_be_approved(world):
+    service, clients, *_ = world
+    cli = await clients.register("Salli CLI", ["http://127.0.0.1/callback"], first_party=True)
+    with pytest.raises(ConsentError, match="with your password"):
+        await _consent(
+            service,
+            cli["client_id"],
+            "http://127.0.0.1:5/callback",
+            f"{BASE}/v1",
+            password_checked=False,
+        )
+    back = await _consent(
+        service,
+        cli["client_id"],
+        "http://127.0.0.1:5/callback",
+        f"{BASE}/v1",
+        password_checked=True,
+    )
+    assert "code=" in back
+
+
+async def test_another_client_may_still_be_approved_from_a_signed_in_screen(world):
+    service, clients, _, profiles = world
+    profiles.mcp_enabled = True
+    app = await clients.register("An AI client", ["https://ai.example/cb"])
+    back = await _consent(
+        service,
+        app["client_id"],
+        "https://ai.example/cb",
+        f"{BASE}/mcp/",
+        password_checked=False,
+    )
+    assert "code=" in back
 
 
 # ── audiences ────────────────────────────────────────────────────────────────

@@ -205,7 +205,9 @@ async def consent(
     body: ConsentDecisionRequest, user_id: CurrentUser, svc: AppServices
 ) -> ConsentDecision:
     try:
-        redirect_url = await svc.mcp_oauth.complete_consent(body.rt, user_id, body.approve)
+        redirect_url = await svc.mcp_oauth.complete_consent(
+            body.rt, user_id, body.approve, password_checked=False
+        )
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     return ConsentDecision(redirect_url=redirect_url)

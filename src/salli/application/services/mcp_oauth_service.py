@@ -289,9 +289,18 @@ class McpOAuthService:
             "audience": self.audience(payload.get("resource")),
         }
 
-    async def complete_consent(self, art: str, user_id: str, approve: bool) -> str:
+    async def complete_consent(
+        self, art: str, user_id: str, approve: bool, *, password_checked: bool
+    ) -> str:
         """Returns the final redirect_uri (with ?code=... or ?error=...) to
-        send the user's browser to."""
+        send the user's browser to.
+
+        `password_checked` says whether this approval came with the person's
+        password, checked just now on Salli's own consent page. Salli's own
+        clients (first party: the CLI) are signed in only that way: their
+        tokens hold `tax:activate`, so approving one on the strength of any
+        other sign-in (a personal access token without it, say) would hand
+        out a permission the caller doesn't have."""
         payload = self._decode_art(art)
         redirect_uri = payload["redirect_uri"]
         state = payload.get("state")
@@ -300,6 +309,14 @@ class McpOAuthService:
             return _append_query(
                 redirect_uri, {"error": "access_denied", **({"state": state} if state else {})}
             )
+
+        if not password_checked:
+            async with self._uow_factory() as uow:
+                client: dict[str, Any] | None = await uow.oauth_clients.get(payload["client_id"])
+            if client is None or client.get("first_party"):
+                raise ConsentError(
+                    "Salli's own apps are signed in with your password, on Salli's sign-in page."
+                )
 
         if not await self._may_use(user_id, self.audience(payload.get("resource"))):
             raise ConsentError("MCP access isn't available for this account. Check Settings.")
