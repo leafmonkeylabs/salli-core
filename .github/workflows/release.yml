@@ -1,8 +1,12 @@
-# Releases the TypeScript packages: the `salli` CLI and @leafmonkeylabs/salli-sdk.
+# Releases the TypeScript packages: the `salli` CLI, @leafmonkeylabs/salli-sdk
+# and @leafmonkeylabs/salli-console.
 #
 # Push a tag to release one package (see RELEASING.md):
-#   cli-v0.2.0  →  salli 0.2.0 on npm, plus standalone binaries
-#   sdk-v0.2.0  →  @leafmonkeylabs/salli-sdk 0.2.0 on npm
+#   cli-v0.2.0     →  salli 0.2.0 on npm, plus standalone binaries
+#   sdk-v0.2.0     →  @leafmonkeylabs/salli-sdk 0.2.0 on npm
+#   server-v0.3.1  →  @leafmonkeylabs/salli-console 0.3.1 on npm: the console
+#                     ships at the server's version (decision 24), beside the
+#                     image image.yml builds from the same tag
 #
 # The npm package is *staged*, not published: it reaches users only once a
 # maintainer approves it on npmjs.com with 2FA. The GitHub release is made
@@ -14,13 +18,13 @@ name: Release
 
 on:
   push:
-    tags: ['cli-v*', 'sdk-v*']
+    tags: ['cli-v*', 'sdk-v*', 'server-v*']
   workflow_dispatch:
     inputs:
       package:
         description: Package to rehearse a release of (nothing is published)
         type: choice
-        options: [cli, sdk]
+        options: [cli, sdk, console]
         default: cli
 
 permissions:
@@ -59,12 +63,14 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             package="${GITHUB_REF_NAME%%-v*}"
             tag_version="${GITHUB_REF_NAME#*-v}"
+            # The server's tag releases the console, at the server's version.
+            [ "$package" = server ] && package=console
           else
             package="$INPUT_PACKAGE"
             tag_version=""
           fi
           case "$package" in
-            cli|sdk) ;;
+            cli|sdk|console) ;;
             *) echo "::error::Unknown package '$package'"; exit 1 ;;
           esac
           name=$(node -p "require('./packages/$package/package.json').name")
@@ -72,6 +78,19 @@ jobs:
           if [ -n "$tag_version" ] && [ "$tag_version" != "$version" ]; then
             echo "::error::Tag $GITHUB_REF_NAME says $tag_version, but packages/$package/package.json says $version"
             exit 1
+          fi
+          if [ "$package" = console ]; then
+            server=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+            if [ "$version" != "$server" ]; then
+              echo "::error::packages/console/package.json says $version, but the server (pyproject.toml) is $server"
+              exit 1
+            fi
+            # Its SDK must be on npm first, or an edition can't build against it.
+            sdk=$(node -p "require('./packages/console/package.json').dependencies['@leafmonkeylabs/salli-sdk']")
+            if ! npm view "@leafmonkeylabs/salli-sdk@$sdk" version >/dev/null 2>&1; then
+              echo "::error::@leafmonkeylabs/salli-sdk@$sdk, which the console depends on, is not on npm: release it first (sdk-v$sdk)"
+              [ "$GITHUB_EVENT_NAME" = push ] && exit 1
+            fi
           fi
           # A pre-release (0.2.0-beta.1) must not become `latest`.
           case "$version" in *-*) dist_tag=next ;; *) dist_tag=latest ;; esac
