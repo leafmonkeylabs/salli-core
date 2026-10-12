@@ -203,7 +203,7 @@ describe('salli compare', () => {
       Instalments  973,987.81  Mar 2045  1,143,949.56  Jul 2042  1,372,380.21  Aug 2040
 
       Break-evens
-        Pay cash ends the horizon with more net worth at every loan rate from 0% to 100%.
+        Pay cash ends the horizon with more net worth than Instalments at every loan rate from 0% to 100%.
       "
     `);
     expect(result.stdout).not.toMatch(/best|cheapest|recommend/i);

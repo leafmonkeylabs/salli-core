@@ -8554,7 +8554,7 @@ export type Scenario = {
     /**
      * Changes
      */
-    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange>;
+    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange | SetAsideChange>;
 };
 
 /**
@@ -8709,7 +8709,7 @@ export type ScenarioChange = {
     /**
      * Type
      */
-    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring';
+    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring' | 'set_aside';
     /**
      * Label
      */
@@ -9206,6 +9206,42 @@ export type SetAiProvider = {
      * Provider
      */
     provider: 'auto' | 'anthropic' | 'openai' | 'chatgpt';
+};
+
+/**
+ * SetAsideChange
+ *
+ * Part of each month's regular surplus kept in cash, rather than shared
+ * out between cash and investments: saving towards an emergency fund or a
+ * purchase. Each month from a day's month to another's (or for good), that
+ * much of the surplus stays in cash first, and the share you invest is of
+ * what is left. It can't keep more than the month's surplus: a month with
+ * less keeps all of it and invests nothing. Fixed in each month's own
+ * money, like a standing order.
+ */
+export type SetAsideChange = {
+    /**
+     * Type
+     */
+    type: 'set_aside';
+    /**
+     * Monthly
+     *
+     * A positive decimal amount as a string, like "5000.00".
+     */
+    monthly: string;
+    /**
+     * From
+     */
+    from: string;
+    /**
+     * To
+     */
+    to?: string | null;
+    /**
+     * Label
+     */
+    label?: string | null;
 };
 
 /**

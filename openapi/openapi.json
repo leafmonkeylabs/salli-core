@@ -27721,6 +27721,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/StopRecurringChange"
+                },
+                {
+                  "$ref": "#/components/schemas/SetAsideChange"
                 }
               ],
               "discriminator": {
@@ -27732,6 +27735,7 @@
                   "loan": "#/components/schemas/LoanChange",
                   "one_off": "#/components/schemas/OneOffChange",
                   "recurring": "#/components/schemas/RecurringChange",
+                  "set_aside": "#/components/schemas/SetAsideChange",
                   "stop_recurring": "#/components/schemas/StopRecurringChange"
                 }
               }
@@ -28022,7 +28026,8 @@
               "loan",
               "extra_debt_payment",
               "invest",
-              "stop_recurring"
+              "stop_recurring",
+              "set_aside"
             ],
             "title": "Type"
           },
@@ -28943,6 +28948,62 @@
           "provider"
         ],
         "title": "SetAiProvider"
+      },
+      "SetAsideChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "set_aside",
+            "title": "Type"
+          },
+          "monthly": {
+            "type": "string",
+            "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+            "title": "Monthly",
+            "description": "A positive decimal amount as a string, like \"5000.00\"."
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "From"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "monthly",
+          "from"
+        ],
+        "title": "SetAsideChange",
+        "description": "Part of each month's regular surplus kept in cash, rather than shared\nout between cash and investments: saving towards an emergency fund or a\npurchase. Each month from a day's month to another's (or for good), that\nmuch of the surplus stays in cash first, and the share you invest is of\nwhat is left. It can't keep more than the month's surplus: a month with\nless keeps all of it and invests nothing. Fixed in each month's own\nmoney, like a standing order."
       },
       "SetPostingTagsRequest": {
         "properties": {

@@ -7,6 +7,8 @@ baseline's own, tests/properties/test_baseline.py):
 - adding a cost never improves a cash figure, and adding income never
   worsens one;
 - an extra payment on a debt never adds interest;
+- setting part of the surplus aside never lowers cash at a month's end, never
+  adds to investments, and never puts off when cash covers a target;
 - a comparison doesn't depend on the order of its options;
 - a result is deterministic, and its hash doesn't depend on key order or on
   how an amount was written.
@@ -152,6 +154,44 @@ def test_an_extra_payment_never_adds_interest(
         total = result.debts.total_interest
         assert total.scenario is not None and total.baseline is not None
         assert total.scenario <= total.baseline
+
+
+@_SETTINGS
+@given(
+    ledgers(),
+    amounts,
+    days_ahead,
+    st.one_of(st.none(), st.integers(0, 600)),
+    st.decimals(min_value=Decimal("0.5"), max_value=Decimal("36"), places=1),
+)
+def test_setting_aside_keeps_cash_and_never_puts_off_a_cash_target(
+    books: Ledger, monthly: Decimal, start: int, length: int | None, target: Decimal
+):
+    baseline = books.baseline(AS_OF)
+    change = {
+        "type": "set_aside",
+        "monthly": f"{monthly}",
+        "from": _day(start),
+        "to": None if length is None else _day(start + length),
+    }
+    base = engine.baseline_outlook(baseline)
+    _, done = engine.run_with_outlook(baseline, _doc([change]), base=base)
+    mine = done.outlook
+    for before, after in zip(base.monthly.points, mine.monthly.points, strict=True):
+        assert after.cash >= before.cash
+        assert after.investments <= before.investments
+        assert after.debts == before.debts
+    # It moves no money of its own: less of the surplus leaves cash for the
+    # investments at each month's end, and that is all.
+    assert all(
+        after >= before
+        for (_, before), (_, after) in zip(base.cash.month_ends, mine.cash.month_ends, strict=True)
+    )
+    assert mine.cash.forecast.lowest >= base.cash.forecast.lowest
+    cover = engine.cover_target(baseline, base, mine, target)
+    before, after = cover.months
+    if before is not None:
+        assert after is not None and after <= before
 
 
 @settings(max_examples=10, deadline=None, suppress_health_check=[HealthCheck.too_slow])

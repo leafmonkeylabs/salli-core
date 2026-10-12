@@ -170,7 +170,8 @@ async def test_options_compare_side_by_side_with_the_trade_and_break_evens(
     )
     assert rate["ahead"] == "Pay cash"
     assert rate["says"] == (
-        "Pay cash ends the horizon with more net worth at every loan rate from 0% to 100%."
+        "Pay cash ends the horizon with more net worth than Instalments at every loan rate "
+        "from 0% to 100%."
     )
     assert "best" not in r.text.lower()
     mock_services.usage.charge.assert_not_called()

@@ -725,6 +725,53 @@ async def test_cancelling_a_subscription(baseline):
     assert result.fi.fi_number.delta == Decimal("-3897")
 
 
+async def test_setting_part_of_the_surplus_aside(baseline, cash_only):
+    """200.00 of each month's surplus kept in cash from November, for a year:
+    with all of it invested (the placeholder), cash otherwise ends each month
+    where it started; now it ends the year 12 × 200.00 higher, and the
+    investments hold that much less, with what it would have earned."""
+    aside = scenario(
+        label="Emergency fund",
+        changes=[
+            {"type": "set_aside", "monthly": "200.00", "from": "2026-11-01", "to": "2027-10-31"}
+        ],
+    )
+    result = engine.run(baseline, aside)
+    (applied,) = result.changes
+    assert (applied.label, applied.monthly, applied.for_good) == (
+        "Set aside in cash",
+        Decimal("200.00"),
+        False,
+    )
+    assert result.cash.at_end.delta == Decimal("2400.00")  # 12 × 200.00
+    assert cents(result.monthly[0].investments.delta) == -cents(
+        sum((grown(Decimal(200), k) for k in range(12)), Decimal(0))
+    )
+    # What it costs a year on is only what the 2,400.00 would have earned:
+    # 2,444.49 less invested, 2,400.00 more in cash.
+    assert cents(result.monthly[0].net_worth.delta) == Decimal("-44.49")
+    # It moves no money of its own, so the FI number doesn't change.
+    assert result.fi.fi_number.delta == 0
+    # When cash covers nine months of essential spending (9 × 1,898.32 =
+    # 17,084.88): never as things are, in 2027-05 with the 200.00 (15,801.47
+    # + 7 × 200.00 = 17,201.47; six months is 17,001.47, short).
+    base = engine.baseline_outlook(baseline)
+    _, done = engine.run_with_outlook(baseline, aside, base=base)
+    cover = engine.cover_target(baseline, base, done.outlook, Decimal(9))
+    assert (cover.monthly_spending, cover.target) == (Decimal("1898.32"), Decimal("17084.88"))
+    assert cents(cover.now or Decimal(0)) == Decimal("8.32")  # 15,801.47 / 1,898.32
+    assert (cover.reached.baseline, cover.reached.scenario, cover.months) == (
+        None,
+        "2027-05",
+        (None, 7),
+    )
+
+    # With none of the surplus invested, all of it stays in cash anyway: a
+    # set-aside changes nothing.
+    kept = engine.run(cash_only, aside)
+    assert kept.cash.at_end.delta == 0 and kept.monthly[-1].net_worth.delta == 0
+
+
 async def test_nothing_is_written(baseline):
     uow = h.uow()
     service_baseline = await BaselineService(uow.factory(), fx=h.fx(), today=lambda: h.AS_OF).build(

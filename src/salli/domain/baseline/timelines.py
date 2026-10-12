@@ -25,7 +25,10 @@ The share invested (`Baseline.surplus_invested`, an FI assumption: the
 user's, or the placeholder of all of it) of a month's regular surplus moves
 into investments at the month's end, rounded to the currency's smallest
 unit, and grows at the real return from the next month; the rest stays in
-cash, which earns nothing. A month whose regular surplus is a deficit
+cash, which earns nothing. A scenario may set an amount aside first
+(`Changes.kept`): that much of the month's regular surplus stays in cash,
+and the share invested is of what is left (none of it, when the amount set
+aside is the whole surplus or more). A month whose regular surplus is a deficit
 invests nothing: the deficit is drawn from cash, never from investments, and
 if cash runs out it is left below zero (the monthly timeline's `notes` say
 from when) rather than investments being sold. A share of 0 keeps the whole
@@ -136,6 +139,24 @@ class ExtraPayment:
 
 
 @dataclass(frozen=True)
+class KeptInCash:
+    """Kept in cash out of the regular surplus each month from `start` to
+    `end` ("YYYY-MM", inclusive; None: for good), before the share invested
+    is taken from the rest, in each month's own money."""
+
+    start: str
+    end: str | None
+    amount: Decimal
+
+    def in_month(self, month: str) -> Decimal:
+        return (
+            self.amount
+            if self.start <= month and (self.end is None or month <= self.end)
+            else Decimal(0)
+        )
+
+
+@dataclass(frozen=True)
 class Changes:
     """What a scenario adds to the baseline's timelines."""
 
@@ -156,6 +177,9 @@ class Changes:
     #: their day's own money (source "change"): recurring costs and income,
     #: income changes, stopped flows. Shared out with the rest of it.
     regular: tuple[forecasting.Flow, ...] = ()
+    #: Amounts set aside in cash out of the regular surplus, before the
+    #: share invested is taken from what is left.
+    kept: tuple[KeptInCash, ...] = ()
 
     @property
     def cash_flows(self) -> tuple[forecasting.Flow, ...]:
@@ -352,8 +376,12 @@ class MonthPlan:
     changes: Decimal
     #: The share of the regular surplus moved into investments at the
     #: month's end, rounded to the currency's smallest unit: nothing when
-    #: the regular surplus is a deficit.
+    #: the regular surplus is a deficit. Of what is left once any amount set
+    #: aside (`set_aside`) has stayed in cash.
     invested: Decimal
+    #: What a scenario asked to set aside in cash out of the month's regular
+    #: surplus before the share invested.
+    set_aside: Decimal = Decimal(0)
 
     @property
     def regular(self) -> Decimal:
@@ -425,6 +453,10 @@ def cash_plan(
     surplus, of which `baseline.surplus_invested` moves into investments at
     the month's end; extra payments and moves go in and out of cash.
 
+    An amount a scenario sets aside (`Changes.kept`) stays in cash first:
+    the share invested is of the regular surplus less it, and nothing when
+    that is nothing or less.
+
     Every month's planned part and share invested is rounded to the
     currency's smallest unit, so the daily timeline, which spreads the one
     over the days and takes the other on the last, sums to it exactly."""
@@ -457,6 +489,7 @@ def cash_plan(
     out: list[MonthPlan] = []
     for i, (p, level) in enumerate(zip(months, levels, strict=True)):
         regular_changes = regular.get(p.month, Decimal(0))
+        kept = sum((k.in_month(p.month) for k in added.kept), Decimal(0))
         out.append(
             MonthPlan(
                 period=p,
@@ -465,7 +498,8 @@ def cash_plan(
                 regular_changes=regular_changes,
                 extra=sum((path.extra[i] for path in paths), Decimal(0)),
                 changes=moves.get(p.month, Decimal(0)),
-                invested=invested_share(planned[i] + regular_changes, share, currency),
+                invested=invested_share(planned[i] + regular_changes - kept, share, currency),
+                set_aside=kept,
             )
         )
     return out
@@ -566,6 +600,7 @@ def daily(
         loans=added.loans,
         extra=added.extra,
         regular=tuple(_within(added.regular, end)),
+        kept=added.kept,
     )
     paths = debt_paths(baseline, months, within)
     plan = cash_plan(baseline, months, paths, within)
