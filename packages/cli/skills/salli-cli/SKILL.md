@@ -95,6 +95,8 @@ When no template fits, build each option as a scenario and let Salli run it.
     salli whatif --income +1000/month@2027-01-01 --tax-role salary --json  # before tax
     salli whatif --extra-payment "student loan:200/month" --json
     salli whatif --invest 5000 --account savings --json
+    salli whatif --invest 1000 --holding <holding> --fees 4 --json   # into one of their holdings
+    salli whatif --sell <holding>:4 --fees 2 --gain-tax-role <role> --json   # or --sell-value <holding>:2500
     salli whatif --cancel <key> --json                         # keys: salli insights recurring
     salli whatif --asset 450000@2027-03-01 --selling-costs 3% \
       --loan 360000@4.2%x300@2027-03-01 --json                 # a home: price out, mortgage in
@@ -130,6 +132,20 @@ out of cash, `tax.this_year` the current year's. Never work out what they
 would keep yourself. If `tax.status` is `not_computed`, say so and quote
 `tax.reason` (no active rules, a question to answer with `--tax-answer
 key=value`, ...): the tagged amounts then count before tax.
+
+A holding is one of the user's own, by its symbol or id (`salli holdings
+list`): never one they don't hold. A sale needs the holding linked to the
+investment account that holds it (`salli holdings update <holding> --account
+<account>`, after the user agrees), and can't sell more than that account
+holds in the ledger: if it is refused, say so and ask them to bring the
+ledger up to date. Salli prices a trade at the holding's last recorded price
+(grown at their real return and inflation for a later month; it forecasts no
+price) and replays its lots first in, first out unless lots are named in a
+document: each `changes[n].holding` gives the units, price, fees, lots and
+realised gain, which a `--gain-tax-role` (an income role) taxes. Fees are the
+user's own figure: ask, and never assume one (without `--fees`, none are
+counted, and the result says so). Mention their holdings as they named them;
+never suggest buying or selling one, and never compare them.
 
 ## Principles and the decision journal
 
@@ -171,8 +187,11 @@ of it, and record their reflection only when they agree.
   its currency. Don't add, subtract, divide, project or estimate anything,
   and never work out tax or an amount after tax: tag the amount before tax
   with its tax role and let Salli compute it.
-- **Never name a specific product, provider, fund or security.** Speak of
-  kinds of thing.
+- **Never name a specific product, provider, fund or security of your own.**
+  Speak of kinds of thing. You may refer to the user's own holdings as they
+  named them, but never suggest buying or selling any security, theirs or
+  another, and never compare their holdings as investments: choosing
+  investments is for a licensed professional (below).
 - **Regulated advice is for a licensed professional.** Where a choice is
   regulated financial advice where the user lives (insurance, pensions,
   choosing investments), say so and suggest a licensed professional there.
@@ -213,7 +232,7 @@ Other ids can be shortened to any unique prefix.
 | `tax` | your tax from your own active rules: `year`, `compute`, `latest`, `explain <line>`; `return prepare`, `return review <thread>`; `schema` (the rule-set JSON Schema) |
 | `tax rules` | tax rule sets: `list`, `show <set> [--version]`, `create <file>`, `version <set> <file>`, `import <file\|url>`, `export`, `validate`, `propose`, `diff`, `evaluate`, `accounts <set> [--apply]`; `activate` is the user's, never yours |
 | `budgets`, `debts`, `insurance`, `subscriptions` | each domain's records and reports |
-| `holdings`, `portfolio` | holdings: `holdings list`, `holdings add`; `portfolio` (summary), `portfolio transactions add <holding> buy\|sell\|dividend\|…`, `portfolio lots <holding>`, `portfolio prices set <symbol> <close>`, `portfolio performance --from --to` |
+| `holdings`, `portfolio` | holdings: `holdings list`, `holdings add`, `holdings update <holding> --account <account>` (the investment account that holds it; `--no-account` unlinks); `portfolio` (summary), `portfolio transactions add <holding> buy\|sell\|dividend\|…`, `portfolio lots <holding>`, `portfolio prices set <symbol> <close>`, `portfolio performance --from --to` |
 | `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `strategy`, `assumptions` (`set`, `clear`); `goals list`, `goals allocate` |
 | `reports` | `balance-sheet`, `net-worth`, `goal-progress`, `export` |
 | `reminders` | `list`, `add`, `seed` (filing deadlines from the active tax rules), `sync-alerts` |

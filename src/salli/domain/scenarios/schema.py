@@ -109,6 +109,40 @@ def _positive(value: Decimal) -> Decimal:
     return value
 
 
+def _not_negative(value: Decimal) -> Decimal:
+    if value < 0:
+        raise ValueError("can't be negative")
+    return value
+
+
+#: A number of units has at most this many decimal places (as a holding's
+#: transactions do: domain/portfolio/lots.py) and fewer integer digits.
+UNIT_PLACES = 18
+UNIT_INTEGER_DIGITS = 20
+UNITS_PATTERN = r"^\+?[0-9]+(\.[0-9]+)?$"
+
+
+def parse_units(value: Any) -> Decimal:
+    """`value` as a positive number of units: a decimal string with at most
+    18 decimal places and 20 integer digits (ValueError otherwise)."""
+    if isinstance(value, bool | int | float):
+        raise ValueError('write units as decimal strings, like "4" or "6.5", not as JSON numbers')
+    if isinstance(value, Decimal):
+        number = value
+    elif isinstance(value, str) and re.fullmatch(UNITS_PATTERN, value):
+        number = Decimal(value)
+    else:
+        raise ValueError(f'{value!r} is not a number of units, like "4" or "6.5"')
+    if not number.is_finite() or number <= 0:
+        raise ValueError("must be greater than zero")
+    exponent = number.normalize().as_tuple().exponent
+    if isinstance(exponent, int) and -exponent > UNIT_PLACES:
+        raise ValueError(f"may have at most {UNIT_PLACES} decimal places")
+    if number.adjusted() >= UNIT_INTEGER_DIGITS:
+        raise ValueError(f"may have at most {UNIT_INTEGER_DIGITS} digits before the point")
+    return number
+
+
 SignedAmount = Annotated[
     Decimal,
     BeforeValidator(parse_amount),
@@ -135,8 +169,36 @@ PositiveAmount = Annotated[
     ),
 ]
 
-#: An account's or a debt's id, as the API gives it.
+Fees = Annotated[
+    Decimal,
+    BeforeValidator(parse_amount),
+    AfterValidator(_not_negative),
+    PlainSerializer(lambda d: format(d, "f"), return_type=str, when_used="json"),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "pattern": r"^\+?[0-9]+(\.[0-9]+)?$",
+            "description": 'Fees as a decimal string, zero or more, like "4.00".',
+        }
+    ),
+]
+Units = Annotated[
+    Decimal,
+    BeforeValidator(parse_units),
+    PlainSerializer(lambda d: format(d, "f"), return_type=str, when_used="json"),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "pattern": UNITS_PATTERN,
+            "description": 'A number of units as a decimal string, like "4" or "6.5".',
+        }
+    ),
+]
+
+#: An account's, a debt's or a holding's id, as the API gives it.
 RefId = Annotated[str, StringConstraints(min_length=1, max_length=100)]
+#: At most this many lots named in one sale.
+MAX_LOTS = 100
 #: A recurring flow's key, as `GET /v1/insights/recurring` gives it.
 RecurringKey = Annotated[str, StringConstraints(min_length=1, max_length=100)]
 #: At most this many answers to the tax rules' questions.
@@ -282,14 +344,99 @@ class ExtraDebtPaymentChange(Model):
 
 class InvestChange(Model):
     """Cash moved into your investments on a day, where it then grows at
-    your real return."""
+    your real return. Into one of your holdings (`holding`), it also shows
+    the units it buys at the holding's last recorded price, and opens a lot
+    a later sale in the same scenario can sell. Fees (yours, your broker's;
+    none when left out) leave cash with the amount and never reach the
+    investments."""
 
     type: Literal["invest"]
     amount: PositiveAmount
     date: IsoDate
     #: The cash account it leaves; without one, your cash total.
     from_: RefId | None = Field(default=None, alias="from")
+    #: One of your holdings, by its id (`GET /v1/portfolio/`): a holding you
+    #: already have. Salli never picks one.
+    holding: RefId | None = None
+    #: Of the amount, in your base currency: what your broker charges.
+    fees: Fees | None = None
     label: Label
+
+    @model_validator(mode="after")
+    def _fees(self) -> Self:
+        if self.fees is not None and self.fees >= self.amount:
+            raise ValueError("fees are part of the amount, so must be less than it")
+        return self
+
+
+class SoldLot(Model):
+    """One lot a sale sells from, and how many of its units."""
+
+    #: The lot's id, as `GET /v1/portfolio/{id}/lots` gives it (the
+    #: transaction that opened it); an earlier `invest` change into the same
+    #: holding opens the lot `scenario-invest-<n>`, n its place in the list
+    #: counted from 1.
+    lot: RefId
+    quantity: Units
+
+
+class SellChange(Model):
+    """Part of one of your holdings sold on a day: its units leave your
+    investments at its last recorded price (grown at your real return and
+    inflation to a later month: Salli forecasts no price), and the proceeds
+    less fees arrive in cash. Salli replays the holding's lots with the sale
+    (first in, first out, or the lots you name) and reports the gain you
+    would realise; with a `tax_role`, the gain is taxed with your rules. The
+    holding must be linked to the investment account that holds it, and the
+    sale can't take out more than that account holds."""
+
+    type: Literal["sell"]
+    #: One of your holdings, by its id.
+    holding: RefId
+    #: The units to sell; or give `amount`, the value to sell.
+    quantity: Units | None = None
+    #: The value to sell, in your base currency, at the sale's price.
+    amount: PositiveAmount | None = None
+    date: IsoDate
+    #: In your base currency: what your broker charges. Left out, none
+    #: (and the result says no fees were given).
+    fees: Fees | None = None
+    #: The lots it sells from; without them, the oldest first.
+    lots: Annotated[list[SoldLot], Field(max_length=MAX_LOTS)] | None = None
+    #: The cash account the proceeds arrive in; without one, your cash total.
+    into: RefId | None = None
+    #: A role of kind income in your tax rules: the realised gain (a loss,
+    #: negative) adds to that role's total.
+    tax_role: RoleKey | None = None
+    label: Label | None = None
+
+    @model_validator(mode="after")
+    def _what(self) -> Self:
+        if self.quantity is not None and self.amount is not None:
+            raise ValueError("give the units to sell (quantity) or the value (amount), not both")
+        if self.quantity is None and self.amount is None and not self.lots:
+            raise ValueError("give the units to sell (quantity) or the value to sell (amount)")
+        if self.lots is not None and self.amount is not None:
+            raise ValueError("a sale of named lots gives their units, not an amount")
+        if self.lots:
+            named = sum((lot.quantity for lot in self.lots), Decimal(0))
+            if self.quantity is not None and named != self.quantity:
+                raise ValueError(
+                    f"the lots named add up to {format(named.normalize(), 'f')} units, not the "
+                    f"{format(self.quantity.normalize(), 'f')} sold"
+                )
+            if len({lot.lot for lot in self.lots}) != len(self.lots):
+                raise ValueError("a sale names each lot once")
+        return self
+
+    @property
+    def units(self) -> Decimal | None:
+        """The units sold, when given (by `quantity` or the lots named)."""
+        if self.quantity is not None:
+            return self.quantity
+        if self.lots:
+            return sum((lot.quantity for lot in self.lots), Decimal(0))
+        return None
 
 
 class StopRecurringChange(Model):
@@ -357,6 +504,7 @@ Change = Annotated[
     | InvestChange
     | StopRecurringChange
     | SetAsideChange
+    | SellChange
     | AssetChange,
     Field(discriminator="type"),
 ]
@@ -370,6 +518,7 @@ CHANGE_TYPES = (
     "invest",
     "stop_recurring",
     "set_aside",
+    "sell",
     "asset",
 )
 
@@ -404,7 +553,9 @@ class Scenario(Model):
 
 
 #: The change types that may carry a `tax_role`.
-TAGGABLE = (OneOffChange, RecurringChange, IncomeChange)
+TAGGABLE = (OneOffChange, RecurringChange, IncomeChange, SellChange)
+#: The change types that name one of your holdings.
+WITH_HOLDING = (InvestChange, SellChange)
 
 
 def hashable(scenario: Scenario) -> dict[str, Any]:
@@ -418,6 +569,12 @@ def hashable(scenario: Scenario) -> dict[str, Any]:
         for name in ("tax_role", "real_growth"):
             if name in change and change[name] is None:
                 del change[name]
+        # An invest into no holding, without fees, hashes as it did before
+        # they existed.
+        if change.get("type") == "invest":
+            for key in ("holding", "fees"):
+                if key in change and change[key] is None:
+                    del change[key]
     return data
 
 
@@ -539,8 +696,11 @@ __all__ = [
     "RecurringChange",
     "Scenario",
     "ScenarioTax",
+    "SellChange",
     "SetAsideChange",
+    "SoldLot",
     "StopRecurringChange",
+    "WITH_HOLDING",
     "hashable",
     "inline_json_schema",
     "json_schema",

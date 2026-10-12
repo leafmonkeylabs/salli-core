@@ -154,6 +154,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Financial independence | `salli fi score`, `salli fi projections`, `salli fi assumptions` |
 | Work through a common decision | `salli decide --list`, `salli decide afford-it` (asks, compares, and records if you want), `salli decide emergency-fund --set target_months=6 --set set_aside=200,500` |
 | What a change would do | `salli whatif --buy 2400@2026-11-01`, `salli whatif --loan 18000@6.9%x48 --buy 18000`; before tax, with your own active tax rules: `salli whatif --income +1000/month --tax-role salary`; a home, counted at its value less selling costs: `salli whatif --asset 450000 --selling-costs 3% --loan 360000@4.2%x300` |
+| Sell part of a holding, or invest into one | `salli holdings update VTI --account brokerage` (the investment account that holds it), then `salli whatif --sell VTI:4 --fees 2 --gain-tax-role gains` or `salli whatif --invest 1000 --holding VTI` |
 | Options side by side | `salli compare cash.json instalments.json` (make them with `salli whatif … --save`) |
 | Your rules of thumb | `salli principles add "Six months in cash" --check "emergency_months >= 6"`, `salli principles check cash.json instalments.json` |
 | Your decision journal | `salli decisions record …`, `salli decisions reviews`, `salli decisions export` |

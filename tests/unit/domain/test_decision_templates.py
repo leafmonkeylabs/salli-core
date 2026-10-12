@@ -751,3 +751,85 @@ def test_the_tax_role_question_lists_only_the_persons_roles():
     assert schema["properties"]["income_tax_role"]["enum"] == ["pension", "salary"]
     question = next(q for q in catalogue.get("big-change").questions if q.id == "income_tax_role")
     assert question.default is None and not question.required
+
+
+# ── Holdings (decision lab 3b, decision 21) ─────────────────────────────────
+
+HELD = dataclasses.replace(
+    FACTS,
+    holdings=(templates.HoldingFact("h-fund", "FND", "My index fund"),),
+)
+
+
+def test_debt_or_invest_may_invest_into_a_holding_the_person_names():
+    _, built = build(
+        "debt-or-invest",
+        {"debt": "debt-car", "amount": "50000", "start": "2026-10-20", "holding": "h-fund"},
+        HELD,
+    )
+    _, invest = built.options
+    assert changes(invest) == [
+        {
+            "type": "invest",
+            "amount": "50000",
+            "date": "2026-10-20",
+            "holding": "h-fund",
+            "label": "Invested",
+        }
+    ]
+    assert "into My index fund" in invest.describes
+
+
+def test_a_windfall_may_invest_into_a_holding_the_person_names():
+    _, built = build(
+        "windfall",
+        {
+            "amount": "600000",
+            "date": "2026-10-20",
+            "holding": "h-fund",
+            "splits": [{"label": "Invest", "invest": "300000"}, {"label": "Keep it"}],
+        },
+        HELD,
+    )
+    invest, _ = built.options
+    assert changes(invest)[1]["holding"] == "h-fund"
+    assert "invested in My index fund" in invest.describes
+
+
+@pytest.mark.parametrize("template_id", [t.id for t in catalogue.TEMPLATES])
+def test_no_template_ever_picks_a_holding(template_id):
+    """Even when the person holds exactly one, no question defaults to it,
+    and an option names a holding only when the answers did."""
+    template = catalogue.get(template_id)
+    for question in template.questions:
+        if question.type == "holding":
+            assert question.default is None and not question.required
+            assert templates.question_view(question, HELD)["default"] is None
+    if template_id == "debt-or-invest":
+        _, built = build(
+            template_id, {"debt": "debt-car", "amount": "50000", "start": "2026-10-20"}, HELD
+        )
+    elif template_id == "windfall":
+        _, built = build(
+            template_id,
+            {
+                "amount": "600000",
+                "splits": [{"label": "Invest", "invest": "300000"}, {"label": "Keep it"}],
+            },
+            HELD,
+        )
+    else:
+        return
+    for option in built.options:
+        assert all("holding" not in c for c in changes(option))
+
+
+def test_the_holding_question_lists_only_the_persons_own():
+    schema = templates.answers_schema(catalogue.get("debt-or-invest"), HELD)
+    assert schema["properties"]["holding"]["enum"] == ["h-fund"]
+    found = problems(
+        "debt-or-invest",
+        {"debt": "debt-car", "amount": "50000", "start": "2026-10-20", "holding": "VOO"},
+        HELD,
+    )
+    assert "is not one of your holdings" in found["answers.holding"]

@@ -42,6 +42,7 @@ import {
   type Budget,
   type BudgetSummaryLine,
   type Debt,
+  type Holding,
   type InsurancePolicy,
   type SalliClient,
   type Subscription,
@@ -473,6 +474,10 @@ function registerPortfolio(program: Command, app: App): void {
               { header: 'QUANTITY', get: (h) => h.quantity ?? '', align: 'right' },
               { header: 'INVESTED', get: (h) => app.out.money(h.cost_basis, h.currency), align: 'right' },
               { header: 'VALUE', get: (h) => app.out.money(h.current_value, h.currency), align: 'right' },
+              // A linked holding sits in an investment account of the ledger, which stays the one source of balances.
+              ...(rows.some((h) => h.account_id)
+                ? [{ header: 'ACCOUNT', get: (h: Holding) => (h.account_id ? h.account_id.slice(0, 8) : ''), style: (t: string) => app.out.colors.dim(t) }]
+                : []),
             ]),
           );
         },
@@ -499,8 +504,10 @@ function registerPortfolio(program: Command, app: App): void {
     .option('--currency <code>', 'What it trades in (default: your base currency)')
     .option('--invested <amount>', 'Declared: total amount invested (cost basis)')
     .option('--value <amount>', 'Declared: what it is worth now')
+    .option('--account <account>', 'The investment account that holds it in your ledger (code, name or id)')
     .action(async (symbol, opts) => {
       const api = await app.api();
+      const account = opts.account ? (await AccountBook.load(api)).resolve(opts.account) : undefined;
       const created = await api.call(holdingsCreate, {
         body: {
           symbol,
@@ -509,6 +516,7 @@ function registerPortfolio(program: Command, app: App): void {
           ...(opts.currency ? { currency: currencyArg(opts.currency) } : {}),
           ...(opts.invested ? { cost_basis: amountArg(opts.invested, '--invested') } : {}),
           ...(opts.value ? { current_value: amountArg(opts.value, '--value') } : {}),
+          ...(account ? { account_id: account.id } : {}),
         },
       });
       if (app.out.machine) app.out.emit(created, { human: () => undefined });
@@ -529,9 +537,12 @@ function registerPortfolio(program: Command, app: App): void {
     .option('--value <amount>', 'New current value')
     .option('--sold', 'Mark it sold (inactive)')
     .option('--active', 'Mark it active again')
+    .option('--account <account>', 'Link it to the investment account that holds it in your ledger (code, name or id)')
+    .option('--no-account', 'Unlink it from its account (a what-if can then invest into it, but not sell it)')
     .action(async (query, opts) => {
       const api = await app.api();
       const holding = await resolveHolding(api, query);
+      const account = typeof opts.account === 'string' ? (await AccountBook.load(api)).resolve(opts.account) : undefined;
       const body = changes({
         symbol: opts.symbol,
         name: opts.name,
@@ -539,8 +550,9 @@ function registerPortfolio(program: Command, app: App): void {
         cost_basis: opts.invested ? amountArg(opts.invested, '--invested') : undefined,
         current_value: opts.value ? amountArg(opts.value, '--value') : undefined,
         is_active: opts.sold ? false : opts.active ? true : undefined,
+        account_id: account ? account.id : opts.account === false ? null : undefined,
       });
-      requireChanges(body, '--symbol, --name, --class, --invested, --value, --sold or --active');
+      requireChanges(body, '--symbol, --name, --class, --invested, --value, --sold, --active, --account or --no-account');
       const result = await api.call(holdingsUpdate, { path: { holding_id: holding.id }, body });
       app.out.done(result, `Updated ${str(holding.symbol)}.`);
     });

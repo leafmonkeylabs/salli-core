@@ -181,3 +181,22 @@ async def test_an_emergency_fund_says_when_cash_covers_the_target(client, uow):
         ("Set aside 200.00 a month", "2027-05"),
         ("Set aside 500.00 a month", "2027-01"),
     ]
+
+
+async def test_the_holding_question_lists_the_callers_own_and_picks_none(client, uow):
+    """The household holds one fund it calls "My world fund": it is listed,
+    and still not assumed (decision lab 3b, decision 21)."""
+    from tests.unit.api.test_holding_scenarios_api import _holding
+
+    _holding(uow, "mine", USER, "brk")
+    _holding(uow, "theirs", "someone-else", None)
+    r = await client.get("/v1/decisions/templates/debt-or-invest", headers=AUTH)
+    assert r.status_code == 200, r.text
+    question = next(q for q in r.json()["questions"] if q["id"] == "holding")
+    assert (question["type"], question["default"], question["required"]) == (
+        "holding",
+        None,
+        False,
+    )
+    assert r.json()["answers_schema"]["properties"]["holding"]["enum"] == ["mine"]
+    assert_never_ranks(r.json())

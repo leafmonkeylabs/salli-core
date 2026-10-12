@@ -33,6 +33,7 @@ from typing import Any, cast
 
 from salli.application.fx import rate_to_base
 from salli.application.market_data import StoredPriceHistory, symbol_key
+from salli.application.ownership import require_own_accounts
 from salli.application.ports import FxRatePort, FxUnavailableError
 from salli.domain.currency import normalize_currency, quantize, quantum
 from salli.domain.money import from_minor, to_minor
@@ -247,7 +248,7 @@ def _transaction(row: dict[str, Any], currency: str, seq: int) -> Transaction:
     )
 
 
-def _history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
+def history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
     """Rows in the order they were recorded, as domain transactions; their
     position is the tie-break between transactions of one kind on one date."""
     return [_transaction(row, currency, seq) for seq, row in enumerate(rows)]
@@ -256,11 +257,11 @@ def _history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]
 def _check(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
     """Refuse a history with a malformed transaction or one that cannot have
     happened. Returns it, as domain transactions."""
-    history = _history(rows, currency)
-    for tx in history:
+    transactions = history(rows, currency)
+    for tx in transactions:
         validate(tx)
-    replay(history)
-    return history
+    replay(transactions)
+    return transactions
 
 
 # ── Views ─────────────────────────────────────────────────────────────────────
@@ -508,6 +509,7 @@ def _holding_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, Any]
         "cost_basis": valued["cost_base"],
         "current_value": valued["value_base"],
         "is_active": holding["is_active"],
+        "account_id": holding.get("account_id"),
         "created_at": holding.get("created_at"),
         "updated_at": holding.get("updated_at"),
         "tracking": valued["tracking"],
@@ -525,6 +527,28 @@ def _holding_view(t: _Tracked, v: Valuation | None, base: str) -> dict[str, Any]
         "converted": valued["converted"],
         "notes": valued["notes"],
     }
+
+
+async def check_holding_account(uow: Any, user_id: str, account_id: str) -> None:
+    """Refuse to link a holding to `account_id` unless it is one of the
+    user's own asset accounts with the `investment` role (AccountNotFound
+    when it isn't theirs, which reads the same as one that doesn't exist;
+    ValueError otherwise). The ledger stays the one source of balances: the
+    link says which investment account a holding sits in, so a scenario can
+    sell it from what that account holds."""
+    await require_own_accounts(uow, user_id, [account_id])
+    account = await uow.ledger.get_account(user_id, account_id)
+    if account.type != "asset" or account.asset_role != "investment":
+        kind = (
+            f"an {account.type} account"
+            if account.type != "asset"
+            else f"an asset account with the role {account.asset_role or 'cash'}"
+        )
+        raise ValueError(
+            f"A holding links to the investment account that holds it, such as a "
+            f"brokerage; {account.name} is {kind} (`salli accounts update "
+            f"{account.code} --asset-role investment` marks an account as one)"
+        )
 
 
 class PortfolioService:
@@ -559,6 +583,9 @@ class PortfolioService:
                 "cost_basis_minor": to_minor(cost_basis, base),
                 "current_value_minor": to_minor(current_value, base),
             }
+            if data.get("account_id"):
+                await check_holding_account(uow, user_id, data["account_id"])
+                holding["account_id"] = data["account_id"]
             return await uow.holdings.save(user_id, holding)
 
     async def list_holdings(self, user_id: str, active_only: bool = True) -> list[dict[str, Any]]:
@@ -600,6 +627,11 @@ class PortfolioService:
             holding = await uow.holdings.get(user_id, holding_id)
             if holding is None:
                 return
+            if "account_id" in data:
+                # None unlinks it; another id links it (`check_holding_account`).
+                if data["account_id"]:
+                    await check_holding_account(uow, user_id, data["account_id"])
+                updates["account_id"] = data["account_id"] or None
             base = await uow.user_profiles.base_currency(user_id)
             if ("cost_basis" in data or "current_value" in data) and (
                 await uow.holding_transactions.list(user_id, holding_id)
@@ -698,7 +730,7 @@ class PortfolioService:
         currency = holding["currency"]
         by_id = {row["id"]: row for row in rows}
         return [
-            _transaction_view(by_id[tx.id], currency) for tx in ordered(_history(rows, currency))
+            _transaction_view(by_id[tx.id], currency) for tx in ordered(history(rows, currency))
         ]
 
     async def get_transaction(
@@ -778,7 +810,7 @@ class PortfolioService:
             base = await uow.user_profiles.base_currency(user_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
         currency = holding["currency"]
-        book = replay(_history(rows, currency))
+        book = replay(history(rows, currency))
         position = book.position
         with localcontext(EXACT):
             lots = [
@@ -914,7 +946,7 @@ class PortfolioService:
             closes = [
                 Close(q.on, q.close, q.source) for q in quotes[key] if q.currency == h["currency"]
             ]
-            transactions = _history(by_holding.get(h["id"], []), h["currency"])
+            transactions = history(by_holding.get(h["id"], []), h["currency"])
             tracked.append(
                 _Tracked(
                     h,

@@ -47,6 +47,7 @@ from salli.application.ports import (
     AccountNotFound,
     DebtNotFound,
     DecisionNotFound,
+    HoldingNotFound,
 )
 from salli.application.services.fi_service import decimal_arg
 from salli.application.services.mcp_oauth_service import McpOAuthService
@@ -194,7 +195,9 @@ GUARDRAILS = (
     "add, subtract, divide, project or estimate anything yourself, not even roughly, and "
     "never work out tax or what I'd keep after it: tag an amount before tax with its tax "
     "role and let Salli compute it. "
-    "Never name a specific product, provider, fund or security: speak of kinds of thing. "
+    "Never name a specific product, provider, fund or security of your own: speak of kinds "
+    "of thing. You may refer to my own holdings as I named them, but never suggest buying or "
+    "selling any security, mine or another, and never compare my holdings as investments. "
     "Where a choice is regulated financial advice where I live (insurance, pensions, "
     "choosing investments), say so and suggest a licensed professional there; don't assume "
     "any country's rules, and ask where I live if it matters. "
@@ -441,6 +444,39 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
                 if asset_class and pct:
                     parsed_target[asset_class] = Decimal(pct)
         return await portfolio_svc.get_summary(user_id, parsed_target)
+
+    @mcp.tool()
+    async def list_holdings(include_sold: bool = False) -> dict[str, Any]:
+        """The user's holdings, each by their own id, symbol and name (their
+        words for it), with its units, cost and value at their last recorded
+        price, and `account_id`: the investment account in their ledger that
+        holds it (null when not linked). Use an id to invest into or sell a
+        holding in a scenario. Refer to holdings as the user named them;
+        never suggest buying or selling one, never compare them as
+        investments, and never name a security they don't hold."""
+        holdings = await portfolio_svc.list_holdings(_current_user_id(), not include_sold)
+        return {"holdings": holdings}
+
+    @mcp.tool()
+    async def link_holding(holding_id: str, account_id: str | None) -> dict[str, Any]:
+        """Link one of the user's holdings to the investment account in their
+        ledger that holds it (an asset account with the investment role), or
+        unlink it with null. The ledger stays the one source of balances: a
+        scenario can sell a holding only once it is linked, and never more
+        than that account holds. Writes immediately: show the user the
+        holding and the account first and get their go-ahead."""
+        user_id = _current_user_id()
+        if await portfolio_svc.get_holding(user_id, holding_id) is None:
+            return {"error": f"Holding not found: {holding_id}"}
+        params = {"holding_id": holding_id, "account_id": account_id}
+        try:
+            await portfolio_svc.update_holding(user_id, holding_id, {"account_id": account_id})
+        except AccountNotFound as exc:
+            return {"error": str(exc)}
+        except ValueError as exc:
+            return {"error": f"Could not link the holding: {exc}"}
+        await _log_audit(ledger_svc, user_id, "link_holding", params)
+        return {"holding_id": holding_id, "account_id": account_id, "updated": True}
 
     @mcp.tool()
     async def get_subscription_report(subscription_id: str | None = None) -> dict[str, Any]:
@@ -800,8 +836,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     async def get_scenario_schema() -> dict[str, Any]:
         """The JSON Schema of a scenario document (salli.scenario/1): the
         baseline plus changes (one_off, recurring, income_change, loan,
-        extra_debt_payment, invest, stop_recurring, set_aside, asset). Amounts and
-        rates are decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD;
+        extra_debt_payment, invest, stop_recurring, set_aside, sell, asset).
+        Amounts and rates are decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD;
         account and debt ids come from get_accounts and get_payoff_plan, a
         recurring flow's key from get_recurring_payments. Build every option
         of a decision with it, never estimate one yourself.
@@ -814,6 +850,16 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         change in each year's tax with the user's active rules; put answers
         to the rules' questions in the scenario's `tax.answers`. Never work
         out a net figure yourself: tag the gross one.
+
+        Holdings: an `invest` may name one of the user's own holdings
+        (`holding`, an id from list_holdings) and `fees`; a `sell` sells part
+        of one (`quantity` or `amount`, `fees`, named `lots` or first in,
+        first out, `into` a cash account, and a `tax_role` of kind income for
+        the realised gain). A sale needs its holding linked to the investment
+        account that holds it (link_holding) and can't take out more than
+        that account holds. Fees are the user's own figure: never assume
+        one. Salli prices a trade at the holding's last recorded price and
+        forecasts no price.
 
         An asset (a home) is bought from cash and counted at its value less
         its selling costs, growing at its own real_growth (0 beyond
@@ -873,7 +919,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             )
         except (TemplateError, ScenarioError) as exc:
             return _refusal(exc)
-        except (UnknownTemplate, AccountNotFound, DebtNotFound) as exc:
+        except (UnknownTemplate, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -888,7 +934,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         changes tagged with a tax role, `tax` gives each tax year's role
         totals, the change in tax from the user's active rules and how it
         comes out of cash; `tax.status` "not_computed" says why not (the
-        tagged amounts then count before tax: say so). It records the
+        tagged amounts then count before tax: say so). An invest into a
+        holding, or a sale, comes with its units, the price it rests on, the
+        fees (or that none were given), and a sale's lots and realised gain,
+        under `changes[n].holding`. It records the
         assumptions (placeholders flagged), versions and a hash of its
         inputs. Stores nothing. Quote its figures; never compute your own.
         A problem comes back with its path, to fix and run again."""
@@ -896,7 +945,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return await scenario_svc.run(_current_user_id(), scenario)
         except ScenarioError as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -915,7 +964,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return await scenario_svc.compare(_current_user_id(), options)
         except ScenarioError as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     # ── Principles and the decision journal (docs/decisions.md) ─────────────
@@ -977,7 +1026,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return await principle_svc.check(_current_user_id(), options or [])
         except ScenarioError as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -1018,7 +1067,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             )
         except (ScenarioError, JournalError) as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
         await _log_audit(
             ledger_svc,

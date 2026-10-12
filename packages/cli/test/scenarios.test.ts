@@ -26,6 +26,52 @@ const run = (args: string[], options: Partial<RunOptions> = {}) =>
   runCli(args, { configDir: dir, ...options, env: { SALLI_SERVER: mock.url, SALLI_TOKEN: 'pat-valid', ...options.env } });
 const lastBody = (path: string) => mock.data.bodies.filter((b) => b.path === path).at(-1)?.body;
 
+describe('salli whatif on your holdings', () => {
+  it('sells units of a holding, and invests into one, by symbol', async () => {
+    const result = await run([
+      'whatif',
+      '--sell',
+      'VTI:4@2026-11-02',
+      '--sell-value',
+      'vti:2500',
+      '--invest',
+      '1000',
+      '--holding',
+      'VTI',
+      '--fees',
+      '2.00',
+      '--gain-tax-role',
+      'gains',
+      '--account',
+      'checking',
+      '--as-of',
+      '2026-10-11',
+    ]);
+    expect(result.code).toBe(0);
+    expect(lastBody('/v1/scenarios/run')).toEqual({
+      schema: 'salli.scenario/1',
+      as_of: '2026-10-11',
+      changes: [
+        { type: 'invest', amount: '1000', date: '2026-10-11', from: uid(2), holding: uid(421), fees: '2.00', label: 'Invest 1000 in Total Stock Market' },
+        { type: 'sell', holding: uid(421), quantity: '4', date: '2026-11-02', fees: '2.00', into: uid(2), tax_role: 'gains', label: 'Sell Total Stock Market' },
+        { type: 'sell', holding: uid(421), amount: '2500', date: '2026-10-11', fees: '2.00', into: uid(2), tax_role: 'gains', label: 'Sell Total Stock Market' },
+      ],
+    });
+    // The server's answer: the 3b household's sale and invest.
+    expect(result.stdout).toContain('4 units of My index fund at NZD 150 on Jun 30, 2031: NZD 600.00, fees NZD 2.00, a gain of NZD 196.00, taxed (gains)');
+    expect(result.stdout).toContain('NZD 1,000.00 on Jun 30, 2031: 6.666666666666666666 units of My index fund at NZD 150');
+    expect(result.stderr).toContain('no fees given, so none are counted');
+  });
+
+  it('refuses holding flags that have nothing to apply to', async () => {
+    expect((await run(['whatif', '--buy', '100', '--holding', 'VTI'])).stderr).toContain('--holding is the holding --invest goes into');
+    expect((await run(['whatif', '--buy', '100', '--fees', '2'])).stderr).toContain('--fees are on a --sell');
+    expect((await run(['whatif', '--invest', '100', '--gain-tax-role', 'gains'])).stderr).toContain('--gain-tax-role tags a --sell');
+    expect((await run(['whatif', '--sell', 'VTI'])).stderr).toContain('--sell takes HOLDING:UNITS, like FUND:4');
+    expect((await run(['whatif', '--sell', 'NOPE:1'])).code).toBe(4);
+  });
+});
+
 describe('salli whatif', () => {
   it('builds the scenario from flags, and shows every figure against the baseline', async () => {
     const result = await run(['whatif', '--buy', '2400@2026-11-02', '--label', 'Laptop']);

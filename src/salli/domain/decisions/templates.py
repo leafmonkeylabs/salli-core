@@ -9,14 +9,15 @@ scenario engine and the choice to them. So a template:
 
 - **asks typed questions**, each validated with a path people can follow
   (`answers.instalment_rate`): an amount in the base currency, a whole number
-  of months, a rate, a date, a choice, one of the person's debts or cash
-  accounts, one of the income or deduction roles in their active tax rules,
-  a short text, or a list of amounts, loans or splits;
+  of months, a rate, a date, a choice, one of the person's debts, cash
+  accounts or holdings, one of the income or deduction roles in their
+  active tax rules, a short text, or a list of amounts, loans or splits;
 - **draws a default only from what is honest**: the as-of date or the first
   of the next month, the person's own debts (the only one they have, and
   what it owes) and their own principles (the months of spending one asks
   cash to cover). A question with no honest default has none, and must be
-  answered: a template never invents a price, a rate or a target;
+  answered: a template never invents a price, a rate or a target, and never
+  picks a holding, even the only one (where money goes is the person's);
 - **builds options** as scenarios, by a pure function of the answers and the
   person's facts (`Facts`, read from their baseline and principles). It
   moves amounts where the answers say and never projects anything: what an
@@ -66,6 +67,7 @@ QuestionType = Literal[
     "choice",
     "debt",
     "account",
+    "holding",
     "tax_role",
     "text",
     "amounts",
@@ -121,6 +123,17 @@ class AccountFact:
 
 
 @dataclass(frozen=True)
+class HoldingFact:
+    """One of the person's holdings a scenario can invest into (its
+    transactions recorded, a price on or before the as-of date, and a rate
+    into the base currency): their own id, symbol and name for it."""
+
+    id: str
+    symbol: str
+    name: str
+
+
+@dataclass(frozen=True)
 class TaxRoleFact:
     """A role in the person's active tax rules a change may be tagged with:
     of kind income or deduction."""
@@ -150,6 +163,7 @@ class Facts:
     accounts: tuple[AccountFact, ...] = ()
     cover_principles: tuple[CoverPrinciple, ...] = ()
     tax_roles: tuple[TaxRoleFact, ...] = ()
+    holdings: tuple[HoldingFact, ...] = ()
 
     @property
     def next_month(self) -> dt.date:
@@ -165,6 +179,9 @@ class Facts:
 
     def tax_role(self, key: str) -> TaxRoleFact | None:
         return next((r for r in self.tax_roles if r.key == key), None)
+
+    def holding(self, holding_id: str) -> HoldingFact | None:
+        return next((h for h in self.holdings if h.id == holding_id), None)
 
     def money(self, value: Decimal) -> str:
         """An amount as a decimal string to the currency's smallest unit."""
@@ -223,6 +240,11 @@ def facts_of(baseline: Baseline, principles: Sequence[tuple[Principle, Expr]] = 
         ),
         cover_principles=cover_principles(principles),
         tax_roles=tax_roles_of(baseline),
+        holdings=tuple(
+            HoldingFact(h.holding_id, h.symbol, h.name)
+            for h in baseline.holdings
+            if h.tracked and h.price is not None and h.fx_rate is not None
+        ),
     )
 
 
@@ -467,6 +489,18 @@ def _debt(value: Any, facts: Facts) -> str:
     return value
 
 
+def _holding(value: Any, facts: Facts) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError("is one of your holdings, by its id (salli holdings list)")
+    if facts.holding(value) is None:
+        names = ", ".join(f"{h.name} ({h.id})" for h in facts.holdings) or "none"
+        raise ValueError(
+            f"{value!r} is not one of your holdings with its transactions and a price "
+            f"recorded; yours: {names}"
+        )
+    return value
+
+
 def _account(value: Any, facts: Facts) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError("is one of your cash accounts, by its id")
@@ -537,6 +571,8 @@ def _parse(question: Question, value: Any, facts: Facts, path: str, out: _Proble
             return attempt(lambda: _debt(value, facts))
         case "account":
             return attempt(lambda: _account(value, facts))
+        case "holding":
+            return attempt(lambda: _holding(value, facts))
         case "tax_role":
             return attempt(lambda: _tax_role(value, facts))
         case "choice":
@@ -926,6 +962,14 @@ def _value_schema(q: Question, facts: Facts | None) -> dict[str, Any]:
             }
             if facts is not None and facts.accounts:
                 out["enum"] = [a.id for a in facts.accounts]
+            return out
+        case "holding":
+            out = {
+                "type": "string",
+                "description": "One of your own holdings, by its id. Salli never picks one.",
+            }
+            if facts is not None and facts.holdings:
+                out["enum"] = [h.id for h in facts.holdings]
             return out
         case "tax_role":
             out = {
