@@ -208,6 +208,14 @@ export interface AuthorizationUrlParams {
   /** RFC 8707: the API the token is for, e.g. `https://salli.example.com/v1`. */
   resource?: string;
   scope?: string;
+  /**
+   * `login` asks the person to enter their password again even though they
+   * are signed in (OIDC `prompt`; RFC 9470 step-up): the console sends it
+   * when the server answers `/problems/step-up-required`.
+   */
+  prompt?: 'login';
+  /** Seconds since the password check the sign-in may be (OIDC `max_age`). */
+  maxAge?: number;
 }
 
 /** The URL to send the user's browser to. */
@@ -221,6 +229,8 @@ export function buildAuthorizationUrl(params: AuthorizationUrlParams): string {
   url.searchParams.set('state', params.state);
   if (params.resource) url.searchParams.set('resource', params.resource);
   if (params.scope) url.searchParams.set('scope', params.scope);
+  if (params.prompt) url.searchParams.set('prompt', params.prompt);
+  if (params.maxAge !== undefined) url.searchParams.set('max_age', String(params.maxAge));
   return url.toString();
 }
 
@@ -520,4 +530,87 @@ export function createOAuthTokenProvider(options: OAuthTokenProviderOptions): OA
       return refreshOnce();
     },
   };
+}
+
+// ── In a browser tab ──────────────────────────────────────────────────────────
+
+/** The part of the Web Locks API (`navigator.locks`) a refresh needs. */
+export interface LockManagerLike {
+  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
+}
+
+/** The part of `Storage` (`sessionStorage`) the browser provider needs. */
+export interface KeyValueStore {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+function browserLocks(): LockManagerLike | undefined {
+  const nav = (globalThis as { navigator?: { locks?: LockManagerLike } }).navigator;
+  return nav?.locks && typeof nav.locks.request === 'function' ? nav.locks : undefined;
+}
+
+/**
+ * A `lock` for `createOAuthTokenProvider` that holds the Web Lock `name`
+ * while it runs: one holder at a time across every tab of the origin. Where
+ * the browser has no Web Locks, the refresh runs unguarded (it is still one
+ * at a time within the page).
+ */
+export function webLock(name: string, locks: LockManagerLike | undefined = browserLocks()) {
+  return <T>(refresh: () => Promise<T>): Promise<T> => (locks ? locks.request(name, refresh) : refresh());
+}
+
+export interface BrowserTokenProviderOptions {
+  /** From the sign-in, or `{ access_token: '', refresh_token }` after a reload. */
+  tokens: StoredTokens;
+  tokenEndpoint: string;
+  clientId: string;
+  resource?: string;
+  /** Where the refresh token is kept: the tab's `sessionStorage`. */
+  storage: KeyValueStore;
+  /** Its key there. */
+  key: string;
+  /** The Web Lock refreshes hold. Default: the key, with `:refresh`. */
+  lockName?: string;
+  locks?: LockManagerLike;
+  fetch?: typeof globalThis.fetch;
+  now?: () => number;
+}
+
+/** The refresh token a tab kept, if any. */
+export function storedRefreshToken(storage: KeyValueStore, key: string): string | undefined {
+  try {
+    return storage.getItem(key) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Tokens for a browser tab: the access token in memory only, the refresh
+ * token in memory and in `storage` (so a reload keeps the sign-in and
+ * closing the tab ends it), and each refresh under a Web Lock, since Salli
+ * revokes a whole sign-in when a refresh token is used twice. An access
+ * token of `''` (after a reload) is refreshed before the first request.
+ */
+export function createBrowserTokenProvider(options: BrowserTokenProviderOptions): OAuthTokenProvider {
+  const save = (tokens: StoredTokens): void => {
+    if (tokens.refresh_token) options.storage.setItem(options.key, tokens.refresh_token);
+  };
+  save(options.tokens);
+  const tokens: StoredTokens = options.tokens.access_token
+    ? options.tokens
+    : // Expired at the epoch: the provider refreshes before its first token.
+      { ...options.tokens, expires_at: 0 };
+  return createOAuthTokenProvider({
+    tokens,
+    tokenEndpoint: options.tokenEndpoint,
+    clientId: options.clientId,
+    ...(options.resource ? { resource: options.resource } : {}),
+    save,
+    lock: webLock(options.lockName ?? `${options.key}:refresh`, options.locks ?? browserLocks()),
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.now ? { now: options.now } : {}),
+  });
 }

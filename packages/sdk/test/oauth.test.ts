@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SalliOAuthError } from '../src/errors';
 import {
   buildAuthorizationUrl,
+  createBrowserTokenProvider,
   createOAuthTokenProvider,
   createPkcePair,
   DEVICE_CODE_GRANT,
@@ -11,7 +12,11 @@ import {
   registerClient,
   requestDeviceAuthorization,
   revokeToken,
+  storedRefreshToken,
   tokensFromResponse,
+  webLock,
+  type KeyValueStore,
+  type LockManagerLike,
   type StoredTokens,
 } from '../src/oauth';
 import { sendJson, startServer, type TestServer } from './helpers/server';
@@ -325,5 +330,68 @@ describe('tokensFromResponse', () => {
       expires_at: 70,
       token_type: 'Bearer',
     });
+  });
+});
+
+describe('signing in again (step-up)', () => {
+  it('asks for the password again with prompt=login, and passes max_age', () => {
+    const url = new URL(
+      buildAuthorizationUrl({
+        authorizationEndpoint: 'https://salli.test/mcp/oauth/authorize',
+        clientId: 'salli-console',
+        redirectUri: 'https://salli.test/console/callback',
+        codeChallenge: 'chal',
+        state: 'st',
+        prompt: 'login',
+        maxAge: 0,
+      }),
+    );
+    expect(url.searchParams.get('prompt')).toBe('login');
+    expect(url.searchParams.get('max_age')).toBe('0');
+  });
+});
+
+describe('createBrowserTokenProvider', () => {
+  const memory = (): KeyValueStore & { items: Map<string, string> } => {
+    const items = new Map<string, string>();
+    return {
+      items,
+      getItem: (k) => items.get(k) ?? null,
+      setItem: (k, v) => void items.set(k, v),
+      removeItem: (k) => void items.delete(k),
+    };
+  };
+
+  it('keeps only the refresh token in storage, and refreshes after a reload under the Web Lock', async () => {
+    server = await startServer((req, res) => {
+      const body = form(req.body);
+      sendJson(res, 200, { access_token: `at-for-${body.refresh_token}`, refresh_token: 'rt-2', expires_in: 3600 });
+    });
+    const storage = memory();
+    const held: string[] = [];
+    const locks: LockManagerLike = {
+      request: async (name, callback) => {
+        held.push(name);
+        return callback();
+      },
+    };
+    // After a reload: the access token was in memory only, so there is none.
+    const provider = createBrowserTokenProvider({
+      tokens: { access_token: '', refresh_token: 'rt-1' },
+      tokenEndpoint: `${server.url}/token`,
+      clientId: 'salli-console',
+      storage,
+      key: 'salli-console:refresh',
+      locks,
+    });
+    expect(storage.items.get('salli-console:refresh')).toBe('rt-1');
+    expect(await provider.getToken()).toBe('at-for-rt-1');
+    expect(held).toEqual(['salli-console:refresh:refresh']);
+    expect([...storage.items.entries()]).toEqual([['salli-console:refresh', 'rt-2']]);
+    expect(storedRefreshToken(storage, 'salli-console:refresh')).toBe('rt-2');
+  });
+
+  it('runs a refresh unguarded where the browser has no Web Locks', async () => {
+    expect(await webLock('x', undefined)(async () => 'ran')).toBe('ran');
   });
 });

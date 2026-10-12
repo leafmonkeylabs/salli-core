@@ -8,7 +8,8 @@
  * - `createClient` — a server, a bearer token that refreshes itself, and
  *   errors as `SalliApiError` (problem details) or `SalliNetworkError`;
  * - the agent's event stream (`streamAgentChat`, `streamAgentResume`);
- * - signing in (`oauth`): PKCE, device codes, refresh, revocation;
+ * - signing in (`oauth`): PKCE, device codes, refresh, revocation, and a
+ *   browser tab's tokens (`oauth.createBrowserTokenProvider`);
  * - money for display (`formatAmount`): exact, from the decimal strings
  *   the API sends, never through a float.
  */
@@ -71,7 +72,17 @@ export * as oauth from './oauth';
 // `DeviceAuthorization` and `RegisteredClient` at the top level are the
 // server's (generated) shapes; the protocol-level ones, which allow what the
 // RFCs leave optional, are `oauth.DeviceAuthorization` and so on.
-export type { ClientMetadata, OAuthEndpoints, OAuthTokenProvider, PkcePair, StoredTokens, TokenResponse } from './oauth';
+export type {
+  BrowserTokenProviderOptions,
+  ClientMetadata,
+  KeyValueStore,
+  LockManagerLike,
+  OAuthEndpoints,
+  OAuthTokenProvider,
+  PkcePair,
+  StoredTokens,
+  TokenResponse,
+} from './oauth';
 
 /** The API versions this SDK speaks (`api_version` in `/v1/meta`). */
 export const SUPPORTED_API_VERSIONS: readonly string[] = ['1'];
