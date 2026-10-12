@@ -79,6 +79,8 @@ for (const theme of THEMES) {
     test.describe(`${width} px, ${theme}`, () => {
       for (const p of PAGES) {
         test(p.name, async ({ page }) => {
+          // A year of days and thirty years of months, opened as tables, take axe a while.
+          test.setTimeout(120_000);
           const seen = await open(page, p.path, width, theme);
           await expect(page.getByRole('heading', { level: 1, name: p.heading })).toBeVisible();
           if (p.act) await p.act(page);
