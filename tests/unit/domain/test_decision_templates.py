@@ -514,7 +514,7 @@ def test_a_big_change_against_things_as_they_are():
         },
         {
             "type": "income_change",
-            "monthly_net": "-10000",
+            "monthly": "-10000",
             "from": "2027-01-01",
             "to": "2028-12-31",
             "label": "New flat: income",

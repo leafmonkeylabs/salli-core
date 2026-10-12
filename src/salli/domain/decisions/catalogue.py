@@ -653,7 +653,7 @@ def _big_change_build(answers: Answers, facts: Facts) -> Built:
         changes.append(
             {
                 "type": "income_change",
-                "monthly_net": _signed(income, facts),
+                "monthly": _signed(income, facts),
                 "from": start.isoformat(),
                 **({"to": end.isoformat()} if end else {}),
                 "label": f"{label}: income",

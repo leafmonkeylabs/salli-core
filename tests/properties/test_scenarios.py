@@ -73,7 +73,7 @@ def money_changes(draw: st.DrawFn, sign: int) -> dict:
         }
     return {
         "type": "income_change",
-        "monthly_net": f"{amount}",
+        "monthly": f"{amount}",
         "from": _day(draw(days_ahead)),
         "label": "Income",
     }
@@ -292,7 +292,7 @@ def test_a_result_is_deterministic_and_its_hash_ignores_key_order_and_formatting
             shuffle.shuffle(items)
             out = {}
             for key, v in items:
-                if key in ("amount", "monthly_net") and isinstance(v, str):
+                if key in ("amount", "monthly") and isinstance(v, str):
                     number = Decimal(v)
                     v = f"+{number:.3f}" if number > 0 else f"{number:.4f}"
                 out[key] = reshape(v)

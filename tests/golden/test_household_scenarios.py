@@ -562,7 +562,7 @@ async def test_an_income_change(baseline):
         changes=[
             {
                 "type": "income_change",
-                "monthly_net": "+600.00",
+                "monthly": "+600.00",
                 "from": "2027-01-01",
                 "label": "New job",
             }

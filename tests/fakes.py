@@ -476,9 +476,28 @@ class FakeActiveRuleSets:
 
     def __init__(self) -> None:
         self.active: list[dict[str, Any]] = []
+        #: Every rule set, active or not (`list_sets`): the active ones'
+        #: sets when a test adds none.
+        self.sets: list[dict[str, Any]] | None = None
+        #: Each role the user's rule sets declare, and its kinds.
+        self.role_kinds: dict[str, set[str]] | None = None
 
     async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
         return list(self.active)
+
+    async def list_sets(self, user_id: str) -> list[dict[str, Any]]:
+        if self.sets is not None:
+            return list(self.sets)
+        return [{k: v for k, v in row.items() if k != "version"} for row in self.active]
+
+    async def declared_role_kinds(self, user_id: str) -> dict[str, set[str]]:
+        if self.role_kinds is not None:
+            return {k: set(v) for k, v in self.role_kinds.items()}
+        out: dict[str, set[str]] = {}
+        for row in self.active:
+            for role in (row.get("version") or {}).get("content", {}).get("roles", []):
+                out.setdefault(role["key"], set()).add(role["kind"])
+        return out
 
 
 class FakeFeeds:

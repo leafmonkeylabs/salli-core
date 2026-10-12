@@ -10,9 +10,11 @@ figure is `{"baseline", "scenario", "delta"}` (a month's delta is in months,
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from salli.domain.baseline.models import RuleSetRef
 from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import assumptions_dict, rate_text
 from salli.domain.scenarios.comparison import Comparison, Delta, Sensitive
@@ -23,6 +25,7 @@ from salli.domain.scenarios.engine import (
     MonthFigure,
     ScenarioResult,
 )
+from salli.domain.scenarios.tax import YearTax
 
 _HUNDREDTH = Decimal("0.01")
 
@@ -140,6 +143,84 @@ def break_even_view(b: BreakEven, result_currency: str, end: str | None = None) 
     }
 
 
+def rule_set_view(x: RuleSetRef) -> dict[str, Any]:
+    return {
+        "country": x.country,
+        "region": x.region,
+        "year": x.year,
+        "rule_set_id": x.rule_set_id,
+        "version": x.version,
+        "content_hash": x.content_hash,
+    }
+
+
+def _year_view(y: YearTax, w: _Writer) -> dict[str, Any]:
+    cur = y.currency
+
+    def net(value: Decimal | None) -> str | None:
+        return None if value is None or cur is None else w.money(value, cur)
+
+    delta = (
+        None
+        if y.net_baseline is None or y.net_scenario is None
+        else y.net_scenario - y.net_baseline
+    )
+    return {
+        "year": y.label,
+        "start": y.start.isoformat(),
+        "end": y.end.isoformat(),
+        "status": y.status,
+        "reason": y.reason,
+        "rules": None
+        if y.rules is None
+        else {**rule_set_view(y.rules), "carried_forward": y.carried_forward},
+        "currency": cur,
+        "roles": [
+            {
+                "key": t.key,
+                "kind": t.kind,
+                "label": t.label,
+                "actual": net(t.actual),
+                "projected": net(t.projected),
+                "scenario": net(t.scenario),
+            }
+            for t in y.roles
+        ],
+        "net": {
+            "baseline": net(y.net_baseline),
+            "scenario": net(y.net_scenario),
+            "delta": net(delta),
+        },
+        "change": w.money(y.change),
+        "monthly": [{"month": month, "amount": w.money(part)} for month, part in y.parts],
+    }
+
+
+def tax_view(r: ScenarioResult) -> dict[str, Any]:
+    """A result's tax section: each tax year the scenario touches (the first
+    two, and the years of the monthly checkpoints; the timeline uses all of
+    them), the as-of date's year in brief, and the change over the horizon
+    in today's money."""
+    w = _Writer(r.currency)
+    t = r.tax.outcome
+    checkpoints = [dt.date.fromisoformat(c.date) for c in r.monthly]
+    shown = [
+        y
+        for i, y in enumerate(t.years)
+        if i < 2 or any(y.start <= day <= y.end for day in checkpoints)
+    ]
+    this_year = t.this_year
+    return {
+        "status": t.status,
+        "reason": t.reason,
+        "years": [_year_view(y, w) for y in shown],
+        "this_year": None if this_year is None else _year_view(this_year, w),
+        "change_this_year": w.money(t.change_this_year),
+        "total_change": w.money(r.tax.total_change),
+        "carried_forward": t.carried_forward,
+    }
+
+
 def result_view(r: ScenarioResult) -> dict[str, Any]:
     """A scenario's result as JSON-ready data."""
     w = _Writer(r.currency)
@@ -238,6 +319,7 @@ def result_view(r: ScenarioResult) -> dict[str, Any]:
             "months_gained": r.fi.months_gained,
         },
         "break_evens": [break_even_view(b, r.currency, cash.end) for b in r.break_evens],
+        "tax": tax_view(r),
         "assumptions": assumptions_dict(r.assumptions),
         "placeholders": list(r.placeholders),
         "versions": {
@@ -245,17 +327,7 @@ def result_view(r: ScenarioResult) -> dict[str, Any]:
             "engine": r.versions.engine,
             "fi_assumptions": r.versions.fi_assumptions,
             "fire_strategy": r.versions.fire_strategy,
-            "rule_sets": [
-                {
-                    "country": x.country,
-                    "region": x.region,
-                    "year": x.year,
-                    "rule_set_id": x.rule_set_id,
-                    "version": x.version,
-                    "content_hash": x.content_hash,
-                }
-                for x in r.versions.rule_sets
-            ],
+            "rule_sets": [rule_set_view(x) for x in r.versions.rule_sets],
         },
         "data_as_of": r.data_as_of,
         "is_stale": r.is_stale,

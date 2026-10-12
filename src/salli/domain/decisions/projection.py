@@ -12,7 +12,8 @@ own money by its deflator; with no inflation set, the two are the same.
 Spending is the baseline's average monthly spending in the month's own
 money, plus the option's recurring costs that fall in that month, less
 what its stopped payments would have cost: what the person expected to
-spend, the way the baseline counts spending.
+spend, the way the baseline counts spending. A change in tax is not
+spending (as the FI number doesn't count it), so it is left out.
 """
 
 from __future__ import annotations
@@ -43,7 +44,8 @@ def _spending_changes(baseline: Baseline, scenario: schema.Scenario) -> dict[str
     if costs:
         only = scenario.model_copy(update={"changes": costs})
         for flow in engine.translate(baseline, only).changes.regular:
-            added[flow.date[:7]] -= flow.amount
+            if flow.source == "change":
+                added[flow.date[:7]] -= flow.amount
     for change in scenario.changes:
         if not isinstance(change, schema.StopRecurringChange):
             continue
@@ -51,7 +53,8 @@ def _spending_changes(baseline: Baseline, scenario: schema.Scenario) -> dict[str
         stopped = translation.applied[0].stopped if translation.applied else ()
         if stopped and all(s.amount < 0 for s in stopped):
             for flow in translation.changes.regular:
-                added[flow.date[:7]] -= flow.amount
+                if flow.source == "change":
+                    added[flow.date[:7]] -= flow.amount
     return added
 
 

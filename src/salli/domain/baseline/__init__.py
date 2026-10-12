@@ -16,11 +16,14 @@ from salli.domain.baseline.models import (
     Baseline,
     BaselineDebt,
     BaselineInputs,
+    BaselineTax,
     DeclaredDebt,
     Flows,
     MonthFlow,
     Rate,
     Role,
+    TaxInputs,
+    TaxRules,
 )
 
 __all__ = [
@@ -28,10 +31,13 @@ __all__ = [
     "Baseline",
     "BaselineDebt",
     "BaselineInputs",
+    "BaselineTax",
     "DeclaredDebt",
     "Flows",
     "MonthFlow",
     "Rate",
     "Role",
+    "TaxInputs",
+    "TaxRules",
     "build",
 ]

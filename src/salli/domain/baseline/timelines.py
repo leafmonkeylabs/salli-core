@@ -449,7 +449,8 @@ class MonthPlan:
         return self.regular - self.invested - self.extra + self.changes
 
 
-def _in_base(baseline: Baseline, flow: forecasting.Flow) -> Decimal | None:
+def in_base(baseline: Baseline, flow: forecasting.Flow) -> Decimal | None:
+    """A flow's amount in the base currency at the as-of rate; None without one."""
     if flow.currency == baseline.currency:
         return flow.amount
     rate = next((r.rate for r in baseline.rates if r.currency == flow.currency), None)
@@ -463,7 +464,7 @@ def _by_month(
     base currency at the as-of rates."""
     out: dict[str, Decimal] = defaultdict(Decimal)
     for flow in flows:
-        value = _in_base(baseline, flow)
+        value = in_base(baseline, flow)
         if value is not None and flow.date >= first:
             out[flow.date[:7]] += value
     return out
@@ -475,7 +476,7 @@ def scheduled_net(baseline: Baseline, months: Sequence[Period]) -> dict[str, Dec
     window = months[:DAILY_MONTHS]
     net: dict[str, Decimal] = defaultdict(Decimal)
     for flow in scheduled_flows(baseline, baseline.as_of, window[-1].end):
-        value = _in_base(baseline, flow)
+        value = in_base(baseline, flow)
         if value is not None:
             net[flow.date[:7]] += value
     return net
