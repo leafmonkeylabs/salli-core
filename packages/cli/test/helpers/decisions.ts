@@ -8,6 +8,11 @@
  * from before the cut, which the CLI never recomputes. A principle whose
  * check names "nonsense" is refused as the server refuses an unknown
  * figure.
+ *
+ * The journal's entries keep the engine version that recorded them. FIGURES
+ * and PRINCIPLE_CHECK are what the server answers today, written in place by
+ * tests/cli_fixtures.py (`uv run python -m tests.cli_fixtures`), which
+ * tests/contract/test_cli_fixtures.py holds them to.
  */
 import type {
   Decision,
@@ -416,8 +421,6 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
   },
   "options": [
     {
-      "label": "Pay cash",
-      "scenario_hash": "sha256:6eba5c2a1c0decdd49e00f7eede1a1558e2e4b33df51e650105c79662c1d30a9",
       "figures": {
         "lowest_cash": "11598.91",
         "cash_in_12_months": "13401.47",
@@ -472,11 +475,11 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
             "account_lowest": "4883.77"
           }
         }
-      ]
+      ],
+      "label": "Pay cash",
+      "scenario_hash": "sha256:f4256ea014bd445bc126e68c5bf00b938ad9b7310ad3eae39dd14e9831b52f71"
     },
     {
-      "label": "Instalments",
-      "scenario_hash": "sha256:db11507c805e733ac1b8f18195d7529d71acf66596cd5b01194ee508c2b7384c",
       "figures": {
         "lowest_cash": "13821.01",
         "cash_in_12_months": "15801.47",
@@ -531,7 +534,9 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
             "account_lowest": "6063.46"
           }
         }
-      ]
+      ],
+      "label": "Instalments",
+      "scenario_hash": "sha256:f5d6e4760315be8666d8812b0296b73f9e97b1a0b88cec0ec8ed8d5062e94dda"
     }
   ],
   "placeholders": [

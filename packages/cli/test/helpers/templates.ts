@@ -1,11 +1,15 @@
 /**
  * What a real server answers for decision templates on the golden household
  * ledger (tests/golden/household.py, as of Oct 11, 2026, in euros, with the
- * principle "Six months of essentials in cash"), written by the services
- * themselves: the list, the afford-it, emergency-fund and rent-or-buy
- * templates, and a start of each (rent-or-buy's against the household's rent,
- * City Lettings, with two mortgages). Account and debt ids are the mock
- * server's own.
+ * principle "Six months of essentials in cash"): the list, the afford-it,
+ * emergency-fund and rent-or-buy templates, and a start of each
+ * (rent-or-buy's against the household's rent, City Lettings, with two
+ * mortgages). Account and debt ids are the mock server's own; the hashes
+ * are the server's for the household's.
+ *
+ * Written by tests/cli_fixtures.py (`uv run python -m tests.cli_fixtures`):
+ * tests/contract/test_cli_fixtures.py fails while it differs from what the
+ * server answers. Don't edit it by hand.
  */
 import type { DecisionStart, DecisionTemplate, DecisionTemplateList } from '@leafmonkeylabs/salli-sdk';
 
@@ -542,9 +546,11 @@ export const AFFORD_IT_START: DecisionStart = {
             "date": "2026-11-02",
             "amount": "-2400.00",
             "account": "00000002-5a11-4000-8000-000000000002",
+            "tax_role": null,
             "label": "Laptop"
           }
-        ]
+        ],
+        "tax": null
       },
       "scenario_hash": "sha256:628f9c955e0f2a9f5331a1cae3725393db66a34c244ea69f48cb2c1499990943"
     },
@@ -562,6 +568,7 @@ export const AFFORD_IT_START: DecisionStart = {
             "date": "2026-11-02",
             "amount": "-2400.00",
             "account": "00000002-5a11-4000-8000-000000000002",
+            "tax_role": null,
             "label": "Laptop"
           },
           {
@@ -573,7 +580,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "into": "00000002-5a11-4000-8000-000000000002",
             "label": "Laptop, over 12 months"
           }
-        ]
+        ],
+        "tax": null
       },
       "scenario_hash": "sha256:4770612fed62d76a37358b8c542d331015a5c20664e67045902869adf9184ef5"
     }
@@ -606,9 +614,11 @@ export const AFFORD_IT_START: DecisionStart = {
               "date": "2026-11-02",
               "amount": "-2400.00",
               "account": "00000002-5a11-4000-8000-000000000002",
+              "tax_role": null,
               "label": "Laptop"
             }
-          ]
+          ],
+          "tax": null
         },
         "changes": [
           {
@@ -620,7 +630,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "first_payment": null,
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           }
         ],
         "cash": {
@@ -940,6 +951,7 @@ export const AFFORD_IT_START: DecisionStart = {
               "date": "2026-11-02",
               "amount": "-2400.00",
               "account": "00000002-5a11-4000-8000-000000000002",
+              "tax_role": null,
               "label": "Laptop"
             },
             {
@@ -951,7 +963,8 @@ export const AFFORD_IT_START: DecisionStart = {
               "into": "00000002-5a11-4000-8000-000000000002",
               "label": "Laptop, over 12 months"
             }
-          ]
+          ],
+          "tax": null
         },
         "changes": [
           {
@@ -963,7 +976,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "first_payment": null,
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 1,
@@ -974,7 +988,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "first_payment": "2026-12",
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           }
         ],
         "cash": {
@@ -1792,9 +1807,11 @@ export const AFFORD_IT_START: DecisionStart = {
             "date": "2026-11-02",
             "amount": "-2400.00",
             "account": "00000002-5a11-4000-8000-000000000002",
+            "tax_role": null,
             "label": "Laptop"
           }
-        ]
+        ],
+        "tax": null
       },
       {
         "schema": "salli.scenario/1",
@@ -1807,6 +1824,7 @@ export const AFFORD_IT_START: DecisionStart = {
             "date": "2026-11-02",
             "amount": "-2400.00",
             "account": "00000002-5a11-4000-8000-000000000002",
+            "tax_role": null,
             "label": "Laptop"
           },
           {
@@ -1818,7 +1836,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "into": "00000002-5a11-4000-8000-000000000002",
             "label": "Laptop, over 12 months"
           }
-        ]
+        ],
+        "tax": null
       }
     ],
     "labels": [
@@ -1878,7 +1897,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "label": "As things are",
         "as_of": "2026-10-11",
         "horizon_years": 5,
-        "changes": []
+        "changes": [],
+        "tax": null
       },
       "scenario_hash": "sha256:07e724d4f063a147bf2e93b942cf54168a3957788e5fc252a345c0c8bd79b7c9"
     },
@@ -1898,7 +1918,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "to": null,
             "label": "Emergency fund"
           }
-        ]
+        ],
+        "tax": null
       },
       "scenario_hash": "sha256:8f8109ad23343f75adaf8cec8ec0b8ec7baf71f53dee3166a03c70a8662d929c"
     },
@@ -1918,7 +1939,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "to": null,
             "label": "Emergency fund"
           }
-        ]
+        ],
+        "tax": null
       },
       "scenario_hash": "sha256:11cb8f9630d5a4c589b2da11c00209828255242efeac55ca48aa42d5cb153821"
     }
@@ -1946,7 +1968,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "label": "As things are",
           "as_of": "2026-10-11",
           "horizon_years": 5,
-          "changes": []
+          "changes": [],
+          "tax": null
         },
         "changes": [],
         "cash": {
@@ -2268,7 +2291,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "to": null,
               "label": "Emergency fund"
             }
-          ]
+          ],
+          "tax": null
         },
         "changes": [
           {
@@ -2280,7 +2304,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "first_payment": null,
             "monthly": "200.00",
             "for_good": true,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           }
         ],
         "cash": {
@@ -2602,7 +2627,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
               "to": null,
               "label": "Emergency fund"
             }
-          ]
+          ],
+          "tax": null
         },
         "changes": [
           {
@@ -2614,7 +2640,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "first_payment": null,
             "monthly": "500.00",
             "for_good": true,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           }
         ],
         "cash": {
@@ -3762,7 +3789,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "label": "As things are",
         "as_of": "2026-10-11",
         "horizon_years": 5,
-        "changes": []
+        "changes": [],
+        "tax": null
       },
       {
         "schema": "salli.scenario/1",
@@ -3777,7 +3805,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "to": null,
             "label": "Emergency fund"
           }
-        ]
+        ],
+        "tax": null
       },
       {
         "schema": "salli.scenario/1",
@@ -3792,7 +3821,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "to": null,
             "label": "Emergency fund"
           }
-        ]
+        ],
+        "tax": null
       }
     ],
     "labels": [
@@ -4710,7 +4740,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "debts": {
           "items": [
             {
-              "debt_id": "debt-car",
+              "debt_id": "0000019c-5a11-4000-8000-000000000412",
               "name": "Car loan",
               "source": "account",
               "paid_off": {
@@ -4725,7 +4755,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
               }
             },
             {
-              "debt_id": "debt-student",
+              "debt_id": "0000019b-5a11-4000-8000-000000000411",
               "name": "Student loan",
               "source": "declared",
               "paid_off": {
@@ -5209,7 +5239,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "debts": {
           "items": [
             {
-              "debt_id": "debt-car",
+              "debt_id": "0000019c-5a11-4000-8000-000000000412",
               "name": "Car loan",
               "source": "account",
               "paid_off": {
@@ -5224,7 +5254,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
               }
             },
             {
-              "debt_id": "debt-student",
+              "debt_id": "0000019b-5a11-4000-8000-000000000411",
               "name": "Student loan",
               "source": "declared",
               "paid_off": {
@@ -5743,7 +5773,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "debts": {
           "items": [
             {
-              "debt_id": "debt-car",
+              "debt_id": "0000019c-5a11-4000-8000-000000000412",
               "name": "Car loan",
               "source": "account",
               "paid_off": {
@@ -5758,7 +5788,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
               }
             },
             {
-              "debt_id": "debt-student",
+              "debt_id": "0000019b-5a11-4000-8000-000000000411",
               "name": "Student loan",
               "source": "declared",
               "paid_off": {

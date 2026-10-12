@@ -55,6 +55,12 @@ npm run build && node packages/cli/dist/salli.js --help
 # After changing a route: regenerate the API document, then the SDK
 uv run python -m salli.interfaces.api.spec > openapi/openapi.json
 npm run generate
+
+# After changing what a scenario, template or principle check returns:
+# write the CLI's fixtures again (packages/cli/test/helpers), as the API
+# answers on the golden households; tests/contract/test_cli_fixtures.py
+# fails while they differ
+uv run python -m tests.cli_fixtures
 ```
 
 ## Architecture
@@ -176,7 +182,7 @@ Every prompt ends with a section about the user (`jurisdiction.py`: date, base c
 | `tests/golden/` | Engines' worked examples (budget, debt, FI, portfolio, …) |
 | `tests/taxrules/` | The tax rule-set engine; `conformance/` holds fictional jurisdictions, each the structure of a real-world feature, never its law |
 | `tests/integration/` | Against a real Postgres (migrations, triggers, accounts and every sign-in path over HTTP); skipped without `SALLI_TEST_DATABASE_URL` |
-| `tests/contract/` | The committed OpenAPI document, the no-billing-vocabulary guard, the no-country-knowledge guard and the guard that keeps a former auth provider out (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
+| `tests/contract/` | The committed OpenAPI document, the CLI's fixtures (`tests/cli_fixtures.py`), the no-billing-vocabulary guard, the no-country-knowledge guard and the guard that keeps a former auth provider out (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
 
 ### Configuration
 

@@ -1,8 +1,13 @@
 /**
- * What a real server answers for two scenarios on the golden household
- * ledger (tests/golden/household.py, as of Oct 11, 2026, in euros),
- * written by the scenario engine itself: a run, and a comparison of
- * paying cash against instalments.
+ * What a real server answers for scenarios: a run and a comparison of paying
+ * cash against instalments on the golden household ledger
+ * (tests/golden/household.py, as of Oct 11, 2026, in euros), and runs on
+ * the other golden households below, each the API's response to the
+ * request in tests/cli_fixtures.py.
+ *
+ * Written by tests/cli_fixtures.py (`uv run python -m tests.cli_fixtures`):
+ * tests/contract/test_cli_fixtures.py fails while it differs from what the
+ * server answers. Don't edit it by hand.
  */
 import type { ScenarioComparison, ScenarioRun } from '@leafmonkeylabs/salli-sdk';
 
@@ -25,6 +30,7 @@ export const SCENARIO_RUN: ScenarioRun = {
         "date": "2026-11-02",
         "amount": "-2400.00",
         "account": "chk",
+        "tax_role": null,
         "label": "New laptop"
       },
       {
@@ -42,7 +48,8 @@ export const SCENARIO_RUN: ScenarioRun = {
         "from": "2026-11-01",
         "label": null
       }
-    ]
+    ],
+    "tax": null
   },
   "changes": [
     {
@@ -54,7 +61,8 @@ export const SCENARIO_RUN: ScenarioRun = {
       "first_payment": null,
       "monthly": null,
       "for_good": null,
-      "stopped": []
+      "stopped": [],
+      "holding": null
     },
     {
       "index": 1,
@@ -65,7 +73,8 @@ export const SCENARIO_RUN: ScenarioRun = {
       "first_payment": "2027-01",
       "monthly": null,
       "for_good": null,
-      "stopped": []
+      "stopped": [],
+      "holding": null
     },
     {
       "index": 2,
@@ -83,7 +92,8 @@ export const SCENARIO_RUN: ScenarioRun = {
           "amount": "-12.99",
           "currency": "EUR"
         }
-      ]
+      ],
+      "holding": null
     }
   ],
   "cash": {
@@ -498,9 +508,11 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "date": "2026-11-02",
             "amount": "-2400.00",
             "account": null,
+            "tax_role": null,
             "label": "Laptop"
           }
-        ]
+        ],
+        "tax": null
       },
       "changes": [
         {
@@ -512,7 +524,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "first_payment": null,
           "monthly": null,
           "for_good": null,
-          "stopped": []
+          "stopped": [],
+          "holding": null
         }
       ],
       "cash": {
@@ -902,6 +915,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "date": "2026-11-02",
             "amount": "-2400.00",
             "account": null,
+            "tax_role": null,
             "label": "Laptop"
           },
           {
@@ -913,7 +927,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
             "into": null,
             "label": "Laptop instalments"
           }
-        ]
+        ],
+        "tax": null
       },
       "changes": [
         {
@@ -925,7 +940,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "first_payment": null,
           "monthly": null,
           "for_good": null,
-          "stopped": []
+          "stopped": [],
+          "holding": null
         },
         {
           "index": 1,
@@ -936,7 +952,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "first_payment": "2026-12",
           "monthly": null,
           "for_good": null,
-          "stopped": []
+          "stopped": [],
+          "holding": null
         }
       ],
       "cash": {
@@ -1725,7 +1742,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
 /**
  * A raise of 1,000.00 a month before tax, tagged with the salary role, on
  * the fictional XA 2031 household (tests/golden/taxed.py, as of
- * 2031-06-30, in New Zealand dollars), written by the scenario engine.
+ * 2031-06-30, in New Zealand dollars).
  */
 export const TAXED_RUN: ScenarioRun = {
   "schema": "salli.scenario/1",
@@ -1762,7 +1779,8 @@ export const TAXED_RUN: ScenarioRun = {
       "first_payment": null,
       "monthly": "1000.00",
       "for_good": true,
-      "stopped": []
+      "stopped": [],
+      "holding": null
     }
   ],
   "cash": {
@@ -2529,8 +2547,7 @@ export const TAXED_RUN: ScenarioRun = {
  * A run selling 4 units of a holding the person calls "My index fund" (2.00
  * of fees, the gain in an income role "gains") and investing 1,000.00 into
  * it, on the 3b golden household (tests/golden/test_holding_scenarios.py:
- * New Zealand dollars, as of 2031-06-30, the fictional rules XA 2031),
- * written by the scenario engine itself.
+ * New Zealand dollars, as of 2031-06-30, the fictional rules XA 2031).
  */
 export const HOLDING_RUN: ScenarioRun = {
   "schema": "salli.scenario/1",
@@ -3095,10 +3112,9 @@ export const HOLDING_RUN: ScenarioRun = {
 
 /**
  * Buying a home on the renting household (tests/golden/renting.py, as of
- * 2031-06-30, in New Zealand dollars), written by the scenario engine: the
- * design's hand-worked golden, 200,000.00 with 50,000.00 down, a mortgage
- * of 150,000.00 at 0% over 120 months, selling costs of 3%, the rent
- * stopped.
+ * 2031-06-30, in New Zealand dollars): the design's hand-worked golden,
+ * 200,000.00 with 50,000.00 down, a mortgage of 150,000.00 at 0% over 120
+ * months, selling costs of 3%, the rent stopped.
  */
 export const ASSET_RUN: ScenarioRun = {
   "schema": "salli.scenario/1",
