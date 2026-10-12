@@ -18,9 +18,19 @@ export async function confirmAction(app: App, yes: boolean | undefined, message:
   return app.prompter.confirm({ message, initialValue: false });
 }
 
+let amountLocale: string | undefined;
+
+/**
+ * The locale amounts are typed in: SALLI_LOCALE or the `locale` setting,
+ * never the system's. Set by the app as it starts.
+ */
+export function setAmountLocale(locale: string | undefined): void {
+  amountLocale = locale;
+}
+
 /** An amount someone typed, in the API's format; a usage error if it is not one. */
 export function amountArg(value: string, flag = 'amount'): string {
-  const amount = normalizeAmountInput(value);
+  const amount = normalizeAmountInput(value, { locale: amountLocale });
   if (amount === undefined) {
     throw new UsageError(`${flag} must be a number like 1500 or 1234.50 (got "${value}").`);
   }

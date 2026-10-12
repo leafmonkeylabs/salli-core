@@ -249,6 +249,8 @@ Other ids can be shortened to any unique prefix.
 | `advisor` | `run`, `latest`, `reports`, `apply`, `dismiss` |
 | `notifications` | the user's digest: `show`, `set` (`--on --time-zone <zone>`, `--off`, `--weekly`/`--monthly`, `--day`, `--hour`, `--items`), `preview` (the message that would go now; sends nothing), `log`. It says what is waiting, never what it is about. Turning it on or off is the user's choice: ask first |
 | `profile` | the user's fact-find (`get`, `set`); `export` for all their data |
+| `ui` | the console's address (`ui --no-open`), for the user to open in their own browser; signing in there, and activating tax rules there, is theirs |
+| `sign-ins` | where the user is signed in (`list`); ending one (`revoke`) signs them out there: ask first |
 | `rules` | rules that book transactions that look a certain way; `suggest` |
 
 `salli <command> --help` lists every subcommand and its options.

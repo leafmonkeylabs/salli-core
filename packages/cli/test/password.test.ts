@@ -24,22 +24,36 @@ const run = (args: string[], options: Partial<RunOptions> = {}) =>
     env: { SALLI_SERVER: mock.url, SALLI_TOKEN: signedIn, ...options.env },
   });
 
-const SESSIONS = [
+const SIGN_INS = [
+  {
+    id: '9b2e4c1a-0d6f-4f3e-8a71-2c5d0e9f1b3a',
+    kind: 'console',
+    client_name: 'Salli console',
+    user_agent: null,
+    started_at: '2026-10-09T10:00:00Z',
+    last_used_at: '2026-10-09T10:30:00Z',
+    expires_at: '2026-10-09T22:00:00Z',
+    current: false,
+  },
   {
     id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+    kind: 'session',
+    client_name: null,
     user_agent: 'Salli for iOS',
-    created_at: '2026-10-08T09:00:00Z',
+    started_at: '2026-10-08T09:00:00Z',
     last_used_at: '2026-10-09T08:00:00Z',
     expires_at: '2026-11-07T09:00:00Z',
     current: false,
   },
   {
     id: '16fd2706-8baf-433b-82eb-8c7fada847da',
+    kind: 'cli',
+    client_name: 'Salli CLI',
     user_agent: null,
-    created_at: '2026-10-01T09:00:00Z',
+    started_at: '2026-10-01T09:00:00Z',
     last_used_at: null,
-    expires_at: '2026-10-31T09:00:00Z',
-    current: false,
+    expires_at: null,
+    current: true,
   },
 ];
 
@@ -97,22 +111,38 @@ describe('salli password', () => {
 });
 
 describe('salli sign-ins', () => {
-  it('lists sessions, never their tokens', async () => {
-    mock.on('GET', '/v1/auth/sessions', () => ({ status: 200, body: SESSIONS }));
+  it('lists every way in, never a token', async () => {
+    mock.on('GET', '/v1/auth/sign-ins', () => ({ status: 200, body: SIGN_INS }));
     const result = await run(['sign-ins', 'list']);
     expect(result.code, result.stderr).toBe(0);
-    const [header, ios, other] = result.stdout.split('\n');
-    expect(header).toMatch(/^ID +CLIENT +STARTED +LAST USED +EXPIRES$/);
-    expect(ios).toMatch(/^7c9e6679 +Salli for iOS +Oct 8, 2026 +Oct 9, 2026 +Nov 7, 2026$/);
-    expect(other).toMatch(/^16fd2706 +— +Oct 1, 2026 +never +Oct 31, 2026$/);
+    const [header, consoleRow, session, cli] = result.stdout.split('\n');
+    expect(header).toMatch(/^ID +KIND +CLIENT +STARTED +LAST USED +ENDS$/);
+    expect(consoleRow).toMatch(/^9b2e4c1a +console +Salli console +Oct 9, 2026 +Oct 9, 2026 +Oct 9, 2026$/);
+    expect(session).toMatch(/^7c9e6679 +session +Salli for iOS +Oct 8, 2026 +Oct 9, 2026 +Nov 7, 2026$/);
+    expect(cli).toMatch(/^16fd2706 +CLI +Salli CLI \(this one\) +Oct 1, 2026 +never +—$/);
   });
 
-  it('revokes a session by the start of its id', async () => {
-    mock.on('GET', '/v1/auth/sessions', () => ({ status: 200, body: SESSIONS }));
-    mock.on('DELETE', '/v1/auth/sessions/{id}', () => ({ status: 204 }));
-    const result = await run(['sign-ins', 'revoke', '7c9e', '--yes']);
+  it('passes the sign-ins through with --json', async () => {
+    mock.on('GET', '/v1/auth/sign-ins', () => ({ status: 200, body: SIGN_INS }));
+    const result = await run(['sign-ins', 'list', '--json']);
     expect(result.code, result.stderr).toBe(0);
-    expect(mock.requestsTo('DELETE', `/v1/auth/sessions/${SESSIONS[0]?.id}`)).toHaveLength(1);
-    expect(result.stderr).toContain('Signed out the session from Salli for iOS.');
+    expect(JSON.parse(result.stdout)).toEqual(SIGN_INS);
+  });
+
+  it('ends a sign-in by the start of its id', async () => {
+    mock.on('GET', '/v1/auth/sign-ins', () => ({ status: 200, body: SIGN_INS }));
+    mock.on('DELETE', '/v1/auth/sign-ins/{id}', () => ({ status: 204 }));
+    const result = await run(['sign-ins', 'revoke', '9b2e', '--yes']);
+    expect(result.code, result.stderr).toBe(0);
+    expect(mock.requestsTo('DELETE', `/v1/auth/sign-ins/${SIGN_INS[0]?.id}`)).toHaveLength(1);
+    expect(result.stderr).toContain('Signed out the console sign-in (Salli console).');
+  });
+
+  it('says when it is ending this one', async () => {
+    mock.on('GET', '/v1/auth/sign-ins', () => ({ status: 200, body: SIGN_INS }));
+    mock.on('DELETE', '/v1/auth/sign-ins/{id}', () => ({ status: 204 }));
+    const result = await run(['sign-ins', 'revoke', '16fd', '--yes']);
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.stderr).toContain('Signed out this sign-in.');
   });
 });

@@ -1,12 +1,12 @@
 /**
- * salli password | sign-ins list | sign-ins revoke: your password, and the
- * sessions that signing in with it has started (an app's, or a script's that
- * signed in with POST /v1/auth/sessions). The CLI itself signs in through the
- * browser or device page, which takes the same password; its own sign-ins
- * are OAuth tokens, signed out with `salli logout`.
+ * salli password | sign-ins list | sign-ins revoke: your password, and every
+ * way you are signed in with it: sessions (an app's, or a script's that
+ * signed in with POST /v1/auth/sessions), the CLI on each machine and the
+ * console in each browser tab (OAuth sign-ins through Salli's sign-in page,
+ * which takes the same password). AI connections are under `salli mcp`.
  */
 import type { Command } from '@commander-js/extra-typings';
-import { authPasswordChange, authSessionsList, authSessionsRevoke } from '@leafmonkeylabs/salli-sdk';
+import { authPasswordChange, authSignInsList, authSignInsRevoke, type SignIn } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { UsageError } from '../errors';
 import type { InputStream } from '../runtime';
@@ -62,57 +62,72 @@ Examples:
       app.out.done(changed, `Password changed.${ended ? ` ${ended} other session${ended === 1 ? '' : 's'} signed out.` : ''}`);
     });
 
-  const sessions = program
+  const signIns = program
     .command('sign-ins')
-    .description('Where you are signed in with your password (sessions)')
+    .description('Every way you are signed in: sessions, the CLI, the console')
     .addHelpText(
       'after',
       `
-Sessions are what an app holds after you sign in to it with your email and
-password. Your CLI sign-ins are not sessions: see \`salli whoami\`, and sign
-out with \`salli logout\`. AI connectors are under \`salli mcp\`.
+Lists your sessions (what an app holds after you sign in to it with your
+email and password), the salli CLI on each machine, and the console in each
+browser tab. Ending one signs it out now. AI connections are under
+\`salli mcp\`, personal access tokens under \`salli tokens\`.
 
 Examples:
   $ salli sign-ins list
   $ salli sign-ins revoke 3fa85f64`,
     );
 
-  sessions
+  signIns
     .command('list')
     .alias('ls')
-    .description('Your live sessions, newest first')
+    .description('Your sign-ins, newest first')
     .action(async () => {
       const api = await app.api();
-      const list = await api.call(authSessionsList);
+      const list = await api.call(authSignInsList);
       app.out.emit(list, {
         human: (d) => {
-          if (!d.length) return app.out.note('No sessions: nothing is signed in with your password.');
+          if (!d.length) return app.out.note('Nothing is signed in.');
           const c = app.out.colors;
           const locale = app.out.locale;
           app.out.line(
             app.out.table(d, [
               { header: 'ID', get: (s) => s.id.slice(0, 8), style: (t) => c.dim(t) },
-              { header: 'CLIENT', get: (s) => singleLine(s.user_agent ?? '—') + (s.current ? ' (this one)' : ''), shrink: true },
-              { header: 'STARTED', get: (s) => displayDate(s.created_at, locale) },
+              { header: 'KIND', get: (s) => KINDS[s.kind] },
+              { header: 'CLIENT', get: (s) => describe(s) + (s.current ? ' (this one)' : ''), shrink: true },
+              { header: 'STARTED', get: (s) => displayDate(s.started_at, locale) },
               { header: 'LAST USED', get: (s) => (s.last_used_at ? displayDate(s.last_used_at, locale) : 'never') },
-              { header: 'EXPIRES', get: (s) => displayDate(s.expires_at, locale) },
+              { header: 'ENDS', get: (s) => (s.expires_at ? displayDate(s.expires_at, locale) : '—') },
             ]),
           );
         },
       });
     });
 
-  sessions
+  signIns
     .command('revoke')
-    .argument('<session>', 'Session id (or its start)')
-    .description('Sign a session out now')
+    .argument('<sign-in>', 'Sign-in id (or its start)')
+    .description('Sign it out now')
     .option('-y, --yes', 'Do not ask for confirmation')
     .action(async (query, opts) => {
       const api = await app.api();
-      const session = resolveById(await api.call(authSessionsList), query, 'session');
-      const what = session.user_agent ? `the session from ${singleLine(session.user_agent)}` : 'that session';
+      const signIn = resolveById(await api.call(authSignInsList), query, 'sign-in');
+      const what = signIn.current ? 'this sign-in' : `the ${KINDS[signIn.kind]} sign-in (${describe(signIn)})`;
       if (!(await confirmAction(app, opts.yes, `Sign out ${what}?`))) return;
-      await api.call(authSessionsRevoke, { path: { session_id: session.id } });
-      app.out.done({ id: session.id, revoked: true }, `Signed out ${what}.`);
+      await api.call(authSignInsRevoke, { path: { sign_in_id: signIn.id } });
+      app.out.done({ id: signIn.id, revoked: true }, `Signed out ${what}.`);
     });
+}
+
+/** How each kind of sign-in reads. */
+const KINDS: Record<SignIn['kind'], string> = {
+  session: 'session',
+  cli: 'CLI',
+  console: 'console',
+  app: 'app',
+};
+
+/** What signed in: the client's name, or what a session's User-Agent said. */
+function describe(signIn: SignIn): string {
+  return singleLine(signIn.client_name ?? signIn.user_agent ?? '—');
 }
