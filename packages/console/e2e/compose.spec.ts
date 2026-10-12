@@ -179,10 +179,37 @@ test('weighs a decision with a template, records it after confirming, and adds a
   const notes = page.getByRole('region', { name: 'Notes' });
   await notes.getByRole('textbox', { name: /The note/ }).fill('Bought it on the day.');
   await notes.getByRole('button', { name: 'Add the note' }).click();
-  await page.getByRole('alertdialog', { name: 'Add this note?' }).getByRole('button', { name: 'Add the note' }).click();
-  await expect(notes.getByText('Bought it on the day.')).toBeVisible();
+  const confirm = page.getByRole('alertdialog', { name: 'Add this note?' });
+  await confirm.getByRole('button', { name: 'Add the note' }).click();
+  await expect(confirm).toBeHidden();
+  await expect(notes.getByRole('listitem').getByText('Bought it on the day.')).toBeVisible();
   // It is the server's: a reload reads it back.
   await page.reload();
   await expect(page.getByRole('region', { name: 'Notes' }).getByText('Bought it on the day.')).toBeVisible();
+  await seen.check();
+});
+
+test('every page of the decision lab loads from the real server, with no problem shown', async ({ page, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  await signIn(page);
+  for (const [path, heading] of [
+    ['/console/decide', 'Decide'],
+    ['/console/decide/baseline', 'Baseline'],
+    ['/console/decide/templates', 'Templates'],
+    ['/console/decide/templates/rent-or-buy', 'Rent or buy'],
+    ['/console/decide/scenarios', 'Scenarios'],
+    ['/console/decide/principles', 'Principles'],
+    ['/console/decide/journal', 'Journal'],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    await expect(page.locator('.loading')).toHaveCount(0);
+    await expect(page.locator('.problem')).toHaveCount(0);
+  }
+  // A scenario run against the real server: both timelines drawn.
+  await page.getByRole('navigation', { name: 'Decision lab' }).getByRole('link', { name: 'Scenarios' }).click();
+  await page.getByRole('button', { name: 'Run it' }).click();
+  await expect(page.getByRole('region', { name: 'Cash, day by day' }).getByRole('img').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Net worth, month by month' }).getByRole('img').first()).toBeVisible();
   await seen.check();
 });
