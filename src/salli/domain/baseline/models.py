@@ -9,13 +9,15 @@ import datetime as dt
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from salli.domain.accounting.ledger import owned_and_owed
 from salli.domain.accounting.models import Account, AssetRole, StoredJournalEntry
 from salli.domain.fi.assumptions import FiAssumptions, OwnAssumptions, StrategyFigures
 from salli.domain.reports.forecast import DeclaredCharge
 from salli.domain.reports.insights import Recurring
+from salli.domain.taxrules.inputs import RolePosting
+from salli.domain.taxrules.schema import RuleSet
 
 #: What a balance is, to the baseline: an asset account's own role, or a
 #: liability.
@@ -181,6 +183,77 @@ class RuleSetRef:
 
 
 @dataclass(frozen=True)
+class TaxRules:
+    """An active tax rule set version in the user's tax residency: which it
+    is, and its document (the rules a scenario's tax is computed with)."""
+
+    ref: RuleSetRef
+    document: RuleSet
+
+    @property
+    def start(self) -> dt.date:
+        return self.document.year.start
+
+    @property
+    def end(self) -> dt.date:
+        return self.document.year.end
+
+    @property
+    def currency(self) -> str:
+        return self.document.currency
+
+
+@dataclass(frozen=True)
+class TaxInputs:
+    """What a scenario's tax is computed from, beyond the ledger: the active
+    rule set versions in the user's tax residency whose year ends on or
+    after the as-of date (and the latest one before it, which later years
+    carry forward), why there are none when there are none, and the
+    published rates from the base currency into a rule set's currency that
+    the application fetched (by currency, then day: the as-of date's, and
+    each day a posting in the as-of tax year needs one). Only active rules
+    are ever gathered: a draft never computes."""
+
+    residency: str | None = None
+    rules: Sequence[TaxRules] = ()
+    #: Why no rules compute the user's tax, in Salli's words and saying
+    #: what to do (as `NoTaxRulesError` says it); None when some do.
+    unavailable: str | None = None
+    rates: Mapping[str, Mapping[str, Decimal]] = field(
+        default_factory=dict[str, Mapping[str, Decimal]]
+    )
+
+
+@dataclass(frozen=True)
+class BaselineTax:
+    """What a scenario's tax starts from: the active rules (`TaxInputs`),
+    the postings on accounts with a tax role those rules declare (to the
+    as-of date, in each account's normal-balance direction), and each
+    role's monthly average over the months the baseline observes, in the
+    base currency (`domain/scenarios/tax.py` projects each tax year from
+    them)."""
+
+    residency: str | None = None
+    rules: tuple[TaxRules, ...] = ()
+    unavailable: str | None = None
+    rates: Mapping[str, Mapping[str, Decimal]] = field(
+        default_factory=dict[str, Mapping[str, Decimal]]
+    )
+    postings: tuple[RolePosting, ...] = ()
+    #: Each role's postings netted per calendar month over the months
+    #: observed (`Flows.months`), averaged, in the base currency at the
+    #: rates they were booked at; zero for a role with none.
+    average: Mapping[str, Decimal] = field(default_factory=dict[str, Decimal])
+    #: Each account's tax role, by account id (a stopped flow's role).
+    account_roles: Mapping[str, str] = field(default_factory=dict[str, str])
+    #: Evaluations already made, keyed by their inputs: a cache, never
+    #: part of what the baseline is.
+    memo: dict[Any, Any] = field(
+        default_factory=dict[Any, Any], compare=False, hash=False, repr=False
+    )
+
+
+@dataclass(frozen=True)
 class BaselineInputs:
     """Everything the baseline is built from, gathered by the application."""
 
@@ -210,6 +283,8 @@ class BaselineInputs:
     strategy: StrategyFigures | None = None
     #: The active tax rule sets whose year covers the as-of date.
     rule_sets: Sequence[RuleSetRef] = ()
+    #: What a scenario's tax is computed from.
+    tax: TaxInputs = field(default_factory=TaxInputs)
 
 
 @dataclass(frozen=True)
@@ -245,6 +320,8 @@ class Baseline:
     strategy: StrategyFigures | None = None
     #: The active tax rule sets whose year covers the as-of date.
     rule_sets: tuple[RuleSetRef, ...] = ()
+    #: What a scenario's tax starts from (`BaselineTax`).
+    tax: BaselineTax = field(default_factory=BaselineTax)
     #: A content hash of everything the baseline was built from
     #: (`fingerprint.of`): the same inputs, the same baseline.
     fingerprint: str = ""

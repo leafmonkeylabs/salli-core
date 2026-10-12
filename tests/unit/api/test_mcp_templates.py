@@ -69,6 +69,7 @@ def _guarded(text: str) -> None:
     """The guardrails, as an agent reads them."""
     assert "Never compute" in text
     assert "never add, subtract, divide, project or estimate anything yourself" in text
+    assert "never work out tax or what I'd keep after it" in text
     assert "Never name a specific product, provider, fund or security" in text
     assert (
         "regulated financial advice where I live (insurance, pensions, choosing investments)"

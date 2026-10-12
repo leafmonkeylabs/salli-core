@@ -18817,7 +18817,8 @@
               "resilience",
               "monthly",
               "debts",
-              "fi"
+              "fi",
+              "tax"
             ],
             "title": "Group"
           },
@@ -19294,6 +19295,21 @@
               }
             ],
             "title": "As Of"
+          },
+          "tax_answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Tax Answers"
           }
         },
         "additionalProperties": false,
@@ -23673,10 +23689,10 @@
             "const": "income_change",
             "title": "Type"
           },
-          "monthly_net": {
+          "monthly": {
             "type": "string",
             "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
-            "title": "Monthly Net",
+            "title": "Monthly",
             "description": "A signed decimal amount as a string: \"-2400.00\" out, \"+600\" in."
           },
           "from": {
@@ -23698,6 +23714,19 @@
             ],
             "title": "To"
           },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
+          },
           "label": {
             "type": "string",
             "maxLength": 200,
@@ -23709,12 +23738,12 @@
         "type": "object",
         "required": [
           "type",
-          "monthly_net",
+          "monthly",
           "from",
           "label"
         ],
         "title": "IncomeChange",
-        "description": "Your monthly net income changes by an amount from a day: a raise\n(positive), a cut (negative). In today's money."
+        "description": "Your monthly income changes by an amount from a day: a raise\n(positive), a cut (negative). In today's money. Without a `tax_role`,\n`monthly` is what reaches your cash (after tax); with one, it is before\ntax, in that role, and Salli works out the tax."
       },
       "IncomeDeclarationRequest": {
         "properties": {
@@ -25584,6 +25613,19 @@
             ],
             "title": "Account"
           },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
+          },
           "label": {
             "type": "string",
             "maxLength": 200,
@@ -25600,7 +25642,7 @@
           "label"
         ],
         "title": "OneOffChange",
-        "description": "Money in or out once, on a day: a purchase (negative), a gift\nreceived (positive). What a purchase buys isn't counted as an asset."
+        "description": "Money in or out once, on a day: a purchase (negative), a gift\nreceived (positive). What a purchase buys isn't counted as an asset.\nWith a `tax_role`, the amount is before tax: a taxable bonus in an\nincome role, a deductible cost in a deduction role."
       },
       "OpeningBalanceItem": {
         "properties": {
@@ -27973,6 +28015,19 @@
             ],
             "title": "Account"
           },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
+          },
           "label": {
             "type": "string",
             "maxLength": 200,
@@ -27990,7 +28045,7 @@
           "label"
         ],
         "title": "RecurringChange",
-        "description": "The same amount again and again: a new rent (negative), a side income\n(positive). In today's money: with your inflation set, it rises with it."
+        "description": "The same amount again and again: a new rent (negative), a side income\n(positive). In today's money: with your inflation set, it rises with it.\nWith a `tax_role`, each amount is before tax."
       },
       "RecurringPayment": {
         "properties": {
@@ -29086,6 +29141,16 @@
             "type": "array",
             "maxItems": 50,
             "title": "Changes"
+          },
+          "tax": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioTax"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -29837,6 +29902,9 @@
             "type": "array",
             "title": "Break Evens"
           },
+          "tax": {
+            "$ref": "#/components/schemas/ScenarioTaxOutcome"
+          },
           "assumptions": {
             "$ref": "#/components/schemas/FiAssumptions"
           },
@@ -29847,7 +29915,9 @@
                 "real_return",
                 "safe_withdrawal_rate",
                 "surplus_invested",
-                "inflation"
+                "inflation",
+                "tax",
+                "tax_rules_carried_forward"
               ]
             },
             "type": "array",
@@ -29896,6 +29966,7 @@
           "resilience",
           "fi",
           "break_evens",
+          "tax",
           "assumptions",
           "placeholders",
           "versions",
@@ -29965,6 +30036,362 @@
         ],
         "title": "ScenarioStopped",
         "description": "A recurring flow a stop stops: each time, signed."
+      },
+      "ScenarioTax": {
+        "properties": {
+          "answers": {
+            "patternProperties": {
+              "^[a-z][a-z0-9_]*$": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              }
+            },
+            "propertyNames": {
+              "maxLength": 64
+            },
+            "type": "object",
+            "maxProperties": 100,
+            "title": "Answers"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ScenarioTax",
+        "description": "What the tax rules need from the scenario besides amounts: answers\nto their questions (a filing status, say), by key, checked against each\nyear's rules as a computation checks them."
+      },
+      "ScenarioTaxOutcome": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "computed",
+              "not_computed",
+              "none"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioTaxYear"
+            },
+            "type": "array",
+            "title": "Years"
+          },
+          "this_year": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioTaxYear"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change_this_year": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change This Year"
+          },
+          "total_change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Change"
+          },
+          "carried_forward": {
+            "type": "boolean",
+            "title": "Carried Forward"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "reason",
+          "years",
+          "this_year",
+          "change_this_year",
+          "total_change",
+          "carried_forward"
+        ],
+        "title": "ScenarioTaxOutcome",
+        "description": "The change in tax a scenario's changes tagged with a tax role make,\ncomputed with your active tax rules. Investment growth isn't taxed: set\nyour real return after the tax you pay on it."
+      },
+      "ScenarioTaxPart": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "amount"
+        ],
+        "title": "ScenarioTaxPart",
+        "description": "The month's part of the year's change in tax, out of cash at the\nmonth's end (more tax positive)."
+      },
+      "ScenarioTaxRole": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "actual": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Actual",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "projected": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Projected",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "scenario": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Scenario",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "label",
+          "actual",
+          "projected",
+          "scenario"
+        ],
+        "title": "ScenarioTaxRole",
+        "description": "A role the scenario touches, for one tax year, in the rules'\ncurrency and that year's own money."
+      },
+      "ScenarioTaxRules": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "carried_forward": {
+            "type": "boolean",
+            "title": "Carried Forward"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "region",
+          "year",
+          "rule_set_id",
+          "version",
+          "content_hash",
+          "carried_forward"
+        ],
+        "title": "ScenarioTaxRules",
+        "description": "The active rules that computed a tax year."
+      },
+      "ScenarioTaxYear": {
+        "properties": {
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "computed",
+              "not_computed"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "rules": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioTaxRules"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "ISO 4217 currency code",
+                "examples": [
+                  "USD"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioTaxRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "net": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "monthly": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioTaxPart"
+            },
+            "type": "array",
+            "title": "Monthly"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year",
+          "start",
+          "end",
+          "status",
+          "reason",
+          "rules",
+          "currency",
+          "roles",
+          "net",
+          "change",
+          "monthly"
+        ],
+        "title": "ScenarioTaxYear",
+        "description": "One tax year the scenario touches."
       },
       "ScenarioTrade": {
         "properties": {
@@ -34255,6 +34682,7 @@
               "choice",
               "debt",
               "account",
+              "tax_role",
               "text",
               "amounts",
               "loans",

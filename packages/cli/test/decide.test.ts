@@ -65,6 +65,12 @@ describe('salli decide', () => {
     expect(bodies('/v1/decisions')).toEqual([]);
   });
 
+  it('passes answers to the tax rules’ questions to every option', async () => {
+    const result = await run(['decide', 'afford-it', ...SET, '--tax-answer', 'filing_status=joint', '--tax-answer', 'blind=true']);
+    expect(result.code).toBe(0);
+    expect(bodies('/v1/decisions/start')[0]).toMatchObject({ tax_answers: { filing_status: 'joint', blind: true } });
+  });
+
   it('reads answers from a file and prints the server’s JSON', async () => {
     const file = join(files, 'answers.json');
     await writeFile(file, JSON.stringify({ price: '2400.00', instalment_months: 12, instalment_rate: '0.069' }));

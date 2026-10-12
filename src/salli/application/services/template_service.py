@@ -84,6 +84,8 @@ class TemplateService:
         in_use = await self._principles.in_use(user_id)
         baseline = await self._scenarios.baselines.build(user_id, as_of)
         facts = templates.facts_of(baseline, [(p.principle, p.expr) for p in in_use])
-        answers, built = templates.build(template, data.get("answers"), facts)
+        answers, built = templates.build(
+            template, data.get("answers"), facts, data.get("tax_answers")
+        )
         await self._scenarios.check_own(user_id, [o.scenario for o in built.options])
         return start.start(baseline, template, answers, built, in_use)

@@ -186,6 +186,12 @@ active tax rule sets in your tax residency that cover its as-of date. A
 scenario's result records both, so the same inputs can be shown to give the
 same figures.
 
+For [tax in scenarios](scenarios.md#tax) it also gathers your active rule
+sets for the as-of year and later (and the latest before, which later years
+carry forward), the postings on accounts whose tax role they declare, each
+role's monthly average over the months observed, and the exchange rates
+those need. With rules to compute with, they are in the fingerprint too.
+
 ## What is not modelled yet
 
 - Extra payments and new loans are changes a [scenario](scenarios.md) makes;

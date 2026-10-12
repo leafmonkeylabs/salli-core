@@ -36,6 +36,14 @@ does the baseline's own, or a move that goes where it says:
   each month's regular surplus in cash from `from`'s month to `to`'s, before
   the share invested is taken from the rest (`timelines.KeptInCash`).
 
+**Tax.** A one-off, a recurring change or an income change with a
+`tax_role` is before tax: its amounts also add to that role's total, and a
+stopped flow takes its account's role. Each tax year's change in tax, from
+the person's active rules (`tax.compute`), is regular: spread over the
+year's months from its first tagged amount, a cash flow on each month's last
+day (source "tax"). It never moves the FI number. A scenario that tags
+nothing has no tax, and every figure as without it.
+
 Every date in a change is on or after the as-of date; every account is a
 cash account held in the base currency; every amount fits the currency's
 smallest unit. Anything else is a `ScenarioError` with each problem's path.
@@ -77,13 +85,16 @@ from salli.domain.fi.engine import installment_payment
 from salli.domain.reports import forecast as forecasting
 from salli.domain.reports.insights import Recurring as Rhythm
 from salli.domain.scenarios import schema
+from salli.domain.scenarios import tax as taxes
 from salli.domain.taxrules.common import Problem, join_path
 
 #: Bumped whenever the same inputs would give different figures. 2: the
 #: share of the regular surplus invested (`surplus_invested`). 3: an extra
 #: payment in the as-of month (or a loan's opening month) is paid, at the
-#: month's end, rather than dropped.
-ENGINE_VERSION = "3"
+#: month's end, rather than dropped. 4: tax-aware scenarios: a stopped flow
+#: whose account's tax role the active rules declare as income or deduction
+#: changes the year's tax (tagged changes are new inputs).
+ENGINE_VERSION = "4"
 #: The years the monthly figures are shown at (and the horizon itself).
 CHECKPOINT_YEARS = (1, 5, 10, 20)
 #: A ledger whose newest entry is older than this is too stale to decide on.
@@ -157,6 +168,15 @@ class Translation:
     #: The monthly spending the scenario's FI number is built on.
     spending: Decimal
     notes: tuple[str, ...] = ()
+    #: The change in each tax year's tax (its parts are among the regular
+    #: flows of `changes`).
+    tax: taxes.TaxOutcome = taxes.NO_TAX
+
+
+def _month_end(month: str) -> dt.date:
+    """The last day of a calendar month ("YYYY-MM")."""
+    year, number = int(month[:4]), int(month[5:7])
+    return dt.date(year, number, calendar.monthrange(year, number)[1])
 
 
 def _on(year: int, month: int, day: int) -> dt.date:
@@ -206,9 +226,14 @@ class _Translator:
             p.month: level
             for p, level in zip(months, timelines.deflators(self.baseline, months), strict=True)
         }
-        self.end = min(self.until, months[-1].end)
+        #: The 50-year timeline's last day: tagged amounts are gathered to it
+        #: whatever `until` is, since a year's tax rests on the whole year.
+        self.last = months[-1].end
+        self.end = min(self.until, self.last)
         self.cash = self.baseline.cash_accounts
         self.balances = {b.account_id: b for b in self.baseline.balances}
+        self.tagged: list[taxes.Tagged] = []
+        self.tags: list[tuple[str, str]] = []
 
     @property
     def currency(self) -> str:
@@ -302,6 +327,14 @@ class _Translator:
                         flows.append(
                             self.flow(change.date, account, self.money(change.amount), change.label)
                         )
+                    if change.tax_role is not None:
+                        self.tag(here("tax_role"), change.tax_role)
+                        if change.date <= self.last:
+                            self.tagged.append(
+                                taxes.Tagged(
+                                    i, change.tax_role, change.date, self.money(change.amount)
+                                )
+                            )
                     applied.append(AppliedChange(i, change.type, change.label))
                 case schema.RecurringChange():
                     self.date(here("start"), change.start)
@@ -314,6 +347,15 @@ class _Translator:
                                 day, account, self.today_money(change.amount, day), change.label
                             )
                         )
+                    if change.tax_role is not None:
+                        self.tag(here("tax_role"), change.tax_role)
+                        through = min(change.end or self.last, self.last)
+                        self.tagged += [
+                            taxes.Tagged(
+                                i, change.tax_role, day, self.today_money(change.amount, day)
+                            )
+                            for day in occurrences(change.start, change.cadence, through)
+                        ]
                     monthly = change.amount * _PER_MONTH[change.cadence]
                     if change.end is None and change.amount < 0:
                         spending -= monthly
@@ -328,20 +370,29 @@ class _Translator:
                     )
                 case schema.IncomeChange():
                     self.date(here("from"), change.from_)
-                    self.amount(here("monthly_net"), change.monthly_net)
+                    self.amount(here("monthly"), change.monthly)
                     last = min(change.to or self.end, self.end)
                     for day in occurrences(change.from_, "monthly", last):
                         regular.append(
                             self.flow(
-                                day, None, self.today_money(change.monthly_net, day), change.label
+                                day, None, self.today_money(change.monthly, day), change.label
                             )
                         )
+                    if change.tax_role is not None:
+                        self.tag(here("tax_role"), change.tax_role)
+                        through = min(change.to or self.last, self.last)
+                        self.tagged += [
+                            taxes.Tagged(
+                                i, change.tax_role, day, self.today_money(change.monthly, day)
+                            )
+                            for day in occurrences(change.from_, "monthly", through)
+                        ]
                     applied.append(
                         AppliedChange(
                             i,
                             change.type,
                             change.label,
-                            monthly=change.monthly_net,
+                            monthly=change.monthly,
                             for_good=change.to is None,
                         )
                     )
@@ -437,7 +488,7 @@ class _Translator:
                     )
                 case schema.StopRecurringChange():
                     self.date(here("from"), change.from_)
-                    stop, stopped, less = self.stop(here("key"), change)
+                    stop, stopped, less = self.stop(here("key"), change, i)
                     regular.extend(stop)
                     spending -= less
                     applied.append(
@@ -453,8 +504,37 @@ class _Translator:
                         )
                     )
 
+        tax_answers = dict(self.scenario.tax.answers) if self.scenario.tax else {}
+        self.problems += taxes.check_tags(self.baseline.tax, self.tags)
+        self.problems += taxes.check_answers(self.baseline.tax, tax_answers)
         if self.problems:
             raise ScenarioError(self.problems)
+        outcome = taxes.compute(
+            self.baseline.tax,
+            as_of=self.baseline.as_of,
+            base=self.currency,
+            levels=self.levels,
+            inflation=self.baseline.inflation,
+            tagged=self.tagged,
+            answers=tax_answers,
+            last=self.last,
+            until=self.end if self.end < self.last else None,
+        )
+        last_day = self.end.isoformat()
+        for year in outcome.years:
+            for month, part in year.parts:
+                day = _month_end(month)
+                if part and day.isoformat() <= last_day:
+                    regular.append(
+                        forecasting.Flow(
+                            day.isoformat(),
+                            None,
+                            -part,
+                            self.currency,
+                            f"Change in tax for {year.label}",
+                            "tax",
+                        )
+                    )
         base = fi.spending(self.baseline)
         target = self.baseline.strategy.target_monthly_expenses if self.baseline.strategy else None
         scenario_spending = (
@@ -472,7 +552,12 @@ class _Translator:
             tuple(applied),
             scenario_spending,
             tuple(dict.fromkeys(self.notes)),
+            outcome,
         )
+
+    def tag(self, path: str, role: str) -> None:
+        """A change tagged with a tax role, checked against the rules."""
+        self.tags.append((path, role))
 
     def _monthly_in_base(self, s: Stopped) -> Decimal:
         rate = Decimal(1)
@@ -483,11 +568,13 @@ class _Translator:
         return s.amount * rate * _PER_MONTH.get(s.cadence, Decimal(1))
 
     def stop(
-        self, path: str, change: schema.StopRecurringChange
+        self, path: str, change: schema.StopRecurringChange, index: int
     ) -> tuple[list[forecasting.Flow], tuple[Stopped, ...], Decimal]:
         """The flows that put back what the recurring flows with this key
         would have moved, what they are, and the spending a month it takes
-        away (in the base currency)."""
+        away (in the base currency). A flow whose account carries a tax role
+        the active rules declare as income or deduction comes off that role
+        (`tagged`), to the end of the timeline."""
         found = [r for r in self.baseline.recurring if r.key == change.key]
         if not found:
             self.problem(
@@ -510,12 +597,22 @@ class _Translator:
         flows: list[forecasting.Flow] = []
         stopped: list[Stopped] = []
         less = Decimal(0)
+        kinds = taxes.kinds_of(self.baseline.tax)
+        last = self.end.isoformat()
         for r in flowing:
             stop = self._stop_one(r, change)
             if stop is None:
                 continue
-            flows.extend(stop[0])
+            flows.extend(f for f in stop[0] if f.date <= last)
             stopped.append(stop[1])
+            role = self.baseline.tax.account_roles.get(r.account_id)
+            if role is not None and kinds.get(role, set()) & set(taxes.TAGGABLE_KINDS):
+                for f in stop[0]:
+                    value = timelines.in_base(self.baseline, f)
+                    if value is not None:
+                        self.tagged.append(
+                            taxes.Tagged(index, role, dt.date.fromisoformat(f.date), value)
+                        )
             if r.direction == "out":
                 less += self._monthly_in_base(
                     Stopped(r.payee, r.cadence, -stop[1].amount, stop[1].currency)
@@ -542,7 +639,7 @@ class _Translator:
                 return None
             each, currency = each * rate, self.currency
         due = dt.date.fromisoformat(r.next_expected)
-        days = forecasting.schedule(due, r.cadence, r.anchor_days, self.baseline.as_of, self.end)
+        days = forecasting.schedule(due, r.cadence, r.anchor_days, self.baseline.as_of, self.last)
         flows = [
             forecasting.Flow(
                 day.isoformat(),
@@ -757,6 +854,21 @@ class Versions:
 
 
 @dataclass(frozen=True)
+class TaxResult:
+    """A scenario's tax (`tax.TaxOutcome`), with its change over the horizon
+    in today's money."""
+
+    outcome: taxes.TaxOutcome
+    #: The change in tax over the horizon, every month's part deflated to
+    #: today's money (more tax positive); None when no tax is computed.
+    total_change: Decimal | None
+
+    @property
+    def status(self) -> taxes.Status:
+        return self.outcome.status
+
+
+@dataclass(frozen=True)
 class ScenarioResult:
     label: str | None
     as_of: dt.date
@@ -775,6 +887,7 @@ class ScenarioResult:
     resilience: Resilience
     fi: FiResult
     break_evens: tuple[BreakEven, ...]
+    tax: TaxResult
     assumptions: FiAssumptions
     placeholders: tuple[str, ...]
     versions: Versions
@@ -791,7 +904,11 @@ def content_hash(baseline: Baseline, scenario: schema.Scenario) -> str:
     fingerprint."""
     filled = scenario.model_copy(update={"as_of": baseline.as_of})
     return canonical.digest(
-        {"engine": ENGINE_VERSION, "scenario": filled, "baseline": baseline.fingerprint}
+        {
+            "engine": ENGINE_VERSION,
+            "scenario": schema.hashable(filled),
+            "baseline": baseline.fingerprint,
+        }
     )
 
 
@@ -1095,6 +1212,32 @@ class Evaluated:
     translation: Translation
 
 
+def _tax(outcome: taxes.TaxOutcome, mine: Outlook, horizon_years: int) -> TaxResult:
+    if outcome.status == "none":
+        return TaxResult(outcome, Decimal(0))
+    if not any(y.status == "computed" for y in outcome.years):
+        return TaxResult(outcome, None)
+    points = mine.monthly.points[1 : 12 * horizon_years + 2]
+    levels = {p.month: p.deflator for p in points}
+    total = sum(
+        (part / levels[month] for month, part in outcome.parts if month in levels),
+        Decimal(0),
+    )
+    return TaxResult(outcome, total)
+
+
+def placeholders(baseline: Baseline, outcome: taxes.TaxOutcome) -> tuple[str, ...]:
+    """The baseline's placeholders, and the scenario's tax: "tax" when it
+    isn't computed (tagged amounts then count before tax), and
+    "tax_rules_carried_forward" when a year's tax rests on an earlier year's
+    rules."""
+    return (
+        *baseline.placeholders,
+        *(("tax",) if outcome.status == "not_computed" else ()),
+        *(("tax_rules_carried_forward",) if outcome.carried_forward else ()),
+    )
+
+
 def run_with_outlook(
     baseline: Baseline, scenario: schema.Scenario, *, base: Outlook | None = None
 ) -> tuple[ScenarioResult, Evaluated]:
@@ -1123,14 +1266,21 @@ def run_with_outlook(
         resilience=_resilience(baseline, base, mine),
         fi=_fi(base, mine),
         break_evens=tuple(cash_floors(baseline, scenario, mine, label)),
+        tax=_tax(translation.tax, mine, scenario.horizon_years),
         assumptions=baseline.assumptions,
-        placeholders=baseline.placeholders,
+        placeholders=placeholders(baseline, translation.tax),
         versions=versions(baseline),
         data_as_of=latest,
         is_stale=stale,
         notes=tuple(
             dict.fromkeys(
-                [*baseline.notes, *mine.cash.notes, *mine.monthly.notes, *translation.notes]
+                [
+                    *baseline.notes,
+                    *mine.cash.notes,
+                    *mine.monthly.notes,
+                    *translation.notes,
+                    *translation.tax.notes,
+                ]
             )
         ),
     )

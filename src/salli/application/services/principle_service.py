@@ -105,8 +105,15 @@ def evaluate_options(baseline: Baseline, scenarios: Sequence[schema.Scenario]) -
                     for p in error.problems
                 ]
             ) from None
-        loans = evaluated.translation.changes.loans
-        out.append((evaluated, figure_set.compute(baseline, evaluated.outlook, base, loans)))
+        translation = evaluated.translation
+        out.append(
+            (
+                evaluated,
+                figure_set.compute(
+                    baseline, evaluated.outlook, base, translation.changes.loans, translation.tax
+                ),
+            )
+        )
     return OptionsOutlook(baseline, base, figure_set.compute(baseline, base, base), tuple(out))
 
 

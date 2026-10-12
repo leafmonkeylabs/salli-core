@@ -191,7 +191,9 @@ def _window(value: int, low: int, high: int) -> int:
 GUARDRAILS = (
     "Keep to these throughout. "
     "Never compute: every figure comes from Salli's tools, quoted with its currency; never "
-    "add, subtract, divide, project or estimate anything yourself, not even roughly. "
+    "add, subtract, divide, project or estimate anything yourself, not even roughly, and "
+    "never work out tax or what I'd keep after it: tag an amount before tax with its tax "
+    "role and let Salli compute it. "
     "Never name a specific product, provider, fund or security: speak of kinds of thing. "
     "Where a choice is regulated financial advice where I live (insurance, pensions, "
     "choosing investments), say so and suggest a licensed professional there; don't assume "
@@ -798,11 +800,20 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     async def get_scenario_schema() -> dict[str, Any]:
         """The JSON Schema of a scenario document (salli.scenario/1): the
         baseline plus changes (one_off, recurring, income_change, loan,
-        extra_debt_payment, invest, stop_recurring). Amounts and rates are
-        decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD; account and
-        debt ids come from get_accounts and get_payoff_plan, a recurring
-        flow's key from get_recurring_payments. Build every option of a
-        decision with it, never estimate one yourself."""
+        extra_debt_payment, invest, stop_recurring, set_aside). Amounts and
+        rates are decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD;
+        account and debt ids come from get_accounts and get_payoff_plan, a
+        recurring flow's key from get_recurring_payments. Build every option
+        of a decision with it, never estimate one yourself.
+
+        Tax: an amount is what reaches cash unless you tag the change with a
+        `tax_role` (one_off, recurring, income_change): a role of kind income
+        or deduction in the user's tax rules (get_tax_rule_set shows them), and
+        the amount is then before tax. A raise in the salary's role, a
+        taxable bonus, a deductible pension contribution. Salli computes the
+        change in each year's tax with the user's active rules; put answers
+        to the rules' questions in the scenario's `tax.answers`. Never work
+        out a net figure yourself: tag the gross one."""
         return scenario_schema.json_schema()
 
     @mcp.tool()
@@ -820,7 +831,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     @mcp.tool()
     async def start_decision(
-        template: str, answers: dict[str, Any] | None = None, as_of: str | None = None
+        template: str,
+        answers: dict[str, Any] | None = None,
+        as_of: str | None = None,
+        tax_answers: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Start a decision from a template (list_decision_templates) with the
         person's answers, by question id (amounts and rates as decimal
@@ -835,10 +849,20 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         record.question (in their words if they change it), record.options,
         the label they chose, their reasons in their words and a review date,
         once they confirm. A problem comes back with its path
-        (answers.price), to fix and start again."""
+        (answers.price), to fix and start again. Where a template asks for a
+        tax role (big-change's pay, a taxable windfall), the amount is then
+        before tax and Salli computes the tax with the user's active rules;
+        `tax_answers` answers the rules' questions, by key, for every
+        option."""
         try:
             return await template_svc.start(
-                _current_user_id(), {"template": template, "answers": answers, "as_of": as_of}
+                _current_user_id(),
+                {
+                    "template": template,
+                    "answers": answers,
+                    "as_of": as_of,
+                    "tax_answers": tax_answers,
+                },
             )
         except (TemplateError, ScenarioError) as exc:
             return _refusal(exc)
@@ -853,9 +877,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         lowest and when, accounts going below zero, safe-to-spend), net worth,
         cash, investments and debts at 1, 5, 10 and 20 years and the horizon
         in today's money, each debt's payoff month and interest, emergency-fund
-        months, and the FI number and month with months gained or lost. It
-        records the assumptions (placeholders flagged), versions and a hash of
-        its inputs. Stores nothing. Quote its figures; never compute your own.
+        months, and the FI number and month with months gained or lost. With
+        changes tagged with a tax role, `tax` gives each tax year's role
+        totals, the change in tax from the user's active rules and how it
+        comes out of cash; `tax.status` "not_computed" says why not (the
+        tagged amounts then count before tax: say so). It records the
+        assumptions (placeholders flagged), versions and a hash of its
+        inputs. Stores nothing. Quote its figures; never compute your own.
         A problem comes back with its path, to fix and run again."""
         try:
             return await scenario_svc.run(_current_user_id(), scenario)
@@ -1450,7 +1478,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "2. Build the options with Salli, never by hand: pick a template that fits "
             "(list_decision_templates) and ask me its questions in plain words, using the "
             "defaults it offers and asking for anything without one; or, if none fits, write "
-            "each option as a scenario (get_scenario_schema). "
+            "each option as a scenario (get_scenario_schema). If an amount is before tax "
+            "(pay, a bonus, a pension contribution), give its tax role from my rules (the "
+            "template's tax role question, or tax_role on the change) so Salli computes the "
+            "tax; if tax.status is not_computed, tell me why (tax.reason). "
             "3. Compare them, with the sensitivity, and check my principles: start_decision "
             "does all three for a template; otherwise compare_options and check_principles. "
             "If is_stale is true, ask me to bring my ledger up to date first. "

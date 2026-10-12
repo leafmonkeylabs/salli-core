@@ -37,8 +37,8 @@ def test_a_minimal_scenario_takes_its_defaults():
     assert (doc.as_of, doc.horizon_years, doc.changes, doc.label) == (None, 20, [], None)
     assert schema.load(_doc(ONE_OFF)).changes[0].amount == Decimal("-2400.00")
     # A leading + is money in.
-    income = {"type": "income_change", "monthly_net": "+600", "from": "2027-01-01", "label": "Job"}
-    assert schema.load(_doc(income)).changes[0].monthly_net == Decimal("600")
+    income = {"type": "income_change", "monthly": "+600", "from": "2027-01-01", "label": "Job"}
+    assert schema.load(_doc(income)).changes[0].monthly == Decimal("600")
 
 
 @pytest.mark.parametrize(
@@ -147,7 +147,7 @@ def test_every_change_type_reads():
             },
             {
                 "type": "income_change",
-                "monthly_net": "600",
+                "monthly": "600",
                 "from": "2027-01-01",
                 "to": "2027-12-31",
                 "label": "x",

@@ -122,12 +122,36 @@ export function recurringArg(value: string, day: string, now: Date, account?: st
   };
 }
 
-/** `--income +600/month[@2027-01-01]`: monthly net income changes. */
+/** `--income +600/month[@2027-01-01]`: monthly income changes (take-home, unless tagged with a tax role). */
 export function incomeArg(value: string, day: string, now: Date): Change {
   const { head, date } = splitAt(value, now, '--income');
   const { amount, cadence } = amountPerArg(head, '--income');
   if (cadence !== 'monthly') throw new UsageError(`--income is a change a month, like +600/month (got "${value}").`);
-  return { type: 'income_change', monthly_net: amount, from: date ?? day, label: `Income ${amount.startsWith('-') ? amount : `+${amount}`} a month` };
+  return { type: 'income_change', monthly: amount, from: date ?? day, label: `Income ${amount.startsWith('-') ? amount : `+${amount}`} a month` };
+}
+
+/** `--tax-role salary`: a role key in your tax rules. */
+export function taxRoleArg(text: string): string {
+  const role = text.trim();
+  if (!/^[a-z][a-z0-9_]*$/.test(role) || role.length > 30) {
+    throw new UsageError(`--tax-role takes a role's key from your tax rules, like salary (got "${text}").`);
+  }
+  return role;
+}
+
+/** `--tax-answer KEY=VALUE`: an answer to one of your tax rules' questions ("true"/"false" for yes or no). */
+export function taxAnswersArg(values: string[]): Record<string, string | boolean> {
+  const answers: Record<string, string | boolean> = {};
+  for (const value of values) {
+    const eq = value.indexOf('=');
+    const key = value.slice(0, eq).trim();
+    if (eq <= 0 || !/^[a-z][a-z0-9_]*$/.test(key)) {
+      throw new UsageError(`--tax-answer takes KEY=VALUE, like filing_status=single (got "${value}").`);
+    }
+    const answer = value.slice(eq + 1).trim();
+    answers[key] = answer === 'true' ? true : answer === 'false' ? false : answer;
+  }
+  return answers;
 }
 
 /** `--extra-payment DEBT:200/month[@2026-11-01]`: on top of a debt's minimum. */
@@ -233,13 +257,14 @@ function describeChange(out: Output, run: ScenarioRun, index: number): string {
   const cur = run.currency;
   if (!doc) return '';
   const on = (day: string) => displayDate(day, out.locale);
+  const taxed = (role: string | null | undefined) => (role ? `, before tax (${singleLine(role)})` : '');
   switch (doc.type) {
     case 'one_off':
-      return `${out.money(doc.amount, cur)} on ${on(doc.date)}`;
+      return `${out.money(doc.amount, cur)} on ${on(doc.date)}${taxed(doc.tax_role)}`;
     case 'recurring':
-      return `${out.money(doc.amount, cur)} a ${UNIT[doc.cadence]} from ${on(doc.start)}${doc.end ? ` to ${on(doc.end)}` : ''}`;
+      return `${out.money(doc.amount, cur)} a ${UNIT[doc.cadence]} from ${on(doc.start)}${doc.end ? ` to ${on(doc.end)}` : ''}${taxed(doc.tax_role)}`;
     case 'income_change':
-      return `${out.money(doc.monthly_net, cur)} a month from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}`;
+      return `${out.money(doc.monthly, cur)} a month from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}${taxed(doc.tax_role)}`;
     case 'loan':
       return `${out.money(doc.principal, cur)} at ${out.percent(doc.annual_rate, 2)} over ${plural(doc.term_months, 'month')}: ${out.money(applied?.payment, cur)} a month from ${month(out, applied?.first_payment)}`;
     case 'extra_debt_payment':
@@ -266,9 +291,12 @@ function notesFor(app: App, run: ScenarioRun): void {
       safe_withdrawal_rate: 'the safe withdrawal rate',
       surplus_invested: 'the share of your monthly surplus invested (all of it)',
       inflation: 'inflation (none set: nominal amounts keep their real value)',
+      tax: 'tax (not computed: amounts tagged with a tax role count before tax)',
+      tax_rules_carried_forward: 'your latest tax rules, carried forward to years with none of their own',
     };
     out.note(`Placeholders: ${run.placeholders.map((p) => names[p] ?? p).join('; ')}. Set yours with \`salli fi assumptions set\`.`);
   }
+  if (run.tax.status === 'not_computed' && run.tax.reason) out.warn(singleLine(run.tax.reason));
   for (const note of run.notes) out.note(singleLine(note));
 }
 
@@ -356,12 +384,41 @@ export function showRun(app: App, run: ScenarioRun): void {
   out.line();
   out.line(figureTable(out, longRows));
 
+  showTax(app, run);
+
   if (run.break_evens.length) {
     out.line();
     out.line(out.heading('Break-evens'));
     for (const b of run.break_evens) out.line(`  ${singleLine(b.says)}`);
   }
   notesFor(app, run);
+}
+
+/** Each tax year the scenario's tagged changes touch: the tax under the baseline and the scenario, and the change. */
+function showTax(app: App, run: ScenarioRun): void {
+  const out = app.out;
+  const tax = run.tax;
+  const years = tax.years.filter((y) => y.status === 'computed');
+  if (tax.status === 'none' || !years.length) return;
+  const cur = run.currency;
+  out.line();
+  out.line(out.heading('Tax'));
+  out.line(
+    out.table(years, [
+      { header: 'TAX YEAR', get: (y) => singleLine(y.year) },
+      { header: 'RULES', get: (y) => (y.rules ? `${singleLine(y.rules.year)}${y.rules.carried_forward ? ' (carried forward)' : ''}` : '—'), shrink: true },
+      { header: 'BASELINE', get: (y) => out.amount(y.net.baseline, y.currency ?? cur), align: 'right' },
+      { header: 'SCENARIO', get: (y) => out.amount(y.net.scenario, y.currency ?? cur), align: 'right' },
+      { header: 'CHANGE', get: (y) => change(out, y.change, cur), align: 'right' },
+    ]),
+  );
+  const first = tax.this_year;
+  if (first?.change && first.monthly.length) {
+    const months = first.monthly.map((p) => p.month);
+    out.note(
+      `Your net tax each year, in your rules’ currency, with your active tax rules, from the changes tagged with a tax role. This tax year’s change comes out of cash from ${displayMonth(months[0] ?? '', out.locale)} to ${displayMonth(months.at(-1) ?? '', out.locale)}, a part at each month’s end. Investment growth isn’t taxed: set your real return after tax.`,
+    );
+  }
 }
 
 // ── Comparing ─────────────────────────────────────────────────────────────────
@@ -482,11 +539,13 @@ export function registerScenarios(program: Command, app: App): void {
     .option('--buy <amount[@date]>', 'Buy something: money out once (repeatable)', collect)
     .option('--loan <amount@ratexmonths[@date]>', 'Borrow, repaid monthly: 18000@6.9%x48 (repeatable)', collect)
     .option('--recurring <amount/period[@date]>', 'The same amount again and again: -450/month, +80/week (repeatable)', collect)
-    .option('--income <amount/month[@date]>', 'Your monthly net income changes: +600/month (repeatable)', collect)
+    .option('--income <amount/month[@date]>', 'Your monthly income changes: +600/month, take-home unless --tax-role (repeatable)', collect)
     .option('--extra-payment <debt:amount/month[@date]>', 'Pay more on a debt each month: "car loan:200/month" (repeatable)', collect)
     .option('--invest <amount[@date]>', 'Move cash into your investments (repeatable)', collect)
     .option('--cancel <recurring[@date]>', 'Stop a recurring payment, by its key or payee (repeatable)', collect)
     .option('--account <account>', 'The cash account the changes move (default: your cash total)')
+    .option('--tax-role <role>', 'The --income, --recurring and --buy amounts are before tax, in this role of your tax rules')
+    .option('--tax-answer <key=value>', 'An answer to one of your tax rules\' questions: filing_status=single (repeatable)', collect)
     .option('--years <n>', 'How far the monthly figures run (1 to 50, default 20)', countArg('--years'))
     .option('--as-of <date>', 'The day your baseline is as of (default today)')
     .option('--label <text>', 'What to call this scenario')
@@ -510,7 +569,13 @@ Examples:
   $ salli whatif --extra-payment "student loan:200/month" --years 10
   $ salli whatif --invest 5000 --account savings --save invest.json
   $ salli whatif --cancel streamflix
-  $ salli whatif --file scenario.json --json`,
+  $ salli whatif --income +1000/month@2027-01-01 --tax-role salary
+  $ salli whatif --file scenario.json --json
+
+With --tax-role, the amounts are before tax: Salli works out the change in
+each year's tax with your active tax rules (\`salli tax rules list\`), and
+it comes out of cash month by month. Without active rules the amounts count
+before tax, and the result says why.`,
     )
     .action(async (options) => {
       const opts = {
@@ -522,11 +587,20 @@ Examples:
         extraPayment: options.extraPayment ?? [],
         invest: options.invest ?? [],
         cancel: options.cancel ?? [],
+        taxAnswer: options.taxAnswer ?? [],
       };
       const flagged =
         opts.buy.length + opts.loan.length + opts.recurring.length + opts.income.length + opts.extraPayment.length + opts.invest.length + opts.cancel.length;
       if (opts.file && flagged) throw new UsageError('Give changes as flags or as --file, not both.');
       if (opts.file && opts.save) throw new UsageError('--save writes the scenario the flags make; with --file you have it already.');
+      if (opts.file && (opts.taxRole || opts.taxAnswer.length)) {
+        throw new UsageError('With --file, put tax_role on the changes and the answers in "tax": {"answers": {...}}.');
+      }
+      if (opts.taxRole && !(opts.buy.length + opts.recurring.length + opts.income.length)) {
+        throw new UsageError('--tax-role tags --income, --recurring and --buy changes: give one.');
+      }
+      const taxRole = opts.taxRole ? taxRoleArg(opts.taxRole) : undefined;
+      const taxAnswers = taxAnswersArg(opts.taxAnswer);
       const now = app.runtime.now();
       const asOf = opts.asOf ? parseDate(opts.asOf, now, '--as-of') : undefined;
       const api = await app.api();
@@ -543,11 +617,12 @@ Examples:
         }
         const day = asOf ?? isoDate(now);
         const account = opts.account ? (await AccountBook.load(api)).resolve(opts.account).id : undefined;
+        const tag = (change: Change): Change => (taxRole ? ({ ...change, tax_role: taxRole } as Change) : change);
         const changes: Change[] = [
-          ...opts.buy.map((v) => buyArg(v, day, now, account)),
+          ...opts.buy.map((v) => tag(buyArg(v, day, now, account))),
           ...opts.loan.map((v) => loanArg(v, day, now, account)),
-          ...opts.recurring.map((v) => recurringArg(v, day, now, account)),
-          ...opts.income.map((v) => incomeArg(v, day, now)),
+          ...opts.recurring.map((v) => tag(recurringArg(v, day, now, account))),
+          ...opts.income.map((v) => tag(incomeArg(v, day, now))),
           ...opts.invest.map((v) => investArg(v, day, now, account)),
         ];
         if (opts.extraPayment.length) {
@@ -577,6 +652,7 @@ Examples:
           ...(asOf ? { as_of: asOf } : {}),
           ...(opts.years ? { horizon_years: opts.years } : {}),
           changes,
+          ...(Object.keys(taxAnswers).length ? { tax: { answers: taxAnswers } } : {}),
         };
         if (opts.save) {
           await writeFile(opts.save, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');

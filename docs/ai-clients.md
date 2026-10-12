@@ -78,6 +78,12 @@ Both prompts, the CLI's skill and the tools' own descriptions hold the AI to the
 | `run_scenario` | One scenario on your baseline: every figure under your baseline and under the scenario, with the change, the assumptions and a hash of its inputs. Nothing is stored. |
 | `compare_options` | Two to five options side by side: what each gains and gives up against the others, the same at the conservative and growth returns, and the break-evens. Never a ranking. |
 
+A change before tax (a raise, a taxable bonus, a pension contribution) is
+tagged with a role from your own tax rules (`tax_role`), and Salli works out
+the change in each year's tax with your active rules; the AI never works out
+an amount after tax itself. Without active rules the result says the tax
+isn't computed, and why.
+
 See [scenarios](scenarios.md) for the document and how to read the results.
 
 ### Decisions: templates, principles and the journal
@@ -85,7 +91,7 @@ See [scenarios](scenarios.md) for the document and how to read the results.
 | Tool | What it does |
 |---|---|
 | `list_decision_templates` | The [decision templates](templates.md): each one's questions, with your own defaults where there are honest ones, and the options it builds. |
-| `start_decision` | A template and your answers: the options built, compared and checked against your principles, and what recording needs. Stores nothing, ranks nothing. |
+| `start_decision` | A template and your answers (and answers to your tax rules' questions, `tax_answers`): the options built, compared and checked against your principles, and what recording needs. Stores nothing, ranks nothing. |
 | `list_principles` | Your principles (your own rules of thumb) and the figures a check may read. |
 | `add_principle` | Keeps a principle the AI suggested, only once you have said yes to its exact label and check (`confirmed_by_user`); recorded as the agent's. |
 | `check_principles` | Which principles your baseline and each option keep, break or can't tell, with the figures and the reason. Never a ranking. |

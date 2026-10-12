@@ -48,6 +48,7 @@ reliably and you can keep one in a file.
 | `as_of` | The day your baseline is as of: today when you leave it out, never a day after today. |
 | `horizon_years` | How far the monthly figures run: a whole number from 1 to 50. 20 when you leave it out. |
 | `changes` | Up to 50 changes, below. |
+| `tax`? | `{"answers": {"<key>": value}}`: answers to your tax rules' questions (a filing status, say), for changes tagged with a tax role ([Tax](#tax)). |
 
 The rules:
 
@@ -70,16 +71,18 @@ The rules:
 
 | Type | Fields | What it does |
 |---|---|---|
-| `one_off` | `date`, `amount`, `account`?, `label` | Money in or out once. What a purchase buys isn't counted as an asset. |
-| `recurring` | `amount`, `cadence` (`weekly`, `monthly`, `quarterly`, `yearly`), `start`, `end`?, `account`?, `label` | The same amount again and again: every seven days, or every one, three or twelve months on the start's day of the month. |
-| `income_change` | `monthly_net`, `from`, `to`?, `label` | Your monthly net income changes, from a day's date each month. |
+| `one_off` | `date`, `amount`, `account`?, `tax_role`?, `label` | Money in or out once. What a purchase buys isn't counted as an asset. |
+| `recurring` | `amount`, `cadence` (`weekly`, `monthly`, `quarterly`, `yearly`), `start`, `end`?, `account`?, `tax_role`?, `label` | The same amount again and again: every seven days, or every one, three or twelve months on the start's day of the month. |
+| `income_change` | `monthly`, `from`, `to`?, `tax_role`?, `label` | Your monthly income changes, from a day's date each month: what reaches your cash, or, with a `tax_role`, before tax. |
 | `loan` | `principal`, `annual_rate`, `term_months` (1 to 600), `start`, `into`?, `label` | The money arrives on its start day. It is owed from that month's end and repaid in level monthly payments from the next month, rounded to your currency's smallest unit; the last payment clears what the rounding left. |
 | `extra_debt_payment` | `debt`, `monthly`, `from`, `to`?, `label`? | Paid on one of your debts on top of its minimum, each month from `from`'s month to `to`'s, or until it is paid off. In the as-of month, before the debt's first payment, it is paid at the month's end ([below](#in-the-as-of-month)). |
 | `invest` | `amount`, `date`, `from`?, `label` | Cash moved into your investments, where it then grows at your real return. |
 | `stop_recurring` | `key`, `from`, `label`? | A recurring flow your ledger shows stops: cancel a subscription. `salli insights recurring` lists each one's key. A transfer between your own accounts can't be stopped this way: it is no part of what you earn or spend. |
 | `set_aside` | `monthly`, `from`, `to`?, `label`? | Part of each month's surplus kept in cash, rather than shared out: saving towards an emergency fund or a purchase. Each month from `from`'s month to `to`'s (or for good), that much of the regular surplus stays in cash first, and the share you invest is of what is left. It can't keep more than the month's surplus. |
 
-Fields marked ? are optional.
+Fields marked ? are optional. An amount is what reaches your cash, unless
+the change carries a `tax_role`: then it is before tax, and Salli works out
+the tax ([below](#tax)).
 
 **Regular, or a move.** Recurring changes, income changes and stopped flows
 are part of your regular surplus, and are shared out like your baseline's
@@ -112,9 +115,98 @@ leaves cash as every extra payment does, spread over the rest of its month.
 **Today's money or the day's own.** Recurring amounts, income changes and
 stopped flows are in today's money: with your inflation set, each rises with
 it, as your average spending does. One-offs, investments, loan payments,
-extra payments and amounts set aside are fixed in the money of their own
-day. With no inflation
+extra payments, amounts set aside and the change in tax are fixed in the
+money of their own day. With no inflation
 set, the two are the same, and every result says inflation is a placeholder.
+
+## Tax
+
+A raise of 1,000 a month is not 1,000 a month in the bank. Tag a change
+with a **tax role** (`tax_role`) and its amount is before tax: Salli runs it
+through your own active [tax rules](taxrules.md) and takes the change in
+tax out of cash for you. Never work the net figure out yourself, and never
+let an agent do it: tag the gross one.
+
+    salli whatif --income +1000/month@2027-01-01 --tax-role salary
+
+- **Which roles.** A role your rule sets declare, of kind `income` or
+  `deduction`. Money in adds to an income role (a cut subtracts); money out
+  adds to a deduction role (a pension contribution, a deductible cost; a
+  refund subtracts). Withholding is projected from your ledger, and an
+  `other` role has no direction, so neither can be tagged. A role none of
+  your rule sets declares is refused with its path, as a mistyped id is.
+  `one_off`, `recurring` and `income_change` take a tag; a `stop_recurring`
+  needs none: the flow it stops comes off its account's own tax role.
+- **Each tax year's totals.** For each year the scenario touches, from the
+  one containing the as-of date, each role's total is projected twice, for
+  your baseline and for the scenario: what your ledger shows from the
+  year's start to the as-of date, plus the rest of the year at the role's
+  monthly average (over the months your baseline observes, grown with your
+  inflation), plus, for the scenario, the tagged amounts dated in the year.
+  A dated amount belongs to the year containing its day; a month's average
+  to the year containing the month's last day. The totals are in each
+  year's own money, converted into your rules' currency at each entry's
+  rate (what has happened) or the as-of date's (what is projected).
+- **The change in tax** is the scenario's `net` less your baseline's, from
+  the same rules and your answers to their questions (the scenario's
+  `tax.answers`). Withholding is projected from history and a tagged raise
+  doesn't change it, so the change is the whole extra tax: withheld more,
+  or settled.
+- **Applied monthly.** Each year's change is spread equally over the months
+  from the year's first tagged amount to its last month, each part rounded
+  to your currency's smallest unit and the last taking what rounding left,
+  as a regular cash flow at each month's end. So it moves the regular
+  surplus, what you invest, your cash, net worth and the FI month, as a
+  recurring cost would. If you settle once a year, you see the cash a
+  little early.
+- **Years with no rules of their own** carry your latest active rules
+  forward, with every amount in them held level in today's money (the
+  totals deflated by your inflation to the rules' year, evaluated, and the
+  tax grown back), labelled `tax_rules_carried_forward` in `placeholders`
+  and on each such year. A year with its own active rules always uses them.
+- **Only active rules compute.** With no residency, no rule set, only
+  drafts, a role the year's rules don't declare, a question with no answer
+  and no default, or a missing exchange rate, the scenario still runs:
+  tagged amounts count before tax, `tax.status` is `"not_computed"`,
+  `tax.reason` says what is missing and what to do, and `"tax"` is among the
+  placeholders.
+- **What tax doesn't touch.** The FI number: the tax on a salary is not
+  spending to live on once it has stopped. Investment growth: no role
+  taxes it, so set your real return after the tax you pay on it. Tax on
+  withdrawals in retirement, when tax is settled, and a loan's interest as
+  a deduction are out of scope.
+
+The result's `tax` section:
+
+| Field | What it holds |
+|---|---|
+| `status`, `reason` | `"computed"`, `"not_computed"` (with why), or `"none"` (nothing tagged; no rules are read). |
+| `years` | The first two tax years touched, and those of the monthly checkpoints (the timeline uses every year): each year's dates, its `status`, the `rules` that computed it (with `carried_forward`), each touched role's `actual`, `projected` and `scenario` totals in the rules' currency, `net` under each, the `change` in your base currency, and the `monthly` parts. |
+| `this_year` | The as-of date's tax year, as in `years`, when the scenario touches it. |
+| `change_this_year` | The change in that year's tax: 0 when nothing in it is tagged, null when it isn't computed. The principles' figure `tax_change_this_year`. |
+| `total_change` | The change in tax over the horizon, in today's money. |
+
+The break-evens rerun everything, the tax included, at each step, so the
+cash floor of a tagged cost and the loan rate at which two options cost the
+same are after tax. Each year's evaluation is memoised, so this stays quick.
+
+**Read the totals.** The tax is only as right as your books: a salary booked
+net, with no gross and no withholding, gives the wrong tax. The result shows
+the totals it used, so you can check them; a bonus month in your history
+lifts the average. See the [worked example](#reading-one-a-raise-before-tax).
+
+### Reading one: a raise before tax
+
+Rules of a fictional country, XA, for 2031: a relief of 12,000, then 20%
+to 40,000 and 40% above. As of 2031-06-30, with a salary of 4,000 a month so
+far, the year's salary is projected at 24,000 + 6 × 4,000 = 48,000, taxed
+7,200.00. A raise of 1,000 a month from July, tagged `salary`, makes it
+54,000: 8,000.00 + 800.00 = 8,800.00. The change, 1,600.00, comes out of
+cash July to December, 266.67 a month and 266.65 in December, so each
+month's surplus rises by 733.33 rather than 1,000.00. In 2032, with no rules
+of its own, the 2031 rules carried forward tax 60,000 at 11,200.00: 4,000.00
+more, 333.33 a month (333.37 in December), labelled
+`tax_rules_carried_forward`.
 
 ## What comes back
 
@@ -129,6 +221,7 @@ string in your currency's precision. A month's change is in months
 | **Debts** | Each debt's payoff month and interest, and a new loan's; the interest on all of them; the month you are debt-free. |
 | **Resilience** | The months of spending your cash covers at its low point and at the end of the year: over essential spending when your spending carries need tags, over all of it otherwise. |
 | **FI** | The FI number, the month you reach it, and the months gained (positive) or lost. |
+| **Tax** | For changes tagged with a tax role, each tax year's role totals and the change in tax, from your active rules ([Tax](#tax)). |
 
 The share of your surplus you invest grows with your investments at your
 real return, cash earns nothing, and debts follow their schedules, as on the
@@ -141,8 +234,8 @@ years, whatever horizon you choose.
 **The FI number** is a year of the spending you would live on, over your
 safe withdrawal rate. Under a scenario it is built on the spending the
 scenario leaves for good: a recurring cost with no end adds to it, a
-cancelled subscription takes from it, and a one-off, a loan or an income
-change leaves it as it is. A FIRE strategy that names its own target
+cancelled subscription takes from it, and a one-off, a loan, an income
+change or a change in tax leaves it as it is. A FIRE strategy that names its own target
 spending keeps that target.
 
 **Break-evens on one scenario.** For each recurring cost in a scenario whose
@@ -154,7 +247,9 @@ without it.
 **What every result records**, so it can be checked and reproduced:
 
 - the assumptions it used, each with where it came from, and which are
-  placeholders (`placeholders`);
+  placeholders (`placeholders`: FI's, inflation, and `tax` or
+  `tax_rules_carried_forward` when the tax isn't computed or rests on rules
+  carried forward);
 - the versions behind it: the document's schema, the engine, a content hash
   of the FI assumptions, your FIRE strategy's version, and the active tax
   rule sets that cover the as-of date;
@@ -164,7 +259,9 @@ without it.
   everything your baseline was built from (`baseline_fingerprint`) and of
   the engine's version. Key order and how an amount was written don't change
   it. The same hash means the same figures: the engine's version changes
-  whenever the same scenario would give different figures.
+  whenever the same scenario would give different figures. It is 4: since
+  [tax](#tax), stopping a flow whose account carries an income or deduction
+  role of your active rules changes your tax.
 
 ## Comparing options
 
@@ -258,6 +355,10 @@ Which matters more, the buffer or the money, is yours to say.
 - Build every option with the schema (`get_scenario_schema`), and let Salli
   run and compare them. Never subtract, add, divide or project anything
   yourself, not even roughly.
+- Never work out an amount after tax. When a change is before tax (a raise,
+  a bonus, a pension contribution), tag it with the role from the user's
+  rules and let Salli compute the tax. If `tax.status` is `"not_computed"`,
+  say so, and why (`tax.reason`).
 - Quote Salli's figures, with their currency, and the sentence of each
   break-even.
 - Name the assumptions that are placeholders. If `is_stale` is true, ask the
@@ -274,7 +375,8 @@ Which matters more, the buffer or the money, is yours to say.
 
 ## Not modelled yet
 
-- Tax: a change to your income doesn't yet run through your tax rules.
+- Tax on investment growth, dividends and withdrawals in retirement; when
+  tax is settled; a loan's interest as a deduction.
 - A target for your cash: after a one-off has spent some of it, the share of
   the surplus you invest doesn't rebuild it unless a scenario sets an amount
   aside (`set_aside`), and a set-aside doesn't stop by itself once cash

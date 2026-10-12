@@ -443,6 +443,7 @@ QuestionType = Literal[
     "choice",
     "debt",
     "account",
+    "tax_role",
     "text",
     "amounts",
     "loans",
@@ -480,7 +481,8 @@ class TemplateQuestion(BaseModel):
     #: amount (above zero, in your base currency), signed_amount, months and
     #: years (whole numbers), number and rate (decimal strings; a rate is a
     #: yearly fraction), date, choice, debt and account (your own, by id),
-    #: text, and the lists amounts, loans and splits.
+    #: tax_role (an income or deduction role in your active tax rules, by
+    #: key), text, and the lists amounts, loans and splits.
     type: QuestionType
     prompt: str
     help: str
@@ -534,6 +536,12 @@ class DecisionStartIn(BaseModel):
     answers: dict[str, Any] = Field(default_factory=dict[str, Any])
     #: The day your baseline is as of: today when left out, never after today.
     as_of: dt.date | None = None
+    #: Answers to your active tax rules' questions (a filing status, say), by
+    #: key, put in every option (`tax.answers`): for changes a template tags
+    #: with a tax role.
+    tax_answers: Annotated[dict[str, str | bool], Field(max_length=100)] = Field(
+        default_factory=dict[str, str | bool]
+    )
 
 
 class StartTemplate(BaseModel):

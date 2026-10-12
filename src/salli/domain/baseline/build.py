@@ -16,6 +16,10 @@ Building the baseline from what the application gathered. Pure.
 - **Assumptions** are the user's, then their FIRE strategy's, then labelled
   placeholders (`fi.assumptions.resolve`); the active tax rule sets that
   cover the as-of date are recorded with them.
+- **Tax** (`BaselineTax`): the active rules a scenario's tax is computed
+  with, the postings on accounts whose tax role they declare (to the as-of
+  date), and each role's monthly average over the months observed, as
+  income and expenses are averaged (`domain/scenarios/tax.py`).
 - **A fingerprint** of the inputs (`fingerprint`): a content hash a result
   computed from the baseline records, so the same inputs are known to give
   the same figures.
@@ -28,7 +32,7 @@ from collections.abc import Mapping, Sequence
 from decimal import ROUND_HALF_UP, Decimal
 
 from salli.domain import canonical
-from salli.domain.accounting.models import Account
+from salli.domain.accounting.models import Account, StoredJournalEntry
 from salli.domain.baseline.flows import summarize
 from salli.domain.baseline.models import (
     ROLE_OF,
@@ -36,7 +40,9 @@ from salli.domain.baseline.models import (
     Baseline,
     BaselineDebt,
     BaselineInputs,
+    BaselineTax,
     DeclaredDebt,
+    Flows,
     Rate,
 )
 from salli.domain.currency import quantum
@@ -44,6 +50,7 @@ from salli.domain.fi.assumptions import resolve
 from salli.domain.reports import forecast, insights
 from salli.domain.rules.history import booked_transactions
 from salli.domain.subscription.models import Subscription
+from salli.domain.taxrules.inputs import role_postings
 
 #: How far back a card must have paid for things to count as cash.
 _CARD_DAYS = 90
@@ -116,6 +123,38 @@ def _debts(
     return debts, notes
 
 
+def _tax(
+    inputs: BaselineInputs,
+    entries: Sequence[StoredJournalEntry],
+    accounts: Sequence[Account],
+    flows: Flows,
+) -> BaselineTax:
+    """What a scenario's tax starts from: the postings on the accounts whose
+    tax role the active rules declare, to the as-of date, and each role's
+    monthly average over the months observed (netted per calendar month in
+    the base currency, at the rates they were booked at)."""
+    tax = inputs.tax
+    roles = sorted({r.key for rules in tax.rules for r in rules.document.roles})
+    postings = role_postings(entries, accounts, roles, dt.date.min, inputs.as_of) if roles else []
+    months = set(flows.months)
+    average: dict[str, Decimal] = {}
+    if months:
+        sums = dict.fromkeys(roles, Decimal(0))
+        for p in postings:
+            if p.entry_date[:7] in months:
+                sums[p.role] += p.base_amount
+        average = {role: total / Decimal(len(months)) for role, total in sums.items()}
+    return BaselineTax(
+        residency=tax.residency,
+        rules=tuple(tax.rules),
+        unavailable=tax.unavailable,
+        rates={currency: dict(days) for currency, days in tax.rates.items()},
+        postings=tuple(postings),
+        average=average,
+        account_roles={a.id: a.tax_role for a in accounts if a.tax_role is not None},
+    )
+
+
 def fingerprint(inputs: BaselineInputs) -> str:
     """A content hash of everything the baseline is built from, in a
     canonical order (accounts, entries, debts and subscriptions by id;
@@ -137,6 +176,21 @@ def fingerprint(inputs: BaselineInputs) -> str:
             "own_assumptions": inputs.own_assumptions,
             "strategy": inputs.strategy,
             "rule_sets": sorted(inputs.rule_sets, key=lambda r: (r.rule_set_id, r.version)),
+            # Only when there are rules to compute tax with, so a baseline
+            # without any fingerprints as it did before scenarios computed tax.
+            **(
+                {
+                    "tax": {
+                        "rules": sorted(
+                            (r.ref for r in inputs.tax.rules),
+                            key=lambda r: (r.rule_set_id, r.version),
+                        ),
+                        "rates": {c: dict(days) for c, days in inputs.tax.rates.items()},
+                    }
+                }
+                if inputs.tax.rules
+                else {}
+            ),
         },
         floats=True,
     )
@@ -260,5 +314,6 @@ def build(inputs: BaselineInputs) -> Baseline:
         latest_entry=max((e.entry_date for e in entries), default=None),
         strategy=inputs.strategy,
         rule_sets=tuple(inputs.rule_sets),
+        tax=_tax(inputs, entries, accounts, flows),
         fingerprint=fingerprint(inputs),
     )

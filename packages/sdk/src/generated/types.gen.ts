@@ -3454,7 +3454,7 @@ export type DecisionFigure = {
     /**
      * Group
      */
-    group: 'cash' | 'resilience' | 'monthly' | 'debts' | 'fi';
+    group: 'cash' | 'resilience' | 'monthly' | 'debts' | 'fi' | 'tax';
     /**
      * Description
      */
@@ -3740,6 +3740,12 @@ export type DecisionStartIn = {
      * As Of
      */
     as_of?: string | null;
+    /**
+     * Tax Answers
+     */
+    tax_answers?: {
+        [key: string]: string | boolean;
+    };
 };
 
 /**
@@ -5975,8 +5981,10 @@ export type HoldingUpdateRequest = {
 /**
  * IncomeChange
  *
- * Your monthly net income changes by an amount from a day: a raise
- * (positive), a cut (negative). In today's money.
+ * Your monthly income changes by an amount from a day: a raise
+ * (positive), a cut (negative). In today's money. Without a `tax_role`,
+ * `monthly` is what reaches your cash (after tax); with one, it is before
+ * tax, in that role, and Salli works out the tax.
  */
 export type IncomeChange = {
     /**
@@ -5984,11 +5992,11 @@ export type IncomeChange = {
      */
     type: 'income_change';
     /**
-     * Monthly Net
+     * Monthly
      *
      * A signed decimal amount as a string: "-2400.00" out, "+600" in.
      */
-    monthly_net: string;
+    monthly: string;
     /**
      * From
      */
@@ -5997,6 +6005,10 @@ export type IncomeChange = {
      * To
      */
     to?: string | null;
+    /**
+     * Tax Role
+     */
+    tax_role?: string | null;
     /**
      * Label
      */
@@ -7093,6 +7105,8 @@ export type OnboardingStatusResponse = {
  *
  * Money in or out once, on a day: a purchase (negative), a gift
  * received (positive). What a purchase buys isn't counted as an asset.
+ * With a `tax_role`, the amount is before tax: a taxable bonus in an
+ * income role, a deductible cost in a deduction role.
  */
 export type OneOffChange = {
     /**
@@ -7113,6 +7127,10 @@ export type OneOffChange = {
      * Account
      */
     account?: string | null;
+    /**
+     * Tax Role
+     */
+    tax_role?: string | null;
     /**
      * Label
      */
@@ -8402,6 +8420,7 @@ export type RecordedPriceList = {
  *
  * The same amount again and again: a new rent (negative), a side income
  * (positive). In today's money: with your inflation set, it rises with it.
+ * With a `tax_role`, each amount is before tax.
  */
 export type RecurringChange = {
     /**
@@ -8430,6 +8449,10 @@ export type RecurringChange = {
      * Account
      */
     account?: string | null;
+    /**
+     * Tax Role
+     */
+    tax_role?: string | null;
     /**
      * Label
      */
@@ -9050,6 +9073,7 @@ export type Scenario = {
      * Changes
      */
     changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange | SetAsideChange>;
+    tax?: ScenarioTax | null;
 };
 
 /**
@@ -9445,11 +9469,12 @@ export type ScenarioRun = {
      * Break Evens
      */
     break_evens: Array<ScenarioBreakEven>;
+    tax: ScenarioTaxOutcome;
     assumptions: FiAssumptions;
     /**
      * Placeholders
      */
-    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation'>;
+    placeholders: Array<'real_return' | 'safe_withdrawal_rate' | 'surplus_invested' | 'inflation' | 'tax' | 'tax_rules_carried_forward'>;
     versions: ScenarioVersions;
     /**
      * Data As Of
@@ -9504,6 +9529,197 @@ export type ScenarioStopped = {
      * ISO 4217 currency code
      */
     currency: string;
+};
+
+/**
+ * ScenarioTax
+ *
+ * What the tax rules need from the scenario besides amounts: answers
+ * to their questions (a filing status, say), by key, checked against each
+ * year's rules as a computation checks them.
+ */
+export type ScenarioTax = {
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: unknown | string | boolean;
+    };
+};
+
+/**
+ * ScenarioTaxOutcome
+ *
+ * The change in tax a scenario's changes tagged with a tax role make,
+ * computed with your active tax rules. Investment growth isn't taxed: set
+ * your real return after the tax you pay on it.
+ */
+export type ScenarioTaxOutcome = {
+    /**
+     * Status
+     */
+    status: 'computed' | 'not_computed' | 'none';
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Years
+     */
+    years: Array<ScenarioTaxYear>;
+    this_year: ScenarioTaxYear | null;
+    /**
+     * Change This Year
+     */
+    change_this_year: string | null;
+    /**
+     * Total Change
+     */
+    total_change: string | null;
+    /**
+     * Carried Forward
+     */
+    carried_forward: boolean;
+};
+
+/**
+ * ScenarioTaxPart
+ *
+ * The month's part of the year's change in tax, out of cash at the
+ * month's end (more tax positive).
+ */
+export type ScenarioTaxPart = {
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+};
+
+/**
+ * ScenarioTaxRole
+ *
+ * A role the scenario touches, for one tax year, in the rules'
+ * currency and that year's own money.
+ */
+export type ScenarioTaxRole = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Actual
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    actual: string;
+    /**
+     * Projected
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    projected: string;
+    /**
+     * Scenario
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    scenario: string;
+};
+
+/**
+ * ScenarioTaxRules
+ *
+ * The active rules that computed a tax year.
+ */
+export type ScenarioTaxRules = {
+    /**
+     * Country
+     */
+    country: string;
+    /**
+     * Region
+     */
+    region: string | null;
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Rule Set Id
+     */
+    rule_set_id: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Carried Forward
+     */
+    carried_forward: boolean;
+};
+
+/**
+ * ScenarioTaxYear
+ *
+ * One tax year the scenario touches.
+ */
+export type ScenarioTaxYear = {
+    /**
+     * Year
+     */
+    year: string;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Status
+     */
+    status: 'computed' | 'not_computed';
+    /**
+     * Reason
+     */
+    reason: string | null;
+    rules: ScenarioTaxRules | null;
+    /**
+     * Currency
+     */
+    currency: string | null;
+    /**
+     * Roles
+     */
+    roles: Array<ScenarioTaxRole>;
+    net: AmountFigure;
+    /**
+     * Change
+     */
+    change: string | null;
+    /**
+     * Monthly
+     */
+    monthly: Array<ScenarioTaxPart>;
 };
 
 /**
@@ -11921,7 +12137,7 @@ export type TemplateQuestion = {
     /**
      * Type
      */
-    type: 'amount' | 'signed_amount' | 'months' | 'years' | 'number' | 'rate' | 'date' | 'choice' | 'debt' | 'account' | 'text' | 'amounts' | 'loans' | 'splits';
+    type: 'amount' | 'signed_amount' | 'months' | 'years' | 'number' | 'rate' | 'date' | 'choice' | 'debt' | 'account' | 'tax_role' | 'text' | 'amounts' | 'loans' | 'splits';
     /**
      * Prompt
      */

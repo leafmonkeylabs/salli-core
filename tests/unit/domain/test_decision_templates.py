@@ -514,7 +514,7 @@ def test_a_big_change_against_things_as_they_are():
         },
         {
             "type": "income_change",
-            "monthly_net": "-10000",
+            "monthly": "-10000",
             "from": "2027-01-01",
             "to": "2028-12-31",
             "label": "New flat: income",
@@ -649,3 +649,105 @@ def test_an_emergency_fund_sets_amounts_aside_and_reads_the_time_to_the_target()
     assert problems("emergency-fund", {"target_months": "6", "set_aside": ["1", "1"]}) == {
         "answers.set_aside": "has the same amount twice: give each once"
     }
+
+
+# ── Tax roles ────────────────────────────────────────────────────────────────
+
+TAXED = dataclasses.replace(
+    FACTS,
+    tax_roles=(
+        templates.TaxRoleFact("pension", "deduction", "Pension contributions"),
+        templates.TaxRoleFact("salary", "income", "Salary"),
+    ),
+)
+
+
+def test_big_change_pay_may_be_before_tax_in_a_role():
+    """The pay change is take-home unless a role is named: then it is
+    before tax, in that role, and the engine works out the tax."""
+    _, built = build(
+        "big-change",
+        {
+            "label": "New job",
+            "start": "2027-01-01",
+            "monthly_income": "+90000",
+            "income_tax_role": "salary",
+        },
+        TAXED,
+    )
+    job = built.options[1]
+    assert changes(job) == [
+        {
+            "type": "income_change",
+            "monthly": "90000",
+            "from": "2027-01-01",
+            "tax_role": "salary",
+            "label": "New job: income",
+        }
+    ]
+    assert job.describes == "Pay before tax +90000 JPY a month, as salary, from 2027-01-01."
+    assert problems(
+        "big-change",
+        {"label": "Job", "monthly_income": "+1", "income_tax_role": "bonus"},
+        TAXED,
+    ) == {
+        "answers.income_tax_role": "'bonus' is not an income or deduction role of your active "
+        "tax rules; yours: pension (deduction), salary (income)"
+    }
+    # Without active rules there is no role to name.
+    assert "you have no active tax rules" in problems(
+        "big-change", {"label": "Job", "monthly_income": "+1", "income_tax_role": "salary"}
+    ).get("answers.income_tax_role", "")
+    # Asked only about a pay change.
+    assert problems(
+        "big-change", {"label": "Job", "upfront": "1", "income_tax_role": "salary"}, TAXED
+    ) == {"answers.income_tax_role": "is asked only when monthly_income is answered"}
+
+
+def test_a_windfall_may_be_taxable():
+    _, built = build(
+        "windfall",
+        {
+            "amount": "500000",
+            "tax_role": "salary",
+            "splits": [{"label": "Keep"}, {"label": "Invest", "invest": "100000"}],
+        },
+        TAXED,
+    )
+    for option in built.options:
+        assert changes(option)[0]["tax_role"] == "salary"
+        assert option.describes.endswith("It arrives before tax, as salary.")
+    assert problems(
+        "windfall",
+        {
+            "amount": "500000",
+            "arrives": "in_cash",
+            "tax_role": "salary",
+            "splits": [{"label": "A"}, {"label": "B"}],
+        },
+        TAXED,
+    ) == {"answers.tax_role": "is asked only when arrives is new"}
+
+
+def test_tax_answers_go_in_every_option():
+    _, built = templates.build(
+        catalogue.get("big-change"),
+        {"label": "Job", "monthly_income": "+1", "income_tax_role": "salary"},
+        TAXED,
+        {"filing_status": "single", "blind": False},
+    )
+    for option in built.options:
+        assert option.scenario.tax is not None
+        assert option.scenario.tax.answers == {"filing_status": "single", "blind": False}
+    with pytest.raises(TemplateError) as error:
+        templates.build(
+            catalogue.get("big-change"), {"label": "Job", "upfront": "1"}, TAXED, {"x": 3}
+        )
+    assert [p.path for p in error.value.problems] == ["tax_answers.x"]
+
+
+def test_the_tax_role_question_lists_only_the_persons_roles():
+    schema = templates.answers_schema(catalogue.get("big-change"), TAXED)
+    assert schema["properties"]["income_tax_role"]["enum"] == ["pension", "salary"]
+    question = next(q for q in catalogue.get("big-change").questions if q.id == "income_tax_role")
+    assert question.default is None and not question.required

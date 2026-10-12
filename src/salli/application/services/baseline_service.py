@@ -19,13 +19,18 @@ from collections.abc import Callable, Iterable, Sequence
 from decimal import Decimal
 from typing import Any
 
+from pydantic import ValidationError
+
 from salli.application.fx import published_rate
 from salli.application.ports import FxRatePort
+from salli.application.services.tax_service import ADD_RULES
 from salli.domain.baseline import (
     Baseline,
     BaselineInputs,
     DeclaredDebt,
     Rate,
+    TaxInputs,
+    TaxRules,
     build,
     timelines,
 )
@@ -37,8 +42,11 @@ from salli.domain.fi.assumptions import (
     assumptions_dict,
     rate_text,
 )
+from salli.domain.jurisdiction import country_phrase
 from salli.domain.money import from_minor
 from salli.domain.reports.forecast import Flow
+from salli.domain.taxrules.inputs import dates_needing_rates, role_postings
+from salli.domain.taxrules.schema import RuleSet
 
 #: How far back the rhythms the cash timeline projects are looked for: a
 #: yearly payment's last three charges, and their slack.
@@ -109,6 +117,64 @@ def covering_rule_sets(
     return found
 
 
+def _ref(row: dict[str, Any], version: dict[str, Any], year: dict[str, Any]) -> RuleSetRef:
+    return RuleSetRef(
+        country=str(row["country"]),
+        region=row.get("region"),
+        year=str(row.get("year_label") or year.get("label") or ""),
+        rule_set_id=str(row["id"]),
+        version=int(version["version"]),
+        content_hash=str(version["content_hash"]),
+    )
+
+
+def tax_rules(
+    rows: Iterable[dict[str, Any]], residency: str | None, as_of: dt.date
+) -> list[TaxRules]:
+    """The active rule set versions in the user's tax residency a scenario's
+    tax is computed with: every one whose year ends on or after the as-of
+    date, and the latest (by its year's start) of those that ended before
+    it, which later years carry forward when none of their own covers them.
+    Only active versions: a draft never computes."""
+    if not residency:
+        return []
+    found: list[TaxRules] = []
+    for row in rows:
+        version: dict[str, Any] = row.get("version") or {}
+        if row.get("country") != residency or not version.get("content_hash"):
+            continue
+        try:
+            document = RuleSet.model_validate(version.get("content") or {})
+        except ValidationError:
+            continue
+        found.append(TaxRules(_ref(row, version, {"label": document.year.label}), document))
+    ended = [r for r in found if r.end < as_of]
+    latest = max((r.start for r in ended), default=None)
+    return sorted(
+        (r for r in found if r.end >= as_of or r.start == latest),
+        key=lambda r: (r.start, r.ref.region or "", r.ref.rule_set_id),
+    )
+
+
+def no_tax_rules(residency: str | None, sets: Iterable[dict[str, Any]]) -> str:
+    """Why no active rules compute the user's tax, and what to do: the
+    words `TaxService` uses (`NoTaxRulesError`)."""
+    if not residency:
+        return (
+            "Salli doesn't know where you're taxed. Set your tax residency "
+            "(`salli profile set --tax-residency <country>`), or name the country. " + ADD_RULES
+        )
+    place = country_phrase(residency)
+    ours = [s for s in sets if s.get("country") == residency]
+    if ours:
+        names = ", ".join(str(s.get("name")) for s in ours)
+        return (
+            f"You have tax rules for {place} ({names}), but none is active yet. Review and "
+            "activate one yourself: `salli tax rules activate <set>`."
+        )
+    return f"You have no tax rules for {place}. " + ADD_RULES
+
+
 def _money(value: Decimal | None, currency: str) -> str | None:
     return None if value is None else str(quantize(value, currency, strict=False))
 
@@ -149,6 +215,9 @@ class BaselineService:
             fed = await statement_accounts(uow, user_id)
             strategy = await uow.fire_strategies.get_latest(user_id)
             active_rules = await uow.tax_rule_sets.active_versions(user_id)
+            residency: str | None = profile.get("tax_residency") or None
+            rules = tax_rules(active_rules, residency, as_of)
+            sets: list[dict[str, Any]] = [] if rules else await uow.tax_rule_sets.list_sets(user_id)
 
         rates: dict[str, Rate] = {}
         for currency in sorted({a.currency for a in money} - {base}):
@@ -159,6 +228,12 @@ class BaselineService:
                 else Rate(currency, quote.rate, quote.source, quote.as_of)
             )
 
+        tax = TaxInputs(
+            residency=residency,
+            rules=rules,
+            unavailable=None if rules else no_tax_rules(residency, sets),
+            rates=await self._tax_rates(rules, accounts, entries, base, as_of),
+        )
         return build(
             BaselineInputs(
                 as_of=as_of,
@@ -173,9 +248,37 @@ class BaselineService:
                 statement_accounts=fed,
                 own_assumptions=OwnAssumptions.from_stored(profile.get("fi_assumptions")),
                 strategy=StrategyFigures.from_stored(strategy),
-                rule_sets=covering_rule_sets(active_rules, profile.get("tax_residency"), as_of),
+                rule_sets=covering_rule_sets(active_rules, residency, as_of),
+                tax=tax,
             )
         )
+
+    async def _tax_rates(
+        self,
+        rules: Sequence[TaxRules],
+        accounts: Sequence[Any],
+        entries: Sequence[Any],
+        base: str,
+        as_of: dt.date,
+    ) -> dict[str, dict[str, Decimal]]:
+        """The published rates from the base currency into each rules'
+        currency other than it: the as-of date's (for projected and tagged
+        amounts), and each day a posting in the year before the as-of date
+        needs one (its actuals). A rate no source has is left out: the year
+        it is needed for is then not computed, never at a guessed rate."""
+        out: dict[str, dict[str, Decimal]] = {}
+        roles = sorted({r.key for rules_ in rules for r in rules_.document.roles})
+        since = as_of - dt.timedelta(days=366)
+        postings = role_postings(entries, accounts, roles, since, as_of) if roles else []
+        for currency in sorted({r.currency for r in rules} - {base}):
+            days = [as_of.isoformat(), *dates_needing_rates(postings, base, currency)]
+            found: dict[str, Decimal] = {}
+            for day in dict.fromkeys(days):
+                quote = await published_rate(self._fx, base, currency, day)
+                if quote is not None:
+                    found[day] = quote.rate
+            out[currency] = found
+        return out
 
     async def get_baseline(
         self,

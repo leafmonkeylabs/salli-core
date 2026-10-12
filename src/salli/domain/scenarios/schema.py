@@ -40,7 +40,17 @@ from pydantic import (
 )
 
 from salli.domain.taxrules.arith import PRECISION, significant_digits
-from salli.domain.taxrules.common import IsoDate, Label, Model, Problem, Rate, join_path
+from salli.domain.taxrules.common import (
+    IsoDate,
+    Key,
+    Label,
+    Model,
+    Problem,
+    Rate,
+    RoleKey,
+    StringOrBoolean,
+    join_path,
+)
 
 SCHEMA_ID = "salli.scenario/1"
 
@@ -129,6 +139,8 @@ PositiveAmount = Annotated[
 RefId = Annotated[str, StringConstraints(min_length=1, max_length=100)]
 #: A recurring flow's key, as `GET /v1/insights/recurring` gives it.
 RecurringKey = Annotated[str, StringConstraints(min_length=1, max_length=100)]
+#: At most this many answers to the tax rules' questions.
+MAX_TAX_ANSWERS = 100
 TermMonths = Annotated[int, Field(ge=1, le=MAX_TERM_MONTHS)]
 HorizonYears = Annotated[int, Field(ge=MIN_HORIZON_YEARS, le=MAX_HORIZON_YEARS)]
 
@@ -143,19 +155,26 @@ def _ordered(first: Any, last: Any | None, what: str) -> None:
 
 class OneOffChange(Model):
     """Money in or out once, on a day: a purchase (negative), a gift
-    received (positive). What a purchase buys isn't counted as an asset."""
+    received (positive). What a purchase buys isn't counted as an asset.
+    With a `tax_role`, the amount is before tax: a taxable bonus in an
+    income role, a deductible cost in a deduction role."""
 
     type: Literal["one_off"]
     date: IsoDate
     amount: SignedAmount
     #: The cash account it moves; without one, it moves your cash total.
     account: RefId | None = None
+    #: A role of kind income or deduction in your tax rules: the amount
+    #: then also adds to that role's total, and Salli works out the change
+    #: in tax with your active rules.
+    tax_role: RoleKey | None = None
     label: Label
 
 
 class RecurringChange(Model):
     """The same amount again and again: a new rent (negative), a side income
-    (positive). In today's money: with your inflation set, it rises with it."""
+    (positive). In today's money: with your inflation set, it rises with it.
+    With a `tax_role`, each amount is before tax."""
 
     type: Literal["recurring"]
     #: Each time, signed.
@@ -165,6 +184,8 @@ class RecurringChange(Model):
     #: The last day it can fall on; without one, it never stops.
     end: IsoDate | None = None
     account: RefId | None = None
+    #: A role of kind income or deduction in your tax rules (see `one_off`).
+    tax_role: RoleKey | None = None
     label: Label
 
     @model_validator(mode="after")
@@ -174,13 +195,17 @@ class RecurringChange(Model):
 
 
 class IncomeChange(Model):
-    """Your monthly net income changes by an amount from a day: a raise
-    (positive), a cut (negative). In today's money."""
+    """Your monthly income changes by an amount from a day: a raise
+    (positive), a cut (negative). In today's money. Without a `tax_role`,
+    `monthly` is what reaches your cash (after tax); with one, it is before
+    tax, in that role, and Salli works out the tax."""
 
     type: Literal["income_change"]
-    monthly_net: SignedAmount
+    monthly: SignedAmount
     from_: IsoDate = Field(alias="from")
     to: IsoDate | None = None
+    #: A role of kind income in your tax rules (see `one_off`).
+    tax_role: RoleKey | None = None
     label: Label
 
     @model_validator(mode="after")
@@ -291,6 +316,16 @@ CHANGE_TYPES = (
 )
 
 
+class ScenarioTax(Model):
+    """What the tax rules need from the scenario besides amounts: answers
+    to their questions (a filing status, say), by key, checked against each
+    year's rules as a computation checks them."""
+
+    answers: Annotated[dict[Key, StringOrBoolean], Field(max_length=MAX_TAX_ANSWERS)] = Field(
+        default_factory=dict[str, str | bool]
+    )
+
+
 class Scenario(Model):
     """The baseline plus changes."""
 
@@ -305,6 +340,26 @@ class Scenario(Model):
     changes: Annotated[list[Change], Field(max_length=MAX_CHANGES)] = Field(
         default_factory=list[Change]
     )
+    #: Answers to your tax rules' questions, for changes tagged with a
+    #: `tax_role`.
+    tax: ScenarioTax | None = None
+
+
+#: The change types that may carry a `tax_role`.
+TAGGABLE = (OneOffChange, RecurringChange, IncomeChange)
+
+
+def hashable(scenario: Scenario) -> dict[str, Any]:
+    """The scenario as its content hash reads it: as written (by alias),
+    without the tax fields it leaves out, so a scenario that tags nothing
+    hashes as it did before they existed."""
+    data = scenario.model_dump(mode="python", by_alias=True)
+    if data.get("tax") is None:
+        data.pop("tax", None)
+    for change in data.get("changes", []):
+        if "tax_role" in change and change["tax_role"] is None:
+            del change["tax_role"]
+    return data
 
 
 # ── loading, problems, JSON Schema ─────────────────────────────────────────────
@@ -411,6 +466,7 @@ __all__ = [
     "MAX_HORIZON_YEARS",
     "MAX_TERM_MONTHS",
     "SCHEMA_ID",
+    "TAGGABLE",
     "Cadence",
     "Change",
     "ExtraDebtPaymentChange",
@@ -420,8 +476,10 @@ __all__ = [
     "OneOffChange",
     "RecurringChange",
     "Scenario",
+    "ScenarioTax",
     "SetAsideChange",
     "StopRecurringChange",
+    "hashable",
     "inline_json_schema",
     "json_schema",
     "load",

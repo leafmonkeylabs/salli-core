@@ -1,0 +1,43 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": { "country": "XA", "region": null },
+  "year": { "label": "2031", "start": "2031-01-01", "end": "2031-12-31" },
+  "currency": "NZD",
+  "sources": [
+    { "id": "act", "url": "https://example.org/xa/income-tax-act", "title": "XA Income Tax Act (fictional)", "retrieved": "2031-01-15" }
+  ],
+  "roles": [
+    { "key": "salary", "kind": "income", "label": "Salary" },
+    { "key": "pension", "kind": "deduction", "label": "Pension contributions" },
+    { "key": "tax_withheld", "kind": "withholding", "label": "Tax withheld" }
+  ],
+  "band_tables": {
+    "main": {
+      "label": "Rates on taxable income",
+      "bands": [
+        { "upto": "40000", "rate": "0.20" },
+        { "upto": null, "rate": "0.40" }
+      ],
+      "source": "act"
+    }
+  },
+  "blocks": [
+    { "type": "relief", "key": "relief", "label": "Relief", "of": "line.taxable_income", "amount": "12000", "source": "act" },
+    { "type": "schedule", "key": "income_tax", "label": "Income tax", "of": "line.relief.remaining", "table": "main" },
+    { "type": "credit", "key": "withholding", "label": "Tax withheld", "of": "role.tax_withheld", "refundable": true }
+  ],
+  "lines": [
+    { "key": "taxable_income", "label": "Salary less pension contributions", "expr": "max(0, role.salary - role.pension)" },
+    { "key": "balance", "label": "Tax less withholding", "expr": "line.income_tax - line.withholding" }
+  ],
+  "result": { "net": "line.balance", "round": { "mode": "nearest", "unit": "0.01" } },
+  "suggested_accounts": [
+    { "code": "1450", "name": "Tax withheld", "type": "asset", "tax_role": "tax_withheld" }
+  ],
+  "examples": [
+    { "name": "48,000", "source": "act", "inputs": { "salary": "48000" }, "expected": { "payable": "7200" } },
+    { "name": "54,000", "source": "act", "inputs": { "salary": "54000" }, "expected": { "payable": "8800" } },
+    { "name": "60,000", "source": "act", "inputs": { "salary": "60000" }, "expected": { "payable": "11200" } },
+    { "name": "A pension contribution", "source": "act", "inputs": { "salary": "54000", "pension": "6000" }, "expected": { "payable": "7200" } }
+  ]
+}

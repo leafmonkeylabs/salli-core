@@ -103,7 +103,7 @@ A scenario is the baseline plus **changes**. It is a validated document
       "term_months": 48, "start": "2026-12-01", "into": "checking" },
     { "type": "recurring", "label": "New flat", "amount": "-450.00", "cadence": "monthly",
       "start": "2027-01-01" },
-    { "type": "income_change", "label": "New job", "monthly_net": "+600.00", "from": "2027-01-01" },
+    { "type": "income_change", "label": "New job", "monthly": "+600.00", "from": "2027-01-01" },
     { "type": "extra_debt_payment", "debt": "student-loan", "monthly": "200.00", "from": "2026-11-01" },
     { "type": "invest", "label": "Bonus", "amount": "5000.00", "date": "2026-12-15",
       "from": "checking" }
@@ -429,7 +429,13 @@ Nudges are quiet, useful and rare:
    - A rent-or-buy template.
    - The notification port.
    - **Status:** designed and approved (2026-10-12): [the phase 3 design](decision-lab-phase-3.md)
-     (sub-phases 3a to 3d, and decisions 6 to 31). 3d is built.
+     (sub-phases 3a to 3d, and decisions 6 to 31). 3a and 3d are built.
+   - **As built in 3a:** tax-aware scenarios
+     ([docs/scenarios.md](../scenarios.md#tax); the phase 3 design's "As
+     built (3a)" notes): changes tagged with a tax role run through the
+     person's active rules, and principles gain a 33rd figure,
+     `tax_change_this_year`. The engine's version is 4: a stopped flow on
+     an account with an income or deduction role now changes the tax.
    - **As built in 3d:**
      - **The port** is as designed: `Notifier`, `Notification`,
        `NotificationItem` and `Delivery` in `application/ports.py` (the two

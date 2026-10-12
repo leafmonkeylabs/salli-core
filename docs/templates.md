@@ -26,8 +26,8 @@ it.
 |---|---|---|
 | `afford-it` | the price, what it is, the day, the account; months and a rate to spread it; months to wait and what you would set aside meanwhile | **Pay cash**: the price out of cash on the day. **Spread over N months**: the same, borrowed back at your rate and repaid monthly. **Wait N months**: bought N months later, with what you set aside each month kept in cash until then. |
 | `debt-or-invest` | the debt, the amount, once or every month (for how many months), from when; optionally how much of it on the debt in a split | **Pay down** the debt: the amount onto it on top of its payments. **Invest it**: the same amount moved into your investments on the same days. **Split**: the part you say onto the debt, the rest invested. |
-| `windfall` | the amount, whether it is new money or already in your cash, the day, the account; two to five splits | **Each split you propose**: amounts onto your debts and into your investments; what a split doesn't put to work stays in cash. |
-| `big-change` | what it is, when it starts and ends; how much more (or less) you would spend and take home each month; anything paid once at the start | **As things are**, and **the change**: its costs and income each month, and the one-off at the start. The comparison shows the cash timing: the low point and when, and the most a new cost could be with cash staying above zero. |
+| `windfall` | the amount, whether it is new money or already in your cash and, if new, whether it is taxable (its tax role), the day, the account; two to five splits | **Each split you propose**: amounts onto your debts and into your investments; what a split doesn't put to work stays in cash. |
+| `big-change` | what it is, when it starts and ends; how much more (or less) you would spend and take home each month, and whether that pay is before tax (its tax role); anything paid once at the start | **As things are**, and **the change**: its costs and income each month, and the one-off at the start. The comparison shows the cash timing: the low point and when, and the most a new cost could be with cash staying above zero. |
 | `borrow` | new borrowing or refinancing a debt; how much (to refinance, what the debt owes now); when; the account; whether the money is spent on the day; any fee; one to four loans, each a rate and a term | **Each loan**: its payment, total interest and effect on cash and FI. To refinance, the new loan's money pays the old debt off in its first month. **Don't borrow**, or **Keep the debt**: your baseline. |
 | `emergency-fund` | how many months of spending you want your cash to cover; one to four amounts you could set aside each month; from when, and for how long | **As things are**, and **Set aside each amount**: kept in cash out of your monthly surplus rather than invested. With the months your cash covers now, and when it would cover your target. |
 
@@ -42,7 +42,7 @@ you say).
 | Field | What it is |
 |---|---|
 | `id` | What the answer is called. |
-| `type` | `amount` (above zero, in your base currency, a decimal string), `signed_amount` (`"+450"` more, `"-200"` less), `months` and `years` (whole numbers), `number` (a decimal string, like months of spending), `rate` (a yearly fraction: `"0.069"` is 6.9%), `date` (`YYYY-MM-DD`, not before the as-of date), `choice`, `debt` and `account` (one of your own, by id), `text`, and the lists `amounts`, `loans` and `splits`. |
+| `type` | `amount` (above zero, in your base currency, a decimal string), `signed_amount` (`"+450"` more, `"-200"` less), `months` and `years` (whole numbers), `number` (a decimal string, like months of spending), `rate` (a yearly fraction: `"0.069"` is 6.9%), `date` (`YYYY-MM-DD`, not before the as-of date), `choice`, `debt` and `account` (one of your own, by id), `tax_role` (an `income` or `deduction` role of your active tax rules, by key), `text`, and the lists `amounts`, `loans` and `splits`. |
 | `required` | Whether it must be answered when it has no default. |
 | `when` | When it is asked: once another question is answered, or answered so. |
 | `default` | What it is when you leave it out, where that comes from (`source`) and a sentence saying so (`note`). |
@@ -61,8 +61,20 @@ A default comes only from what is honest:
   20-year horizon.
 
 Nothing else has a default. A price, a rate, a target, an amount to set
-aside: you give them, or the template asks. A template never invents a
-figure about your money.
+aside, a tax role: you give them, or the template asks. A template never
+invents a figure about your money.
+
+## Tax
+
+`big-change` asks whether its pay change is before tax, and `windfall`
+whether new money is taxable; each answer is a role of your own active tax
+rules (`tax_role`). With one, the amount is before tax and the option's
+change carries the role, so Salli works out the change in tax with your
+rules ([scenarios](scenarios.md#tax)); without one, the amount is what
+reaches your cash, as before. A template knows no tax relief or rate of its
+own: whatever is taxed, and how, comes only from your rules. Answers to
+your rules' questions go in `tax_answers` (`salli decide ... --tax-answer
+key=value`), and into every option's `tax.answers`.
 
 The answers are checked as a scenario is: each problem comes back with its
 path (`answers.instalment_rate: is required`), every problem at once, and a
@@ -72,7 +84,8 @@ Schema, with your own debts and accounts listed by id.
 ## What starting a decision returns
 
 `POST /v1/decisions/start` (`start_decision`, `salli decide`) takes the
-template's id, your answers and, if you like, an as-of date, and returns
+template's id, your answers and, if you like, an as-of date and answers to
+your tax rules' questions (`tax_answers`), and returns
 (`salli.decision-start/1`):
 
 | Field | What it holds |
@@ -115,8 +128,7 @@ show what it costs.
 ## Not built yet
 
 - A rent-or-buy template (phase 3).
-- Tax: a template's options don't yet run through your tax rules, so tax
-  relief, on pension contributions say, isn't in their figures. Your rule
-  sets will supply it, never a template.
+- A tax role on a template's costs (a deductible cost, a pension
+  contribution): write the scenario yourself with the tag, for now.
 - Stopping a set-aside once cash covers the target: give it a number of
   months instead.

@@ -105,7 +105,7 @@ describe('salli whatif', () => {
       changes: [
         { type: 'loan', principal: '18000', annual_rate: '0.069', term_months: 48, start: '2026-12-01', into: uid(2), label: 'Loan of 18000' },
         { type: 'recurring', amount: '-450', cadence: 'monthly', start: '2027-01-01', account: uid(2), label: '-450 a month' },
-        { type: 'income_change', monthly_net: '600', from: '2026-10-09', label: 'Income +600 a month' },
+        { type: 'income_change', monthly: '600', from: '2026-10-09', label: 'Income +600 a month' },
         { type: 'invest', amount: '5000', date: '2026-10-09', from: uid(2), label: 'Invest 5000' },
         { type: 'extra_debt_payment', monthly: '200', from: '2026-11-01', debt: uid(412), label: 'Extra on Car loan' },
         { type: 'stop_recurring', key: 'streaming', from: '2026-11-01', label: 'Cancel Streaming' },
@@ -140,11 +140,54 @@ describe('salli whatif', () => {
     [['--income', '+600/week'], '--income is a change a month'],
     [['--extra-payment', '200/month'], '--extra-payment takes DEBT:AMOUNT/month'],
     [['--buy', '10', '--file', 'x.json'], 'flags or as --file, not both'],
+    [['--invest', '10', '--tax-role', 'salary'], '--tax-role tags --income, --recurring and --buy changes'],
+    [['--income', '+600/month', '--tax-role', 'Salary!'], "--tax-role takes a role's key"],
+    [['--income', '+600/month', '--tax-answer', 'single'], '--tax-answer takes KEY=VALUE'],
   ])('refuses %j before asking the server (exit 2)', async (args, said) => {
     const result = await run(['whatif', ...args]);
     expect(result.code).toBe(2);
     expect(result.stderr).toContain(said);
     expect(lastBody('/v1/scenarios/run')).toBeUndefined();
+  });
+
+  it('tags changes with a tax role, and shows the tax each year', async () => {
+    const result = await run([
+      'whatif',
+      '--income',
+      '+1000/month@2031-07-01',
+      '--tax-role',
+      'salary',
+      '--tax-answer',
+      'filing_status=single',
+      '--tax-answer',
+      'blind=false',
+      '--as-of',
+      '2031-06-30',
+      '--label',
+      'Raise',
+    ]);
+    expect(result.code).toBe(0);
+    expect(lastBody('/v1/scenarios/run')).toEqual({
+      schema: 'salli.scenario/1',
+      label: 'Raise',
+      as_of: '2031-06-30',
+      changes: [{ type: 'income_change', monthly: '1000', from: '2031-07-01', tax_role: 'salary', label: 'Income +1000 a month' }],
+      tax: { answers: { filing_status: 'single', blind: false } },
+    });
+    expect(result.stdout).toContain('NZD 1,000.00 a month from Jul 1, 2031, before tax (salary)');
+    const tax = result.stdout.slice(result.stdout.indexOf('Tax\n'));
+    expect(tax).toMatchInlineSnapshot(`
+      "Tax
+      TAX YEAR  RULES                   BASELINE   SCENARIO     CHANGE
+      2031      2031                    7,200.00   8,800.00  +1,600.00
+      2032      2031 (carried forward)  7,200.00  11,200.00  +4,000.00
+      2036      2031 (carried forward)  7,200.00  11,200.00  +4,000.00
+      2041      2031 (carried forward)  7,200.00  11,200.00  +4,000.00
+      2051      2031 (carried forward)  7,200.00  11,200.00  +4,000.00
+      "
+    `);
+    expect(result.stderr).toContain('your latest tax rules, carried forward to years with none of their own');
+    expect(result.stderr).toContain('This tax year’s change comes out of cash from Jul 2031 to Dec 2031');
   });
 
   it('says what the server refused, with its path (exit 5)', async () => {

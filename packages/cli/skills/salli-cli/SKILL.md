@@ -91,7 +91,8 @@ When no template fits, build each option as a scenario and let Salli run it.
     salli whatif --buy 2400@2026-11-01 --json                  # a one-off purchase
     salli whatif --buy 18000 --loan 18000@6.9%x48 --json       # financed: price out, loan in
     salli whatif --recurring -450/month@2027-01-01 --json      # a new cost (or +80/week in)
-    salli whatif --income +600/month@2027-01-01 --json         # a raise, or a cut (-)
+    salli whatif --income +600/month@2027-01-01 --json         # take-home pay up (or - down)
+    salli whatif --income +1000/month@2027-01-01 --tax-role salary --json  # before tax
     salli whatif --extra-payment "student loan:200/month" --json
     salli whatif --invest 5000 --account savings --json
     salli whatif --cancel <key> --json                         # keys: salli insights recurring
@@ -110,6 +111,16 @@ other), `sensitivity` (the same at the conservative and growth returns) and
 `break_evens`, each with a sentence (`says`) saying where the answer changes:
 quote it. If `is_stale` is true, ask the user to bring their ledger up to
 date before deciding. Name the `placeholders` the figures rest on.
+
+An amount is what reaches the user's cash unless it is tagged with a tax
+role. When it is before tax (a raise, a taxable bonus, a pension
+contribution), tag it with the role from their rules (`--tax-role`, or
+`tax_role` in a document; `salli tax rules show <set>` lists the roles) and
+let Salli compute the tax: `tax` gives each year's change and how it comes
+out of cash, `tax.this_year` the current year's. Never work out what they
+would keep yourself. If `tax.status` is `not_computed`, say so and quote
+`tax.reason` (no active rules, a question to answer with `--tax-answer
+key=value`, ...): the tagged amounts then count before tax.
 
 ## Principles and the decision journal
 
@@ -148,7 +159,9 @@ of it, and record their reflection only when they agree.
 ## Guardrails, whenever you help someone decide
 
 - **Never compute.** Every figure comes from a `salli` command; quote it with
-  its currency. Don't add, subtract, divide, project or estimate anything.
+  its currency. Don't add, subtract, divide, project or estimate anything,
+  and never work out tax or an amount after tax: tag the amount before tax
+  with its tax role and let Salli compute it.
 - **Never name a specific product, provider, fund or security.** Speak of
   kinds of thing.
 - **Regulated advice is for a licensed professional.** Where a choice is

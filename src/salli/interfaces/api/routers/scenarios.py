@@ -228,6 +228,82 @@ class ScenarioRuleSet(BaseModel):
     content_hash: str
 
 
+class ScenarioTaxRules(ScenarioRuleSet):
+    """The active rules that computed a tax year."""
+
+    #: True when they are an earlier year's rules carried forward, every
+    #: amount in them level in today's money (no active rules of the year's
+    #: own): labelled `tax_rules_carried_forward`.
+    carried_forward: bool
+
+
+class ScenarioTaxRole(BaseModel):
+    """A role the scenario touches, for one tax year, in the rules'
+    currency and that year's own money."""
+
+    key: str
+    kind: str
+    label: str
+    #: Posted from the year's start to the as-of date.
+    actual: Amount
+    #: The actual and the rest of the year at the role's monthly average:
+    #: the baseline's total.
+    projected: Amount
+    #: The projected total and the scenario's tagged amounts.
+    scenario: Amount
+
+
+class ScenarioTaxPart(BaseModel):
+    """The month's part of the year's change in tax, out of cash at the
+    month's end (more tax positive)."""
+
+    month: Month
+    amount: Amount
+
+
+class ScenarioTaxYear(BaseModel):
+    """One tax year the scenario touches."""
+
+    year: str
+    start: Day
+    end: Day
+    status: Literal["computed", "not_computed"]
+    #: Why it isn't computed, and what to do.
+    reason: str | None
+    rules: ScenarioTaxRules | None
+    #: The rules' currency: the roles' totals and `net` are in it.
+    currency: CurrencyCode | None
+    roles: list[ScenarioTaxRole]
+    #: The year's net tax (after credits) under each, in the rules' currency.
+    net: AmountFigure
+    #: The change in the year's tax, in your base currency (more tax
+    #: positive), in its own money.
+    change: Amount | None
+    monthly: list[ScenarioTaxPart]
+
+
+class ScenarioTaxOutcome(BaseModel):
+    """The change in tax a scenario's changes tagged with a tax role make,
+    computed with your active tax rules. Investment growth isn't taxed: set
+    your real return after the tax you pay on it."""
+
+    #: "computed"; "not_computed" (tagged amounts then count before tax, and
+    #: "tax" is among the placeholders); "none" (nothing tagged).
+    status: Literal["computed", "not_computed", "none"]
+    reason: str | None
+    #: The first two tax years touched, and those of the monthly checkpoints.
+    years: list[ScenarioTaxYear]
+    #: The as-of date's tax year, when the scenario touches it.
+    this_year: ScenarioTaxYear | None
+    #: The change in the as-of date's tax year's tax, in your base currency:
+    #: 0 when nothing in it is tagged; null when it isn't computed.
+    change_this_year: Amount | None
+    #: The change in tax over the horizon, in today's money.
+    total_change: Amount | None
+    #: Whether any year was computed with rules carried forward.
+    carried_forward: bool
+
+
 class ScenarioVersions(BaseModel):
     schema_: str = Field(alias="schema")
     engine: str
@@ -259,10 +335,21 @@ class ScenarioRun(BaseModel):
     resilience: ScenarioResilience
     fi: ScenarioFi
     break_evens: list[ScenarioBreakEven]
+    tax: ScenarioTaxOutcome
     #: The FI assumptions the figures rest on, and where each came from.
     assumptions: FiAssumptions
+    #: Which figures rest on placeholders: FI's assumptions, inflation, the
+    #: tax ("tax": not computed, so tagged amounts count before tax) and
+    #: tax rules carried forward to years with none of their own.
     placeholders: list[
-        Literal["real_return", "safe_withdrawal_rate", "surplus_invested", "inflation"]
+        Literal[
+            "real_return",
+            "safe_withdrawal_rate",
+            "surplus_invested",
+            "inflation",
+            "tax",
+            "tax_rules_carried_forward",
+        ]
     ]
     versions: ScenarioVersions
     #: The newest ledger entry on or before the as-of date.
