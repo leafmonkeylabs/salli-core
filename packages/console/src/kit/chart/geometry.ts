@@ -99,3 +99,23 @@ export function spread(wanted: readonly number[], gap: number, range: readonly [
   for (const item of order) out[item.i] = item.y;
   return out;
 }
+
+/** A day's place in time, in milliseconds: dates only, never money. */
+function dayTime(date: string): number {
+  return new Date(`${date.slice(0, 10)}T00:00:00Z`).getTime();
+}
+
+/**
+ * Positions for points on their own days (an account's entries, which
+ * fall on irregular dates): the first day at `range[0]`, the last at
+ * `range[1]`, each in proportion to the days between.
+ */
+export function dayScale(dates: readonly string[], range: readonly [number, number]): (index: number) => number {
+  const [r0, r1] = range;
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  if (first === undefined || last === undefined || first === last) return () => (r0 + r1) / 2;
+  const start = dayTime(first);
+  const span = dayTime(last) - start;
+  return (index) => r0 + ((dayTime(dates[index] ?? last) - start) / span) * (r1 - r0);
+}
