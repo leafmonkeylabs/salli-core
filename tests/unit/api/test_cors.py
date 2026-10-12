@@ -28,6 +28,7 @@ async def _preflight(monkeypatch, origin: str, **settings) -> dict[str, str]:
 @pytest.mark.parametrize("environment", ["production", "development"])
 async def test_no_origin_is_trusted_by_default(monkeypatch, environment):
     for origin in (
+        "https://salli.money",
         "https://app.salli.leafmonkey.org",
         "https://evil.example",
         "http://localhost:3000",

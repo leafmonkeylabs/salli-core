@@ -4,8 +4,9 @@ Salli holds people's financial records, so we take reports seriously.
 
 **Please report vulnerabilities privately** through GitHub's
 [private vulnerability reporting](https://github.com/leafmonkeylabs/salli-core/security/advisories/new)
-rather than a public issue. Include what you found, how to reproduce it, and
-the impact you expect. We'll acknowledge within a few working days and keep
+rather than a public issue, or by email to
+[security@salli.money](mailto:security@salli.money). Include what you found,
+how to reproduce it, and the impact you expect. We'll acknowledge within a few working days and keep
 you updated until it's fixed.
 
 ## Running your own instance safely
