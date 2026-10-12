@@ -576,6 +576,81 @@ class ReminderORM(Base):
     )
 
 
+# ── Notifications (docs/design/decision-lab-phase-3.md, section 4) ────────────
+
+
+class NotificationPreferencesORM(Base):
+    """A person's digest: off until they turn it on, then weekly or monthly
+    on a weekday at a local hour (their time zone is on their profile), with
+    the kinds of item they chose (domain/notifications/digest.py). Nothing
+    about where it goes: that is the deployment's notifier's."""
+
+    __tablename__ = "notification_preferences"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cadence: Mapped[str] = mapped_column(String(10), nullable=False, default="weekly")
+    weekday: Mapped[str] = mapped_column(String(9), nullable=False, default="monday")
+    hour: Mapped[int] = mapped_column(Integer, nullable=False, default=9)
+    #: The item kinds chosen, in any order: ["decision_review_due", ...].
+    items: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "cadence in ('weekly', 'monthly')", name="ck_notification_preferences_cadence"
+        ),
+        CheckConstraint(
+            "weekday in ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', "
+            "'saturday', 'sunday')",
+            name="ck_notification_preferences_weekday",
+        ),
+        CheckConstraint("hour between 0 and 23", name="ck_notification_preferences_hour"),
+        CheckConstraint("jsonb_typeof(items) = 'array'", name="ck_notification_preferences_items"),
+    )
+
+
+class NotificationDeliveryORM(Base):
+    """The delivery log: one row per person and period, at most (the unique
+    key is what keeps a rerun, or two servers, to one digest a period). It
+    keeps the items (kinds, counts, dates) and the message's hash, never its
+    text. `sending` is an attempt whose outcome was never recorded: it may
+    have gone, so it is never tried again."""
+
+    __tablename__ = "notification_deliveries"
+
+    #: The notification's id: stable for (user, "digest", period).
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    period: Mapped[str] = mapped_column(String(10), nullable=False)
+    #: [{"kind": ..., "count": n, "date": "YYYY-MM-DD" | null}, ...]
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    last_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "period", name="uq_notification_deliveries_user_period"),
+        CheckConstraint(
+            "status in ('sending', 'sent', 'no_destination', 'failed')",
+            name="ck_notification_deliveries_status",
+        ),
+        CheckConstraint("attempts between 1 and 3", name="ck_notification_deliveries_attempts"),
+        CheckConstraint("hash ~ '^sha256:[0-9a-f]{64}$'", name="ck_notification_deliveries_hash"),
+        CheckConstraint("jsonb_typeof(items) = 'array'", name="ck_notification_deliveries_items"),
+    )
+
+
 # ── Decisions (docs/decisions.md) ─────────────────────────────────────────────
 
 #: A content hash: "sha256:" and 64 hex digits (domain/canonical.py).
@@ -785,6 +860,10 @@ class UserProfileORM(Base):
     fi_assumptions: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
+    # Where the person lives in time: an IANA name ("Europe/Lisbon"), or NULL
+    # while they have not said. Their digest goes at their local hour, so
+    # turning it on needs one (domain/notifications/schedule.py).
+    time_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now

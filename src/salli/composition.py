@@ -37,6 +37,7 @@ from salli.application.services.ledger_service import LedgerService
 from salli.application.services.llm_credential_service import LlmCredentialService
 from salli.application.services.login_service import LoginService
 from salli.application.services.mcp_oauth_service import McpOAuthService
+from salli.application.services.notification_service import NotificationService
 from salli.application.services.onboarding_service import OnboardingService
 from salli.application.services.parsing_service import ParsingService
 from salli.application.services.personal_access_token_service import PersonalAccessTokenService
@@ -109,6 +110,9 @@ class Services:
     decisions: DecisionService
     # Common decisions as a few questions and the options they build.
     templates: TemplateService
+    # A person's digest (preferences, preview, log) and the hourly send,
+    # through the deployment's notifier (Salli ships none).
+    notifications: NotificationService
     bank_connections: BankConnectionService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
@@ -244,6 +248,15 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
+    insights = InsightsService(uow_factory, baselines=baseline)
+    notifications = NotificationService(
+        uow_factory,
+        reminders,
+        insights,
+        extensions.notifier,
+        notifier_name=extensions.notifier_from,
+        public_url=settings.salli_public_url,
+    )
     reports = ReportService(ledger, fi)
     public_url = settings.salli_public_url.rstrip("/")
     mcp_oauth = McpOAuthService(
@@ -274,6 +287,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         reminders,
         exporters=extensions.user_data_exporters,
         chatgpt=chatgpt,
+        notifications=notifications,
     )
 
     return Services(
@@ -303,12 +317,13 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         tokens=PersonalAccessTokenService(uow_factory),
         logins=_build_logins(settings, uow_factory),
         rules=rules,
-        insights=InsightsService(uow_factory, baselines=baseline),
+        insights=insights,
         baseline=baseline,
         scenarios=scenarios,
         principles=principles,
         decisions=decisions,
         templates=decision_templates,
+        notifications=notifications,
         bank_connections=_build_bank_connections(settings, uow_factory, parsing),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,

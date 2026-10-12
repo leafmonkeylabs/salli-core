@@ -38,6 +38,7 @@ class DataPortabilityService:
         reminders_svc: Any,
         exporters: Sequence[UserDataExporter] = (),
         chatgpt: Any = None,
+        notifications: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._profile = profile_svc
@@ -57,6 +58,8 @@ class DataPortabilityService:
         # ChatGPTConnectionService: a connected plan's session is ended with
         # OpenAI before its tokens are deleted.
         self._chatgpt = chatgpt
+        # NotificationService: the digest's preferences and delivery log.
+        self._notifications = notifications
 
     async def export_plaintext(self, user_id: str, fmt: str) -> str:
         """The whole ledger as a Beancount file or an hledger journal.
@@ -150,6 +153,11 @@ class DataPortabilityService:
             "tax_rule_sets": await self._tax_rule_sets(user_id),
             **await self._decisions(user_id),
         }
+        data.update(
+            await self._notifications.export(user_id)
+            if self._notifications is not None
+            else {"notification_preferences": None, "notification_deliveries": []}
+        )
         for export in self._exporters:
             data.update(await export(user_id))
         return data
