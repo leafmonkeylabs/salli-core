@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.{ts,tsx}'],
     environment: 'jsdom',
+    setupFiles: ['test/setup.ts'],
     testTimeout: 15_000,
     // Dates are shown in local time: pin it, so tests read the same everywhere.
     env: { TZ: 'UTC' },

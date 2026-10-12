@@ -136,6 +136,21 @@ function buildRouter(extensions: readonly ConsoleExtension[], history: (() => Ro
   });
 }
 
+/**
+ * React Aria adds a <style> for its pressable elements unless one with its
+ * id is already there; the CSP would refuse it. The console's stylesheet
+ * has that rule (kit.css), so mark it present.
+ */
+export function preemptInlineStyles(doc: Document = document): void {
+  const id = 'react-aria-pressable-style';
+  if (doc.getElementById(id)) return;
+  const marker = doc.createElement('meta');
+  marker.id = id;
+  marker.name = 'salli-console-styles';
+  marker.content = 'React Aria\'s pressable rule is in the console\'s stylesheet.';
+  doc.head.append(marker);
+}
+
 export function createConsole(options: CreateConsoleOptions = {}): SalliConsole {
   const extensions = options.extensions ?? [];
   const session = new ConsoleSession(options.environment ?? browserEnvironment());
@@ -183,6 +198,7 @@ export function createConsole(options: CreateConsoleOptions = {}): SalliConsole 
     queryClient,
     App,
     mount(element) {
+      preemptInlineStyles(element.ownerDocument);
       const root = createRoot(element);
       root.render(
         <StrictMode>

@@ -8,25 +8,30 @@ import type { AuthIdentity, Meta, Profile, SignIn } from '@leafmonkeylabs/salli-
 
 export const ORIGIN = 'http://localhost:8000';
 
-export const META: Meta = {
-  api_version: '1',
-  server_version: '0.3.1',
-  extensions: [],
-  oauth: {
-    issuer: ORIGIN,
-    authorization_endpoint: `${ORIGIN}/mcp/oauth/authorize`,
-    token_endpoint: `${ORIGIN}/mcp/oauth/token`,
-    registration_endpoint: `${ORIGIN}/mcp/oauth/register`,
-    revocation_endpoint: `${ORIGIN}/mcp/oauth/revoke`,
-    device_authorization_endpoint: `${ORIGIN}/mcp/oauth/device_authorization`,
-    api_resource: `${ORIGIN}/v1`,
-    device_verification_uri: `${ORIGIN}/mcp/oauth/device`,
-    cli_client_id: 'salli-cli',
-    console_client_id: 'salli-console',
-  },
-  default_currency: 'EUR',
-  console_url: `${ORIGIN}/console`,
-};
+/** What `/v1/meta` says on a server whose SALLI_PUBLIC_URL is `origin`. */
+export function metaAt(origin: string, extensions: string[] = []): Meta {
+  return {
+    api_version: '1',
+    server_version: '0.3.1',
+    extensions,
+    oauth: {
+      issuer: origin,
+      authorization_endpoint: `${origin}/mcp/oauth/authorize`,
+      token_endpoint: `${origin}/mcp/oauth/token`,
+      registration_endpoint: `${origin}/mcp/oauth/register`,
+      revocation_endpoint: `${origin}/mcp/oauth/revoke`,
+      device_authorization_endpoint: `${origin}/mcp/oauth/device_authorization`,
+      api_resource: `${origin}/v1`,
+      device_verification_uri: `${origin}/mcp/oauth/device`,
+      cli_client_id: 'salli-cli',
+      console_client_id: 'salli-console',
+    },
+    default_currency: 'EUR',
+    console_url: `${origin}/console`,
+  };
+}
+
+export const META: Meta = metaAt(ORIGIN);
 
 export const ME: AuthIdentity = {
   user_id: 'household',

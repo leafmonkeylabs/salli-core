@@ -63,7 +63,7 @@ function Plot({ data, layout, label, variant }: { data: NetWorthByMonth; layout:
         ) : null,
       )}
       {last && variant === 'wide' ? (
-        <text className="chart-end-label" x={lastX + 10} y={y(last.net_worth) + font / 3} fontSize={font}>
+        <text className="chart-end-label" x={lastX + band.width / 2 + 8} y={y(last.net_worth) + font / 3} fontSize={font}>
           {visibleAmount(last.net_worth, data.currency, 'prose', { locale })}
         </text>
       ) : null}

@@ -10,6 +10,8 @@ build/
 node_modules/
 packages/*/dist/
 packages/*/coverage/
+packages/console/test-results/
+packages/console/playwright-report*/
 *.tsbuildinfo
 
 # Local config — never commit

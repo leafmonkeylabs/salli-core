@@ -86,8 +86,14 @@
   --content-max: 1200px;
   --gutter: 24px;
   --section-gap: 40px;
-  --radius-card: 12px; /* 10–14 px */
-  --radius-button: 8px;
+  /* Corners are square (brand README, "Corners"): every radius is 0, kept
+     as tokens so it stays one switch. Only what is a circle by meaning (a
+     chart's dot, a radio's indicator) is round. */
+  --radius-card: 0; /* cards, panels, tables, dialogs, banners, problems */
+  --radius-button: 0; /* buttons, links styled as places */
+  --radius-field: 0; /* inputs, selects, text areas */
+  --radius-chip: 0; /* tags, badges, loading lines */
+  --radius-focus: 0; /* the focus ring's outline */
   --button-height: 40px;
   --target: 24px; /* WCAG 2.2's 2.5.8 */
   --measure: 68ch;

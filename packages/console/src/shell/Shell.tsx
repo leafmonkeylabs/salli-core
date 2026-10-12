@@ -81,14 +81,14 @@ export function Shell() {
     return () => timer.stop();
   }, [session]);
 
-  // A new page: focus its heading's region, so a screen reader starts there.
-  useEffect(
-    () =>
-      router.subscribe('onResolved', ({ pathChanged }) => {
-        if (pathChanged) main.current?.focus({ preventScroll: true });
-      }),
-    [router],
-  );
+  // A new page (not the first): focus its region, so a screen reader and
+  // the keyboard start there.
+  useEffect(() => {
+    const first = router.state.location.href;
+    return router.subscribe('onResolved', ({ pathChanged, toLocation }) => {
+      if (pathChanged && toLocation.href !== first) main.current?.focus({ preventScroll: true });
+    });
+  }, [router]);
 
   const places: Place[] = [
     { to: '/', label: strings.nav.home, icon: 'home' },

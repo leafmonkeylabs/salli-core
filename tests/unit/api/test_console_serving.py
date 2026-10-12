@@ -198,3 +198,13 @@ async def test_api_responses_are_never_stored(monkeypatch, built):
 )
 def test_a_secure_context_is_https_or_this_machine(url, secure):
     assert is_secure_origin(url) is secure
+
+
+def test_the_console_s_own_test_server_sends_these_headers():
+    """packages/console/e2e/serve.mjs serves a build with these headers for
+    the console's accessibility, visual and CSP runs, so they test the page
+    under exactly the policy the server sets."""
+    import json
+
+    mirrored = Path(__file__).resolve().parents[3] / "packages/console/e2e/console-headers.json"
+    assert json.loads(mirrored.read_text()) == CONSOLE_HEADERS

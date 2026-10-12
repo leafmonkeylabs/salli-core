@@ -4,17 +4,18 @@
  * on dark), errors in words beside the field. A confirmation says what will
  * happen in Salli's words before a write, in a dialog that traps focus and
  * gives it back.
+ *
+ * React Aria's press handling would add a <style> to the page, which the
+ * CSP refuses; the console's stylesheet carries that rule instead
+ * (kit.css, `[data-react-aria-pressable]`) and `createConsole` marks it as
+ * present, so React Aria adds nothing.
  */
-import type { ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import {
   Button as AriaButton,
-  Dialog,
   FieldError,
-  Heading,
   Input,
   Label,
-  Modal,
-  ModalOverlay,
   Text,
   TextField as AriaTextField,
   type ButtonProps,
@@ -62,30 +63,39 @@ export interface ConfirmProps {
   isPending?: boolean;
 }
 
-/** Asks before a write, saying what will happen. */
+/**
+ * Asks before a write, saying what will happen. The browser's own modal
+ * <dialog>: it makes the page behind inert, traps focus, closes on Escape
+ * and gives focus back, with no script injecting styles (React Aria's
+ * modal does, on iOS, which the CSP refuses).
+ */
 export function Confirm({ isOpen, onOpenChange, title, children, confirmLabel, cancelLabel, onConfirm, isPending }: ConfirmProps) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (isOpen && !dialog.open) dialog.showModal();
+    if (!isOpen && dialog.open) dialog.close();
+  }, [isOpen]);
   return (
-    <ModalOverlay isOpen={isOpen} onOpenChange={onOpenChange} isDismissable className="overlay">
-      <Modal className="modal">
-        <Dialog role="alertdialog" className="dialog">
-          {({ close }) => (
-            <>
-              <Heading slot="title" className="dialog-title">
-                {title}
-              </Heading>
-              <div className="dialog-body">{children}</div>
-              <div className="dialog-actions">
-                <Button variant="secondary" onPress={close}>
-                  {cancelLabel}
-                </Button>
-                <Button variant="primary" onPress={onConfirm} isPending={isPending ?? false}>
-                  {confirmLabel}
-                </Button>
-              </div>
-            </>
-          )}
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+    <dialog ref={ref} className="modal dialog" role="alertdialog" aria-labelledby={titleId} onClose={() => onOpenChange(false)}>
+      <h2 id={titleId} className="dialog-title">
+        {title}
+      </h2>
+      {isOpen ? (
+        <>
+          <div className="dialog-body">{children}</div>
+          <div className="dialog-actions">
+            <Button variant="secondary" autoFocus onPress={() => onOpenChange(false)}>
+              {cancelLabel}
+            </Button>
+            <Button variant="primary" onPress={onConfirm} isPending={isPending ?? false}>
+              {confirmLabel}
+            </Button>
+          </div>
+        </>
+      ) : null}
+    </dialog>
   );
 }

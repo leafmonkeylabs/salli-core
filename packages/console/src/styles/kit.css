@@ -508,7 +508,7 @@ main:focus {
 .loading-line {
   display: block;
   height: 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-chip);
   background: var(--c-panel);
 }
 
@@ -648,6 +648,7 @@ main:focus {
 
 .button-tertiary,
 .button-link {
+  white-space: nowrap;
   background: none;
   border: 0;
   padding: 0 4px;
@@ -708,7 +709,7 @@ main:focus {
   min-height: var(--button-height);
   padding: 8px 12px;
   border: 1px solid var(--c-rule);
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-field);
   background: var(--c-input);
   color: var(--c-text);
   width: 100%;
@@ -765,32 +766,29 @@ main:focus {
 
 /* ── Dialogs ────────────────────────────────────────────────────────────── */
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  padding: var(--gutter);
-  background: var(--c-scrim);
-  animation: fade-in var(--motion) both;
-}
-
 .modal {
-  width: 100%;
+  width: calc(100% - 2 * var(--gutter));
   max-width: 460px;
+  padding: 0;
   border: 1px solid var(--c-rule);
   border-radius: var(--radius-card);
   background: var(--c-page);
+  color: var(--c-text);
   box-shadow: var(--shadow-overlay);
+}
+
+.modal[open] {
   animation: slide-in var(--motion) both;
+}
+
+.modal::backdrop {
+  background: var(--c-scrim);
 }
 
 .dialog {
   padding: 24px;
   display: grid;
   gap: 16px;
-  outline: none;
 }
 
 .dialog-title {
@@ -809,6 +807,12 @@ main:focus {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* React Aria's pressable elements, as its usePress would style them from an
+   inline <style> the CSP refuses (forms.tsx). */
+[data-react-aria-pressable] {
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 /* ── Problems ───────────────────────────────────────────────────────────── */

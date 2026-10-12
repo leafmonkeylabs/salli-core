@@ -7,7 +7,7 @@ import { act, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { KEYS } from '../src/auth/session';
 import { MockApi, STEP_UP } from './fixtures/api';
-import { ORIGIN, SOMEONE_ELSE } from './fixtures/auth';
+import { metaAt, ORIGIN, SOMEONE_ELSE } from './fixtures/auth';
 import { keepSignIn, MemoryStorage, setup } from './harness';
 
 const form = (body: string): Record<string, string> => Object.fromEntries(new URLSearchParams(body));
@@ -92,28 +92,6 @@ describe('signing in', () => {
     expect(assigned).toEqual(['https://money.example.org/console/settings']);
   });
 });
-
-function metaAt(origin: string): Record<string, unknown> {
-  return {
-    api_version: '1',
-    server_version: '0.3.1',
-    extensions: [],
-    default_currency: 'EUR',
-    console_url: `${origin}/console`,
-    oauth: {
-      issuer: origin,
-      authorization_endpoint: `${origin}/mcp/oauth/authorize`,
-      token_endpoint: `${origin}/mcp/oauth/token`,
-      registration_endpoint: `${origin}/mcp/oauth/register`,
-      revocation_endpoint: `${origin}/mcp/oauth/revoke`,
-      device_authorization_endpoint: `${origin}/mcp/oauth/device_authorization`,
-      api_resource: `${origin}/v1`,
-      device_verification_uri: `${origin}/mcp/oauth/device`,
-      cli_client_id: 'salli-cli',
-      console_client_id: 'salli-console',
-    },
-  };
-}
 
 describe('signing out', () => {
   it('revokes the tab’s grant and clears the tab', async () => {

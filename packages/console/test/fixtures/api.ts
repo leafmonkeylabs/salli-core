@@ -5,7 +5,7 @@
  * (home.ts); the sign-in answers as Salli's OAuth endpoints do.
  */
 import type { NotificationPreferences, Profile } from '@leafmonkeylabs/salli-sdk';
-import { META, ME, PROFILE, SIGN_INS } from './auth';
+import { ME, metaAt, ORIGIN, PROFILE, SIGN_INS } from './auth';
 import * as home from './home';
 
 export interface Answer {
@@ -48,6 +48,8 @@ export const HOME_READS: Record<string, unknown> = {
 };
 
 export class MockApi {
+  /** The server's public URL (SALLI_PUBLIC_URL), which /v1/meta names. */
+  readonly origin: string;
   requests: Recorded[] = [];
   overrides: Override[] = [];
   extensions: string[] = [];
@@ -57,6 +59,10 @@ export class MockApi {
   reads: Record<string, unknown> = { ...HOME_READS };
   issued = 0;
 
+  constructor(origin: string = ORIGIN) {
+    this.origin = origin;
+  }
+
   /** Answers one request, or undefined for a path it doesn't know. */
   answer(request: Recorded): Answer | undefined {
     this.requests.push(request);
@@ -65,7 +71,7 @@ export class MockApi {
       if (answer) return answer;
     }
     const { method, path } = request;
-    if (method === 'GET' && path === '/v1/meta') return { status: 200, body: { ...META, extensions: this.extensions } };
+    if (method === 'GET' && path === '/v1/meta') return { status: 200, body: metaAt(this.origin, this.extensions) };
     if (method === 'POST' && path === '/mcp/oauth/token') {
       this.issued += 1;
       return {
