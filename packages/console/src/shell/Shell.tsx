@@ -16,13 +16,20 @@ import { useServerVersion } from './update';
 interface Place {
   to: string;
   label: string;
-  icon: 'home' | 'settings' | 'page';
+  icon: 'home' | 'decide' | 'settings' | 'page';
 }
 
 function Icon({ name }: { name: Place['icon'] }) {
   return (
     <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
       {name === 'home' ? <path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z" /> : null}
+      {name === 'decide' ? (
+        <>
+          <path d="M12 3v18M7 21h10" />
+          <path d="M4 7h16" />
+          <path d="M4 7l-2 6h4zM20 7l-2 6h4z" />
+        </>
+      ) : null}
       {name === 'settings' ? (
         <>
           <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
@@ -92,6 +99,7 @@ export function Shell() {
 
   const places: Place[] = [
     { to: '/', label: strings.nav.home, icon: 'home' },
+    { to: '/decide', label: strings.nav.decide, icon: 'decide' },
     ...navigation.map((item) => ({ to: item.to, label: item.label, icon: 'page' as const })),
     { to: '/settings', label: strings.nav.settings, icon: 'settings' },
   ];
