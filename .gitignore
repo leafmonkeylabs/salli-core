@@ -32,3 +32,6 @@ htmlcov/
 *.swp
 .DS_Store
 .hypothesis/
+
+# Claude Code worktrees
+.claude/worktrees/
