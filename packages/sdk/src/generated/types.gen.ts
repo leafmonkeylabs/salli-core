@@ -620,8 +620,10 @@ export type AllocationRequest = {
     account_id: string;
     /**
      * Allocated Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
      */
-    allocated_amount: number | string;
+    allocated_amount: string;
 };
 
 /**
@@ -1851,7 +1853,7 @@ export type BudgetLineRequest = {
     /**
      * Limit Amount
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     limit_amount: string;
 };
@@ -3197,7 +3199,7 @@ export type DebtRequest = {
     /**
      * Principal
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     principal: string;
     /**
@@ -3207,7 +3209,7 @@ export type DebtRequest = {
     /**
      * Minimum Payment
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     minimum_payment: string;
     /**
@@ -5100,7 +5102,7 @@ export type FireStrategy = {
     /**
      * Target Monthly Expenses
      */
-    target_monthly_expenses?: number | null;
+    target_monthly_expenses?: string | null;
     /**
      * Target Age
      */
@@ -5350,8 +5352,10 @@ export type GoalRequest = {
     kind?: string;
     /**
      * Target Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
      */
-    target_amount?: number | string;
+    target_amount?: string;
     /**
      * Target Date
      */
@@ -5377,7 +5381,7 @@ export type GoalUpdateRequest = {
     /**
      * Target Amount
      */
-    target_amount?: number | string | null;
+    target_amount?: string | null;
     /**
      * Target Date
      */
@@ -5681,13 +5685,13 @@ export type HoldingRequest = {
     /**
      * Cost Basis
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     cost_basis?: string;
     /**
      * Current Value
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     current_value?: string;
     /**
@@ -6095,8 +6099,10 @@ export type IncomeItem = {
     name: string;
     /**
      * Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
      */
-    amount: number | string;
+    amount: string;
     /**
      * Currency
      */
@@ -6104,7 +6110,7 @@ export type IncomeItem = {
     /**
      * Fx Rate
      */
-    fx_rate?: number | string | null;
+    fx_rate?: string | null;
     /**
      * Deposit Account Code
      */
@@ -6678,6 +6684,10 @@ export type Meta = {
      * ISO 4217 currency code
      */
     default_currency: string;
+    /**
+     * Console Url
+     */
+    console_url: string | null;
 };
 
 /**
@@ -7109,6 +7119,10 @@ export type OAuthInfo = {
      * Cli Client Id
      */
     cli_client_id: string;
+    /**
+     * Console Client Id
+     */
+    console_client_id: string;
 };
 
 /**
@@ -7125,8 +7139,10 @@ export type OnboardingGoalItem = {
     kind?: string;
     /**
      * Target Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
      */
-    target_amount?: number | string;
+    target_amount?: string;
     /**
      * Target Date
      */
@@ -7179,8 +7195,10 @@ export type OnboardingRequest = {
     primary_goal?: string;
     /**
      * Goal Target Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
      */
-    goal_target_amount?: number | string;
+    goal_target_amount?: string;
     /**
      * Goal Target Year
      */
@@ -7282,8 +7300,10 @@ export type OpeningBalanceItem = {
     type: string;
     /**
      * Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
      */
-    amount: number | string;
+    amount: string;
     /**
      * Currency
      */
@@ -7291,7 +7311,7 @@ export type OpeningBalanceItem = {
     /**
      * Fx Rate
      */
-    fx_rate?: number | string | null;
+    fx_rate?: string | null;
 };
 
 /**
@@ -7669,13 +7689,13 @@ export type PolicyRequest = {
     /**
      * Coverage Amount
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     coverage_amount: string;
     /**
      * Premium Amount
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     premium_amount: string;
     /**
@@ -10236,36 +10256,6 @@ export type SensitivityReturns = {
 };
 
 /**
- * Session
- */
-export type Session = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * User Agent
-     */
-    user_agent: string | null;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Last Used At
-     */
-    last_used_at: string | null;
-    /**
-     * Expires At
-     */
-    expires_at: string;
-    /**
-     * Current
-     */
-    current: boolean;
-};
-
-/**
  * SetAiModels
  *
  * Name a model per task, or null to let Salli pick from the account's models.
@@ -10337,6 +10327,46 @@ export type SetPostingTagsRequest = {
     tags: {
         [key: string]: string;
     };
+};
+
+/**
+ * SignIn
+ *
+ * One way you are signed in: a session, or an OAuth sign-in to the API.
+ */
+export type SignIn = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'session' | 'cli' | 'console' | 'app';
+    /**
+     * Client Name
+     */
+    client_name: string | null;
+    /**
+     * User Agent
+     */
+    user_agent: string | null;
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Current
+     */
+    current: boolean;
 };
 
 /**
@@ -10822,7 +10852,7 @@ export type SubscriptionRequest = {
     /**
      * Amount
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     amount: string;
     /**
@@ -11046,7 +11076,7 @@ export type TargetRequest = {
     /**
      * Target Amount
      *
-     * Decimal string, read exactly; a JSON number goes through a float.
+     * Decimal string, read exactly; a JSON number is refused.
      */
     target_amount: string;
 };
@@ -12797,6 +12827,10 @@ export type Problem = {
      * Request Id
      */
     request_id?: string | null;
+    /**
+     * Max Age
+     */
+    max_age?: number | null;
 };
 
 export type AuthMeData = {
@@ -12824,33 +12858,6 @@ export type AuthMeResponses = {
 
 export type AuthMeResponse = AuthMeResponses[keyof AuthMeResponses];
 
-export type AuthSessionsListData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/auth/sessions';
-};
-
-export type AuthSessionsListErrors = {
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type AuthSessionsListError = AuthSessionsListErrors[keyof AuthSessionsListErrors];
-
-export type AuthSessionsListResponses = {
-    /**
-     * Response Auth.Sessions.List
-     *
-     * Successful Response
-     */
-    200: Array<Session>;
-};
-
-export type AuthSessionsListResponse = AuthSessionsListResponses[keyof AuthSessionsListResponses];
-
 export type AuthSessionsCreateData = {
     body: SignInRequest;
     headers?: {
@@ -12868,7 +12875,7 @@ export type AuthSessionsCreateErrors = {
     /**
      * The email and password didn't match (which, is not said)
      */
-    401: unknown;
+    401: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -12876,7 +12883,7 @@ export type AuthSessionsCreateErrors = {
     /**
      * Too many failed sign-ins; `Retry-After` says when to try again
      */
-    429: unknown;
+    429: Problem;
     /**
      * An error, as RFC 9457 problem details
      */
@@ -12919,19 +12926,46 @@ export type AuthSessionsSignOutResponses = {
 
 export type AuthSessionsSignOutResponse = AuthSessionsSignOutResponses[keyof AuthSessionsSignOutResponses];
 
-export type AuthSessionsRevokeData = {
+export type AuthSignInsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/sign-ins';
+};
+
+export type AuthSignInsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthSignInsListError = AuthSignInsListErrors[keyof AuthSignInsListErrors];
+
+export type AuthSignInsListResponses = {
+    /**
+     * Response Auth.Signins.List
+     *
+     * Successful Response
+     */
+    200: Array<SignIn>;
+};
+
+export type AuthSignInsListResponse = AuthSignInsListResponses[keyof AuthSignInsListResponses];
+
+export type AuthSignInsRevokeData = {
     body?: never;
     path: {
         /**
-         * Session Id
+         * Sign In Id
          */
-        session_id: string;
+        sign_in_id: string;
     };
     query?: never;
-    url: '/v1/auth/sessions/{session_id}';
+    url: '/v1/auth/sign-ins/{sign_in_id}';
 };
 
-export type AuthSessionsRevokeErrors = {
+export type AuthSignInsRevokeErrors = {
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -12942,16 +12976,16 @@ export type AuthSessionsRevokeErrors = {
     default: Problem;
 };
 
-export type AuthSessionsRevokeError = AuthSessionsRevokeErrors[keyof AuthSessionsRevokeErrors];
+export type AuthSignInsRevokeError = AuthSignInsRevokeErrors[keyof AuthSignInsRevokeErrors];
 
-export type AuthSessionsRevokeResponses = {
+export type AuthSignInsRevokeResponses = {
     /**
      * Successful Response
      */
     204: void;
 };
 
-export type AuthSessionsRevokeResponse = AuthSessionsRevokeResponses[keyof AuthSessionsRevokeResponses];
+export type AuthSignInsRevokeResponse = AuthSignInsRevokeResponses[keyof AuthSignInsRevokeResponses];
 
 export type AuthPasswordChangeData = {
     body: ChangePasswordRequest;
@@ -12964,7 +12998,7 @@ export type AuthPasswordChangeErrors = {
     /**
      * The current password is wrong, or this sign-in may not change it
      */
-    403: unknown;
+    403: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -12972,7 +13006,7 @@ export type AuthPasswordChangeErrors = {
     /**
      * Too many failed attempts; `Retry-After` says when to try again
      */
-    429: unknown;
+    429: Problem;
     /**
      * An error, as RFC 9457 problem details
      */
@@ -14149,6 +14183,10 @@ export type TaxRuleSetsVersionsActivateData = {
 };
 
 export type TaxRuleSetsVersionsActivateErrors = {
+    /**
+     * This sign-in doesn't hold `tax:activate`; `/problems/step-up-required` when signing in again on Salli's page first would give it (the console, more than five minutes after the password)
+     */
+    403: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -18255,6 +18293,10 @@ export type TokensCreateData = {
 
 export type TokensCreateErrors = {
     /**
+     * This sign-in may not make it; `/problems/step-up-required` when signing in again on Salli's page first would let it
+     */
+    403: Problem;
+    /**
      * The request failed validation; `detail` lists each field
      */
     422: Problem;
@@ -19075,7 +19117,7 @@ export type ScenariosRunErrors = {
     /**
      * An account, a debt or a holding a change names is not one of yours
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19108,7 +19150,7 @@ export type ScenariosCompareErrors = {
     /**
      * An account, a debt or a holding a change names is not one of yours
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19245,6 +19287,14 @@ export type OauthAuthorizeData = {
          * State
          */
         state?: string | null;
+        /**
+         * Prompt
+         */
+        prompt?: string | null;
+        /**
+         * Max Age
+         */
+        max_age?: number | null;
     };
     url: '/mcp/oauth/authorize';
 };
@@ -19474,7 +19524,7 @@ export type PrinciplesCreateErrors = {
     /**
      * Not one of your principles, or not one of your accounts
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19532,7 +19582,7 @@ export type PrinciplesCheckErrors = {
     /**
      * Not one of your principles, or not one of your accounts
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19570,7 +19620,7 @@ export type PrinciplesUpdateErrors = {
     /**
      * Not one of your principles, or not one of your accounts
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19608,7 +19658,7 @@ export type PrinciplesArchiveErrors = {
     /**
      * Not one of your principles, or not one of your accounts
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19671,7 +19721,7 @@ export type DecisionsTemplatesGetErrors = {
     /**
      * No template has this id
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19704,7 +19754,7 @@ export type DecisionsStartErrors = {
     /**
      * No template has this id
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19762,7 +19812,7 @@ export type DecisionsRecordErrors = {
     /**
      * Not one of your decisions, or an account or debt that isn't yours
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19875,7 +19925,7 @@ export type DecisionsGetErrors = {
     /**
      * Not one of your decisions, or an account or debt that isn't yours
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19913,7 +19963,7 @@ export type DecisionsMarkdownErrors = {
     /**
      * Not one of your decisions, or an account or debt that isn't yours
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19951,7 +20001,7 @@ export type DecisionsNotesAddErrors = {
     /**
      * Not one of your decisions, or an account or debt that isn't yours
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
@@ -19989,7 +20039,7 @@ export type DecisionsReviewErrors = {
     /**
      * Not one of your decisions, or an account or debt that isn't yours
      */
-    404: unknown;
+    404: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */

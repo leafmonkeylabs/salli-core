@@ -82,7 +82,7 @@ config.py       pydantic-settings, env-driven
 
 `salli-server` and the API both call `build_services(settings)` from `composition.py`, so the core is exercised identically from both surfaces.
 
-Outside `src/`: `packages/sdk` is the TypeScript SDK, generated from `openapi/openapi.json`, and `packages/cli` is the `salli` command line (npm `@leafmonkeylabs/salli`), a client of the API built on it.
+Outside `src/`: `packages/sdk` is the TypeScript SDK, generated from `openapi/openapi.json`, and `packages/cli` is the `salli` command line (npm `@leafmonkeylabs/salli`), a client of the API built on it. The console ([docs/design/console.md](docs/design/console.md); C0, the server side, is built) is the household's pages in a browser, served by the server at `/console` (`interfaces/api/console.py`: static files from `SALLI_CONSOLE_DIR`, registered in `create_app` before the MCP app's catch-all, with its CSP and headers; `SALLI_CONSOLE=false` removes it). It is a client of the API like the CLI: it computes nothing, does no arithmetic on money, and adds no feature the CLI lacks.
 
 ### CLI-first
 
@@ -113,13 +113,17 @@ version table) and per-user purgers/exporters. The defaults —
 `services.usage.charge(...)` before any new AI action and
 `services.entitlements.for_user(...)` for any new shapeable surface; never
 branch on who a user is. `tests/contract/test_no_commercial_vocabulary.py`
-keeps plan/payment vocabulary out of the codebase.
+keeps plan/payment vocabulary out of the codebase, and
+`tests/contract/test_no_firm_vocabulary.py` firm words (firm, tenant,
+organisation, adviser, seat, SAML, SCIM, SSO, white-label, RBAC): both scan
+`src/salli` and `packages/*/src`. Organisations, advisers acting for clients
+and SSO are the closed edition's (docs/design/console.md, section 7).
 
 ### Domain model invariants (non-negotiable)
 
 - **LLM never computes money or tax.** Numbers reach the user only via deterministic engine output or tool results. The LLM parses documents, explains results, and drafts guidance.
 - **Double-entry entries are immutable.** Corrections use reversing entries. Never edit or delete a posted `JournalEntry`.
-- **Money is always `decimal.Decimal` in the domain; `BIGINT` minor units in the DB.** A float anywhere in the money path is a bug. Minor units are each currency's own (ISO 4217 exponent: JPY 0, USD 2, KWD 3 — `domain/currency.py`); never assume 100.
+- **Money is always `decimal.Decimal` in the domain; `BIGINT` minor units in the DB.** A float anywhere in the money path is a bug. Requests take amounts and rates as decimal strings only (`contract.AmountIn`, `DecimalIn`): a JSON number is a 422. Minor units are each currency's own (ISO 4217 exponent: JPY 0, USD 2, KWD 3 — `domain/currency.py`); never assume 100.
 - **Every user has a base currency** (on their profile). Postings in it have `fx_rate` 1; postings in any other currency carry the rate into it — the one given, or the published one for the entry's date — and are refused when there is neither (`application/fx.py`). The base currency cannot change once anything is stored in it.
 - **Tax rule sets are user data.** They are versioned and immutable once used. Every stored computation records the rule-set version and content hash. A rule set can't be activated until its worked examples pass, and only the user can activate one; AI connectors never hold `tax:activate`.
 - **Nothing assumes a country.** A user's tax residency (ISO 3166-1, on their profile) decides whose rules compute their tax (`TaxService.resolve`; never inferred from their currency or a tax id), and their active rule set decides their tax year, their filing reminders and the agents' tax framing. With no residency, or no active rules, no tax is computed and there is no country's framing at all.
@@ -182,15 +186,17 @@ Every prompt ends with a section about the user (`jurisdiction.py`: date, base c
 | `tests/golden/` | Engines' worked examples (budget, debt, FI, portfolio, …) |
 | `tests/taxrules/` | The tax rule-set engine; `conformance/` holds fictional jurisdictions, each the structure of a real-world feature, never its law |
 | `tests/integration/` | Against a real Postgres (migrations, triggers, accounts and every sign-in path over HTTP); skipped without `SALLI_TEST_DATABASE_URL` |
-| `tests/contract/` | The committed OpenAPI document, the CLI's fixtures (`tests/cli_fixtures.py`), the no-billing-vocabulary guard, the no-country-knowledge guard and the guard that keeps a former auth provider out (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
+| `tests/contract/` | The committed OpenAPI document, the CLI's fixtures (`tests/cli_fixtures.py`), the no-billing-vocabulary and no-firm-vocabulary guards, the no-country-knowledge guard and the guard that keeps a former auth provider out (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
 
 ### Configuration
 
-All config is in `config.py` via `pydantic-settings` and reads from the environment, a `.env` (a checkout's; `salli-server setup` writes the server's secrets there) and `SALLI_SECRETS_DIR` (one file per secret; the container's, made by `salli-server secrets init`). Required: `DATABASE_URL` (its password may come from `DATABASE_PASSWORD`). `ANTHROPIC_API_KEY` enables the AI features. `SALLI_PUBLIC_URL`, `ALLOWED_ORIGINS` (none by default), `SALLI_STORAGE_DIR`, `SALLI_EXTENSIONS`. Every setting is in the table in [docs/self-host.md](docs/self-host.md#configuration): keep it in step.
+All config is in `config.py` via `pydantic-settings` and reads from the environment, a `.env` (a checkout's; `salli-server setup` writes the server's secrets there) and `SALLI_SECRETS_DIR` (one file per secret; the container's, made by `salli-server secrets init`). Required: `DATABASE_URL` (its password may come from `DATABASE_PASSWORD`). `ANTHROPIC_API_KEY` enables the AI features. `SALLI_PUBLIC_URL`, `ALLOWED_ORIGINS` (none by default), `SALLI_STORAGE_DIR`, `SALLI_EXTENSIONS`, `SALLI_CONSOLE`, `SALLI_CONSOLE_DIR`, `SALLI_CONSOLE_SIGN_IN_HOURS`. Every setting is in the table in [docs/self-host.md](docs/self-host.md#configuration): keep it in step.
 
 ### Signing in
 
-Salli keeps its own accounts (decision D13); nothing but Postgres is needed. `application/services/login_service.py`: argon2id passwords (`adapters/auth/passwords.py`, rehashed when the parameters change), throttled failures (by a hash of the email and of the address), opaque `salli_st_` session tokens stored as SHA-256 hashes. `interfaces/api/deps.get_principal` accepts Salli's own tokens only (sessions, personal access tokens, OAuth tokens for the API), then an extension's `IdentityProvider` if one is enabled, then the development fallback; no request ever creates an account. The consent and device pages (`routers/mcp_consent_page.py`) check the same passwords, so the CLI's sign-in and MCP connections go through them. There is no sign-up and no email: the owner (`salli-server setup`) adds members and resets passwords. `tax:activate` follows from how the caller signed in (`application/permissions.py`). `tests/contract/test_auth_is_our_own.py` keeps the auth provider Salli used before out of the code and docs.
+Salli keeps its own accounts (decision D13); nothing but Postgres is needed. `application/services/login_service.py`: argon2id passwords (`adapters/auth/passwords.py`, rehashed when the parameters change), throttled failures (by a hash of the email and of the address), opaque `salli_st_` session tokens stored as SHA-256 hashes. `interfaces/api/deps.get_principal` accepts Salli's own tokens only (sessions, personal access tokens, OAuth tokens for the API), then an extension's `IdentityProvider` if one is enabled, then the development fallback; no request ever creates an account. The consent and device pages (`routers/mcp_consent_page.py`, server-rendered, no script, in the brand, under a CSP that allows only their own stylesheet by hash) check the same passwords, so the CLI's sign-in, the console's and MCP connections go through them; a web app's `POST /mcp/oauth/consent` checks none (`complete_consent(password_checked=False)`), so it may never approve a first-party or unknown client. There is no sign-up and no email: the owner (`salli-server setup`) adds members and resets passwords. `tax:activate` follows from how the caller signed in (`application/permissions.py`).
+
+OAuth (`McpOAuthService`): every approval starts a **grant** (`oauth_grants`, core_0021) that its tokens belong to through every refresh; a rotated refresh token presented again revokes the whole grant, for every client; revoking any token (`/mcp/oauth/revoke`) revokes its grant. Two first-party clients are seeded: `salli-cli` (loopback redirect, any port) and `salli-console`, whose one redirect, `{SALLI_PUBLIC_URL}/console/callback`, is computed from the setting and matched exactly, which signs in to the API only, only where the public URL is HTTPS or localhost, and whose grants end `SALLI_CONSOLE_SIGN_IN_HOURS` (12) after the password. A grant records `authenticated_at`; a client's `step_up_seconds` (300 for the console, none for the CLI) puts `tax:activate` behind a recent password check, and `require_permission` (and token creation) answer a stale one with a 403 `/problems/step-up-required` problem (`max_age`), sending the person through the sign-in page again (`prompt=login`). `GET`/`DELETE /v1/auth/sign-ins` list and end every way in (sessions and the API's grants; MCP connections stay under `/v1/mcp/connections`). API responses carry `Cache-Control: no-store`. `tests/contract/test_auth_is_our_own.py` keeps the auth provider Salli used before out of the code and docs.
 
 ### Self-hosting
 

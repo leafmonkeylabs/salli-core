@@ -352,6 +352,20 @@ describe('using the stored sign-in', () => {
     expect(after?.refresh_token).not.toBe(before?.refresh_token);
   });
 
+  it('refreshes once when two commands find the token expired together', async () => {
+    // Salli ends a sign-in whose refresh token is used twice: two commands
+    // refreshing at once must not both use it.
+    await startMock();
+    expect((await run(['login', '--server', mock.url])).code).toBe(0);
+    // The server ends the access token; three commands find out at once.
+    mock.accessTokens.clear();
+    const results = await Promise.all([run(['whoami', '--json']), run(['whoami', '--json']), run(['whoami', '--json'])]);
+    for (const result of results) expect(result.code, result.stderr).toBe(0);
+    const refreshes = mock.requestsTo('POST', '/mcp/oauth/token').filter((r) => r.form?.grant_type === 'refresh_token');
+    // One refreshed; the others waited for it and took its new tokens.
+    expect(refreshes).toHaveLength(1);
+  });
+
   it('exits 3 when the session can no longer be refreshed', async () => {
     await startMock();
     await run(['login', '--server', mock.url]);

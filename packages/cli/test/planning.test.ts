@@ -28,6 +28,22 @@ const run = (args: string[], options: Partial<RunOptions> = {}) =>
 const lastBody = (path: string) => mock.data.bodies.filter((b) => b.path.startsWith(path)).at(-1)?.body;
 
 describe('money on the wire', () => {
+  it("reads amounts in the comma-decimal locale set for it, and only that one", async () => {
+    const de = { env: { SALLI_LOCALE: 'de-DE' } };
+    const added = await run(['debts', 'add', 'Store card', '--balance', '1.234,50', '--apr', '18,5%', '--minimum', '25'], de);
+    expect(added.code, added.stderr).toBe(0);
+    expect(lastBody('/v1/debt/')).toEqual({ name: 'Store card', principal: '1234.50', apr: '0.185', minimum_payment: '25' });
+
+    // A thousand in German, a little over one in the API's format: refused.
+    const ambiguous = await run(['debts', 'add', 'Loan', '--balance', '1.234', '--apr', '5%', '--minimum', '25'], de);
+    expect(ambiguous.code).toBe(2);
+    expect(ambiguous.stderr).toContain('--balance');
+
+    // Without a locale set, the machine's own never changes what is read.
+    const plain = await run(['debts', 'add', 'Loan', '--balance', '1.234,50', '--apr', '5%', '--minimum', '25']);
+    expect(plain.code).toBe(2);
+  });
+
   it('sends every amount as the decimal string typed, never a JSON number', async () => {
     await run(['debts', 'add', 'Store card', '--balance', '1,234.50', '--apr', '18%', '--minimum', '25']);
     expect(lastBody('/v1/debt/')).toEqual({ name: 'Store card', principal: '1234.50', apr: '0.18', minimum_payment: '25' });

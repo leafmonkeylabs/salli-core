@@ -91,10 +91,24 @@
             }
           },
           "401": {
-            "description": "The email and password didn't match (which, is not said)"
+            "description": "The email and password didn't match (which, is not said)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "Too many failed sign-ins; `Retry-After` says when to try again"
+            "description": "Too many failed sign-ins; `Retry-After` says when to try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -102,45 +116,6 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "List Sessions",
-        "description": "Your live sessions, newest first.",
-        "operationId": "auth.sessions.list",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Session"
-                  },
-                  "title": "Response Auth.Sessions.List"
                 }
               }
             }
@@ -188,14 +163,55 @@
         ]
       }
     },
-    "/v1/auth/sessions/{session_id}": {
+    "/v1/auth/sign-ins": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List Sign Ins",
+        "description": "Every way you are signed in, newest first: your sessions, the salli\nCLI on each machine, the console in each browser tab, and any other\napplication signed in to the API as you. AI connections over MCP are\nlisted at `GET /v1/mcp/connections`, personal access tokens at\n`GET /v1/tokens`.",
+        "operationId": "auth.signIns.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SignIn"
+                  },
+                  "type": "array",
+                  "title": "Response Auth.Signins.List"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/auth/sign-ins/{sign_in_id}": {
       "delete": {
         "tags": [
           "auth"
         ],
-        "summary": "Revoke Session",
-        "description": "End one of your sessions.",
-        "operationId": "auth.sessions.revoke",
+        "summary": "Revoke Sign In",
+        "description": "End one of your sign-ins, this one included: a session, or an OAuth\nsign-in with every token it holds.",
+        "operationId": "auth.signIns.revoke",
         "security": [
           {
             "HTTPBearer": []
@@ -203,12 +219,12 @@
         ],
         "parameters": [
           {
-            "name": "session_id",
+            "name": "sign_in_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Session Id"
+              "title": "Sign In Id"
             }
           }
         ],
@@ -269,10 +285,24 @@
             }
           },
           "403": {
-            "description": "The current password is wrong, or this sign-in may not change it"
+            "description": "The current password is wrong, or this sign-in may not change it",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "Too many failed attempts; `Retry-After` says when to try again"
+            "description": "Too many failed attempts; `Retry-After` says when to try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -2489,7 +2519,7 @@
           "tax"
         ],
         "summary": "Activate Version",
-        "description": "Make this the version Salli computes with for its jurisdiction and\nyear, superseding the active one. Needs `tax:activate`, which only the\nuser's own sign-ins hold (the app, the salli CLI, and a personal access\ntoken made with it): 403 for an AI connector, any other application, or\na token made without it. 409 unless it passes validation (run again).",
+        "description": "Make this the version Salli computes with for its jurisdiction and\nyear, superseding the active one. Needs `tax:activate`, which only the\nuser's own sign-ins hold (a session, the salli CLI, the console within\nfive minutes of its password check, and a personal access token made\nwith it): 403 for an AI connector, any other application, or a token made\nwithout it, and a `step-up-required` problem for a console sign-in whose\npassword check is older. 409 unless it passes validation (run again).",
         "operationId": "tax.ruleSets.versions.activate",
         "security": [
           {
@@ -2523,6 +2553,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaxRuleSetVersion"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This sign-in doesn't hold `tax:activate`; `/problems/step-up-required` when signing in again on Salli's page first would give it (the console, more than five minutes after the password)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4228,7 +4268,7 @@
           "statements"
         ],
         "summary": "List Statements",
-        "description": "Statements this user has uploaded, newest first.\n\nThese rows were always persisted — nothing exposed them, so the mobile app\ntold users a statement history \"isn't tracked by the server yet\".",
+        "description": "Statements this user has uploaded, newest first.\n\nEvery import is kept, so a client can show the history of what was\nuploaded.",
         "operationId": "statements.list",
         "security": [
           {
@@ -9549,7 +9589,7 @@
           "mcp-oauth"
         ],
         "summary": "Set Mcp Enabled",
-        "description": "No plan gate: MCP is available on every tier, Free included.",
+        "description": "Switch MCP on or off for yourself: your choice alone, open to every\naccount.",
         "operationId": "mcp.enabled.set",
         "requestBody": {
           "content": {
@@ -9655,6 +9695,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NewPersonalAccessToken"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This sign-in may not make it; `/problems/step-up-required` when signing in again on Salli's page first would let it",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -11030,7 +11080,14 @@
             }
           },
           "404": {
-            "description": "An account, a debt or a holding a change names is not one of yours"
+            "description": "An account, a debt or a holding a change names is not one of yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -11090,7 +11147,14 @@
             }
           },
           "404": {
-            "description": "An account, a debt or a holding a change names is not one of yours"
+            "description": "An account, a debt or a holding a change names is not one of yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -11239,6 +11303,7 @@
           "mcp-oauth"
         ],
         "summary": "Authorize",
+        "description": "Start a sign-in (authorization code with PKCE, S256 only). `prompt=login`\nor a `max_age` asks the person to confirm it's them again (OIDC; RFC 9470\nstep-up), as the console does before activating tax rules: the sign-in\npage says so. It checks the password every time regardless.",
         "operationId": "oauth.authorize",
         "parameters": [
           {
@@ -11327,6 +11392,38 @@
                 }
               ],
               "title": "State"
+            }
+          },
+          {
+            "name": "prompt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prompt"
+            }
+          },
+          {
+            "name": "max_age",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Age"
             }
           }
         ],
@@ -11420,6 +11517,7 @@
           "mcp-oauth"
         ],
         "summary": "Consent",
+        "description": "A deployment's own consent screen, deciding for the person it has\nsigned in. It checks no password, so it may approve an AI client or\nanother application it knows, never one of Salli's own (the CLI, the\nconsole):\nthose sign in on Salli's page, with the password, so no token can be\nturned into a first-party sign-in that holds more than it does.",
         "operationId": "oauth.consent",
         "requestBody": {
           "content": {
@@ -11719,7 +11817,14 @@
             }
           },
           "404": {
-            "description": "Not one of your principles, or not one of your accounts"
+            "description": "Not one of your principles, or not one of your accounts",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -11806,7 +11911,14 @@
             }
           },
           "404": {
-            "description": "Not one of your principles, or not one of your accounts"
+            "description": "Not one of your principles, or not one of your accounts",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -11882,7 +11994,14 @@
             }
           },
           "404": {
-            "description": "Not one of your principles, or not one of your accounts"
+            "description": "Not one of your principles, or not one of your accounts",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -11943,7 +12062,14 @@
             }
           },
           "404": {
-            "description": "Not one of your principles, or not one of your accounts"
+            "description": "Not one of your principles, or not one of your accounts",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -12036,7 +12162,14 @@
             }
           },
           "404": {
-            "description": "No template has this id"
+            "description": "No template has this id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -12091,7 +12224,14 @@
             }
           },
           "404": {
-            "description": "No template has this id"
+            "description": "No template has this id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -12186,7 +12326,14 @@
             }
           },
           "404": {
-            "description": "Not one of your decisions, or an account or debt that isn't yours"
+            "description": "Not one of your decisions, or an account or debt that isn't yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -12364,7 +12511,14 @@
             }
           },
           "404": {
-            "description": "Not one of your decisions, or an account or debt that isn't yours"
+            "description": "Not one of your decisions, or an account or debt that isn't yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -12426,7 +12580,14 @@
             }
           },
           "404": {
-            "description": "Not one of your decisions, or an account or debt that isn't yours"
+            "description": "Not one of your decisions, or an account or debt that isn't yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -12497,7 +12658,14 @@
             }
           },
           "404": {
-            "description": "Not one of your decisions, or an account or debt that isn't yours"
+            "description": "Not one of your decisions, or an account or debt that isn't yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -12568,7 +12736,14 @@
             }
           },
           "404": {
-            "description": "Not one of your decisions, or an account or debt that isn't yours"
+            "description": "Not one of your decisions, or an account or debt that isn't yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -14013,16 +14188,13 @@
             "title": "Account Id"
           },
           "allocated_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Allocated Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Allocated Amount",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
@@ -16132,7 +16304,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Limit Amount",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "examples": [
               "1234.50"
             ]
@@ -18310,7 +18482,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Principal",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "examples": [
               "1234.50"
             ]
@@ -18327,7 +18499,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Minimum Payment",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "examples": [
               "1234.50"
             ]
@@ -18371,7 +18543,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -18402,7 +18574,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -21901,7 +22073,12 @@
           "target_monthly_expenses": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -22350,17 +22527,14 @@
             "default": "custom"
           },
           "target_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Target Amount",
-            "default": "0"
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "default": "0",
+            "examples": [
+              "1234.50"
+            ]
           },
           "target_date": {
             "anyOf": [
@@ -22412,11 +22586,12 @@
           "target_amount": {
             "anyOf": [
               {
-                "type": "number"
-              },
-              {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
+                "examples": [
+                  "1234.50"
+                ]
               },
               {
                 "type": "null"
@@ -22957,7 +23132,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Cost Basis",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "default": "0",
             "examples": [
               "1234.50"
@@ -22967,7 +23142,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Current Value",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "default": "0",
             "examples": [
               "1234.50"
@@ -23395,7 +23570,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23411,7 +23586,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23427,7 +23602,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23583,7 +23758,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23599,7 +23774,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23615,7 +23790,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23750,7 +23925,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23766,7 +23941,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -23893,16 +24068,13 @@
             "title": "Name"
           },
           "amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "currency": {
             "anyOf": [
@@ -23918,11 +24090,11 @@
           "fx_rate": {
             "anyOf": [
               {
-                "type": "number"
-              },
-              {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
               },
               {
                 "type": "null"
@@ -24838,6 +25010,17 @@
             "examples": [
               "USD"
             ]
+          },
+          "console_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Console Url"
           }
         },
         "type": "object",
@@ -24846,7 +25029,8 @@
           "server_version",
           "extensions",
           "oauth",
-          "default_currency"
+          "default_currency",
+          "console_url"
         ],
         "title": "Meta"
       },
@@ -25617,6 +25801,10 @@
           "cli_client_id": {
             "type": "string",
             "title": "Cli Client Id"
+          },
+          "console_client_id": {
+            "type": "string",
+            "title": "Console Client Id"
           }
         },
         "type": "object",
@@ -25629,7 +25817,8 @@
           "device_authorization_endpoint",
           "api_resource",
           "device_verification_uri",
-          "cli_client_id"
+          "cli_client_id",
+          "console_client_id"
         ],
         "title": "OAuthInfo"
       },
@@ -25645,17 +25834,14 @@
             "default": "custom"
           },
           "target_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Target Amount",
-            "default": "0"
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "default": "0",
+            "examples": [
+              "1234.50"
+            ]
           },
           "target_date": {
             "anyOf": [
@@ -25749,17 +25935,14 @@
             "default": ""
           },
           "goal_target_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Goal Target Amount",
-            "default": "0"
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "default": "0",
+            "examples": [
+              "1234.50"
+            ]
           },
           "goal_target_year": {
             "type": "string",
@@ -25907,16 +26090,13 @@
             "title": "Type"
           },
           "amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Amount"
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
           },
           "currency": {
             "anyOf": [
@@ -25932,11 +26112,11 @@
           "fx_rate": {
             "anyOf": [
               {
-                "type": "number"
-              },
-              {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
               },
               {
                 "type": "null"
@@ -26611,7 +26791,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Coverage Amount",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "examples": [
               "1234.50"
             ]
@@ -26620,7 +26800,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Premium Amount",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "examples": [
               "1234.50"
             ]
@@ -26686,7 +26866,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -26702,7 +26882,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -31340,61 +31520,6 @@
         ],
         "title": "SensitivityReturns"
       },
-      "Session": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "user_agent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Agent"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "last_used_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Used At"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Expires At"
-          },
-          "current": {
-            "type": "boolean",
-            "title": "Current"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "user_agent",
-          "created_at",
-          "last_used_at",
-          "expires_at",
-          "current"
-        ],
-        "title": "Session"
-      },
       "SetAiModels": {
         "properties": {
           "fast": {
@@ -31514,6 +31639,92 @@
           "tags"
         ],
         "title": "SetPostingTagsRequest"
+      },
+      "SignIn": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "session",
+              "cli",
+              "console",
+              "app"
+            ],
+            "title": "Kind"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "current": {
+            "type": "boolean",
+            "title": "Current"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "client_name",
+          "user_agent",
+          "started_at",
+          "last_used_at",
+          "expires_at",
+          "current"
+        ],
+        "title": "SignIn",
+        "description": "One way you are signed in: a session, or an OAuth sign-in to the API."
       },
       "SignInRequest": {
         "properties": {
@@ -32318,7 +32529,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Amount",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "examples": [
               "1234.50"
             ]
@@ -32390,7 +32601,7 @@
               {
                 "type": "string",
                 "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string, read exactly; a JSON number goes through a float.",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
                 "examples": [
                   "1234.50"
                 ]
@@ -32722,7 +32933,7 @@
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "title": "Target Amount",
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
             "examples": [
               "1234.50"
             ]
@@ -35970,6 +36181,18 @@
             ],
             "default": null,
             "title": "Request Id"
+          },
+          "max_age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Age"
           }
         },
         "required": [

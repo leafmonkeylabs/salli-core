@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from salli.domain.accounting.models import AccountType, Source
 from salli.domain.jurisdiction import MAX_TAX_ID_LENGTH
 from salli.domain.risk.models import RiskCategory
-from salli.interfaces.api.contract import Amount, CountryCode, CurrencyCode
+from salli.interfaces.api.contract import Amount, AmountIn, CountryCode, CurrencyCode, DecimalIn
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
@@ -62,7 +62,8 @@ class OnboardingRequest(BaseModel):
     ] = []  # ["employment","freelance","rental","interest","foreign","dividends"]
     # Goals & motivation (powers the Wealth Advisor)
     primary_goal: str = ""  # financial_independence | retirement | home | emergency_fund | debt_free | wealth_growth
-    goal_target_amount: Decimal = Decimal(0)  # optional total target, in the base currency
+    #: An optional total target, in the base currency.
+    goal_target_amount: AmountIn = Decimal(0)
     goal_target_year: str = ""  # optional YYYY
     risk_appetite: str = ""  # conservative | balanced | aggressive
     motivation: str = ""  # free text — why this matters to them
@@ -200,16 +201,12 @@ class OpeningBalanceItem(BaseModel):
     code: str
     name: str
     type: str  # asset|liability
-    # Decimal, not float: these post straight into the ledger, and that ledger
-    # is the tax base. The service already converts defensively via
-    # Decimal(str(...)), so this is not a live bug — but a client that sends an
-    # exact decimal string should have it stay exact, and the contract should
-    # say what the project's own money invariant requires.
-    amount: Decimal
+    #: A decimal string: these post straight into the ledger, the tax base.
+    amount: AmountIn
     #: Defaults to the base currency. Another currency is converted at
     #: `fx_rate` (units of base per unit), or today's rate when omitted.
     currency: str | None = None
-    fx_rate: Decimal | None = None
+    fx_rate: DecimalIn | None = None
 
 
 class BalanceSheetRequest(BaseModel):
@@ -235,13 +232,13 @@ async def declare_balance_sheet(
 class IncomeItem(BaseModel):
     code: str
     name: str
-    amount: Decimal
+    amount: AmountIn
     #: What `amount` is denominated in; defaults to the base currency. Foreign
     #: income is the case that needs it: booking it at face value in the base
     #: currency misstates it by the exchange rate. Converted at `fx_rate`
     #: (units of base per unit), or today's rate when omitted.
     currency: str | None = None
-    fx_rate: Decimal | None = None
+    fx_rate: DecimalIn | None = None
     deposit_account_code: str | None = None
     deposit_account_name: str | None = None
 
@@ -305,9 +302,9 @@ async def submit_risk_questionnaire(
 class OnboardingGoalItem(BaseModel):
     name: str
     kind: str = "custom"
-    # Decimal, not float — money. `current_amount` is gone: goal progress is
-    # derived from allocations against real accounts, never declared up front.
-    target_amount: Decimal = Decimal(0)
+    # `current_amount` is gone: goal progress is derived from allocations
+    # against real accounts, never declared up front.
+    target_amount: AmountIn = Decimal(0)
     target_date: str | None = None
     priority: int = 2
 

@@ -36,7 +36,7 @@ from salli.application.services.insurance_service import InsuranceService
 from salli.application.services.ledger_service import LedgerService
 from salli.application.services.llm_credential_service import LlmCredentialService
 from salli.application.services.login_service import LoginService
-from salli.application.services.mcp_oauth_service import McpOAuthService
+from salli.application.services.mcp_oauth_service import CONSOLE_CALLBACK_PATH, McpOAuthService
 from salli.application.services.notification_service import NotificationService
 from salli.application.services.onboarding_service import OnboardingService
 from salli.application.services.parsing_service import ParsingService
@@ -53,7 +53,7 @@ from salli.application.services.tax_service import TaxService
 from salli.application.services.template_service import TemplateService
 from salli.application.services.user_profile_service import UserProfileService
 from salli.application.unit_of_work import UnitOfWork
-from salli.config import Settings, auth_can_hold_secrets
+from salli.config import Settings, auth_can_hold_secrets, is_secure_origin
 from salli.extensions import (
     Contributions,
     ExtensionContext,
@@ -270,6 +270,13 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         auth_code_ttl_seconds=settings.mcp_auth_code_ttl_seconds,
         access_token_ttl_seconds=settings.mcp_access_token_ttl_seconds,
         refresh_token_ttl_seconds=settings.mcp_refresh_token_ttl_seconds,
+        # The console's client: its one redirect (none while it is off), how
+        # long its sign-ins last, and whether a browser may use it here.
+        console_redirect_uri=(
+            f"{public_url}{CONSOLE_CALLBACK_PATH}" if settings.salli_console else None
+        ),
+        console_sign_in_hours=settings.salli_console_sign_in_hours,
+        console_secure=is_secure_origin(public_url),
     )
     data_portability = DataPortabilityService(
         uow_factory,

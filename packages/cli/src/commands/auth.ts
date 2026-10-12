@@ -1,12 +1,12 @@
 /**
- * salli login | logout | whoami
+ * salli login | logout | whoami | ui
  */
 import type { Command } from '@commander-js/extra-typings';
 import { authMe, type AuthIdentity } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { identityOf } from '../auth/credentials';
 import { interactiveLogin, resolveLoginTarget, revokeCredentials, saveLoginContext, serverMeta, tokenLogin } from '../auth/login';
-import { UsageError } from '../errors';
+import { CliError, UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { readAllStdin } from '../util/stdin';
 
@@ -111,6 +111,45 @@ Examples:
           if (app.runtime.env.SALLI_TOKEN) app.out.warn('SALLI_TOKEN is still set in your environment.');
         },
       });
+    });
+
+  program
+    .command('ui')
+    .description("Open Salli's console in your browser")
+    .option('--no-open', 'Print its address only (over SSH, or to type into a phone)')
+    .addHelpText(
+      'after',
+      `
+Opens the console of the current context's server (or --server) in your
+browser, and prints its address. The browser signs in on its own, on the
+server's sign-in page: nothing of this sign-in is handed to it. The console
+needs HTTPS, or the server's own machine at localhost.
+
+Examples:
+  $ salli ui
+  $ salli ui --no-open
+  $ salli ui --server https://money.example.org`,
+    )
+    .action(async (opts) => {
+      const ctx = await app.context();
+      const meta = await serverMeta(app, ctx.server);
+      const url = meta.console_url;
+      if (!url) {
+        throw new CliError(`${ctx.server} serves no console.`, {
+          kind: 'no-console',
+          hint: 'Upgrade the server, and check SALLI_CONSOLE is not false (docs/self-host.md).',
+        });
+      }
+      const opened = opts.open ? await app.runtime.openUrl(url) : false;
+      app.out.emit(
+        { console_url: url, opened },
+        {
+          human: () => {
+            app.out.line(opened ? `Opening ${url}` : url);
+            if (opts.open && !opened) app.out.note('No browser could be opened: open the address above.');
+          },
+        },
+      );
     });
 
   program

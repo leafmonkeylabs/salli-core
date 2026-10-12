@@ -25,12 +25,12 @@ USER = "test-user-1"
 TODAY = "2026-03-20"
 STREAMING = {
     "name": "Streaming",
-    "amount": 2990,
+    "amount": "2990",
     "frequency": "monthly",
     "next_due_date": "2026-01-05",
     "account_id": "streaming",
 }
-GYM = {"name": "Gym", "amount": 5000, "frequency": "monthly", "next_due_date": "2026-03-01"}
+GYM = {"name": "Gym", "amount": "5000", "frequency": "monthly", "next_due_date": "2026-03-01"}
 
 
 class _Today(datetime.date):
@@ -115,7 +115,7 @@ async def test_an_update_answers_that_it_was_applied(client, mock_services, uow)
     subscription_id = await _create(client, STREAMING)
 
     r = await client.patch(
-        f"/v1/subscriptions/{subscription_id}", json={"amount": 3490}, headers=AUTH
+        f"/v1/subscriptions/{subscription_id}", json={"amount": "3490"}, headers=AUTH
     )
     assert (r.status_code, r.json()) == (200, {"updated": True})
     subscription = (await client.get(f"/v1/subscriptions/{subscription_id}", headers=AUTH)).json()

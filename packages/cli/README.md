@@ -72,7 +72,11 @@ salli login --server https://salli.example.com
 salli login --device                         # approve with a code on another device
 salli login --token -  < token.txt           # a personal access token, from stdin
 salli whoami
+salli sign-ins list                          # every way you are signed in
+salli sign-ins revoke 3fa85f64               # end one
 salli logout
+salli ui                                     # the console, in your browser
+salli ui --no-open                           # its address, to open elsewhere
 ```
 
 `salli login` reads the server's sign-in endpoints from `/v1/meta` and signs in
@@ -112,6 +116,21 @@ Linux), which is what a standalone binary for another platform falls back to.
 
 `SALLI_TOKEN` overrides whatever is stored, for CI and scripts. A stored token is
 only ever sent to the server that issued it.
+
+Each refresh gives the CLI a new refresh token, and the server ends a sign-in
+whose refresh token is used twice. Two `salli` commands that need a refresh at
+the same moment take turns (a lock beside the config), so they never use one
+twice.
+
+`salli sign-ins list` shows every way you are signed in: sessions an app
+started with your password, the CLI on each machine and the console in each
+browser tab, with when each began, was last used and ends. `salli sign-ins
+revoke <id>` ends one. AI connections are under `salli mcp`.
+
+`salli ui` opens the server's console (the address `/v1/meta` gives as
+`console_url`) in your browser and prints it; `--no-open` only prints it, for
+SSH or to type into a phone. The CLI hands the browser nothing: the console
+signs in itself, on the server's sign-in page.
 
 ## Contexts
 
@@ -270,7 +289,8 @@ agent running commands can't answer the prompt, so it can't activate. It
 defaults to the newest proposed version.
 
 The server checks too. Activating needs the `tax:activate` permission, which
-your own sign-ins hold (`salli login`, or a session from your password), and a personal access token
+your own sign-ins hold (`salli login`, a session from your password, or the
+console just after you enter your password), and a personal access token
 only if you made it with `--allow tax:activate`. AI connectors (MCP) never hold
 it. If the server refuses, `activate` says why and what to do.
 
@@ -358,7 +378,7 @@ thousands separators only). Rates take a fraction or a percentage: `0.18` or `18
 |---|---|
 | `output` | Default output format: `table`, `json`, `ndjson`, `csv` |
 | `color` | `auto` (default), `always`, `never` |
-| `locale` | For amounts and dates, e.g. `en-GB`; default: the system's |
+| `locale` | For amounts and dates, e.g. `en-GB`; default: the system's. Set to a comma-decimal locale (`de-DE`), amounts you type read its way too: `1.234,56`. Never from the system's own, so a script's amounts don't change meaning; `1.234`, which could be either, is refused there. |
 
 | Variable | |
 |---|---|

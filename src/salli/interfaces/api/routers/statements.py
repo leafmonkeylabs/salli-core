@@ -197,8 +197,8 @@ async def list_statements(
     """
     Statements this user has uploaded, newest first.
 
-    These rows were always persisted — nothing exposed them, so the mobile app
-    told users a statement history "isn't tracked by the server yet".
+    Every import is kept, so a client can show the history of what was
+    uploaded.
     """
     return BankStatementList.model_validate(
         {"statements": await svc.parsing.list_statements(user_id, limit)}

@@ -14,6 +14,7 @@ import {
   type TokenProvider,
 } from '@leafmonkeylabs/salli-sdk';
 import { parseCredentials, serializeCredentials, type StoredCredentials } from './auth/credentials';
+import { refreshLockPath, withRefreshLock } from './auth/refresh-lock';
 import { openSecretStore, type SecretStore, type StoreChoice } from './auth/store';
 import {
   ConfigStore,
@@ -27,6 +28,7 @@ import {
   type ContextEntry,
   type OutputFormat,
 } from './config/config';
+import { setAmountLocale } from './commands/shared';
 import { IncompatibleServerError, NotSignedInError, UsageError } from './errors';
 import { createColors, shouldColor } from './output/colors';
 import { Output } from './output/output';
@@ -115,6 +117,10 @@ export class App {
     const { env, stdout, stderr } = this.runtime;
     const decision = { flag: this.globals.color !== false, setting: color, env };
     const columns = parseWholeNumber(env.COLUMNS);
+    // Amounts typed in a comma-decimal locale read as that locale writes
+    // them, but only one set on purpose: never the machine's own, so a
+    // script's amounts mean the same wherever it runs.
+    setAmountLocale(env.SALLI_LOCALE || locale || undefined);
     return new Output(this.runtime, {
       format,
       colors: createColors(shouldColor(stdout, decision)),
@@ -257,6 +263,9 @@ export class App {
         const latest = await this.loadCredentials(ctx.name);
         return latest?.kind === 'oauth' && latest.server === credentials.server ? latest.tokens : undefined;
       },
+      // Another salli refreshing the same sign-in at the same moment would
+      // use the refresh token twice, and the server would end the sign-in.
+      lock: (refresh) => withRefreshLock(refreshLockPath(this.configStore.dir, ctx.name), refresh),
     });
     return { provider, source: 'oauth', credentials };
   }

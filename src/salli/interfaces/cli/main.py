@@ -9,8 +9,8 @@ Enabled extensions add their own command groups (`ExtensionSpec.cli_groups`).
 
 What a person does with their own finances is not here. That is the `salli`
 command line (packages/cli, `npm install --global @leafmonkeylabs/salli`), a
-client of the API like the web and mobile apps, so every surface goes through
-the same routes and the same checks.
+client of the API like the console, so every surface goes through the same
+routes and the same checks.
 
 `app`, `cli()` and the helpers in `support` are the stable surface an
 extension's commands and tests build on.

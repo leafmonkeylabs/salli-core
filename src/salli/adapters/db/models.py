@@ -529,8 +529,8 @@ class AgentSessionORM(Base):
     user_id: Mapped[str] = mapped_column(String(36), nullable=False)
     thread_id: Mapped[str] = mapped_column(String(36), nullable=False)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    # Which agent persona this thread belongs to ("scrooge" = Pro Mode's
-    # existing Salli AI, "buddy" = mobile Buddy Mode) — keeps the two modes'
+    # Which agent persona this thread belongs to ("scrooge" = the Salli AI
+    # persona, "buddy" = the warmer Buddy Mode) — keeps the two modes'
     # session lists from merging into one, since threads are never shared
     # between personas.
     persona: Mapped[str] = mapped_column(String(20), nullable=False, default="scrooge")
@@ -1481,6 +1481,40 @@ class OAuthClientORM(Base):
     first_party: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # How recent the password check behind a first-party sign-in must be for
+    # its powerful permissions (`tax:activate`): 300 for the console, none
+    # for the CLI (application/permissions.py). Seeded, never registered.
+    step_up_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+
+class OAuthGrantORM(Base):
+    """One sign-in: what a person approved once, on the consent or device
+    page, and every token issued from it since. Refreshing rotates the tokens
+    and keeps the grant (core_0021). Revoking the grant ends them all; a
+    rotated refresh token presented again revokes it (reuse detection).
+
+    `authenticated_at` is when the person's password was checked, carried
+    through every refresh: the console's powerful permissions need it to be
+    recent. `expires_at` is an absolute end, however often it refreshes (the
+    console's, SALLI_CONSOLE_SIGN_IN_HOURS after the sign-in); none for other
+    clients, whose sign-ins last while their refresh tokens do."""
+
+    __tablename__ = "oauth_grants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    client_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("oauth_clients.client_id"), nullable=False
+    )
+    scope: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    resource: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -1501,6 +1535,8 @@ class OAuthAuthorizationCodeORM(Base):
     code_challenge: Mapped[str] = mapped_column(String(128), nullable=False)
     resource: Mapped[str | None] = mapped_column(String(500), nullable=True)
     scope: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    # When the person's password was checked to approve it.
+    authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -1516,6 +1552,9 @@ class OAuthAccessTokenORM(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    grant_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("oauth_grants.id"), nullable=False, index=True
+    )
     client_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("oauth_clients.client_id"), nullable=False
     )
@@ -1530,15 +1569,18 @@ class OAuthAccessTokenORM(Base):
 
 
 class OAuthRefreshTokenORM(Base):
-    """Also stored hashed. Rotated on use — each refresh mints a new refresh
-    token and revokes this one, so a stolen-then-replayed refresh token is
-    detectable (both the old and new token being used is a signal to revoke
-    the whole chain, though v1 only implements the rotation half)."""
+    """Also stored hashed. Rotated on use: each refresh mints a new refresh
+    token in the same grant and revokes this one, and a revoked refresh token
+    presented again revokes its whole grant (a thief and the person can't
+    both keep going)."""
 
     __tablename__ = "oauth_refresh_tokens"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    grant_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("oauth_grants.id"), nullable=False, index=True
+    )
     access_token_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("oauth_access_tokens.id"), nullable=False
     )
@@ -1572,6 +1614,10 @@ class OAuthDeviceCodeORM(Base):
     # pending → approved | denied; approved → consumed once tokens are issued.
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # When the person's password was checked to approve it.
+    authenticated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import hmac
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from salli.application.permissions import Actor, permissions_for
+from salli.application.permissions import Actor, needs_step_up, permissions_for
 from salli.application.ports import IdentityProvider
 from salli.application.services.llm_credential_service import ResolvedCredentials
 from salli.application.services.login_service import is_session_token
@@ -52,17 +53,20 @@ class Principal:
     (`POST /v1/auth/sessions`; `session_id` says which), or a token an
     extension's identity provider vouches for (application/ports.py,
     `IdentityProvider`).
-    `oauth`: a Salli OAuth token issued for the REST API (the `salli` CLI, or
-    another client: `first_party_client` says which).
+    `oauth`: a Salli OAuth token issued for the REST API (the `salli` CLI,
+    the console, or another client: `first_party_client` says which;
+    `grant_id` is its sign-in).
     `pat`: a personal access token (scripts, CI).
     `dev`: the local-development fallback where the token is the user id.
 
     What the caller may do beyond reading and writing the user's data follows
     from how they signed in (application/permissions.py), and is derived
     there and nowhere else: for a personal access token, from the permissions
-    it stores (`granted`); for any other sign-in, from the method and client.
-    There is no way to build a Principal whose permissions disagree with its
-    sign-in.
+    it stores (`granted`); for any other sign-in, from the method and client,
+    and for a client that wants a recent password check for its powerful
+    permissions (the console), from how long ago it was (`sign_in_age`,
+    against `fresh_within`). There is no way to build a Principal whose
+    permissions disagree with its sign-in.
     """
 
     user_id: str
@@ -77,11 +81,34 @@ class Principal:
     granted: frozenset[str] = frozenset()
     #: For a Salli `session`: which one (so it can sign itself out).
     session_id: str | None = None
+    #: For `oauth`: the grant (sign-in) the token belongs to.
+    grant_id: str | None = None
+    #: For `oauth`: how long ago the password behind it was checked, when
+    #: the request came in.
+    sign_in_age: timedelta | None = None
+    #: For `oauth`: how recent its client wants that check to be for
+    #: powerful permissions (the console's 300 seconds); None: no limit.
+    fresh_within: timedelta | None = None
 
     @property
     def permissions(self) -> frozenset[str]:
         return permissions_for(
-            self.method, first_party_client=self.first_party_client, granted=self.granted
+            self.method,
+            first_party_client=self.first_party_client,
+            granted=self.granted,
+            sign_in_age=self.sign_in_age,
+            fresh_within=self.fresh_within,
+        )
+
+    def needs_step_up(self, permission: str) -> bool:
+        """Whether signing in again, now, would give this sign-in `permission`."""
+        return needs_step_up(
+            self.method,
+            permission,
+            first_party_client=self.first_party_client,
+            granted=self.granted,
+            sign_in_age=self.sign_in_age,
+            fresh_within=self.fresh_within,
         )
 
     def actor(self) -> Actor:
@@ -91,7 +118,31 @@ class Principal:
             first_party_client=self.first_party_client,
             name=self.client_name,
             granted=self.granted,
+            sign_in_age=self.sign_in_age,
+            fresh_within=self.fresh_within,
         )
+
+
+class StepUpRequired(Exception):
+    """A sign-in that would hold `permission` if its password check were
+    recent: the person must sign in again on Salli's own page first (RFC
+    9470's `insufficient_user_authentication`). A 403 problem of type
+    `/problems/step-up-required`, with `max_age` in seconds."""
+
+    def __init__(self, permission: str, max_age: int) -> None:
+        self.permission = permission
+        self.max_age = max_age
+        super().__init__(
+            f"{permission} needs your password, entered in the last "
+            f"{max_age // 60} minutes. Sign in again on Salli's sign-in page, then try again."
+        )
+
+
+def require_fresh(principal: Principal, permission: str) -> None:
+    """Raises StepUpRequired when `principal` lacks `permission` only
+    because its password check is too old."""
+    if principal.needs_step_up(permission) and principal.fresh_within is not None:
+        raise StepUpRequired(permission, int(principal.fresh_within.total_seconds()))
 
 
 def _refused(detail: str = "This token is invalid, expired, or has been revoked.") -> HTTPException:
@@ -140,12 +191,19 @@ async def get_principal(
         return Principal(session.user_id, None, "session", session_id=session.id)
     record = await services.mcp_oauth.verify_access_token(token, audience=API)
     if record is not None:
+        authenticated_at: datetime | None = record.get("authenticated_at")
+        step_up: int | None = record.get("client_step_up_seconds")
         return Principal(
             str(record["user_id"]),
             None,
             "oauth",
             first_party_client=bool(record.get("client_first_party")),
             client_name=record.get("client_name"),
+            grant_id=record.get("grant_id"),
+            sign_in_age=(
+                datetime.now(UTC) - authenticated_at if authenticated_at is not None else None
+            ),
+            fresh_within=timedelta(seconds=step_up) if step_up is not None else None,
         )
 
     provider = _identity_provider(services)
@@ -216,6 +274,7 @@ def require_permission(permission: str) -> Any:
     async def check(principal: CurrentPrincipal) -> None:
         if permission in principal.permissions:
             return
+        require_fresh(principal, permission)
         if principal.method == "pat":
             why = (
                 f"This personal access token wasn't made with {permission}. Make one that "
@@ -225,8 +284,9 @@ def require_permission(permission: str) -> Any:
         else:
             why = (
                 f"This sign-in doesn't hold {permission}. Only your own sign-in to Salli "
-                "(with your password, or the salli CLI) can do this, or a personal access "
-                "token you made with it; AI connectors and other applications never can."
+                "(with your password, the salli CLI, or the console just after your "
+                "password) can do this, or a personal access token you made with it; AI "
+                "connectors and other applications never can."
             )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=why)
 

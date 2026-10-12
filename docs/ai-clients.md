@@ -150,7 +150,8 @@ own, with their sources, replace the placeholders.
 There is no tool to activate rules. An agent researching tax law reads pages anyone
 can write, so activation needs a permission (`tax:activate`) that no AI connector's
 token ever holds: you activate with `salli tax rules activate` at your
-own terminal, after reviewing the changes, sources and examples. A personal access
+own terminal, after reviewing the changes, sources and examples (or in the
+console, which asks for your password again on Salli's own page first). A personal access
 token holds it only if you made it with `--allow tax:activate`, so don't give such a
 token to an agent. See [docs/taxrules.md](taxrules.md#who-may-activate-taxactivate).
 

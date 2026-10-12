@@ -22,7 +22,8 @@ from langchain_core.tools import tool
 
 # The authenticated user for the current agent run. Set per-request by AgentService
 # before the graph executes, so tools always act on the signed-in user's data —
-# the user_id is NEVER taken from the LLM (correctness + tenant isolation).
+# the user_id is NEVER taken from the LLM, so a run can only ever reach its own
+# person's books.
 # No default: a run that forgot to set it raises LookupError instead of
 # quietly acting on some fixed account.
 _current_user: contextvars.ContextVar[str] = contextvars.ContextVar("salli_current_user")

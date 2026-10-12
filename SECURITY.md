@@ -17,5 +17,8 @@ you updated until it's fixed.
 - Never set `SALLI_INSECURE_DEV_AUTH` outside local development.
 - If you expose the API beyond your machine, put it behind HTTPS (compose's
   `tls` profile) and set `SALLI_PUBLIC_URL` to its public URL.
-- [docs/self-host.md](docs/self-host.md#security) says how passwords, sessions
-  and sign-in throttling work.
+  The console signs in only over HTTPS, or at localhost on the server's own
+  machine.
+- [docs/self-host.md](docs/self-host.md#security) says how passwords, sessions,
+  refresh tokens (a reused one ends its sign-in), the console's headers and
+  sign-in throttling work.

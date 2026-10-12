@@ -138,8 +138,8 @@ function strategyView(app: App, s: FireStrategy): void {
           ? `${out.percent(s.real_return_conservative, 1)} / ${out.percent(s.real_return_base, 1)} / ${out.percent(s.real_return_growth, 1)} (conservative / base / growth, after inflation)`
           : undefined,
       ],
-      // A JSON number in the API (unlike every other amount), shown as sent.
-      ['Target spending', has(s.target_monthly_expenses) ? `${String(s.target_monthly_expenses)} a month` : undefined],
+      // In the base currency, as the decimal string the API sends.
+      ['Target spending', s.target_monthly_expenses ? `${s.target_monthly_expenses} a month` : undefined],
       ['Target age', str(s.target_age) || undefined],
     ]),
   );

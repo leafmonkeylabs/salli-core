@@ -350,13 +350,26 @@ agent is only as trustworthy as the agent. So activation needs the
 | A session: signing in with your email and password (`POST /v1/auth/sessions`) | yes |
 | The local-development sign-in | yes |
 | OAuth for the REST API, as Salli's own CLI (`salli-cli`, a first-party client the server knows), from any grant | yes |
+| OAuth for the REST API, as Salli's console (`salli-console`, first party too) | only within five minutes of the password check |
 | A personal access token | only if made with it |
 | OAuth for the REST API, as a client that registered itself | no |
 | OAuth for MCP (an AI connector), any client | never |
 
 A client that registers itself (RFC 7591) can call itself anything, so only a
 client the server seeded as first party counts; `/v1/meta` names the CLI's
-(`oauth.cli_client_id`). An MCP token is refused by the REST API altogether,
+(`oauth.cli_client_id`) and the console's (`oauth.console_client_id`).
+
+**The console asks for the password again.** A browser is a place agents now
+work, and a page showing rule sets an agent drafted from the open web is
+where injected script would aim. So a console sign-in holds `tax:activate`
+only within five minutes of the password check (`authenticated_at`, which a
+refresh carries forward, never renews). Later, activating, or making a
+personal access token with `tax:activate`, is refused with a 403 problem of
+type `/problems/step-up-required` (`max_age: 300`, and RFC 9470's
+`WWW-Authenticate: Bearer error="insufficient_user_authentication"`): the
+console sends the person through Salli's sign-in page again (`prompt=login`)
+and activates on return. An agent driving the browser would need the
+password typed on Salli's own page. An MCP token is refused by the REST API altogether,
 the MCP server has no activate tool, and the service checks the permission
 itself, so no route or tool that forgot to could activate. What a caller
 without it writes is recorded as written by an `agent`, with the client's

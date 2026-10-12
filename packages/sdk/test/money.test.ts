@@ -162,6 +162,40 @@ describe('normalizeAmountInput', () => {
     expect(normalizeAmountInput('1e3')).toBeUndefined();
     expect(normalizeAmountInput('')).toBeUndefined();
   });
+
+  it("reads a comma-decimal locale's marks, by rewriting the text", () => {
+    for (const locale of ['de-DE', 'fr-FR', 'es-ES', 'pt-BR']) {
+      expect(normalizeAmountInput('1234,56', { locale })).toBe('1234.56');
+      expect(normalizeAmountInput('12,5', { locale })).toBe('12.5');
+      expect(normalizeAmountInput(',5', { locale })).toBe('0.5');
+      expect(normalizeAmountInput('-0,01', { locale })).toBe('-0.01');
+      expect(normalizeAmountInput('1.234.567,891', { locale })).toBe('1234567.891');
+      expect(normalizeAmountInput('1\u202f234,56', { locale })).toBe('1234.56');
+      expect(normalizeAmountInput('1 234 567', { locale })).toBe('1234567');
+      // Digits a float can't hold come through exactly.
+      expect(normalizeAmountInput('9.007.199.254.740.993,01', { locale })).toBe('9007199254740993.01');
+      // The API's own format still reads as itself.
+      expect(normalizeAmountInput('1234.56', { locale })).toBe('1234.56');
+      expect(normalizeAmountInput('1234.567', { locale })).toBe('1234.567');
+    }
+    expect(normalizeAmountInput('1.234,56', { locale: 'de-DE' })).toBe('1234.56');
+  });
+
+  it('refuses what a comma-decimal locale makes ambiguous', () => {
+    const locale = 'de-DE';
+    // A thousand here, a little over one in the API's format.
+    expect(normalizeAmountInput('1.234', { locale })).toBeUndefined();
+    expect(normalizeAmountInput('1,234.56', { locale })).toBeUndefined();
+    expect(normalizeAmountInput('1.23,4', { locale })).toBeUndefined();
+    expect(normalizeAmountInput('1.234 567,8', { locale })).toBeUndefined(); // two kinds of group
+    expect(normalizeAmountInput('12,34,5', { locale })).toBeUndefined();
+  });
+
+  it("never takes the runtime's own locale: a script's amounts mean the same anywhere", () => {
+    expect(normalizeAmountInput('1,234')).toBe('1234');
+    expect(normalizeAmountInput('1.234')).toBe('1.234');
+    expect(normalizeAmountInput('1,234', { locale: 'en-GB' })).toBe('1234');
+  });
 });
 
 describe('compareAmounts', () => {

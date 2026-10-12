@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from typing import Annotated, Any
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -81,6 +81,18 @@ class Settings(BaseSettings):
     # Sign-in sessions (`POST /v1/auth/sessions`) last this long from the
     # moment they start, however much they are used.
     salli_session_ttl_days: int = 30
+
+    # The console: the household's pages in a browser, at
+    # {salli_public_url}/console (docs/design/console.md). Off: no /console
+    # route, and its OAuth client (`salli-console`) refuses to sign anyone in.
+    salli_console: bool = True
+    # Where the console's built files are (its index.html and assets/). The
+    # image sets it; empty, or a directory without an index.html, serves no
+    # console, and `salli-server doctor` says so.
+    salli_console_dir: str = ""
+    # A console sign-in ends this many hours after its password was checked,
+    # however often it refreshes. The CLI's sign-ins are not affected.
+    salli_console_sign_in_hours: int = Field(default=12, ge=1, le=24 * 7)
 
     # CORS: the web origins whose pages may call this API from a browser,
     # comma-separated (`https://app.example.org,https://example.org`). None by
@@ -147,6 +159,35 @@ def auth_can_hold_secrets(settings: Settings) -> bool:
     LLM keys, bank credentials): yes unless any caller can claim to be anyone
     by naming a user id. The one predicate every such feature gates on."""
     return not insecure_dev_auth(settings)
+
+
+_LOOPBACK_NAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def is_secure_origin(url: str) -> bool:
+    """Whether a browser treats pages at `url` as a secure context: HTTPS, or
+    plain HTTP on this machine (localhost, a `.localhost` name, a loopback
+    address). The console needs one: PKCE's S256 needs `crypto.subtle`, and a
+    password should only cross a network encrypted."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme == "https":
+        return bool(host)
+    if parsed.scheme != "http":
+        return False
+    return host in _LOOPBACK_NAMES or host.endswith(".localhost") or host.startswith("127.")
+
+
+def console_index(settings: Settings) -> str | None:
+    """The built console's index.html, or None when this server serves no
+    console: switched off (SALLI_CONSOLE=false), or no built files where
+    SALLI_CONSOLE_DIR says."""
+    if not settings.salli_console or not settings.salli_console_dir:
+        return None
+    index = os.path.join(settings.salli_console_dir, "index.html")
+    return index if os.path.isfile(index) else None
 
 
 def database_url(settings: Settings) -> str:

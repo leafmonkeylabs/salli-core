@@ -51,8 +51,9 @@ from salli.domain.secrets import redact
 from salli.domain.taxrules.explain import UnknownLine
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
+from salli.interfaces.api.console import NoStoreMiddleware, console_router
 from salli.interfaces.api.contract import API_PREFIX, document_problems, operation_id
-from salli.interfaces.api.deps import get_services
+from salli.interfaces.api.deps import StepUpRequired, get_services
 from salli.interfaces.api.request_context import RequestContextMiddleware
 from salli.interfaces.api.routers import (
     accounts,
@@ -165,9 +166,15 @@ class Health(BaseModel):
 
 
 def problem(
-    status_code: int, kind: str | None, title: str, detail: Any, **headers: str
+    status_code: int,
+    kind: str | None,
+    title: str,
+    detail: Any,
+    extra: dict[str, Any] | None = None,
+    **headers: str,
 ) -> JSONResponse:
-    """An RFC 9457 problem-details response (see contract.Problem)."""
+    """An RFC 9457 problem-details response (see contract.Problem), with any
+    `extra` members the problem's type defines."""
     return JSONResponse(
         status_code=status_code,
         content={
@@ -175,6 +182,7 @@ def problem(
             "title": title,
             "status": status_code,
             "detail": detail,
+            **(extra or {}),
         },
         media_type="application/problem+json",
         headers=headers or None,
@@ -231,6 +239,12 @@ def create_app() -> FastAPI:
     # The 500 JSON body this produces has to pass back out through CORS, or the
     # browser cannot read it and the request id never reaches the user.
     app.add_middleware(RequestContextMiddleware)
+
+    # ── No caching of anyone's ledger ─────────────────────────────────────────
+    # Every response but the console's own files says `no-store` unless it
+    # set its own Cache-Control, so no browser or proxy keeps a page of
+    # someone's data.
+    app.add_middleware(NoStoreMiddleware)
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Only the origins ALLOWED_ORIGINS names, in every environment: none by
@@ -301,6 +315,12 @@ def create_app() -> FastAPI:
     app.include_router(principles.router, prefix=API_PREFIX)
     app.include_router(decisions.router, prefix=API_PREFIX)
     app.include_router(notifications.router, prefix=API_PREFIX)
+    # The console's static files, at /console: here, so before the MCP app's
+    # catch-all mount at "/", which the lifespan adds last. None when it is
+    # switched off (SALLI_CONSOLE=false) or no console is built.
+    console = console_router(settings)
+    if console is not None:
+        app.include_router(console, include_in_schema=False)
 
     # ── Exception handlers ────────────────────────────────────────────────────
     # Every error is RFC 9457 problem details (contract.Problem). `detail` keeps
@@ -528,6 +548,24 @@ def create_app() -> FastAPI:
         headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else {}
         return problem(
             exc.status, exc.code.replace("_", "-"), "AI unavailable", exc.detail(), **headers
+        )
+
+    # The console's sign-in would hold this permission if its password check
+    # were recent (application/permissions.py): send the person through the
+    # sign-in page again. RFC 9470's challenge says the same to a client that
+    # reads WWW-Authenticate.
+    @app.exception_handler(StepUpRequired)
+    async def step_up_handler(request: Request, exc: StepUpRequired) -> JSONResponse:
+        return problem(
+            status.HTTP_403_FORBIDDEN,
+            "step-up-required",
+            "Sign in again",
+            str(exc),
+            {"max_age": exc.max_age},
+            **{
+                "WWW-Authenticate": 'Bearer error="insufficient_user_authentication", '
+                f'error_description="Sign in again to continue", max_age={exc.max_age}'
+            },
         )
 
     @app.exception_handler(StarletteHTTPException)

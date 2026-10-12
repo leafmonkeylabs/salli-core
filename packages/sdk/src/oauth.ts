@@ -433,6 +433,13 @@ export interface OAuthTokenProviderOptions {
    * already did (refresh tokens rotate, so refreshing twice fails).
    */
   reload?: () => StoredTokens | undefined | Promise<StoredTokens | undefined>;
+  /**
+   * Runs a refresh (reload, refresh, save) while holding a lock that other
+   * holders of the same tokens share: another process, or another tab (a
+   * Web Lock). Salli revokes a whole sign-in when a refresh token is used
+   * twice, so two that refresh at once would sign each other out.
+   */
+  lock?: <T>(refresh: () => Promise<T>) => Promise<T>;
   fetch?: typeof globalThis.fetch;
   /** Refresh this many seconds before the access token expires. Default 60. */
   refreshMarginSeconds?: number;
@@ -489,7 +496,7 @@ export function createOAuthTokenProvider(options: OAuthTokenProviderOptions): OA
   };
 
   const refreshOnce = (): Promise<string | undefined> => {
-    inflight ??= doRefresh().finally(() => {
+    inflight ??= (options.lock ? options.lock(doRefresh) : doRefresh()).finally(() => {
       inflight = undefined;
     });
     return inflight;

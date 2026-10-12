@@ -474,8 +474,8 @@ class StatementRepository(ABC):
     async def list_statements(self, user_id: str, limit: int = 50) -> list[Any]:
         """Every statement this user has uploaded, newest first.
 
-        The rows were always persisted; nothing exposed them, so the mobile app
-        told users a statement history "isn't tracked by the server yet".
+        The rows were always persisted, and this exposes them: a client can
+        show the history of imports.
         """
         ...
 
@@ -1314,7 +1314,26 @@ class McpConnectionRow(TypedDict):
     connected_at: datetime
 
 
+class SignInGrantRow(TypedDict):
+    """One live OAuth sign-in to the REST API (the CLI on a machine, the
+    console in a tab, another API client), for the list of sign-ins."""
+
+    grant_id: str
+    client_id: str
+    #: As the client is known: "Salli CLI", "Salli console", or as a client
+    #: that registered itself named itself ("Unnamed app" when it gave none).
+    client_name: str
+    created_at: datetime
+    last_used_at: datetime | None
+    #: When it ends unless revoked first: its absolute end (the console's),
+    #: or when its newest refresh token runs out.
+    expires_at: datetime | None
+
+
 class OAuthTokenRepository(ABC):
+    """Tokens are looked up by hash; every access and refresh token belongs to
+    a grant (one sign-in), which rotation keeps and revocation ends."""
+
     @abstractmethod
     async def save_authorization_code(
         self,
@@ -1326,6 +1345,7 @@ class OAuthTokenRepository(ABC):
         scope: str,
         resource: str | None,
         expires_at: datetime,
+        authenticated_at: datetime,
     ) -> None: ...
 
     @abstractmethod
@@ -1336,14 +1356,29 @@ class OAuthTokenRepository(ABC):
         ...
 
     @abstractmethod
-    async def delete_authorization_code(self, code: str) -> None:
-        """Marks a code used — call only once the exchange has succeeded."""
+    async def delete_authorization_code(self, code: str) -> bool:
+        """Marks a code used — call only once the exchange has succeeded.
+        False when it was already gone (two exchanges racing for one code)."""
+        ...
+
+    @abstractmethod
+    async def create_grant(
+        self,
+        user_id: str,
+        client_id: str,
+        scope: str,
+        resource: str | None,
+        authenticated_at: datetime,
+        expires_at: datetime | None,
+    ) -> str:
+        """A new sign-in; returns its id."""
         ...
 
     @abstractmethod
     async def save_access_token(
         self,
         token_hash: str,
+        grant_id: str,
         client_id: str,
         user_id: str,
         scope: str,
@@ -1357,6 +1392,7 @@ class OAuthTokenRepository(ABC):
     async def save_refresh_token(
         self,
         token_hash: str,
+        grant_id: str,
         access_token_id: str,
         client_id: str,
         user_id: str,
@@ -1367,23 +1403,52 @@ class OAuthTokenRepository(ABC):
 
     @abstractmethod
     async def get_access_token(self, token_hash: str) -> dict[str, Any] | None:
-        """None if missing, expired, or revoked. Includes the holding client's
-        `client_name` and whether it is first party (`client_first_party`)."""
+        """None if missing, expired or revoked, or if its grant is revoked or
+        past its absolute end. Includes the holding client's `client_name`,
+        whether it is first party (`client_first_party`) and its
+        `client_step_up_seconds`, and the grant's `grant_id` and
+        `authenticated_at`."""
         ...
 
     @abstractmethod
-    async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
-        """None if missing, expired, or revoked — or if the access token it
-        was issued with has been revoked."""
+    async def find_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
+        """A refresh token in any state, with its grant's: `revoked_at`,
+        `expires_at`, `access_revoked_at`, `grant_id`, `grant_revoked_at`,
+        `grant_expires_at`, `authenticated_at`. None if never issued."""
+        ...
+
+    @abstractmethod
+    async def rotate_refresh_token(self, token_hash: str) -> bool:
+        """Revokes a live refresh token as it is used. False when it was
+        already revoked: then it is being used a second time."""
+        ...
+
+    @abstractmethod
+    async def get_grant(self, grant_id: str) -> dict[str, Any] | None:
+        """A grant in any state, or None."""
+        ...
+
+    @abstractmethod
+    async def grant_of_token(self, token_hash: str) -> dict[str, Any] | None:
+        """The grant an access or refresh token belongs to, whatever either's
+        state: {id, user_id, client_id, resource}. None if never issued."""
+        ...
+
+    @abstractmethod
+    async def revoke_grant(self, grant_id: str, user_id: str | None = None) -> int:
+        """Revoke a grant and every token in it; with `user_id`, only if it is
+        theirs. Returns how many rows it revoked (0: none, or not theirs)."""
+        ...
+
+    @abstractmethod
+    async def touch_grant(self, grant_id: str, at: datetime) -> None:
+        """Record that a grant's access token was just used."""
         ...
 
     @abstractmethod
     async def revoke_access_token(self, token_id: str, user_id: str) -> bool:
         """Revokes only if the token belongs to user_id. Returns whether it revoked anything."""
         ...
-
-    @abstractmethod
-    async def revoke_refresh_token(self, token_hash: str) -> None: ...
 
     @abstractmethod
     async def token_exists(self, token_hash: str) -> bool:
@@ -1399,14 +1464,15 @@ class OAuthTokenRepository(ABC):
 
     @abstractmethod
     async def revoke_client_grant(self, user_id: str, client_id: str, resource: str | None) -> int:
-        """Revoke every access and refresh token this client holds for this
-        user and resource. Returns how many it revoked."""
+        """Revoke every grant (and its tokens) this client holds for this user
+        and resource. Returns how many tokens it revoked."""
         ...
 
     @abstractmethod
     async def revoke_all_for_user(self, user_id: str) -> int:
-        """Revoke every access and refresh token any client holds for this
-        user (signing them out everywhere). Returns how many it revoked."""
+        """Revoke every grant, access and refresh token any client holds for
+        this user (signing them out everywhere). Returns how many tokens it
+        revoked."""
         ...
 
     @abstractmethod
@@ -1416,6 +1482,15 @@ class OAuthTokenRepository(ABC):
         """Connected clients for a user: one row per client grant (client and
         resource) holding a live access token or a live refresh token, joined
         with the client's display name. With `resource`, only grants for it."""
+        ...
+
+    @abstractmethod
+    async def list_sign_in_grants(
+        self, user_id: str, resource: str, now: datetime
+    ) -> list[SignInGrantRow]:
+        """The user's live grants for `resource`, one row each, newest first:
+        not revoked, not past an absolute end, and holding a live access or
+        refresh token."""
         ...
 
     # Device authorization (RFC 8628). Not abstract: only a server that offers

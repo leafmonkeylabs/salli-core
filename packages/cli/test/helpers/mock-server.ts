@@ -98,6 +98,11 @@ export interface MockOptions {
    * /v1/meta. Default true; false is a server from before first-party clients.
    */
   cliClient?: boolean;
+  /**
+   * Where /v1/meta says the console is. Default `<url>/console`; null is a
+   * server with none (switched off, or not built).
+   */
+  consoleUrl?: string | null;
 }
 
 /** The first-party CLI client a real server seeds (core_0011). */
@@ -364,8 +369,10 @@ export class MockSalli {
         api_resource: this.options.apiResource ?? `${base}/v1`,
         device_verification_uri: `${base}/mcp/oauth/device`,
         cli_client_id: CLI_CLIENT_ID,
+        console_client_id: 'salli-console',
       },
       default_currency: 'USD',
+      console_url: 'consoleUrl' in this.options ? (this.options.consoleUrl ?? null) : `${base}/console`,
     };
     if (this.options.cliClient === false) {
       const { cli_client_id: _cli, ...oauth } = meta.oauth;

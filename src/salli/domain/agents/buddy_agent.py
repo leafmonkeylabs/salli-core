@@ -1,5 +1,5 @@
 """
-Buddy agent: the warmer, patient persona behind the mobile app's Buddy Mode.
+Buddy agent: the warmer, patient persona (Buddy Mode).
 
 Same supervisor shape as manager_agent.py (same sub-agents, same tools, same
 approval-gated writes). Only the system prompt differs. Kept as a sibling

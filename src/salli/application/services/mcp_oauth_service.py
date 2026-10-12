@@ -36,6 +36,22 @@ A native app's loopback redirect (http://127.0.0.1/callback) matches on any
 port (RFC 8252 §7.3), since the app listens wherever the OS gives it a port.
 A client on a machine without a browser uses the device grant (RFC 8628)
 instead: it gets a short code the person approves on the device page.
+
+Salli's console (`salli-console`, docs/design/console.md) is the other first
+party client. Its one redirect is `{SALLI_PUBLIC_URL}/console/callback`,
+computed from the setting rather than stored and matched exactly (no loopback
+rule); it signs in to the API only, only where the public URL is HTTPS or
+localhost, and not at all while SALLI_CONSOLE is off.
+
+**Grants.** Each approval starts a grant: one sign-in, which every token
+issued from it belongs to, through every refresh. A grant records when the
+person's password was checked (`authenticated_at`), which the console's
+step-up reads (application/permissions.py), and the console's grants end
+SALLI_CONSOLE_SIGN_IN_HOURS after it, however often they refresh. Refresh
+tokens rotate, and a rotated one presented again revokes its whole grant, for
+every client: a thief and the person can't both keep going, and the person
+finds out by being signed out. Revoking any token of a grant (RFC 7009)
+revokes the grant.
 """
 
 from __future__ import annotations
@@ -52,7 +68,7 @@ from urllib.parse import urlencode, urlparse
 from jose import JWTError, jwt
 from jose.exceptions import ExpiredSignatureError
 
-from salli.application.ports import McpConnectionRow
+from salli.application.ports import McpConnectionRow, SignInGrantRow
 
 _ART_ISSUER = "salli-mcp-oauth"
 _log = logging.getLogger(__name__)
@@ -71,6 +87,13 @@ API = "api"
 #: The `salli` CLI's client: first party, seeded by core_0011, never
 #: registered. Advertised in /v1/meta so the CLI signs in as it.
 CLI_CLIENT_ID = "salli-cli"
+#: The console's client: first party, seeded by core_0021. Its redirect is
+#: computed from SALLI_PUBLIC_URL (`console_redirect_uri`).
+CONSOLE_CLIENT_ID = "salli-console"
+#: Where the console receives its code, under SALLI_PUBLIC_URL.
+CONSOLE_CALLBACK_PATH = "/console/callback"
+#: How often a grant's `last_used_at` is written, at most.
+_TOUCH_EVERY = timedelta(minutes=1)
 
 # Recognisable prefixes, like personal access tokens' `salli_pat_`: secret
 # scanners can spot a leaked one, and the API's development fallback can tell
@@ -108,6 +131,10 @@ class ConsentError(Exception):
     good by this point, so callers may redirect back with an error code."""
 
 
+class RefreshTokenReused(OAuthError):
+    """A rotated refresh token was presented again: its grant is now revoked."""
+
+
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
@@ -134,6 +161,10 @@ class McpOAuthService:
         art_ttl_seconds: int = 1800,
         api_resource_url: str | None = None,
         device_verification_url: str | None = None,
+        console_redirect_uri: str | None = None,
+        console_sign_in_hours: int = 12,
+        console_secure: bool = True,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._signing_secret = signing_secret
@@ -152,6 +183,13 @@ class McpOAuthService:
         # redirect (or a first-time signup), which can easily eat several
         # minutes on its own before the user ever gets back here.
         self._art_ttl = art_ttl_seconds
+        # The console's one redirect, or None while SALLI_CONSOLE is off.
+        self._console_redirect = console_redirect_uri
+        self._console_lifetime = timedelta(hours=console_sign_in_hours)
+        # Whether SALLI_PUBLIC_URL is HTTPS or localhost: the console signs
+        # in only where a browser treats it as a secure context.
+        self._console_secure = console_secure
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     # ── Which resource a token is for ───────────────────────────────────────
 
@@ -174,13 +212,10 @@ class McpOAuthService:
     # ── Per-user enable/disable ─────────────────────────────────────────────
 
     async def is_mcp_enabled(self, user_id: str) -> bool:
-        """The user's own toggle, and nothing else.
-
-        No longer plan-gated: tiers differ only in AI usage allowance now, so
-        every feature — MCP included — is available on Free. Still checked live
-        everywhere a token is minted or verified, so switching the toggle off
-        kills already-issued tokens on the next request rather than needing a
-        separate revocation step.
+        """The user's own toggle, and nothing else: nothing about who they
+        are is consulted. Checked live everywhere a token is minted or
+        verified, so switching the toggle off kills already-issued tokens on
+        the next request rather than needing a separate revocation step.
         """
         async with self._uow_factory() as uow:
             profile: dict[str, Any] | None = await uow.user_profiles.get(user_id)
@@ -213,6 +248,33 @@ class McpOAuthService:
             "response_types": ["code"],
         }
 
+    # ── The console's client ─────────────────────────────────────────────────
+
+    @property
+    def console_enabled(self) -> bool:
+        return self._console_redirect is not None
+
+    def _check_console(self, client_id: str) -> None:
+        """The console's client works only while the console is on."""
+        if client_id == CONSOLE_CLIENT_ID and not self.console_enabled:
+            raise OAuthError("The console is switched off on this server (SALLI_CONSOLE=false).")
+
+    def _redirects_for(self, client: dict[str, Any]) -> list[str]:
+        if client["client_id"] == CONSOLE_CLIENT_ID:
+            return [self._console_redirect] if self._console_redirect else []
+        return list(client["redirect_uris"])
+
+    def _matches(self, client: dict[str, Any], redirect_uri: str) -> bool:
+        if client["client_id"] == CONSOLE_CLIENT_ID:
+            # Exactly its one redirect: no loopback rule for a web page.
+            return redirect_uri in self._redirects_for(client)
+        return any(_redirect_matches(redirect_uri, r) for r in client["redirect_uris"])
+
+    def _lifetime_of(self, client_id: str) -> timedelta | None:
+        """How long a sign-in of this client lasts at most, refresh or not:
+        the console's SALLI_CONSOLE_SIGN_IN_HOURS; none for other clients."""
+        return self._console_lifetime if client_id == CONSOLE_CLIENT_ID else None
+
     # ── Authorize → consent handoff ──────────────────────────────────────────
 
     async def build_consent_redirect(
@@ -224,23 +286,39 @@ class McpOAuthService:
         scope: str,
         resource: str | None,
         state: str | None,
+        *,
+        reauthenticate: bool = False,
     ) -> str:
         """Validates the request and returns the URL to redirect the user's
         browser to (the web app's consent screen). Raises OAuthError on any
         validation failure — those must NOT redirect anywhere, since the
-        redirect_uri isn't trusted yet at that point."""
+        redirect_uri isn't trusted yet at that point.
+
+        `reauthenticate` (`prompt=login`, or a `max_age`, from the client) is
+        a client asking the person to confirm it's them again, as the console
+        does before activating tax rules: the page says so. Every approval
+        checks the password anyway."""
         if code_challenge_method != "S256":
             raise OAuthError("code_challenge_method must be S256")
         if not code_challenge:
             raise OAuthError("code_challenge is required")
 
-        self.audience(resource)  # refuse an unknown resource before any redirect
+        audience = self.audience(resource)  # refuse an unknown resource before any redirect
 
         async with self._uow_factory() as uow:
             client = await uow.oauth_clients.get(client_id)
         if client is None:
             raise OAuthError("unknown client_id")
-        if not any(_redirect_matches(redirect_uri, r) for r in client["redirect_uris"]):
+        if client_id == CONSOLE_CLIENT_ID:
+            self._check_console(client_id)
+            if audience != API:
+                raise OAuthError("The console signs in to the API only (resource {base}/v1).")
+            if not self._console_secure:
+                raise OAuthError(
+                    "The console signs in only over HTTPS, or on this machine at localhost: "
+                    "set SALLI_PUBLIC_URL to an https:// address (docs/self-host.md)."
+                )
+        if not self._matches(client, redirect_uri):
             raise OAuthError("redirect_uri does not match a registered value for this client")
 
         art = jwt.encode(
@@ -252,6 +330,8 @@ class McpOAuthService:
                 "scope": scope,
                 "resource": resource,
                 "state": state,
+                "reauth": reauthenticate,
+                # The JWT library checks this against the real time.
                 "exp": datetime.now(UTC) + timedelta(seconds=self._art_ttl),
             },
             self._signing_secret,
@@ -283,24 +363,37 @@ class McpOAuthService:
         async with self._uow_factory() as uow:
             client: dict[str, Any] | None = await uow.oauth_clients.get(payload["client_id"])
         return {
+            "client_id": payload["client_id"],
             "client_name": (client or {}).get("client_name") or "An application",
+            "first_party": bool((client or {}).get("first_party")),
             "scope": payload.get("scope") or "",
             "resource": payload.get("resource"),
             "audience": self.audience(payload.get("resource")),
+            "reauthenticate": bool(payload.get("reauth")),
         }
 
     async def complete_consent(
-        self, art: str, user_id: str, approve: bool, *, password_checked: bool
+        self,
+        art: str,
+        user_id: str,
+        approve: bool,
+        *,
+        password_checked: bool,
+        authenticated_at: datetime | None = None,
     ) -> str:
         """Returns the final redirect_uri (with ?code=... or ?error=...) to
         send the user's browser to.
 
         `password_checked` says whether this approval came with the person's
-        password, checked just now on Salli's own consent page. Salli's own
-        clients (first party: the CLI) are signed in only that way: their
-        tokens hold `tax:activate`, so approving one on the strength of any
-        other sign-in (a personal access token without it, say) would hand
-        out a permission the caller doesn't have."""
+        password, checked just now on Salli's own sign-in page. Salli's own
+        clients (first party: the CLI, the console) are signed in only that
+        way: their tokens hold `tax:activate`, so approving one on the
+        strength of any other sign-in (a personal access token without it, or
+        a web app's own consent screen) would hand out a permission the caller
+        doesn't have. A client this server doesn't know is refused likewise.
+        `authenticated_at` is when that password was checked (now, unless
+        said otherwise): the sign-in records it, and the console's step-up
+        reads it."""
         payload = self._decode_art(art)
         redirect_uri = payload["redirect_uri"]
         state = payload.get("state")
@@ -310,6 +403,7 @@ class McpOAuthService:
                 redirect_uri, {"error": "access_denied", **({"state": state} if state else {})}
             )
 
+        self._check_console_consent(payload["client_id"])
         if not password_checked:
             async with self._uow_factory() as uow:
                 client: dict[str, Any] | None = await uow.oauth_clients.get(payload["client_id"])
@@ -322,6 +416,7 @@ class McpOAuthService:
             raise ConsentError("MCP access isn't available for this account. Check Settings.")
 
         code = secrets.token_urlsafe(32)
+        now = self._clock()
         async with self._uow_factory() as uow:
             await uow.oauth_tokens.save_authorization_code(
                 code=code,
@@ -331,9 +426,16 @@ class McpOAuthService:
                 code_challenge=payload["code_challenge"],
                 scope=payload.get("scope") or "",
                 resource=payload.get("resource"),
-                expires_at=datetime.now(UTC) + timedelta(seconds=self._auth_code_ttl),
+                expires_at=now + timedelta(seconds=self._auth_code_ttl),
+                authenticated_at=authenticated_at or now,
             )
         return _append_query(redirect_uri, {"code": code, **({"state": state} if state else {})})
+
+    def _check_console_consent(self, client_id: str) -> None:
+        try:
+            self._check_console(client_id)
+        except OAuthError as exc:
+            raise ConsentError(str(exc)) from exc
 
     # ── Token endpoint ────────────────────────────────────────────────────
 
@@ -350,67 +452,152 @@ class McpOAuthService:
             raise OAuthError("client_id/redirect_uri mismatch")
         if not _verify_pkce(code_verifier, record["code_challenge"]):
             raise OAuthError("PKCE verification failed")
+        self._check_console(client_id)
 
         async with self._uow_factory() as uow:
-            await uow.oauth_tokens.delete_authorization_code(code)
-
-        return await self._issue_token_pair(
-            client_id=client_id,
-            user_id=record["user_id"],
-            scope=record["scope"],
-            resource=record["resource"],
-        )
+            if not await uow.oauth_tokens.delete_authorization_code(code):
+                # Another exchange took it first.
+                raise OAuthError("invalid or expired authorization code")
+            return await self._start_grant(
+                uow,
+                client_id=client_id,
+                user_id=record["user_id"],
+                scope=record["scope"],
+                resource=record["resource"],
+                authenticated_at=record.get("authenticated_at") or self._clock(),
+            )
 
     async def exchange_refresh_token(self, refresh_token: str, client_id: str) -> dict[str, Any]:
+        """Rotate: a new pair in the same grant, the used refresh token
+        revoked. A refresh token used a second time revokes its whole grant."""
         token_hash = _hash_token(refresh_token)
         async with self._uow_factory() as uow:
-            record = await uow.oauth_tokens.get_refresh_token(token_hash)
+            record = await uow.oauth_tokens.find_refresh_token(token_hash)
         if record is None or record["client_id"] != client_id:
+            raise OAuthError("invalid or expired refresh token")
+        self._check_console(client_id)
+        if record["grant_revoked_at"] is not None:
+            raise OAuthError("invalid or expired refresh token")
+        if record["revoked_at"] is not None:
+            raise await self._reused(record)
+        now = self._clock()
+        grant_ends = record["grant_expires_at"]
+        if (
+            record["expires_at"] <= now
+            or record["access_revoked_at"] is not None
+            or (grant_ends is not None and grant_ends <= now)
+        ):
             raise OAuthError("invalid or expired refresh token")
         if not await self._may_use(record["user_id"], self._token_audience(record)):
             raise OAuthError("MCP access has been disabled for this account")
 
-        # Rotate: revoke the used refresh token, issue a fresh pair.
         async with self._uow_factory() as uow:
-            await uow.oauth_tokens.revoke_refresh_token(token_hash)
-        return await self._issue_token_pair(
+            claimed = await uow.oauth_tokens.rotate_refresh_token(token_hash)
+            if claimed:
+                return await self._issue_token_pair(
+                    uow,
+                    grant_id=record["grant_id"],
+                    grant_expires_at=grant_ends,
+                    client_id=client_id,
+                    user_id=record["user_id"],
+                    scope=record["scope"],
+                    resource=record["resource"],
+                )
+        # Another request rotated it between our read and our claim.
+        raise await self._reused(record)
+
+    async def _reused(self, record: dict[str, Any]) -> RefreshTokenReused:
+        """Revokes the grant of a refresh token used a second time, and
+        returns the error to raise."""
+        async with self._uow_factory() as uow:
+            await uow.oauth_tokens.revoke_grant(record["grant_id"])
+        # Which grant, never the token: the log must not hold one.
+        _log.warning(
+            "OAuth: a rotated refresh token was used again; revoked grant %s (client %s)",
+            record["grant_id"],
+            record["client_id"],
+        )
+        return RefreshTokenReused(
+            "This refresh token was already used, so the sign-in it belongs to has been "
+            "ended. Sign in again."
+        )
+
+    async def _start_grant(
+        self,
+        uow: Any,
+        *,
+        client_id: str,
+        user_id: str,
+        scope: str,
+        resource: str | None,
+        authenticated_at: datetime,
+    ) -> dict[str, Any]:
+        """A new sign-in, and its first token pair."""
+        lifetime = self._lifetime_of(client_id)
+        expires_at = authenticated_at + lifetime if lifetime is not None else None
+        grant_id = await uow.oauth_tokens.create_grant(
+            user_id=user_id,
             client_id=client_id,
-            user_id=record["user_id"],
-            scope=record["scope"],
-            resource=record["resource"],
+            scope=scope,
+            resource=resource,
+            authenticated_at=authenticated_at,
+            expires_at=expires_at,
+        )
+        return await self._issue_token_pair(
+            uow,
+            grant_id=grant_id,
+            grant_expires_at=expires_at,
+            client_id=client_id,
+            user_id=user_id,
+            scope=scope,
+            resource=resource,
         )
 
     async def _issue_token_pair(
-        self, client_id: str, user_id: str, scope: str, resource: str | None
+        self,
+        uow: Any,
+        *,
+        grant_id: str,
+        grant_expires_at: datetime | None,
+        client_id: str,
+        user_id: str,
+        scope: str,
+        resource: str | None,
     ) -> dict[str, Any]:
         access_token = ACCESS_TOKEN_PREFIX + secrets.token_urlsafe(32)
         refresh_token = REFRESH_TOKEN_PREFIX + secrets.token_urlsafe(32)
-        access_expires_at = datetime.now(UTC) + timedelta(seconds=self._access_ttl)
-        refresh_expires_at = datetime.now(UTC) + timedelta(seconds=self._refresh_ttl)
+        now = self._clock()
+        access_expires_at = now + timedelta(seconds=self._access_ttl)
+        refresh_expires_at = now + timedelta(seconds=self._refresh_ttl)
+        # Neither outlives the sign-in's absolute end.
+        if grant_expires_at is not None:
+            access_expires_at = min(access_expires_at, grant_expires_at)
+            refresh_expires_at = min(refresh_expires_at, grant_expires_at)
 
-        async with self._uow_factory() as uow:
-            token_id = await uow.oauth_tokens.save_access_token(
-                token_hash=_hash_token(access_token),
-                client_id=client_id,
-                user_id=user_id,
-                scope=scope,
-                resource=resource,
-                expires_at=access_expires_at,
-            )
-            await uow.oauth_tokens.save_refresh_token(
-                token_hash=_hash_token(refresh_token),
-                access_token_id=token_id,
-                client_id=client_id,
-                user_id=user_id,
-                scope=scope,
-                resource=resource,
-                expires_at=refresh_expires_at,
-            )
+        token_id = await uow.oauth_tokens.save_access_token(
+            token_hash=_hash_token(access_token),
+            grant_id=grant_id,
+            client_id=client_id,
+            user_id=user_id,
+            scope=scope,
+            resource=resource,
+            expires_at=access_expires_at,
+        )
+        await uow.oauth_tokens.save_refresh_token(
+            token_hash=_hash_token(refresh_token),
+            grant_id=grant_id,
+            access_token_id=token_id,
+            client_id=client_id,
+            user_id=user_id,
+            scope=scope,
+            resource=resource,
+            expires_at=refresh_expires_at,
+        )
 
         return {
             "access_token": access_token,
             "token_type": "Bearer",
-            "expires_in": self._access_ttl,
+            "expires_in": max(0, int((access_expires_at - now).total_seconds())),
             "refresh_token": refresh_token,
             "scope": scope,
         }
@@ -426,16 +613,27 @@ class McpOAuthService:
     async def verify_access_token(
         self, access_token: str, audience: str = MCP
     ) -> dict[str, Any] | None:
-        """Returns {user_id, client_id, scope, resource, expires_at} or None
-        if the token is missing/expired/revoked, was issued for a different
-        resource than `audience`, or — for MCP — MCP has since been disabled
-        for that user (checked live, not just at grant time)."""
+        """Returns the token's record (user_id, client_id, scope, resource,
+        expires_at, grant_id, authenticated_at, and its client's name,
+        first-party flag and step_up_seconds) or None if the token is
+        missing/expired/revoked, its sign-in has ended, it was issued for a
+        different resource than `audience`, or — for MCP — MCP has since been
+        disabled for that user (checked live, not just at grant time)."""
         async with self._uow_factory() as uow:
             record = await uow.oauth_tokens.get_access_token(_hash_token(access_token))
         if record is None or self._token_audience(record) != audience:
             return None
+        if record["client_id"] == CONSOLE_CLIENT_ID and not self.console_enabled:
+            return None
+        now = self._clock()
+        if record["expires_at"] <= now:
+            return None
         if not await self._may_use(record["user_id"], audience):
             return None
+        last = record.get("last_used_at")
+        if record.get("grant_id") and (last is None or now - last > _TOUCH_EVERY):
+            async with self._uow_factory() as uow:
+                await uow.oauth_tokens.touch_grant(record["grant_id"], now)
         return record
 
     async def client_name(self, client_id: str) -> str | None:
@@ -454,15 +652,41 @@ class McpOAuthService:
     # ── Revocation ───────────────────────────────────────────────────────
 
     async def revoke_token_by_value(self, token: str) -> None:
-        """RFC 7009 — a client presenting a token it holds (access or refresh)
-        to revoke it. Best-effort: tries both token kinds."""
-        token_hash = _hash_token(token)
+        """RFC 7009 — a client presenting a token it holds (access or
+        refresh) to revoke it. Revokes the token's whole grant: signing out
+        ends the sign-in, not one token of it."""
         async with self._uow_factory() as uow:
-            access = await uow.oauth_tokens.get_access_token(token_hash)
-            if access is not None:
-                await uow.oauth_tokens.revoke_access_token(access["id"], access["user_id"])
-                return
-            await uow.oauth_tokens.revoke_refresh_token(token_hash)
+            grant = await uow.oauth_tokens.grant_of_token(_hash_token(token))
+            if grant is not None:
+                await uow.oauth_tokens.revoke_grant(grant["id"])
+
+    # ── The user's own sign-ins (the API's grants) ──────────────────────────
+
+    async def list_sign_ins(self, user_id: str) -> list[SignInGrantRow]:
+        """The user's live OAuth sign-ins to the REST API: the CLI on each
+        machine, the console in each tab, any other API client. AI
+        connections (MCP) are listed with `list_connections`."""
+        if self._api_resource is None:
+            return []
+        async with self._uow_factory() as uow:
+            return await uow.oauth_tokens.list_sign_in_grants(
+                user_id, self._api_resource, self._clock()
+            )
+
+    async def revoke_sign_in(self, user_id: str, grant_id: str) -> bool:
+        """End one of the user's API sign-ins. False if it is not one: not
+        theirs, already ended, or an AI connection (revoked with
+        `revoke_connection`)."""
+        async with self._uow_factory() as uow:
+            grant = await uow.oauth_tokens.get_grant(grant_id)
+            if (
+                grant is None
+                or grant["user_id"] != user_id
+                or grant["revoked_at"] is not None
+                or self._token_audience(grant) != API
+            ):
+                return False
+            return await uow.oauth_tokens.revoke_grant(grant_id, user_id) > 0
 
     # ── Settings UI: connection management ──────────────────────────────────
 
@@ -473,12 +697,11 @@ class McpOAuthService:
         return [r for r in rows if self._token_audience(r) == MCP]
 
     async def revoke_connection(self, user_id: str, token_id: str) -> bool:
-        """Disconnect an AI client: every token of its grant, the refresh
-        tokens and any earlier rotated access tokens too, so it cannot come
-        back with a refresh. `token_id` is any of the grant's access tokens,
-        expired ones included (the refresh token may outlive it). Only AI
-        clients: a CLI session's token is not a connection, and is signed out
-        with `salli logout`."""
+        """Disconnect an AI client: every grant it holds for the user over
+        MCP, and every token in them, so it cannot come back with a refresh.
+        `token_id` is any of its access tokens, expired ones included (the
+        refresh token may outlive it). Only AI clients: the user's own
+        sign-ins are ended with `revoke_sign_in`."""
         async with self._uow_factory() as uow:
             token = await uow.oauth_tokens.get_access_token_by_id(token_id, user_id)
             if token is None or self._token_audience(token) != MCP:
@@ -511,6 +734,9 @@ class McpOAuthService:
     ) -> dict[str, Any]:
         """A device code to poll with and a user code for the person to approve."""
         self.audience(resource)
+        if client_id == CONSOLE_CLIENT_ID:
+            # The console is a web page: it signs in through its redirect.
+            raise OAuthError("The console signs in with the authorization code grant only.")
         async with self._uow_factory() as uow:
             if await uow.oauth_clients.get(client_id) is None:
                 raise OAuthError("unknown client_id")
@@ -523,7 +749,7 @@ class McpOAuthService:
                 scope=scope,
                 resource=resource,
                 interval_seconds=_DEVICE_POLL_INTERVAL_SECONDS,
-                expires_at=datetime.now(UTC) + timedelta(seconds=_DEVICE_CODE_TTL_SECONDS),
+                expires_at=self._clock() + timedelta(seconds=_DEVICE_CODE_TTL_SECONDS),
             )
         shown = f"{user_code[:4]}-{user_code[4:]}"
         verification_uri = self._device_url or ""
@@ -548,7 +774,7 @@ class McpOAuthService:
             )
             if record is None:
                 return None
-            client = await uow.oauth_clients.get(record["client_id"])
+            client: dict[str, Any] | None = await uow.oauth_clients.get(record["client_id"])
         return {
             "client_name": (client or {}).get("client_name") or "An application",
             "audience": self._token_audience(record),
@@ -567,10 +793,11 @@ class McpOAuthService:
                 record["id"],
                 status="approved" if approve else "denied",
                 user_id=user_id if approve else None,
+                authenticated_at=self._clock() if approve else None,
             )
 
     async def exchange_device_code(self, device_code: str, client_id: str) -> dict[str, Any]:
-        now = datetime.now(UTC)
+        now = self._clock()
         async with self._uow_factory() as uow:
             record = await uow.oauth_tokens.get_device_code(_hash_token(device_code))
             if record is None or record["client_id"] != client_id:
@@ -590,12 +817,14 @@ class McpOAuthService:
             if record["status"] != "approved" or not record["user_id"]:
                 raise DeviceFlowError("invalid_grant", "this code has already been used")
             await uow.oauth_tokens.update_device_code(record["id"], status="consumed")
-        return await self._issue_token_pair(
-            client_id=client_id,
-            user_id=record["user_id"],
-            scope=record["scope"],
-            resource=record["resource"],
-        )
+            return await self._start_grant(
+                uow,
+                client_id=client_id,
+                user_id=record["user_id"],
+                scope=record["scope"],
+                resource=record["resource"],
+                authenticated_at=record.get("authenticated_at") or now,
+            )
 
     def protected_resource_metadata(self, issuer: str) -> dict[str, Any]:
         return {

@@ -1,7 +1,9 @@
 # The Salli console: your books in a browser
 
-Status: **approved (2026-10-12).** The owner accepted every recommended
-decision below. Building starts with C0. Each sub-phase is its own PR.
+Status: **approved (2026-10-12); C0, the server groundwork, built.** The
+owner accepted every recommended decision below. C1 (the console itself) is
+next. Each sub-phase is its own PR. What C0 built, and where it departs from
+the text above, is in [As built (C0)](#as-built-c0).
 
 ## Why
 
@@ -876,3 +878,118 @@ the options that were weighed.
 | 24 | Versions and upgrades | The console ships in the image at the server's version, is published to npm at the same version, and asks an open tab to reload after an upgrade. |
 | 25 | Tests | Component tests on fixtures the server writes from the golden households; Playwright end to end against compose; axe; visual regression at three widths in both themes; the exactness test; header and request checks. |
 | 26 | The order | C0, then C1; then C2, C3 and C4 in any order or together (C3 first if one at a time); C5 and C6 after. |
+
+## As built (C0)
+
+C0 is the server side of the console: everything it needs from the server,
+and nothing of the console itself.
+
+**Signing in (decisions 3, 5, 6).**
+- `salli-console` is seeded by `core_0021_console_sign_in` as a first-party
+  public client with `step_up_seconds` 300 and no stored redirect: its one
+  redirect, `{SALLI_PUBLIC_URL}/console/callback`, is computed from the
+  setting (`McpOAuthService(console_redirect_uri=…)`) and matched exactly.
+  It signs in to the API only (`resource {base}/v1`), never with the device
+  grant, and only where `SALLI_PUBLIC_URL` is HTTPS or loopback/localhost
+  (`config.is_secure_origin`); otherwise authorise says why.
+- `oauth_grants` holds one row per sign-in, and every access and refresh
+  token belongs to one (`grant_id`). Tokens issued before core_0021 get one
+  grant per user, client and resource. A refresh rotates within the grant;
+  the used refresh token is claimed with one conditional UPDATE, so of two
+  requests racing with it, one is the reuse. A rotated refresh token
+  presented again revokes the whole grant, for every client, and says so
+  (`invalid_grant`, "already used"). Revoking any token of a grant
+  (`/mcp/oauth/revoke`) revokes the grant.
+- A grant records `authenticated_at` (from the code or device approval: when
+  the password was checked) and, for the console, `expires_at` =
+  `authenticated_at` + `SALLI_CONSOLE_SIGN_IN_HOURS` (default 12, 1 to 168).
+  Access and refresh tokens never outlive it. The CLI's grants have none.
+- `permissions_for` takes `sign_in_age` and `fresh_within` (the client's
+  `step_up_seconds`): within 300 seconds (inclusive) the console holds
+  `tax:activate`; after, `require_permission` and `POST /v1/tokens` (for a
+  token asking for `tax:activate`) answer 403
+  `/problems/step-up-required` with `max_age: 300` and RFC 9470's
+  `WWW-Authenticate: Bearer error="insufficient_user_authentication",
+  max_age=300`. `needs_step_up` is true only where signing in again would
+  give the permission, so an MCP token, another application or a token made
+  without it never get a step-up answer. The re-authentication flow is the
+  same authorise with `prompt=login` (or any `max_age`): the sign-in page
+  reads **Confirm it's you**, asks for the password, and starts a new grant
+  whose `authenticated_at` is now. The console replaces its grant with the
+  new one (C1).
+- The sign-in page reads **Sign in to Salli** for the console, with one
+  button; consent and device pages are restyled in the brand (paper, ink,
+  ledger green, sand; night on dark; system fonts; the focus ring ledger
+  green or sand-on-dark per decision 11, not brass).
+- `GET /v1/auth/sign-ins` (`auth.signIns.list`) lists sessions and the API's
+  live grants as `kind` `session`, `cli`, `console` or `app`, with
+  `started_at`, `last_used_at` (a grant's is written at most once a minute as
+  its access tokens are used), `expires_at` and `current`; `DELETE
+  /v1/auth/sign-ins/{id}` (`auth.signIns.revoke`) ends one. They replace
+  `auth.sessions.list` and `auth.sessions.revoke`; `auth.sessions.create`
+  and `auth.sessions.signOut` stay. `salli sign-ins list|revoke` use them.
+
+**Serving (decisions 1, 2, 7, 23).** `interfaces/api/console.py`: `/console`
+and everything under it, registered in `create_app` (so before the MCP
+catch-all) only when `SALLI_CONSOLE` is on and `SALLI_CONSOLE_DIR` holds an
+`index.html`; a deep link returns `index.html`, `/console/assets/…` are files
+(`immutable`, precompressed `.br`/`.gz` when accepted), anything resolving
+outside the directory, through `..`, a dot file, a backslash, a NUL or a
+symbolic link, is a 404. Every response carries the CSP and headers of
+section 2 (plus `X-Frame-Options: DENY`). Every other response gets
+`Cache-Control: no-store` unless it set its own. `/v1/meta` gains
+`console_url` (null with no console) and `oauth.console_client_id`.
+`salli ui` opens and prints `console_url` (`--no-open` prints only; `--json`
+gives `{console_url, opened}`). `salli-server doctor` reports the console:
+switched off, none built, served, or served where a browser can't sign in.
+
+**Money (decision 12).** `contract.AmountIn` and `DecimalIn` refuse a JSON
+number with a 422 that says to send a decimal string, and the six fields of
+the survey use `AmountIn`. `FireStrategy.target_monthly_expenses` is a
+decimal string, in `GET /v1/fi/strategy` and the generation stream's `done`
+event. `normalizeAmountInput(input, { locale })` reads a comma-decimal
+locale's marks by rewriting the text; the CLI passes the locale only when
+set (`SALLI_LOCALE` or `salli config set locale`).
+
+**Guards (decision 22).** The commercial-vocabulary guard scans
+`packages/*/src` (`.ts`, `.tsx`, `.css`) too and also catches "every tier",
+"Free included" and "plan gate"; `test_no_firm_vocabulary.py` is new. The
+"tier"/"Free" wording in `routers/mcp_oauth.py` and `McpOAuthService`, "tenant
+isolation" in `domain/agents/tools.py`, and "Pro Mode" and the retired
+"mobile app" in `routers/agent.py`, `adapters/db/models.py`,
+`domain/agents/buddy_agent.py`, `routers/statements.py`, `ports.py`,
+`routers/accounts.py` and `interfaces/cli/main.py` are reworded.
+
+**Departures from the text above, and why.**
+1. **A seventh request field and two rates.** The survey names six request
+   amounts; `OnboardingGoalItem.target_amount` was a seventh, and
+   `IncomeItem.fx_rate` and `OpeningBalanceItem.fx_rate` took numbers too.
+   All are strings now. `AmountIn` and `DecimalIn` (budgets, debts,
+   insurance, holdings, subscriptions, assumptions) already said "string" in
+   the API document but read a JSON number at run time; they now refuse one.
+2. **`POST /mcp/oauth/consent` never approves a first-party client.** It
+   checks no password (a deployment's own consent screen, holding a
+   sign-in), so any sign-in, a personal access token without
+   `tax:activate` included, could approve a `salli-cli` or `salli-console`
+   request it started itself and take the code from the JSON answer: a sign-in
+   that holds `tax:activate`. That was so for the CLI before C0, and #53
+   fixed it on main while C0 was being built: `complete_consent` takes
+   `password_checked`, which only the sign-in page sets, and refuses a
+   first-party or unknown client without it. C0 keeps that one mechanism, and
+   the console is first party, so it too signs in on Salli's own page only.
+3. **The CLI takes turns refreshing.** With reuse detection, two `salli`
+   commands refreshing one sign-in at once would sign it out. The SDK's
+   `createOAuthTokenProvider` takes a `lock`, and the CLI holds a lock
+   directory beside its config while it reloads, refreshes and saves (the
+   console's Web Lock in C1 is the same seam).
+4. **No console is served yet.** The image gains its Node stage and sets
+   `SALLI_CONSOLE_DIR` in C1, with the console; until then `/console` is a 404
+   like any unknown path, `console_url` is null and `salli ui` says the server
+   has none. The design prefers serving none to a placeholder page.
+5. **The idle sign-out** is the console's alone (C1); the server needs nothing
+   for it.
+6. **Documented errors are problems.** An error response a route describes
+   in words only (the new 403s) is documented as a Problem, as every other
+   error already was, so a few existing responses in the API document gained
+   their content.
+

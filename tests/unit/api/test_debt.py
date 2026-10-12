@@ -16,7 +16,7 @@ from tests.fakes import FakeUoW
 from tests.unit.api.conftest import AUTH
 
 USER = "test-user-1"
-CARD = {"name": "Card", "principal": 1000, "apr": 0.24, "minimum_payment": 100}
+CARD = {"name": "Card", "principal": "1000", "apr": "0.24", "minimum_payment": "100"}
 TODAY = dt.date(2026, 10, 9)
 
 
@@ -122,7 +122,7 @@ async def test_a_plan_with_nothing_owed_states_zero_in_the_currencys_precision(
 async def test_a_plan_that_never_finishes_has_no_payoff_month(client, mock_services):
     _uow(mock_services)
     # The minimum payment never covers the interest.
-    await _create(client, {**CARD, "minimum_payment": 10})
+    await _create(client, {**CARD, "minimum_payment": "10"})
 
     plan = (await client.get("/v1/debt/payoff-plan", headers=AUTH)).json()
     assert plan["months_to_payoff"] is None

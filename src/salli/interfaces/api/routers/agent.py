@@ -35,8 +35,8 @@ from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, Cu
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
-#: "scrooge" is the "Salli AI" persona (Pro Mode); "buddy" is the warmer one
-#: behind the mobile app's Buddy Mode. A thread belongs to one of them.
+#: "scrooge" is the "Salli AI" persona, precise and to the point; "buddy" is
+#: the warmer, more patient one (Buddy Mode). A thread belongs to one of them.
 Persona = Literal["scrooge", "buddy"]
 
 
