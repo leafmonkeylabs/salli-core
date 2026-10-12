@@ -47,7 +47,7 @@
   list-style: none;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: var(--gutter);
 }
 
@@ -134,7 +134,7 @@
 
 .trade-columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 8px 32px;
 }
 
@@ -215,4 +215,71 @@
 .document-preview {
   max-height: 240px;
   overflow: auto;
+}
+
+.basis-placeholders {
+  font-size: var(--size-small);
+  font-weight: 500;
+}
+
+.section-quarter {
+  grid-column: span 3;
+}
+
+@media (max-width: 1080px) {
+  .grid > .section-quarter {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 720px) {
+  .grid > .section-quarter {
+    grid-column: span 12;
+  }
+}
+
+.result-head {
+  display: grid;
+  gap: 4px;
+}
+
+.notes-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: var(--size-small);
+}
+
+.table .placeholder-tag {
+  white-space: nowrap;
+}
+
+/* The page's one column never grows past the screen for something wide in
+   it (the row of places, a table): those scroll within themselves. */
+.page {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.subnav {
+  min-width: 0;
+}
+
+/* A fieldset is as wide as its widest content by default; these fit their column. */
+fieldset {
+  min-width: 0;
+}
+
+/* A select is as wide as its longest option unless held to its column. */
+.form,
+.field,
+.group,
+.group-item {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.field-select {
+  min-width: 0;
+  max-width: 100%;
 }

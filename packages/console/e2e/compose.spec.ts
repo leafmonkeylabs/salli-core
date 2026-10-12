@@ -1,7 +1,9 @@
 /**
  * The console end to end, against compose.yaml (decision 25): sign in on
  * Salli's own page, see Home, end another sign-in, go through the step-up,
- * sign out, and be signed out when idle (with a short limit). Every page is
+ * sign out, be signed out when idle (with a short limit), and weigh a
+ * decision in the decision lab: a template run, the decision recorded after
+ * its confirmation, found in the journal, a note added. Every page is
  * checked for CSP violations and requests to another origin.
  *
  * The server's real step-up answer comes only from activating tax rules or
@@ -134,5 +136,53 @@ test('signs out after the idle limit (shortened to 3 seconds here)', async ({ pa
   await expect(page.getByText(/signed out after 30 minutes without a key or a click/)).toBeVisible({ timeout: 10_000 });
   // The idle sign-out revoked the grant, as signing out does.
   await expect.poll(async () => (await signIns(request, token)).filter((s) => s.kind === 'console').length).toBe(before);
+  await seen.check();
+});
+
+test('weighs a decision with a template, records it after confirming, and adds a note in the journal', async ({ page, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  await signIn(page);
+  await page.getByRole('navigation', { name: 'Places' }).filter({ visible: true }).getByRole('link', { name: 'Decide' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Decide' })).toBeVisible();
+  await page.getByRole('link', { name: 'Afford it' }).click();
+  const form = page.getByRole('region', { name: 'Your answers' });
+  await form.getByRole('textbox', { name: 'What does it cost?' }).fill('2400');
+  await form.getByRole('textbox', { name: /What is it\?/ }).fill('Laptop');
+  await form.getByRole('textbox', { name: /Over how many months\?/ }).fill('12');
+  await form.getByRole('textbox', { name: 'At what yearly rate?' }).fill('6.9%');
+  await form.getByRole('button', { name: 'Build and compare the options' }).click();
+  await expect(page.getByRole('heading', { name: 'What Salli built' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Side by side' }).getByRole('table')).toBeVisible();
+
+  const record = page.getByRole('region', { name: 'Record what you choose' });
+  await record.getByRole('button', { name: 'Record a decision' }).click();
+  const question = `Laptop ${Date.now().toString(36)}: pay cash or spread it?`;
+  await record.getByRole('textbox', { name: 'The question, in your words' }).fill(question);
+  await record.getByRole('radio', { name: 'Pay cash' }).check();
+  await record.getByRole('textbox', { name: /Why\? In your own words/ }).fill('I would rather not owe anything.');
+  // The earliest review the server allows.
+  const earliest = await record.getByLabel(/When do you want to look back on it\?/).getAttribute('min');
+  await record.getByLabel(/When do you want to look back on it\?/).fill(earliest ?? '');
+  await record.getByRole('button', { name: 'Record it' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Record this decision?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Record' }).click();
+  await expect(record.getByText(/Recorded\. Salli will remind you to review it on/)).toBeVisible();
+
+  await page.getByRole('navigation', { name: 'Decision lab' }).getByRole('link', { name: 'Journal' }).click();
+  const entries = page.getByRole('region', { name: 'Entries' });
+  await entries.getByRole('link', { name: question }).click();
+  await expect(page.getByRole('heading', { level: 1, name: question })).toBeVisible();
+  await expect(page.getByText('Unchanged since it was recorded')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Your reasons' }).getByText('I would rather not owe anything.')).toBeVisible();
+
+  const notes = page.getByRole('region', { name: 'Notes' });
+  await notes.getByRole('textbox', { name: /The note/ }).fill('Bought it on the day.');
+  await notes.getByRole('button', { name: 'Add the note' }).click();
+  await page.getByRole('alertdialog', { name: 'Add this note?' }).getByRole('button', { name: 'Add the note' }).click();
+  await expect(notes.getByText('Bought it on the day.')).toBeVisible();
+  // It is the server's: a reload reads it back.
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Notes' }).getByText('Bought it on the day.')).toBeVisible();
   await seen.check();
 });

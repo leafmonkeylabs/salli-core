@@ -111,7 +111,8 @@ function Plot({ props, layout, variant }: { props: LineChartProps; layout: Layou
         if (!value) return null;
         const cx = x(mark.index);
         const cy = y(value);
-        const above = cy - top > font * 3;
+        // A low point's label goes below it, where the line isn't, when there is room.
+        const above = cy + font * 3 > height - bottom && cy - top > font * 3;
         const anchor = cx > (width - right) * 0.7 ? 'end' : cx < width * 0.2 ? 'start' : 'middle';
         return (
           <g key={`${mark.series}-${mark.index}`}>

@@ -366,6 +366,7 @@ function EntryView({ decision }: { decision: Decision }) {
             principles={entry.principles}
             columns={[{ label: labStrings.baselineColumn, results: entry.baseline.principles }, ...entry.options.map((o) => ({ label: o.label, results: o.principles }))]}
             caption={e.principles}
+            none={e.noPrinciples}
           />
         </Panel>
       </Section>

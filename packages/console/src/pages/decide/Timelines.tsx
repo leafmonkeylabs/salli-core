@@ -23,12 +23,15 @@ export function monthTicks(dates: readonly string[], step: number): number[] {
   return firsts.filter((_, k) => k % step === 0);
 }
 
-/** Every `step`th point that falls in the first point's month of the year (whole years on). */
+/**
+ * The as-of date, then every `step`th whole year on: the month-ends in the
+ * as-of month's month of the year (the first of them is the as-of month's
+ * own end, beside the as-of date, so it isn't labelled again).
+ */
 export function yearTicks(months: readonly string[], step: number): number[] {
-  const first = months[1] ?? months[0] ?? '';
-  const month = first.slice(5, 7);
+  const month = (months[0] ?? '').slice(5, 7);
   const years = months.flatMap((m, i) => (i > 0 && m.slice(5, 7) === month ? [i] : []));
-  return [0, ...years.filter((_, k) => (k + 1) % step === 0)];
+  return [0, ...years.filter((_, k) => k > 0 && k % step === 0)];
 }
 
 interface DayRow {
@@ -78,7 +81,6 @@ export function CashLines({ runs, labels }: { runs: readonly ScenarioRun[]; labe
       ticks={{ wide: monthTicks(dates, 2), narrow: monthTicks(dates, 4) }}
       series={series}
       step
-      zero
       marks={marks}
       figures={
         <Table<DayRow>

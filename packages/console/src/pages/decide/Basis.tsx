@@ -27,7 +27,6 @@ export function Basis({ placeholders, isStale, dataAsOf, tax, notes = [], asOf }
   const locale = useLocale();
   return (
     <Panel className="basis">
-      <h3 className="panel-title">{b.label}</h3>
       {asOf ? <p className="provenance">{asOf}</p> : null}
       {isStale ? (
         <p className="warn-line">
@@ -50,7 +49,7 @@ export function Basis({ placeholders, isStale, dataAsOf, tax, notes = [], asOf }
       {tax && tax.status === 'computed' ? <p className="provenance">{b.taxComputed}</p> : null}
       {placeholders.length ? (
         <>
-          <p className="placeholder-tag">{b.placeholders}</p>
+          <p className="basis-placeholders">{b.placeholders}</p>
           <ul className="basis-list">
             {placeholders.map((key) => (
               <li key={key}>{placeholderText(key)}</li>

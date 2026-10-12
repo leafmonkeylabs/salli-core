@@ -126,39 +126,54 @@ function TemplateForm({ template }: { template: DecisionTemplate }) {
   const problems = Object.entries(local);
   return (
     <>
-      <Section label={t.answers}>
-        <Panel>
-          <p className="section-help">{t.answersHelp}</p>
-          <form className="form form-wide" onSubmit={submit} noValidate aria-describedby={problems.length ? 'answers-problems' : undefined}>
-            <Questions template={template} state={state} set={set} errors={errors} names={names} asOf={todayIso} />
-            <Field label={t.asOf} description={t.asOfHelp} type="date" value={asOf} onChange={setAsOf} error={errors.as_of} inputProps={{ placeholder: todayIso }} />
-            {problems.length ? (
-              <div id="answers-problems" className="problem" role="alert">
-                <p className="problem-title">
-                  <span className="warn-mark" aria-hidden="true">
-                    !
-                  </span>{' '}
-                  {t.problems}
-                </p>
-                <p>{t.fixBelow}</p>
+      <div className="grid">
+        <Section label={t.answers} wide>
+          <Panel>
+            <p className="section-help">{t.answersHelp}</p>
+            <form className="form form-wide" onSubmit={submit} noValidate aria-describedby={problems.length ? 'answers-problems' : undefined}>
+              <Questions template={template} state={state} set={set} errors={errors} names={names} asOf={todayIso} />
+              <Field label={t.asOf} description={t.asOfHelp} type="date" value={asOf} onChange={setAsOf} error={errors.as_of} inputProps={{ placeholder: todayIso }} />
+              {problems.length ? (
+                <div id="answers-problems" className="problem" role="alert">
+                  <p className="problem-title">
+                    <span className="warn-mark" aria-hidden="true">
+                      !
+                    </span>{' '}
+                    {t.problems}
+                  </p>
+                  <p>{t.fixBelow}</p>
+                </div>
+              ) : null}
+              {start.isError && !start.stepUpPending ? <ProblemView error={start.error} compact /> : null}
+              <div className="form-actions">
+                <Button type="submit" isPending={start.isPending}>
+                  {start.isPending ? t.building : t.build}
+                </Button>
               </div>
-            ) : null}
-            {start.isError && !start.stepUpPending ? <ProblemView error={start.error} compact /> : null}
-            <div className="form-actions">
-              <Button type="submit" isPending={start.isPending}>
-                {start.isPending ? t.building : t.build}
-              </Button>
-            </div>
-          </form>
-        </Panel>
-      </Section>
+            </form>
+          </Panel>
+        </Section>
+        {template.notes.length ? (
+          <Section label={t.notes}>
+            <Panel>
+              <ul className="notes-list">
+                {template.notes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            </Panel>
+          </Section>
+        ) : null}
+      </div>
       {result ? (
         <div ref={resultRef} tabIndex={-1} className="result" aria-labelledby="start-result">
-          <h2 id="start-result" className="result-title">
-            {t.result}
-          </h2>
-          <p className="provenance">{l.basis.asOf(displayDate(result.as_of, locale), result.currency)}</p>
-          <StartResult data={result} template={template} />
+          <div className="result-head">
+            <h2 id="start-result" className="result-title">
+              {t.result}
+            </h2>
+            <p className="provenance">{l.basis.asOf(displayDate(result.as_of, locale), result.currency)}</p>
+          </div>
+          <StartResult data={result} template={template} names={names} />
           <Section label={l.record.title}>
             <RecordDecision key={JSON.stringify(result.record)} data={result} />
           </Section>
@@ -184,14 +199,7 @@ export function Template() {
       <LabNav />
       <Loaded query={query}>
         {(template) => (
-          <>
-            {template.notes.map((note, i) => (
-              <p key={i} className="provenance">
-                {note}
-              </p>
-            ))}
-            <TemplateForm key={template.id} template={template} />
-          </>
+          <TemplateForm key={template.id} template={template} />
         )}
       </Loaded>
     </Page>

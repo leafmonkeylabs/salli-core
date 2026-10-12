@@ -50,7 +50,7 @@ export function Lab() {
           </Panel>
         </Section>
         {LAB_PLACES.filter((p) => p.to !== '/decide' && p.to !== '/decide/templates').map((place) => (
-          <Section key={place.to} label={place.label}>
+          <Section key={place.to} label={place.label} className="section-quarter">
             <Panel>
               <p>{SENTENCES[place.to]}</p>
               <p>

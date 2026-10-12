@@ -17,6 +17,7 @@ import { Basis } from './Basis';
 import { Checks } from './Checks';
 import { BreakEvens, Sensitivity, SideBySide, Trade } from './Comparison';
 import { monthsOfSpending, monthText } from './format';
+import type { Names } from './Questions';
 
 const l = labStrings;
 const t = l.templates;
@@ -98,10 +99,17 @@ function Level({ data }: { data: DecisionStart }) {
   );
 }
 
-export function StartResult({ data, template }: { data: DecisionStart; template: DecisionTemplate }) {
+export function StartResult({ data, template, names }: { data: DecisionStart; template: DecisionTemplate; names: Names }) {
   const locale = useLocale();
   const comparison = data.comparison;
   const prompts = new Map(template.questions.map((q) => [q.id, q.prompt]));
+  const types = new Map(template.questions.map((q) => [q.id, q.type]));
+  /** An answer as the person knows it: their account's or debt's name, not its id. */
+  const named = (id: string, value: unknown): string => {
+    const type = types.get(id);
+    const book = type === 'account' ? names.accounts : type === 'debt' ? names.debts : type === 'holding' ? names.holdings : type === 'recurring' ? names.payments : undefined;
+    return typeof value === 'string' && book?.[value] ? book[value] : shown(value);
+  };
   const tax = comparison.options.find((o) => o.tax.status === 'not_computed')?.tax ?? comparison.options.find((o) => o.tax.status === 'computed')?.tax;
   const asOf = l.basis.asOfHorizon(displayDate(data.as_of, locale), data.currency, l.figure.years(data.horizon_years));
   return (
@@ -167,7 +175,7 @@ export function StartResult({ data, template }: { data: DecisionStart; template:
             rowKey={(a) => a.id}
             columns={[
               { key: 'answer', header: t.answer, label: t.answer, render: (a) => prompts.get(a.id) ?? a.id },
-              { key: 'value', header: t.value, label: t.value, render: (a) => <span className="answer-value">{shown(a.value)}</span> },
+              { key: 'value', header: t.value, label: t.value, render: (a) => <span className="answer-value">{named(a.id, a.value)}</span> },
               {
                 key: 'from',
                 header: t.from,

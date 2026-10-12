@@ -27,8 +27,19 @@ function Status({ status }: { status: string }) {
   );
 }
 
-export function Checks({ principles, columns, caption = c.title }: { principles: readonly PrincipleRef[]; columns: readonly CheckColumn[]; caption?: string }) {
-  if (!principles.length) return <Empty>{c.none}</Empty>;
+export function Checks({
+  principles,
+  columns,
+  caption = c.title,
+  none = c.none,
+}: {
+  principles: readonly PrincipleRef[];
+  columns: readonly CheckColumn[];
+  caption?: string;
+  /** What to say when there are none. */
+  none?: string;
+}) {
+  if (!principles.length) return <Empty>{none}</Empty>;
   const rows = principles.map((p, i) => ({ principle: p, results: columns.map((column) => column.results[i]) }));
   const why = columns.flatMap((column) => column.results.filter((r) => r.status !== 'keeps').map((r) => ({ column: column.label, result: r })));
   return (

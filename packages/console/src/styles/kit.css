@@ -564,6 +564,11 @@ main:focus {
   padding-right: 0;
 }
 
+.table .num + th,
+.table .num + td {
+  padding-left: 16px;
+}
+
 .table tfoot tr.total th,
 .table tfoot tr.total td {
   font-weight: 500;
@@ -864,6 +869,9 @@ main:focus {
 
 .chart-plot {
   position: relative;
+  /* A chart is drawn for the room it has: a phone's drawing in a narrow
+     column, whatever the screen. */
+  container-type: inline-size;
 }
 
 .chart-svg {
@@ -878,7 +886,7 @@ main:focus {
   display: none;
 }
 
-@media (max-width: 560px) {
+@container (max-width: 560px) {
   .chart-wide {
     display: none;
   }
@@ -1053,7 +1061,7 @@ main:focus {
 .field-row,
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 14px 16px;
   align-items: start;
 }
@@ -1064,6 +1072,13 @@ main:focus {
   margin: 0;
   display: grid;
   gap: 12px;
+  justify-items: start;
+}
+
+.group > .group-item,
+.group > .field-help,
+.group > .field-error {
+  width: 100%;
 }
 
 .group > legend {
@@ -1188,7 +1203,7 @@ main:focus {
   display: none;
 }
 
-@media (max-width: 560px) {
+@container (max-width: 560px) {
   .chart-key-narrow {
     display: flex;
     flex-direction: column;

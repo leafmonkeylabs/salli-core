@@ -45,7 +45,6 @@ function CashChart({ data }: { data: BaselineData }) {
       ticks={{ wide: monthTicks(dates, 2), narrow: monthTicks(dates, 4) }}
       series={[{ label: labStrings.baselineColumn, values: days.map((d) => d.balance) }]}
       step
-      zero
       marks={low >= 0 ? [{ series: 0, index: low, label: labStrings.lines.lowest(displayDate(data.cash.lowest_date, locale)) }] : []}
       figures={
         <Table
@@ -251,7 +250,7 @@ function Assumptions({ data }: { data: BaselineData }) {
         columns={[
           { key: 'name', header: b.assumption, label: b.assumption, render: (r) => b.names[r.key] ?? r.key },
           { key: 'value', header: b.assumptionValue, label: b.assumptionValue, align: 'end', render: (r) => rateText(r.assumption.value, locale) },
-          { key: 'origin', header: '', label: b.placeholderTag, render: (r) => origin(r.assumption) },
+          { key: 'origin', header: b.setBy, label: b.setBy, render: (r) => origin(r.assumption) },
           { key: 'source', header: b.source, label: b.source, render: (r) => [r.assumption.source, r.assumption.note].filter(Boolean).join(' · ') },
         ]}
       />
@@ -324,7 +323,10 @@ export function Baseline() {
         {(data) => (
           <>
             <BaselinePage data={data} />
-            <Provenance>{b.fingerprint(data.fingerprint)}</Provenance>
+            <Provenance>
+              {b.fingerprint}{' '}
+              <code className="hash">{data.fingerprint}</code>
+            </Provenance>
           </>
         )}
       </Loaded>

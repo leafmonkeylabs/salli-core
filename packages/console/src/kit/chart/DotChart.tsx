@@ -35,11 +35,11 @@ function Mark({ shape, x, y }: { shape: (typeof SHAPES)[number]; x: number; y: n
 
 function Plot({ props, variant }: { props: DotChartProps; variant: 'wide' | 'narrow' }) {
   const wide = variant === 'wide';
-  const width = wide ? 680 : 320;
-  const labelWidth = wide ? 200 : 0;
-  const right = wide ? 150 : 8;
+  const width = wide ? 1040 : 300;
+  const labelWidth = wide ? 260 : 0;
+  const right = wide ? 170 : 8;
   const rowHeight = wide ? 34 : 46;
-  const font = wide ? 12 : 11;
+  const font = 12;
   const height = props.rows.length * rowHeight + 8;
   const all = props.rows.flatMap((r) => r.values.filter((v): v is string => v !== null));
   const x = amountScale(all, [labelWidth + 8, width - right], { withZero: false });

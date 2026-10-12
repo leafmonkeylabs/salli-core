@@ -209,6 +209,7 @@ export const labStrings = {
     assumptionValue: 'Value',
     source: 'Where it comes from',
     placeholderTag: 'Placeholder',
+    setBy: 'Set by',
     yours: 'Yours',
     fromStrategy: 'From your FIRE strategy',
     names: {
@@ -219,7 +220,7 @@ export const labStrings = {
     } as Record<string, string>,
     rates: 'Exchange rates',
     rate: (currency: string, rate: string, source: string, date: string) => `${currency} at ${rate}, ${source}, ${date}`,
-    fingerprint: (hash: string) => `Fingerprint ${hash}`,
+    fingerprint: 'Fingerprint',
   },
 
   // Templates.
@@ -345,6 +346,7 @@ export const labStrings = {
     noChanges: 'No changes yet: as things are.',
     addChange: 'Add a change',
     changeType: 'Kind of change',
+    chooseKind: 'Choose a kind of change',
     removeChange: (n: number) => `Remove change ${n}`,
     change: (n: number) => `Change ${n}`,
     addOption: 'Add an option',
@@ -513,6 +515,7 @@ export const labStrings = {
     yes: 'Yes',
     no: 'No',
     principles: 'Your principles as they stood',
+    noPrinciples: 'No principles were in use when this was recorded.',
     basis: 'What it rested on',
     engine: (version: string) => `Engine ${version}`,
     review: 'Look back on it',

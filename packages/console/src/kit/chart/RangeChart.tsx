@@ -28,8 +28,8 @@ interface Layout {
   font: number;
 }
 
-const WIDE: Layout = { width: 680, height: 62, pad: 12, font: 12 };
-const NARROW: Layout = { width: 320, height: 66, pad: 6, font: 11 };
+const WIDE: Layout = { width: 1040, height: 62, pad: 12, font: 12 };
+const NARROW: Layout = { width: 300, height: 70, pad: 6, font: 12 };
 
 function Plot({ props, layout, variant }: { props: RangeChartProps; layout: Layout; variant: 'wide' | 'narrow' }) {
   const { width, height, pad, font } = layout;

@@ -243,7 +243,7 @@ function OptionForm({
               label={sc.changeType}
               value={adding}
               onChange={(v) => setAdding(v as ChangeType | '')}
-              options={[{ value: '', label: l.templates.leaveOut }, ...CHANGE_TYPES.map((type) => ({ value: type, label: sc.types[type] ?? type }))]}
+              options={[{ value: '', label: sc.chooseKind }, ...CHANGE_TYPES.map((type) => ({ value: type, label: sc.types[type] ?? type }))]}
             />
             <button
               type="button"
