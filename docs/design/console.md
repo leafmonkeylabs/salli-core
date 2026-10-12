@@ -1576,6 +1576,9 @@ sessionStorage, localStorage, the query cache and the mutation cache.
 **The kit grew; nothing forked.** `FileField` (the browser's own file
 input), `CheckboxField`, `Secret`, `Field` taking a password type and a
 list of suggestions, and `useWrite`'s `secret`; all exported for editions.
+Every checkbox is drawn square in `kit.css`, since the browser's own box is
+rounded; a radio stays the browser's, a circle by meaning, and with forced
+colours the system draws the checkbox again.
 
 **No API change.** Every page reads and writes through operations the CLI
 already has.

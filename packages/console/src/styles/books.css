@@ -28,12 +28,7 @@
   padding-top: 4px;
 }
 
-.review-select input,
-.field-check input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--c-button);
-}
+/* Its checkbox is the kit's (kit.css): square, 18 px. */
 
 .review-body {
   display: grid;
