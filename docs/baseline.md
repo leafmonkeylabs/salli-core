@@ -118,7 +118,10 @@ today's money:
 - **Investments** grow at your real return (the base scenario's), a twelfth of
   it a month, compounded, and take the share of each month's surplus you
   invest at its end.
-- **Other assets** keep their value in today's money.
+- **Other assets** keep their value in today's money. An asset a
+  [scenario](scenarios.md#changes) buys joins them from the month it is
+  bought, grows at its own real growth, and counts at its value less its
+  selling costs.
 - **Debts** follow their schedules. Fixed payments are deflated by your
   inflation figure.
 - **Net worth** is all of them together.

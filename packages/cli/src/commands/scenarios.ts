@@ -169,6 +169,21 @@ export function extraArg(value: string, day: string, now: Date): { debt: string;
   return { debt: head.slice(0, colon).trim(), change: { type: 'extra_debt_payment', monthly: amount, from: date ?? day } };
 }
 
+/** `--asset 450000[@2027-03-01]`: something that holds its value (a home), bought from cash. */
+export function assetArg(value: string, day: string, now: Date, opts: { account?: string; growth?: string; sellingCosts?: string } = {}): Change {
+  const { head, date } = splitAt(value, now, '--asset');
+  const price = priceArg(head, '--asset');
+  return {
+    type: 'asset',
+    price,
+    date: date ?? day,
+    ...(opts.account ? { from: opts.account } : {}),
+    ...(opts.growth !== undefined ? { real_growth: opts.growth } : {}),
+    ...(opts.sellingCosts !== undefined ? { selling_costs: opts.sellingCosts } : {}),
+    label: `Asset of ${price}`,
+  };
+}
+
 /** `--invest 5000[@2026-12-15]`: cash into your investments. */
 export function investArg(value: string, day: string, now: Date, account?: string): Change {
   const { head, date } = splitAt(value, now, '--invest');
@@ -278,8 +293,10 @@ function describeChange(out: Output, run: ScenarioRun, index: number): string {
   switch (doc.type) {
     case 'one_off':
       return `${out.money(doc.amount, cur)} on ${on(doc.date)}${taxed(doc.tax_role)}`;
-    case 'recurring':
-      return `${out.money(doc.amount, cur)} a ${UNIT[doc.cadence]} from ${on(doc.start)}${doc.end ? ` to ${on(doc.end)}` : ''}${taxed(doc.tax_role)}`;
+    case 'recurring': {
+      const grows = doc.real_growth && !/^[+-]?0*(\.0*)?$/.test(doc.real_growth) ? `, growing ${out.percent(doc.real_growth, 2)} a year beyond inflation` : '';
+      return `${out.money(doc.amount, cur)} a ${UNIT[doc.cadence]} from ${on(doc.start)}${doc.end ? ` to ${on(doc.end)}` : ''}${grows}${taxed(doc.tax_role)}`;
+    }
     case 'income_change':
       return `${out.money(doc.monthly, cur)} a month from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}${taxed(doc.tax_role)}`;
     case 'loan':
@@ -301,6 +318,11 @@ function describeChange(out: Output, run: ScenarioRun, index: number): string {
     }
     case 'set_aside':
       return `${out.money(doc.monthly, cur)} a month kept in cash from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}`;
+    case 'asset': {
+      const growth = doc.real_growth ? out.percent(doc.real_growth, 2) : '0% (a placeholder)';
+      const costs = doc.selling_costs ? `, selling costs ${out.percent(doc.selling_costs, 2)}` : '';
+      return `${out.money(doc.price, cur)} on ${on(doc.date)}, growing ${growth} a year beyond inflation${costs}`;
+    }
     case 'stop_recurring': {
       const stopped = applied?.stopped.map((s) => `${singleLine(s.payee)} (${out.money(s.amount, s.currency)} ${s.cadence})`).join(', ');
       return `from ${on(doc.from)}${stopped ? `: ${stopped}` : ''}`;
@@ -321,6 +343,7 @@ function notesFor(app: App, run: ScenarioRun): void {
       inflation: 'inflation (none set: nominal amounts keep their real value)',
       tax: 'tax (not computed: amounts tagged with a tax role count before tax)',
       tax_rules_carried_forward: 'your latest tax rules, carried forward to years with none of their own',
+      asset_growth: 'an asset’s growth (0% beyond inflation: not a forecast, set your own view)',
     };
     out.note(`Placeholders: ${run.placeholders.map((p) => names[p] ?? p).join('; ')}. Set yours with \`salli fi assumptions set\`.`);
   }
@@ -382,6 +405,7 @@ export function showRun(app: App, run: ScenarioRun): void {
   }
 
   if (run.monthly.length) {
+    const assets = run.monthly.some((p) => !/^-?0*(\.0*)?$/.test(p.other_assets.delta ?? '0'));
     out.line();
     out.line(
       out.table(run.monthly, [
@@ -391,10 +415,17 @@ export function showRun(app: App, run: ScenarioRun): void {
         { header: 'CHANGE', get: (p) => change(out, p.net_worth.delta, cur), align: 'right' },
         { header: 'CASH', get: (p) => change(out, p.cash.delta, cur), align: 'right' },
         { header: 'INVESTMENTS', get: (p) => change(out, p.investments.delta, cur), align: 'right' },
+        ...(assets ? [{ header: 'OTHER ASSETS', get: (p: (typeof run.monthly)[number]) => change(out, p.other_assets.delta, cur), align: 'right' as const }] : []),
         { header: 'DEBTS', get: (p) => change(out, p.debts.delta, cur), align: 'right' },
       ]),
     );
-    out.note('In today’s money. CASH, INVESTMENTS and DEBTS are the changes against the baseline.');
+    out.note(`In today’s money. CASH, INVESTMENTS${assets ? ', OTHER ASSETS' : ''} and DEBTS are the changes against the baseline.`);
+    if (assets) {
+      const last = run.monthly.at(-1);
+      out.note(
+        `An asset counts at what it would fetch: its value less its selling costs${last ? ` (other assets worth ${out.amount(last.other_assets_value.scenario, cur)} in ${plural(last.years, 'year')}, counted at ${out.amount(last.other_assets.scenario, cur)})` : ''}.`,
+      );
+    }
   }
 
   const debts = run.debts;
@@ -575,6 +606,10 @@ export function registerScenarios(program: Command, app: App): void {
     .option('--sell-value <holding:amount[@date]>', 'Sell this much of one of your holdings, in your base currency (repeatable)', collect)
     .option('--fees <amount>', 'Your broker\'s fees on each --sell, --sell-value and --invest into a --holding (default: none)')
     .option('--gain-tax-role <role>', 'A --sell\'s realised gain counts in this income role of your tax rules')
+    .option('--asset <price[@date]>', 'Buy something that holds its value (a home) from cash (repeatable)', collect)
+    .option('--asset-growth <rate>', 'How much each --asset grows a year beyond inflation: 1%, -0.5% (default 0, a placeholder)')
+    .option('--selling-costs <rate>', 'What selling each --asset would cost, as a share of its value: 3% (default 0)')
+    .option('--recurring-growth <rate>', 'How much each --recurring amount grows a year beyond inflation: 1.5%')
     .option('--cancel <recurring[@date]>', 'Stop a recurring payment, by its key or payee (repeatable)', collect)
     .option('--account <account>', 'The cash account the changes move (default: your cash total)')
     .option('--tax-role <role>', 'The --income, --recurring and --buy amounts are before tax, in this role of your tax rules')
@@ -601,6 +636,7 @@ Examples:
   $ salli whatif --recurring -450/month@2027-01-01 --income +600/month@2027-01-01
   $ salli whatif --extra-payment "student loan:200/month" --years 10
   $ salli whatif --invest 5000 --account savings --save invest.json
+  $ salli whatif --asset 450000@2027-03-01 --selling-costs 3% --loan 360000@4.2%x300@2027-03-01
   $ salli whatif --cancel streamflix
   $ salli whatif --income +1000/month@2027-01-01 --tax-role salary
   $ salli whatif --invest 1000 --holding FUND --fees 4
@@ -631,6 +667,7 @@ Fees are yours to give: none are counted without --fees.`,
         sell: options.sell ?? [],
         sellValue: options.sellValue ?? [],
         cancel: options.cancel ?? [],
+        asset: options.asset ?? [],
         taxAnswer: options.taxAnswer ?? [],
       };
       const flagged =
@@ -642,7 +679,8 @@ Fees are yours to give: none are counted without --fees.`,
         opts.invest.length +
         opts.sell.length +
         opts.sellValue.length +
-        opts.cancel.length;
+        opts.cancel.length +
+        opts.asset.length;
       const trades = opts.sell.length + opts.sellValue.length + (opts.holding ? opts.invest.length : 0);
       if (opts.file && flagged) throw new UsageError('Give changes as flags or as --file, not both.');
       if (opts.file && opts.save) throw new UsageError('--save writes the scenario the flags make; with --file you have it already.');
@@ -652,6 +690,15 @@ Fees are yours to give: none are counted without --fees.`,
       if (opts.taxRole && !(opts.buy.length + opts.recurring.length + opts.income.length)) {
         throw new UsageError('--tax-role tags --income, --recurring and --buy changes: give one.');
       }
+      if ((opts.assetGrowth !== undefined || opts.sellingCosts !== undefined) && !opts.asset.length) {
+        throw new UsageError('--asset-growth and --selling-costs describe an --asset: give one.');
+      }
+      if (opts.recurringGrowth !== undefined && !opts.recurring.length) {
+        throw new UsageError('--recurring-growth describes --recurring amounts: give one.');
+      }
+      const assetGrowth = opts.assetGrowth !== undefined ? rateArg(opts.assetGrowth, '--asset-growth') : undefined;
+      const sellingCosts = opts.sellingCosts !== undefined ? rateArg(opts.sellingCosts, '--selling-costs') : undefined;
+      const recurringGrowth = opts.recurringGrowth !== undefined ? rateArg(opts.recurringGrowth, '--recurring-growth') : undefined;
       if (opts.file && (opts.holding || opts.fees || opts.gainTaxRole)) {
         throw new UsageError('With --file, put holding, fees and tax_role on the changes themselves.');
       }
@@ -677,7 +724,7 @@ Fees are yours to give: none are counted without --fees.`,
       } else {
         if (!flagged) {
           throw new UsageError(
-            'Say what changes: --buy, --loan, --recurring, --income, --extra-payment, --invest, --sell or --cancel.',
+            'Say what changes: --buy, --loan, --recurring, --income, --extra-payment, --invest, --sell, --asset or --cancel.',
             'Or run a scenario document with --file. See `salli whatif --help`.',
           );
         }
@@ -687,8 +734,12 @@ Fees are yours to give: none are counted without --fees.`,
         const changes: Change[] = [
           ...opts.buy.map((v) => tag(buyArg(v, day, now, account))),
           ...opts.loan.map((v) => loanArg(v, day, now, account)),
-          ...opts.recurring.map((v) => tag(recurringArg(v, day, now, account))),
+          ...opts.recurring.map((v) => {
+            const recurring = tag(recurringArg(v, day, now, account));
+            return recurringGrowth !== undefined ? ({ ...recurring, real_growth: recurringGrowth } as Change) : recurring;
+          }),
           ...opts.income.map((v) => tag(incomeArg(v, day, now))),
+          ...opts.asset.map((v) => assetArg(v, day, now, { account, growth: assetGrowth, sellingCosts })),
         ];
         const holdingOf = new Map<string, { id: string; name: string }>();
         const holding = async (query: string): Promise<{ id: string; name: string }> => {

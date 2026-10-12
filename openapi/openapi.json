@@ -14120,6 +14120,82 @@
         "title": "AmountFigure",
         "description": "A money figure under the baseline and under the scenario, and the\nscenario less the baseline."
       },
+      "AssetChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "asset",
+            "title": "Type"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+            "title": "Price",
+            "description": "A positive decimal amount as a string, like \"5000.00\"."
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "Date"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From"
+          },
+          "real_growth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
+                "description": "A yearly growth beyond inflation, as a signed fraction: \"0.01\" is 1% a year more than prices, \"-0.02\" 2% a year less."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real Growth"
+          },
+          "selling_costs": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+                "description": "A decimal number written as a string, like \"1800000\" or \"0.15\"."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selling Costs"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "price",
+          "date",
+          "label"
+        ],
+        "title": "AssetChange",
+        "description": "Something bought that holds its value: a home. The price leaves cash\non the day (a move, like an investment), and the asset is counted from\nthat month's end among your other assets, growing at its `real_growth`\na twelfth a month, compounded, from the next. It counts in net worth at\nwhat it would fetch: its value less its selling costs. Like your other\nassets, it funds no withdrawals in FI."
+      },
       "AuditLog": {
         "properties": {
           "entries": {
@@ -25702,7 +25778,7 @@
           "label"
         ],
         "title": "OneOffChange",
-        "description": "Money in or out once, on a day: a purchase (negative), a gift\nreceived (positive). What a purchase buys isn't counted as an asset.\nWith a `tax_role`, the amount is before tax: a taxable bonus in an\nincome role, a deductible cost in a deduction role."
+        "description": "Money in or out once, on a day: a purchase (negative), a gift\nreceived (positive). What a purchase buys isn't counted as an asset\n(an `asset` change is).\nWith a `tax_role`, the amount is before tax: a taxable bonus in an\nincome role, a deductible cost in a deduction role."
       },
       "OpeningBalanceItem": {
         "properties": {
@@ -28088,6 +28164,19 @@
             ],
             "title": "Tax Role"
           },
+          "real_growth": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
+                "description": "A yearly growth beyond inflation, as a signed fraction: \"0.01\" is 1% a year more than prices, \"-0.02\" 2% a year less."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real Growth"
+          },
           "label": {
             "type": "string",
             "maxLength": 200,
@@ -28105,7 +28194,7 @@
           "label"
         ],
         "title": "RecurringChange",
-        "description": "The same amount again and again: a new rent (negative), a side income\n(positive). In today's money: with your inflation set, it rises with it.\nWith a `tax_role`, each amount is before tax."
+        "description": "The same amount again and again: a new rent (negative), a side income\n(positive). In today's money: with your inflation set, it rises with it,\nand with a `real_growth`, by that much more a year. With a `tax_role`,\neach amount is before tax."
       },
       "RecurringPayment": {
         "properties": {
@@ -29185,11 +29274,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/SellChange"
+                },
+                {
+                  "$ref": "#/components/schemas/AssetChange"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
+                  "asset": "#/components/schemas/AssetChange",
                   "extra_debt_payment": "#/components/schemas/ExtraDebtPaymentChange",
                   "income_change": "#/components/schemas/IncomeChange",
                   "invest": "#/components/schemas/InvestChange",
@@ -29315,7 +29408,8 @@
             "enum": [
               "recurring_cash_floor",
               "invest_vs_debt_return",
-              "loan_rate"
+              "loan_rate",
+              "asset_growth"
             ],
             "title": "Kind"
           },
@@ -29500,7 +29594,8 @@
               "invest",
               "stop_recurring",
               "set_aside",
-              "sell"
+              "sell",
+              "asset"
             ],
             "title": "Type"
           },
@@ -29631,6 +29726,12 @@
           },
           "debts": {
             "$ref": "#/components/schemas/AmountFigure"
+          },
+          "other_assets": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "other_assets_value": {
+            "$ref": "#/components/schemas/AmountFigure"
           }
         },
         "type": "object",
@@ -29641,7 +29742,9 @@
           "net_worth",
           "cash",
           "investments",
-          "debts"
+          "debts",
+          "other_assets",
+          "other_assets_value"
         ],
         "title": "ScenarioCheckpoint",
         "description": "The monthly timeline a whole number of years on, in today's money."
@@ -30283,7 +30386,8 @@
                 "surplus_invested",
                 "inflation",
                 "tax",
-                "tax_rules_carried_forward"
+                "tax_rules_carried_forward",
+                "asset_growth"
               ]
             },
             "type": "array",

@@ -98,6 +98,8 @@ When no template fits, build each option as a scenario and let Salli run it.
     salli whatif --invest 1000 --holding <holding> --fees 4 --json   # into one of their holdings
     salli whatif --sell <holding>:4 --fees 2 --gain-tax-role <role> --json   # or --sell-value <holding>:2500
     salli whatif --cancel <key> --json                         # keys: salli insights recurring
+    salli whatif --asset 450000@2027-03-01 --selling-costs 3% \
+      --loan 360000@4.2%x300@2027-03-01 --json                 # a home: price out, mortgage in
     salli whatif ... --label "Pay cash" --save cash.json       # keep it as a document
     salli compare cash.json instalments.json --json            # 2 to 5 options
 
@@ -106,13 +108,20 @@ decimal strings, dates YYYY-MM-DD), so you can also write one and run it with
 `salli whatif --file <path>`. Every figure comes as `baseline`, `scenario`
 and `delta`: the lowest cash in the next twelve months and when, accounts
 going below zero, safe-to-spend, net worth, cash, investments and debts at 1,
-5, 10 and 20 years in today's money, each debt's payoff and interest,
+5, 10 and 20 years in today's money (with other assets: an asset bought
+counts at its value less its selling costs, `other_assets_value` its value),
+each debt's payoff and interest,
 emergency-fund months, and the FI number and month (`fi.months_gained`).
 `compare` adds `trade` (what each option gains and gives up against each
 other), `sensitivity` (the same at the conservative and growth returns) and
 `break_evens`, each with a sentence (`says`) saying where the answer changes:
 quote it. If `is_stale` is true, ask the user to bring their ledger up to
 date before deciding. Name the `placeholders` the figures rest on.
+
+How fast a home's value (`--asset-growth`) or a rent (`--recurring-growth`)
+grows beyond inflation is the user's own view, never yours: ask, and say
+that without one it is 0 (`asset_growth` among the placeholders). The
+`asset_growth` break-even says what growth would change the answer.
 
 An amount is what reaches the user's cash unless it is tagged with a tax
 role. When it is before tax (a raise, a taxable bonus, a pension

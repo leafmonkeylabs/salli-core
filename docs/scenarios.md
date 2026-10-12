@@ -2,7 +2,7 @@
 
 A scenario is your [baseline](baseline.md) plus changes: a purchase, a loan,
 a new rent, a raise, an extra payment on a debt, money invested, part of a
-holding sold, a subscription cancelled. Salli runs it and reports every figure twice, under
+holding sold, a subscription cancelled, a home bought. Salli runs it and reports every figure twice, under
 your baseline and under the scenario, with the change between them. Nothing
 is stored and nothing touches your books.
 
@@ -74,8 +74,8 @@ The rules:
 
 | Type | Fields | What it does |
 |---|---|---|
-| `one_off` | `date`, `amount`, `account`?, `tax_role`?, `label` | Money in or out once. What a purchase buys isn't counted as an asset. |
-| `recurring` | `amount`, `cadence` (`weekly`, `monthly`, `quarterly`, `yearly`), `start`, `end`?, `account`?, `tax_role`?, `label` | The same amount again and again: every seven days, or every one, three or twelve months on the start's day of the month. |
+| `one_off` | `date`, `amount`, `account`?, `tax_role`?, `label` | Money in or out once. What a purchase buys isn't counted as an asset: an `asset` change is. |
+| `recurring` | `amount`, `cadence` (`weekly`, `monthly`, `quarterly`, `yearly`), `start`, `end`?, `account`?, `tax_role`?, `real_growth`?, `label` | The same amount again and again: every seven days, or every one, three or twelve months on the start's day of the month. With a `real_growth` (a signed yearly fraction, `"0.01"`), it grows by that much a year beyond inflation, a twelfth a month, compounded, from its start's month: a rent rising faster than prices. Without one, it keeps its value in today's money, as before. |
 | `income_change` | `monthly`, `from`, `to`?, `tax_role`?, `label` | Your monthly income changes, from a day's date each month: what reaches your cash, or, with a `tax_role`, before tax. |
 | `loan` | `principal`, `annual_rate`, `term_months` (1 to 600), `start`, `into`?, `label` | The money arrives on its start day. It is owed from that month's end and repaid in level monthly payments from the next month, rounded to your currency's smallest unit; the last payment clears what the rounding left. |
 | `extra_debt_payment` | `debt`, `monthly`, `from`, `to`?, `label`? | Paid on one of your debts on top of its minimum, each month from `from`'s month to `to`'s, or until it is paid off. In the as-of month, before the debt's first payment, it is paid at the month's end ([below](#in-the-as-of-month)). |
@@ -83,6 +83,7 @@ The rules:
 | `sell` | `holding`, `quantity` or `amount`, `date`, `fees`?, `lots`?, `into`?, `tax_role`?, `label`? | Part of one of your holdings sold: its value leaves your investments, and the proceeds less fees arrive in cash. Salli replays its lots and reports the gain you would realise ([below](#holdings)). |
 | `stop_recurring` | `key`, `from`, `label`? | A recurring flow your ledger shows stops: cancel a subscription. `salli insights recurring` lists each one's key. A transfer between your own accounts can't be stopped this way: it is no part of what you earn or spend. |
 | `set_aside` | `monthly`, `from`, `to`?, `label`? | Part of each month's surplus kept in cash, rather than shared out: saving towards an emergency fund or a purchase. Each month from `from`'s month to `to`'s (or for good), that much of the regular surplus stays in cash first, and the share you invest is of what is left. It can't keep more than the month's surplus. |
+| `asset` | `price`, `date`, `from`?, `real_growth`?, `selling_costs`?, `label` | Something bought that holds its value: a home. The price leaves cash on the day; the asset counts among your other assets from that month's end, growing at its `real_growth` a year beyond inflation (a twelfth a month, compounded, from the next month; a signed fraction, 0 without one, labelled the `asset_growth` placeholder). It counts in net worth at what it would fetch: its value less `selling_costs`, a share of it (`"0.03"` is 3%; 0 without). Like your other assets it funds no withdrawals, so FI doesn't count it. A mortgage is an ordinary `loan`. |
 
 Fields marked ? are optional. An amount is what reaches your cash, unless
 the change carries a `tax_role`: then it is before tax, and Salli works out
@@ -92,7 +93,7 @@ the tax ([below](#tax)).
 are part of your regular surplus, and are shared out like your baseline's
 own: the share of it you invest (`surplus_invested`, all of it as a
 placeholder) goes into your investments at each month's end, the rest stays
-in cash. One-offs, a loan's money, investments and extra payments are moves:
+in cash. One-offs, a loan's money, investments, an asset's price and extra payments are moves:
 they go in or out of cash, and only where they say. A loan's payments, like
 your debts', are scheduled: they come out of the regular surplus, and once
 the loan or debt is paid off its payment is freed into it, including when an
@@ -118,9 +119,12 @@ leaves cash as every extra payment does, spread over the rest of its month.
 
 **Today's money or the day's own.** Recurring amounts, income changes and
 stopped flows are in today's money: with your inflation set, each rises with
-it, as your average spending does. One-offs, investments, sales, loan payments,
-extra payments, amounts set aside and the change in tax are fixed in the
-money of their own day. With no inflation
+it, as your average spending does (and a recurring amount by its
+`real_growth` beyond it). One-offs, investments, sales, an asset's price,
+loan payments, extra payments, amounts set aside and the change in tax are
+fixed in the money of their own day. An asset is counted in today's money
+from the month it is bought: its price deflated to that month, grown by its
+real growth after it. With no inflation
 set, the two are the same, and every result says inflation is a placeholder.
 
 ## Tax
@@ -293,7 +297,7 @@ string in your currency's precision. A month's change is in months
 | Area | Figures |
 |---|---|
 | **Cash, the next twelve months** | The lowest your cash gets and the day; each cash account at its lowest, and which go below zero; cash at the end of the twelfth month; safe-to-spend until your next income (the baseline's window, so the two compare). |
-| **Monthly, in today's money** | Net worth, cash, investments and debts at 1, 5, 10 and 20 years and at the horizon. |
+| **Monthly, in today's money** | Net worth, cash, investments and debts at 1, 5, 10 and 20 years and at the horizon; other assets as net worth counts them (`other_assets`: an asset a scenario buys at its value less its selling costs) and their value before selling costs (`other_assets_value`) beside them. |
 | **Debts** | Each debt's payoff month and interest, and a new loan's; the interest on all of them; the month you are debt-free. |
 | **Resilience** | The months of spending your cash covers at its low point and at the end of the year: over essential spending when your spending carries need tags, over all of it otherwise. |
 | **FI** | The FI number, the month you reach it, and the months gained (positive) or lost. |
@@ -323,9 +327,10 @@ without it.
 **What every result records**, so it can be checked and reproduced:
 
 - the assumptions it used, each with where it came from, and which are
-  placeholders (`placeholders`: FI's, inflation, and `tax` or
+  placeholders (`placeholders`: FI's, inflation, `tax` or
   `tax_rules_carried_forward` when the tax isn't computed or rests on rules
-  carried forward);
+  carried forward, and `asset_growth` when an asset has no growth of its
+  own);
 - the versions behind it: the document's schema, the engine, a content hash
   of the FI assumptions, your FIRE strategy's version, and the active tax
   rule sets that cover the as-of date;
@@ -337,7 +342,9 @@ without it.
   it. The same hash means the same figures: the engine's version changes
   whenever the same scenario would give different figures. It is 4: since
   [tax](#tax), stopping a flow whose account carries an income or deduction
-  role of your active rules changes your tax.
+  role of your active rules changes your tax. Assets and a recurring
+  amount's real growth are new inputs, and left out they change nothing, so
+  they kept it at 4.
 
 ## Comparing options
 
@@ -372,6 +379,11 @@ option without a label is named after its file, or "Option n".
     option has a loan the other doesn't: the highest rate, to a basis point,
     between 0% and 100%, at which it ends the horizon with at least the other
     option's net worth.
+  - **The growth at which buying an asset ends level** (`asset_growth`),
+    where an option buys one (an `asset` change) the other doesn't: the
+    lowest growth of its value beyond inflation, to a basis point, between
+    -5% and 10% a year, at which it ends the horizon with at least the other
+    option's net worth. A higher growth never lowers it, so it is exact.
 
   Each is solved by bisection on whole numbers (cents, basis points), so the
   same inputs always give the same answer. "None in range" says which option
@@ -462,7 +474,9 @@ Which matters more, the buffer or the money, is yours to say.
   aside (`set_aside`), and a set-aside doesn't stop by itself once cash
   covers a target. The [emergency-fund template](templates.md) reads when
   it does.
-- What a purchase buys, as an asset you own.
+- Selling an asset on a day, and repaying a loan on a day: an asset is
+  counted at what it would fetch at every month's end instead.
+- An asset's running costs: add them as a `recurring` cost.
 - An expected return per holding, a price, dividend or exchange-rate
   forecast, buying a security you don't hold yet (add the holding first),
   and average-cost pooling or wash-sale rules for lots.
