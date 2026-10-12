@@ -1,0 +1,10 @@
+/*
+ * The console's styles: the brand's tokens, Geist and Geist Mono (OFL,
+ * self-hosted from fontsource; no font request leaves the server), the base
+ * and the kit. Only stylesheets: the CSP allows no inline style.
+ */
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource/geist-mono/latin-400.css';
+@import './tokens.css';
+@import './base.css';
+@import './kit.css';
