@@ -90,6 +90,16 @@ export interface WriteOptions<I, R> {
   /** Operation names whose reads this write changes. */
   invalidate?: string[];
   onSuccess?: (result: R, input: I) => void;
+  /**
+   * Where the write holds a secret, so nothing keeps it beyond the page
+   * that shows it: no cached mutation outlives its page (TanStack's cache
+   * forgets it once nothing observes it). `'input'`: what is sent is the
+   * secret (a model key typed in), so it never waits in sessionStorage for
+   * a step-up either: a step-up answer is shown, not followed. `'answer'`:
+   * what comes back is (a token, shown once); the input is plain and may
+   * wait for a step-up.
+   */
+  secret?: 'input' | 'answer';
 }
 
 /**
@@ -100,15 +110,17 @@ export function useWrite<I, R>(name: string, run: (api: SalliClient, input: I) =
   const session = useSession();
   const queryClient = useQueryClient();
   const retried = useRef(false);
+  const followsStepUp = options.secret !== 'input';
   const mutation = useMutation<R, Error, I>({
     mutationKey: [name],
     mutationFn: (input) => run(session.client, input),
+    ...(options.secret ? { gcTime: 0 } : {}),
     onSuccess: async (result, input) => {
       await Promise.all((options.invalidate ?? []).map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
       options.onSuccess?.(result, input);
     },
     onError: (error, input) => {
-      if (isStepUpRequired(error) && !retried.current) void session.stepUp({ name, input });
+      if (followsStepUp && isStepUpRequired(error) && !retried.current) void session.stepUp({ name, input });
     },
   });
 
@@ -122,7 +134,7 @@ export function useWrite<I, R>(name: string, run: (api: SalliClient, input: I) =
     }
   }, [session, name, mutate]);
 
-  const stepUpPending = mutation.isError && isStepUpRequired(mutation.error) && !retried.current;
+  const stepUpPending = followsStepUp && mutation.isError && isStepUpRequired(mutation.error) && !retried.current;
   return { ...mutation, stepUpPending, retried: retried.current };
 }
 
