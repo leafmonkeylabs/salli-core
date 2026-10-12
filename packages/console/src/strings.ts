@@ -18,6 +18,7 @@ export const strings = {
   nav: {
     label: 'Places',
     home: 'Home',
+    decide: 'Decide',
     settings: 'Settings',
     more: 'More',
     signOut: 'Sign out',
@@ -74,6 +75,7 @@ export const strings = {
 
   money: {
     minus: 'minus',
+    plus: 'plus',
   },
 
   chart: {

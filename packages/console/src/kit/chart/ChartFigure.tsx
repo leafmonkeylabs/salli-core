@@ -2,7 +2,8 @@
  * A chart, as the design draws them (docs/design/console.md, section 4,
  * "Charts"): a <figure> whose caption says what it shows and its key
  * figure, an SVG with role="img" and a label, and **Show the figures**, the
- * same data as a table: the table is the accessible way in. Hand-drawn SVG
+ * same data as a table: the table is the accessible way in (made when it is
+ * opened, so a year of days costs nothing until asked for). Hand-drawn SVG
  * from the tokens, 1.5 px lines, hairline gridlines, no animation into
  * place: a line is exact from its first frame.
  */
@@ -35,7 +36,7 @@ export function ChartFigure({
         </button>
       </figcaption>
       <div id={id} hidden={!open}>
-        {figures}
+        {open ? figures : null}
       </div>
     </figure>
   );
