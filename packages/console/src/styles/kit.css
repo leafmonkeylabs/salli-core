@@ -777,6 +777,10 @@ main:focus {
   box-shadow: var(--shadow-overlay);
 }
 
+.modal:not([open]) {
+  display: none;
+}
+
 .modal[open] {
   animation: slide-in var(--motion) both;
 }

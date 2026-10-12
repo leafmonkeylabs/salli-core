@@ -61,7 +61,8 @@ for (const theme of THEMES) {
         await settled(page);
         await axe(page);
         await expect(page).toHaveScreenshot(`settings-${width}-${theme}.png`, { fullPage: true });
-        // The confirmation before ending a sign-in.
+        // The confirmation before ending a sign-in: hidden until asked for.
+        await expect(page.getByRole('alertdialog')).toBeHidden();
         await page.getByRole('button', { name: /Sign out salli command/ }).click();
         await expect(page.getByRole('alertdialog')).toBeVisible();
         await axe(page);

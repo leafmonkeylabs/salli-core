@@ -198,7 +198,8 @@ function SignInsSection() {
               {
                 key: 'end',
                 header: <span className="sr-only">{s.end}</span>,
-                label: s.end,
+                // On a phone the button says it: no label beside it.
+                label: '',
                 align: 'end',
                 render: (row) => (
                   <Button variant="tertiary" aria-label={s.endLabel(describe(row), when(row.started_at))} onPress={() => setEnding(row)}>
