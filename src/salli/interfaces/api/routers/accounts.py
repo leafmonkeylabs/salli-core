@@ -176,8 +176,8 @@ async def reactivate_account(
 async def update_account(
     account_id: str, body: UpdateAccountRequest, user_id: CurrentUser, svc: AppServices
 ) -> Ref:
-    # The repository assigns `row.tax_role = tax_role` unconditionally, and the
-    # mobile client does not send the field — so passing body.tax_role straight
+    # The repository assigns `row.tax_role = tax_role` unconditionally, and a
+    # client renaming an account need not send the field — so passing body.tax_role straight
     # through would clear the role on every rename and silently inflate that
     # user's tax bill. An omitted field keeps whatever the account already has.
     tax_role = body.tax_role
