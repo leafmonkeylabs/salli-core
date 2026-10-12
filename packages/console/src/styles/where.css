@@ -1,0 +1,107 @@
+/*
+ * Where you stand (C2): the books, cash, attention and financial
+ * independence, and the shell's places growing to seven. Tokens only
+ * (tokens.css); square corners.
+ */
+
+/* The places: on a screen too narrow for one row beside the logo, the
+   places take a row of their own under it. */
+@media (max-width: 1080px) and (min-width: 721px) {
+  .topbar-inner {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .topnav {
+    order: 3;
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .topnav ul {
+    flex-wrap: wrap;
+  }
+}
+
+/* More: a phone's list of the places its bar has no room for. */
+.places > li {
+  display: grid;
+  gap: 2px;
+}
+
+/* A level read against (the FI number): a dashed hairline. */
+.chart-reference {
+  stroke: var(--c-chart-2);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+/* A group not yet whole (this month so far): lighter, with its edge kept. */
+.chart-partial .chart-bar-1,
+.chart-partial .chart-bar-2,
+.chart-partial.chart-bar-1 {
+  fill-opacity: 0.35;
+  stroke-width: 1;
+}
+
+.chart-partial .chart-bar-1,
+.chart-partial.chart-bar-1 {
+  stroke: var(--c-chart-1);
+}
+
+.chart-partial .chart-bar-2 {
+  stroke: var(--c-chart-2);
+}
+
+/* An entry's tags. */
+.tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+/* Reminders: the date, then what, with what can be done about it. */
+.reminder-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  min-width: 0;
+}
+
+.reminder-body > span:first-child {
+  flex: 1 1 16em;
+  min-width: 0;
+}
+
+.reminder-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* An assumption: its name and the rate in use, then where it came from. */
+.assumptions {
+  gap: 0;
+}
+
+.assumption {
+  display: grid;
+  gap: 8px;
+}
+
+.assumption-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.assumption-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.assumption .form {
+  max-width: 560px;
+}

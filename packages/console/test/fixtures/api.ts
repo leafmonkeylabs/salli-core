@@ -2,12 +2,14 @@
  * A Salli server made of fixtures, for the component tests (as a `fetch`)
  * and the visual and accessibility runs (behind Playwright's `page.route`).
  * Home's reads answer what the real server answers on the golden household
- * (home.ts); the sign-in answers as Salli's OAuth endpoints do.
+ * (home.ts), the decision lab's (lab-api.ts) and where you stand's
+ * (where-api.ts) likewise; the sign-in answers as Salli's OAuth endpoints do.
  */
 import type { NotificationPreferences, Profile } from '@leafmonkeylabs/salli-sdk';
 import { ME, metaAt, ORIGIN, PROFILE, SIGN_INS } from './auth';
 import * as home from './home';
 import { LabState } from './lab-api';
+import { WhereState } from './where-api';
 
 export interface Answer {
   status: number;
@@ -38,12 +40,15 @@ export const PREFERENCES: NotificationPreferences = {
   sender_enabled: false,
 };
 
-/** The reads Home makes, by path. */
+/**
+ * The reads Home makes, by path, but its reminders: those are where you
+ * stand's (where-api.ts), which answers Home's `?status=pending` with the
+ * same three and Attention with the one done as well.
+ */
 export const HOME_READS: Record<string, unknown> = {
   '/v1/reports/balance-sheet': home.BALANCE_SHEET,
   '/v1/ledger/income-statement': home.INCOME_STATEMENT,
   '/v1/fi/score': home.FI_SCORE,
-  '/v1/reminders/': home.REMINDERS,
   '/v1/insights/safe-to-spend': home.SAFE_TO_SPEND,
   '/v1/insights/signals': home.SIGNALS,
   '/v1/decisions/reviews': home.REVIEWS_DUE,
@@ -62,6 +67,8 @@ export class MockApi {
   reads: Record<string, unknown> = { ...HOME_READS };
   /** The decision lab's reads and writes (lab-api.ts). */
   lab = new LabState();
+  /** Where you stand's reads and writes (where-api.ts): the books, cash, attention, FI. */
+  where = new WhereState();
   issued = 0;
 
   constructor(origin: string = ORIGIN) {
@@ -88,6 +95,10 @@ export class MockApi {
     if (!request.authorization) return { status: 401, body: problem(401, 'Not signed in') };
     if (method === 'GET' && path === '/v1/auth/me') return { status: 200, body: this.me };
     if (method === 'GET' && path in this.reads) return { status: 200, body: this.reads[path] };
+    const stands = this.where.answer(request);
+    // An assumption set changes the FI score, which Home reads too.
+    if (stands && method === 'PATCH' && path === '/v1/fi/assumptions' && stands.status === 200) this.reads['/v1/fi/score'] = this.where.score;
+    if (stands) return stands;
     if (method === 'GET' && path === '/v1/onboarding/profile') return { status: 200, body: this.profile };
     if (method === 'PATCH' && path === '/v1/onboarding/profile') {
       this.profile = { ...this.profile, ...(JSON.parse(request.body) as Partial<Profile>) };
