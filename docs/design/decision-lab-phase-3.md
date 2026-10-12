@@ -3,7 +3,8 @@
 Status: **approved (2026-10-12).** The owner accepted every recommended
 decision below. Building started with 3a and 3d, and both are built.
 **3a, tax-aware scenarios,** is built (its "As built" notes close section
-1). **3d, the notification port,** is built
+1). **3c, the rent-or-buy template,** is built (its "As built" notes close
+section 3). **3d, the notification port,** is built
 ([docs/self-host.md](../self-host.md#digests); as built in
 [decision-lab.md](decision-lab.md#phases)). It extends the approved [decision lab design](decision-lab.md), whose
 rules all still hold. The open questions are at the end, numbered on from that
@@ -750,6 +751,77 @@ from family with no ledger rent: the "rent now" question takes an amount.
 - **Guards:** `assert_never_ranks` over the start (no "rent is dead money",
   no "better"); the template holds no rate, price or rule beyond the two
   labelled placeholders (a test lists every default and its source).
+
+### As built (3c)
+
+Built as designed, in two groups of commits (decision 31): the engine
+pieces, then the template. These are the choices where the design left
+room, or the code asked for one:
+
+- **No existing figure changed,** so `ENGINE_VERSION` stays 4. Every
+  existing golden passes unchanged; `real_growth` left out of a recurring
+  change is no part of the content hash, so no existing scenario's hash
+  moved.
+- **The asset** (`schema.AssetChange`, `timelines.Asset`, `Changes.assets`):
+  its price is a move out of cash on the day (`from` names the account),
+  counted from that month's end at its price deflated to the month, grown
+  a twelfth of its real growth a month from the next. `real_growth` is a
+  signed fraction from -1 to 1 (`schema.RealGrowth`); `selling_costs` a
+  rate, 0 when left out, with no placeholder (it is the person's). Without
+  a growth, `asset_growth` is among the result's placeholders. A note says
+  why net worth drops by the selling costs at purchase.
+- **Net worth** (decision 24): `MonthPoint.other_assets` counts each asset
+  at its value less its selling costs, and `other_assets_value` holds the
+  value; checkpoints carry both, and the trade weighs other assets too.
+  The baseline's own other assets stay level in today's money in both.
+- **`real_growth` on `recurring`** compounds from the change's start's
+  month, so its first amount is the amount given; its FI spending (a cost
+  for good) is that first amount.
+- **The growth break-even** (`comparison.asset_growth`, kind
+  `asset_growth`) runs between two options where one has an `asset` the
+  other doesn't, like the loan-rate one; "none in range" says which is
+  ahead. **The level reading** is `comparison.level_from`, beside the
+  break-evens rather than in `engine.py`, read from the purchase's month (so
+  without selling costs buying is "ahead from July", as the design's golden
+  says), to the currency's smallest unit.
+- **Speed.** `cash_plan` read every debt's whole schedule once per month
+  (quadratic on the 50-year timeline each bisection step evaluates); it now
+  reads each once. Renting against three ways of buying on the household
+  ledger: 6.2 s before, 2.2 s after; one way, 0.5 s.
+- **The questions.** A new question type `growth` (a signed fraction) for
+  the two growths, since `rate` is 0 to 1 and a home or a rent may grow
+  less than prices (the break-even's range starts at -5%). "Your rent now"
+  is two questions, `rent` (type `recurring`) and `rent_monthly` (type
+  `amount_or_zero`), exactly one of them answered, checked across answers.
+  The deposit is an `amount` and must be less than the price. One to three
+  mortgages; the options are "Buy" with one, "Buy, <label>" with several.
+- **Keeping renting** restates a ledger rent from the first day it is next
+  due on or after the purchase, at its own cadence; one the ledger shows
+  every two weeks or twice a month (no scenario cadence) goes on monthly at
+  its monthly equivalent, from the purchase. `Facts.recurring` lists only a
+  key the ledger shows as one payment out of a cash account, with its
+  amount known in the base currency; it names the account only when a
+  change may (a cash-role account in the base currency; a card's go on the
+  cash total).
+- **Placeholders.** A growth left at its default is no scenario field: the
+  engine labels the home's (`asset_growth`), the template the rent's
+  (`rent_growth`, `Built.placeholders`). The start's `placeholders` are now
+  every option's and the template's together (they were the first
+  option's alone): a start whose options rest on different placeholders
+  (one option's tax not computed, say) now lists them all; for the
+  existing templates' goldens nothing changed.
+- **The start's `level`**: against which option, from and to which month,
+  and per way of buying the month, the months from the purchase, and the
+  difference in net worth then and at the horizon. The honesty list is the
+  template's notes, and the start's (`notes`).
+- **Interfaces:** the API and MCP carry the new types and `level`;
+  `salli decide rent-or-buy`, and `salli whatif --asset`,
+  `--asset-growth`, `--selling-costs` and `--recurring-growth`. No new
+  route, and no migration.
+- **Out of scope, still:** the decision journal's projection counts a home
+  at its value less its selling costs, while a later review reads the
+  ledger, which books a home at its own value: a review of a decision to
+  buy shows the selling costs as part of the difference in net worth.
 
 ## 4. The notification port
 
