@@ -25,7 +25,16 @@ Salli doesn't rank the options. A comparison reports:
     above zero over the next twelve months (`engine.cash_floors`);
   - the rate at which two financing options cost the same: the highest
     rate (0% to 100%) at which an option's loan leaves it with at least the
-    other option's net worth at the horizon.
+    other option's net worth at the horizon;
+  - the growth at which buying an asset ends level, where an option buys
+    one the other doesn't (`asset`, a home): the lowest real growth of its
+    value (-5% to 10% a year) at which the option ends the horizon with at
+    least the other's net worth.
+
+And a reading, not solved: the first month-end from which one option's net
+worth is at least another's at every month-end to the horizon
+(`level_from`), read from the monthly timelines as `engine.cover_target`
+reads cash.
 
 Options share one as-of date and one horizon, and are named by their label
 (or "Option n", by position, without one); labels are distinct. The result
@@ -37,12 +46,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
 from salli.domain import canonical
 from salli.domain.baseline import fi, timelines
 from salli.domain.baseline.models import Baseline
+from salli.domain.currency import quantum
 from salli.domain.scenarios import schema
 from salli.domain.scenarios.engine import (
     BreakEven,
@@ -67,6 +77,9 @@ RATE_STEP = Decimal("0.0001")
 RETURN_RANGE = (Decimal("-0.05"), Decimal("0.15"))
 #: The loan rates the financing break-even is looked for between.
 LOAN_RATE_RANGE = (Decimal(0), Decimal(1))
+#: The real growths of an asset's value the growth break-even is looked for
+#: between, a year beyond inflation.
+ASSET_GROWTH_RANGE = (Decimal("-0.05"), Decimal("0.10"))
 
 Better = Literal["higher", "lower", "earlier"]
 
@@ -190,6 +203,7 @@ def headline(result: ScenarioResult) -> list[tuple[str, Better, Decimal | str | 
         add(f"{at}.net_worth", "higher", c.net_worth.scenario)
         add(f"{at}.cash", "higher", c.cash.scenario)
         add(f"{at}.investments", "higher", c.investments.scenario)
+        add(f"{at}.other_assets", "higher", c.other_assets.scenario)
         add(f"{at}.debts", "lower", c.debts.scenario)
     add("debts.total_interest", "lower", result.debts.total_interest.scenario)
     add("debts.debt_free", "earlier", result.debts.debt_free.scenario)
@@ -388,6 +402,79 @@ def loan_rate(
     )
 
 
+def asset_growth(
+    baseline: Baseline,
+    option: tuple[str, schema.Scenario],
+    index: int,
+    other: tuple[str, schema.Scenario],
+) -> BreakEven:
+    """The lowest real growth (to a basis point, from -5% to 10% a year) of
+    the value of `option`'s asset (its change `index`) at which `option`
+    ends the horizon with at least `other`'s net worth. A higher growth
+    never lowers the option's net worth, so bisection finds it exactly."""
+    low, high = ASSET_GROWTH_RANGE
+    target = _net_worth(baseline, other[1])
+    asset = option[1].changes[index]
+    assert isinstance(asset, schema.AssetChange)
+
+    def behind(n: int) -> bool:
+        changes = list(option[1].changes)
+        changes[index] = asset.model_copy(update={"real_growth": low + RATE_STEP * n})
+        trial = option[1].model_copy(update={"changes": changes})
+        return _net_worth(baseline, trial) < target
+
+    steps = _steps(low, high)
+    last_behind = search_last_true(0, steps, behind)
+    pair = tuple(sorted((option[0], other[0])))
+    if last_behind is None:
+        return BreakEven(
+            "asset_growth", pair, option[0], index, "none_in_range", None, low, high, option[0]
+        )
+    if last_behind == steps:
+        return BreakEven(
+            "asset_growth", pair, option[0], index, "none_in_range", None, low, high, other[0]
+        )
+    return BreakEven(
+        "asset_growth",
+        pair,
+        option[0],
+        index,
+        "found",
+        low + RATE_STEP * (last_behind + 1),
+        low,
+        high,
+    )
+
+
+def level_from(
+    mine: Sequence[timelines.MonthPoint],
+    other: Sequence[timelines.MonthPoint],
+    first: str,
+    last: str,
+    currency: str,
+) -> timelines.MonthPoint | None:
+    """Of `mine` (a monthly timeline), the first month-end from the month
+    `first` ("YYYY-MM") on from which its net worth is at least `other`'s at
+    every month-end to the month `last`, each in today's money to the
+    currency's smallest unit: read, not solved. None when it is behind at
+    `last`'s end (or `first` is after `last`)."""
+    q = quantum(currency)
+
+    def at_least(a: timelines.MonthPoint, b: timelines.MonthPoint) -> bool:
+        return a.net_worth.quantize(q, rounding=ROUND_HALF_UP) >= b.net_worth.quantize(
+            q, rounding=ROUND_HALF_UP
+        )
+
+    # Month-ends only: the first point is the as-of date itself.
+    pairs = [(a, b) for a, b in zip(mine[1:], other[1:], strict=True) if first <= a.month <= last]
+    found: timelines.MonthPoint | None = None
+    for a, b in reversed(pairs):
+        if not at_least(a, b):
+            break
+        found = a
+    return found
+
+
 def pairwise(baseline: Baseline, options: Sequence[tuple[str, schema.Scenario]]) -> list[BreakEven]:
     """The break-evens between each two options that differ the way each one
     needs."""
@@ -408,6 +495,9 @@ def pairwise(baseline: Baseline, options: Sequence[tuple[str, schema.Scenario]])
                 loans = [i for i, c in distinct if isinstance(c, schema.LoanChange)]
                 if len(loans) == 1:
                     out.append(loan_rate(baseline, mine, loans[0], theirs))
+                assets = [i for i, c in distinct if isinstance(c, schema.AssetChange)]
+                if len(assets) == 1:
+                    out.append(asset_growth(baseline, mine, assets[0], theirs))
     return out
 
 
@@ -456,6 +546,7 @@ def compare(baseline: Baseline, scenarios: Sequence[schema.Scenario]) -> Compari
 
 
 __all__ = [
+    "ASSET_GROWTH_RANGE",
     "LOAN_RATE_RANGE",
     "MAX_OPTIONS",
     "MIN_OPTIONS",
@@ -466,9 +557,11 @@ __all__ = [
     "OptionSensitivity",
     "Sensitive",
     "Trade",
+    "asset_growth",
     "compare",
     "headline",
     "invest_vs_debt",
+    "level_from",
     "loan_rate",
     "pairwise",
     "sensitivity",

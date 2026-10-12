@@ -108,6 +108,30 @@ def break_even_view(b: BreakEven, result_currency: str, end: str | None = None) 
                 f"{b.ahead} ends the horizon with more net worth than {behind} at every real "
                 f"return from {_percent(b.low)} to {_percent(b.high)}."
             )
+    elif b.kind == "asset_growth":
+        others = [o for o in b.options if o != b.option]
+        other = others[0] if others else b.option
+        asset = f"the value of {b.option}'s asset"
+        if b.status == "found" and b.value == b.low:
+            says = (
+                f"Only from a growth of {_percent(b.low)} a year beyond inflation in {asset} "
+                f"does {b.option} end the horizon with at least {other}'s net worth."
+            )
+        elif b.status == "found":
+            assert b.value is not None
+            says = (
+                f"At a growth of {_percent(b.value)} a year beyond inflation or more in "
+                f"{asset}, {b.option} ends the horizon with at least {other}'s net worth; "
+                f"below it, {other} ends with more."
+            )
+        else:
+            behind = next((o for o in b.options if o != b.ahead), b.ahead)
+            ends = "at least" if b.ahead == b.option else "more net worth than"
+            whose = f"{behind}'s net worth" if b.ahead == b.option else behind
+            says = (
+                f"{b.ahead} ends the horizon with {ends} {whose} at every growth in {asset} "
+                f"from {_percent(b.low)} to {_percent(b.high)} a year beyond inflation."
+            )
     else:
         others = [o for o in b.options if o != b.option]
         other = others[0] if others else b.option
