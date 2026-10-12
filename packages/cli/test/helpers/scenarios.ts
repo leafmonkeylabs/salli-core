@@ -2364,3 +2364,531 @@ export const TAXED_RUN: ScenarioRun = {
   "is_stale": false,
   "notes": []
 };
+
+/**
+ * A run selling 4 units of a holding the person calls "My index fund" (2.00
+ * of fees, the gain in an income role "gains") and investing 1,000.00 into
+ * it, on the 3b golden household (tests/golden/test_holding_scenarios.py:
+ * New Zealand dollars, as of 2031-06-30, the fictional rules XA 2031),
+ * written by the scenario engine itself.
+ */
+export const HOLDING_RUN: ScenarioRun = {
+  "schema": "salli.scenario/1",
+  "label": "Sell to top up",
+  "as_of": "2031-06-30",
+  "horizon_years": 20,
+  "currency": "NZD",
+  "hash": "sha256:b91f47f0f987664a9f6b7e1bca688b7869c5e078c9e26fc2364b410185405a1a",
+  "baseline_fingerprint": "sha256:c9f2ef980a5aa7cd4f129ff9d353ce96499c23130e4b5a5e6dd3b2f31e42e7da",
+  "scenario": {
+    "schema": "salli.scenario/1",
+    "label": "Sell to top up",
+    "as_of": "2031-06-30",
+    "horizon_years": 20,
+    "changes": [
+      {
+        "type": "sell",
+        "holding": "fund",
+        "quantity": "4",
+        "amount": null,
+        "date": "2031-06-30",
+        "fees": "2.00",
+        "lots": null,
+        "into": null,
+        "tax_role": "gains",
+        "label": "Sell My index fund"
+      },
+      {
+        "type": "invest",
+        "amount": "1000.00",
+        "date": "2031-06-30",
+        "from": null,
+        "holding": "fund",
+        "fees": null,
+        "label": "Invest 1000.00 in My index fund"
+      }
+    ],
+    "tax": null
+  },
+  "changes": [
+    {
+      "index": 0,
+      "type": "sell",
+      "label": "Sell My index fund",
+      "debt_id": null,
+      "payment": null,
+      "first_payment": null,
+      "monthly": null,
+      "for_good": null,
+      "stopped": [],
+      "holding": {
+        "holding_id": "fund",
+        "symbol": "FND",
+        "name": "My index fund",
+        "currency": "NZD",
+        "fx_rate": "1",
+        "units": "4",
+        "price": "150",
+        "price_basis": {
+          "date": "2031-06-30",
+          "source": "user",
+          "price": "150",
+          "grown": false,
+          "stale": false
+        },
+        "fees_given": true,
+        "fees": "2.00",
+        "value": "600.00",
+        "value_base": "600.00",
+        "cost": "402.00",
+        "cost_base": "402.00",
+        "gain": "196.00",
+        "gain_base": "196.00",
+        "lots": [
+          {
+            "lot_id": "lot-feb",
+            "opened_on": "2031-02-03",
+            "units": "4",
+            "cost": "402.00",
+            "cost_base": "402.00"
+          }
+        ],
+        "lot_id": null,
+        "account_id": "brk"
+      }
+    },
+    {
+      "index": 1,
+      "type": "invest",
+      "label": "Invest 1000.00 in My index fund",
+      "debt_id": null,
+      "payment": null,
+      "first_payment": null,
+      "monthly": null,
+      "for_good": null,
+      "stopped": [],
+      "holding": {
+        "holding_id": "fund",
+        "symbol": "FND",
+        "name": "My index fund",
+        "currency": "NZD",
+        "fx_rate": "1",
+        "units": "6.666666666666666666",
+        "price": "150",
+        "price_basis": {
+          "date": "2031-06-30",
+          "source": "user",
+          "price": "150",
+          "grown": false,
+          "stale": false
+        },
+        "fees_given": false,
+        "fees": "0.00",
+        "value": "1000.00",
+        "value_base": "1000.00",
+        "cost": null,
+        "cost_base": null,
+        "gain": null,
+        "gain_base": null,
+        "lots": [],
+        "lot_id": "scenario-invest-2",
+        "account_id": "brk"
+      }
+    }
+  ],
+  "cash": {
+    "start": "2031-06-30",
+    "end": "2032-06-30",
+    "lowest": {
+      "baseline": "23500.00",
+      "scenario": "23092.40",
+      "delta": "-407.60"
+    },
+    "lowest_date": {
+      "baseline": "2031-07-01",
+      "scenario": "2031-07-01",
+      "delta_days": 0
+    },
+    "at_end": {
+      "baseline": "25000.00",
+      "scenario": "24592.40",
+      "delta": "-407.60"
+    },
+    "safe_to_spend": {
+      "baseline": "23500.00",
+      "scenario": "23092.40",
+      "delta": "-407.60"
+    },
+    "safe_until": "2031-07-25",
+    "accounts": [
+      {
+        "account_id": "chk",
+        "name": "Chk",
+        "currency": "NZD",
+        "lowest": {
+          "baseline": "23500.00",
+          "scenario": "23500.00",
+          "delta": "0.00"
+        },
+        "lowest_date": {
+          "baseline": "2031-07-01",
+          "scenario": "2031-07-01",
+          "delta_days": 0
+        },
+        "below_zero": {
+          "baseline": false,
+          "scenario": false
+        }
+      }
+    ],
+    "below_zero": {
+      "baseline": [],
+      "scenario": []
+    }
+  },
+  "monthly": [
+    {
+      "years": 1,
+      "month": "2032-06",
+      "date": "2032-06-30",
+      "net_worth": {
+        "baseline": "57117.44",
+        "scenario": "57091.58",
+        "delta": "-25.87"
+      },
+      "cash": {
+        "baseline": "25000.00",
+        "scenario": "24592.40",
+        "delta": "-407.60"
+      },
+      "investments": {
+        "baseline": "32117.44",
+        "scenario": "32499.18",
+        "delta": "381.73"
+      },
+      "debts": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      }
+    },
+    {
+      "years": 5,
+      "month": "2036-06",
+      "date": "2036-06-30",
+      "net_worth": {
+        "baseline": "192579.14",
+        "scenario": "192619.39",
+        "delta": "40.25"
+      },
+      "cash": {
+        "baseline": "25000.00",
+        "scenario": "24592.40",
+        "delta": "-407.60"
+      },
+      "investments": {
+        "baseline": "167579.14",
+        "scenario": "168026.99",
+        "delta": "447.85"
+      },
+      "debts": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      }
+    },
+    {
+      "years": 10,
+      "month": "2041-06",
+      "date": "2041-06-30",
+      "net_worth": {
+        "baseline": "395361.01",
+        "scenario": "395500.23",
+        "delta": "139.22"
+      },
+      "cash": {
+        "baseline": "25000.00",
+        "scenario": "24592.40",
+        "delta": "-407.60"
+      },
+      "investments": {
+        "baseline": "370361.01",
+        "scenario": "370907.83",
+        "delta": "546.82"
+      },
+      "debts": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      }
+    },
+    {
+      "years": 20,
+      "month": "2051-06",
+      "date": "2051-06-30",
+      "net_worth": {
+        "baseline": "945270.81",
+        "scenario": "945678.43",
+        "delta": "407.62"
+      },
+      "cash": {
+        "baseline": "25000.00",
+        "scenario": "24592.40",
+        "delta": "-407.60"
+      },
+      "investments": {
+        "baseline": "920270.81",
+        "scenario": "921086.03",
+        "delta": "815.22"
+      },
+      "debts": {
+        "baseline": "0.00",
+        "scenario": "0.00",
+        "delta": "0.00"
+      }
+    }
+  ],
+  "debts": {
+    "items": [],
+    "total_interest": {
+      "baseline": "0.00",
+      "scenario": "0.00",
+      "delta": "0.00"
+    },
+    "debt_free": {
+      "baseline": null,
+      "scenario": null,
+      "delta_months": null
+    }
+  },
+  "resilience": {
+    "basis": "all",
+    "monthly_spending": "1500.00",
+    "lowest": {
+      "baseline": "15.67",
+      "scenario": "15.39",
+      "delta": "-0.27"
+    },
+    "at_end": {
+      "baseline": "16.67",
+      "scenario": "16.39",
+      "delta": "-0.27"
+    }
+  },
+  "fi": {
+    "fi_number": {
+      "baseline": "450000.00",
+      "scenario": "450000.00",
+      "delta": "0.00"
+    },
+    "monthly_spending": {
+      "baseline": "1500.00",
+      "scenario": "1500.00",
+      "delta": "0.00"
+    },
+    "fi_month": {
+      "baseline": "2042-09",
+      "scenario": "2042-09",
+      "delta_months": 0
+    },
+    "months_gained": 0
+  },
+  "break_evens": [],
+  "tax": {
+    "status": "computed",
+    "reason": null,
+    "years": [
+      {
+        "year": "2031",
+        "start": "2031-01-01",
+        "end": "2031-12-31",
+        "status": "computed",
+        "reason": null,
+        "rules": {
+          "country": "XA",
+          "region": null,
+          "year": "2031",
+          "rule_set_id": "rs-xa-2031",
+          "version": 1,
+          "content_hash": "39a794577f28560812aa1d85aec3013c6dc868985d69777a7ae697e78ab4b8cc",
+          "carried_forward": false
+        },
+        "currency": "NZD",
+        "roles": [
+          {
+            "key": "gains",
+            "kind": "income",
+            "label": "Realised gains",
+            "actual": "0.00",
+            "projected": "0.00",
+            "scenario": "196.00"
+          }
+        ],
+        "net": {
+          "baseline": "7200.00",
+          "scenario": "7239.20",
+          "delta": "39.20"
+        },
+        "change": "39.20",
+        "monthly": [
+          {
+            "month": "2031-06",
+            "amount": "5.60"
+          },
+          {
+            "month": "2031-07",
+            "amount": "5.60"
+          },
+          {
+            "month": "2031-08",
+            "amount": "5.60"
+          },
+          {
+            "month": "2031-09",
+            "amount": "5.60"
+          },
+          {
+            "month": "2031-10",
+            "amount": "5.60"
+          },
+          {
+            "month": "2031-11",
+            "amount": "5.60"
+          },
+          {
+            "month": "2031-12",
+            "amount": "5.60"
+          }
+        ]
+      }
+    ],
+    "this_year": {
+      "year": "2031",
+      "start": "2031-01-01",
+      "end": "2031-12-31",
+      "status": "computed",
+      "reason": null,
+      "rules": {
+        "country": "XA",
+        "region": null,
+        "year": "2031",
+        "rule_set_id": "rs-xa-2031",
+        "version": 1,
+        "content_hash": "39a794577f28560812aa1d85aec3013c6dc868985d69777a7ae697e78ab4b8cc",
+        "carried_forward": false
+      },
+      "currency": "NZD",
+      "roles": [
+        {
+          "key": "gains",
+          "kind": "income",
+          "label": "Realised gains",
+          "actual": "0.00",
+          "projected": "0.00",
+          "scenario": "196.00"
+        }
+      ],
+      "net": {
+        "baseline": "7200.00",
+        "scenario": "7239.20",
+        "delta": "39.20"
+      },
+      "change": "39.20",
+      "monthly": [
+        {
+          "month": "2031-06",
+          "amount": "5.60"
+        },
+        {
+          "month": "2031-07",
+          "amount": "5.60"
+        },
+        {
+          "month": "2031-08",
+          "amount": "5.60"
+        },
+        {
+          "month": "2031-09",
+          "amount": "5.60"
+        },
+        {
+          "month": "2031-10",
+          "amount": "5.60"
+        },
+        {
+          "month": "2031-11",
+          "amount": "5.60"
+        },
+        {
+          "month": "2031-12",
+          "amount": "5.60"
+        }
+      ]
+    },
+    "change_this_year": "39.20",
+    "total_change": "39.20",
+    "carried_forward": false
+  },
+  "assumptions": {
+    "status": "placeholder",
+    "placeholders": [
+      "real_return",
+      "safe_withdrawal_rate",
+      "surplus_invested"
+    ],
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "real_return": {
+      "value": "0.04",
+      "origin": "placeholder",
+      "source": "Placeholder: a round 4% a year after inflation, not a forecast and not any country's figure. Set your own, with its source.",
+      "note": null
+    },
+    "safe_withdrawal_rate": {
+      "value": "0.04",
+      "origin": "placeholder",
+      "source": "Placeholder: a round 4%, the rule of thumb most writing on financial independence starts from. Not a recommendation: the rate that lasts differs between markets and periods. Set your own, with its source.",
+      "note": null
+    },
+    "surplus_invested": {
+      "value": "1",
+      "origin": "placeholder",
+      "source": "Placeholder: all of your monthly surplus is assumed invested at the real return; set what you actually invest.",
+      "note": null
+    },
+    "inflation": null,
+    "nominal_return": null,
+    "real_returns": {
+      "conservative": "0.02",
+      "base": "0.04",
+      "growth": "0.06"
+    },
+    "nominal_returns": null
+  },
+  "placeholders": [
+    "real_return",
+    "safe_withdrawal_rate",
+    "surplus_invested",
+    "inflation"
+  ],
+  "versions": {
+    "schema": "salli.scenario/1",
+    "engine": "4",
+    "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
+    "fire_strategy": null,
+    "rule_sets": [
+      {
+        "country": "XA",
+        "region": null,
+        "year": "2031",
+        "rule_set_id": "rs-xa-2031",
+        "version": 1,
+        "content_hash": "39a794577f28560812aa1d85aec3013c6dc868985d69777a7ae697e78ab4b8cc"
+      }
+    ]
+  },
+  "data_as_of": "2031-06-25",
+  "is_stale": false,
+  "notes": [
+    "Invest 1000.00 in My index fund: no fees given, so none are counted"
+  ]
+};

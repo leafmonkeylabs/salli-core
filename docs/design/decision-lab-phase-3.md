@@ -3,7 +3,8 @@
 Status: **approved (2026-10-12).** The owner accepted every recommended
 decision below. Building started with 3a and 3d, and both are built.
 **3a, tax-aware scenarios,** is built (its "As built" notes close section
-1). **3d, the notification port,** is built
+1). **3b, invest changes on the actual holdings,** is built (its "As built"
+notes close section 2). **3d, the notification port,** is built
 ([docs/self-host.md](../self-host.md#digests); as built in
 [decision-lab.md](decision-lab.md#phases)). It extends the approved [decision lab design](decision-lab.md), whose
 rules all still hold. The open questions are at the end, numbered on from that
@@ -590,6 +591,97 @@ since 3a): `invest` without a holding is unchanged.
   didn't; no response field holds an expected return per holding;
   `assert_never_ranks` over results with holdings; the prompts carry the new
   guardrail.
+
+### As built (3b)
+
+Built as designed ([docs/scenarios.md](../scenarios.md#holdings)), with
+these choices where the design left room, or the code asked for one:
+
+- **The migration is `core_0020_holding_account`**, not core_0019 (3d took
+  that number): `holdings.account_id`, a nullable foreign key to
+  `accounts`, indexed. The service refuses anything but the owner's own
+  asset account with the `investment` role (AccountNotFound for another's,
+  a 422 otherwise); it may be set when a holding is added, too. An account
+  may hold many holdings.
+- **Setting the link:** `PATCH /v1/portfolio/{id}` with `account_id` (null
+  unlinks), `salli holdings update --account` / `--no-account` (and
+  `holdings add --account`), and two MCP tools the design didn't list:
+  `list_holdings` (the person's holdings by their own id, symbol and name,
+  so an agent has ids to use) and `link_holding` (a write, after the
+  person's go-ahead).
+- **The baseline** gathers every holding (sold ones too) with its
+  transactions and recorded closes to the as-of date, and the as-of rate of
+  each holding currency (`BaselineInputs.holdings`, in the fingerprint only
+  when there are any, so other baselines fingerprint as before).
+  `Baseline.holdings` values each at its last price as `valuation.Pricing`
+  picks it, but at the **as-of rate** rather than the price day's, so it
+  compares with the ledger's balances. Where a linked account and its
+  holdings differ (to the base currency's smallest unit), can't be compared
+  (no price or no rate), or the account is no longer an investment one, the
+  baseline's `notes` say so.
+- **The price at a trade.** "Grown to the sale's month" is read as grown
+  through the months before the trade's month (the pool's growth at the
+  person's real return, a twelfth a month and the as-of month by its share
+  of days, and their inflation), so a trade in the as-of month is at the
+  recorded price, as the design's golden needs. A sale's value leaves the
+  investments at its month's end, as an invest's arrives, so a sale and an
+  invest of the same value on the same day cancel exactly; the sold units
+  keep that one month's growth in the pool. **A later invest into a holding
+  is priced the same way** (the design spoke only of a later sale): at the
+  as-of price, units bought later and sold later would make a gain from
+  nothing.
+- **Sensitivity and the break-evens stay exact:** an option trading a
+  holding after the as-of month is translated again at each return they
+  vary (`translate(..., real_return=)`), so its trades' prices grow at the
+  return the investments do. Options without such a trade are unchanged.
+- **Currencies.** A change's `amount` and `fees` are in the base currency,
+  as every scenario amount is; a sale's fees are converted into the
+  holding's currency at the as-of rate for the replay. A trade's units are
+  kept to 18 places (rounded down); a grown price to 18 places.
+- **The cap on a sale** is cumulative per account, in date order: the sales
+  from an account's holdings, each valued at the as-of price, can't exceed
+  its ledger value plus what the scenario invests into its holdings before
+  them (also at the as-of price), so a later sale's growth doesn't count
+  against it. The refusal is the design's sentence, at the field that says
+  how much is sold (`quantity`, `amount` or `lots`).
+- **Refused at `changes[i].holding`:** a holding without transactions (no
+  lots to replay), without a price on or before the as-of date, or in a
+  currency without an as-of rate, for an invest as for a sale (an invest
+  needs the price to say its units); a sale of an unlinked holding, or one
+  linked to an account that isn't an investment account. A holding that
+  isn't the caller's is `HoldingNotFound`, 404, before the engine runs.
+- **The lot an invest opens** is `scenario-invest-<n>` (n its place among
+  the changes, from 1), so a later sale can name it as well as sell it
+  first in, first out.
+- **A sale's `tax_role`** must be a role of kind `income` (the service and
+  the engine both say so at its path); its tagged amount is the gain in the
+  base currency, in the sale's own day's money.
+- **Results:** `changes[n].holding` (`ScenarioHoldingTrade`): the person's
+  symbol and name, units, price and `price_basis` (date, source, the
+  recorded price, `grown`, `stale` past 45 days), `fees_given`, the value in
+  both currencies, and a sale's lots, cost and gain. The notes say "no fees
+  given", that a grown price forecasts nothing, and when a price is stale.
+  No field holds an expected return.
+- **Templates:** the `holding` question lists only holdings a scenario can
+  invest into (transactions, a price and a rate) and never has a default;
+  `debt-or-invest` and `windfall` ask it, optionally, and their "Invest"
+  options name it. No template sells.
+- **The CLI:** `salli whatif --sell HOLDING:UNITS[@date]`, `--sell-value
+  HOLDING:AMOUNT[@date]`, `--invest ... --holding HOLDING`, `--fees` (on
+  every sale and invest into a holding) and `--gain-tax-role`; holdings by
+  symbol or id.
+- **The guardrail** reads, in `mcp_server.GUARDRAILS`: never name a
+  product, provider, fund or security of your own; you may refer to my own
+  holdings as I named them, but never suggest buying or selling any
+  security, mine or another, and never compare my holdings as investments;
+  regulated advice (choosing investments among it) is for a licensed
+  professional. The CLI skill and docs/ai-clients.md say the same, and
+  `tests/contract/test_holdings_guardrail.py` holds all three to it.
+- **`ENGINE_VERSION` stays 4:** an invest without a holding or fees runs and
+  hashes exactly as before (`schema.hashable` leaves the two fields out when
+  unset), and every existing golden passes unchanged.
+- **Also fixed:** `application/market_data.py` no longer names a
+  `PortfolioService.refresh_prices` that doesn't exist.
 
 ## 3. A rent-or-buy template
 

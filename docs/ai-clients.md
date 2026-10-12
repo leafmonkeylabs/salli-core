@@ -53,7 +53,10 @@ choice to you. **Can I afford** does the same with the afford-it template.
 Both prompts, the CLI's skill and the tools' own descriptions hold the AI to these:
 
 - **It never computes.** Every figure is Salli's, quoted with its currency.
-- **It never names a specific product, provider, fund or security.**
+- **It never names a specific product, provider, fund or security of its own.** It
+  may refer to your own holdings as you named them, but never suggests buying or
+  selling any security, yours or another, and never compares your holdings as
+  investments.
 - **Regulated advice is for a licensed professional.** Where a choice is regulated
   financial advice where you live (insurance, pensions, choosing investments), it
   says so and suggests one there, without assuming any country's rules.
@@ -83,6 +86,18 @@ tagged with a role from your own tax rules (`tax_role`), and Salli works out
 the change in each year's tax with your active rules; the AI never works out
 an amount after tax itself. Without active rules the result says the tax
 isn't computed, and why.
+
+A scenario may invest into one of your own holdings or sell part of one
+([scenarios](scenarios.md#holdings)):
+
+| Tool | What it does |
+|---|---|
+| `list_holdings` | Your holdings, by your own id, symbol and name, with their units, value at your last recorded price and the investment account each is linked to. |
+| `link_holding` | Links a holding to the investment account in your ledger that holds it (or unlinks it), so a scenario can sell it. A write: the AI shows you the holding and the account first. |
+
+The AI may mention your holdings as you named them, never one you don't
+hold, and never suggests buying or selling any of them or compares them as
+investments. Fees are yours: it asks for them rather than assuming any.
 
 See [scenarios](scenarios.md) for the document and how to read the results.
 

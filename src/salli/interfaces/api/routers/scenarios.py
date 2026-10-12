@@ -32,7 +32,7 @@ Month = str  # "YYYY-MM"
 Day = str  # "YYYY-MM-DD"
 
 _NOT_FOUND = {
-    404: {"description": "An account or a debt a change names is not one of yours"},
+    404: {"description": "An account, a debt or a holding a change names is not one of yours"},
 }
 
 
@@ -77,6 +77,72 @@ class ScenarioStopped(BaseModel):
     currency: CurrencyCode
 
 
+class ScenarioPriceBasis(BaseModel):
+    """The price a trade rests on: the holding's last price recorded on or
+    before the as-of date. Salli forecasts no price: a trade in a later
+    month is at it grown at your real return and inflation (`grown`)."""
+
+    date: Day
+    #: "user" for a close you recorded; "trade" for one of the holding's own.
+    source: str
+    #: As recorded, per unit, in the holding's currency.
+    price: DecimalOut
+    grown: bool
+    #: Older than 45 days before the as-of date.
+    stale: bool
+
+
+class ScenarioLotSold(BaseModel):
+    """The part of one lot a sale sells."""
+
+    lot_id: str
+    opened_on: Day
+    units: DecimalOut
+    #: In the holding's currency, and in the base currency at the rate it
+    #: was bought at.
+    cost: Amount
+    cost_base: Amount
+
+
+class ScenarioHoldingTrade(BaseModel):
+    """An invest into one of your holdings, or a sale of one: the holding as
+    you named it, the units at its price, the fees, and a sale's lots and
+    realised gain. Native figures are in the holding's currency; `*_base`
+    ones in your base currency (a sale at the as-of rate, each lot at the
+    rate it was bought at). There is no expected return per holding: the
+    investments grow at your one real return."""
+
+    holding_id: str
+    symbol: str
+    name: str
+    currency: CurrencyCode
+    #: Base currency per unit of the holding's, for the as-of date.
+    fx_rate: DecimalOut
+    units: DecimalOut
+    #: Per unit at the trade, in the holding's currency.
+    price: DecimalOut
+    price_basis: ScenarioPriceBasis
+    #: False when you gave no fees: none are counted.
+    fees_given: bool
+    #: In the base currency.
+    fees: Amount
+    #: An invest: what the units cost (the amount less fees). A sale: the
+    #: proceeds (units × price), before fees.
+    value: Amount
+    value_base: Amount
+    #: A sale's: what the lots it sells cost, and the gain it realises
+    #: (proceeds − fees − cost). Null for an invest.
+    cost: Amount | None
+    cost_base: Amount | None
+    gain: Amount | None
+    gain_base: Amount | None
+    lots: list[ScenarioLotSold]
+    #: The lot an invest opens, which a later sale can name.
+    lot_id: str | None
+    #: The investment account the holding sits in: a sale comes out of it.
+    account_id: str | None
+
+
 class ScenarioChange(BaseModel):
     """A change as Salli read it."""
 
@@ -90,6 +156,7 @@ class ScenarioChange(BaseModel):
         "invest",
         "stop_recurring",
         "set_aside",
+        "sell",
     ]
     label: str
     #: A loan's id in the debts below, or an extra payment's debt.
@@ -105,6 +172,8 @@ class ScenarioChange(BaseModel):
     #: Whether it lasts for good.
     for_good: bool | None
     stopped: list[ScenarioStopped]
+    #: An invest into one of your holdings, or a sale.
+    holding: ScenarioHoldingTrade | None = None
 
 
 class ScenarioBelowZero(BaseModel):

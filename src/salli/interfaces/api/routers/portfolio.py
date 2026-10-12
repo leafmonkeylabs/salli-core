@@ -41,6 +41,11 @@ class HoldingRequest(BaseModel):
     #: Omitted: 0 (record its transactions instead).
     cost_basis: AmountIn = Decimal(0)
     current_value: AmountIn = Decimal(0)
+    #: The investment account in your ledger that holds it, if any: one of
+    #: your own asset accounts with the investment role. The ledger stays the
+    #: one source of balances; a scenario can sell a holding only from the
+    #: account that holds it.
+    account_id: str | None = None
 
 
 class HoldingUpdateRequest(BaseModel):
@@ -54,6 +59,9 @@ class HoldingUpdateRequest(BaseModel):
     cost_basis: AmountIn | None = None
     current_value: AmountIn | None = None
     is_active: bool | None = None
+    #: Link it to this investment account; null unlinks it. Omitted:
+    #: unchanged.
+    account_id: str | None = None
 
 
 class QuotedPrice(BaseModel):
@@ -95,6 +103,10 @@ class Holding(BaseModel):
     #: as declared, for a holding without transactions. There is no market feed.
     current_value: Amount
     is_active: bool
+    #: The investment account in the ledger that holds it; null when it
+    #: isn't linked to one (a scenario can then invest into it, but not sell
+    #: it).
+    account_id: str | None = None
     created_at: str
     updated_at: str
     #: "transactions" when the figures come from the holding's transactions,
@@ -545,9 +557,20 @@ async def get_holding(holding_id: str, user_id: CurrentUser, svc: AppServices) -
 async def update_holding(
     holding_id: str, body: HoldingUpdateRequest, user_id: CurrentUser, svc: AppServices
 ) -> Updated:
+    """Change a holding: what you leave out stays as it is. `account_id`
+    links it to the investment account that holds it in your ledger (404 for
+    an account that isn't yours; 422 for one that isn't an investment
+    account), and null unlinks it."""
     if await svc.portfolio.get_holding(user_id, holding_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such holding")
-    await svc.portfolio.update_holding(user_id, holding_id, body.model_dump(exclude_none=True))
+    # Omitted fields are unchanged; an explicit null is ignored, except for
+    # `account_id`, where it unlinks the holding.
+    changes = {
+        k: v
+        for k, v in body.model_dump(exclude_unset=True).items()
+        if v is not None or k == "account_id"
+    }
+    await svc.portfolio.update_holding(user_id, holding_id, changes)
     return Updated(updated=True)
 
 

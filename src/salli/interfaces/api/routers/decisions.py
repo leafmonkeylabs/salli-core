@@ -443,6 +443,7 @@ QuestionType = Literal[
     "choice",
     "debt",
     "account",
+    "holding",
     "tax_role",
     "text",
     "amounts",

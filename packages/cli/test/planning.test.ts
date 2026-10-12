@@ -115,6 +115,15 @@ describe('debts', () => {
 });
 
 describe('investments, subscriptions and insurance', () => {
+  it('links a holding to the investment account that holds it, and unlinks it', async () => {
+    expect((await run(['holdings', 'update', 'VTI', '--account', '1200'])).code).toBe(0);
+    expect(lastBody(`/v1/portfolio/${uid(421)}`)).toEqual({ account_id: uid(3) });
+    expect((await run(['holdings', 'update', 'VTI', '--no-account'])).code).toBe(0);
+    expect(lastBody(`/v1/portfolio/${uid(421)}`)).toEqual({ account_id: null });
+    await run(['holdings', 'add', 'VXUS', '--name', 'Intl', '--class', 'equity', '--account', 'euro']);
+    expect(lastBody('/v1/portfolio/')).toEqual({ symbol: 'VXUS', name: 'Intl', asset_class: 'equity', account_id: uid(3) });
+  });
+
   it('summarises the portfolio with rebalancing against a target', async () => {
     const result = await run(['portfolio', '--target', 'equity:0.6', '--target', 'bond:0.4']);
     expect(result.stdout).toMatchInlineSnapshot(`

@@ -5427,6 +5427,10 @@ export type Holding = {
      */
     is_active: boolean;
     /**
+     * Account Id
+     */
+    account_id?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -5642,6 +5646,10 @@ export type HoldingRequest = {
      * Decimal string, read exactly; a JSON number goes through a float.
      */
     current_value?: string;
+    /**
+     * Account Id
+     */
+    account_id?: string | null;
 };
 
 /**
@@ -5976,6 +5984,10 @@ export type HoldingUpdateRequest = {
      * Is Active
      */
     is_active?: boolean | null;
+    /**
+     * Account Id
+     */
+    account_id?: string | null;
 };
 
 /**
@@ -6219,7 +6231,11 @@ export type InsurancePolicyList = {
  * InvestChange
  *
  * Cash moved into your investments on a day, where it then grows at
- * your real return.
+ * your real return. Into one of your holdings (`holding`), it also shows
+ * the units it buys at the holding's last recorded price, and opens a lot
+ * a later sale in the same scenario can sell. Fees (yours, your broker's;
+ * none when left out) leave cash with the amount and never reach the
+ * investments.
  */
 export type InvestChange = {
     /**
@@ -6240,6 +6256,14 @@ export type InvestChange = {
      * From
      */
     from?: string | null;
+    /**
+     * Holding
+     */
+    holding?: string | null;
+    /**
+     * Fees
+     */
+    fees?: string | null;
     /**
      * Label
      */
@@ -9072,7 +9096,7 @@ export type Scenario = {
     /**
      * Changes
      */
-    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange | SetAsideChange>;
+    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange | SetAsideChange | SellChange>;
     tax?: ScenarioTax | null;
 };
 
@@ -9228,7 +9252,7 @@ export type ScenarioChange = {
     /**
      * Type
      */
-    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring' | 'set_aside';
+    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring' | 'set_aside' | 'sell';
     /**
      * Label
      */
@@ -9257,6 +9281,7 @@ export type ScenarioChange = {
      * Stopped
      */
     stopped: Array<ScenarioStopped>;
+    holding?: ScenarioHoldingTrade | null;
 };
 
 /**
@@ -9365,6 +9390,172 @@ export type ScenarioFi = {
      * Months Gained
      */
     months_gained: number | null;
+};
+
+/**
+ * ScenarioHoldingTrade
+ *
+ * An invest into one of your holdings, or a sale of one: the holding as
+ * you named it, the units at its price, the fees, and a sale's lots and
+ * realised gain. Native figures are in the holding's currency; `*_base`
+ * ones in your base currency (a sale at the as-of rate, each lot at the
+ * rate it was bought at). There is no expected return per holding: the
+ * investments grow at your one real return.
+ */
+export type ScenarioHoldingTrade = {
+    /**
+     * Holding Id
+     */
+    holding_id: string;
+    /**
+     * Symbol
+     */
+    symbol: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Fx Rate
+     *
+     * Decimal string, exact; never a float.
+     */
+    fx_rate: string;
+    /**
+     * Units
+     *
+     * Decimal string, exact; never a float.
+     */
+    units: string;
+    /**
+     * Price
+     *
+     * Decimal string, exact; never a float.
+     */
+    price: string;
+    price_basis: ScenarioPriceBasis;
+    /**
+     * Fees Given
+     */
+    fees_given: boolean;
+    /**
+     * Fees
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    fees: string;
+    /**
+     * Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    value: string;
+    /**
+     * Value Base
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    value_base: string;
+    /**
+     * Cost
+     */
+    cost: string | null;
+    /**
+     * Cost Base
+     */
+    cost_base: string | null;
+    /**
+     * Gain
+     */
+    gain: string | null;
+    /**
+     * Gain Base
+     */
+    gain_base: string | null;
+    /**
+     * Lots
+     */
+    lots: Array<ScenarioLotSold>;
+    /**
+     * Lot Id
+     */
+    lot_id: string | null;
+    /**
+     * Account Id
+     */
+    account_id: string | null;
+};
+
+/**
+ * ScenarioLotSold
+ *
+ * The part of one lot a sale sells.
+ */
+export type ScenarioLotSold = {
+    /**
+     * Lot Id
+     */
+    lot_id: string;
+    /**
+     * Opened On
+     */
+    opened_on: string;
+    /**
+     * Units
+     *
+     * Decimal string, exact; never a float.
+     */
+    units: string;
+    /**
+     * Cost
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cost: string;
+    /**
+     * Cost Base
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cost_base: string;
+};
+
+/**
+ * ScenarioPriceBasis
+ *
+ * The price a trade rests on: the holding's last price recorded on or
+ * before the as-of date. Salli forecasts no price: a trade in a later
+ * month is at it grown at your real return and inflation (`grown`).
+ */
+export type ScenarioPriceBasis = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Price
+     *
+     * Decimal string, exact; never a float.
+     */
+    price: string;
+    /**
+     * Grown
+     */
+    grown: boolean;
+    /**
+     * Stale
+     */
+    stale: boolean;
 };
 
 /**
@@ -9843,6 +10034,61 @@ export type SeededReminders = {
 };
 
 /**
+ * SellChange
+ *
+ * Part of one of your holdings sold on a day: its units leave your
+ * investments at its last recorded price (grown at your real return and
+ * inflation to a later month: Salli forecasts no price), and the proceeds
+ * less fees arrive in cash. Salli replays the holding's lots with the sale
+ * (first in, first out, or the lots you name) and reports the gain you
+ * would realise; with a `tax_role`, the gain is taxed with your rules. The
+ * holding must be linked to the investment account that holds it, and the
+ * sale can't take out more than that account holds.
+ */
+export type SellChange = {
+    /**
+     * Type
+     */
+    type: 'sell';
+    /**
+     * Holding
+     */
+    holding: string;
+    /**
+     * Quantity
+     */
+    quantity?: string | null;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Fees
+     */
+    fees?: string | null;
+    /**
+     * Lots
+     */
+    lots?: Array<SoldLot> | null;
+    /**
+     * Into
+     */
+    into?: string | null;
+    /**
+     * Tax Role
+     */
+    tax_role?: string | null;
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
  * SensitiveFigures
  */
 export type SensitiveFigures = {
@@ -9995,6 +10241,24 @@ export type SignInRequest = {
      * Password
      */
     password: string;
+};
+
+/**
+ * SoldLot
+ *
+ * One lot a sale sells from, and how many of its units.
+ */
+export type SoldLot = {
+    /**
+     * Lot
+     */
+    lot: string;
+    /**
+     * Quantity
+     *
+     * A number of units as a decimal string, like "4" or "6.5".
+     */
+    quantity: string;
 };
 
 /**
@@ -12137,7 +12401,7 @@ export type TemplateQuestion = {
     /**
      * Type
      */
-    type: 'amount' | 'signed_amount' | 'months' | 'years' | 'number' | 'rate' | 'date' | 'choice' | 'debt' | 'account' | 'tax_role' | 'text' | 'amounts' | 'loans' | 'splits';
+    type: 'amount' | 'signed_amount' | 'months' | 'years' | 'number' | 'rate' | 'date' | 'choice' | 'debt' | 'account' | 'holding' | 'tax_role' | 'text' | 'amounts' | 'loans' | 'splits';
     /**
      * Prompt
      */
@@ -18699,7 +18963,7 @@ export type ScenariosRunData = {
 
 export type ScenariosRunErrors = {
     /**
-     * An account or a debt a change names is not one of yours
+     * An account, a debt or a holding a change names is not one of yours
      */
     404: unknown;
     /**
@@ -18732,7 +18996,7 @@ export type ScenariosCompareData = {
 
 export type ScenariosCompareErrors = {
     /**
-     * An account or a debt a change names is not one of yours
+     * An account, a debt or a holding a change names is not one of yours
      */
     404: unknown;
     /**

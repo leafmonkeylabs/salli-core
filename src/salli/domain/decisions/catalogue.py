@@ -17,7 +17,9 @@ template needs a day the person didn't give, it uses the as-of date or the
 first of the next month. A payment onto a debt may fall in the as-of month:
 the engine pays it at that month's end, before the debt's first scheduled
 payment. The time cash takes to cover a target is the engine's
-(`engine.cover_target`), never worked out here.
+(`engine.cover_target`), never worked out here. `debt-or-invest` and
+`windfall` may invest into one of the person's own holdings, when they name
+one (`_holding_question`); no template picks a holding, and none sells one.
 """
 
 from __future__ import annotations
@@ -49,6 +51,36 @@ from salli.domain.scenarios.schema import DEFAULT_HORIZON_YEARS, MAX_HORIZON_YEA
 from salli.domain.taxrules.common import Problem
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
+
+
+def _holding_question() -> Question:
+    """Which of the person's holdings money invested goes into: never a
+    default, even when they hold only one (where money goes is theirs)."""
+    return Question(
+        "holding",
+        "holding",
+        "Into one of your holdings?",
+        "One of your own holdings (salli holdings list), to see the units the money buys at "
+        "its last recorded price. Leave it out to invest into your investments as a whole. "
+        "Salli never picks one.",
+    )
+
+
+def _into(answers: Answers) -> dict[str, str]:
+    holding: str | None = answers.get("holding")
+    return {"holding": holding} if holding else {}
+
+
+def _where(answers: Answers, facts: Facts) -> str:
+    """Where money invested goes: the holding the person named, as they
+    named it, or their investments."""
+    named = facts.holding(answers.get("holding") or "")
+    return named.name if named else "your investments"
+
+
+def _in(answers: Answers, facts: Facts) -> str:
+    named = facts.holding(answers.get("holding") or "")
+    return f" in {named.name}" if named else ""
 
 
 def _as_of(facts: Facts, _: Mapping[str, Any]) -> Default:
@@ -359,6 +391,7 @@ def _debt_or_invest_build(answers: Answers, facts: Facts) -> Built:
                 "type": "invest",
                 "amount": facts.money(value),
                 "date": day.isoformat(),
+                **_into(answers),
                 "label": "Invested",
             }
             for day in days
@@ -380,7 +413,7 @@ def _debt_or_invest_build(answers: Answers, facts: Facts) -> Built:
         ),
         OptionBuilt(
             "Invest it",
-            f"{money} {cur} moved from cash into your investments, {when}.",
+            f"{money} {cur} moved from cash into {_where(answers, facts)}, {when}.",
             scenario("Invest it", years, invest(amount)),
         ),
     ]
@@ -457,6 +490,7 @@ DEBT_OR_INVEST = Template(
             "To compare a split too: how much of it would go on the debt?",
             "The rest is invested. Leave it out to compare the two alone.",
         ),
+        _holding_question(),
         _horizon_question(),
     ),
     check=_debt_or_invest_check,
@@ -527,10 +561,11 @@ def _windfall_build(answers: Answers, facts: Facts) -> Built:
                     "amount": facts.money(split.invest),
                     "date": day.isoformat(),
                     **_account(answers, "account", "from"),
+                    **_into(answers),
                     "label": "Invested",
                 }
             )
-            said.append(f"{facts.money(split.invest)} invested")
+            said.append(f"{facts.money(split.invest)} invested{_in(answers, facts)}")
         describes = (
             f"Of {amount} {cur}: {', '.join(said)}; the rest kept in cash."
             if said
@@ -598,6 +633,7 @@ WINDFALL = Template(
             min_items=2,
             max_items=5,
         ),
+        _holding_question(),
         _horizon_question(),
     ),
     check=_windfall_check,

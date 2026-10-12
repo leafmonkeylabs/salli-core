@@ -54,6 +54,16 @@ add up to on the as-of day. Its role says what it is:
 Set an asset account's role with `salli accounts update 1500 --asset-role
 other`. Salli never guesses it from the account's name.
 
+**Holdings** are not counted: your investment accounts are, so no figure has
+two sources. A holding may be linked to the investment account that holds it
+(`salli holdings update FUND --account brokerage`), which lets a
+[scenario](scenarios.md#holdings) sell it. The baseline values each holding
+as of its day (its transactions replayed, at its last price recorded on or
+before it, at the as-of exchange rate), and where a linked account's ledger
+value and its holdings' value differ, its `notes` say by how much and that
+the ledger's figure is the one counted. Nothing is reconciled silently:
+bring the ledger up to date, or record a price.
+
 The daily cash timeline also counts the cards you spend from (a liability a
 statement is imported into, or one that paid for several kinds of thing), so
 a card's balance counts against your cash.
@@ -191,6 +201,8 @@ sets for the as-of year and later (and the latest before, which later years
 carry forward), the postings on accounts whose tax role they declare, each
 role's monthly average over the months observed, and the exchange rates
 those need. With rules to compute with, they are in the fingerprint too.
+Your holdings (their transactions, recorded prices and links, to the as-of
+date) are in it once you have any.
 
 ## What is not modelled yet
 

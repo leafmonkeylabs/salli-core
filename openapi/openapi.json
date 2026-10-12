@@ -7295,6 +7295,7 @@
           "portfolio"
         ],
         "summary": "Update Holding",
+        "description": "Change a holding: what you leave out stays as it is. `account_id`\nlinks it to the investment account that holds it in your ledger (404 for\nan account that isn't yours; 422 for one that isn't an investment\naccount), and null unlinks it.",
         "operationId": "holdings.update",
         "security": [
           {
@@ -11029,7 +11030,7 @@
             }
           },
           "404": {
-            "description": "An account or a debt a change names is not one of yours"
+            "description": "An account, a debt or a holding a change names is not one of yours"
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -11089,7 +11090,7 @@
             }
           },
           "404": {
-            "description": "An account or a debt a change names is not one of yours"
+            "description": "An account, a debt or a holding a change names is not one of yours"
           },
           "422": {
             "description": "The request failed validation; `detail` lists each field",
@@ -22471,6 +22472,17 @@
             "type": "boolean",
             "title": "Is Active"
           },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -22873,6 +22885,17 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
           }
         },
         "type": "object",
@@ -23677,6 +23700,17 @@
               }
             ],
             "title": "Is Active"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
           }
         },
         "type": "object",
@@ -24110,6 +24144,32 @@
             ],
             "title": "From"
           },
+          "holding": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding"
+          },
+          "fees": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+                "description": "Fees as a decimal string, zero or more, like \"4.00\"."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fees"
+          },
           "label": {
             "type": "string",
             "maxLength": 200,
@@ -24126,7 +24186,7 @@
           "label"
         ],
         "title": "InvestChange",
-        "description": "Cash moved into your investments on a day, where it then grows at\nyour real return."
+        "description": "Cash moved into your investments on a day, where it then grows at\nyour real return. Into one of your holdings (`holding`), it also shows\nthe units it buys at the holding's last recorded price, and opens a lot\na later sale in the same scenario can sell. Fees (yours, your broker's;\nnone when left out) leave cash with the amount and never reach the\ninvestments."
       },
       "JournalEntry": {
         "properties": {
@@ -29122,6 +29182,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetAsideChange"
+                },
+                {
+                  "$ref": "#/components/schemas/SellChange"
                 }
               ],
               "discriminator": {
@@ -29133,6 +29196,7 @@
                   "loan": "#/components/schemas/LoanChange",
                   "one_off": "#/components/schemas/OneOffChange",
                   "recurring": "#/components/schemas/RecurringChange",
+                  "sell": "#/components/schemas/SellChange",
                   "set_aside": "#/components/schemas/SetAsideChange",
                   "stop_recurring": "#/components/schemas/StopRecurringChange"
                 }
@@ -29435,7 +29499,8 @@
               "extra_debt_payment",
               "invest",
               "stop_recurring",
-              "set_aside"
+              "set_aside",
+              "sell"
             ],
             "title": "Type"
           },
@@ -29514,6 +29579,16 @@
             },
             "type": "array",
             "title": "Stopped"
+          },
+          "holding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioHoldingTrade"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -29727,6 +29802,297 @@
           "months_gained"
         ],
         "title": "ScenarioFi"
+      },
+      "ScenarioHoldingTrade": {
+        "properties": {
+          "holding_id": {
+            "type": "string",
+            "title": "Holding Id"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "fx_rate": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Fx Rate",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "units": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Units",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Price",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "price_basis": {
+            "$ref": "#/components/schemas/ScenarioPriceBasis"
+          },
+          "fees_given": {
+            "type": "boolean",
+            "title": "Fees Given"
+          },
+          "fees": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Fees",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "value_base": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value Base",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "cost_base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Base"
+          },
+          "gain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gain"
+          },
+          "gain_base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gain Base"
+          },
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioLotSold"
+            },
+            "type": "array",
+            "title": "Lots"
+          },
+          "lot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lot Id"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "holding_id",
+          "symbol",
+          "name",
+          "currency",
+          "fx_rate",
+          "units",
+          "price",
+          "price_basis",
+          "fees_given",
+          "fees",
+          "value",
+          "value_base",
+          "cost",
+          "cost_base",
+          "gain",
+          "gain_base",
+          "lots",
+          "lot_id",
+          "account_id"
+        ],
+        "title": "ScenarioHoldingTrade",
+        "description": "An invest into one of your holdings, or a sale of one: the holding as\nyou named it, the units at its price, the fees, and a sale's lots and\nrealised gain. Native figures are in the holding's currency; `*_base`\nones in your base currency (a sale at the as-of rate, each lot at the\nrate it was bought at). There is no expected return per holding: the\ninvestments grow at your one real return."
+      },
+      "ScenarioLotSold": {
+        "properties": {
+          "lot_id": {
+            "type": "string",
+            "title": "Lot Id"
+          },
+          "opened_on": {
+            "type": "string",
+            "title": "Opened On"
+          },
+          "units": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Units",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "cost": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "cost_base": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost Base",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "lot_id",
+          "opened_on",
+          "units",
+          "cost",
+          "cost_base"
+        ],
+        "title": "ScenarioLotSold",
+        "description": "The part of one lot a sale sells."
+      },
+      "ScenarioPriceBasis": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Price",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "grown": {
+            "type": "boolean",
+            "title": "Grown"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "source",
+          "price",
+          "grown",
+          "stale"
+        ],
+        "title": "ScenarioPriceBasis",
+        "description": "The price a trade rests on: the holding's last price recorded on or\nbefore the as-of date. Salli forecasts no price: a trade in a later\nmonth is at it grown at your real return and inflation (`grown`)."
       },
       "ScenarioResilience": {
         "properties": {
@@ -30565,6 +30931,129 @@
         ],
         "title": "SeededReminders"
       },
+      "SellChange": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "sell",
+            "title": "Type"
+          },
+          "holding": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Holding"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+                "description": "A number of units as a decimal string, like \"4\" or \"6.5\"."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+                "description": "A positive decimal amount as a string, like \"5000.00\"."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "format": "date",
+            "title": "Date"
+          },
+          "fees": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+                "description": "Fees as a decimal string, zero or more, like \"4.00\"."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fees"
+          },
+          "lots": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SoldLot"
+                },
+                "type": "array",
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lots"
+          },
+          "into": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Into"
+          },
+          "tax_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Role"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "holding",
+          "date"
+        ],
+        "title": "SellChange",
+        "description": "Part of one of your holdings sold on a day: its units leave your\ninvestments at its last recorded price (grown at your real return and\ninflation to a later month: Salli forecasts no price), and the proceeds\nless fees arrive in cash. Salli replays the holding's lots with the sale\n(first in, first out, or the lots you name) and reports the gain you\nwould realise; with a `tax_role`, the gain is taxed with your rules. The\nholding must be linked to the investment account that holds it, and the\nsale can't take out more than that account holds."
+      },
       "SensitiveFigures": {
         "properties": {
           "net_worth": {
@@ -30831,6 +31320,30 @@
           "password"
         ],
         "title": "SignInRequest"
+      },
+      "SoldLot": {
+        "properties": {
+          "lot": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Lot"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+            "title": "Quantity",
+            "description": "A number of units as a decimal string, like \"4\" or \"6.5\"."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lot",
+          "quantity"
+        ],
+        "title": "SoldLot",
+        "description": "One lot a sale sells from, and how many of its units."
       },
       "Spending": {
         "properties": {
@@ -34682,6 +35195,7 @@
               "choice",
               "debt",
               "account",
+              "holding",
               "tax_role",
               "text",
               "amounts",
