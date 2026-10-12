@@ -131,6 +131,31 @@ def config_checks(settings: Any) -> list[Check]:
     return checks
 
 
+def console_check(settings: Any) -> Check:
+    """Whether this server serves the console, and whether a browser may sign
+    in to it here (HTTPS, or localhost)."""
+    from salli.config import console_index, is_secure_origin
+
+    if not settings.salli_console:
+        return Check("Console", "ok", "switched off (SALLI_CONSOLE=false)")
+    if console_index(settings) is None:
+        where = settings.salli_console_dir or "nowhere: SALLI_CONSOLE_DIR is not set"
+        return Check(
+            "Console",
+            "warn",
+            f"none built ({where} has no index.html): /console is not served",
+        )
+    url = settings.salli_public_url.rstrip("/")
+    if not is_secure_origin(url):
+        return Check(
+            "Console",
+            "warn",
+            f"served at {url}/console, but a browser can only sign in to it over HTTPS or on "
+            "localhost: use the tls profile and an https:// SALLI_PUBLIC_URL",
+        )
+    return Check("Console", "ok", f"served at {url}/console")
+
+
 def extensions_check(settings: Any) -> Check:
     from salli.extensions import ExtensionError, enabled_specs
 
@@ -231,6 +256,7 @@ def run_checks() -> list[Check]:
 
     checks = [Check("Configuration", "ok", "loaded"), extensions_check(settings)]
     checks += config_checks(settings)
+    checks.append(console_check(settings))
     database = database_check(database_url())
     checks.append(database)
     if database.status == "ok" and checks[1].status == "ok":

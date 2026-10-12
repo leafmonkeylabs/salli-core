@@ -13,8 +13,8 @@ from importlib.metadata import PackageNotFoundError, version
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from salli.application.services.mcp_oauth_service import CLI_CLIENT_ID
-from salli.config import get_settings
+from salli.application.services.mcp_oauth_service import CLI_CLIENT_ID, CONSOLE_CLIENT_ID
+from salli.config import console_index, get_settings
 from salli.extensions import enabled_specs
 from salli.interfaces.api.contract import API_VERSION, CurrencyCode
 
@@ -44,6 +44,10 @@ class OAuthInfo(BaseModel):
     #: the server rather than registered, so its sessions may do what only the
     #: user's own sign-ins may (activate a tax rule set).
     cli_client_id: str
+    #: The client id the console signs in as: Salli's own too, its one
+    #: redirect `{issuer}/console/callback`. It holds `tax:activate` only
+    #: within five minutes of the password check.
+    console_client_id: str
 
 
 class Meta(BaseModel):
@@ -54,6 +58,9 @@ class Meta(BaseModel):
     oauth: OAuthInfo
     #: The base currency a new account starts in unless it names another.
     default_currency: CurrencyCode
+    #: Where the console is (`salli ui` opens it): null when this server
+    #: serves none (switched off with SALLI_CONSOLE=false, or not built).
+    console_url: str | None
 
 
 @router.get("")
@@ -74,6 +81,8 @@ async def get_meta() -> Meta:
             api_resource=f"{base}/v1",
             device_verification_uri=f"{base}/mcp/oauth/device",
             cli_client_id=CLI_CLIENT_ID,
+            console_client_id=CONSOLE_CLIENT_ID,
         ),
         default_currency=settings.salli_default_currency.upper(),
+        console_url=f"{base}/console" if console_index(settings) else None,
     )

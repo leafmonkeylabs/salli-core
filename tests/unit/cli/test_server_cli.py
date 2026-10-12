@@ -338,3 +338,26 @@ def test_doctor_exits_non_zero_and_skips_migrations_when_the_database_is_down(mo
         "status": "warn",
         "detail": "not checked: fix the database first",
     }
+
+
+def test_doctor_says_whether_the_console_is_served(tmp_path):
+    from salli.config import Settings
+
+    def check(**settings: object) -> tuple[str, str]:
+        result = doctor.console_check(Settings(_env_file=None, **settings))
+        return result.status, result.detail
+
+    assert check(salli_console=False) == ("ok", "switched off (SALLI_CONSOLE=false)")
+    status, detail = check()
+    assert status == "warn" and "SALLI_CONSOLE_DIR is not set" in detail
+    status, detail = check(salli_console_dir=str(tmp_path))
+    assert status == "warn" and "no index.html" in detail
+
+    (tmp_path / "index.html").write_text("<!doctype html>")
+    assert check(salli_console_dir=str(tmp_path), salli_public_url="https://money.example.org") == (
+        "ok",
+        "served at https://money.example.org/console",
+    )
+    assert check(salli_console_dir=str(tmp_path))[0] == "ok"  # localhost
+    status, detail = check(salli_console_dir=str(tmp_path), salli_public_url="http://10.0.0.5:8000")
+    assert status == "warn" and "HTTPS" in detail

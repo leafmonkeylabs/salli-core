@@ -51,6 +51,7 @@ from salli.domain.secrets import redact
 from salli.domain.taxrules.explain import UnknownLine
 from salli.domain.usage import UsageLimitReached
 from salli.extensions import enabled_specs
+from salli.interfaces.api.console import NoStoreMiddleware, console_router
 from salli.interfaces.api.contract import API_PREFIX, document_problems, operation_id
 from salli.interfaces.api.deps import StepUpRequired, get_services
 from salli.interfaces.api.request_context import RequestContextMiddleware
@@ -239,6 +240,12 @@ def create_app() -> FastAPI:
     # browser cannot read it and the request id never reaches the user.
     app.add_middleware(RequestContextMiddleware)
 
+    # ── No caching of anyone's ledger ─────────────────────────────────────────
+    # Every response but the console's own files says `no-store` unless it
+    # set its own Cache-Control, so no browser or proxy keeps a page of
+    # someone's data.
+    app.add_middleware(NoStoreMiddleware)
+
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Only the origins ALLOWED_ORIGINS names, in every environment: none by
     # default. Nothing Salli ships runs in a browser on another origin.
@@ -308,6 +315,12 @@ def create_app() -> FastAPI:
     app.include_router(principles.router, prefix=API_PREFIX)
     app.include_router(decisions.router, prefix=API_PREFIX)
     app.include_router(notifications.router, prefix=API_PREFIX)
+    # The console's static files, at /console: here, so before the MCP app's
+    # catch-all mount at "/", which the lifespan adds last. None when it is
+    # switched off (SALLI_CONSOLE=false) or no console is built.
+    console = console_router(settings)
+    if console is not None:
+        app.include_router(console, include_in_schema=False)
 
     # ── Exception handlers ────────────────────────────────────────────────────
     # Every error is RFC 9457 problem details (contract.Problem). `detail` keeps
