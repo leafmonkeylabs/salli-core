@@ -248,7 +248,7 @@ def _transaction(row: dict[str, Any], currency: str, seq: int) -> Transaction:
     )
 
 
-def _history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
+def history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
     """Rows in the order they were recorded, as domain transactions; their
     position is the tie-break between transactions of one kind on one date."""
     return [_transaction(row, currency, seq) for seq, row in enumerate(rows)]
@@ -257,11 +257,11 @@ def _history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]
 def _check(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
     """Refuse a history with a malformed transaction or one that cannot have
     happened. Returns it, as domain transactions."""
-    history = _history(rows, currency)
-    for tx in history:
+    transactions = history(rows, currency)
+    for tx in transactions:
         validate(tx)
-    replay(history)
-    return history
+    replay(transactions)
+    return transactions
 
 
 # ── Views ─────────────────────────────────────────────────────────────────────
@@ -730,7 +730,7 @@ class PortfolioService:
         currency = holding["currency"]
         by_id = {row["id"]: row for row in rows}
         return [
-            _transaction_view(by_id[tx.id], currency) for tx in ordered(_history(rows, currency))
+            _transaction_view(by_id[tx.id], currency) for tx in ordered(history(rows, currency))
         ]
 
     async def get_transaction(
@@ -810,7 +810,7 @@ class PortfolioService:
             base = await uow.user_profiles.base_currency(user_id)
             rows = await uow.holding_transactions.list(user_id, holding_id)
         currency = holding["currency"]
-        book = replay(_history(rows, currency))
+        book = replay(history(rows, currency))
         position = book.position
         with localcontext(EXACT):
             lots = [
@@ -946,7 +946,7 @@ class PortfolioService:
             closes = [
                 Close(q.on, q.close, q.source) for q in quotes[key] if q.currency == h["currency"]
             ]
-            transactions = _history(by_holding.get(h["id"], []), h["currency"])
+            transactions = history(by_holding.get(h["id"], []), h["currency"])
             tracked.append(
                 _Tracked(
                     h,

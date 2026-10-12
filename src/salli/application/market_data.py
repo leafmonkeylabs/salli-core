@@ -2,10 +2,9 @@
 The market data Salli keeps itself: the closing prices a user records.
 
 `StoredPriceHistory` is the MarketDataPort every valuation reads. It answers
-from what is stored and never reaches the network. A provider's prices get
-here only when the user asks for a refresh (PortfolioService.refresh_prices),
-which stores what the provider said under the provider's name, so a read never
-fetches a price nobody asked for.
+from what is stored and never reaches the network. Prices get here only when
+the user (or their agent) records one (`PortfolioService.set_price`, source
+"user"); no provider ships, so a read never fetches a price nobody asked for.
 
 It is built on the price repository port rather than on a database, which is
 why it lives here and not among the adapters; the SQL repository is the

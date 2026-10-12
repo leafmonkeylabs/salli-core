@@ -14,6 +14,8 @@ from typing import Any, Literal
 from salli.domain.accounting.ledger import owned_and_owed
 from salli.domain.accounting.models import Account, AssetRole, StoredJournalEntry
 from salli.domain.fi.assumptions import FiAssumptions, OwnAssumptions, StrategyFigures
+from salli.domain.portfolio.lots import Transaction
+from salli.domain.portfolio.valuation import Close
 from salli.domain.reports.forecast import DeclaredCharge
 from salli.domain.reports.insights import Recurring
 from salli.domain.taxrules.inputs import RolePosting
@@ -254,6 +256,66 @@ class BaselineTax:
 
 
 @dataclass(frozen=True)
+class HoldingInputs:
+    """One of the user's holdings, as the application gathered it: the
+    person's own id and their own symbol and name for it, its currency, the
+    investment account that holds it (if linked), its transactions and the
+    closes recorded for it in its currency (both dated on or before the
+    as-of date), and the value declared for a holding without transactions
+    (in the base currency). Never an expected return: there is none per
+    holding (decision lab 3b, decision 18)."""
+
+    holding_id: str
+    symbol: str
+    name: str
+    currency: str
+    account_id: str | None = None
+    transactions: Sequence[Transaction] = ()
+    closes: Sequence[Close] = ()
+    declared_value: Decimal = Decimal(0)
+    is_active: bool = True
+
+
+@dataclass(frozen=True)
+class BaselineHolding:
+    """A holding as of the as-of date (`domain/baseline/holdings.py`): what
+    its transactions say it holds and cost, the last price recorded on or
+    before the as-of date (a close or one of its own trades, adjusted for
+    splits since), and its value at that price, in its currency and in the
+    base currency at the as-of rate. The ledger stays the one source of
+    balances: this value is never counted, only compared with the linked
+    account's (the baseline's `notes`) and used to price a scenario's sale."""
+
+    holding_id: str
+    symbol: str
+    name: str
+    currency: str
+    account_id: str | None
+    #: Its history, dated on or before the as-of date: what a scenario's
+    #: sale is replayed on.
+    transactions: tuple[Transaction, ...]
+    #: Whether its figures come from transactions (else, as declared).
+    tracked: bool
+    quantity: Decimal
+    cost: Decimal
+    cost_base: Decimal
+    #: Per unit held on the as-of date; None when no price is recorded.
+    price: Decimal | None
+    #: The day it was quoted, and who quoted it ("user", "trade").
+    price_date: str | None
+    price_source: str | None
+    #: Units of the base currency per unit of its own, for the as-of date
+    #: (1 in the base currency); None when no source has one.
+    fx_rate: Decimal | None
+    #: quantity × price, in its currency; None when unpriced.
+    value: Decimal | None
+    #: The same in the base currency, at `fx_rate`; as declared for a
+    #: holding without transactions; None when it can't be known.
+    value_base: Decimal | None
+    is_active: bool = True
+
+
+@dataclass(frozen=True)
 class BaselineInputs:
     """Everything the baseline is built from, gathered by the application."""
 
@@ -285,6 +347,9 @@ class BaselineInputs:
     rule_sets: Sequence[RuleSetRef] = ()
     #: What a scenario's tax is computed from.
     tax: TaxInputs = field(default_factory=TaxInputs)
+    #: The user's holdings (`HoldingInputs`); `rates` holds the as-of rate
+    #: of each currency they are in other than the base.
+    holdings: Sequence[HoldingInputs] = ()
 
 
 @dataclass(frozen=True)
@@ -325,6 +390,9 @@ class Baseline:
     #: A content hash of everything the baseline was built from
     #: (`fingerprint.of`): the same inputs, the same baseline.
     fingerprint: str = ""
+    #: The user's holdings as of the as-of date: never counted (the ledger's
+    #: investment accounts are), only what a scenario's holding changes read.
+    holdings: tuple[BaselineHolding, ...] = ()
 
     # ── Totals, in the base currency ─────────────────────────────────────────
 

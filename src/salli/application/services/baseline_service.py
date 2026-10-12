@@ -22,12 +22,15 @@ from typing import Any
 from pydantic import ValidationError
 
 from salli.application.fx import published_rate
+from salli.application.market_data import symbol_key
 from salli.application.ports import FxRatePort
+from salli.application.services.portfolio_service import history
 from salli.application.services.tax_service import ADD_RULES
 from salli.domain.baseline import (
     Baseline,
     BaselineInputs,
     DeclaredDebt,
+    HoldingInputs,
     Rate,
     TaxInputs,
     TaxRules,
@@ -44,6 +47,7 @@ from salli.domain.fi.assumptions import (
 )
 from salli.domain.jurisdiction import country_phrase
 from salli.domain.money import from_minor
+from salli.domain.portfolio.valuation import Close
 from salli.domain.reports.forecast import Flow
 from salli.domain.taxrules.inputs import dates_needing_rates, role_postings
 from salli.domain.taxrules.schema import RuleSet
@@ -115,6 +119,49 @@ def covering_rule_sets(
                 )
             )
     return found
+
+
+def holding_inputs(
+    holdings: Iterable[dict[str, Any]],
+    transactions: Iterable[dict[str, Any]],
+    prices: Iterable[dict[str, Any]],
+    base: str,
+    as_of: dt.date,
+) -> list[HoldingInputs]:
+    """Each of the user's holdings (sold ones too) with its transactions and
+    the closes recorded for its symbol in its currency, both dated on or
+    before `as_of`: what the baseline values it from. Its symbol and name
+    are the person's own."""
+    rows: dict[str, list[dict[str, Any]]] = {}
+    for row in transactions:
+        rows.setdefault(row["holding_id"], []).append(row)
+    quotes = list(prices)
+    out: list[HoldingInputs] = []
+    for h in holdings:
+        currency = str(h["currency"])
+        key = symbol_key(str(h["symbol"]))
+        mine = [t for t in history(rows.get(h["id"], []), currency) if t.on <= as_of]
+        closes = [
+            Close(dt.date.fromisoformat(q["price_date"]), Decimal(q["close"]), str(q["source"]))
+            for q in quotes
+            if symbol_key(str(q["symbol"])) == key
+            and q["currency"] == currency
+            and q["price_date"] <= as_of.isoformat()
+        ]
+        out.append(
+            HoldingInputs(
+                holding_id=str(h["id"]),
+                symbol=str(h["symbol"]),
+                name=str(h["name"]),
+                currency=currency,
+                account_id=h.get("account_id") or None,
+                transactions=tuple(mine),
+                closes=tuple(sorted(closes, key=lambda c: c.on)),
+                declared_value=from_minor(h.get("current_value_minor") or 0, base),
+                is_active=bool(h.get("is_active", True)),
+            )
+        )
+    return out
 
 
 def _ref(row: dict[str, Any], version: dict[str, Any], year: dict[str, Any]) -> RuleSetRef:
@@ -218,9 +265,22 @@ class BaselineService:
             residency: str | None = profile.get("tax_residency") or None
             rules = tax_rules(active_rules, residency, as_of)
             sets: list[dict[str, Any]] = [] if rules else await uow.tax_rule_sets.list_sets(user_id)
+            held = await uow.holdings.list(user_id, active_only=False)
+            holdings = (
+                holding_inputs(
+                    held,
+                    await uow.holding_transactions.list(user_id),
+                    await uow.holding_prices.list(user_id, None, None, day),
+                    base,
+                    as_of,
+                )
+                if held
+                else []
+            )
 
         rates: dict[str, Rate] = {}
-        for currency in sorted({a.currency for a in money} - {base}):
+        currencies = {a.currency for a in money} | {h.currency for h in holdings}
+        for currency in sorted(currencies - {base}):
             quote = await published_rate(self._fx, currency, base, day)
             rates[currency] = (
                 Rate(currency, None, None, None)
@@ -250,6 +310,7 @@ class BaselineService:
                 strategy=StrategyFigures.from_stored(strategy),
                 rule_sets=covering_rule_sets(active_rules, residency, as_of),
                 tax=tax,
+                holdings=holdings,
             )
         )
 
