@@ -203,21 +203,33 @@ class ScenarioService:
             raise ScenarioError(problems)
         return given[0] if given else today
 
-    async def run(self, user_id: str, data: schema.Scenario | Mapping[str, Any]) -> dict[str, Any]:
+    async def run(
+        self,
+        user_id: str,
+        data: schema.Scenario | Mapping[str, Any],
+        *,
+        timeline: bool = False,
+    ) -> dict[str, Any]:
         """The scenario on the user's baseline: every figure under the
-        baseline and under the scenario, and the delta. Stores nothing."""
+        baseline and under the scenario, and the delta; with `timeline`, both
+        timelines too, for drawing them. Stores nothing."""
         scenario = load_scenario(data)
         as_of = self.as_of_for([scenario])
         await self.check_own(user_id, [scenario])
         baseline = await self._baselines.build(user_id, as_of)
-        return views.result_view(engine.run(baseline, scenario))
+        return views.result_view(engine.run(baseline, scenario, timeline=timeline))
 
     async def compare(
-        self, user_id: str, options: Sequence[schema.Scenario | Mapping[str, Any]]
+        self,
+        user_id: str,
+        options: Sequence[schema.Scenario | Mapping[str, Any]],
+        *,
+        timeline: bool = False,
     ) -> dict[str, Any]:
         """Two to five scenarios side by side on the user's baseline, the
         trade between each two, their sensitivity to the real return and the
-        break-evens. Never a ranking. Stores nothing."""
+        break-evens (with `timeline`, each option's timelines). Never a
+        ranking. Stores nothing."""
         if not comparison.MIN_OPTIONS <= len(options) <= comparison.MAX_OPTIONS:
             raise ScenarioError(
                 [
@@ -240,4 +252,4 @@ class ScenarioService:
         as_of = self.as_of_for(scenarios)
         await self.check_own(user_id, scenarios)
         baseline = await self._baselines.build(user_id, as_of)
-        return views.comparison_view(comparison.compare(baseline, scenarios))
+        return views.comparison_view(comparison.compare(baseline, scenarios, timeline=timeline))

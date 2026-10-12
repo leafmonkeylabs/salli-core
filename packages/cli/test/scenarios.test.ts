@@ -214,6 +214,15 @@ describe('salli whatif', () => {
     expect(body.hash).toMatch(/^sha256:/);
   });
 
+  it('asks for the timelines with --timeline, and only then', async () => {
+    await run(['whatif', '--buy', '2400', '--json']);
+    expect(mock.requestsTo('POST', '/v1/scenarios/run').at(-1)?.query.get('timeline')).toBeNull();
+    const result = await run(['whatif', '--buy', '2400', '--timeline']);
+    expect(result.code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/scenarios/run').at(-1)?.query.get('timeline')).toBe('true');
+    expect(result.stderr).toContain('are in the --json output');
+  });
+
   it.each([
     [[], 'Say what changes'],
     [['--buy', '-5'], '--buy takes an amount above zero'],
@@ -343,6 +352,15 @@ describe('salli compare', () => {
     await writeFile(b, '{"schema": "salli.scenario/1"}');
     const body = JSON.parse((await run(['compare', a, b, '--json'])).stdout) as { break_evens: Array<{ kind: string; value: string }> };
     expect(body.break_evens[0]).toMatchObject({ kind: 'loan_rate', status: 'none_in_range', value: null, ahead: 'Pay cash' });
+  });
+
+  it('asks for each option’s timelines with --timeline', async () => {
+    const a = join(files, 'a.json');
+    const b = join(files, 'b.json');
+    await writeFile(a, '{"schema": "salli.scenario/1"}');
+    await writeFile(b, '{"schema": "salli.scenario/1"}');
+    expect((await run(['compare', a, b, '--timeline', '--json'])).code).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/scenarios/compare').at(-1)?.query.get('timeline')).toBe('true');
   });
 
   it('needs two to five readable scenarios (exit 2)', async () => {

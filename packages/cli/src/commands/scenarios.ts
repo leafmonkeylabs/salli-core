@@ -35,6 +35,9 @@ type Change = NonNullable<Scenario['changes']>[number];
 type AmountFigure = ScenarioRun['cash']['lowest'];
 type MonthFigure = ScenarioRun['fi']['fi_month'];
 
+/** Said when --timeline is asked for without --json: the lines are data, for a chart. */
+const TIMELINE_NOTE = 'The timelines (every day of cash, every month to the horizon) are in the --json output.';
+
 /** The most a scenario file may be (the server reads far less). */
 const MAX_SCENARIO_BYTES = 256 * 1024;
 
@@ -619,6 +622,7 @@ export function registerScenarios(program: Command, app: App): void {
     .option('--label <text>', 'What to call this scenario')
     .option('--file <path>', 'Run a scenario document instead of flags ("-" reads stdin)')
     .option('--save <path>', 'Also write the scenario the flags make, to reuse with `salli compare`')
+    .option('--timeline', 'Include every day of the cash forecast and every month to the horizon, baseline and scenario (in the --json output)')
     .addHelpText(
       'after',
       `
@@ -808,8 +812,9 @@ Fees are yours to give: none are counted without --fees.`,
           app.out.note(`Saved the scenario to ${opts.save}.`);
         }
       }
-      const run = await api.call(scenariosRun, { body: doc as unknown as Scenario });
+      const run = await api.call(scenariosRun, { body: doc as unknown as Scenario, ...(opts.timeline ? { query: { timeline: true } } : {}) });
       app.out.emit(run, { records: (d) => d.monthly, human: (d) => showRun(app, d) });
+      if (opts.timeline && !app.out.machine) app.out.note(TIMELINE_NOTE);
     });
 
   program
@@ -833,7 +838,8 @@ Examples:
   $ salli compare cash.json instalments.json
   $ salli compare invest.json pay-down.json --json`,
     )
-    .action(async (files) => {
+    .option('--timeline', 'Include each option\'s daily cash and monthly lines, baseline and option (in the --json output)')
+    .action(async (files, opts) => {
       if (files.length < 2 || files.length > 5) throw new UsageError(`Compare 2 to 5 scenarios (got ${files.length}).`);
       if (files.filter((f) => f === '-').length > 1) throw new UsageError('Only one scenario can come from stdin.');
       const options: Record<string, unknown>[] = [];
@@ -843,7 +849,11 @@ Examples:
         options.push(doc);
       }
       const api = await app.api();
-      const data = await api.call(scenariosCompare, { body: { options: options as unknown as Scenario[] } });
+      const data = await api.call(scenariosCompare, {
+        body: { options: options as unknown as Scenario[] },
+        ...(opts.timeline ? { query: { timeline: true } } : {}),
+      });
       app.out.emit(data, { records: (d) => d.options, human: (d) => showComparison(app, d) });
+      if (opts.timeline && !app.out.machine) app.out.note(TIMELINE_NOTE);
     });
 }

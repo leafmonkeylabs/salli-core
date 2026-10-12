@@ -517,10 +517,13 @@ def _order(b: BreakEven) -> tuple[str, tuple[str, ...], str, int]:
 # ── Comparing ────────────────────────────────────────────────────────────────
 
 
-def compare(baseline: Baseline, scenarios: Sequence[schema.Scenario]) -> Comparison:
+def compare(
+    baseline: Baseline, scenarios: Sequence[schema.Scenario], *, timeline: bool = False
+) -> Comparison:
     """The options side by side, the trade between each two, their
-    sensitivity to the real return, and the break-evens (see the module).
-    ScenarioError with every problem found."""
+    sensitivity to the real return, and the break-evens (see the module);
+    with `timeline`, each option's timelines too. ScenarioError with every
+    problem found."""
     labels = _check(baseline, scenarios)
     options = [_labelled(s, label) for s, label in zip(scenarios, labels, strict=True)]
     problems: list[Problem] = []
@@ -535,7 +538,7 @@ def compare(baseline: Baseline, scenarios: Sequence[schema.Scenario]) -> Compari
         raise ScenarioError(problems)
 
     base: Outlook = baseline_outlook(baseline)
-    results = [run(baseline, s, base=base) for s in options]
+    results = [run(baseline, s, base=base, timeline=timeline) for s in options]
     translated = [(t.changes, t.spending) for t in (translate(baseline, s) for s in options)]
     horizon = options[0].horizon_years
     returns, sensitive = sensitivity(baseline, translated, labels, horizon, options)

@@ -2354,7 +2354,8 @@ export const metaGet = <ThrowOnError extends boolean = false>(options?: Options<
  * Run a scenario on your baseline: cash over the next twelve months, the
  * monthly figures at 1, 5, 10 and 20 years and the horizon, debts,
  * resilience and FI, each under the baseline and the scenario with the
- * delta. Stores nothing.
+ * delta; with `timeline`, the timelines they are read from. Stores
+ * nothing.
  */
 export const scenariosRun = <ThrowOnError extends boolean = false>(options: Options<ScenariosRunData, ThrowOnError>): RequestResult<ScenariosRunResponses, ScenariosRunErrors, ThrowOnError> => (options.client ?? client).post<ScenariosRunResponses, ScenariosRunErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -2371,7 +2372,8 @@ export const scenariosRun = <ThrowOnError extends boolean = false>(options: Opti
  *
  * Compare two to five options side by side: each one's figures, what
  * each gains and gives up against the others, their sensitivity to the
- * real return, and the break-evens. Never a ranking. Stores nothing.
+ * real return, and the break-evens; with `timeline`, each option's
+ * timelines. Never a ranking. Stores nothing.
  */
 export const scenariosCompare = <ThrowOnError extends boolean = false>(options: Options<ScenariosCompareData, ThrowOnError>): RequestResult<ScenariosCompareResponses, ScenariosCompareErrors, ThrowOnError> => (options.client ?? client).post<ScenariosCompareResponses, ScenariosCompareErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

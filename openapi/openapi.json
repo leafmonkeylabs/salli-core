@@ -11056,17 +11056,36 @@
           "scenarios"
         ],
         "summary": "Run Scenario",
-        "description": "Run a scenario on your baseline: cash over the next twelve months, the\nmonthly figures at 1, 5, 10 and 20 years and the horizon, debts,\nresilience and FI, each under the baseline and the scenario with the\ndelta. Stores nothing.",
+        "description": "Run a scenario on your baseline: cash over the next twelve months, the\nmonthly figures at 1, 5, 10 and 20 years and the horizon, debts,\nresilience and FI, each under the baseline and the scenario with the\ndelta; with `timeline`, the timelines they are read from. Stores\nnothing.",
         "operationId": "scenarios.run",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "timeline",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include both timelines, the baseline's and the scenario's: every day of the cash forecast and every point of the monthly timeline to the horizon",
+              "default": false,
+              "title": "Timeline"
+            },
+            "description": "Include both timelines, the baseline's and the scenario's: every day of the cash forecast and every point of the monthly timeline to the horizon"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Scenario"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -11109,12 +11128,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/v1/scenarios/compare": {
@@ -11123,17 +11137,36 @@
           "scenarios"
         ],
         "summary": "Compare Scenarios",
-        "description": "Compare two to five options side by side: each one's figures, what\neach gains and gives up against the others, their sensitivity to the\nreal return, and the break-evens. Never a ranking. Stores nothing.",
+        "description": "Compare two to five options side by side: each one's figures, what\neach gains and gives up against the others, their sensitivity to the\nreal return, and the break-evens; with `timeline`, each option's\ntimelines. Never a ranking. Stores nothing.",
         "operationId": "scenarios.compare",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "timeline",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include both timelines, the baseline's and the scenario's: every day of the cash forecast and every point of the monthly timeline to the horizon",
+              "default": false,
+              "title": "Timeline"
+            },
+            "description": "Include both timelines, the baseline's and the scenario's: every day of the cash forecast and every point of the monthly timeline to the horizon"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CompareOptions"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -11176,12 +11209,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/.well-known/oauth-authorization-server": {
@@ -30709,6 +30737,16 @@
             },
             "type": "array",
             "title": "Notes"
+          },
+          "timeline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioTimeline"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -31154,6 +31192,31 @@
         ],
         "title": "ScenarioTaxYear",
         "description": "One tax year the scenario touches."
+      },
+      "ScenarioTimeline": {
+        "properties": {
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineDay"
+            },
+            "type": "array",
+            "title": "Daily"
+          },
+          "monthly": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineMonth"
+            },
+            "type": "array",
+            "title": "Monthly"
+          }
+        },
+        "type": "object",
+        "required": [
+          "daily",
+          "monthly"
+        ],
+        "title": "ScenarioTimeline",
+        "description": "Both timelines the figures are read from, under the baseline and\nunder the scenario, for drawing them: every day of the cash forecast\n(the as-of month and the twelve after it), and the monthly timeline from\nthe as-of date to the horizon."
       },
       "ScenarioTrade": {
         "properties": {
@@ -35774,6 +35837,67 @@
         ],
         "title": "TemplateWhen",
         "description": "A question asked only when another is answered (`equals` null), or\nanswered so."
+      },
+      "TimelineDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "baseline": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Baseline",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "scenario": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Scenario",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "baseline",
+          "scenario"
+        ],
+        "title": "TimelineDay",
+        "description": "Cash, all accounts together, at the end of a day, under the baseline\nand under the scenario, in that day's own money."
+      },
+      "TimelineMonth": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/AmountFigure"
+          },
+          "net_worth": {
+            "$ref": "#/components/schemas/AmountFigure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "date",
+          "cash",
+          "net_worth"
+        ],
+        "title": "TimelineMonth",
+        "description": "The monthly timeline at one point (the as-of date, then each month's\nend), in today's money."
       },
       "TokenGrant": {
         "properties": {

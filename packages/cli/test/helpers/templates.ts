@@ -930,7 +930,8 @@ export const AFFORD_IT_START: DecisionStart = {
         },
         "data_as_of": "2026-10-09",
         "is_stale": false,
-        "notes": []
+        "notes": [],
+        "timeline": null
       },
       {
         "schema": "salli.scenario/1",
@@ -1303,7 +1304,8 @@ export const AFFORD_IT_START: DecisionStart = {
         },
         "data_as_of": "2026-10-09",
         "is_stale": false,
-        "notes": []
+        "notes": [],
+        "timeline": null
       }
     ],
     "trade": [
@@ -2268,7 +2270,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         },
         "data_as_of": "2026-10-09",
         "is_stale": false,
-        "notes": []
+        "notes": [],
+        "timeline": null
       },
       {
         "schema": "salli.scenario/1",
@@ -2604,7 +2607,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         },
         "data_as_of": "2026-10-09",
         "is_stale": false,
-        "notes": []
+        "notes": [],
+        "timeline": null
       },
       {
         "schema": "salli.scenario/1",
@@ -2940,7 +2944,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         },
         "data_as_of": "2026-10-09",
         "is_stale": false,
-        "notes": []
+        "notes": [],
+        "timeline": null
       }
     ],
     "trade": [
@@ -4873,7 +4878,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         },
         "data_as_of": "2026-10-09",
         "is_stale": false,
-        "notes": []
+        "notes": [],
+        "timeline": null
       },
       {
         "schema": "salli.scenario/1",
@@ -5407,7 +5413,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "notes": [
           "Cash is below zero from the end of 2026-11: what the regular surplus doesn't cover, and what is paid from cash, is drawn from cash, never from your investments, so cash is left below zero rather than investments sold.",
           "The home counts at what it would fetch: its value less its selling costs, so net worth is lower by them from the month it is bought (other_assets_value is its value before them)."
-        ]
+        ],
+        "timeline": null
       },
       {
         "schema": "salli.scenario/1",
@@ -5941,7 +5948,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "notes": [
           "Cash is below zero from the end of 2026-11: what the regular surplus doesn't cover, and what is paid from cash, is drawn from cash, never from your investments, so cash is left below zero rather than investments sold.",
           "The home counts at what it would fetch: its value less its selling costs, so net worth is lower by them from the month it is bought (other_assets_value is its value before them)."
-        ]
+        ],
+        "timeline": null
       }
     ],
     "trade": [
