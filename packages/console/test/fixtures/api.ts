@@ -7,10 +7,13 @@
 import type { NotificationPreferences, Profile } from '@leafmonkeylabs/salli-sdk';
 import { ME, metaAt, ORIGIN, PROFILE, SIGN_INS } from './auth';
 import * as home from './home';
+import { LabState } from './lab-api';
 
 export interface Answer {
   status: number;
   body?: unknown;
+  /** A body that is text, not JSON (Markdown). */
+  text?: string;
   headers?: Record<string, string>;
 }
 
@@ -57,6 +60,8 @@ export class MockApi {
   profile: Profile = { ...PROFILE };
   signIns = [...SIGN_INS];
   reads: Record<string, unknown> = { ...HOME_READS };
+  /** The decision lab's reads and writes (lab-api.ts). */
+  lab = new LabState();
   issued = 0;
 
   constructor(origin: string = ORIGIN) {
@@ -99,7 +104,10 @@ export class MockApi {
       this.signIns = this.signIns.filter((s) => s.id !== decodeURIComponent(revoke[1] ?? ''));
       return { status: 204 };
     }
-    return undefined;
+    const answered = this.lab.answer(request);
+    // A review changes what is due, which Home reads too.
+    if (answered && method === 'POST' && /\/review$/.test(path)) this.reads['/v1/decisions/reviews'] = this.lab.due;
+    return answered;
   }
 
   /** The requests to `path`. */
@@ -120,6 +128,7 @@ export class MockApi {
       authorization: request.headers.get('authorization'),
     };
     const answer = this.answer(recorded) ?? { status: 404, body: problem(404, 'Not Found') };
+    if (answer.text !== undefined) return new Response(answer.text, { status: answer.status, headers: { 'content-type': 'text/plain', ...answer.headers } });
     const json = answer.body !== undefined && answer.status !== 204;
     const isProblem = answer.status >= 400 && json && typeof answer.body === 'object' && answer.body !== null && 'type' in answer.body;
     return new Response(json ? JSON.stringify(answer.body) : null, {

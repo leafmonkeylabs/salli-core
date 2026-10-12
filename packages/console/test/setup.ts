@@ -12,3 +12,6 @@ if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.sho
     this.dispatchEvent(new Event('close'));
   };
 }
+
+// The router restores the scroll position on a new page; jsdom has no layout to scroll.
+if (typeof window !== 'undefined') window.scrollTo = () => undefined;

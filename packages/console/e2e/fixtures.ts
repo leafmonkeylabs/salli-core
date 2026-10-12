@@ -29,6 +29,9 @@ export async function mockSalli(page: Page, origin: string, api: MockApi = new M
       body: request.postData() ?? '',
       authorization: (await request.allHeaders()).authorization ?? null,
     }) ?? { status: 404, body: { type: 'about:blank', title: 'Not Found', status: 404 } };
+    if (answer.text !== undefined) {
+      return route.fulfill({ status: answer.status, headers: { 'content-type': 'text/plain', 'cache-control': 'no-store', ...answer.headers }, body: answer.text });
+    }
     const json = answer.body !== undefined && answer.status !== 204;
     return route.fulfill({
       status: answer.status,

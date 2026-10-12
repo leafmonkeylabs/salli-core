@@ -346,7 +346,9 @@ async def lab_fixtures(home_due: Any) -> list[Fixture]:
             Fixture(name, "DecisionTemplate", None, await get(f"/v1/decisions/templates/{id_}"))
             for name, id_ in (
                 ("AFFORD_IT", "afford-it"),
+                ("DEBT_OR_INVEST", "debt-or-invest"),
                 ("WINDFALL", "windfall"),
+                ("BIG_CHANGE", "big-change"),
                 ("BORROW", "borrow"),
                 ("EMERGENCY_FUND", "emergency-fund"),
                 ("RENT_OR_BUY", "rent-or-buy"),

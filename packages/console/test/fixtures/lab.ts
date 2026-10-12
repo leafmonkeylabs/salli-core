@@ -6142,6 +6142,229 @@ export const AFFORD_IT: DecisionTemplate = {
   "notes": []
 };
 
+export const DEBT_OR_INVEST: DecisionTemplate = {
+  "schema": "salli.template/1",
+  "id": "debt-or-invest",
+  "title": "Debt or invest",
+  "summary": "The same money onto a debt, or invested, or split between them: once, or every month.",
+  "builds": [
+    "Pay down the debt: the money onto it on top of its payments",
+    "Invest it: the same money moved into your investments",
+    "Split: the part you say onto the debt, the rest invested"
+  ],
+  "questions": [
+    {
+      "id": "debt",
+      "type": "debt",
+      "prompt": "Which debt?",
+      "help": "One of your debts with terms (salli debts list).",
+      "required": true,
+      "when": null,
+      "default": null,
+      "default_rule": "your only debt, when you have one",
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "amount",
+      "type": "amount",
+      "prompt": "How much?",
+      "help": "In your base currency.",
+      "required": true,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "how",
+      "type": "choice",
+      "prompt": "Once, or every month?",
+      "help": "A sum you have now, or an amount you could put towards it each month.",
+      "required": false,
+      "when": null,
+      "default": {
+        "value": "once",
+        "source": "salli",
+        "note": "a single sum"
+      },
+      "default_rule": "once",
+      "choices": [
+        {
+          "value": "once",
+          "label": "Once"
+        },
+        {
+          "value": "monthly",
+          "label": "Every month"
+        }
+      ],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "months",
+      "type": "months",
+      "prompt": "For how many months?",
+      "help": "How long you would keep it up.",
+      "required": true,
+      "when": {
+        "question": "how",
+        "equals": "monthly"
+      },
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": 1,
+      "maximum": 48,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "start",
+      "type": "date",
+      "prompt": "From when?",
+      "help": "The day the first payment goes onto the debt, or is invested: both start together. In this month, a payment onto the debt lands at the month's end, before its next scheduled payment.",
+      "required": false,
+      "when": null,
+      "default": {
+        "value": "2026-11-01",
+        "source": "next_month",
+        "note": "the first of next month"
+      },
+      "default_rule": "the first of next month",
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "split_on_debt",
+      "type": "amount",
+      "prompt": "To compare a split too: how much of it would go on the debt?",
+      "help": "The rest is invested. Leave it out to compare the two alone.",
+      "required": false,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "holding",
+      "type": "holding",
+      "prompt": "Into one of your holdings?",
+      "help": "One of your own holdings (salli holdings list), to see the units the money buys at its last recorded price. Leave it out to invest into your investments as a whole. Salli never picks one.",
+      "required": false,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "horizon_years",
+      "type": "years",
+      "prompt": "How many years ahead do you want the long-run figures to run?",
+      "help": "Net worth and the break-evens are read at this horizon, in today's money. Payoff dates and the FI month are found wherever they fall.",
+      "required": false,
+      "when": null,
+      "default": {
+        "value": 20,
+        "source": "salli",
+        "note": "Salli's usual horizon for long-run figures"
+      },
+      "default_rule": "20 years",
+      "choices": [],
+      "minimum": 1,
+      "maximum": 50,
+      "min_items": null,
+      "max_items": null
+    }
+  ],
+  "answers_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Answers to the Debt or invest template (salli.template/1)",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "debt": {
+        "type": "string",
+        "description": "One of your debts with terms (salli debts list).",
+        "enum": [
+          "debt-car",
+          "debt-student"
+        ],
+        "title": "Which debt?"
+      },
+      "amount": {
+        "type": "string",
+        "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+        "description": "In your base currency.",
+        "title": "How much?"
+      },
+      "how": {
+        "type": "string",
+        "enum": [
+          "once",
+          "monthly"
+        ],
+        "title": "Once, or every month?",
+        "description": "A sum you have now, or an amount you could put towards it each month."
+      },
+      "months": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 48,
+        "title": "For how many months?",
+        "description": "How long you would keep it up."
+      },
+      "start": {
+        "type": "string",
+        "format": "date",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+        "title": "From when?",
+        "description": "The day the first payment goes onto the debt, or is invested: both start together. In this month, a payment onto the debt lands at the month's end, before its next scheduled payment."
+      },
+      "split_on_debt": {
+        "type": "string",
+        "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+        "description": "The rest is invested. Leave it out to compare the two alone.",
+        "title": "To compare a split too: how much of it would go on the debt?"
+      },
+      "holding": {
+        "type": "string",
+        "description": "One of your own holdings (salli holdings list), to see the units the money buys at its last recorded price. Leave it out to invest into your investments as a whole. Salli never picks one.",
+        "title": "Into one of your holdings?"
+      },
+      "horizon_years": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50,
+        "title": "How many years ahead do you want the long-run figures to run?",
+        "description": "Net worth and the break-evens are read at this horizon, in today's money. Payoff dates and the FI month are found wherever they fall."
+      }
+    }
+  },
+  "notes": []
+};
+
 export const WINDFALL: DecisionTemplate = {
   "schema": "salli.template/1",
   "id": "windfall",
@@ -6394,6 +6617,234 @@ export const WINDFALL: DecisionTemplate = {
         "type": "string",
         "description": "One of your own holdings (salli holdings list), to see the units the money buys at its last recorded price. Leave it out to invest into your investments as a whole. Salli never picks one.",
         "title": "Into one of your holdings?"
+      },
+      "horizon_years": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50,
+        "title": "How many years ahead do you want the long-run figures to run?",
+        "description": "Net worth and the break-evens are read at this horizon, in today's money. Payoff dates and the FI month are found wherever they fall."
+      }
+    }
+  },
+  "notes": []
+};
+
+export const BIG_CHANGE: DecisionTemplate = {
+  "schema": "salli.template/1",
+  "id": "big-change",
+  "title": "Big recurring change",
+  "summary": "A new flat, a new job, a car: what changes month after month, and what it costs at the start, against things as they are.",
+  "builds": [
+    "As things are: your baseline",
+    "The change: its costs and income each month from the start, and anything paid once"
+  ],
+  "questions": [
+    {
+      "id": "label",
+      "type": "text",
+      "prompt": "What is the change?",
+      "help": "A few words: “New flat”, “New job”, “A car”.",
+      "required": true,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "start",
+      "type": "date",
+      "prompt": "When would it start?",
+      "help": "The day the first month's costs or pay change.",
+      "required": false,
+      "when": null,
+      "default": {
+        "value": "2026-11-01",
+        "source": "next_month",
+        "note": "the first of next month"
+      },
+      "default_rule": "the first of next month",
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "monthly_costs",
+      "type": "signed_amount",
+      "prompt": "How much more would you spend a month?",
+      "help": "In your base currency: \"+450\" more, \"-200\" less. Leave it out if spending stays the same.",
+      "required": false,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "monthly_income",
+      "type": "signed_amount",
+      "prompt": "How much more would you take home a month?",
+      "help": "In your base currency: \"+600\" more, \"-300\" less. After tax, unless you name the tax role it is paid in (next): then before tax. Leave it out if it stays the same.",
+      "required": false,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "income_tax_role",
+      "type": "tax_role",
+      "prompt": "Is that pay before tax? In which of your tax rules' roles?",
+      "help": "Leave it out if the amount is take-home pay. If it is before tax, name the role your active tax rules count it in (your salary's, say): Salli then works out the tax with your rules.",
+      "required": false,
+      "when": {
+        "question": "monthly_income",
+        "equals": null
+      },
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "upfront",
+      "type": "amount",
+      "prompt": "Anything to pay once at the start?",
+      "help": "A deposit, moving costs, a down payment. Leave it out if there's none.",
+      "required": false,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "end",
+      "type": "date",
+      "prompt": "Does it end? On what day?",
+      "help": "Leave it out if it goes on.",
+      "required": false,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "account",
+      "type": "account",
+      "prompt": "Which cash account would the costs come out of?",
+      "help": "Leave it out to use your cash as a whole.",
+      "required": false,
+      "when": null,
+      "default": null,
+      "default_rule": null,
+      "choices": [],
+      "minimum": null,
+      "maximum": null,
+      "min_items": null,
+      "max_items": null
+    },
+    {
+      "id": "horizon_years",
+      "type": "years",
+      "prompt": "How many years ahead do you want the long-run figures to run?",
+      "help": "Net worth and the break-evens are read at this horizon, in today's money. Payoff dates and the FI month are found wherever they fall.",
+      "required": false,
+      "when": null,
+      "default": {
+        "value": 20,
+        "source": "salli",
+        "note": "Salli's usual horizon for long-run figures"
+      },
+      "default_rule": "20 years",
+      "choices": [],
+      "minimum": 1,
+      "maximum": 50,
+      "min_items": null,
+      "max_items": null
+    }
+  ],
+  "answers_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Answers to the Big recurring change template (salli.template/1)",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "label": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120,
+        "title": "What is the change?",
+        "description": "A few words: “New flat”, “New job”, “A car”."
+      },
+      "start": {
+        "type": "string",
+        "format": "date",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+        "title": "When would it start?",
+        "description": "The day the first month's costs or pay change."
+      },
+      "monthly_costs": {
+        "type": "string",
+        "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
+        "description": "In your base currency: \"+450\" more, \"-200\" less. Leave it out if spending stays the same.",
+        "title": "How much more would you spend a month?"
+      },
+      "monthly_income": {
+        "type": "string",
+        "pattern": "^[+-]?[0-9]+(\\.[0-9]+)?$",
+        "description": "In your base currency: \"+600\" more, \"-300\" less. After tax, unless you name the tax role it is paid in (next): then before tax. Leave it out if it stays the same.",
+        "title": "How much more would you take home a month?"
+      },
+      "income_tax_role": {
+        "type": "string",
+        "description": "Leave it out if the amount is take-home pay. If it is before tax, name the role your active tax rules count it in (your salary's, say): Salli then works out the tax with your rules.",
+        "title": "Is that pay before tax? In which of your tax rules' roles?"
+      },
+      "upfront": {
+        "type": "string",
+        "pattern": "^\\+?[0-9]+(\\.[0-9]+)?$",
+        "description": "A deposit, moving costs, a down payment. Leave it out if there's none.",
+        "title": "Anything to pay once at the start?"
+      },
+      "end": {
+        "type": "string",
+        "format": "date",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+        "title": "Does it end? On what day?",
+        "description": "Leave it out if it goes on."
+      },
+      "account": {
+        "type": "string",
+        "description": "Leave it out to use your cash as a whole.",
+        "enum": [
+          "chk",
+          "sav"
+        ],
+        "title": "Which cash account would the costs come out of?"
       },
       "horizon_years": {
         "type": "integer",
@@ -28979,7 +29430,7 @@ export const NOTE: DecisionNote = {
 
 export const PRINCIPLE_ADDED: Principle = {
   "schema": "salli.principle/1",
-  "id": "00002358-5a11-4000-8000-000000009048",
+  "id": "0000235a-5a11-4000-8000-000000009050",
   "label": "Never below 2,000 in checking",
   "check": "account_lowest >= 2000",
   "account": "chk",
@@ -29063,7 +29514,7 @@ export const START_REFUSED: ProblemDetails = {
 export const REVIEWED: DecisionReview = {
   "review": {
     "schema": "salli.decision-review/1",
-    "id": "0000235b-5a11-4000-8000-000000009051",
+    "id": "0000235d-5a11-4000-8000-000000009053",
     "decision_id": "0000232e-5a11-4000-8000-000000009006",
     "entry_hash": "sha256:a001e76a4ce09e27e5c1c424c8ac52571bd66c75ab7782b353b183ec053e005a",
     "at": "2026-10-11T10:00:00+00:00",
@@ -29120,7 +29571,7 @@ export const REVIEWED: DecisionReview = {
       ]
     }
   },
-  "hash": "sha256:77c85dcc72eb92365e33f360877d35e194dcb4bc9e0091784d72a5acea861f7d",
+  "hash": "sha256:41eea7119ec3d26a4b7d3992726285bfcbdd08a30e3a010a8202b6781aae9fb7",
   "verified": true
 };
 
@@ -29433,7 +29884,7 @@ export const DECISION_REVIEWED: Decision = {
     {
       "review": {
         "schema": "salli.decision-review/1",
-        "id": "0000235b-5a11-4000-8000-000000009051",
+        "id": "0000235d-5a11-4000-8000-000000009053",
         "decision_id": "0000232e-5a11-4000-8000-000000009006",
         "entry_hash": "sha256:a001e76a4ce09e27e5c1c424c8ac52571bd66c75ab7782b353b183ec053e005a",
         "at": "2026-10-11T10:00:00+00:00",
@@ -29490,7 +29941,7 @@ export const DECISION_REVIEWED: Decision = {
           ]
         }
       },
-      "hash": "sha256:77c85dcc72eb92365e33f360877d35e194dcb4bc9e0091784d72a5acea861f7d",
+      "hash": "sha256:41eea7119ec3d26a4b7d3992726285bfcbdd08a30e3a010a8202b6781aae9fb7",
       "verified": true
     }
   ]
