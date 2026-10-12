@@ -104,9 +104,10 @@ async def test_the_tools_say_what_an_agent_may_say_about_holdings(services):
         t.name: " ".join((t.description or "").split())
         for t in await mcp_server.build_mcp_server(services, "https://api.test").list_tools()
     }
-    assert "never suggest buying or selling one, never compare them as investments" in tools[
-        "list_holdings"
-    ]
+    assert (
+        "never suggest buying or selling one, never compare them as investments"
+        in tools["list_holdings"]
+    )
     assert "get their go-ahead" in tools["link_holding"]
     schema = tools["get_scenario_schema"]
     assert "a `sell` sells part of one" in schema
