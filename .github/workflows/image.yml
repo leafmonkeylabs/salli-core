@@ -60,7 +60,8 @@ jobs:
     # compose.yaml as a self-hoster runs it, on the image this change builds.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The console's run waits five minutes out for a real step-up.
+    timeout-minutes: 30
     env:
       SALLI_IMAGE: salli:ci
     steps:
@@ -95,10 +96,12 @@ jobs:
           node-version: 22
           cache: npm
       - name: The console end to end, in a browser
-        # Signs in on the real sign-in page, sees Home, ends a sign-in, goes
-        # through the step-up, signs out and is signed out when idle; weighs
-        # a decision, records it after confirming, adds a note, and loads
-        # every page of the decision lab.
+        # Signs in on the real sign-in page, sees Home, ends a sign-in, signs
+        # out and is signed out when idle; weighs a decision, records it
+        # after confirming, adds a note; adds and reverses an entry; imports
+        # a statement, reviews and posts it; makes and revokes a token;
+        # turns MCP off and on; activates tax rules through a real step-up
+        # (five minutes after the password); and loads every page.
         run: |
           npm ci
           cd packages/console
