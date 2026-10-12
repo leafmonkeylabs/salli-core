@@ -249,20 +249,31 @@ function Components({ score }: { score: FiScore }) {
 }
 
 /** One assumption: what is in use and where it came from, then setting your own. */
-function Assumption({ name, applied, own, strategy }: { name: Key; applied: FiAssumption | null | undefined; own: FiOwnAssumption | null | undefined; strategy: boolean }) {
+function Assumption({
+  name,
+  applied,
+  own,
+  strategy,
+  onSaved,
+}: {
+  name: Key;
+  applied: FiAssumption | null | undefined;
+  own: FiOwnAssumption | null | undefined;
+  strategy: boolean;
+  onSaved: (text: string) => void;
+}) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(own ? rate(own.value, locale) : '');
   const [source, setSource] = useState(own?.source ?? '');
   const [note, setNote] = useState(own?.note ?? '');
   const [local, setLocal] = useState('');
-  const [said, setSaid] = useState('');
   const label = f.names[name] ?? name;
   const write = useWrite<{ body: FiAssumptionsUpdate; cleared: boolean }, FiAssumptionsReport>('fi.assumptions.set', (api, input) => api.call(fiAssumptionsSet, { body: input.body }), {
     invalidate: INVALIDATE,
     onSuccess: (_, input) => {
-      setSaid(input.cleared ? f.cleared(label) : f.saved(label));
       setOpen(false);
+      onSaved(input.cleared ? f.cleared(label) : f.saved(label));
     },
   });
   // Salli's refusal names the assumption; it belongs at this one's value.
@@ -270,7 +281,7 @@ function Assumption({ name, applied, own, strategy }: { name: Key; applied: FiAs
   const error = local || (refused && refused.status === 422 ? String(refused.toProblem().detail ?? refused.message) : '');
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    setSaid('');
+    onSaved('');
     const parsed = value.trim() ? rateInput(value, locale) : undefined;
     if (!parsed) {
       setLocal(value.trim() ? f.badRate : f.needed);
@@ -334,19 +345,13 @@ function Assumption({ name, applied, own, strategy }: { name: Key; applied: FiAs
           {error}
         </p>
       ) : null}
-      <p role="status" className="quiet-success">
-        {said ? (
-          <>
-            <span aria-hidden="true">✓</span> {said}
-          </>
-        ) : null}
-      </p>
     </li>
   );
 }
 
 function Assumptions() {
   const locale = useLocale();
+  const [said, setSaid] = useState('');
   const query = useRead('fi.assumptions', fiAssumptions);
   return (
     <Section label={f.assumptions} full>
@@ -359,9 +364,16 @@ function Assumptions() {
               <Basis assumptions={report.applied} />
               <ul className="list assumptions">
                 {KEYS.map((key) => (
-                  <Assumption key={`${key}-${report.own[key]?.set_at ?? ''}`} name={key} applied={report.applied[key]} own={report.own[key]} strategy={strategy} />
+                  <Assumption key={`${key}-${report.own[key]?.set_at ?? ''}`} name={key} applied={report.applied[key]} own={report.own[key]} strategy={strategy} onSaved={setSaid} />
                 ))}
               </ul>
+              <p role="status" className="quiet-success">
+                {said ? (
+                  <>
+                    <span aria-hidden="true">✓</span> {said}
+                  </>
+                ) : null}
+              </p>
               <Provenance>{f.spread(rate(report.scenario_spread, locale))}</Provenance>
             </Panel>
           );

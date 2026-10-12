@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { Money, spokenAmount, visibleAmount } from '../src/kit/Money';
 import { PreferencesProvider } from '../src/preferences';
 import { HOME_READS, MockApi } from './fixtures/api';
+import * as where from './fixtures/where';
 import { setup } from './harness';
 
 // The tests run in packages/console.
@@ -103,6 +104,24 @@ describe('Home', () => {
       if (request.body && request.body.startsWith('{')) walk(JSON.parse(request.body), '');
     }
     expect(numbers).toEqual([]);
+  });
+});
+
+describe('where you stand', () => {
+  it('shows amounts a float can’t hold digit for digit, in the books and in cash', async () => {
+    const api = new MockApi();
+    api.overrides.push((r) => (r.method === 'GET' && r.path === '/v1/ledger/trial-balance' ? { status: 200, body: hardAmounts(where.TRIAL_BALANCE) } : undefined));
+    api.overrides.push((r) => (r.method === 'GET' && r.path === '/v1/insights/forecast' ? { status: 200, body: hardAmounts(where.FORECAST) } : undefined));
+    await setup({ api, path: '/console/books' });
+    const assets = await screen.findByRole('region', { name: 'Assets' });
+    await waitFor(() => expect(within(assets).getAllByText('9,007,199,254,740,993.01').length).toBeGreaterThan(0));
+    const liabilities = screen.getByRole('region', { name: 'Liabilities' });
+    expect(within(liabilities).getAllByText('(9,007,199,254,740,993.01)').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/9,007,199,254,740,992|9007199254740992/);
+    await setup({ api, path: '/console/cash' });
+    const accounts = await screen.findByRole('region', { name: 'Cash accounts' });
+    await waitFor(() => expect(within(accounts).getAllByText('EUR 9,007,199,254,740,993.01').length).toBeGreaterThan(0));
+    expect(document.body.textContent).not.toMatch(/9,007,199,254,740,992|9007199254740992/);
   });
 });
 
