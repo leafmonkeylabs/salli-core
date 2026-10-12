@@ -65,7 +65,7 @@ async def _create(client, lines: list[dict]) -> str:
 
 async def test_a_budget_reads_back_as_the_service_returns_it(client, mock_services):
     _uow(mock_services)
-    budget_id = await _create(client, [{"account_id": "food", "limit_amount": 25000}])
+    budget_id = await _create(client, [{"account_id": "food", "limit_amount": "25000"}])
 
     r = await client.get(f"/v1/budget/{budget_id}", headers=AUTH)
     assert r.status_code == 200
@@ -92,8 +92,8 @@ async def test_the_summary_compares_limits_with_spend_in_the_period(client, mock
     budget_id = await _create(
         client,
         [
-            {"account_id": "food", "limit_amount": 25000},
-            {"account_id": "gone", "limit_amount": 100.5},
+            {"account_id": "food", "limit_amount": "25000"},
+            {"account_id": "gone", "limit_amount": "100.5"},
         ],
     )
     # An account the ledger no longer has still reads back, under its id.
@@ -130,7 +130,7 @@ async def test_amounts_keep_the_base_currencys_own_decimals(client, mock_service
     uow = _uow(mock_services, base_currency="JPY")
     uow.ledger.accounts = [_account("food", "Groceries", "expense", "JPY")]
     uow.ledger.entries = [_spend("2026-01-10", "food", "1500", "JPY")]
-    budget_id = await _create(client, [{"account_id": "food", "limit_amount": 30000}])
+    budget_id = await _create(client, [{"account_id": "food", "limit_amount": "30000"}])
 
     summary = (await client.get(f"/v1/budget/{budget_id}/summary", headers=AUTH)).json()
     assert summary["currency"] == "JPY"
@@ -140,11 +140,11 @@ async def test_amounts_keep_the_base_currencys_own_decimals(client, mock_service
 
 async def test_an_update_answers_that_it_was_applied(client, mock_services):
     _uow(mock_services)
-    budget_id = await _create(client, [{"account_id": "food", "limit_amount": 25000}])
+    budget_id = await _create(client, [{"account_id": "food", "limit_amount": "25000"}])
 
     r = await client.patch(
         f"/v1/budget/{budget_id}",
-        json={"lines": [{"account_id": "food", "limit_amount": 30000}]},
+        json={"lines": [{"account_id": "food", "limit_amount": "30000"}]},
         headers=AUTH,
     )
     assert (r.status_code, r.json()) == (200, {"updated": True})
@@ -157,7 +157,7 @@ async def test_a_line_on_an_account_that_is_not_yours_is_not_found(client, mock_
 
     r = await client.post(
         "/v1/budget/",
-        json={**JANUARY, "lines": [{"account_id": "theirs", "limit_amount": 100}]},
+        json={**JANUARY, "lines": [{"account_id": "theirs", "limit_amount": "100"}]},
         headers=AUTH,
     )
 

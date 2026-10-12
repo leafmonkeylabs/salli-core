@@ -11,12 +11,12 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from salli.application.ports import PayloadView, Surface
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
-from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalIn, Ref
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref
 from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
@@ -338,7 +338,13 @@ async def _gate_strategy_stream(
             yield chunk
             continue
         if event.get("type") == "done" and "strategy" in event:
-            event["strategy"] = view.shape(Surface.FIRE_STRATEGY, event["strategy"])
+            shaped = view.shape(Surface.FIRE_STRATEGY, event["strategy"])
+            if "target_monthly_expenses" in shaped:
+                # An amount, as a string, as GET /v1/fi/strategy says it.
+                shaped["target_monthly_expenses"] = FireStrategy.amount_as_text(
+                    shaped["target_monthly_expenses"]
+                )
+            event["strategy"] = shaped
         yield f"data: {json.dumps(event, default=str)}\n\n"
 
 
@@ -376,10 +382,9 @@ async def score_history(user_id: CurrentUser, svc: AppServices) -> FiScoreHistor
 class GoalRequest(BaseModel):
     name: str
     kind: str = "custom"
-    # Decimal, not float — this is money, and the project's own invariant says
-    # so. `current_amount` is gone: progress is derived from allocations against
+    # `current_amount` is gone: progress is derived from allocations against
     # real accounts, never typed in.
-    target_amount: Decimal = Decimal(0)
+    target_amount: AmountIn = Decimal(0)
     target_date: str | None = None
     # 1 high … 3 low. Decides which goal stays funded when one account is
     # claimed by several.
@@ -389,7 +394,7 @@ class GoalRequest(BaseModel):
 class GoalUpdateRequest(BaseModel):
     name: str | None = None
     kind: str | None = None
-    target_amount: Decimal | None = None
+    target_amount: AmountIn | None = None
     target_date: str | None = None
     priority: int | None = None
     is_active: bool | None = None
@@ -492,9 +497,9 @@ class FireStrategy(BaseModel):
     real_return_conservative: float | None = None
     real_return_base: float | None = None
     real_return_growth: float | None = None
-    #: Monthly spending to plan retirement around, in the base currency; null
-    #: means what the ledger shows. A JSON number, unlike other amounts.
-    target_monthly_expenses: float | None = None
+    #: Monthly spending to plan retirement around, in the base currency, as a
+    #: decimal string like every amount; null means what the ledger shows.
+    target_monthly_expenses: Amount | None = None
     target_age: int | None = None
     buckets: list[FireStrategyBucket] | None = None
     #: Markdown.
@@ -502,6 +507,15 @@ class FireStrategy(BaseModel):
     theories_applied: list[str] | None = None
     #: True for the first strategy, false for a regenerated one.
     is_initial: bool | None = None
+
+    @field_validator("target_monthly_expenses", mode="before")
+    @classmethod
+    def amount_as_text(cls, value: object) -> object:
+        """The model writes the strategy, and it writes a JSON number: the
+        response says it as the decimal it was stored as, never a float."""
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            return format(Decimal(str(value)).normalize(), "f")
+        return value
 
 
 class FireStrategySummary(BaseModel):
@@ -752,7 +766,7 @@ async def get_surplus_breakdown(user_id: CurrentUser, svc: AppServices) -> Surpl
 
 class AllocationRequest(BaseModel):
     account_id: str
-    allocated_amount: Decimal
+    allocated_amount: AmountIn
 
 
 class GoalAllocation(BaseModel):

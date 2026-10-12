@@ -21,12 +21,13 @@ their URLs are dictated by the protocols and by clients configured long ago.
 from __future__ import annotations
 
 import json
+import re
 from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import UploadFile
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field, WithJsonSchema
+from pydantic import BaseModel, BeforeValidator, Field, WithJsonSchema
 
 API_PREFIX = "/v1"
 API_VERSION = "1"
@@ -354,19 +355,40 @@ def operation_id(route: APIRoute) -> str:
 # ── Shared shapes ──────────────────────────────────────────────────────────────
 
 _DECIMAL = r"^-?\d+(\.\d+)?$"
+_DECIMAL_TEXT = re.compile(_DECIMAL)
 
-#: An amount of money in a request: a decimal string ("1234.50"), read exactly.
-#: A JSON number is still accepted for clients that send one, but it is read
-#: through a binary float first, so large or long amounts can change: send a
-#: string.
+
+def _decimal_string(value: Any) -> Any:
+    """A request's decimal must arrive as a string ("1234.50"): a JSON number
+    has already been through a binary float on its way here (and in the
+    client that wrote it), so large or long amounts may have changed.
+    Refused, with what to send instead (docs/design/console.md, decision 12)."""
+    if isinstance(value, str):
+        if not _DECIMAL_TEXT.match(value.strip()):
+            raise ValueError('must be a decimal string like "1234.50"')
+        return value.strip()
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, int | float):
+        raise ValueError(
+            'must be a decimal string like "1234.50", not a JSON number: a number is read '
+            "through a binary float, which can change it"
+        )
+    return value
+
+
+#: An amount of money in a request: a decimal string ("1234.50"), read
+#: exactly. A JSON number is refused (422): it would have been read through a
+#: binary float.
 AmountIn = Annotated[
     Decimal,
+    BeforeValidator(_decimal_string),
     WithJsonSchema(
         {
             "type": "string",
             "pattern": _DECIMAL,
             "examples": ["1234.50"],
-            "description": "Decimal string, read exactly; a JSON number goes through a float.",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
         },
         mode="validation",
     ),
@@ -376,9 +398,11 @@ AmountIn = Annotated[
 #: own amounts and rates): anything that is not one is a 422, not a 500.
 DecimalString = Annotated[str, Field(pattern=_DECIMAL, examples=["1234.50"])]
 
-#: A rate or fraction in a request ("0.0725" is 7.25%), read exactly, likewise.
+#: A rate or fraction in a request ("0.0725" is 7.25%), read exactly, likewise:
+#: a JSON number is refused.
 DecimalIn = Annotated[
     Decimal,
+    BeforeValidator(_decimal_string),
     WithJsonSchema(
         {"type": "string", "pattern": _DECIMAL, "examples": ["0.05"]},
         mode="validation",

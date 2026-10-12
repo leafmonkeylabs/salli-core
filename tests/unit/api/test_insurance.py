@@ -24,8 +24,8 @@ LIFE = {
     "name": "Term life",
     "policy_type": "life",
     "provider": "Insurer",
-    "coverage_amount": 2000000,
-    "premium_amount": 1250.5,
+    "coverage_amount": "2000000",
+    "premium_amount": "1250.5",
     "premium_frequency": "monthly",
     "expiry_date": "2026-03-30",
 }
@@ -51,7 +51,7 @@ async def _create(client, policy: dict) -> str:
     return r.json()["id"]
 
 
-async def _set_target(client, policy_type: str, amount: float) -> str:
+async def _set_target(client, policy_type: str, amount: str) -> str:
     r = await client.put(
         "/v1/insurance/targets",
         json={"policy_type": policy_type, "target_amount": amount},
@@ -82,7 +82,7 @@ async def test_an_update_answers_that_it_was_applied(client, mock_services, uow)
     policy_id = await _create(client, LIFE)
 
     r = await client.patch(
-        f"/v1/insurance/policies/{policy_id}", json={"premium_amount": 1300}, headers=AUTH
+        f"/v1/insurance/policies/{policy_id}", json={"premium_amount": "1300"}, headers=AUTH
     )
     assert (r.status_code, r.json()) == (200, {"updated": True})
     policy = (await client.get(f"/v1/insurance/policies/{policy_id}", headers=AUTH)).json()
@@ -90,8 +90,8 @@ async def test_an_update_answers_that_it_was_applied(client, mock_services, uow)
 
 
 async def test_a_target_is_set_once_per_policy_type(client, mock_services, uow):
-    target_id = await _set_target(client, "life", 4000000)
-    assert await _set_target(client, "life", 5000000) == target_id
+    target_id = await _set_target(client, "life", "4000000")
+    assert await _set_target(client, "life", "5000000") == target_id
 
     r = await client.get("/v1/insurance/targets", headers=AUTH)
     assert r.status_code == 200
@@ -112,8 +112,8 @@ async def test_the_report_shows_gaps_missing_cover_and_what_expires_soon(
     client, mock_services, uow
 ):
     await _create(client, LIFE)
-    await _set_target(client, "life", 5000000)
-    await _set_target(client, "health", 1000000)
+    await _set_target(client, "life", "5000000")
+    await _set_target(client, "health", "1000000")
 
     r = await client.get("/v1/insurance/report", headers=AUTH)
     assert r.status_code == 200

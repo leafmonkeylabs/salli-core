@@ -21,15 +21,15 @@ FUND = {
     "symbol": "VOO",
     "name": "S&P 500 fund",
     "asset_class": "equity",
-    "cost_basis": 10000,
-    "current_value": 12500,
+    "cost_basis": "10000",
+    "current_value": "12500",
 }
 BONDS = {
     "symbol": "BND",
     "name": "Bond fund",
     "asset_class": "bond",
-    "cost_basis": 5000,
-    "current_value": 4800.55,
+    "cost_basis": "5000",
+    "current_value": "4800.55",
 }
 
 
@@ -68,7 +68,7 @@ async def test_an_update_answers_that_it_was_applied(client, mock_services):
     holding_id = await _create(client, FUND)
 
     r = await client.patch(
-        f"/v1/portfolio/{holding_id}", json={"current_value": 13000.1}, headers=AUTH
+        f"/v1/portfolio/{holding_id}", json={"current_value": "13000.1"}, headers=AUTH
     )
     assert (r.status_code, r.json()) == (200, {"updated": True})
     holding = (await client.get(f"/v1/portfolio/{holding_id}", headers=AUTH)).json()
