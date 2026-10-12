@@ -43,10 +43,11 @@ To serve a build from a source checkout, point the server at it:
 | What | Where | Run |
 |---|---|---|
 | Components and pages, on fixtures the server writes | `test/` | `npm test` |
-| The fixtures themselves | `test/fixtures/home.ts`, `lab.ts` and `where.ts`, from `tests/console_fixtures.py` | `uv run python -m tests.console_fixtures` (write), `--check` |
-| Nothing in the decision lab, or in where you stand, ranks | `test/lab-guards.test.tsx` and `test/where-guards.test.tsx`: `tests/guardrails.py`'s words over each catalogue and its rendered pages | `npm test` |
-| Accessibility (axe), visual regression, CSP and request checks | `e2e/console.spec.ts`, `e2e/lab.spec.ts`, `e2e/where.spec.ts` | `npm run e2e` (in the Playwright image for screenshots; see below) |
-| End to end against `compose.yaml` | `e2e/compose.spec.ts` | `npm run e2e:compose` |
+| The fixtures themselves | `test/fixtures/home.ts`, `lab.ts`, `where.ts`, `books.ts`, `tax.ts` and `settings.ts`, from `tests/console_fixtures.py` (C4's through `tests/console_c4_fixtures.py`) | `uv run python -m tests.console_fixtures` (write), `--check` |
+| Nothing on any page ranks | `test/lab-guards.test.tsx`, `test/where-guards.test.tsx` and `test/c4-guards.test.tsx`: `tests/guardrails.py`'s words over each catalogue and its rendered pages | `npm test` |
+| A token or key is kept nowhere once its page is left | `test/settings-c4.test.tsx` (the page, both storages, both caches), `e2e/c4.spec.ts` | `npm test`, `npm run e2e` |
+| Accessibility (axe), visual regression, CSP and request checks | `e2e/console.spec.ts`, `e2e/lab.spec.ts`, `e2e/where.spec.ts`, `e2e/c4.spec.ts` | `npm run e2e` (in the Playwright image for screenshots; see below) |
+| End to end against `compose.yaml` | `e2e/compose.spec.ts` (one run waits out the five minutes before a real step-up) | `npm run e2e:compose` |
 | The budget | `scripts/budget.mjs` | part of `npm run build` |
 
 Screenshots are compared pixel for pixel, so they are made in Playwright's
@@ -65,8 +66,10 @@ pass `--update-snapshots=all`, or a long page keeps its old frame.
 ## Rules
 
 - **Every word in the catalogue**, `src/strings.ts` (the decision lab's in
-  `src/lab-strings.ts` and where you stand's in `src/where-strings.ts`, each
-  loaded with its pages), in the brand's voice
+  `src/lab-strings.ts`, where you stand's in `src/where-strings.ts`, and
+  books', tax's and settings' in `src/books-strings.ts`,
+  `src/tax-strings.ts` and `src/settings-strings.ts`, each loaded with its
+  pages), in the brand's voice
   ([docs/brand/README.md](../../docs/brand/README.md)): British English,
   sentence case, no exclamation marks, nothing that ranks or urges.
 - **Text is rendered only through React.** No `innerHTML`, no
@@ -79,6 +82,13 @@ pass `--update-snapshots=all`, or a long page keeps its old frame.
   graphite (dashed); the focus ring is ledger green, sand on dark.
 - **No firm or billing words** in the open console: the guards in
   `tests/contract` scan `packages/*/src`.
+- **A secret appears once.** A new token is shown by `<Secret>`; a key is
+  typed into a password field and never shown again. Writes that carry one
+  use `useWrite`'s `secret` option, so no cache keeps it once nothing shows
+  it, and a secret input never waits in sessionStorage for a step-up.
+- **Only a person activates tax rules.** Activating a version, and making a
+  token that may, go through the step-up when the password is more than
+  five minutes old (`useWrite` follows `/problems/step-up-required`).
 - **Pinned dependencies**, exact versions, and as few as the budget allows
   (decision 14: 150 kB compressed for the shell and Home, 75 kB a page,
   500 kB in all, 40 kB of CSS).
@@ -103,5 +113,5 @@ createConsole({ extensions: [example] }).mount(document.getElementById('root')!)
 ```
 
 Its pages appear only when the server runs that extension. The kit
-(`Money`, `Table`, `Page`, `Section`, `TextField`, `Confirm`, `ChartFigure`
-and the rest) is exported, so its pages read and look like the console's own.
+(`Money`, `Table`, `Page`, `Section`, `TextField`, `FileField`, `Confirm`,
+`Secret`, `ChartFigure` and the rest) is exported, so its pages read and look like the console's own.

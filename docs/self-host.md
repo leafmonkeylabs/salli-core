@@ -121,14 +121,34 @@ tax rules and settings, as pages. The server serves it at
 own email and password, on Salli's own sign-in page; the console has no
 sign-in form of its own and is handed nothing by the CLI.
 
-In this release the console has **Home** (where you stand, as `salli status`
-shows it: net worth, safe to spend, the month so far, the FI score, what
-needs attention, what's coming up, decisions due for review and net worth
-over time) and **Settings** (your profile, every sign-in with a way to end
-each, and how this device shows Salli). Its other pages follow; the CLI
-does everything meanwhile. Home offers **Think this through with your
-AI**, which copies a prompt for your own AI client over MCP: the console
-holds no chat and sends nothing anywhere.
+The console has:
+
+- **Home**: where you stand, as `salli status` shows it (net worth, safe to
+  spend, the month so far, the FI score, what needs attention, what's
+  coming up, decisions due for review, net worth over time).
+- **Cash**, **Attention** and **Independence**: the cash forecast, cash
+  flow and spending; signals and reminders; the FI number and its
+  assumptions.
+- **Decide**: the decision lab (the baseline, templates, scenarios,
+  principles, the journal and reviews).
+- **Books**: the accounts and the ledger, adding and reversing an entry;
+  **imports** (a statement file uploaded from your device, then a review
+  queue where you choose accounts and post or discard: nothing is booked
+  until you post it, and nothing twice) and categorisation **rules**. Bank
+  connections are shown there; connecting one stays with `salli banks`.
+- **Tax**: your tax line by line from the rules you activated, each line
+  explained; your rule sets and their versions, each reviewed (what is
+  new, with its sources, and every worked example) and activated by you.
+  Drafting rules stays with your AI agent and the CLI.
+- **Settings**: your profile and sign-ins; personal access tokens (a new
+  token is shown once); AI connections (MCP on or off, connected clients,
+  your own model keys, never shown again once saved); digests; and your
+  data, saved as Beancount, hledger or JSON. Members stay with
+  `salli-server members`.
+
+Home and the decision lab offer **Think this through with your AI**, which
+copies a prompt for your own AI client over MCP: the console holds no chat
+and sends nothing anywhere.
 
 The image carries the built console (`SALLI_CONSOLE_DIR=/opt/salli-console`);
 `docker compose up` serves it at `/console`, and `salli ui` opens it.

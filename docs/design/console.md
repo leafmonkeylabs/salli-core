@@ -1,12 +1,13 @@
 # The Salli console: your books in a browser
 
-Status: **approved (2026-10-12); C0, the server groundwork, C1, the
-console's foundations and Home, C2, where you stand, and C3, the decision
-lab, built.** The owner accepted every recommended decision below. C4 is
-next. Each sub-phase is its own PR. What C0 to C3 built, and where they
-depart from the text above, is in [As built (C0)](#as-built-c0),
-[As built (C1)](#as-built-c1), [As built (C3)](#as-built-c3) and
-[As built (C2)](#as-built-c2).
+Status: **approved (2026-10-12); v1 complete.** C0, the server
+groundwork, C1, the console's foundations and Home, C2, where you stand,
+C3, the decision lab, and C4, books, tax and settings, are built. The owner
+accepted every recommended decision below. Each sub-phase is its own PR;
+C5 and C6 come later. What C0 to C4 built, and where they depart from the
+text above, is in [As built (C0)](#as-built-c0),
+[As built (C1)](#as-built-c1), [As built (C3)](#as-built-c3),
+[As built (C2)](#as-built-c2) and [As built (C4)](#as-built-c4).
 
 ## Why
 
@@ -1444,3 +1445,256 @@ then cleared; every C2 page loaded with no problem shown.
    or Trusted Types violation on any C2 page.
 9. **The FI score's history is a table**, not a chart: a score is kept
    only when its inputs change, so there are often too few points to draw.
+
+## As built (C4)
+
+C4 is books, tax and settings: imports and the review queue, rules, tax
+with its rule sets and activation, and the rest of Settings. With it, v1
+is complete: every page of section 5 marked for v1 is built. Every figure
+is the server's, shown exactly; the console adds, converts and computes
+nothing. The words are in three catalogues of their own, loaded with
+their pages (`src/books-strings.ts`, `src/tax-strings.ts`,
+`src/settings-strings.ts`).
+
+**The places.** **Tax** joins the places after Books (eight across the
+top; on a phone's bar it is under More). Books gains **Imports** and
+**Rules** among its own places. Settings gains places of its own: the
+profile and sign-ins (C1), tokens, AI connections, digests and your data.
+There are no members' pages (decision 17: the owner keeps `salli-server
+members`), and nobody acts for another person (decision 21): every page
+is the signed-in person's own books.
+
+**The pages.**
+- **Imports** (`/books/imports`; `statements.upload`, `statements.list`,
+  `accounts.list`, `bankConnections.list`): a statement file from this
+  device (OFX/QFX, QIF, camt.053, MT940, CSV, Excel, PDF, up to 10 MB),
+  with the account it is for (the money side of every row), its currency
+  for a file that names none, how its dates are written, and, folded
+  away, the bank, which account in a file holding several, and an earlier
+  import it replaces; then what Salli read and noted, nothing booked yet,
+  and the way to review it. Every statement, with whether it waits for
+  review. Each bank connection with its accounts, their balances at the
+  bank and when it last synced; connecting, mapping and syncing stay with
+  `salli banks`.
+- **The review queue** (`/books/imports/$statement`; `statements.pending`,
+  `statements.categorize`, `statements.post`, `statements.discard`,
+  `rules.list`, `rules.create`): each transaction as Salli read it (the
+  bank's words beside a rule's tidier ones), its amount in or out, the
+  statement's account and the other side, and who proposed that (a rule
+  by its name, the model and how sure, or the person); a warning, with
+  the entry, where it looks like something already booked. Choosing where
+  money came from or went is kept at once. A selection (or every complete
+  one that isn't a possible duplicate) is posted, or discarded, after a
+  confirmation listing it; then the posted entries open in the ledger. The
+  page says plainly that nothing is booked until it is posted, and
+  nothing twice. A rule can be made from a transaction, its form filled
+  from it.
+- **Rules** (`/books/rules`; `rules.list`, `.create`, `.update`,
+  `.delete`, `.test`, `.suggestions`): the rules in the order they are
+  tried, each in words with what it has decided and when; a form for a
+  rule's conditions (what it looks at, how, the value; amounts in the
+  locale's marks, sent as decimal strings) and what it books, tested
+  against what is already booked before saving if the person wants;
+  deleting after a confirmation; the suggestions the person's own
+  bookkeeping implies, each made a rule as it is or edited first.
+- **Tax** (`/tax`; `tax.currentYear`, `tax.latest`, `tax.compute`,
+  `tax.explain`, `tax.ruleSets.list`, `tax.ruleSets.versions.get`): whose
+  rules and which year (or, plainly, that there is no residency or no
+  active rules, and how to add them); the last computation for the year
+  Salli computes (net, payable, refund, when, and the version with its
+  content hash), what it took from the books by role, every line with its
+  expression and source, each explained on request (the expression, where
+  it is written, the source it cites, what it uses, its bands, what uses
+  it; nothing stored); computing again; the active rules' deadlines;
+  every rule set with its active and newest versions.
+- **A rule set** (`/tax/rules/$ruleSet`; `tax.ruleSets.get`): every
+  version with its status, who wrote it (the person, or an agent by its
+  client's name), its note and when.
+- **A version** (`/tax/rules/$ruleSet/versions/$version`;
+  `tax.ruleSets.versions.get`, `tax.ruleSets.get`, `tax.ruleSets.diff`,
+  `.validate`, `.propose`, `.activate`, `.export`): what `salli tax rules
+  activate` reviews, as a page. What is new against the active version
+  (or that it is the first), each change with its path, before and after,
+  whether it is a figure, and the source it cites, linked; every worked
+  example passing or failing, with each mismatch; any error or warning
+  the validator found, at its path; the sources (links only to `https:`,
+  opening apart, `noopener noreferrer`) and deadlines; the canonical
+  document saved on this device. **Activating** a version that compiles
+  and whose examples pass asks first, saying what Salli will compute with
+  from now on, what stays as history and who wrote it. Checking a version
+  again and proposing one are there too. Every tax page says that only a
+  person activates, never an AI.
+- **Tokens** (`/settings/tokens`; `tokens.list`, `.create`, `.revoke`):
+  each live token with its first characters, what it may do, when it was
+  made, expires and was last used; revoking after a confirmation; making
+  one, with an expiry, and with `tax:activate` after a confirmation that
+  says what such a token can do.
+- **AI connections** (`/settings/ai`; `mcp.enabled.get`, `.set`,
+  `mcp.connections.list`, `.revoke`, `llmKeys.list`, `.set`, `.delete`,
+  `ai.settings.get`): MCP on or off (off only after a confirmation); each
+  connected client, revoked after a confirmation; which provider Salli's
+  own features use and with whose key; each provider's key (its last four
+  characters and when the provider accepted it), set, replaced or removed
+  after a confirmation, or why this server can't keep keys.
+- **Digests** (`/settings/digests`; `notifications.preferences.get`,
+  `.update`, `notifications.preview`, `notifications.deliveries.list`):
+  whether, how often, on which day and at what hour, in which time zone
+  (the profile's too), and what a digest says; when the next goes; the
+  digest as it would go now; each one sent, with what it said.
+- **Your data** (`/settings/data`; `exports.beancount`, `exports.hledger`,
+  `account.export`): the books as Beancount or hledger, and everything as
+  one JSON file written exactly (the SDK's `toJsonText`), each saved on
+  this device through a blob URL, which the CSP allows.
+
+**The step-up, for real (decision 6).** C1 triggered it by substitution;
+C4 triggers it with tax activation. Against compose, the run signs in,
+reviews a proposed version of the fictional XA 2031, waits out the five
+minutes the console's sign-in holds `tax:activate` for (no setting
+shortens a client's `step_up_seconds`, C0 and C1 offer no test-only way
+to, and none was added), then activates: the server answers 403
+`/problems/step-up-required`, Salli's page asks "Confirm it's you", the
+console checks it is the same person, swaps its grant (the old one
+revoked) and activates on return, once. The run sees the server's 403 and
+then its 200, the version active, and the tab's sign-in replaced; a token
+with `tax:activate` is then made at once, the password being fresh. The
+component tests drive the same path with the server's own answer, which
+the fixtures record from a console sign-in six minutes old, through the
+callback; a second step-up answer on the retry is said, not followed.
+Making a token with `tax:activate` goes through the same path.
+
+**Secrets.** A token is shown once, by `<Secret>`: a read-only field,
+**Copy it** through the clipboard API and, where that is refused, the
+text selected for the keyboard. A key is typed into a password field and
+the field emptied once Salli has it; only its last four characters come
+back. `useWrite` gains `secret`: `'answer'` (a token) or `'input'` (a
+key) makes TanStack forget the write once nothing shows it, and
+`'input'` also keeps the key out of sessionStorage, where a step-up would
+keep a write's input (a step-up answer to it is shown, not followed).
+Tests check that neither is anywhere once the page is left: the page,
+sessionStorage, localStorage, the query cache and the mutation cache.
+
+**The kit grew; nothing forked.** `FileField` (the browser's own file
+input), `CheckboxField`, `Secret`, `Field` taking a password type and a
+list of suggestions, and `useWrite`'s `secret`; all exported for editions.
+
+**No API change.** Every page reads and writes through operations the CLI
+already has.
+
+**Rules, as tests.** `test/c4-guards.test.tsx` holds C4's catalogues, and
+what its pages render from the fixtures (an explanation and the
+activation's confirmation open), to `tests/guardrails.py`'s words;
+`test/guards.test.ts` holds them to the voice and British English. The
+fixtures (`test/fixtures/books.ts`, `tax.ts`, `settings.ts`) are written
+by `tests/console_c4_fixtures.py`, part of `tests/console_fixtures.py` and
+held by its contract test, over in-memory storage (`tests/console_fakes.py`)
+with every id and clock fixed: imports, the queue and rules on Home's
+household; the fictional XA 2031 (`tests/golden/rules/xa2031.json`, with a
+deadline added) on the taxed household, version 1 the person's and
+active, version 2 an agent's proposal raising the relief with the budget
+it cites, version 3 an agent's draft whose example fails; tokens, a key,
+a digest sent, and the plain-text exports on Home's household. No secret
+in them opens anything.
+
+**The budget** (gzip level 9, brotli beside it):
+
+| | gzip | brotli | limit |
+|---|---|---|---|
+| Shell and Home | 135.7 kB | 118.4 kB | 150 kB |
+| Settings (the profile and sign-ins) | 19.6 kB | 17.7 kB | 75 kB |
+| Imports | 29.8 kB | 26.5 kB | 75 kB |
+| The review queue | 33.5 kB | 29.9 kB | 75 kB |
+| Rules | 31.9 kB | 28.5 kB | 75 kB |
+| Tax | 22.7 kB | 20.5 kB | 75 kB |
+| A rule set | 4.0 kB | 3.5 kB | 75 kB |
+| A version | 23.0 kB | 20.7 kB | 75 kB |
+| Tokens | 22.7 kB | 20.4 kB | 75 kB |
+| AI connections | 22.1 kB | 19.8 kB | 75 kB |
+| Digests | 22.2 kB | 19.9 kB | 75 kB |
+| Your data | 21.1 kB | 18.9 kB | 75 kB |
+| All JavaScript | 250.6 kB | 221.3 kB | 500 kB |
+| CSS | 6.5 kB | 5.8 kB | 40 kB |
+
+**Tests.** Component tests for every page on the fixtures, writes and
+refusals included; Playwright on the built console under the server's
+CSP for every C4 page (and Tax with a line explained) at 360, 768 and
+1280 px in light and dark: axe, screenshots, no page wider than the
+screen, the CSP and request watch; axe on the activation's, a discard's
+and MCP's confirmations in both themes; a statement file uploaded from
+the device (its bytes reach the server) and downloads saved, under the
+CSP; the review queue and an activation by keyboard alone; a token shown
+once and gone from the page and storage once left. The places changed
+every page's frame at 768 and 1280 px, and the books' and Settings' at
+360, so those screenshots were made again. Against compose: a rule made,
+a CSV statement imported for a new account, an account chosen in review,
+both posted after the confirmation and found in the ledger and the
+account's balance; a token made, used, revoked and refused after; MCP
+turned off after confirming and on again; a tax rule set activated
+through the real step-up; every C4 page loaded with no problem shown.
+
+**Departures from the text above, and why.**
+1. **Settings is six pages**, each a chunk of its own under Settings'
+   places, rather than one page: the profile and sign-ins as C1 built
+   them, then one page each for tokens, AI connections, digests and your
+   data.
+2. **A CSV's columns are read by the server.** No API operation takes a
+   column mapping (the parsing service can take one; no route or command
+   passes it), so the console sends what the API takes (the account, the
+   currency, the date order, the bank, the file's account, what it
+   replaces) and says that the columns are read from the file. A mapping
+   in the console waits for one in the API and the CLI.
+3. **Sorting is the upload's.** Rules, then the model when there is a key,
+   sort a statement as it is imported, as `salli import` does; no
+   operation sorts it again. The queue says who proposed each account.
+4. **A choice is kept at once** (`statements.categorize`), not held until
+   posting as the CLI's interactive review holds it: it can be made again,
+   and a reload keeps it. Posting and discarding confirm; choosing
+   doesn't.
+5. **Bank connections: where they stand only.** The design puts them
+   later; Imports shows each, and points to `salli banks` to connect, map
+   and sync.
+6. **What asks first:** posting, discarding, deleting a rule, activating,
+   a token that may activate, revoking a token or a client, removing a
+   key, and turning MCP off. Choosing an account, saving a rule (tested
+   first if wanted), making a suggestion a rule, computing (it keeps a
+   computation and changes nothing else), checking or proposing a
+   version, saving a key or digest preferences, and turning MCP on don't.
+   Back from a step-up, the activation (or the token) runs without asking
+   again: the person confirmed before Salli's page.
+7. **What is new** lists every change the server's diff gives, a source
+   added or changed as well as figures, as the CLI's review does; a
+   change whose source isn't in the version's own document is found in
+   the diff's sources.
+8. **Drafting rules stays with agents and the CLI.** The console doesn't
+   create, import or edit a rule document (section 5's Tax row lists no
+   such write); the version's page saves the canonical document for
+   that.
+9. **AI settings are read, not changed.** The provider Salli's own
+   features use is shown; choosing a provider or models, and a ChatGPT
+   plan, stay with `salli ai`.
+10. **Two fixtures are written by hand,** typed by the SDK, as C1 wrote
+    the sign-ins: the AI clients connected over MCP (a way in, not the
+    books) and a cut-down "my data" (`account.export` reads every
+    service a household has; the copy carries an amount a float can't
+    hold, to check the file is saved digit for digit). The tax fixtures
+    are the taxed household's, in 2031; the pages show them unchanged on
+    the console's date.
+11. **jsdom's fetch leaves a file's bytes out of a multipart body**, so
+    the component tests check the upload's shape and the browser run
+    checks its bytes.
+12. **The places take a row of their own up to 1180 px** (C2 had 1080):
+    eight places beside who is signed in need it; Sign out no longer
+    wraps.
+13. **No new React Aria component, and no new chart.** File inputs,
+    checkboxes and selects are the browser's own; the secret's field is a
+    native read-only input; confirmations the browser's modal `<dialog>`.
+    Nothing announces through React Aria's live announcer; the browser
+    runs report no CSP or Trusted Types violation on any C4 page, and file
+    inputs and downloads work under the CSP.
+14. **The fixtures name tax lines** (`income_tax.band_1.amount`) that
+    gitleaks' generic rule takes for keys; `.gitleaksignore` lists those
+    findings by fingerprint, as it lists the CLI's.
+15. **Changing the password stays with `salli password`.** Section 5's
+    Settings row lists it, but decision 3 types the password only on
+    Salli's own sign-in page, never into the console's script, and a
+    change needs the current one and the new. Settings says where it is
+    changed instead.
