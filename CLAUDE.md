@@ -61,6 +61,18 @@ npm run generate
 # answers on the golden households; tests/contract/test_cli_fixtures.py
 # fails while they differ
 uv run python -m tests.cli_fixtures
+
+# The console (packages/console): Vite, React, React Aria, TanStack
+npm run dev --workspace @leafmonkeylabs/salli-console      # :5173/console, proxying a server on :8000
+npm run build --workspace @leafmonkeylabs/salli-console    # dist/, then the budget check (fails over budget)
+npm test --workspace @leafmonkeylabs/salli-console          # component tests on server-written fixtures
+(cd packages/console && npx playwright test)               # axe, screenshots, CSP (screenshots: in Playwright's image)
+(cd packages/console && npm run e2e:compose)               # against compose: SALLI_E2E_EMAIL, SALLI_E2E_PASSWORD
+SALLI_CONSOLE_DIR=packages/console/dist uv run salli-server serve
+# After changing what one of Home's reads returns: the console's fixtures
+# (packages/console/test/fixtures/home.ts); test_console_fixtures.py fails
+# while they differ
+uv run python -m tests.console_fixtures
 ```
 
 ## Architecture
@@ -82,7 +94,15 @@ config.py       pydantic-settings, env-driven
 
 `salli-server` and the API both call `build_services(settings)` from `composition.py`, so the core is exercised identically from both surfaces.
 
-Outside `src/`: `packages/sdk` is the TypeScript SDK, generated from `openapi/openapi.json`, and `packages/cli` is the `salli` command line (npm `@leafmonkeylabs/salli`), a client of the API built on it. The console ([docs/design/console.md](docs/design/console.md); C0, the server side, is built) is the household's pages in a browser, served by the server at `/console` (`interfaces/api/console.py`: static files from `SALLI_CONSOLE_DIR`, registered in `create_app` before the MCP app's catch-all, with its CSP and headers; `SALLI_CONSOLE=false` removes it). It is a client of the API like the CLI: it computes nothing, does no arithmetic on money, and adds no feature the CLI lacks.
+Outside `src/`: `packages/sdk` is the TypeScript SDK, generated from `openapi/openapi.json`, and `packages/cli` is the `salli` command line (npm `@leafmonkeylabs/salli`), a client of the API built on it. The console (`packages/console`, npm `@leafmonkeylabs/salli-console`, AGPL-3.0-only; [docs/design/console.md](docs/design/console.md), C0 and C1 built) is the household's pages in a browser, served by the server at `/console` (`interfaces/api/console.py`: static files from `SALLI_CONSOLE_DIR`, `/opt/salli-console` in the image, registered in `create_app` before the MCP app's catch-all, with its CSP and headers; `SALLI_CONSOLE=false` removes it). Its rules:
+
+- **A client of the API, like the CLI.** It computes nothing, adds no feature the CLI lacks, ranks nothing, and reads data only through the SDK's generated functions (`useRead`/`useWrite` in `src/api.tsx`): no URL by hand, no response type of its own.
+- **No arithmetic on money, not even exact.** Amounts stay decimal strings to the screen through `<Money>` (`src/kit/Money.tsx`); only `src/kit/chart/geometry.ts` may turn one into a number, for pixel positions (its lint escape is `-- not money: pixel geometry`, and a test fails if it appears elsewhere).
+- **Text only through React.** No `innerHTML`, `dangerouslySetInnerHTML`, `eval` or `new Function` (lint, with no escape hatch). It runs under a strict CSP with Trusted Types: no inline script or style, no third-party request, no telemetry, no service worker. A library that needs more is replaced, not accommodated.
+- **Every word in `src/strings.ts`**, British English, in the brand's voice; colours only from `src/styles/tokens.css`; square corners; no firm or billing words (the guards scan `packages/*/src`).
+- **Signing in** is PKCE as `salli-console` on Salli's own page (`src/auth/session.ts`): the access token in memory, the refresh token in the tab's sessionStorage, refreshes under a Web Lock, one sign-in per tab, step-up on `/problems/step-up-required`, idle sign-out after 30 minutes.
+- **Editions** add pages, navigation and settings panels through `createConsole({ extensions })`, each shown only when `/v1/meta.extensions` lists its `requires`; the open console is built through the same call with none.
+- **The budget** (`scripts/budget.mjs`, part of the build): 150 kB compressed for the shell and Home, 75 kB a later page, 500 kB in all, 40 kB of CSS.
 
 ### CLI-first
 
@@ -186,7 +206,7 @@ Every prompt ends with a section about the user (`jurisdiction.py`: date, base c
 | `tests/golden/` | Engines' worked examples (budget, debt, FI, portfolio, …) |
 | `tests/taxrules/` | The tax rule-set engine; `conformance/` holds fictional jurisdictions, each the structure of a real-world feature, never its law |
 | `tests/integration/` | Against a real Postgres (migrations, triggers, accounts and every sign-in path over HTTP); skipped without `SALLI_TEST_DATABASE_URL` |
-| `tests/contract/` | The committed OpenAPI document, the CLI's fixtures (`tests/cli_fixtures.py`), the no-billing-vocabulary and no-firm-vocabulary guards, the no-country-knowledge guard and the guard that keeps a former auth provider out (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
+| `tests/contract/` | The committed OpenAPI document, the CLI's fixtures (`tests/cli_fixtures.py`) and the console's (`tests/console_fixtures.py`), the no-billing-vocabulary and no-firm-vocabulary guards, the no-country-knowledge guard and the guard that keeps a former auth provider out (CLI coverage of the API is `packages/cli/test/api-coverage.test.ts`) |
 
 ### Configuration
 

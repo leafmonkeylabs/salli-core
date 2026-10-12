@@ -16,6 +16,7 @@
   <a href="https://github.com/leafmonkeylabs/salli-core/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/leafmonkeylabs/salli-core/ci.yml?branch=main&label=ci&labelColor=1C1B19&color=173B33"></a>
   <a href="https://www.npmjs.com/package/@leafmonkeylabs/salli"><img alt="salli on npm" src="https://img.shields.io/npm/v/%40leafmonkeylabs%2Fsalli?label=salli%20cli&labelColor=1C1B19&color=173B33"></a>
   <a href="LICENSE"><img alt="Server licence: AGPL-3.0" src="https://img.shields.io/badge/server-AGPL--3.0-173B33?labelColor=1C1B19"></a>
+  <a href="packages/console/LICENSE"><img alt="Console licence: AGPL-3.0" src="https://img.shields.io/badge/console-AGPL--3.0-173B33?labelColor=1C1B19"></a>
   <a href="packages/sdk/LICENSE"><img alt="CLI and SDK licence: Apache-2.0" src="https://img.shields.io/badge/CLI%20%26%20SDK-Apache--2.0-173B33?labelColor=1C1B19"></a>
 </p>
 
@@ -88,6 +89,9 @@ checked before Salli uses them.
   your ChatGPT plan, an OpenAI or Anthropic key, or no key at all.
 - **CLI-first.** Everything the API does, `salli` does from the terminal, with
   `--json` for scripts. `salli skills install` teaches your agent to drive it.
+- **A console in the browser.** `salli ui` opens the server's own pages: where
+  you stand, as `salli status` shows it, in a browser, on a phone too. It
+  computes nothing; every figure is the server's.
 
 > [!IMPORTANT]
 > **Not tax advice.** Salli computes tax from your own records, with rules you
@@ -100,12 +104,15 @@ checked before Salli uses them.
   <img src="docs/brand/assets/how-it-works.svg" alt="Money comes in from bank feeds, statements and you; Salli keeps a double-entry ledger with deterministic engines; you and your agent use it through the CLI, the API, MCP and plain-text exports" width="100%">
 </p>
 
-Salli comes in two parts:
+Salli comes in three parts:
 - **The server** is this repository's Python package, run with `salli-server`.
   It holds your data and does the work.
 - **The `salli` command line** (Node.js 22, in
   [`packages/cli`](packages/cli/README.md)) is how you use it, from the
   server's machine or any other.
+- **The console** ([`packages/console`](packages/console/README.md)) is the
+  same in a browser, served by the server at `/console`: in this release,
+  where you stand (Home) and your settings.
 
 The REST API, the MCP server and any app you build on the
 [OpenAPI document](openapi/openapi.json) are clients of the same services.
@@ -135,7 +142,12 @@ npm install --global @leafmonkeylabs/salli
 salli login                     # http://localhost:8000 by default
 salli status
 salli add "lunch 12.50 cash"    # the AI drafts the entry, you confirm it
+salli ui                        # the console, in your browser
 ```
+
+The console works at `http://localhost:8000/console` on the server's own
+machine; from anywhere else, over HTTPS
+([docs/self-host.md](docs/self-host.md#the-console)).
 
 The AI features need a model: an `ANTHROPIC_API_KEY` for the server, or each
 person's own key (`salli llm-keys set`) or ChatGPT plan. Everything else works
@@ -150,6 +162,7 @@ your own domain, members, backups, upgrades and security.
 |---|---|
 | Record a transaction | `salli add "lunch 12.50 cash"`, or exactly: `salli entries add --desc Lunch --debit groceries:12.50 --credit cash:12.50` |
 | Import a bank statement | `salli import statement.ofx --account checking` |
+| See where you stand in a browser | `salli ui` (`--no-open` prints the address, to type into a phone) |
 | See what's safe to spend | `salli insights safe-to-spend` |
 | Your tax position | `salli tax compute`, then `salli tax explain <line>` |
 | Budgets, debts, investments, insurance | `salli budgets …`, `salli debts …`, `salli holdings …`, `salli portfolio …`, `salli insurance …` |
@@ -258,8 +271,9 @@ Salli is hexagonal:
 - **`interfaces/`:** thin layers over the same services: the FastAPI app, the
   MCP server and the `salli-server` commands.
 
-The `salli` command line is a client of the API. [`CLAUDE.md`](CLAUDE.md) has
-the details.
+The `salli` command line and the console are clients of the API: they compute
+nothing and do no arithmetic on money. [`CLAUDE.md`](CLAUDE.md) has the
+details.
 
 **Extensions.** A deployment can add to Salli without changing it. An installed
 package registered under the `salli.extensions` entry point, and named in
@@ -299,8 +313,13 @@ commenting on their first pull request. For security issues, see
 The server is [GNU Affero General Public License v3.0](LICENSE). If you run a
 modified Salli as a network service, you must offer its source to its users.
 
+The console in [`packages/console`](packages/console) is
+[AGPL-3.0-only](packages/console/LICENSE) too: it is part of the product the
+server serves.
+
 The TypeScript SDK and CLI in [`packages/sdk`](packages/sdk) and
 [`packages/cli`](packages/cli) are [Apache-2.0](packages/sdk/LICENSE), so other
-apps and integrations can embed the SDK without taking on the AGPL.
+apps and integrations can embed the SDK, or build their own UI on it, without
+taking on the AGPL.
 
 <p align="center"><sub><i>salli</i> is the Sinhala word for money.</sub></p>

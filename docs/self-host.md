@@ -121,11 +121,17 @@ tax rules and settings, as pages. The server serves it at
 own email and password, on Salli's own sign-in page; the console has no
 sign-in form of its own and is handed nothing by the CLI.
 
-> [!NOTE]
-> The console's pages come with the next release; this one has the server
-> side: the sign-in, the switch and the settings. Until an image carries a
-> built console, `/console` is not served, `/v1/meta` says `console_url:
-> null`, and `salli-server doctor` says so.
+In this release the console has **Home** (where you stand, as `salli status`
+shows it: net worth, safe to spend, the month so far, the FI score, what
+needs attention, what's coming up, decisions due for review and net worth
+over time) and **Settings** (your profile, every sign-in with a way to end
+each, and how this device shows Salli). Its other pages follow; the CLI
+does everything meanwhile. Home offers **Think this through with your
+AI**, which copies a prompt for your own AI client over MCP: the console
+holds no chat and sends nothing anywhere.
+
+The image carries the built console (`SALLI_CONSOLE_DIR=/opt/salli-console`);
+`docker compose up` serves it at `/console`, and `salli ui` opens it.
 
 - **HTTPS, or this machine.** The console signs in only over HTTPS, or at
   `http://localhost:8000` on the server's own machine: browsers allow the
@@ -133,9 +139,16 @@ sign-in form of its own and is handed nothing by the CLI.
   network encrypted. To use it from other devices, phones included, use the
   [`tls` profile](#https-on-your-own-domain). Over plain HTTP on a network
   address, the server refuses to sign the console in, and says why.
-- **One sign-in per tab.** A reload keeps it; closing the tab ends it. A
-  console sign-in ends 12 hours after the password was entered, however much
-  it is used (`SALLI_CONSOLE_SIGN_IN_HOURS`).
+- **One sign-in per tab.** A reload keeps it; closing the tab ends it; a tab
+  you duplicate signs in on its own. A console sign-in ends 12 hours after
+  the password was entered, however much it is used
+  (`SALLI_CONSOLE_SIGN_IN_HOURS`), and after 30 minutes without a key or a
+  click, in case the screen is shared.
+- **Phones.** The console lays itself out for a phone, with its places in a
+  bar at the bottom. Reach it over HTTPS (above).
+- **Your display choices** (light, dark or as the system; a locale for
+  numbers and dates) are kept in that browser only. Nothing else is kept on
+  the device but the tab's own sign-in.
 - **Activating tax rules** from the console, or making a personal access token
   that can, needs the password entered in the last five minutes: the console
   sends you through the sign-in page again first.
@@ -169,7 +182,7 @@ is needed to start.
 | `ALLOWED_ORIGINS` | none | Web origins whose pages may call the API from a browser, comma-separated. The CLI, scripts and MCP clients need none. |
 | `SALLI_SESSION_TTL_DAYS` | `30` | How long a session lasts from sign-in, however much it is used. |
 | `SALLI_CONSOLE` | `true` | Whether to serve [the console](#the-console). `false`: no `/console`, and the console's sign-in refuses everyone. |
-| `SALLI_CONSOLE_DIR` | set by the image | Where the console's built files are (`index.html` and `assets/`). Without them, no console is served. |
+| `SALLI_CONSOLE_DIR` | `/opt/salli-console` in the image | Where the console's built files are (`index.html` and `assets/`). Without them, no console is served: from a source checkout, build it (`npm run build --workspace @leafmonkeylabs/salli-console`) and point this at `packages/console/dist`. |
 | `SALLI_CONSOLE_SIGN_IN_HOURS` | `12` | How long a console sign-in lasts after its password, however often it refreshes (1 to 168). The CLI's sign-ins are not affected. |
 | `SALLI_CHATGPT_PLAN_USAGE` | `true` | Whether people may run Salli's AI on their ChatGPT plan. |
 | `TAVILY_API_KEY` | none | Web search for the agents. |
