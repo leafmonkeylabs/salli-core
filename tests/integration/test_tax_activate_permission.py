@@ -30,7 +30,12 @@ from httpx import ASGITransport, AsyncClient, Response
 from salli.adapters.auth.passwords import Argon2PasswordHasher
 from salli.application.permissions import TAX_ACTIVATE, Actor
 from salli.application.services.login_service import LoginService
-from salli.application.services.mcp_oauth_service import API, CLI_CLIENT_ID, McpOAuthService
+from salli.application.services.mcp_oauth_service import (
+    API,
+    CLI_CLIENT_ID,
+    ConsentError,
+    McpOAuthService,
+)
 from salli.application.services.personal_access_token_service import PersonalAccessTokenService
 from salli.application.services.tax_rule_service import RuleSetPermissionError, TaxRuleService
 from salli.config import Settings
@@ -175,7 +180,7 @@ async def test_a_salli_cli_token_from_every_grant_holds_tax_activate(world):
         CLI_CLIENT_ID, redirect, challenge, "S256", "", f"{BASE}/v1", "st"
     )
     art = parse_qs(urlparse(consent).query)["rt"][0]
-    back = await oauth.complete_consent(art, USER, approve=True)
+    back = await oauth.complete_consent(art, USER, approve=True, password_checked=True)
     code = parse_qs(urlparse(back).query)["code"][0]
     browser = await oauth.exchange_authorization_code(code, redirect, CLI_CLIENT_ID, verifier)
 
@@ -189,6 +194,24 @@ async def test_a_salli_cli_token_from_every_grant_holds_tax_activate(world):
         assert principal.client_name == "Salli CLI", grant
         assert TAX_ACTIVATE in principal.permissions, grant
         assert await _can_activate(rules, principal.actor(), await proposed_version()), grant
+
+
+async def test_the_cli_is_never_signed_in_without_the_password(world):
+    """The JSON consent route (POST /mcp/oauth/consent) takes any sign-in,
+    a personal access token without tax:activate among them. Approving the
+    CLI there would hand that caller a token that can activate, so Salli's
+    own clients are signed in only on the consent page, with the password."""
+    oauth, *_ = world
+    _, challenge = _pkce()
+    consent = await oauth.build_consent_redirect(
+        CLI_CLIENT_ID, "http://127.0.0.1:53682/callback", challenge, "S256", "", f"{BASE}/v1", "st"
+    )
+    art = parse_qs(urlparse(consent).query)["rt"][0]
+    with pytest.raises(ConsentError, match="with your password"):
+        await oauth.complete_consent(art, USER, approve=True, password_checked=False)
+    # Declining still needs nothing: it grants nothing.
+    back = await oauth.complete_consent(art, USER, approve=False, password_checked=False)
+    assert "error=access_denied" in back
 
 
 async def test_another_application_s_api_token_cannot_activate(uow_factory, world):

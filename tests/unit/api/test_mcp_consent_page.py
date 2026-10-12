@@ -46,7 +46,7 @@ async def test_an_expired_request_says_so(client, consent):
 async def test_deny_needs_no_sign_in_and_redirects(client, consent):
     r = await client.post(PAGE, data={"rt": "t", "decision": "deny"})
     assert r.status_code == 303
-    consent.complete_consent.assert_awaited_once_with("t", "", False)
+    consent.complete_consent.assert_awaited_once_with("t", "", False, password_checked=False)
     consent.set_mcp_enabled.assert_not_awaited()
 
 
@@ -84,7 +84,7 @@ async def test_allow_signs_in_enables_mcp_and_redirects_to_the_client(
     # Checked against Salli's own accounts, throttled by where it came from.
     mock_services.logins.authenticate.assert_awaited_once_with("a@b.c", "pw", address="127.0.0.1")
     consent.set_mcp_enabled.assert_awaited_once_with("owner", True)
-    consent.complete_consent.assert_awaited_once_with("t", "owner", True)
+    consent.complete_consent.assert_awaited_once_with("t", "owner", True, password_checked=True)
 
 
 async def test_a_non_member_cannot_approve(client, consent, mock_services):

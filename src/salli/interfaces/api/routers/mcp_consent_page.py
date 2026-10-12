@@ -208,7 +208,7 @@ async def consent_page_decision(
         caller = ""
 
     try:
-        target = await svc.mcp_oauth.complete_consent(rt, caller, approve)
+        target = await svc.mcp_oauth.complete_consent(rt, caller, approve, password_checked=approve)
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
