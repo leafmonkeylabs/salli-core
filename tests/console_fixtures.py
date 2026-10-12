@@ -17,6 +17,13 @@ as of 2026-10-11).
   principle added, edited and refused; a template's answers refused; the
   August decision reviewed). Its reviews due are Home's, which the console
   reads for both.
+- `where.ts`: where you stand (C2): the accounts and the ledger, cash,
+  attention and financial independence, on Home's household after one
+  reminder of the person's own marked done; then the answers to the writes
+  those pages make, made after every read (an entry posted, read back and
+  reversed; one posted in dollars at the published rate; one refused for
+  want of a rate; a reversal refused; an FI assumption set, and one
+  refused), and the strategy of a household that has one.
 
 So the console's tests read exactly what the server sends today: a fixture
 goes stale when an engine, a service or a response model changes, and
@@ -27,7 +34,9 @@ again:
     uv run python -m tests.console_fixtures --check    # what the contract test does
 
 The ids the services make (the reminders', the decisions', the
-principles') are fixed, so each file is the same each time it is written.
+principles', the entries') are fixed, so each file is the same each time it
+is written. The golden ledger's postings carry no ids (a database gives
+them), so `where.ts` gives each its entry's id and its place: `e070.1`.
 The sign-in's own fixtures (who is signed in, the profile, the sign-ins) are
 not a household's books, and are written by hand in `auth.ts` beside them,
 typed by the SDK.
@@ -50,6 +59,8 @@ from unittest import mock
 
 from httpx import ASGITransport, AsyncClient
 
+from salli.application.defaults import FullAccess
+from salli.application.services import fi_service
 from salli.application.services.baseline_service import BaselineService
 from salli.application.services.debt_service import DebtService
 from salli.application.services.decision_service import DecisionService
@@ -113,7 +124,13 @@ class _October(dt.datetime):
 
 @contextlib.contextmanager
 def stamped_in_october() -> Iterator[None]:
-    with mock.patch.object(fakes, "datetime", _October):
+    """Rows the fakes stamp, and an assumption's `set_at`, on the household's
+    date."""
+    clock = SimpleNamespace(**{**vars(dt), "datetime": _October})
+    with (
+        mock.patch.object(fakes, "datetime", _October),
+        mock.patch.object(fi_service, "datetime", clock),
+    ):
         yield
 
 
@@ -495,6 +512,303 @@ async def lab_fixtures(home_due: Any) -> list[Fixture]:
     return [*reads, *writes]
 
 
+WHERE_HEADER = (
+    "/**\n"
+    " * What a real server answers the pages of where you stand (C2: the\n"
+    " * accounts and the ledger, cash, attention, financial independence;\n"
+    " * docs/design/console.md, section 5) on the golden household ledger\n"
+    " * (tests/golden/household.py, as of Oct 11, 2026, in euros), on what\n"
+    " * Home's fixtures (home.ts) rest on and one reminder of the person's own\n"
+    " * marked done. The writes at the end (an entry posted and reversed, one\n"
+    " * posted in dollars, two refused, an FI assumption set and one refused)\n"
+    " * come after every read, so the reads are what the console sees first.\n"
+    " *\n"
+    f" * Written by tests/console_fixtures.py (`{COMMAND}`):\n"
+    " * tests/contract/test_console_fixtures.py fails while it differs from what\n"
+    " * the server answers. Don't edit it by hand.\n"
+    " */"
+)
+
+#: What the person posts from the console: one amount from one account to another.
+LUNCH = {
+    "entry_date": "2026-10-11",
+    "description": "Lunch with a friend",
+    "postings": [
+        {"account_id": "out", "direction": 1, "amount": "12.50"},
+        {"account_id": "chk", "direction": -1, "amount": "12.50"},
+    ],
+}
+#: Dollars moved from checking, at the published rate for the day.
+DOLLARS = {
+    "entry_date": "2026-10-11",
+    "description": "Dollars for the trip",
+    "postings": [
+        {"account_id": "usd", "direction": 1, "amount": "100.00", "currency": "USD"},
+        {"account_id": "chk", "direction": -1, "amount": "100.00", "currency": "USD"},
+    ],
+}
+#: Pounds, for which Salli has no published rate on the day.
+POUNDS = {
+    "entry_date": "2026-10-11",
+    "description": "Pounds for the trip",
+    "postings": [
+        {"account_id": "out", "direction": 1, "amount": "40.00", "currency": "GBP"},
+        {"account_id": "chk", "direction": -1, "amount": "40.00", "currency": "GBP"},
+    ],
+}
+#: The real return the person sets, with where it comes from.
+REAL_RETURN = {
+    "real_return": {
+        "value": "0.035",
+        "source": "My own long-run view, after inflation",
+        "note": "Halfway between the conservative and base scenarios.",
+    }
+}
+#: A household's FIRE strategy, as the model wrote it (rates as JSON numbers).
+STRATEGY = {
+    "version": 2,
+    "created_at": "2026-09-01T00:00:00+00:00",
+    "fire_style": "standard",
+    "swr": 0.035,
+    "real_return_conservative": 0.02,
+    "real_return_base": 0.035,
+    "real_return_growth": 0.05,
+    "target_monthly_expenses": 2200.0,
+    "target_age": 55,
+    "buckets": [
+        {
+            "key": "moat",
+            "name": "Emergency moat",
+            "target_pct": 0.1,
+            "description": "Six months of spending in cash.",
+            "color": "emerald",
+        },
+        {
+            "key": "growth",
+            "name": "Growth",
+            "target_pct": 0.9,
+            "description": "Broad index funds, held for the long run.",
+            "color": "indigo",
+        },
+    ],
+    "ai_rationale": "Keep the moat full, then invest the rest of the surplus every month.",
+    "theories_applied": ["The 4% rule, at 3.5%"],
+    "is_initial": False,
+}
+
+
+def with_posting_ids(books: Books) -> None:
+    """Gives each golden posting an id, as a database would: its entry's id
+    and its place (`e070.1`), so the fixtures stay the same each time."""
+    ledger = books.services.ledger._uow_factory().ledger
+    ledger.entries = [
+        e.model_copy(
+            update={
+                "postings": [
+                    p.model_copy(update={"id": f"{e.id}.{i}"})
+                    for i, p in enumerate(e.postings, start=1)
+                ]
+            }
+        )
+        for e in ledger.entries
+    ]
+
+
+async def where_fixtures(home: list[Fixture]) -> list[Fixture]:
+    """Where you stand (C2) on the household Home shows: its reads after one
+    reminder of the person's own is marked done, then the answers to the
+    writes its pages make. What Home already reads (safe to spend, the
+    signals, the FI score) must be Home's, which the console reads for both."""
+    books = await household()
+    books.services.entitlements = FullAccess()
+    with_posting_ids(books)
+    await home_writes(books)
+    books.services.clock.at = OCTOBER
+
+    async def get(path: str, ok: tuple[int, ...] = (200,)) -> Any:
+        return await ask(books, "GET", path, ok=ok)
+
+    async def send(method: str, path: str, body: Any = None, ok: tuple[int, ...] = (200,)) -> Any:
+        return await ask(books, method, path, body, ok=ok)
+
+    # The person's own: a reminder of theirs, done before the household's date.
+    window = await send(
+        "POST",
+        "/v1/reminders/",
+        {"kind": "Pay the window cleaner", "due_date": "2026-10-02"},
+        (201,),
+    )
+    await send("PATCH", f"/v1/reminders/{window['id']}/done", ok=(204,))
+    # The score kept on the household's date: its history.
+    await send("POST", "/v1/fi/score/recompute")
+
+    accounts = await get("/v1/accounts/")
+    entries = await get("/v1/entries/")
+    shared = {f.name: f.value for f in home}
+    for name, path in (
+        ("SAFE_TO_SPEND", "/v1/insights/safe-to-spend"),
+        ("SIGNALS", "/v1/insights/signals"),
+        ("FI_SCORE", "/v1/fi/score"),
+        ("REMINDERS", "/v1/reminders/?status=pending"),
+    ):
+        if await get(path) != shared[name]:
+            raise RuntimeError(f"Where you stand reads another {name} than Home's")
+
+    reads = [
+        Fixture("TRIAL_BALANCE", "TrialBalance", None, await get("/v1/ledger/trial-balance")),
+        Fixture(
+            "OVERVIEWS",
+            "AccountOverview[]",
+            "Every account's overview: its balances and its entries, each with the\n"
+            "running balance after it.",
+            [await get(f"/v1/accounts/{a['id']}/overview") for a in accounts],
+        ),
+        Fixture("ENTRIES", "JournalEntry[]", "Every entry, oldest first.", entries),
+        Fixture(
+            "PROVENANCES",
+            "EntryProvenance[]",
+            "Where each entry came from.",
+            [await get(f"/v1/entries/{e['id']}/provenance") for e in entries],
+        ),
+        Fixture(
+            "FORECAST", "CashForecast", "The next 60 days.", await get("/v1/insights/forecast")
+        ),
+        Fixture(
+            "CASH_FLOW",
+            "CashFlow",
+            "Six full months and this one so far.",
+            await get("/v1/insights/cash-flow?months=6"),
+        ),
+        Fixture(
+            "SPENDING",
+            "Spending",
+            "By category, August to October so far.",
+            await get("/v1/insights/spending?months=3&by=category"),
+        ),
+        Fixture("REMINDERS_ALL", "ReminderList", "Pending and done.", await get("/v1/reminders/")),
+        Fixture("ASSUMPTIONS", "FiAssumptionsReport", None, await get("/v1/fi/assumptions")),
+        Fixture("PROJECTIONS", "FiProjections", None, await get("/v1/fi/projections")),
+        Fixture(
+            "SCORE_HISTORY",
+            "FiScoreHistory",
+            "The score as Salli kept it on the household's date.",
+            await get("/v1/fi/score/history"),
+        ),
+        Fixture(
+            "NO_STRATEGY",
+            "ProblemDetails",
+            "The household has no FIRE strategy.",
+            await get("/v1/fi/strategy", ok=(404,)),
+        ),
+    ]
+
+    # The console's writes, after every read.
+    posted = await send("POST", "/v1/entries/", LUNCH, (201,))
+    lunch = posted["id"]
+    after_post = [
+        Fixture("POSTED", "Ref", "The answer to posting lunch from checking.", posted),
+        Fixture("LUNCH", "JournalEntry", "Lunch, as posted.", await get(f"/v1/entries/{lunch}")),
+        Fixture(
+            "LUNCH_PROVENANCE",
+            "EntryProvenance",
+            None,
+            await get(f"/v1/entries/{lunch}/provenance"),
+        ),
+        Fixture(
+            "CHECKING_POSTED",
+            "AccountOverview",
+            "Checking with lunch posted.",
+            await get("/v1/accounts/chk/overview"),
+        ),
+        Fixture(
+            "TRIAL_BALANCE_POSTED",
+            "TrialBalance",
+            "With lunch posted.",
+            await get("/v1/ledger/trial-balance"),
+        ),
+    ]
+    reversed_ = await send("POST", f"/v1/entries/{lunch}/reverse", ok=(201,))
+    reversal = reversed_["id"]
+    after_reverse = [
+        Fixture("REVERSED", "Ref", "The answer to reversing lunch.", reversed_),
+        Fixture(
+            "LUNCH_REVERSED", "JournalEntry", "Lunch, reversed.", await get(f"/v1/entries/{lunch}")
+        ),
+        Fixture("REVERSAL", "JournalEntry", None, await get(f"/v1/entries/{reversal}")),
+        Fixture(
+            "REVERSAL_PROVENANCE",
+            "EntryProvenance",
+            None,
+            await get(f"/v1/entries/{reversal}/provenance"),
+        ),
+        Fixture(
+            "CHECKING_REVERSED",
+            "AccountOverview",
+            "Checking with lunch and its reversal.",
+            await get("/v1/accounts/chk/overview"),
+        ),
+        Fixture(
+            "TRIAL_BALANCE_REVERSED",
+            "TrialBalance",
+            "With lunch and its reversal.",
+            await get("/v1/ledger/trial-balance"),
+        ),
+        Fixture(
+            "REVERSE_REFUSED",
+            "ProblemDetails",
+            "Reversing lunch a second time.",
+            await send("POST", f"/v1/entries/{lunch}/reverse", ok=(400,)),
+        ),
+    ]
+    dollars = await send("POST", "/v1/entries/", DOLLARS, (201,))
+    others = [
+        Fixture("DOLLARS_POSTED", "Ref", None, dollars),
+        Fixture(
+            "DOLLARS",
+            "JournalEntry",
+            "100.00 USD from checking, at the published rate for the day.",
+            await get(f"/v1/entries/{dollars['id']}"),
+        ),
+        Fixture(
+            "NO_RATE",
+            "ProblemDetails",
+            "Pounds, with no rate given and none published for the day.",
+            await send("POST", "/v1/entries/", POUNDS, (422,)),
+        ),
+        Fixture(
+            "ASSUMPTION_SET",
+            "FiAssumptionsReport",
+            "The answer to setting the real return, with its source and a note.",
+            await send("PATCH", "/v1/fi/assumptions", REAL_RETURN),
+        ),
+        Fixture("FI_SCORE_SET", "FiScore", "With the real return set.", await get("/v1/fi/score")),
+        Fixture(
+            "PROJECTIONS_SET",
+            "FiProjections",
+            "With the real return set.",
+            await get("/v1/fi/projections"),
+        ),
+        Fixture(
+            "ASSUMPTION_REFUSED",
+            "ProblemDetails",
+            "A real return of 60% a year.",
+            await send("PATCH", "/v1/fi/assumptions", {"real_return": {"value": "0.6"}}, (422,)),
+        ),
+    ]
+
+    planner = await household()
+    planner.services.entitlements = FullAccess()
+    planner.services.fi._uow_factory().fire_strategies.strategy = STRATEGY
+    strategy = Fixture(
+        "STRATEGY",
+        "FireStrategy",
+        "The strategy of a household that has one (the AI drafted its words;\n"
+        "every figure in it is the engine's or the person's).",
+        await ask(planner, "GET", "/v1/fi/strategy"),
+    )
+    return [*reads, *after_post, *after_reverse, *others, strategy]
+
+
 async def markdown(books: Books, path: str) -> str:
     """What the API answers as text (Markdown), not JSON."""
     app = create_app()
@@ -513,9 +827,12 @@ async def files() -> dict[Path, str]:
     due = next(f.value for f in home if f.name == "REVIEWS_DUE")
     with fixed_ids(), stamped_in_october():
         lab = await lab_fixtures(due)
+    with fixed_ids(), stamped_in_october():
+        where = await where_fixtures(home)
     return {
         FIXTURES / "home.ts": render(HEADER, home),
         FIXTURES / "lab.ts": render(LAB_HEADER, lab),
+        FIXTURES / "where.ts": render(WHERE_HEADER, where),
     }
 
 

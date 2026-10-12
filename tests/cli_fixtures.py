@@ -157,7 +157,7 @@ async def ask(
         response = await client.request(method, path, json=body)
     if response.status_code not in ok:
         raise RuntimeError(f"{method} {path}: {response.status_code} {response.text}")
-    return response.json()
+    return None if response.status_code == 204 else response.json()
 
 
 def scenario(label: str, *changes: dict[str, Any], **doc: Any) -> dict[str, Any]:
