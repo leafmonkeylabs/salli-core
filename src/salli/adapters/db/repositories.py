@@ -52,6 +52,7 @@ from salli.adapters.db.models import (
     OAuthAuthorizationCodeORM,
     OAuthClientORM,
     OAuthDeviceCodeORM,
+    OAuthGrantORM,
     OAuthRefreshTokenORM,
     ParsedTransactionORM,
     PersonalAccessTokenORM,
@@ -102,6 +103,7 @@ from salli.application.ports import (
     ReminderRepository,
     RemoteAccount,
     RuleRepository,
+    SignInGrantRow,
     StatementRepository,
     UserProfileRepository,
 )
@@ -2793,6 +2795,8 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(AuditLogORM, AuditLogORM.user_id)
         await _delete(OAuthRefreshTokenORM, OAuthRefreshTokenORM.user_id)
         await _delete(OAuthAccessTokenORM, OAuthAccessTokenORM.user_id)
+        # After their tokens, which point at them.
+        await _delete(OAuthGrantORM, OAuthGrantORM.user_id)
         await _delete(OAuthAuthorizationCodeORM, OAuthAuthorizationCodeORM.user_id)
         await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
         await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
@@ -2858,7 +2862,7 @@ class SQLOAuthClientRepository(OAuthClientRepository):
 
 class SQLOAuthTokenRepository(OAuthTokenRepository):
     """Access/refresh tokens are looked up by hash — callers never store or
-    pass the plaintext token after issuance."""
+    pass the plaintext token after issuance. Each belongs to a grant."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
@@ -2873,6 +2877,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         scope: str,
         resource: str | None,
         expires_at: datetime,
+        authenticated_at: datetime,
     ) -> None:
         self._s.add(
             OAuthAuthorizationCodeORM(
@@ -2883,6 +2888,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
                 code_challenge=code_challenge,
                 resource=resource,
                 scope=scope,
+                authenticated_at=authenticated_at,
                 expires_at=expires_at,
             )
         )
@@ -2903,18 +2909,45 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             "code_challenge": row.code_challenge,
             "resource": row.resource,
             "scope": row.scope,
+            "authenticated_at": row.authenticated_at,
             "expires_at": row.expires_at,
         }
 
-    async def delete_authorization_code(self, code: str) -> None:
-        await self._s.execute(
+    async def delete_authorization_code(self, code: str) -> bool:
+        result = await self._s.execute(
             delete(OAuthAuthorizationCodeORM).where(OAuthAuthorizationCodeORM.code == code)
         )
         await self._s.flush()
+        return bool(cast(Any, result).rowcount)
+
+    async def create_grant(
+        self,
+        user_id: str,
+        client_id: str,
+        scope: str,
+        resource: str | None,
+        authenticated_at: datetime,
+        expires_at: datetime | None,
+    ) -> str:
+        grant_id = str(uuid.uuid4())
+        self._s.add(
+            OAuthGrantORM(
+                id=grant_id,
+                user_id=user_id,
+                client_id=client_id,
+                scope=scope,
+                resource=resource,
+                authenticated_at=authenticated_at,
+                expires_at=expires_at,
+            )
+        )
+        await self._s.flush()
+        return grant_id
 
     async def save_access_token(
         self,
         token_hash: str,
+        grant_id: str,
         client_id: str,
         user_id: str,
         scope: str,
@@ -2926,6 +2959,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             OAuthAccessTokenORM(
                 id=token_id,
                 token_hash=token_hash,
+                grant_id=grant_id,
                 client_id=client_id,
                 user_id=user_id,
                 scope=scope,
@@ -2939,6 +2973,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
     async def save_refresh_token(
         self,
         token_hash: str,
+        grant_id: str,
         access_token_id: str,
         client_id: str,
         user_id: str,
@@ -2949,6 +2984,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         self._s.add(
             OAuthRefreshTokenORM(
                 token_hash=token_hash,
+                grant_id=grant_id,
                 access_token_id=access_token_id,
                 client_id=client_id,
                 user_id=user_id,
@@ -2959,64 +2995,146 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         )
         await self._s.flush()
 
+    @staticmethod
+    def _grant_ended(grant: OAuthGrantORM, now: datetime) -> bool:
+        return grant.revoked_at is not None or (
+            grant.expires_at is not None and grant.expires_at <= now
+        )
+
     async def get_access_token(self, token_hash: str) -> dict[str, Any] | None:
         found = (
             await self._s.execute(
-                select(OAuthAccessTokenORM, OAuthClientORM.client_name, OAuthClientORM.first_party)
+                select(OAuthAccessTokenORM, OAuthGrantORM, OAuthClientORM)
+                .join(OAuthGrantORM, OAuthGrantORM.id == OAuthAccessTokenORM.grant_id)
                 .join(OAuthClientORM, OAuthClientORM.client_id == OAuthAccessTokenORM.client_id)
                 .where(OAuthAccessTokenORM.token_hash == token_hash)
             )
         ).one_or_none()
         if found is None:
             return None
-        row, client_name, first_party = found
-        if row.revoked_at is not None or row.expires_at < datetime.now(UTC):
+        row, grant, client = found
+        now = datetime.now(UTC)
+        if row.revoked_at is not None or row.expires_at < now or self._grant_ended(grant, now):
             return None
         return {
             "id": row.id,
+            "grant_id": row.grant_id,
             "client_id": row.client_id,
             "user_id": row.user_id,
             "scope": row.scope,
             "resource": row.resource,
             "expires_at": row.expires_at,
+            # When the password behind it was checked, and how recent its
+            # client wants that for powerful permissions.
+            "authenticated_at": grant.authenticated_at,
+            "last_used_at": grant.last_used_at,
             # Whose client holds it: what a token may do depends on it
             # (application/permissions.py).
-            "client_name": client_name,
-            "client_first_party": bool(first_party),
+            "client_name": client.client_name,
+            "client_first_party": bool(client.first_party),
+            "client_step_up_seconds": client.step_up_seconds,
         }
 
-    async def get_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
+    async def find_refresh_token(self, token_hash: str) -> dict[str, Any] | None:
         found = (
             await self._s.execute(
-                select(OAuthRefreshTokenORM, OAuthAccessTokenORM.revoked_at)
+                select(OAuthRefreshTokenORM, OAuthAccessTokenORM.revoked_at, OAuthGrantORM)
                 .join(
                     OAuthAccessTokenORM,
                     OAuthAccessTokenORM.id == OAuthRefreshTokenORM.access_token_id,
                 )
+                .join(OAuthGrantORM, OAuthGrantORM.id == OAuthRefreshTokenORM.grant_id)
                 .where(OAuthRefreshTokenORM.token_hash == token_hash)
             )
         ).one_or_none()
         if found is None:
             return None
-        row, access_revoked_at = found
-        # A refresh token dies with the access token it was issued with: a
-        # revoked pair (a disconnected client, a revoked access token) must
-        # not be able to mint a new one.
-        if (
-            row.revoked_at is not None
-            or access_revoked_at is not None
-            or row.expires_at < datetime.now(UTC)
-        ):
-            return None
+        row, access_revoked_at, grant = found
         return {
             "id": row.id,
+            "grant_id": row.grant_id,
             "access_token_id": row.access_token_id,
             "client_id": row.client_id,
             "user_id": row.user_id,
             "scope": row.scope,
             "resource": row.resource,
             "expires_at": row.expires_at,
+            "revoked_at": row.revoked_at,
+            "access_revoked_at": access_revoked_at,
+            "grant_revoked_at": grant.revoked_at,
+            "grant_expires_at": grant.expires_at,
+            "authenticated_at": grant.authenticated_at,
         }
+
+    async def rotate_refresh_token(self, token_hash: str) -> bool:
+        # One statement, so of two requests racing with the same token only
+        # one rotates it; the other is a second use.
+        result = await self._s.execute(
+            update(OAuthRefreshTokenORM)
+            .where(
+                OAuthRefreshTokenORM.token_hash == token_hash,
+                OAuthRefreshTokenORM.revoked_at.is_(None),
+            )
+            .values(revoked_at=datetime.now(UTC))
+        )
+        await self._s.flush()
+        return bool(cast(Any, result).rowcount)
+
+    @staticmethod
+    def _grant(row: OAuthGrantORM) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "user_id": row.user_id,
+            "client_id": row.client_id,
+            "scope": row.scope,
+            "resource": row.resource,
+            "authenticated_at": row.authenticated_at,
+            "expires_at": row.expires_at,
+            "last_used_at": row.last_used_at,
+            "revoked_at": row.revoked_at,
+            "created_at": row.created_at,
+        }
+
+    async def get_grant(self, grant_id: str) -> dict[str, Any] | None:
+        row = await self._s.get(OAuthGrantORM, grant_id)
+        return self._grant(row) if row is not None else None
+
+    async def grant_of_token(self, token_hash: str) -> dict[str, Any] | None:
+        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+            grant = (
+                await self._s.execute(
+                    select(OAuthGrantORM)
+                    .join(model, model.grant_id == OAuthGrantORM.id)
+                    .where(model.token_hash == token_hash)
+                )
+            ).scalar_one_or_none()
+            if grant is not None:
+                return self._grant(grant)
+        return None
+
+    async def revoke_grant(self, grant_id: str, user_id: str | None = None) -> int:
+        now = datetime.now(UTC)
+        grant = await self._s.get(OAuthGrantORM, grant_id)
+        if grant is None or (user_id is not None and grant.user_id != user_id):
+            return 0
+        revoked = 0
+        if grant.revoked_at is None:
+            grant.revoked_at = now
+            revoked += 1
+        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+            result = await self._s.execute(
+                update(model)
+                .where(model.grant_id == grant_id, model.revoked_at.is_(None))
+                .values(revoked_at=now)
+            )
+            revoked += cast(Any, result).rowcount or 0
+        await self._s.flush()
+        return revoked
+
+    async def touch_grant(self, grant_id: str, at: datetime) -> None:
+        await self._s.execute(
+            update(OAuthGrantORM).where(OAuthGrantORM.id == grant_id).values(last_used_at=at)
+        )
 
     async def revoke_access_token(self, token_id: str, user_id: str) -> bool:
         row = (
@@ -3031,16 +3149,6 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         row.revoked_at = datetime.now(UTC)
         await self._s.flush()
         return True
-
-    async def revoke_refresh_token(self, token_hash: str) -> None:
-        row = (
-            await self._s.execute(
-                select(OAuthRefreshTokenORM).where(OAuthRefreshTokenORM.token_hash == token_hash)
-            )
-        ).scalar_one_or_none()
-        if row is not None and row.revoked_at is None:
-            row.revoked_at = datetime.now(UTC)
-            await self._s.flush()
 
     async def token_exists(self, token_hash: str) -> bool:
         for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
@@ -3063,6 +3171,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             return None
         return {
             "id": row.id,
+            "grant_id": row.grant_id,
             "client_id": row.client_id,
             "user_id": row.user_id,
             "scope": row.scope,
@@ -3074,7 +3183,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
     async def revoke_client_grant(self, user_id: str, client_id: str, resource: str | None) -> int:
         now = datetime.now(UTC)
         revoked = 0
-        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+        for model in (OAuthGrantORM, OAuthAccessTokenORM, OAuthRefreshTokenORM):
             same_resource = (
                 model.resource.is_(None) if resource is None else model.resource == resource
             )
@@ -3088,20 +3197,22 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
                 )
                 .values(revoked_at=now)
             )
-            revoked += cast(Any, result).rowcount or 0
+            if model is not OAuthGrantORM:
+                revoked += cast(Any, result).rowcount or 0
         await self._s.flush()
         return revoked
 
     async def revoke_all_for_user(self, user_id: str) -> int:
         now = datetime.now(UTC)
         revoked = 0
-        for model in (OAuthAccessTokenORM, OAuthRefreshTokenORM):
+        for model in (OAuthGrantORM, OAuthAccessTokenORM, OAuthRefreshTokenORM):
             result = await self._s.execute(
                 update(model)
                 .where(model.user_id == user_id, model.revoked_at.is_(None))
                 .values(revoked_at=now)
             )
-            revoked += cast(Any, result).rowcount or 0
+            if model is not OAuthGrantORM:
+                revoked += cast(Any, result).rowcount or 0
         await self._s.flush()
         return revoked
 
@@ -3109,13 +3220,19 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
         self, user_id: str, resource: str | None = None
     ) -> list[McpConnectionRow]:
         now = datetime.now(UTC)
+        grant_live = (
+            OAuthGrantORM.revoked_at.is_(None),
+            or_(OAuthGrantORM.expires_at.is_(None), OAuthGrantORM.expires_at > now),
+        )
         access_stmt = (
             select(OAuthAccessTokenORM, OAuthClientORM)
             .join(OAuthClientORM, OAuthClientORM.client_id == OAuthAccessTokenORM.client_id)
+            .join(OAuthGrantORM, OAuthGrantORM.id == OAuthAccessTokenORM.grant_id)
             .where(
                 OAuthAccessTokenORM.user_id == user_id,
                 OAuthAccessTokenORM.revoked_at.is_(None),
                 OAuthAccessTokenORM.expires_at > now,
+                *grant_live,
             )
         )
         # A client whose access token has run out is still connected while its
@@ -3127,11 +3244,13 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
                 OAuthAccessTokenORM.id == OAuthRefreshTokenORM.access_token_id,
             )
             .join(OAuthClientORM, OAuthClientORM.client_id == OAuthRefreshTokenORM.client_id)
+            .join(OAuthGrantORM, OAuthGrantORM.id == OAuthRefreshTokenORM.grant_id)
             .where(
                 OAuthRefreshTokenORM.user_id == user_id,
                 OAuthRefreshTokenORM.revoked_at.is_(None),
                 OAuthRefreshTokenORM.expires_at > now,
                 OAuthAccessTokenORM.revoked_at.is_(None),
+                *grant_live,
             )
         )
         if resource is not None:
@@ -3165,6 +3284,58 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             else:
                 grant["connected_at"] = min(grant["connected_at"], token.created_at)
         return list(grants.values())
+
+    async def list_sign_in_grants(
+        self, user_id: str, resource: str, now: datetime
+    ) -> list[SignInGrantRow]:
+        live_access = (
+            select(OAuthAccessTokenORM.id)
+            .where(
+                OAuthAccessTokenORM.grant_id == OAuthGrantORM.id,
+                OAuthAccessTokenORM.revoked_at.is_(None),
+                OAuthAccessTokenORM.expires_at > now,
+            )
+            .exists()
+        )
+        newest_refresh = (
+            select(func.max(OAuthRefreshTokenORM.expires_at))
+            .where(
+                OAuthRefreshTokenORM.grant_id == OAuthGrantORM.id,
+                OAuthRefreshTokenORM.revoked_at.is_(None),
+                OAuthRefreshTokenORM.expires_at > now,
+            )
+            .scalar_subquery()
+        )
+        rows = (
+            await self._s.execute(
+                select(OAuthGrantORM, OAuthClientORM.client_name, newest_refresh)
+                .join(OAuthClientORM, OAuthClientORM.client_id == OAuthGrantORM.client_id)
+                .where(
+                    OAuthGrantORM.user_id == user_id,
+                    OAuthGrantORM.resource == resource,
+                    OAuthGrantORM.revoked_at.is_(None),
+                    or_(OAuthGrantORM.expires_at.is_(None), OAuthGrantORM.expires_at > now),
+                    or_(live_access, newest_refresh.is_not(None)),
+                )
+                .order_by(OAuthGrantORM.created_at.desc())
+            )
+        ).all()
+        out: list[SignInGrantRow] = []
+        for grant, client_name, refresh_ends in rows:
+            ends: datetime | None = grant.expires_at or refresh_ends
+            if grant.expires_at is not None and refresh_ends is not None:
+                ends = min(grant.expires_at, refresh_ends)
+            out.append(
+                {
+                    "grant_id": grant.id,
+                    "client_id": grant.client_id,
+                    "client_name": client_name or "Unnamed app",
+                    "created_at": grant.created_at,
+                    "last_used_at": grant.last_used_at,
+                    "expires_at": ends,
+                }
+            )
+        return out
 
     async def save_device_code(
         self,
@@ -3200,6 +3371,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
             "resource": row.resource,
             "status": row.status,
             "user_id": row.user_id,
+            "authenticated_at": row.authenticated_at,
             "interval_seconds": row.interval_seconds,
             "last_polled_at": row.last_polled_at,
             "expires_at": row.expires_at,
@@ -3233,7 +3405,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
                 select(OAuthDeviceCodeORM).where(OAuthDeviceCodeORM.id == device_id)
             )
         ).scalar_one()
-        for key in ("status", "user_id", "last_polled_at"):
+        for key in ("status", "user_id", "authenticated_at", "last_polled_at"):
             if key in fields:
                 setattr(row, key, fields[key])
         await self._s.flush()

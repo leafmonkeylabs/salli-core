@@ -24,6 +24,7 @@ from salli.application.services.mcp_oauth_service import (
     DeviceFlowError,
     McpOAuthService,
     OAuthError,
+    RefreshTokenReused,
 )
 
 BASE = "https://salli.test"
@@ -40,6 +41,19 @@ class Clients:
             "client_id": client_id,
             "client_name": client_name,
             "redirect_uris": redirect_uris,
+            "first_party": False,
+            "step_up_seconds": None,
+        }
+        return self.rows[client_id]
+
+    def seed(self, client_id, name, redirect_uris, step_up_seconds=None):
+        """A first-party client, as a migration seeds one."""
+        self.rows[client_id] = {
+            "client_id": client_id,
+            "client_name": name,
+            "redirect_uris": redirect_uris,
+            "first_party": True,
+            "step_up_seconds": step_up_seconds,
         }
         return self.rows[client_id]
 
@@ -48,8 +62,13 @@ class Clients:
 
 
 class Tokens:
-    def __init__(self) -> None:
+    """The OAuth token store, in memory, with grants as the SQL one keeps them."""
+
+    def __init__(self, clients: Clients, clock) -> None:
+        self.clients = clients
+        self.clock = clock
         self.codes: dict[str, dict[str, Any]] = {}
+        self.grants: dict[str, dict[str, Any]] = {}
         self.access: dict[str, dict[str, Any]] = {}
         self.refresh: dict[str, dict[str, Any]] = {}
         self.devices: dict[str, dict[str, Any]] = {}
@@ -61,7 +80,18 @@ class Tokens:
         return self.codes.get(code)
 
     async def delete_authorization_code(self, code):
-        self.codes.pop(code, None)
+        return self.codes.pop(code, None) is not None
+
+    async def create_grant(self, **fields):
+        grant_id = f"g{len(self.grants) + 1}"
+        self.grants[grant_id] = {
+            "id": grant_id,
+            **fields,
+            "revoked_at": None,
+            "last_used_at": None,
+            "created_at": self.clock(),
+        }
+        return grant_id
 
     async def save_access_token(self, token_hash, **fields):
         token_id = f"t{len(self.access) + 1}"
@@ -71,22 +101,75 @@ class Tokens:
     async def save_refresh_token(self, token_hash, **fields):
         self.refresh[token_hash] = {**fields, "revoked": False}
 
+    def _ended(self, grant):
+        return grant["revoked_at"] is not None or (
+            grant["expires_at"] is not None and grant["expires_at"] <= self.clock()
+        )
+
     async def get_access_token(self, token_hash):
         row = self.access.get(token_hash)
-        return None if row is None or row["revoked"] else row
+        if row is None or row["revoked"] or self._ended(self.grants[row["grant_id"]]):
+            return None
+        grant = self.grants[row["grant_id"]]
+        client = self.clients.rows[row["client_id"]]
+        return {
+            **row,
+            "authenticated_at": grant["authenticated_at"],
+            "last_used_at": grant["last_used_at"],
+            "client_name": client["client_name"],
+            "client_first_party": client["first_party"],
+            "client_step_up_seconds": client["step_up_seconds"],
+        }
 
     def _access_by_id(self, token_id):
         return next((r for r in self.access.values() if r["id"] == token_id), None)
 
-    async def get_refresh_token(self, token_hash):
+    async def find_refresh_token(self, token_hash):
         row = self.refresh.get(token_hash)
-        if row is None or row["revoked"] or self._access_by_id(row["access_token_id"])["revoked"]:
+        if row is None:
             return None
-        return row
+        grant = self.grants[row["grant_id"]]
+        return {
+            **row,
+            "revoked_at": self.clock() if row["revoked"] else None,
+            "access_revoked_at": (
+                self.clock() if self._access_by_id(row["access_token_id"])["revoked"] else None
+            ),
+            "grant_revoked_at": grant["revoked_at"],
+            "grant_expires_at": grant["expires_at"],
+            "authenticated_at": grant["authenticated_at"],
+        }
 
-    async def revoke_refresh_token(self, token_hash):
-        if token_hash in self.refresh:
-            self.refresh[token_hash]["revoked"] = True
+    async def rotate_refresh_token(self, token_hash):
+        row = self.refresh[token_hash]
+        if row["revoked"]:
+            return False
+        row["revoked"] = True
+        return True
+
+    async def get_grant(self, grant_id):
+        return self.grants.get(grant_id)
+
+    async def grant_of_token(self, token_hash):
+        row = self.access.get(token_hash) or self.refresh.get(token_hash)
+        return self.grants[row["grant_id"]] if row else None
+
+    async def revoke_grant(self, grant_id, user_id=None):
+        grant = self.grants.get(grant_id)
+        if grant is None or (user_id is not None and grant["user_id"] != user_id):
+            return 0
+        revoked = 0
+        if grant["revoked_at"] is None:
+            grant["revoked_at"] = self.clock()
+            revoked += 1
+        for row in [*self.access.values(), *self.refresh.values()]:
+            if row["grant_id"] == grant_id and not row["revoked"]:
+                row["revoked"] = True
+                revoked += 1
+        return revoked
+
+    async def touch_grant(self, grant_id, at):
+        self.grants[grant_id]["last_used_at"] = at
 
     async def revoke_access_token(self, token_id, user_id):
         row = self._access_by_id(token_id)
@@ -101,14 +184,13 @@ class Tokens:
 
     async def revoke_client_grant(self, user_id, client_id, resource):
         revoked = 0
-        for row in [*self.access.values(), *self.refresh.values()]:
-            if (row["user_id"], row["client_id"], row["resource"]) == (
+        for grant in self.grants.values():
+            if (grant["user_id"], grant["client_id"], grant["resource"]) == (
                 user_id,
                 client_id,
                 resource,
-            ) and not row["revoked"]:
-                row["revoked"] = True
-                revoked += 1
+            ):
+                revoked += await self.revoke_grant(grant["id"])
         return revoked
 
     async def list_active_connections(self, user_id, resource=None):
@@ -127,12 +209,27 @@ class Tokens:
                 )
         return list(grants.values())
 
+    async def list_sign_in_grants(self, user_id, resource, now):
+        return [
+            {
+                "grant_id": g["id"],
+                "client_id": g["client_id"],
+                "client_name": self.clients.rows[g["client_id"]]["client_name"],
+                "created_at": g["created_at"],
+                "last_used_at": g["last_used_at"],
+                "expires_at": g["expires_at"],
+            }
+            for g in self.grants.values()
+            if g["user_id"] == user_id and g["resource"] == resource and not self._ended(g)
+        ]
+
     async def save_device_code(self, device_code_hash, **fields):
         self.devices[device_code_hash] = {
             "id": device_code_hash,
             **fields,
             "status": "pending",
             "user_id": None,
+            "authenticated_at": None,
             "last_polled_at": None,
         }
 
@@ -146,7 +243,7 @@ class Tokens:
                 for d in self.devices.values()
                 if d["user_code"] == user_code
                 and d["status"] == "pending"
-                and d["expires_at"] > datetime.now(UTC)
+                and d["expires_at"] > self.clock()
             ),
             None,
         )
@@ -166,9 +263,28 @@ class Profiles:
         self.mcp_enabled = fields.get("mcp_enabled", self.mcp_enabled)
 
 
+class Clock:
+    """The time, as the test says it is."""
+
+    def __init__(self) -> None:
+        self.now = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+    def advance(self, **delta: float) -> None:
+        self.now += timedelta(**delta)
+
+
 @pytest.fixture
-def world():
-    clients, tokens, profiles = Clients(), Tokens(), Profiles(mcp_enabled=False)
+def clock():
+    return Clock()
+
+
+@pytest.fixture
+def world(clock):
+    clients = Clients()
+    tokens, profiles = Tokens(clients, clock), Profiles(mcp_enabled=False)
 
     class UoW:
         oauth_clients = clients
@@ -189,6 +305,10 @@ def world():
         auth_code_ttl_seconds=120,
         access_token_ttl_seconds=3600,
         refresh_token_ttl_seconds=86400,
+        console_redirect_uri=f"{BASE}/console/callback",
+        console_sign_in_hours=12,
+        console_secure=True,
+        clock=clock,
     )
     return service, clients, tokens, profiles
 
@@ -398,11 +518,11 @@ async def test_polling_faster_than_the_interval_is_slowed_down(world):
     assert fast.value.error == "slow_down"
 
 
-async def test_an_expired_code_says_so_and_cannot_be_approved(world):
+async def test_an_expired_code_says_so_and_cannot_be_approved(world, clock):
     service, clients, tokens, _ = world
     client_id, started = await _start_device(service, clients)
     for row in tokens.devices.values():
-        row["expires_at"] = datetime.now(UTC) - timedelta(seconds=1)
+        row["expires_at"] = clock() - timedelta(seconds=1)
     with pytest.raises(DeviceFlowError) as expired:
         await service.exchange_device_code(started["device_code"], client_id)
     assert expired.value.error == "expired_token"
@@ -439,3 +559,245 @@ async def test_a_registered_client_is_told_it_may_use_the_device_grant(world):
     service, *_ = world
     client = await service.register_client("salli CLI", ["http://127.0.0.1/callback"])
     assert "urn:ietf:params:oauth:grant-type:device_code" in client["grant_types"]
+
+
+# ── The console's client (docs/design/console.md, section 2) ─────────────────
+
+
+CONSOLE = "salli-console"
+CALLBACK = f"{BASE}/console/callback"
+
+
+def _console(clients):
+    return clients.seed(CONSOLE, "Salli console", [], step_up_seconds=300)
+
+
+async def test_the_console_signs_in_to_its_one_computed_redirect(world, clock):
+    service, clients, tokens, _ = world
+    _console(clients)
+    pair = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+    record = await service.verify_access_token(pair["access_token"], audience=API)
+    assert record["client_step_up_seconds"] == 300
+    # The password was checked at sign-in, and the sign-in ends 12 hours on.
+    [grant] = tokens.grants.values()
+    assert grant["authenticated_at"] == clock()
+    assert grant["expires_at"] == clock() + timedelta(hours=12)
+
+
+@pytest.mark.parametrize(
+    "requested",
+    [
+        f"{BASE}/console/callback/",
+        f"{BASE}/console/callback?next=x",
+        f"{BASE}/console/Callback",
+        "https://salli.test:444/console/callback",
+        "https://evil.test/console/callback",
+        "http://127.0.0.1:5000/console/callback",
+        "http://127.0.0.1/callback",
+    ],
+)
+async def test_nothing_but_the_console_s_exact_redirect_matches(world, requested):
+    service, clients, *_ = world
+    _console(clients)
+    _, challenge = _pkce()
+    with pytest.raises(OAuthError, match="redirect_uri"):
+        await service.build_consent_redirect(
+            CONSOLE, requested, challenge, "S256", "", f"{BASE}/v1", None
+        )
+
+
+async def test_pkce_is_s256_and_its_verifier_must_match(world):
+    service, clients, *_ = world
+    _console(clients)
+    verifier, challenge = _pkce()
+    for method in ("plain", "", "S512"):
+        with pytest.raises(OAuthError, match="S256"):
+            await service.build_consent_redirect(
+                CONSOLE, CALLBACK, verifier, method, "", f"{BASE}/v1", None
+            )
+    with pytest.raises(OAuthError, match="code_challenge"):
+        await service.build_consent_redirect(CONSOLE, CALLBACK, "", "S256", "", f"{BASE}/v1", None)
+
+    consent = await service.build_consent_redirect(
+        CONSOLE, CALLBACK, challenge, "S256", "", f"{BASE}/v1", None
+    )
+    rt = parse_qs(urlparse(consent).query)["rt"][0]
+    code = parse_qs(urlparse(await service.complete_consent(rt, USER, True)).query)["code"][0]
+    with pytest.raises(OAuthError, match="PKCE"):
+        await service.exchange_authorization_code(code, CALLBACK, CONSOLE, "x" * 64)
+    # Not even the challenge itself works as the verifier.
+    with pytest.raises(OAuthError, match="PKCE"):
+        await service.exchange_authorization_code(code, CALLBACK, CONSOLE, challenge)
+    assert await service.exchange_authorization_code(code, CALLBACK, CONSOLE, verifier)
+    with pytest.raises(OAuthError):  # once only
+        await service.exchange_authorization_code(code, CALLBACK, CONSOLE, verifier)
+
+
+async def test_the_console_is_refused_while_switched_off(world, clock):
+    service, clients, tokens, profiles = world
+    _console(clients)
+    pair = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+    off = McpOAuthService(
+        service._uow_factory,  # noqa: SLF001
+        signing_secret="s",
+        mcp_resource_url=f"{BASE}/mcp",
+        api_resource_url=f"{BASE}/v1",
+        consent_url=f"{BASE}/consent",
+        auth_code_ttl_seconds=120,
+        access_token_ttl_seconds=3600,
+        refresh_token_ttl_seconds=86400,
+        console_redirect_uri=None,
+        clock=clock,
+    )
+    _, challenge = _pkce()
+    with pytest.raises(OAuthError, match="switched off"):
+        await off.build_consent_redirect(
+            CONSOLE, CALLBACK, challenge, "S256", "", f"{BASE}/v1", None
+        )
+    with pytest.raises(OAuthError, match="switched off"):
+        await off.exchange_refresh_token(pair["refresh_token"], CONSOLE)
+    assert await off.verify_access_token(pair["access_token"], audience=API) is None
+
+
+async def test_the_console_needs_a_secure_public_url(world, clock):
+    service, clients, *_ = world
+    _console(clients)
+    insecure = McpOAuthService(
+        service._uow_factory,  # noqa: SLF001
+        signing_secret="s",
+        mcp_resource_url=f"{BASE}/mcp",
+        api_resource_url=f"{BASE}/v1",
+        consent_url=f"{BASE}/consent",
+        auth_code_ttl_seconds=120,
+        access_token_ttl_seconds=3600,
+        refresh_token_ttl_seconds=86400,
+        console_redirect_uri=CALLBACK,
+        console_secure=False,
+        clock=clock,
+    )
+    _, challenge = _pkce()
+    with pytest.raises(OAuthError, match="HTTPS"):
+        await insecure.build_consent_redirect(
+            CONSOLE, CALLBACK, challenge, "S256", "", f"{BASE}/v1", None
+        )
+
+
+# ── Grants: rotation, reuse, the absolute lifetime ───────────────────────────
+
+
+@pytest.mark.parametrize("which", ["console", "cli"])
+async def test_reusing_a_rotated_refresh_token_revokes_the_whole_grant(world, which):
+    service, clients, tokens, _ = world
+    if which == "console":
+        client_id, redirect = _console(clients)["client_id"], CALLBACK
+    else:
+        client_id = clients.seed("salli-cli", "Salli CLI", ["http://127.0.0.1/callback"])[
+            "client_id"
+        ]
+        redirect = "http://127.0.0.1:5000/callback"
+    first = await _sign_in(service, client_id, redirect, f"{BASE}/v1")
+    second = await service.exchange_refresh_token(first["refresh_token"], client_id)
+    third = await service.exchange_refresh_token(second["refresh_token"], client_id)
+    # One grant through every rotation.
+    assert len(tokens.grants) == 1
+
+    with pytest.raises(RefreshTokenReused, match="already used"):
+        await service.exchange_refresh_token(first["refresh_token"], client_id)
+    [grant] = tokens.grants.values()
+    assert grant["revoked_at"] is not None
+    for pair in (first, second, third):
+        assert await service.verify_access_token(pair["access_token"], audience=API) is None
+    with pytest.raises(OAuthError):
+        await service.exchange_refresh_token(third["refresh_token"], client_id)
+
+
+async def test_a_refresh_token_raced_by_another_request_counts_as_reused(world):
+    service, clients, tokens, _ = world
+    _console(clients)
+    pair = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+
+    # Another request rotates it between this one's read and its claim.
+    real_find = tokens.find_refresh_token
+
+    async def find_then_lose_the_race(token_hash):
+        found = await real_find(token_hash)
+        tokens.refresh[token_hash]["revoked"] = True
+        return found
+
+    tokens.find_refresh_token = find_then_lose_the_race
+    with pytest.raises(RefreshTokenReused):
+        await service.exchange_refresh_token(pair["refresh_token"], CONSOLE)
+    assert next(iter(tokens.grants.values()))["revoked_at"] is not None
+
+
+async def test_the_password_check_is_carried_through_rotation_not_renewed(world, clock):
+    service, clients, tokens, _ = world
+    _console(clients)
+    signed_in_at = clock()
+    pair = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+    clock.advance(hours=2)
+    rotated = await service.exchange_refresh_token(pair["refresh_token"], CONSOLE)
+    record = await service.verify_access_token(rotated["access_token"], audience=API)
+    assert record["authenticated_at"] == signed_in_at
+
+
+async def test_a_console_sign_in_ends_twelve_hours_after_its_password(world, clock):
+    service, clients, tokens, _ = world
+    _console(clients)
+    pair = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+    # Refreshing every hour keeps it going, until the twelfth.
+    for _ in range(11):
+        clock.advance(hours=1)
+        pair = await service.exchange_refresh_token(pair["refresh_token"], CONSOLE)
+    clock.advance(minutes=30)
+    last = await service.exchange_refresh_token(pair["refresh_token"], CONSOLE)
+    # The last access token stops when the sign-in does, not an hour on.
+    assert last["expires_in"] == 30 * 60
+    clock.advance(minutes=30)
+    assert await service.verify_access_token(last["access_token"], audience=API) is None
+    with pytest.raises(OAuthError):
+        await service.exchange_refresh_token(last["refresh_token"], CONSOLE)
+
+
+async def test_the_cli_s_sign_in_has_no_absolute_end(world, clock):
+    service, clients, tokens, _ = world
+    clients.seed("salli-cli", "Salli CLI", ["http://127.0.0.1/callback"])
+    pair = await _sign_in(service, "salli-cli", "http://127.0.0.1:5000/callback", f"{BASE}/v1")
+    for _ in range(3):
+        clock.advance(hours=20)  # within the refresh token's day
+        pair = await service.exchange_refresh_token(pair["refresh_token"], "salli-cli")
+    assert next(iter(tokens.grants.values()))["expires_at"] is None
+
+
+async def test_revoking_any_token_of_a_grant_revokes_the_grant(world):
+    service, clients, tokens, _ = world
+    _console(clients)
+    first = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+    second = await service.exchange_refresh_token(first["refresh_token"], CONSOLE)
+    await service.revoke_token_by_value(first["access_token"])  # an old, rotated one
+    assert await service.verify_access_token(second["access_token"], audience=API) is None
+    with pytest.raises(OAuthError):
+        await service.exchange_refresh_token(second["refresh_token"], CONSOLE)
+
+
+async def test_sign_ins_are_the_api_s_grants_and_end_one_at_a_time(world):
+    service, clients, tokens, profiles = world
+    _console(clients)
+    profiles.mcp_enabled = True
+    claude = await clients.register("Claude", ["https://claude.test/cb"])
+    tab_one = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+    tab_two = await _sign_in(service, CONSOLE, CALLBACK, f"{BASE}/v1")
+    await _sign_in(service, claude["client_id"], "https://claude.test/cb", f"{BASE}/mcp")
+
+    listed = await service.list_sign_ins(USER)
+    assert [s["client_id"] for s in listed] == [CONSOLE, CONSOLE]
+    ai_grant = next(g for g in tokens.grants.values() if g["client_id"] == claude["client_id"])
+    assert not await service.revoke_sign_in(USER, ai_grant["id"])  # an AI connection
+    assert not await service.revoke_sign_in("someone-else", listed[0]["grant_id"])
+    assert await service.revoke_sign_in(USER, listed[0]["grant_id"])
+    assert not await service.revoke_sign_in(USER, listed[0]["grant_id"])  # once
+    alive = [
+        await service.verify_access_token(t["access_token"], audience=API)
+        for t in (tab_one, tab_two)
+    ]
+    assert [a is not None for a in alive] == [False, True]

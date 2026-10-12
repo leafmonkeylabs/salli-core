@@ -150,7 +150,13 @@ async def authorize(
     scope: str = "",
     resource: str | None = None,
     state: str | None = None,
+    prompt: str | None = None,
+    max_age: int | None = None,
 ):
+    """Start a sign-in (authorization code with PKCE, S256 only). `prompt=login`
+    or a `max_age` asks the person to confirm it's them again (OIDC; RFC 9470
+    step-up), as the console does before activating tax rules: the sign-in
+    page says so. It checks the password every time regardless."""
     if response_type != "code":
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, detail="only response_type=code is supported"
@@ -164,6 +170,7 @@ async def authorize(
             scope=scope,
             resource=resource,
             state=state,
+            reauthenticate=prompt == "login" or max_age is not None,
         )
     except OAuthError as exc:
         # Never redirect on a validation failure — the redirect_uri isn't
@@ -204,8 +211,15 @@ class ConsentDecision(BaseModel):
 async def consent(
     body: ConsentDecisionRequest, user_id: CurrentUser, svc: AppServices
 ) -> ConsentDecision:
+    """A deployment's own consent screen, deciding for the person it has
+    signed in. It checks no password, so it may approve an AI client or
+    another application, never one of Salli's own (the CLI, the console):
+    those sign in on Salli's page, with the password, so no token can be
+    turned into a first-party sign-in that holds more than it does."""
     try:
-        redirect_url = await svc.mcp_oauth.complete_consent(body.rt, user_id, body.approve)
+        redirect_url = await svc.mcp_oauth.complete_consent(
+            body.rt, user_id, body.approve, first_party_allowed=False
+        )
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     return ConsentDecision(redirect_url=redirect_url)
@@ -380,7 +394,8 @@ class McpEnabledRequest(BaseModel):
 
 @connections_router.put("/enabled", status_code=204)
 async def set_mcp_enabled(body: McpEnabledRequest, user_id: CurrentUser, svc: AppServices):
-    """No plan gate: MCP is available on every tier, Free included."""
+    """Switch MCP on or off for yourself: your choice alone, open to every
+    account."""
     await svc.mcp_oauth.set_mcp_enabled(user_id, body.enabled)
 
 
