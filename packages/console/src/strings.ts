@@ -150,8 +150,16 @@ export const strings = {
   },
 
   settings: {
+    places: {
+      label: 'Settings',
+      profile: 'Profile and sign-ins',
+      tokens: 'Tokens',
+      ai: 'AI connections',
+      digests: 'Digests',
+      data: 'Your data',
+    },
     title: 'Settings',
-    description: 'Your profile, where you are signed in, and how this device shows Salli.',
+    description: 'Your profile, where you are signed in, and how this device shows Salli. Tokens, AI connections, digests and your data are in their own places.',
     profile: 'Profile',
     profileHelp: 'What Salli knows about you. Your tax residency decides whose tax rules compute your tax.',
     email: 'Email',
@@ -205,7 +213,7 @@ export const strings = {
       '/tax': 'Your tax, the rules that compute it, and activating a new version.',
       '/attention': 'What Salli has noticed, and your reminders by due date.',
       '/fi': 'Your FI number, how far along you are, and the assumptions behind it.',
-      '/settings': 'Your profile, where you are signed in, and how this device shows Salli.',
+      '/settings': 'Your profile and sign-ins, tokens, AI connections, digests and your data.',
     } as Record<string, string>,
   },
 
