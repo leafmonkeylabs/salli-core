@@ -262,7 +262,8 @@ Nudges are quiet, useful and rare:
   - `GET /v1/baseline`
   - `POST /v1/scenarios/run` (stores nothing)
   - `POST /v1/scenarios/compare`
-  - `GET /v1/decisions/templates`
+  - `GET /v1/decisions/templates`, `GET /v1/decisions/templates/{id}`,
+    `POST /v1/decisions/start` (stores nothing)
   - `GET|POST /v1/principles`
   - `GET|POST /v1/decisions`
   - `POST /v1/decisions/{id}/notes`
@@ -285,7 +286,7 @@ Nudges are quiet, useful and rare:
    - **Status:** built. 1a, the baseline ([docs/baseline.md](../baseline.md));
      1b, scenarios, comparison, sensitivity and break-evens
      ([docs/scenarios.md](../scenarios.md)), with FI's month and projections
-     read from the baseline's monthly timeline. Phase 2a is built (below).
+     read from the baseline's monthly timeline. Phase 2 is built (below).
    - **As built in 1b:** the schema's seven change types (one-off, recurring,
      income change, loan, extra debt payment, invest, stop a recurring flow);
      results as baseline / scenario / delta, with a content hash of the
@@ -321,9 +322,10 @@ Nudges are quiet, useful and rare:
    - Reviews, with reminders and signals.
    - The `think_through_decision` prompt.
    - Guardrails in the prompts and skills.
-   - **Status:** 2a built: principles, the decision journal and reviews
-     ([docs/decisions.md](../decisions.md)). 2b (templates,
-     `start_decision`, `think_through_decision`, `salli decide`) is next.
+   - **Status:** built. 2a: principles, the decision journal and reviews
+     ([docs/decisions.md](../decisions.md)). 2b: templates,
+     `start_decision`, `think_through_decision`, `salli decide` and the
+     guardrails ([docs/templates.md](../templates.md)).
    - **As built in 2a:**
      - **Principles** (`salli.principle/1`) are a label and a check in the
        tax rules' expression language in a *figure mode*: figures are plain
@@ -364,6 +366,63 @@ Nudges are quiet, useful and rare:
        edit|figures` and `salli decisions record|reviews|export`, so every
        operation has a command. The MCP tools that store something require
        `confirmed_by_user: true`.
+   - **As built in 2b:**
+     - **Templates** (`salli.template/1`) are the design's six, as code:
+       typed questions (amounts, months and years, numbers, rates, dates,
+       choices, the person's own debts and cash accounts, text, and lists of
+       amounts, loans and splits), each checked with its path under
+       `answers`, and a pure function from the answers and the person's
+       facts (their debts, cash accounts and principles, read from their
+       baseline) to two to five labelled `salli.scenario/1` options. A
+       default comes only from the date (the as-of date, the first of next
+       month), the person's own data (their only debt, what it owes, the
+       months a principle `emergency_months >= N` asks for) or a plain
+       default of Salli's (a name, "once", the 20-year horizon). We judged
+       a placeholder for a price, a rate or a cash target to be advice in
+       disguise, so a question without an honest default has none and must
+       be answered; FI's placeholders still flag every result. Templates
+       hold no country's rules. The ids are `afford-it`, `debt-or-invest`,
+       `windfall`, `big-change`, `borrow` (new borrowing, or refinancing a
+       debt) and `emergency-fund`. "Big recurring change" and "borrow" add
+       an unchanged option ("As things are", "Don't borrow", "Keep the
+       debt") so there are always two to compare; "Wait and save" waits the
+       months the person says and sets aside what they say.
+     - **Setting aside**, a new scenario change (`set_aside`): part of each
+       month's regular surplus kept in cash before the share invested is
+       taken from the rest. Waiting and an emergency fund needed it: with
+       the surplus all invested (the placeholder), nothing else lets cash
+       grow. It moves no money of its own, so no figure of an existing
+       scenario changes, and the engine's version stays 2.
+     - **The time to a cash target** comes from the engine
+       (`engine.cover_target`): the first month at whose end cash, in
+       today's money, covers the target months of spending (the monthly
+       spending as shown, so the target is the product of two figures a
+       reader sees), under the baseline and each option. Not a principle
+       figure: the figure set takes no parameters, and a target is one.
+     - **Starting a decision** (`POST /v1/decisions/start`,
+       `start_decision`, `salli.decision-start/1`) runs the options through
+       the comparison, the principles' checks and, for an emergency fund,
+       the time to the target; it stores nothing, and carries what
+       `record_decision` needs (a suggested question, each option with its
+       as-of date, the labels). Recording stays the journal's own step.
+     - **`think_through_decision`** follows the design's six steps, and
+       `can_i_afford` runs the afford-it template. Both end with the same
+       guardrails (never compute, never name a product, provider, fund or
+       security, a licensed professional where a choice is regulated advice
+       where the person lives, the person's principles respected, never a
+       ranking, never a record they haven't confirmed), which the CLI skill
+       and docs/ai-clients.md repeat. Tests hold templates, starts and
+       their API and MCP answers to having no field that ranks or scores
+       and no word that ranks or recommends (`tests/guardrails.py`), and
+       the prompts to carrying each guardrail.
+     - **Interfaces:** `GET /v1/decisions/templates` (in brief),
+       `GET /v1/decisions/templates/{id}` (the questions, the person's
+       defaults and the answers' JSON Schema), `POST /v1/decisions/start`;
+       MCP `list_decision_templates` (with each template's questions) and
+       `start_decision`; `salli decide --list`, `salli decide <template>`
+       (asks in a terminal; `--answers`, `--set`, `--questions` for
+       scripts) and `--record` to record in the same step, asking first.
+     - A comparison's "none in range" sentence now names both options.
 3. **Further.**
    - Tax-aware scenarios: hypothetical role totals through the active rule set.
    - "Invest" changes using the portfolio's actual holdings.

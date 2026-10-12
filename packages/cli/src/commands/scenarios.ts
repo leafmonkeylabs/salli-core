@@ -246,6 +246,8 @@ function describeChange(out: Output, run: ScenarioRun, index: number): string {
       return `${out.money(doc.monthly, cur)} a month from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}`;
     case 'invest':
       return `${out.money(doc.amount, cur)} on ${on(doc.date)}`;
+    case 'set_aside':
+      return `${out.money(doc.monthly, cur)} a month kept in cash from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}`;
     case 'stop_recurring': {
       const stopped = applied?.stopped.map((s) => `${singleLine(s.payee)} (${out.money(s.amount, s.currency)} ${s.cadence})`).join(', ');
       return `from ${on(doc.from)}${stopped ? `: ${stopped}` : ''}`;

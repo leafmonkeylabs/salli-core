@@ -63,6 +63,11 @@ class _Writer:
         return {"baseline": f.baseline, "scenario": f.scenario, "delta_days": f.delta}
 
 
+def money_text(value: Decimal | None, currency: str) -> str | None:
+    """An amount as a decimal string to the currency's smallest unit."""
+    return _Writer(currency).money(value)
+
+
 def _percent(rate: Decimal) -> str:
     return f"{(rate * 100).normalize():f}%"
 
@@ -95,9 +100,10 @@ def break_even_view(b: BreakEven, result_currency: str, end: str | None = None) 
                 f"horizon with at least {debt}'s net worth; below it, {debt} ends with more."
             )
         else:
+            behind = next((o for o in b.options if o != b.ahead), b.ahead)
             says = (
-                f"{b.ahead} ends the horizon with more net worth at every real return from "
-                f"{_percent(b.low)} to {_percent(b.high)}."
+                f"{b.ahead} ends the horizon with more net worth than {behind} at every real "
+                f"return from {_percent(b.low)} to {_percent(b.high)}."
             )
     else:
         others = [o for o in b.options if o != b.option]
@@ -114,9 +120,10 @@ def break_even_view(b: BreakEven, result_currency: str, end: str | None = None) 
                 f"with at least {other}'s net worth; above it, {other} costs less."
             )
         else:
+            behind = next((o for o in b.options if o != b.ahead), b.ahead)
             says = (
-                f"{b.ahead} ends the horizon with more net worth at every loan rate from "
-                f"{_percent(b.low)} to {_percent(b.high)}."
+                f"{b.ahead} ends the horizon with more net worth than {behind} at every loan "
+                f"rate from {_percent(b.low)} to {_percent(b.high)}."
             )
     return {
         "kind": b.kind,

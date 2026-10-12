@@ -21,6 +21,7 @@ import type {
   PrinciplesCheck,
 } from '@leafmonkeylabs/salli-sdk';
 import { uid } from './fixtures';
+import { AFFORD_IT, AFFORD_IT_START, EMERGENCY_FUND, EMERGENCY_FUND_START, TEMPLATE_LIST } from './templates';
 
 type Reply = { status: number; body?: unknown; headers?: Record<string, string>; raw?: string };
 
@@ -1194,6 +1195,19 @@ export class DecisionsMock {
       recorded.entry.question = body.question ?? recorded.entry.question;
       this.decisions.push(recorded);
       return { status: 201, body: recorded };
+    }
+    if (parts[0] === 'templates' && method === 'GET') {
+      if (parts.length === 1) return { status: 200, body: TEMPLATE_LIST };
+      const template = { 'afford-it': AFFORD_IT, 'emergency-fund': EMERGENCY_FUND }[parts[1] ?? ''];
+      if (template) return { status: 200, body: template };
+      return problem(404, 'Not found', `No decision template '${parts[1]}'; there are: ${TEMPLATE_LIST.templates.map((t) => t.id).join(', ')}`, '/problems/not-found');
+    }
+    if (parts[0] === 'start' && parts.length === 1 && method === 'POST') {
+      const body = req.json as { template?: string; answers?: Record<string, unknown> };
+      if (body.answers?.price === '0') {
+        return problem(422, 'Not answers Salli can build options from', [{ loc: ['body', 'answers', 'price'], msg: 'must be greater than zero' }], '/problems/invalid-answers');
+      }
+      return { status: 200, body: body.template === 'emergency-fund' ? EMERGENCY_FUND_START : AFFORD_IT_START };
     }
     if (parts[0] === 'reviews' && parts.length === 1 && method === 'GET') {
       const due = this.decisions.filter((d) => d.status === 'review_due');

@@ -14,10 +14,12 @@ Once connected, your AI can:
 - read your cash flow, spending, net worth over time, recurring payments and your
   cash forecast;
 - weigh a decision (can I afford it, cash or instalments, pay down a debt or
-  invest) by building the options as scenarios Salli runs and compares, never
-  by its own sums, and without ranking them for you; check them against your
-  own principles, and, once you have decided and say so, record the decision
-  and your reasons in your journal, and look back on it when it is due;
+  invest, a windfall, a new flat or job, a loan, an emergency fund) from a
+  template, or by building the options as scenarios, which Salli runs and
+  compares, never by its own sums, and without ranking them for you; check
+  them against your own principles, and, once you have decided and say so,
+  record the decision and your reasons in your journal, and look back on it
+  when it is due;
 - show your financial-independence projections, in today's money, and research
   your own planning assumptions (inflation, returns, withdrawal rate) from
   citable sources, and ask what share of your surplus you invest, setting them
@@ -34,9 +36,31 @@ Once connected, your AI can:
 Salli knows no country's tax law. Without rules you activated it computes no tax,
 and the tax tools say so and what you can do.
 
-Five ready-made prompts come with the server: **review my month**, **sort my pending
-transactions**, **can I afford**, **set planning assumptions** and **research tax
-rules** (for a country and year).
+Six ready-made prompts come with the server: **review my month**, **sort my pending
+transactions**, **can I afford**, **think through a decision**, **set planning
+assumptions** and **research tax rules** (for a country and year).
+
+### When it helps you decide
+
+**Think through a decision** (`think_through_decision`, with your question) has
+the AI ask what you are weighing and what matters to you, build the options with
+Salli (a [template](templates.md) where one fits, scenarios otherwise), compare
+them with the sensitivity and check your principles, explain the trade-offs in
+plain words with Salli's figures and the assumptions behind them (saying which are
+placeholders), say what would change the answer (the break-evens), and leave the
+choice to you. **Can I afford** does the same with the afford-it template.
+
+Both prompts, the CLI's skill and the tools' own descriptions hold the AI to these:
+
+- **It never computes.** Every figure is Salli's, quoted with its currency.
+- **It never names a specific product, provider, fund or security.**
+- **Regulated advice is for a licensed professional.** Where a choice is regulated
+  financial advice where you live (insurance, pensions, choosing investments), it
+  says so and suggests one there, without assuming any country's rules.
+- **It respects your principles**, saying which each option keeps or breaks.
+- **It never ranks the options** or calls one best: Salli doesn't either.
+- **It never records a decision you haven't confirmed**, and records your reasons
+  in your words.
 
 ### Financial independence tools
 
@@ -56,10 +80,12 @@ rules** (for a country and year).
 
 See [scenarios](scenarios.md) for the document and how to read the results.
 
-### Principles and the decision journal
+### Decisions: templates, principles and the journal
 
 | Tool | What it does |
 |---|---|
+| `list_decision_templates` | The [decision templates](templates.md): each one's questions, with your own defaults where there are honest ones, and the options it builds. |
+| `start_decision` | A template and your answers: the options built, compared and checked against your principles, and what recording needs. Stores nothing, ranks nothing. |
 | `list_principles` | Your principles (your own rules of thumb) and the figures a check may read. |
 | `add_principle` | Keeps a principle the AI suggested, only once you have said yes to its exact label and check (`confirmed_by_user`); recorded as the agent's. |
 | `check_principles` | Which principles your baseline and each option keep, break or can't tell, with the figures and the reason. Never a ranking. |
@@ -68,7 +94,7 @@ See [scenarios](scenarios.md) for the document and how to read the results.
 | `list_due_reviews` | Decisions whose review date has come, with what the option you chose projected against what happened. |
 | `review_decision` | Appends your reflection, with Salli's comparison, once you agree to the words. |
 
-See [principles and the decision journal](decisions.md).
+See [decision templates](templates.md) and [principles and the decision journal](decisions.md).
 
 FI figures are in real terms. Where you have set no return or withdrawal rate, a
 round placeholder (4%) stands in, and every result says so (`assumptions.status`

@@ -124,11 +124,11 @@ def test_unknown_fields_types_and_versions_are_refused_with_their_paths():
         "changes[0].currency": "is not a field here",
         "changes[1]": (
             "is not a change type; the types are: one_off, recurring, income_change, loan, "
-            "extra_debt_payment, invest, stop_recurring"
+            "extra_debt_payment, invest, stop_recurring, set_aside"
         ),
         "changes[2]": (
             "needs a type: one of one_off, recurring, income_change, loan, "
-            "extra_debt_payment, invest, stop_recurring"
+            "extra_debt_payment, invest, stop_recurring, set_aside"
         ),
         "extra": "is not a field here",
     }
@@ -169,6 +169,7 @@ def test_every_change_type_reads():
             },
             {"type": "invest", "amount": "5000", "date": "2026-12-15", "from": "sav", "label": "x"},
             {"type": "stop_recurring", "key": "streamflix", "from": "2026-11-01"},
+            {"type": "set_aside", "monthly": "200", "from": "2026-11-01", "to": "2027-10-31"},
         )
     )
     assert [c.type for c in doc.changes] == list(schema.CHANGE_TYPES)

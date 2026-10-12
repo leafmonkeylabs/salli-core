@@ -129,12 +129,14 @@ async def test_the_prompts_lean_on_salli_s_tools_not_the_model_s_arithmetic():
     assert "October" in text and "get_cash_forecast" in text and "never compute" in text
 
     # Was: simulate_purchase, beside a forecast the agent read itself. Now the
-    # purchase is built as scenarios Salli compares, and the agent never
-    # subtracts anything, nor picks for the user.
+    # purchase's options come from the afford-it template, run and compared
+    # by Salli, and the agent never subtracts anything, nor picks for the
+    # user (the whole guardrails: tests/unit/api/test_mcp_templates.py).
     afford = await server.get_prompt("can_i_afford", {"amount": "2000 USD", "what": "a trip"})
-    text = afford.messages[0].content.text  # type: ignore[union-attr]
-    assert "compare_options" in text and "get_scenario_schema" in text
-    assert "Never subtract" in text and "Don't tell me which to choose" in text
+    text = " ".join(afford.messages[0].content.text.split())  # type: ignore[union-attr]
+    assert "start_decision with the afford-it template" in text
+    assert "never add, subtract, divide, project or estimate anything yourself" in text
+    assert "leave the choice to me" in text
     assert "simulate_purchase" not in text
 
     sort = await server.get_prompt("sort_pending_transactions", {})

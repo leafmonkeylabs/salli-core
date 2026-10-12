@@ -1570,7 +1570,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "low": "0",
       "high": "1",
       "ahead": "Pay cash",
-      "says": "Pay cash ends the horizon with more net worth at every loan rate from 0% to 100%."
+      "says": "Pay cash ends the horizon with more net worth than Instalments at every loan rate from 0% to 100%."
     }
   ]
 };

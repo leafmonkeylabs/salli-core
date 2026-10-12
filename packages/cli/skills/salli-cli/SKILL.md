@@ -63,13 +63,30 @@ show them their regular transfers to investment accounts
 (`salli insights recurring`), and never guess. It moves the FI month and
 every comparison of investing against paying down a debt.
 
-## Decisions: what-ifs and options
+## Decisions: templates, what-ifs and options
 
 When the user weighs a decision (can I afford it, cash or instalments, pay
-down a debt or invest, a new flat or a new job), build each option as a
-scenario and let Salli run it. Never subtract, add or project anything
-yourself, and never say which option is best: Salli doesn't rank them, and
-neither do you.
+down a debt or invest, a windfall, a new flat or a new job, a loan, an
+emergency fund), start from a template where one fits: Salli builds the
+options from their answers, runs every one, compares them and checks their
+principles.
+
+    salli decide --list --json
+    salli decide afford-it --questions --json      # the questions, types, and the user's defaults
+    salli decide afford-it --set price=2400 --set instalment_months=12 \
+      --set instalment_rate=6.9% --json            # or --answers answers.json
+    salli decide emergency-fund --set target_months=6 --set set_aside=200,500 --json
+
+Ask the user each question in plain words. A question with a default
+(`default.note` says where it comes from: their only debt, what it owes,
+their principle's cash target, the date) may be left out; one without must
+be answered by them: never invent a price, a rate or a target. Lists
+(`loans`, `splits`) go in an `--answers` file. The result holds the
+comparison (as `salli compare` gives it), their principles' checks, the
+time to a cash target for an emergency fund (`cover`), and `record`: what
+recording needs besides their own choice, reasons and review date.
+
+When no template fits, build each option as a scenario and let Salli run it.
 
     salli whatif --buy 2400@2026-11-01 --json                  # a one-off purchase
     salli whatif --buy 18000 --loan 18000@6.9%x48 --json       # financed: price out, loan in
@@ -119,8 +136,32 @@ only once they confirm:
     salli decisions note <id> "<text>"
     salli decisions export --format markdown
 
+A decision started with `salli decide` records in the same step, once they
+have chosen and said yes:
+
+    salli decide afford-it --answers answers.json --record --chosen "Pay cash" \
+      --reasons "<their words>" --review-on 2027-04-11 --yes --json
+
 Walk them through a due review with Salli's comparison, ask what they make
 of it, and record their reflection only when they agree.
+
+## Guardrails, whenever you help someone decide
+
+- **Never compute.** Every figure comes from a `salli` command; quote it with
+  its currency. Don't add, subtract, divide, project or estimate anything.
+- **Never name a specific product, provider, fund or security.** Speak of
+  kinds of thing.
+- **Regulated advice is for a licensed professional.** Where a choice is
+  regulated financial advice where the user lives (insurance, pensions,
+  choosing investments), say so and suggest a licensed professional there.
+  Don't assume any country's rules; ask where they live if it matters.
+- **Respect their principles.** Say which each option keeps or breaks; never
+  set one aside.
+- **Never rank.** Don't call an option best, recommended or right: lay out
+  the trade, the sensitivity and the break-evens, name the placeholders the
+  figures rest on, and leave the choice to them.
+- **Never record a decision they haven't confirmed**, and never in your
+  words: their reasons are theirs.
 
 ## Running it
 
@@ -143,6 +184,7 @@ Other ids can be shortened to any unique prefix.
 | `ledger` | `trial-balance`, `income-statement` |
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
 | `baseline` | the one model every figure comes from, as of a day (`--as-of`): months averaged, exchange rates and their source, account roles, debts, assumptions, and timelines to `--years` |
+| `decide` | a common decision from a template (`--list`, `<template> --questions`, `<template> --set id=value` or `--answers <file>`): the options built and compared, the principles checked, and recorded with `--record` once the user confirms |
 | `whatif`, `compare` | a scenario's figures against the baseline (from flags, or `--file`); two to five options side by side, with the trade, sensitivity and break-evens |
 | `principles` | the user's rules of thumb: `list`, `add`, `edit`, `archive`, `check [files…]`, `figures` |
 | `decisions` | the decision journal: `list`, `show`, `record`, `note`, `reviews`, `review`, `export`; entries are never edited or deleted |

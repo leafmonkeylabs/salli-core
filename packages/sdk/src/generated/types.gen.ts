@@ -2651,6 +2651,82 @@ export type ConsentInfo = {
 };
 
 /**
+ * CoverMonth
+ */
+export type CoverMonth = {
+    /**
+     * Month
+     */
+    month: string | null;
+    /**
+     * Months
+     */
+    months: number | null;
+};
+
+/**
+ * CoverOption
+ */
+export type CoverOption = {
+    /**
+     * Month
+     */
+    month: string | null;
+    /**
+     * Months
+     */
+    months: number | null;
+    /**
+     * Option
+     */
+    option: string;
+    /**
+     * Delta Months
+     */
+    delta_months: number | null;
+};
+
+/**
+ * CoverReading
+ *
+ * When cash, in today's money, covers a number of months of spending:
+ * read from the monthly timeline under the baseline and each option.
+ */
+export type CoverReading = {
+    /**
+     * Target Months
+     *
+     * Decimal string, exact; never a float.
+     */
+    target_months: string;
+    /**
+     * Basis
+     */
+    basis: 'essential' | 'all' | null;
+    /**
+     * Monthly Spending
+     */
+    monthly_spending: string | null;
+    /**
+     * Target
+     */
+    target: string | null;
+    /**
+     * Now
+     */
+    now: string | null;
+    baseline: CoverMonth;
+    /**
+     * Options
+     */
+    options: Array<CoverOption>;
+    /**
+     * Says
+     */
+    says: string;
+};
+
+/**
  * CoverageGapLine
  */
 export type CoverageGapLine = {
@@ -3563,6 +3639,92 @@ export type DecisionReviewEntry = {
 };
 
 /**
+ * DecisionStart
+ *
+ * A template's options compared on your baseline and checked against
+ * your principles. Never ranked; nothing is stored.
+ */
+export type DecisionStart = {
+    /**
+     * Schema
+     */
+    schema: 'salli.decision-start/1';
+    template: StartTemplate;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Horizon Years
+     */
+    horizon_years: number;
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * Answers
+     */
+    answers: Array<StartAnswer>;
+    /**
+     * Options
+     */
+    options: Array<StartOption>;
+    comparison: ScenarioComparison;
+    principles: StartPrinciples;
+    cover: CoverReading | null;
+    /**
+     * Placeholders
+     */
+    placeholders: Array<string>;
+    /**
+     * Data As Of
+     */
+    data_as_of: string | null;
+    /**
+     * Is Stale
+     */
+    is_stale: boolean;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+    record: StartRecord;
+    /**
+     * Says
+     */
+    says: string;
+};
+
+/**
+ * DecisionStartIn
+ *
+ * A template, and the answers to its questions (by id).
+ */
+export type DecisionStartIn = {
+    /**
+     * Template
+     */
+    template: string;
+    /**
+     * Answers
+     */
+    answers?: {
+        [key: string]: unknown;
+    };
+    /**
+     * As Of
+     */
+    as_of?: string | null;
+};
+
+/**
  * DecisionSummary
  */
 export type DecisionSummary = {
@@ -3614,6 +3776,87 @@ export type DecisionSummary = {
      * Status
      */
     status: 'awaiting_review' | 'review_due' | 'reviewed';
+};
+
+/**
+ * DecisionTemplate
+ *
+ * A template's questions, each with its default as it stands for you,
+ * and the answers' JSON Schema.
+ */
+export type DecisionTemplate = {
+    /**
+     * Schema
+     */
+    schema: 'salli.template/1';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Builds
+     */
+    builds: Array<string>;
+    /**
+     * Questions
+     */
+    questions: Array<TemplateQuestion>;
+    /**
+     * Answers Schema
+     */
+    answers_schema: {
+        [key: string]: unknown;
+    };
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
+ * DecisionTemplateList
+ */
+export type DecisionTemplateList = {
+    /**
+     * Templates
+     */
+    templates: Array<DecisionTemplateSummary>;
+};
+
+/**
+ * DecisionTemplateSummary
+ *
+ * A common decision, packaged: a convenience, not advice.
+ */
+export type DecisionTemplateSummary = {
+    /**
+     * Schema
+     */
+    schema: 'salli.template/1';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Builds
+     */
+    builds: Array<string>;
 };
 
 /**
@@ -8554,7 +8797,7 @@ export type Scenario = {
     /**
      * Changes
      */
-    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange>;
+    changes?: Array<OneOffChange | RecurringChange | IncomeChange | LoanChange | ExtraDebtPaymentChange | InvestChange | StopRecurringChange | SetAsideChange>;
 };
 
 /**
@@ -8709,7 +8952,7 @@ export type ScenarioChange = {
     /**
      * Type
      */
-    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring';
+    type: 'one_off' | 'recurring' | 'income_change' | 'loan' | 'extra_debt_payment' | 'invest' | 'stop_recurring' | 'set_aside';
     /**
      * Label
      */
@@ -9209,6 +9452,42 @@ export type SetAiProvider = {
 };
 
 /**
+ * SetAsideChange
+ *
+ * Part of each month's regular surplus kept in cash, rather than shared
+ * out between cash and investments: saving towards an emergency fund or a
+ * purchase. Each month from a day's month to another's (or for good), that
+ * much of the surplus stays in cash first, and the share you invest is of
+ * what is left. It can't keep more than the month's surplus: a month with
+ * less keeps all of it and invests nothing. Fixed in each month's own
+ * money, like a standing order.
+ */
+export type SetAsideChange = {
+    /**
+     * Type
+     */
+    type: 'set_aside';
+    /**
+     * Monthly
+     *
+     * A positive decimal amount as a string, like "5000.00".
+     */
+    monthly: string;
+    /**
+     * From
+     */
+    from: string;
+    /**
+     * To
+     */
+    to?: string | null;
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
  * SetPostingTagsRequest
  */
 export type SetPostingTagsRequest = {
@@ -9282,6 +9561,103 @@ export type SpendingLine = {
     by_month: {
         [key: string]: string;
     };
+};
+
+/**
+ * StartAnswer
+ */
+export type StartAnswer = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Value
+     */
+    value: unknown;
+    /**
+     * Source
+     */
+    source: 'given' | 'as_of' | 'next_month' | 'your_debts' | 'your_principles' | 'salli';
+    /**
+     * Note
+     */
+    note: string | null;
+};
+
+/**
+ * StartOption
+ */
+export type StartOption = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Describes
+     */
+    describes: string;
+    scenario: Scenario;
+    /**
+     * Scenario Hash
+     */
+    scenario_hash: string;
+};
+
+/**
+ * StartPrinciples
+ *
+ * Your principles against the baseline and each option. Not a ranking.
+ */
+export type StartPrinciples = {
+    /**
+     * Principles
+     */
+    principles: Array<PrincipleRef>;
+    baseline: CheckedFigures;
+    /**
+     * Options
+     */
+    options: Array<CheckedOption>;
+};
+
+/**
+ * StartRecord
+ *
+ * What `POST /v1/decisions` needs besides the person's own: their
+ * choice (one of `labels`), their reasons and a review date.
+ */
+export type StartRecord = {
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * Options
+     */
+    options: Array<Scenario>;
+    /**
+     * Labels
+     */
+    labels: Array<string>;
+    /**
+     * Earliest Review
+     */
+    earliest_review: string;
+};
+
+/**
+ * StartTemplate
+ */
+export type StartTemplate = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
 };
 
 /**
@@ -11230,6 +11606,109 @@ export type TaxYearStatus = {
      * Latest Rule Set Version Id
      */
     latest_rule_set_version_id: string | null;
+};
+
+/**
+ * TemplateChoice
+ */
+export type TemplateChoice = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * TemplateDefault
+ *
+ * What an answer is when it isn't given, and where that comes from.
+ */
+export type TemplateDefault = {
+    /**
+     * Value
+     */
+    value: string | number;
+    /**
+     * Source
+     */
+    source: 'as_of' | 'next_month' | 'your_debts' | 'your_principles' | 'salli';
+    /**
+     * Note
+     */
+    note: string;
+};
+
+/**
+ * TemplateQuestion
+ */
+export type TemplateQuestion = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Type
+     */
+    type: 'amount' | 'signed_amount' | 'months' | 'years' | 'number' | 'rate' | 'date' | 'choice' | 'debt' | 'account' | 'text' | 'amounts' | 'loans' | 'splits';
+    /**
+     * Prompt
+     */
+    prompt: string;
+    /**
+     * Help
+     */
+    help: string;
+    /**
+     * Required
+     */
+    required: boolean;
+    when: TemplateWhen | null;
+    default: TemplateDefault | null;
+    /**
+     * Default Rule
+     */
+    default_rule: string | null;
+    /**
+     * Choices
+     */
+    choices: Array<TemplateChoice>;
+    /**
+     * Minimum
+     */
+    minimum: number | null;
+    /**
+     * Maximum
+     */
+    maximum: number | null;
+    /**
+     * Min Items
+     */
+    min_items: number | null;
+    /**
+     * Max Items
+     */
+    max_items: number | null;
+};
+
+/**
+ * TemplateWhen
+ *
+ * A question asked only when another is answered (`equals` null), or
+ * answered so.
+ */
+export type TemplateWhen = {
+    /**
+     * Question
+     */
+    question: string;
+    /**
+     * Equals
+     */
+    equals: string | null;
 };
 
 /**
@@ -18292,6 +18771,102 @@ export type PrinciplesArchiveResponses = {
 };
 
 export type PrinciplesArchiveResponse = PrinciplesArchiveResponses[keyof PrinciplesArchiveResponses];
+
+export type DecisionsTemplatesListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/decisions/templates';
+};
+
+export type DecisionsTemplatesListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsTemplatesListError = DecisionsTemplatesListErrors[keyof DecisionsTemplatesListErrors];
+
+export type DecisionsTemplatesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: DecisionTemplateList;
+};
+
+export type DecisionsTemplatesListResponse = DecisionsTemplatesListResponses[keyof DecisionsTemplatesListResponses];
+
+export type DecisionsTemplatesGetData = {
+    body?: never;
+    path: {
+        /**
+         * Template Id
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/v1/decisions/templates/{template_id}';
+};
+
+export type DecisionsTemplatesGetErrors = {
+    /**
+     * No template has this id
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsTemplatesGetError = DecisionsTemplatesGetErrors[keyof DecisionsTemplatesGetErrors];
+
+export type DecisionsTemplatesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DecisionTemplate;
+};
+
+export type DecisionsTemplatesGetResponse = DecisionsTemplatesGetResponses[keyof DecisionsTemplatesGetResponses];
+
+export type DecisionsStartData = {
+    body: DecisionStartIn;
+    path?: never;
+    query?: never;
+    url: '/v1/decisions/start';
+};
+
+export type DecisionsStartErrors = {
+    /**
+     * No template has this id
+     */
+    404: unknown;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type DecisionsStartError = DecisionsStartErrors[keyof DecisionsStartErrors];
+
+export type DecisionsStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: DecisionStart;
+};
+
+export type DecisionsStartResponse = DecisionsStartResponses[keyof DecisionsStartResponses];
 
 export type DecisionsListData = {
     body?: never;

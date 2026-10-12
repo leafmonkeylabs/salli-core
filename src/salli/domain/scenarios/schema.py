@@ -246,6 +246,27 @@ class StopRecurringChange(Model):
     label: Label | None = None
 
 
+class SetAsideChange(Model):
+    """Part of each month's regular surplus kept in cash, rather than shared
+    out between cash and investments: saving towards an emergency fund or a
+    purchase. Each month from a day's month to another's (or for good), that
+    much of the surplus stays in cash first, and the share you invest is of
+    what is left. It can't keep more than the month's surplus: a month with
+    less keeps all of it and invests nothing. Fixed in each month's own
+    money, like a standing order."""
+
+    type: Literal["set_aside"]
+    monthly: PositiveAmount
+    from_: IsoDate = Field(alias="from")
+    to: IsoDate | None = None
+    label: Label | None = None
+
+    @model_validator(mode="after")
+    def _dates(self) -> Self:
+        _ordered(self.from_, self.to, "to is before from")
+        return self
+
+
 Change = Annotated[
     OneOffChange
     | RecurringChange
@@ -253,7 +274,8 @@ Change = Annotated[
     | LoanChange
     | ExtraDebtPaymentChange
     | InvestChange
-    | StopRecurringChange,
+    | StopRecurringChange
+    | SetAsideChange,
     Field(discriminator="type"),
 ]
 
@@ -265,6 +287,7 @@ CHANGE_TYPES = (
     "extra_debt_payment",
     "invest",
     "stop_recurring",
+    "set_aside",
 )
 
 
@@ -397,6 +420,7 @@ __all__ = [
     "OneOffChange",
     "RecurringChange",
     "Scenario",
+    "SetAsideChange",
     "StopRecurringChange",
     "inline_json_schema",
     "json_schema",

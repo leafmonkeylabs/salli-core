@@ -30,6 +30,9 @@ does the baseline's own, or a move that goes where it says:
   moved, put back on each day it would have fallen, from `from` on. Only a
   flow of income or spending: a transfer between the user's own accounts is
   no part of what they earn or spend.
+- `set_aside`: neither: it moves no money of its own, but keeps that much of
+  each month's regular surplus in cash from `from`'s month to `to`'s, before
+  the share invested is taken from the rest (`timelines.KeptInCash`).
 
 Every date in a change is on or after the as-of date; every account is a
 cash account held in the base currency; every amount fits the currency's
@@ -134,7 +137,8 @@ class AppliedChange:
     #: A loan's first payment's month.
     first_payment: str | None = None
     #: A recurring change's, an income change's or a stop's effect a month,
-    #: in today's money and the base currency (money in positive).
+    #: in today's money and the base currency (money in positive); what a
+    #: set-aside keeps in cash a month.
     monthly: Decimal | None = None
     #: Whether it lasts for good (a recurring change or an income change
     #: with no end; a stop).
@@ -272,6 +276,7 @@ class _Translator:
         invested: list[tuple[str, Decimal]] = []
         loans: list[BaselineDebt] = []
         extra: list[timelines.ExtraPayment] = []
+        kept: list[timelines.KeptInCash] = []
         applied: list[AppliedChange] = []
         spending = Decimal(0)  # the change in spending for good, a month
         debts = {d.debt_id: d for d in self.baseline.debts}
@@ -407,6 +412,25 @@ class _Translator:
                         )
                         invested.append((change.date.isoformat(), self.money(change.amount)))
                     applied.append(AppliedChange(i, change.type, change.label))
+                case schema.SetAsideChange():
+                    self.date(here("from"), change.from_)
+                    self.amount(here("monthly"), change.monthly)
+                    kept.append(
+                        timelines.KeptInCash(
+                            change.from_.isoformat()[:7],
+                            change.to.isoformat()[:7] if change.to else None,
+                            self.money(change.monthly),
+                        )
+                    )
+                    applied.append(
+                        AppliedChange(
+                            i,
+                            change.type,
+                            change.label or "Set aside in cash",
+                            monthly=self.money(change.monthly),
+                            for_good=change.to is None,
+                        )
+                    )
                 case schema.StopRecurringChange():
                     self.date(here("from"), change.from_)
                     stop, stopped, less = self.stop(here("key"), change)
@@ -439,6 +463,7 @@ class _Translator:
                 loans=tuple(loans),
                 extra=tuple(extra),
                 regular=tuple(regular),
+                kept=tuple(kept),
             ),
             tuple(applied),
             scenario_spending,
@@ -851,14 +876,23 @@ def _debts(baseline: Baseline, base: Outlook, mine: Outlook) -> DebtsResult:
     )
 
 
-def _resilience(baseline: Baseline, base: Outlook, mine: Outlook) -> Resilience:
+def spending_basis(
+    baseline: Baseline,
+) -> tuple[Literal["essential", "all"], Decimal] | tuple[None, None]:
+    """The monthly spending emergency-fund months are counted in: essential
+    spending when the spending carries need tags, all of it otherwise; none
+    without spending to go by."""
     flows = baseline.flows
-    basis: Literal["essential", "all"] | None
     if flows.essential is not None and flows.essential > 0:
-        basis, spend = "essential", flows.essential
-    elif flows.expenses > 0:
-        basis, spend = "all", flows.expenses
-    else:
+        return "essential", flows.essential
+    if flows.expenses > 0:
+        return "all", flows.expenses
+    return None, None
+
+
+def _resilience(baseline: Baseline, base: Outlook, mine: Outlook) -> Resilience:
+    basis, spend = spending_basis(baseline)
+    if basis is None or spend is None:
         return Resilience(None, None, Figure(None, None), Figure(None, None))
 
     def months(value: Decimal) -> Decimal:
@@ -885,6 +919,80 @@ def _fi(base: Outlook, mine: Outlook) -> FiResult:
         monthly_spending=Figure(base.spending, mine.spending),
         fi_month=MonthFigure(base.fi.month, mine.fi.month),
         months_gained=gained,
+    )
+
+
+# ── Cash covering a target ───────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CoverTarget:
+    """When cash comes to cover a number of months of spending, under the
+    baseline and under a scenario: read from the monthly timeline, never
+    worked out from a rate of saving."""
+
+    target_months: Decimal
+    #: The spending counted in (resilience's): "essential" when tagged,
+    #: "all" otherwise; None without spending to go by.
+    basis: Literal["essential", "all"] | None
+    monthly_spending: Decimal | None
+    #: The target in cash: `target_months` of that spending (as shown, to
+    #: the currency's smallest unit), in today's money.
+    target: Decimal | None
+    #: The months the cash covers on the as-of date.
+    now: Decimal | None
+    #: The first month at whose end cash, in today's money, is at or above
+    #: the target (the as-of month when it already is); None when it isn't
+    #: within 50 years, or there is no spending to count in.
+    reached: MonthFigure
+    #: The same in months from the as-of month (0: already, or by its end).
+    months: tuple[int | None, int | None]
+
+
+def months_to_cover(
+    points: Sequence[timelines.MonthPoint], target: Decimal, currency: str
+) -> int | None:
+    """Months from the as-of month to the first month-end at which cash, in
+    today's money and to the currency's smallest unit, is at least `target`:
+    0 when it is already (the as-of point) or is by the as-of month's end."""
+    if not points:
+        return None
+    q = quantum(currency)
+    if points[0].cash.quantize(q, rounding=ROUND_HALF_UP) >= target:
+        return 0
+    for i, point in enumerate(points[1:]):
+        if point.cash.quantize(q, rounding=ROUND_HALF_UP) >= target:
+            return i
+    return None
+
+
+def cover_target(
+    baseline: Baseline, base: Outlook, mine: Outlook, target_months: Decimal
+) -> CoverTarget:
+    """When cash covers `target_months` of spending under the baseline
+    (`base`) and under a scenario (`mine`), each on its own monthly timeline
+    to 50 years. The target is in today's money, as the timeline's cash is,
+    so inflation doesn't move it."""
+    basis, spend = spending_basis(baseline)
+    if basis is None or spend is None:
+        return CoverTarget(
+            target_months, None, None, None, None, MonthFigure(None, None), (None, None)
+        )
+    q = quantum(baseline.currency)
+    # Of the monthly spending as shown, so the target is the product of the
+    # two figures a reader sees.
+    shown = spend.quantize(q, rounding=ROUND_HALF_UP)
+    target = (target_months * shown).quantize(q, rounding=ROUND_HALF_UP)
+    b = months_to_cover(base.monthly.points, target, baseline.currency)
+    s = months_to_cover(mine.monthly.points, target, baseline.currency)
+    return CoverTarget(
+        target_months=target_months,
+        basis=basis,
+        monthly_spending=shown,
+        target=target,
+        now=baseline.cash / spend,
+        reached=MonthFigure(fi.fi_month(baseline, b), fi.fi_month(baseline, s)),
+        months=(b, s),
     )
 
 

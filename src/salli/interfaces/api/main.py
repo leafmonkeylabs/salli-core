@@ -43,6 +43,7 @@ from salli.application.services.user_profile_service import BaseCurrencyLockedEr
 from salli.config import database_url, get_settings
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
+from salli.domain.decisions.templates import TemplateError, UnknownTemplate
 from salli.domain.llm import LLMError
 from salli.domain.scenarios import ScenarioError
 from salli.domain.secrets import redact
@@ -366,6 +367,22 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(DecisionNotFound)
     async def decision_not_found_handler(request: Request, exc: DecisionNotFound) -> JSONResponse:
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
+
+    # Answers to a decision template Salli can't build options from, each
+    # problem with its path (`answers.price`); and a template that doesn't
+    # exist.
+    @app.exception_handler(TemplateError)
+    async def template_error_handler(request: Request, exc: TemplateError) -> JSONResponse:
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid-answers",
+            "Not answers Salli can build options from",
+            [{"loc": ["body", *_path_parts(p.path)], "msg": p.message} for p in exc.problems],
+        )
+
+    @app.exception_handler(UnknownTemplate)
+    async def unknown_template_handler(request: Request, exc: UnknownTemplate) -> JSONResponse:
         return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
 
     @app.exception_handler(KeyError)

@@ -49,6 +49,7 @@ from salli.application.services.scenario_service import ScenarioService
 from salli.application.services.subscription_service import SubscriptionService
 from salli.application.services.tax_rule_service import TaxRuleService
 from salli.application.services.tax_service import TaxService
+from salli.application.services.template_service import TemplateService
 from salli.application.services.user_profile_service import UserProfileService
 from salli.application.unit_of_work import UnitOfWork
 from salli.config import Settings, auth_can_hold_secrets
@@ -106,6 +107,8 @@ class Services:
     # append-only decision journal with its reviews (domain/decisions).
     principles: PrincipleService
     decisions: DecisionService
+    # Common decisions as a few questions and the options they build.
+    templates: TemplateService
     bank_connections: BankConnectionService
     # Not optional any more: availability is per-user, decided at call time.
     entry_parse: EntryParseService
@@ -190,6 +193,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     scenarios = ScenarioService(uow_factory, baselines=baseline)
     principles = PrincipleService(uow_factory, scenarios)
     decisions = DecisionService(uow_factory, scenarios, principles)
+    decision_templates = TemplateService(scenarios, principles)
     portfolio = PortfolioService(uow_factory, fx=fx)
     subscription = SubscriptionService(uow_factory)
     insurance = InsuranceService(uow_factory)
@@ -304,6 +308,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         scenarios=scenarios,
         principles=principles,
         decisions=decisions,
+        templates=decision_templates,
         bank_connections=_build_bank_connections(settings, uow_factory, parsing),
         entry_parse=entry_parse,
         usage=extensions.usage_meter,

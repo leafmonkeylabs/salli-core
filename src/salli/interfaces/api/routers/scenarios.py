@@ -89,6 +89,7 @@ class ScenarioChange(BaseModel):
         "extra_debt_payment",
         "invest",
         "stop_recurring",
+        "set_aside",
     ]
     label: str
     #: A loan's id in the debts below, or an extra payment's debt.
@@ -98,7 +99,8 @@ class ScenarioChange(BaseModel):
     #: A loan's first payment's month.
     first_payment: Month | None
     #: A recurring change's, an income change's or a stop's effect a month,
-    #: in today's money (money in positive).
+    #: in today's money (money in positive); what a set-aside keeps in cash
+    #: a month.
     monthly: Amount | None
     #: Whether it lasts for good.
     for_good: bool | None
