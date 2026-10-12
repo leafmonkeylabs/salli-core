@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from salli.application.fx import published_rate
 from salli.application.ports import FxRatePort
+from salli.application.services.tax_service import ADD_RULES
 from salli.domain.baseline import (
     Baseline,
     BaselineInputs,
@@ -116,16 +117,6 @@ def covering_rule_sets(
     return found
 
 
-#: What to do about having no tax rules to compute with (as `TaxService`
-#: says it: `tax_service.ADD_RULES`).
-_ADD_RULES = (
-    "Add your tax rules with `salli tax rules create <file>` or "
-    "`salli tax rules import <file|url>`, or ask your AI agent to research them "
-    "(its `research_tax_rules` prompt drafts a rule set for you to review); then "
-    "activate them yourself with `salli tax rules activate <set>`."
-)
-
-
 def _ref(row: dict[str, Any], version: dict[str, Any], year: dict[str, Any]) -> RuleSetRef:
     return RuleSetRef(
         country=str(row["country"]),
@@ -171,7 +162,7 @@ def no_tax_rules(residency: str | None, sets: Iterable[dict[str, Any]]) -> str:
     if not residency:
         return (
             "Salli doesn't know where you're taxed. Set your tax residency "
-            "(`salli profile set --tax-residency <country>`), or name the country. " + _ADD_RULES
+            "(`salli profile set --tax-residency <country>`), or name the country. " + ADD_RULES
         )
     place = country_phrase(residency)
     ours = [s for s in sets if s.get("country") == residency]
@@ -181,7 +172,7 @@ def no_tax_rules(residency: str | None, sets: Iterable[dict[str, Any]]) -> str:
             f"You have tax rules for {place} ({names}), but none is active yet. Review and "
             "activate one yourself: `salli tax rules activate <set>`."
         )
-    return f"You have no tax rules for {place}. " + _ADD_RULES
+    return f"You have no tax rules for {place}. " + ADD_RULES
 
 
 def _money(value: Decimal | None, currency: str) -> str | None:
