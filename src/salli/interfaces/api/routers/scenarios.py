@@ -139,7 +139,7 @@ class ScenarioHoldingTrade(BaseModel):
     lots: list[ScenarioLotSold]
     #: The lot an invest opens, which a later sale can name.
     lot_id: str | None
-    #: The investment account a sale comes out of.
+    #: The investment account the holding sits in: a sale comes out of it.
     account_id: str | None
 
 

@@ -1564,6 +1564,11 @@ export const holdingsGet = <ThrowOnError extends boolean = false>(options: Optio
 
 /**
  * Update Holding
+ *
+ * Change a holding: what you leave out stays as it is. `account_id`
+ * links it to the investment account that holds it in your ledger (404 for
+ * an account that isn't yours; 422 for one that isn't an investment
+ * account), and null unlinks it.
  */
 export const holdingsUpdate = <ThrowOnError extends boolean = false>(options: Options<HoldingsUpdateData, ThrowOnError>): RequestResult<HoldingsUpdateResponses, HoldingsUpdateErrors, ThrowOnError> => (options.client ?? client).patch<HoldingsUpdateResponses, HoldingsUpdateErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

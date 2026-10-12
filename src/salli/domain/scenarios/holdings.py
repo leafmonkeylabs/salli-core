@@ -170,7 +170,7 @@ class Trade:
     lots: tuple[LotSold, ...] = ()
     #: The lot an invest opens.
     lot_id: str | None = None
-    #: The investment account a sale comes out of.
+    #: The investment account the holding sits in (a sale comes out of it).
     account_id: str | None = None
 
     @property
@@ -305,6 +305,7 @@ def work_out(baseline: Baseline, asked: Sequence[Asked], real_return: Decimal) -
             "grown": factor != 1,
             "stale": _stale(baseline, h),
             "fees": a.fees,
+            "account_id": h.account_id,
         }
         if a.kind == "invest":
             assert a.amount is not None
@@ -376,7 +377,6 @@ def work_out(baseline: Baseline, asked: Sequence[Asked], real_return: Decimal) -
             fees_native=fees_native,
             gross=gross,
             gross_base=gross * rate,
-            account_id=h.account_id,
             **common,  # type: ignore[arg-type]
         )
         pending.append(_Pending(a.index, "sell", h, a.day, tx, trade, path))
