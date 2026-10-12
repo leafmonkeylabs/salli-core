@@ -90,8 +90,10 @@ checked before Salli uses them.
 - **CLI-first.** Everything the API does, `salli` does from the terminal, with
   `--json` for scripts. `salli skills install` teaches your agent to drive it.
 - **A console in the browser.** `salli ui` opens the server's own pages: where
-  you stand, as `salli status` shows it, in a browser, on a phone too. It
-  computes nothing; every figure is the server's.
+  you stand, as `salli status` shows it, and the decision lab (templates,
+  scenarios drawn against your baseline, your principles, your journal), in a
+  browser, on a phone too. It computes nothing and ranks nothing; every
+  figure is the server's.
 
 > [!IMPORTANT]
 > **Not tax advice.** Salli computes tax from your own records, with rules you
@@ -112,7 +114,7 @@ Salli comes in three parts:
   server's machine or any other.
 - **The console** ([`packages/console`](packages/console/README.md)) is the
   same in a browser, served by the server at `/console`: in this release,
-  where you stand (Home) and your settings.
+  where you stand (Home), the decision lab and your settings.
 
 The REST API, the MCP server and any app you build on the
 [OpenAPI document](openapi/openapi.json) are clients of the same services.

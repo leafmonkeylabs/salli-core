@@ -43,8 +43,9 @@ To serve a build from a source checkout, point the server at it:
 | What | Where | Run |
 |---|---|---|
 | Components and pages, on fixtures the server writes | `test/` | `npm test` |
-| The fixtures themselves | `test/fixtures/home.ts`, from `tests/console_fixtures.py` | `uv run python -m tests.console_fixtures` (write), `--check` |
-| Accessibility (axe), visual regression, CSP and request checks | `e2e/console.spec.ts` | `npm run e2e` (in the Playwright image for screenshots; see below) |
+| The fixtures themselves | `test/fixtures/home.ts` and `lab.ts`, from `tests/console_fixtures.py` | `uv run python -m tests.console_fixtures` (write), `--check` |
+| Nothing in the decision lab ranks | `test/lab-guards.test.tsx`: `tests/guardrails.py`'s words over the lab's catalogue and its rendered pages | `npm test` |
+| Accessibility (axe), visual regression, CSP and request checks | `e2e/console.spec.ts`, `e2e/lab.spec.ts` | `npm run e2e` (in the Playwright image for screenshots; see below) |
 | End to end against `compose.yaml` | `e2e/compose.spec.ts` | `npm run e2e:compose` |
 | The budget | `scripts/budget.mjs` | part of `npm run build` |
 
@@ -59,7 +60,8 @@ docker run --rm --ipc=host -v "$PWD":/work -w /work/packages/console \
 
 ## Rules
 
-- **Every word in `src/strings.ts`**, in the brand's voice
+- **Every word in the catalogue**, `src/strings.ts` (the decision lab's in
+  `src/lab-strings.ts`, which loads with its pages), in the brand's voice
   ([docs/brand/README.md](../../docs/brand/README.md)): British English,
   sentence case, no exclamation marks, nothing that ranks or urges.
 - **Text is rendered only through React.** No `innerHTML`, no
