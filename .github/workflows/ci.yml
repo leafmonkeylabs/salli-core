@@ -92,6 +92,9 @@ jobs:
           src/salli/domain/notifications src/salli/adapters/db/notifications.py
           src/salli/application/services/notification_service.py
           src/salli/interfaces/api/routers/notifications.py
+          src/salli/interfaces/api/console.py src/salli/interfaces/api/routers/meta.py
+          src/salli/application/services/mcp_oauth_service.py
+          src/salli/interfaces/api/routers/mcp_oauth.py
       - name: Tests
         # Includes the contract tests: the OpenAPI document matches the app, and
         # salli-core carries no billing vocabulary.
