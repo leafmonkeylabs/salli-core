@@ -66,6 +66,7 @@ async def test_the_templates_are_listed_in_brief(client, uow):
         "big-change",
         "borrow",
         "emergency-fund",
+        "rent-or-buy",
     ]
     assert set(listed[0]) == {"schema", "id", "title", "summary", "builds"}
     assert_never_ranks(r.json())
@@ -96,7 +97,7 @@ async def test_a_templates_defaults_are_the_callers_own(client, uow):
     assert schema["into"]["enum"] == ["chk", "sav"]
     assert_never_ranks(borrow)
 
-    r = await client.get("/v1/decisions/templates/rent-or-buy", headers=AUTH)
+    r = await client.get("/v1/decisions/templates/lease-or-own", headers=AUTH)
     assert r.status_code == 404
     assert "afford-it" in r.json()["detail"]
 

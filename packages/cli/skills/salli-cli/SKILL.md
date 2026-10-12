@@ -76,6 +76,7 @@ principles.
     salli decide afford-it --set price=2400 --set instalment_months=12 \
       --set instalment_rate=6.9% --json            # or --answers answers.json
     salli decide emergency-fund --set target_months=6 --set set_aside=200,500 --json
+    salli decide rent-or-buy --answers home.json --json  # price, deposit, mortgages, costs, rent
 
 Ask the user each question in plain words. A question with a default
 (`default.note` says where it comes from: their only debt, what it owes,
@@ -85,6 +86,15 @@ be answered by them: never invent a price, a rate or a target. Lists
 comparison (as `salli compare` gives it), their principles' checks, the
 time to a cash target for an emergency fund (`cover`), and `record`: what
 recording needs besides their own choice, reasons and review date.
+
+Rent or buy asks for the price, the deposit, one to three mortgages, buying,
+owning and selling costs (0 is an answer to each) and the rent (one of
+their recurring payments, `rent`, or `rent_monthly`). Its two growths
+beyond inflation (`rent_growth`, `home_growth`) default to 0 as a labelled
+placeholder, not a forecast: ask for their own view, never supply one, and
+quote the `asset_growth` break-even (the growth at which the answer turns),
+`level` (when each way of buying draws level with renting) and its notes on
+what the comparison rests on.
 
 When no template fits, build each option as a scenario and let Salli run it.
 

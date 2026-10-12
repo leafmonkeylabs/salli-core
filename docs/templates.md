@@ -2,7 +2,7 @@
 
 A template is a common decision, packaged as a few questions and the
 options your answers build: can I afford it, debt or invest, a windfall, a
-big recurring change, borrowing, an emergency fund. Salli builds each option
+big recurring change, borrowing, an emergency fund, rent or buy. Salli builds each option
 as a [scenario](scenarios.md), runs every one on your
 [baseline](baseline.md), compares them and checks them against your
 [principles](decisions.md#principles). It ranks none of them. Templates are
@@ -13,6 +13,7 @@ nothing about which option to take.
     salli decide afford-it
     salli decide afford-it --set price=2400 --set instalment_months=12 --set instalment_rate=6.9%
     salli decide emergency-fund --set target_months=6 --set set_aside=200,500 --json
+    salli decide rent-or-buy --answers home.json --set home_growth=0.5%
 
 Over the API: `GET /v1/decisions/templates`, `GET
 /v1/decisions/templates/{id}` and `POST /v1/decisions/start`. Over MCP:
@@ -30,6 +31,7 @@ it.
 | `big-change` | what it is, when it starts and ends; how much more (or less) you would spend and take home each month, and whether that pay is before tax (its tax role); anything paid once at the start | **As things are**, and **the change**: its costs and income each month, and the one-off at the start. The comparison shows the cash timing: the low point and when, and the most a new cost could be with cash staying above zero. |
 | `borrow` | new borrowing or refinancing a debt; how much (to refinance, what the debt owes now); when; the account; whether the money is spent on the day; any fee; one to four loans, each a rate and a term | **Each loan**: its payment, total interest and effect on cash and FI. To refinance, the new loan's money pays the old debt off in its first month. **Don't borrow**, or **Keep the debt**: your baseline. |
 | `emergency-fund` | how many months of spending you want your cash to cover; one to four amounts you could set aside each month; from when, and for how long | **As things are**, and **Set aside each amount**: kept in cash out of your monthly surplus rather than invested. With the months your cash covers now, and when it would cover your target. |
+| `rent-or-buy` | the price, when you would buy, your deposit, the account; one to three mortgages, each a rate and a term; buying costs, owning costs a month and selling costs (0 is an answer to each); your rent (one of your recurring payments, or an amount); how fast you expect the rent and the home's value to grow beyond inflation | **Keep renting**: your rent goes on, stated as a recurring cost rising at the rent's growth. **Buy** (once per mortgage): the home bought from cash, the mortgage, buying and owning costs, and the rent stopped. With the month buying draws level with renting, and the house-price growth at which the answer turns ([below](#rent-or-buy)). |
 
 Every template also asks how many years the long-run figures run (20 unless
 you say).
@@ -42,7 +44,7 @@ you say).
 | Field | What it is |
 |---|---|
 | `id` | What the answer is called. |
-| `type` | `amount` (above zero, in your base currency, a decimal string), `signed_amount` (`"+450"` more, `"-200"` less), `months` and `years` (whole numbers), `number` (a decimal string, like months of spending), `rate` (a yearly fraction: `"0.069"` is 6.9%), `date` (`YYYY-MM-DD`, not before the as-of date), `choice`, `debt`, `account` and `holding` (one of your own, by id), `tax_role` (an `income` or `deduction` role of your active tax rules, by key), `text`, and the lists `amounts`, `loans` and `splits`. |
+| `type` | `amount` (above zero, in your base currency, a decimal string), `amount_or_zero` (the same, where `"0"` is an answer), `signed_amount` (`"+450"` more, `"-200"` less), `months` and `years` (whole numbers), `number` (a decimal string, like months of spending), `rate` (a yearly fraction: `"0.069"` is 6.9%), `growth` (a signed yearly fraction beyond inflation: `"0.01"` is 1% a year more than prices, `"-0.005"` half a percent less), `date` (`YYYY-MM-DD`, not before the as-of date), `choice`, `debt`, `account` and `holding` (one of your own, by id), `recurring` (one of your recurring payments out, by its key: `salli insights recurring`), `tax_role` (an `income` or `deduction` role of your active tax rules, by key), `text`, and the lists `amounts`, `loans` and `splits`. |
 | `required` | Whether it must be answered when it has no default. |
 | `when` | When it is asked: once another question is answered, or answered so. |
 | `default` | What it is when you leave it out, where that comes from (`source`) and a sentence saying so (`note`). |
@@ -74,6 +76,16 @@ shows the units it buys at the holding's price
 ([scenarios](scenarios.md#holdings)); left out, the money goes into your
 investments as a whole, as before. No template sells a holding: write a
 `sell` change yourself, or use `salli whatif --sell`.
+
+**One exception, labelled:** rent-or-buy's two growths beyond inflation
+(`rent_growth`, `home_growth`) default to 0 with the source `placeholder`
+and the note "a placeholder, not a forecast: set your own view". 0 beyond
+inflation is not a forecast: it is how the baseline already treats every
+other asset (it keeps its value in today's money) and every recurring
+amount. Asking for a forecast of your local market before showing anything
+would invite a guess presented as a fact; instead the result lists the
+placeholders (`asset_growth`, `rent_growth`) and gives the break-even growth
+beside them, the figure your own view must beat.
 
 ## Tax
 
@@ -107,7 +119,8 @@ your tax rules' questions (`tax_answers`), and returns
 | `comparison` | The options side by side, the trade between each two, the sensitivity to the real return and the break-evens, exactly as [comparing options](scenarios.md#comparing-options) gives them. |
 | `principles` | Which of your principles the baseline and each option keep, break or can't tell, with the figures each read, as [checking](decisions.md#checking) gives them. |
 | `cover` | For an emergency fund: your target in cash (the months times your monthly spending as shown, in today's money), the months your cash covers now, and the first month at whose end cash covers the target, under your baseline and each option. |
-| `placeholders`, `is_stale`, `data_as_of` | What the figures rest on, and how fresh your ledger is. |
+| `level` | For rent or buy: for each way of buying, the first month-end from the purchase on from which its net worth is at least keeping renting's at every month-end to the horizon (`month`, and `months` from the purchase), with the difference then and at the horizon. |
+| `placeholders`, `is_stale`, `data_as_of` | What the figures rest on, any option's (an asset's growth, `asset_growth`; tax) and the template's own (a rent's growth, `rent_growth`), and how fresh your ledger is. |
 | `record` | What recording needs besides your own: the question, each option's scenario with its as-of date, and the labels, one of which you choose. |
 
 It stores nothing. Recording is the [journal's](decisions.md#the-decision-journal)
@@ -126,6 +139,69 @@ With all of your surplus invested (the placeholder), cash doesn't grow as
 things are, so the baseline never gets there; set what you really invest
 (`surplus_invested`) before reading it.
 
+## Rent or buy
+
+Rent or buy is laid out as consequences, never as an answer. Both options
+state the rent the same way: keeping renting stops the ledger's rent from
+the day you would buy and puts it back as a recurring cost from the day it
+is next due, rising at the rent's growth (a rent the ledger shows every two
+weeks or twice a month goes back a month, at its monthly equivalent); with
+no rent in the ledger, the amount you give is added as a new cost. Each way
+of buying is a scenario of its own: the home bought from cash on the day
+(an [`asset`](scenarios.md#changes), growing at the home's growth and
+counted at its value less its selling costs), the mortgage (an ordinary
+`loan` of the price less the deposit, into the same account), buying costs
+once, owning costs each month in today's money, and the rent stopped.
+
+So each option's FI number moves honestly: buying stops the rent and adds
+the owning costs to the spending to live on, while the home itself funds no
+withdrawals and the deposit no longer sits in cash.
+
+What it reads, beside the comparison:
+
+- **When buying draws level** (`level`): the first month-end from which
+  buying's net worth is at least renting's, and stays at least level, to the
+  horizon: how long the home must be kept, on these assumptions. Read from
+  the monthly timelines, never solved.
+- **The house-price growth at which buying ends level** (the
+  `asset_growth` break-even): the lowest growth beyond inflation, between
+  -5% and 10% a year, at which buying ends the horizon with at least
+  renting's net worth. "Do you expect your home to grow more than 1.3% a
+  year beyond inflation?" is a question you can answer, or research with
+  sources.
+- **The mortgage rate at which they cost the same** (the `loan_rate`
+  break-even), as for any loan.
+
+What it rests on, said plainly in its notes:
+
+- the home's growth and the rent's are your view, or a labelled 0% beyond
+  inflation, never a forecast: the break-even is the figure that matters;
+- each mortgage's rate is held fixed for its term: resets aren't modelled;
+- a home is one asset, illiquid and undiversified, and the comparison
+  doesn't price that risk;
+- owning costs are what you give: leaving them low flatters buying;
+- tax on buying, owning or selling a home comes only from your own rules:
+  a tax on buying is a buying cost you give, and nothing else about a
+  home's tax is modelled;
+- Salli knows nothing about any local property market, and research behind
+  your figures needs its sources;
+- the home counts at what it would fetch, its value less its selling
+  costs, so buying starts behind by them.
+
+### Reading one
+
+Rent of 1,000.00 a month; a home for 200,000.00 with 50,000.00 down and a
+mortgage of 150,000.00 at 0% over 120 months (1,250.00 a month), no buying
+or owning costs, no growth, selling costs of 3%; none of the surplus
+invested and no inflation. At the end of the first month, buying is
+5,000.00 behind renting: cash 50,000.00 lower but for the month's rent not
+paid (49,000.00), 150,000.00 owed, the home counted at 194,000.00. Each month
+after, 250.00 more leaves cash (1,250.00 paid, 1,000.00 of rent not) and
+1,250.00 less is owed: 1,000.00 a month. So buying draws level at the end
+of the sixth month and stays ahead; without selling costs it is ahead from
+the first. Over one year the house-price growth at which it ends level is
+-3.42%; over twenty, buying ends ahead at every growth from -5% to 10%.
+
 ## Setting aside
 
 `afford-it`'s waiting and the emergency fund keep part of your monthly
@@ -138,7 +214,9 @@ show what it costs.
 
 ## Not built yet
 
-- A rent-or-buy template (phase 3).
+- Selling the home on a day, a loan repaid early, shared ownership,
+  offset or interest-only mortgages, moving costs, or a mortgage's interest
+  as a tax deduction.
 - A tax role on a template's costs (a deductible cost, a pension
   contribution): write the scenario yourself with the tag, for now.
 - Stopping a set-aside once cash covers the target: give it a number of

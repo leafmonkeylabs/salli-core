@@ -3740,6 +3740,7 @@ export type DecisionStart = {
     comparison: ScenarioComparison;
     principles: StartPrinciples;
     cover: CoverReading | null;
+    level: LevelReading | null;
     /**
      * Placeholders
      */
@@ -6373,6 +6374,64 @@ export type JsonValue = unknown;
  */
 export type LatestTaxComputation = {
     result: TaxComputation | null;
+};
+
+/**
+ * LevelOption
+ */
+export type LevelOption = {
+    /**
+     * Option
+     */
+    option: string;
+    /**
+     * Month
+     */
+    month: string | null;
+    /**
+     * Months
+     */
+    months: number | null;
+    /**
+     * Net Worth Then
+     */
+    net_worth_then: string | null;
+    /**
+     * Net Worth At Horizon
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net_worth_at_horizon: string;
+};
+
+/**
+ * LevelReading
+ *
+ * When each option draws level with one (rent or buy: each way of
+ * buying against keeping renting), read from the monthly timelines; not
+ * solved, and not a ranking.
+ */
+export type LevelReading = {
+    /**
+     * Against
+     */
+    against: string;
+    /**
+     * From
+     */
+    from: string;
+    /**
+     * To
+     */
+    to: string;
+    /**
+     * Options
+     */
+    options: Array<LevelOption>;
+    /**
+     * Says
+     */
+    says: string;
 };
 
 /**
@@ -10377,7 +10436,7 @@ export type StartAnswer = {
     /**
      * Source
      */
-    source: 'given' | 'as_of' | 'next_month' | 'your_debts' | 'your_principles' | 'salli';
+    source: 'given' | 'as_of' | 'next_month' | 'your_debts' | 'your_principles' | 'salli' | 'placeholder';
     /**
      * Note
      */
@@ -12434,7 +12493,7 @@ export type TemplateDefault = {
     /**
      * Source
      */
-    source: 'as_of' | 'next_month' | 'your_debts' | 'your_principles' | 'salli';
+    source: 'as_of' | 'next_month' | 'your_debts' | 'your_principles' | 'salli' | 'placeholder';
     /**
      * Note
      */
@@ -12452,7 +12511,7 @@ export type TemplateQuestion = {
     /**
      * Type
      */
-    type: 'amount' | 'signed_amount' | 'months' | 'years' | 'number' | 'rate' | 'date' | 'choice' | 'debt' | 'account' | 'holding' | 'tax_role' | 'text' | 'amounts' | 'loans' | 'splits';
+    type: 'amount' | 'amount_or_zero' | 'signed_amount' | 'months' | 'years' | 'number' | 'rate' | 'growth' | 'date' | 'choice' | 'debt' | 'account' | 'holding' | 'recurring' | 'tax_role' | 'text' | 'amounts' | 'loans' | 'splits';
     /**
      * Prompt
      */

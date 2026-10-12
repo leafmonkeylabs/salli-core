@@ -238,7 +238,7 @@ export async function readScenario(app: App, path: string): Promise<Record<strin
 // ── Showing a result ──────────────────────────────────────────────────────────
 
 /** A change with its sign: "+120.00", "-2,400.00", "0.00". */
-function change(out: Output, delta: string | null | undefined, currency: string): string {
+export function change(out: Output, delta: string | null | undefined, currency: string): string {
   if (delta === null || delta === undefined) return '—';
   const text = out.amount(delta, currency);
   return /^-/.test(delta) || /^0*(\.0*)?$/.test(delta.replace(/^-/, '')) ? text : `+${text}`;

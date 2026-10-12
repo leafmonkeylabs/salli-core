@@ -429,7 +429,7 @@ Nudges are quiet, useful and rare:
    - A rent-or-buy template.
    - The notification port.
    - **Status:** designed and approved (2026-10-12): [the phase 3 design](decision-lab-phase-3.md)
-     (sub-phases 3a to 3d, and decisions 6 to 31). 3a, 3b and 3d are built.
+     (sub-phases 3a to 3d, and decisions 6 to 31). All four are built.
    - **As built in 3a:** tax-aware scenarios
      ([docs/scenarios.md](../scenarios.md#tax); the phase 3 design's "As
      built (3a)" notes): changes tagged with a tax role run through the
@@ -446,6 +446,12 @@ Nudges are quiet, useful and rare:
      return; no price forecast; no template picks a holding; the guardrail
      allows the person's own holdings and forbids suggesting or comparing
      any. The engine's version stays 4.
+   - **As built in 3c:** the rent-or-buy template
+     ([docs/templates.md](../templates.md#rent-or-buy); the phase 3
+     design's "As built (3c)" notes): an `asset` change counted at its value
+     less its selling costs, `real_growth` on `recurring`, other assets by
+     month, the house-price growth break-even and the month buying draws
+     level. No figure changed, so the engine's version stays 4.
    - **As built in 3d:**
      - **The port** is as designed: `Notifier`, `Notification`,
        `NotificationItem` and `Delivery` in `application/ports.py` (the two

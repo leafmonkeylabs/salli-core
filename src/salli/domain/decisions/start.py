@@ -15,6 +15,10 @@ template built (`templates.build`) and runs them as any options are run:
   emergency fund): the month cash, in today's money, first covers the
   target under the baseline and under each option, read from the monthly
   timeline (`engine.cover_target`);
+- **when an option draws level**, for a template that asks (rent or buy):
+  the first month-end, from the purchase on, from which each option's net
+  worth is at least the other's (keeping renting's) at every month-end to
+  the horizon, read from the monthly timelines (`comparison.level_from`);
 - **what recording needs**: the question (a suggestion, the person's to
   change), each option's scenario with its as-of date, and the labels one
   of which is chosen. Recording stays `record_decision` (or `POST
@@ -31,10 +35,11 @@ from collections.abc import Sequence
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from salli.domain.baseline import timelines
 from salli.domain.baseline.models import Baseline
 from salli.domain.decisions import figures as figure_set
 from salli.domain.decisions import journal, review
-from salli.domain.decisions.templates import Answers, Built, Template, answers_view
+from salli.domain.decisions.templates import Answers, Built, Level, Template, answers_view
 from salli.domain.scenarios import comparison, engine, views
 
 START_SCHEMA = "salli.decision-start/1"
@@ -86,6 +91,61 @@ def _cover_view(
             "null when it doesn't within 50 years. Cash covers `now` months today."
         ),
     }
+
+
+def _level_view(
+    baseline: Baseline,
+    level: Level,
+    horizon_years: int,
+    options: Sequence[tuple[str, engine.Outlook]],
+) -> dict[str, Any]:
+    by_label = dict(options)
+    against = by_label[level.against].monthly.points
+    points = 12 * horizon_years + 2
+    last = against[points - 1].month
+    cur = baseline.currency
+    readings: list[dict[str, Any]] = []
+    for label, mine in options:
+        if label == level.against:
+            continue
+        found = comparison.level_from(
+            mine.monthly.points[:points], against[:points], level.from_month, last, cur
+        )
+        other = None if found is None else next(p for p in against if p.month == found.month)
+        end_mine, end_other = mine.monthly.points[points - 1], against[points - 1]
+        readings.append(
+            {
+                "option": label,
+                "month": None if found is None else found.month,
+                "months": None
+                if found is None
+                else timelines.month_index(found.month) - timelines.month_index(level.from_month),
+                "net_worth_then": None
+                if found is None or other is None
+                else views.money_text(found.net_worth - other.net_worth, cur),
+                "net_worth_at_horizon": views.money_text(
+                    end_mine.net_worth - end_other.net_worth, cur
+                ),
+            }
+        )
+    return {
+        "against": level.against,
+        "from": level.from_month,
+        "to": last,
+        "options": readings,
+        "says": (
+            f"The first month-end from {level.from_month} on from which the option's net worth, "
+            f"in today's money, is at least {level.against}'s at every month-end to {last}; "
+            "null when it is behind at the horizon. `months` counts from the purchase's month, "
+            f"and the net worth figures are the option's less {level.against}'s."
+        ),
+    }
+
+
+def _placeholders(results: Sequence[engine.ScenarioResult], built: Built) -> list[str]:
+    """What any option's figures rest on: each option's placeholders (the
+    first's first), and the template's own."""
+    return list(dict.fromkeys([*(p for r in results for p in r.placeholders), *built.placeholders]))
 
 
 def start(
@@ -156,7 +216,15 @@ def start(
             base,
             [(label, done.outlook) for label, done, _ in evaluated],
         ),
-        "placeholders": list(first.placeholders),
+        "level": None
+        if built.level is None
+        else _level_view(
+            baseline,
+            built.level,
+            compared.horizon_years,
+            [(label, done.outlook) for label, done, _ in evaluated],
+        ),
+        "placeholders": _placeholders(compared.options, built),
         "data_as_of": first.data_as_of,
         "is_stale": first.is_stale,
         "notes": [*built.notes, *template.notes],

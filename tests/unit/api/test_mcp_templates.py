@@ -101,11 +101,70 @@ async def test_the_tools_say_what_they_do_and_dont(services):
 async def test_templates_come_with_the_persons_own_defaults(services):
     listed = await _call(services, "list_decision_templates", {})
     by_id = {t["id"]: t for t in listed["templates"]}
-    assert len(by_id) == 6
+    assert len(by_id) == 7
     borrow = {q["id"]: q for q in by_id["borrow"]["questions"]}
     assert borrow["start"]["default"]["value"] == "2026-10-11"
     assert by_id["afford-it"]["answers_schema"]["properties"]["account"]["enum"] == ["chk", "sav"]
+    # Rent or buy names the person's own recurring payments, and its two
+    # growths default to a labelled placeholder, never a forecast.
+    rent_or_buy = by_id["rent-or-buy"]
+    assert "city" in rent_or_buy["answers_schema"]["properties"]["rent"]["enum"]
+    growths = {q["id"]: q["default"] for q in rent_or_buy["questions"] if q["type"] == "growth"}
+    assert growths == {
+        "rent_growth": {
+            "value": "0",
+            "source": "placeholder",
+            "note": "a placeholder, not a forecast: set your own view",
+        },
+        "home_growth": {
+            "value": "0",
+            "source": "placeholder",
+            "note": "a placeholder, not a forecast: set your own view",
+        },
+    }
     assert_never_ranks(listed)
+
+
+async def test_rent_or_buy_starts_like_any_template(services):
+    """The household rents (City Lettings, 1,500.00 a month): keeping
+    renting, and buying with each mortgage, compared; when buying draws
+    level, the growth at which it turns, and what the figures rest on."""
+    started = await _call(
+        services,
+        "start_decision",
+        {
+            "template": "rent-or-buy",
+            "answers": {
+                "price": "350000.00",
+                "deposit": "70000.00",
+                "mortgages": [
+                    {"annual_rate": "0.042", "term_months": 300},
+                    {"annual_rate": "0.039", "term_months": 240, "label": "Shorter"},
+                ],
+                "buying_costs": "9000.00",
+                "owning_costs": "250.00",
+                "rent": "city",
+                "selling_costs": "0.03",
+            },
+        },
+    )
+    assert [o["label"] for o in started["options"]] == [
+        "Keep renting",
+        "Buy, 4.2% over 300 months",
+        "Buy, Shorter",
+    ]
+    assert started["level"]["against"] == "Keep renting"
+    assert [o["option"] for o in started["level"]["options"]] == [
+        "Buy, 4.2% over 300 months",
+        "Buy, Shorter",
+    ]
+    kinds = {(b["kind"], b["option"]) for b in started["comparison"]["break_evens"]}
+    assert ("asset_growth", "Buy, Shorter") in kinds
+    assert ("asset_growth", "Buy, 4.2% over 300 months") in kinds
+    assert {"asset_growth", "rent_growth"} <= set(started["placeholders"])
+    assert any("illiquid and undiversified" in n for n in started["notes"])
+    assert_never_ranks(started)
+    assert (await services.decisions.list(USER))["decisions"] == []
 
 
 async def test_starting_a_decision_and_recording_it_in_one_step(services):

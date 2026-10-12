@@ -33,10 +33,59 @@ describe('salli decide', () => {
   it('lists the templates', async () => {
     const result = await run(['decide', '--list']);
     expect(result.code).toBe(0);
-    for (const id of ['afford-it', 'debt-or-invest', 'windfall', 'big-change', 'borrow', 'emergency-fund']) {
+    for (const id of ['afford-it', 'debt-or-invest', 'windfall', 'big-change', 'borrow', 'emergency-fund', 'rent-or-buy']) {
       expect(result.stdout).toContain(id);
     }
     expect(result.stderr).toContain('Conveniences, not advice');
+  });
+
+  it('weighs renting against buying: amounts of zero, growths, a recurring payment by name, and when buying draws level', async () => {
+    const path = join(files, 'home.json');
+    await writeFile(
+      path,
+      JSON.stringify({
+        price: '350000',
+        deposit: '70000',
+        mortgages: [{ annual_rate: '0.042', term_months: 300 }],
+        selling_costs: '0.03',
+      }),
+    );
+    const result = await run([
+      'decide',
+      'rent-or-buy',
+      '--answers',
+      path,
+      '--set',
+      'buying_costs=0',
+      '--set',
+      'owning_costs=250',
+      '--set',
+      'rent=Streaming',
+      '--set',
+      'home_growth=-0.5%',
+    ]);
+    expect(result.code).toBe(0);
+    expect(bodies('/v1/decisions/start')).toEqual([
+      {
+        template: 'rent-or-buy',
+        answers: {
+          price: '350000',
+          deposit: '70000',
+          mortgages: [{ annual_rate: '0.042', term_months: 300 }],
+          selling_costs: '0.03',
+          buying_costs: '0',
+          owning_costs: '250',
+          rent: 'streaming',
+          home_growth: '-0.005',
+        },
+      },
+    ]);
+    expect(result.stdout).toContain('Keep renting, or buy a home for 350000.00 EUR?');
+    expect(result.stdout).toContain('Drawing level with Keep renting');
+    expect(result.stdout).toMatch(/Buy, 4\.2% over 300 months\s+Nov 2031\s+60\s+\+86,075\.58/);
+    expect(result.stdout).toMatch(/Buy, Shorter\s+Jan 2031\s+50\s+\+104,092\.82/);
+    expect(result.stderr).toContain('rent_growth 0 (a placeholder, not a forecast: set your own view)');
+    expect(result.stderr).toContain('illiquid and undiversified');
   });
 
   it('shows a template’s questions and your defaults', async () => {
@@ -175,7 +224,7 @@ describe('salli decide', () => {
     const result = await run(['decide', 'afford-it', '--set', 'price=0', '--set', 'wait_months=3']);
     expect(result.code).toBe(5);
     expect(result.stderr).toContain('must be greater than zero');
-    const unknown = await run(['decide', 'rent-or-buy', '--set', 'price=1']);
+    const unknown = await run(['decide', 'lease-or-own', '--set', 'price=1']);
     expect(unknown.code).toBe(4);
     const nameless = await run(['decide', 'afford-it', '--set', 'colour=red']);
     expect(nameless.code).toBe(2);

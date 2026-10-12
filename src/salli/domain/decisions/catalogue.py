@@ -10,6 +10,7 @@ docs/templates.md). Pure.
 | `big-change` | as things are; the change, with its cash timing |
 | `borrow` | each loan you compare, against not borrowing (or keeping the debt as it is) |
 | `emergency-fund` | as things are; each amount you could set aside a month |
+| `rent-or-buy` | keep renting; buy, with each mortgage you compare |
 
 Each builds its options from the answers alone: an amount goes where the
 answers say, on the day they say, and nothing is projected. Where a
@@ -17,7 +18,8 @@ template needs a day the person didn't give, it uses the as-of date or the
 first of the next month. A payment onto a debt may fall in the as-of month:
 the engine pays it at that month's end, before the debt's first scheduled
 payment. The time cash takes to cover a target is the engine's
-(`engine.cover_target`), never worked out here. `debt-or-invest` and
+(`engine.cover_target`), never worked out here, as is the month buying
+draws level with renting (`comparison.level_from`). `debt-or-invest` and
 `windfall` may invest into one of the person's own holdings, when they name
 one (`_holding_question`); no template picks a holding, and none sells one.
 """
@@ -30,14 +32,17 @@ from decimal import Decimal
 from typing import Any
 
 from salli.domain.decisions.templates import (
+    PLACEHOLDER_NOTE,
     Answers,
     Built,
     Choice,
     Default,
     Facts,
+    Level,
     LoanOffer,
     OptionBuilt,
     Question,
+    RecurringFact,
     Split,
     Template,
     UnknownTemplate,
@@ -1096,6 +1101,367 @@ EMERGENCY_FUND = Template(
 )
 
 
+# ── Rent or buy ──────────────────────────────────────────────────────────────
+
+KEEP_RENTING = "Keep renting"
+#: A scenario's cadences: a rent the ledger shows at another (every two
+#: weeks, twice a month) is stated again monthly, at its monthly equivalent.
+_STATED = {"weekly": "weekly", "monthly": "monthly", "quarterly": "quarterly", "yearly": "yearly"}
+_PER_MONTH = {"biweekly": Decimal(26) / Decimal(12), "semimonthly": Decimal(2)}
+_UNIT = {"weekly": "week", "monthly": "month", "quarterly": "quarter", "yearly": "year"}
+
+
+def _placeholder(_: Facts, __: Mapping[str, Any]) -> Default:
+    return Default("0", "placeholder", PLACEHOLDER_NOTE)
+
+
+def _mortgage_label(offer: LoanOffer) -> str:
+    return (
+        offer.label or f"Mortgage, {_percent(offer.annual_rate)} over {_months(offer.term_months)}"
+    )
+
+
+def _buy_label(offer: LoanOffer, offers: int) -> str:
+    return "Buy" if offers == 1 else f"Buy, {offer.label or _loan_label(offer)}"
+
+
+def _rent_or_buy_check(answers: Answers, _: Facts) -> list[Problem]:
+    problems: list[Problem] = []
+    if answers["deposit"] >= answers["price"]:
+        problems.append(
+            Problem(
+                "answers.deposit",
+                "is less than the price: the mortgage is the price less the deposit",
+            )
+        )
+    rent, monthly = answers.get("rent"), answers.get("rent_monthly")
+    if rent is None and monthly is None:
+        problems.append(
+            Problem(
+                "answers.rent",
+                "is required: name your rent among your recurring payments (rent), or give "
+                'what you pay a month (rent_monthly, "0" if none)',
+            )
+        )
+    elif rent is not None and monthly is not None:
+        problems.append(
+            Problem(
+                "answers.rent_monthly",
+                "is for a rent the ledger doesn't show: leave it out when you name rent",
+            )
+        )
+    offers: Sequence[LoanOffer] = answers["mortgages"]
+    labels = [_buy_label(o, len(offers)) for o in offers]
+    if len(set(labels)) != len(labels):
+        problems.append(
+            Problem(
+                "answers.mortgages", "has two mortgages that would be called the same: label each"
+            )
+        )
+    return problems
+
+
+def _growth_text(answers: Answers, key: str, what: str) -> str:
+    growth: Decimal = answers[key]
+    if answers.sources.get(key) == "placeholder":
+        return f"{what} 0% a year beyond inflation (a placeholder)"
+    return f"{what} {_percent(growth)} a year beyond inflation"
+
+
+def _growth_field(answers: Answers, key: str) -> dict[str, str]:
+    """The growth as the person gave it; nothing for the placeholder, so the
+    engine (for the home) or the start (for the rent) labels it."""
+    if answers.sources.get(key) == "placeholder":
+        return {}
+    return {"real_growth": format(answers[key], "f")}
+
+
+def _rent_changes(answers: Answers, facts: Facts, day: dt.date) -> tuple[list[dict[str, Any]], str]:
+    """Keep renting's changes, and what it is in a sentence: the ledger's rent
+    stopped from the day and stated again as a recurring cost growing at the
+    rent's growth (so both options state rent the same way), or a rent the
+    ledger doesn't show added as a new cost."""
+    cur = facts.currency
+    grows = _growth_text(answers, "rent_growth", "growing")
+    growth = _growth_field(answers, "rent_growth")
+    key: str | None = answers.get("rent")
+    if key is not None:
+        fact = facts.payment(key)
+        assert fact is not None
+        cadence = _STATED.get(fact.cadence)
+        if cadence is not None:
+            amount, start = fact.amount, fact.first_on_or_after(day)
+        else:
+            cadence = "monthly"
+            amount, start = facts_money(fact, facts), day
+        changes: list[dict[str, Any]] = [
+            {
+                "type": "stop_recurring",
+                "key": key,
+                "from": day.isoformat(),
+                "label": "Rent as it is",
+            },
+            {
+                "type": "recurring",
+                "amount": f"-{facts.money(amount)}",
+                "cadence": cadence,
+                "start": start.isoformat(),
+                **({"account": fact.account} if fact.account else {}),
+                **growth,
+                "label": f"Rent: {fact.payee}",
+            },
+        ]
+        return changes, (
+            f"Rent to {fact.payee} goes on: {facts.money(amount)} {cur} a {_UNIT[cadence]} from "
+            f"{start.isoformat()}, {grows}."
+        )
+    monthly: Decimal = answers["rent_monthly"]
+    if monthly == 0:
+        return [], "No rent, as now: your baseline."
+    return [
+        {
+            "type": "recurring",
+            "amount": f"-{facts.money(monthly)}",
+            "cadence": "monthly",
+            "start": day.isoformat(),
+            **_account(answers, "account"),
+            **growth,
+            "label": "Rent",
+        }
+    ], f"Rent of {facts.money(monthly)} {cur} a month from {day.isoformat()}, {grows}."
+
+
+def facts_money(fact: RecurringFact, facts: Facts) -> Decimal:
+    """A payment the ledger shows every two weeks or twice a month, a month."""
+    return Decimal(facts.money(fact.amount * _PER_MONTH[fact.cadence]))
+
+
+def _rent_or_buy_build(answers: Answers, facts: Facts) -> Built:
+    cur = facts.currency
+    price: Decimal = answers["price"]
+    deposit: Decimal = answers["deposit"]
+    principal = price - deposit
+    day: dt.date = answers["date"]
+    years: int = answers["horizon_years"]
+    buying: Decimal = answers["buying_costs"]
+    owning: Decimal = answers["owning_costs"]
+    selling: Decimal = answers["selling_costs"]
+    offers: Sequence[LoanOffer] = answers["mortgages"]
+    key: str | None = answers.get("rent")
+
+    rent_changes, rent_says = _rent_changes(answers, facts, day)
+    options = [OptionBuilt(KEEP_RENTING, rent_says, scenario(KEEP_RENTING, years, rent_changes))]
+    home: dict[str, Any] = {
+        "type": "asset",
+        "price": facts.money(price),
+        "date": day.isoformat(),
+        **_account(answers, "account", "from"),
+        **_growth_field(answers, "home_growth"),
+        "selling_costs": format(selling, "f"),
+        "label": "The home",
+    }
+    costs: list[dict[str, Any]] = []
+    if buying > 0:
+        costs.append(
+            {
+                "type": "one_off",
+                "date": day.isoformat(),
+                "amount": f"-{facts.money(buying)}",
+                **_account(answers, "account"),
+                "label": "Buying costs",
+            }
+        )
+    if owning > 0:
+        costs.append(
+            {
+                "type": "recurring",
+                "amount": f"-{facts.money(owning)}",
+                "cadence": "monthly",
+                "start": day.isoformat(),
+                **_account(answers, "account"),
+                "label": "Owning costs",
+            }
+        )
+    stop = (
+        [{"type": "stop_recurring", "key": key, "from": day.isoformat(), "label": "Rent stopped"}]
+        if key is not None
+        else []
+    )
+    for offer in offers:
+        label = _buy_label(offer, len(offers))
+        mortgage = {
+            "type": "loan",
+            "principal": facts.money(principal),
+            "annual_rate": format(offer.annual_rate, "f"),
+            "term_months": offer.term_months,
+            "start": day.isoformat(),
+            **_account(answers, "account", "into"),
+            "label": _mortgage_label(offer),
+        }
+        says = (
+            f"{facts.money(price)} {cur} on {day.isoformat()}: {facts.money(deposit)} {cur} down "
+            f"from cash and a mortgage of {facts.money(principal)} {cur} at "
+            f"{_percent(offer.annual_rate)} a year over {_months(offer.term_months)}; "
+            f"{facts.money(buying)} {cur} of buying costs once and {facts.money(owning)} {cur} "
+            f"a month of owning costs; the home {_growth_text(answers, 'home_growth', 'growing')}, "
+            f"counted at its value less {_percent(selling)} selling costs"
+            + ("; the rent stopped from that day." if key is not None else ".")
+        )
+        options.append(
+            OptionBuilt(label, says, scenario(label, years, [home, mortgage, *costs, *stop]))
+        )
+
+    rent_placeholder = answers.sources.get("rent_growth") == "placeholder" and bool(rent_changes)
+    notes: list[str] = []
+    if answers.sources.get("home_growth") == "placeholder":
+        notes.append(
+            "The home's growth beyond inflation is 0%, a placeholder, not a forecast: set your "
+            "own view. The asset_growth break-even says what growth would change the answer."
+        )
+    if rent_placeholder:
+        notes.append(
+            "The rent's growth beyond inflation is 0% (it rises with inflation), a placeholder, "
+            "not a forecast: set your own view."
+        )
+    notes.append(
+        "`level` reads, for each way of buying, the first month-end from the purchase on from "
+        "which its net worth is at least keeping renting's at every month-end to the horizon: "
+        "how long the home must be kept for buying to have drawn level, on these assumptions."
+    )
+    return Built(
+        question=f"Keep renting, or buy a home for {facts.money(price)} {cur}?",
+        options=tuple(options),
+        notes=tuple(notes),
+        placeholders=("rent_growth",) if rent_placeholder else (),
+        level=Level(KEEP_RENTING, day.isoformat()[:7]),
+    )
+
+
+RENT_OR_BUY = Template(
+    id="rent-or-buy",
+    title="Rent or buy",
+    summary="Keep renting, or buy a home with each mortgage you compare: laid out as "
+    "consequences, with the house-price growth at which the answer turns.",
+    builds=(
+        "Keep renting: your rent goes on, rising at the rent's growth",
+        "Buy, with each mortgage: the home from cash and the mortgage, buying and owning "
+        "costs, and the rent stopped",
+    ),
+    questions=(
+        Question(
+            "price", "amount", "What would the home cost?", "In your base currency.", required=True
+        ),
+        Question(
+            "date",
+            "date",
+            "When would you buy?",
+            "The day the price leaves cash and the mortgage arrives; the rent stops from it.",
+            default=_next_month,
+            default_rule="the first of next month",
+        ),
+        Question(
+            "deposit",
+            "amount",
+            "How much would you put down?",
+            "Out of your cash. The mortgage is the price less it.",
+            required=True,
+        ),
+        Question(
+            "account",
+            "account",
+            "Which cash account would the money come out of?",
+            "The deposit, buying costs and owning costs. Leave it out to use your cash as a whole.",
+        ),
+        Question(
+            "mortgages",
+            "loans",
+            "Which mortgages would you compare?",
+            "One to three, each with its yearly rate and its term in months (up to 600), and a "
+            "label if you like. Use the rates the lenders would offer you: each is held fixed for "
+            "its whole term.",
+            required=True,
+            min_items=1,
+            max_items=3,
+        ),
+        Question(
+            "buying_costs",
+            "amount_or_zero",
+            "What would buying cost, once (fees, and any tax on buying)?",
+            'Paid from cash on the day; "0" if nothing. A tax on buying is yours to give, from '
+            "your own rules: Salli knows no country's.",
+            required=True,
+        ),
+        Question(
+            "owning_costs",
+            "amount_or_zero",
+            "What would owning cost a month (maintenance, insurance, service charges, property "
+            "taxes)?",
+            'In today\'s money, from the day you buy; "0" if nothing. Leaving them low flatters '
+            "buying.",
+            required=True,
+        ),
+        Question(
+            "rent",
+            "recurring",
+            "Which of your recurring payments is your rent?",
+            "By its key (salli insights recurring): it goes on if you keep renting, and stops if "
+            "you buy. Leave it out if your ledger doesn't show your rent, and give rent_monthly.",
+        ),
+        Question(
+            "rent_monthly",
+            "amount_or_zero",
+            "If your ledger doesn't show your rent: what is it a month?",
+            'In today\'s money; "0" if you pay none. Keeping renting then adds it as a new cost.',
+        ),
+        Question(
+            "rent_growth",
+            "growth",
+            "How fast do you expect your rent to grow beyond inflation, a year?",
+            'A signed fraction: "0.01" is 1% a year more than prices, "-0.005" half a percent '
+            "less. Your own view; left out, 0 (it rises with inflation), labelled a placeholder.",
+            default=_placeholder,
+            default_rule="0, a placeholder",
+        ),
+        Question(
+            "home_growth",
+            "growth",
+            "How fast do you expect the home's value to grow beyond inflation, a year?",
+            "A signed fraction, as for the rent. Your own view; left out, 0 (it keeps its value "
+            "in today's money), labelled a placeholder. The break-even says what growth would "
+            "change the answer.",
+            default=_placeholder,
+            default_rule="0, a placeholder",
+        ),
+        Question(
+            "selling_costs",
+            "rate",
+            "What would selling the home cost, as a share of its value?",
+            '"0.03" is 3%: agents\' fees and any tax on selling; "0" is an answer. The home '
+            "counts in net worth at its value less them.",
+            required=True,
+        ),
+        _horizon_question(),
+    ),
+    check=_rent_or_buy_check,
+    build=_rent_or_buy_build,
+    notes=(
+        "The growth of the home's value and of the rent is your own view, or a labelled 0% "
+        "beyond inflation, never a forecast: the house-price growth at which the answer turns "
+        "(the asset_growth break-even) is the figure that matters.",
+        "Each mortgage's rate is held fixed for its term: resets aren't modelled.",
+        "A home is one asset, illiquid and undiversified: the comparison doesn't price that risk.",
+        "Owning costs are what you give: leaving them low flatters buying.",
+        "Tax on buying, owning or selling a home comes only from your own rules: a tax on "
+        "buying is a buying cost you give; nothing else about a home's tax is modelled.",
+        "Salli knows nothing about any local property market: research behind your figures "
+        "needs its sources.",
+        "The home counts in net worth at what it would fetch, its value less its selling "
+        "costs, so buying starts behind by them; like any other asset it funds no withdrawals "
+        "in FI.",
+    ),
+)
+
+
 #: Every template, in the order they are listed.
 TEMPLATES: tuple[Template, ...] = (
     AFFORD_IT,
@@ -1104,6 +1470,7 @@ TEMPLATES: tuple[Template, ...] = (
     BIG_CHANGE,
     BORROW,
     EMERGENCY_FUND,
+    RENT_OR_BUY,
 )
 BY_ID: Mapping[str, Template] = {t.id: t for t in TEMPLATES}
 

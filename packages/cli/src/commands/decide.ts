@@ -2,7 +2,7 @@
  * salli decide <template> | salli decide --list
  *
  * A common decision (afford it, debt or invest, a windfall, a big change,
- * borrowing, an emergency fund) as a few questions: `salli decide` asks
+ * borrowing, an emergency fund, rent or buy) as a few questions: `salli decide` asks
  * them, Salli builds the options from your answers and runs every one on
  * your baseline (POST /v1/decisions/start), and you see the comparison and
  * your principles' checks. Then, if you want, it records what you chose
@@ -17,6 +17,7 @@ import { readFile } from 'node:fs/promises';
 import type { Command } from '@commander-js/extra-typings';
 import {
   debtsList,
+  insightsRecurring,
   decisionsRecord,
   decisionsStart,
   decisionsTemplatesGet,
@@ -35,7 +36,7 @@ import { displayDate, displayMonth, parseDate } from '../util/dates';
 import { parseWholeNumber } from '../util/numbers';
 import { resolveById } from '../util/resolve';
 import { showCheck } from './decisions';
-import { showComparison, taxAnswersArg } from './scenarios';
+import { change, showComparison, taxAnswersArg } from './scenarios';
 import { AccountBook, amountArg, collect, confirmAction, rateArg } from './shared';
 
 type Answers = Record<string, unknown>;
@@ -43,27 +44,41 @@ interface Debt {
   id: string;
   name: string;
 }
+interface Payment {
+  key: string;
+  payee: string;
+}
 
-/** What the person's own debts and accounts are called, to name and find them. */
+/** What the person's own debts, accounts and recurring payments are called, to name and find them. */
 class Names {
   private constructor(
     readonly debts: Debt[],
     readonly book: AccountBook,
+    readonly payments: Payment[],
   ) {}
 
   static async load(api: SalliClient, template: DecisionTemplate): Promise<Names> {
     const types = new Set(template.questions.map((q) => q.type));
     const debts = types.has('debt') || types.has('splits') ? (await api.call(debtsList, { query: { active_only: true } })).debts : [];
     const book = types.has('account') ? await AccountBook.load(api) : new AccountBook([]);
+    const payments = types.has('recurring') ? (await api.call(insightsRecurring)).items : [];
     return new Names(
       debts.map((d) => ({ id: d.id, name: d.name })),
       book,
+      payments.map((r) => ({ key: r.key, payee: r.payee })),
     );
   }
 
   debt(query: string): string {
     const lower = query.trim().toLowerCase();
     return (this.debts.find((d) => d.name.toLowerCase() === lower) ?? resolveById(this.debts, query.trim(), 'debt')).id;
+  }
+
+  /** A recurring payment by its key or its payee's name; the key as typed otherwise (the server checks it). */
+  payment(query: string): string {
+    const text = query.trim();
+    const lower = text.toLowerCase();
+    return (this.payments.find((r) => r.key === text) ?? this.payments.find((r) => r.payee.toLowerCase() === lower))?.key ?? text;
   }
 
   account(query: string): string {
@@ -79,11 +94,13 @@ function fromText(app: App, q: TemplateQuestion, text: string, names: Names): un
   const value = text.trim();
   switch (q.type) {
     case 'amount':
+    case 'amount_or_zero':
     case 'signed_amount':
       return amountArg(value, flag);
     case 'number':
       return amountArg(value, flag);
     case 'rate':
+    case 'growth':
       return rateArg(value, flag);
     case 'months':
     case 'years': {
@@ -102,6 +119,8 @@ function fromText(app: App, q: TemplateQuestion, text: string, names: Names): un
       return names.debt(value);
     case 'account':
       return names.account(value);
+    case 'recurring':
+      return names.payment(value);
     case 'tax_role':
       return value;
     case 'text':
@@ -244,6 +263,16 @@ async function ask(app: App, template: DecisionTemplate, given: Answers, names: 
         options: [{ value: undefined, label: 'My cash as a whole' }, ...cash.map((a) => ({ value: a.id, label: singleLine(a.name) }))],
         initialValue: undefined,
       });
+    } else if (q.type === 'recurring') {
+      const keys = allowed(template, q.id) ?? [];
+      const payments = names.payments.filter((r) => keys.includes(r.key));
+      value = payments.length
+        ? await app.prompter.select<string | undefined>({
+            message: q.prompt,
+            options: [{ value: undefined, label: 'It isn’t in my ledger' }, ...payments.map((r) => ({ value: r.key, label: singleLine(r.payee) }))],
+            initialValue: undefined,
+          })
+        : undefined;
     } else if (q.type === 'tax_role') {
       const roles = allowed(template, q.id) ?? [];
       value = roles.length
@@ -300,6 +329,20 @@ function showStart(app: App, data: DecisionStart): void {
         { header: 'MONTHS', get: (r) => (r.months === null ? '—' : String(r.months)), align: 'right' },
       ]),
     );
+  }
+  if (data.level) {
+    const l = data.level;
+    out.line();
+    out.line(out.heading(`Drawing level with ${singleLine(l.against)}`) + ` ${out.colors.dim(`net worth in today’s money, from ${displayMonth(l.from, out.locale)}`)}`);
+    out.line(
+      out.table(l.options, [
+        { header: '', get: (o) => singleLine(o.option), shrink: true },
+        { header: 'LEVEL FROM', get: (o) => (o.month ? displayMonth(o.month, out.locale) : `not by ${displayMonth(l.to, out.locale)}`), align: 'right' },
+        { header: 'MONTHS', get: (o) => (o.months === null ? '—' : String(o.months)), align: 'right' },
+        { header: `AT ${displayMonth(l.to, out.locale).toUpperCase()}`, get: (o) => change(out, o.net_worth_at_horizon, data.currency), align: 'right' },
+      ]),
+    );
+    out.note(`The first month-end from which the option’s net worth is at least ${singleLine(l.against)}’s at every month-end to the horizon; the last column is the difference then, in today’s money.`);
   }
   const check: PrinciplesCheck = {
     as_of: data.as_of,
@@ -383,7 +426,7 @@ async function record(app: App, api: SalliClient, data: DecisionStart, opts: Rec
 export function registerDecide(program: Command, app: App): void {
   program
     .command('decide')
-    .argument('[template]', 'A template: afford-it, debt-or-invest, windfall, big-change, borrow, emergency-fund')
+    .argument('[template]', 'A template: afford-it, debt-or-invest, windfall, big-change, borrow, emergency-fund, rent-or-buy')
     .description('Work through a common decision: Salli builds and compares the options (never ranks them)')
     .option('--list', 'List the templates')
     .option('--questions', 'Show the template’s questions and your defaults, and stop')
@@ -411,6 +454,7 @@ Examples:
   $ salli decide afford-it
   $ salli decide afford-it --set price=2400 --set instalment_months=12 --set instalment_rate=6.9%
   $ salli decide emergency-fund --set target_months=6 --set set_aside=200,500 --json
+  $ salli decide rent-or-buy --answers home.json --set home_growth=0.5%
   $ salli decide windfall --answers windfall.json
   $ salli decide debt-or-invest --answers a.json --record --chosen "Invest it" \\
       --reasons "I'd rather grow it." --review-on 2027-10-31 --yes`,

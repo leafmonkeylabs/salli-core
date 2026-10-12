@@ -8,16 +8,23 @@ weighing, builds the options they describe, and leaves every figure to the
 scenario engine and the choice to them. So a template:
 
 - **asks typed questions**, each validated with a path people can follow
-  (`answers.instalment_rate`): an amount in the base currency, a whole number
-  of months, a rate, a date, a choice, one of the person's debts, cash
-  accounts or holdings, one of the income or deduction roles in their
-  active tax rules, a short text, or a list of amounts, loans or splits;
+  (`answers.instalment_rate`): an amount in the base currency (above zero,
+  or one where 0 is an answer), a whole number of months, a rate, a growth
+  beyond inflation, a date, a choice, one of the person's debts, cash
+  accounts, holdings or recurring payments, one of the income or deduction
+  roles in their active tax rules, a short text, or a list of amounts, loans
+  or splits;
 - **draws a default only from what is honest**: the as-of date or the first
   of the next month, the person's own debts (the only one they have, and
   what it owes) and their own principles (the months of spending one asks
   cash to cover). A question with no honest default has none, and must be
   answered: a template never invents a price, a rate or a target, and never
-  picks a holding, even the only one (where money goes is the person's);
+  picks a holding, even the only one (where money goes is the person's). The
+  one exception is rent-or-buy's two growths beyond inflation (a rent's, a
+  home's), which default to 0 as a labelled placeholder (source
+  `placeholder`): not a forecast, but how the baseline already treats every
+  other asset and recurring amount, with the break-even beside it
+  (docs/design/decision-lab-phase-3.md, decision 22);
 - **builds options** as scenarios, by a pure function of the answers and the
   person's facts (`Facts`, read from their baseline and principles). It
   moves amounts where the answers say and never projects anything: what an
@@ -36,7 +43,7 @@ import calendar
 import datetime as dt
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any, Literal, cast
 
@@ -45,6 +52,8 @@ from pydantic import ValidationError
 from salli.domain.baseline.models import Baseline
 from salli.domain.currency import quantize, quantum
 from salli.domain.decisions.principles import Principle
+from salli.domain.reports import forecast as forecasting
+from salli.domain.reports.insights import Cadence
 from salli.domain.scenarios import schema
 from salli.domain.taxrules.common import Problem, join_path
 from salli.domain.taxrules.expr import FIGURE, Binary, Expr, Num, Ref
@@ -58,23 +67,30 @@ COVER_FIGURES = ("emergency_months", "emergency_months_in_12_months")
 
 QuestionType = Literal[
     "amount",
+    "amount_or_zero",
     "signed_amount",
     "months",
     "years",
     "number",
     "rate",
+    "growth",
     "date",
     "choice",
     "debt",
     "account",
     "holding",
+    "recurring",
     "tax_role",
     "text",
     "amounts",
     "loans",
     "splits",
 ]
-DefaultSource = Literal["as_of", "next_month", "your_debts", "your_principles", "salli"]
+DefaultSource = Literal[
+    "as_of", "next_month", "your_debts", "your_principles", "salli", "placeholder"
+]
+#: What a placeholder default says, wherever one is used.
+PLACEHOLDER_NOTE = "a placeholder, not a forecast: set your own view"
 
 
 class TemplateError(ValueError):
@@ -144,6 +160,38 @@ class TaxRoleFact:
 
 
 @dataclass(frozen=True)
+class RecurringFact:
+    """One of the person's recurring payments out (a rent, a bill), as the
+    ledger shows it: what a template may stop and state again. Only a key
+    the ledger shows as one payment out of a cash account, whose amount is
+    known in the base currency."""
+
+    key: str
+    payee: str
+    #: How often, as the ledger shows it (`weekly` … `yearly`).
+    cadence: Cadence
+    #: Each time, above zero, in the base currency.
+    amount: Decimal
+    #: The cash account it leaves, when a change may name it (one of the
+    #: person's cash accounts in the base currency; not a card).
+    account: str | None
+    #: The next day it is expected, and the days of the month it falls on.
+    next_expected: dt.date
+    anchor_days: tuple[int, ...] = ()
+
+    def first_on_or_after(self, day: dt.date) -> dt.date:
+        """The first day it is expected on or after `day`."""
+        found = forecasting.schedule(
+            self.next_expected,
+            self.cadence,
+            self.anchor_days,
+            day,
+            day + dt.timedelta(days=400),
+        )
+        return next((d for d in found if d >= day), day)
+
+
+@dataclass(frozen=True)
 class CoverPrinciple:
     """A principle asking cash to cover a number of months of spending
     (`emergency_months >= 6`)."""
@@ -164,6 +212,7 @@ class Facts:
     cover_principles: tuple[CoverPrinciple, ...] = ()
     tax_roles: tuple[TaxRoleFact, ...] = ()
     holdings: tuple[HoldingFact, ...] = ()
+    recurring: tuple[RecurringFact, ...] = ()
 
     @property
     def next_month(self) -> dt.date:
@@ -182,6 +231,9 @@ class Facts:
 
     def holding(self, holding_id: str) -> HoldingFact | None:
         return next((h for h in self.holdings if h.id == holding_id), None)
+
+    def payment(self, key: str) -> RecurringFact | None:
+        return next((r for r in self.recurring if r.key == key), None)
 
     def money(self, value: Decimal) -> str:
         """An amount as a decimal string to the currency's smallest unit."""
@@ -245,7 +297,59 @@ def facts_of(baseline: Baseline, principles: Sequence[tuple[Principle, Expr]] = 
             for h in baseline.holdings
             if h.tracked and h.price is not None and h.fx_rate is not None
         ),
+        recurring=recurring_of(baseline),
     )
+
+
+def recurring_of(baseline: Baseline) -> tuple[RecurringFact, ...]:
+    """The person's recurring payments out a template may name: each key the
+    ledger shows as one payment out of a cash account (not a transfer
+    between their own accounts), with its amount in the base currency
+    (converted at the as-of rate when it is held in another), by key."""
+    own = {b.account_id for b in baseline.balances}
+    cash = baseline.cash_accounts
+    # The accounts a change may name: cash-role accounts in the base
+    # currency (a card's payments go back on the cash total).
+    movable = {
+        b.account_id
+        for b in baseline.balances
+        if b.role == "cash" and b.currency == baseline.currency and b.is_active
+    }
+    counts: dict[str, int] = {}
+    for r in baseline.recurring:
+        counts[r.key] = counts.get(r.key, 0) + 1
+    rates = {x.currency: x.rate for x in baseline.rates if x.rate is not None}
+    out: list[RecurringFact] = []
+    for r in baseline.recurring:
+        if r.direction != "out" or r.account_id in own or counts[r.key] != 1:
+            continue
+        account = r.money_account_id if r.money_account_id in cash else None
+        currency = cash[account][0] if account else r.currency
+        amount = r.money_amount if account else None
+        if amount is None and r.currency == currency:
+            amount = r.typical_amount
+        if amount is None:
+            continue
+        if currency != baseline.currency:
+            rate = rates.get(currency)
+            if rate is None:
+                continue
+            amount = amount * rate
+        amount = quantize(amount, baseline.currency, strict=False)
+        if amount <= 0:
+            continue
+        out.append(
+            RecurringFact(
+                r.key,
+                r.payee,
+                r.cadence,
+                amount,
+                account if account in movable else None,
+                dt.date.fromisoformat(r.next_expected),
+                tuple(r.anchor_days),
+            )
+        )
+    return tuple(sorted(out, key=lambda f: f.key))
 
 
 def tax_roles_of(baseline: Baseline) -> tuple[TaxRoleFact, ...]:
@@ -396,9 +500,11 @@ _DECIMAL = re.compile(r"^[0-9]+(\.[0-9]+)?$")
 _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
 
-def _amount(value: Any, facts: Facts, *, signed: bool = False) -> Decimal:
+def _amount(value: Any, facts: Facts, *, signed: bool = False, zero: bool = False) -> Decimal:
     number = schema.parse_amount(value)
-    if not signed and number <= 0:
+    if zero and number < 0:
+        raise ValueError('must be zero or more: "0" if there is none')
+    if not signed and not zero and number <= 0:
         raise ValueError("must be greater than zero")
     if signed and number == 0:
         raise ValueError("must not be zero: leave it out instead")
@@ -442,6 +548,35 @@ def _rate(value: Any) -> Decimal:
     if number > 1:
         raise ValueError('a rate is a fraction between "0" and "1" ("0.069" is 6.9%)')
     return number
+
+
+_SIGNED_DECIMAL = re.compile(r"^[+-]?[0-9]+(\.[0-9]+)?$")
+
+
+def _growth(value: Any) -> Decimal:
+    if isinstance(value, bool | int | float) or not isinstance(value, str):
+        raise ValueError(
+            'write a growth as a decimal string, a yearly fraction beyond inflation: "0.01" '
+            'is 1% a year, "-0.005" half a percent less'
+        )
+    if not _SIGNED_DECIMAL.fullmatch(value):
+        raise ValueError(f'{value!r} is not a yearly fraction, like "0.01" for 1% or "-0.005"')
+    number = Decimal(value)
+    if not -schema.MAX_GROWTH <= number <= schema.MAX_GROWTH:
+        raise ValueError('a growth is a yearly fraction from "-1" to "1" ("0.01" is 1%)')
+    return number
+
+
+def _recurring(value: Any, facts: Facts) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError("is one of your recurring payments, by its key (salli insights recurring)")
+    if facts.payment(value) is None:
+        yours = ", ".join(f"{r.payee} ({r.key})" for r in facts.recurring) or "none"
+        raise ValueError(
+            f"{value!r} is not one of your recurring payments out of a cash account; yours: "
+            f"{yours}. If the ledger doesn't show it, give the amount instead"
+        )
+    return value
 
 
 def _date(value: Any, facts: Facts) -> dt.date:
@@ -555,6 +690,8 @@ def _parse(question: Question, value: Any, facts: Facts, path: str, out: _Proble
     match question.type:
         case "amount":
             return attempt(lambda: _amount(value, facts))
+        case "amount_or_zero":
+            return attempt(lambda: _amount(value, facts, zero=True))
         case "signed_amount":
             return attempt(lambda: _amount(value, facts, signed=True))
         case "months" | "years":
@@ -563,6 +700,8 @@ def _parse(question: Question, value: Any, facts: Facts, path: str, out: _Proble
             return attempt(lambda: _number(value, question))
         case "rate":
             return attempt(lambda: _rate(value))
+        case "growth":
+            return attempt(lambda: _growth(value))
         case "date":
             return attempt(lambda: _date(value, facts))
         case "text":
@@ -573,6 +712,8 @@ def _parse(question: Question, value: Any, facts: Facts, path: str, out: _Proble
             return attempt(lambda: _account(value, facts))
         case "holding":
             return attempt(lambda: _holding(value, facts))
+        case "recurring":
+            return attempt(lambda: _recurring(value, facts))
         case "tax_role":
             return attempt(lambda: _tax_role(value, facts))
         case "choice":
@@ -727,6 +868,16 @@ class OptionBuilt:
 
 
 @dataclass(frozen=True)
+class Level:
+    """For a template that asks when one option draws level with another
+    (rent or buy): the option the others are read against, and the month
+    from which to read (the purchase's)."""
+
+    against: str
+    from_month: str
+
+
+@dataclass(frozen=True)
 class Built:
     """What a template built from the answers."""
 
@@ -738,6 +889,11 @@ class Built:
     #: asks for one (the emergency fund).
     cover_months: Decimal | None = None
     notes: tuple[str, ...] = ()
+    #: The template's own placeholders, beside the engine's: an answer a
+    #: placeholder default gave that no scenario field says ("rent_growth").
+    placeholders: tuple[str, ...] = ()
+    #: When each option draws level with one, read from the timelines.
+    level: Level | None = None
 
 
 @dataclass(frozen=True)
@@ -837,14 +993,12 @@ def build(template: Template, data: Any, facts: Facts, tax: Any = None) -> tuple
             [Problem("answers", "two options would have one label: give each its own")]
         )
     if asked is not None:
-        built = Built(
-            built.question,
-            tuple(
+        built = replace(
+            built,
+            options=tuple(
                 OptionBuilt(o.label, o.describes, o.scenario.model_copy(update={"tax": asked}))
                 for o in built.options
             ),
-            built.cover_months,
-            built.notes,
         )
     return answers, built
 
@@ -918,12 +1072,25 @@ _RATE_SCHEMA: dict[str, Any] = {
     "pattern": r"^[0-9]+(\.[0-9]+)?$",
     "description": 'A yearly rate as a fraction, a decimal string: "0.069" is 6.9%.',
 }
+_GROWTH_SCHEMA: dict[str, Any] = {
+    "type": "string",
+    "pattern": _SIGNED_DECIMAL.pattern,
+    "description": 'A yearly growth beyond inflation, a signed fraction as a decimal string: "0.01" '
+    'is 1% a year more than prices, "-0.005" half a percent less.',
+}
 
 
 def _value_schema(q: Question, facts: Facts | None) -> dict[str, Any]:
     match q.type:
         case "amount":
             return dict(_AMOUNT_SCHEMA)
+        case "amount_or_zero":
+            return {
+                "type": "string",
+                "pattern": r"^\+?[0-9]+(\.[0-9]+)?$",
+                "description": 'An amount in your base currency as a decimal string, "0" if there '
+                'is none: "1200.00".',
+            }
         case "signed_amount":
             return {
                 "type": "string",
@@ -944,6 +1111,8 @@ def _value_schema(q: Question, facts: Facts | None) -> dict[str, Any]:
             }
         case "rate":
             return dict(_RATE_SCHEMA)
+        case "growth":
+            return dict(_GROWTH_SCHEMA)
         case "date":
             return {"type": "string", "format": "date", "pattern": _DATE.pattern}
         case "text":
@@ -970,6 +1139,20 @@ def _value_schema(q: Question, facts: Facts | None) -> dict[str, Any]:
             }
             if facts is not None and facts.holdings:
                 out["enum"] = [h.id for h in facts.holdings]
+            return out
+        case "recurring":
+            out = {
+                "type": "string",
+                "description": "One of your recurring payments out, by its key (salli insights "
+                "recurring)"
+                + (
+                    ": " + ", ".join(f"{r.key} ({r.payee})" for r in facts.recurring) + "."
+                    if facts is not None and facts.recurring
+                    else "."
+                ),
+            }
+            if facts is not None and facts.recurring:
+                out["enum"] = [r.key for r in facts.recurring]
             return out
         case "tax_role":
             out = {

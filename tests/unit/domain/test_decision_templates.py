@@ -59,7 +59,7 @@ def changes(option: templates.OptionBuilt) -> list[dict[str, Any]]:
 # ── The catalogue ────────────────────────────────────────────────────────────
 
 
-def test_the_six_templates_of_the_design():
+def test_the_seven_templates_of_the_design():
     assert [t.id for t in catalogue.TEMPLATES] == [
         "afford-it",
         "debt-or-invest",
@@ -67,6 +67,7 @@ def test_the_six_templates_of_the_design():
         "big-change",
         "borrow",
         "emergency-fund",
+        "rent-or-buy",
     ]
     for template in catalogue.TEMPLATES:
         ids = [q.id for q in template.questions]
@@ -87,8 +88,8 @@ def test_no_template_ranks_recommends_or_advises():
 
 def test_an_unknown_template_says_which_there_are():
     with pytest.raises(UnknownTemplate) as error:
-        catalogue.get("rent-or-buy")
-    assert "afford-it" in str(error.value) and "emergency-fund" in str(error.value)
+        catalogue.get("lease-or-own")
+    assert "afford-it" in str(error.value) and "rent-or-buy" in str(error.value)
 
 
 def test_the_answers_schema_names_every_question_and_the_persons_own_ids():
@@ -751,6 +752,239 @@ def test_the_tax_role_question_lists_only_the_persons_roles():
     assert schema["properties"]["income_tax_role"]["enum"] == ["pension", "salary"]
     question = next(q for q in catalogue.get("big-change").questions if q.id == "income_tax_role")
     assert question.default is None and not question.required
+
+
+# ── Rent or buy ──────────────────────────────────────────────────────────────
+
+MAPLE = templates.RecurringFact(
+    "maple",
+    "Maple House",
+    "monthly",
+    Decimal("120000"),
+    "acc-main",
+    dt.date(2026, 11, 25),
+    (25,),
+)
+RENTING = dataclasses.replace(FACTS, recurring=(MAPLE,))
+BUY = {
+    "price": "48000000",
+    "deposit": "9600000",
+    "mortgages": [{"annual_rate": "0.012", "term_months": 420}],
+    "buying_costs": "1900000",
+    "owning_costs": "25000",
+    "rent": "maple",
+    "selling_costs": "0.04",
+}
+
+
+def test_rent_or_buy_defaults_only_the_date_the_horizon_and_two_labelled_placeholders():
+    """Prices, deposits, mortgages, costs and selling costs are the
+    person's; the two growths beyond inflation default to 0 as a labelled
+    placeholder (decision 22), and nothing else has a default."""
+    template = catalogue.get("rent-or-buy")
+    defaults = {
+        q.id: (d.value, d.source, d.note)
+        for q in template.questions
+        if q.default is not None and (d := q.default(RENTING, {})) is not None
+    }
+    assert defaults == {
+        "date": ("2026-11-01", "next_month", "the first of next month"),
+        "rent_growth": ("0", "placeholder", "a placeholder, not a forecast: set your own view"),
+        "home_growth": ("0", "placeholder", "a placeholder, not a forecast: set your own view"),
+        "horizon_years": (20, "salli", "Salli's usual horizon for long-run figures"),
+    }
+    assert {q.id for q in template.questions if q.required} == {
+        "price",
+        "deposit",
+        "mortgages",
+        "buying_costs",
+        "owning_costs",
+        "selling_costs",
+    }
+    assert problems("rent-or-buy", {}, RENTING) == {
+        "answers.price": "is required: What would the home cost?",
+        "answers.deposit": "is required: How much would you put down?",
+        "answers.mortgages": "is required: Which mortgages would you compare?",
+        "answers.buying_costs": (
+            "is required: What would buying cost, once (fees, and any tax on buying)?"
+        ),
+        "answers.owning_costs": (
+            "is required: What would owning cost a month (maintenance, insurance, service "
+            "charges, property taxes)?"
+        ),
+        "answers.selling_costs": (
+            "is required: What would selling the home cost, as a share of its value?"
+        ),
+    }
+
+
+def test_rent_or_buy_answers_are_checked():
+    found = problems(
+        "rent-or-buy",
+        {
+            **BUY,
+            "buying_costs": "-1",
+            "owning_costs": 25000,
+            "rent": "nope",
+            "rent_growth": "2",
+            "home_growth": 0.01,
+        },
+        RENTING,
+    )
+    assert found["answers.buying_costs"] == 'must be zero or more: "0" if there is none'
+    assert "decimal strings" in found["answers.owning_costs"]
+    assert found["answers.rent"] == (
+        "'nope' is not one of your recurring payments out of a cash account; yours: Maple "
+        "House (maple). If the ledger doesn't show it, give the amount instead"
+    )
+    assert found["answers.rent_growth"] == (
+        'a growth is a yearly fraction from "-1" to "1" ("0.01" is 1%)'
+    )
+    assert "decimal string" in found["answers.home_growth"]
+    assert problems("rent-or-buy", {**BUY, "deposit": "48000000"}, RENTING) == {
+        "answers.deposit": "is less than the price: the mortgage is the price less the deposit"
+    }
+    no_rent = {k: v for k, v in BUY.items() if k != "rent"}
+    assert list(problems("rent-or-buy", no_rent, RENTING)) == ["answers.rent"]
+    assert problems("rent-or-buy", {**BUY, "rent_monthly": "0"}, RENTING) == {
+        "answers.rent_monthly": (
+            "is for a rent the ledger doesn't show: leave it out when you name rent"
+        )
+    }
+    two = [{"annual_rate": "0.012", "term_months": 420}] * 2
+    assert problems("rent-or-buy", {**BUY, "mortgages": two}, RENTING) == {
+        "answers.mortgages": "has two mortgages that would be called the same: label each"
+    }
+
+
+def test_rent_or_buy_builds_keep_renting_and_buy_with_each_mortgage():
+    """Keeping renting stops the ledger's rent and states it again from the
+    day it is next due on or after the purchase, so both options state rent
+    the same way; each way of buying buys the home from cash, borrows the
+    price less the deposit, pays the buying and owning costs and stops the
+    rent. Growths left out are no scenario field: the engine labels the
+    home's, the start the rent's."""
+    answers, built = build(
+        "rent-or-buy",
+        {
+            **BUY,
+            "account": "acc-main",
+            "mortgages": [
+                {"annual_rate": "0.012", "term_months": 420},
+                {"annual_rate": "0.009", "term_months": 300, "label": "Variable"},
+            ],
+            "home_growth": "-0.005",
+        },
+        RENTING,
+    )
+    assert answers.sources["rent_growth"] == "placeholder"
+    assert answers.sources["home_growth"] == "given"
+    assert [o.label for o in built.options] == [
+        "Keep renting",
+        "Buy, 1.2% over 420 months",
+        "Buy, Variable",
+    ]
+    rent, buy, variable = built.options
+    assert changes(rent) == [
+        {"type": "stop_recurring", "key": "maple", "from": "2026-11-01", "label": "Rent as it is"},
+        {
+            "type": "recurring",
+            "amount": "-120000",
+            "cadence": "monthly",
+            "start": "2026-11-25",
+            "account": "acc-main",
+            "label": "Rent: Maple House",
+        },
+    ]
+    assert changes(buy) == [
+        {
+            "type": "asset",
+            "price": "48000000",
+            "date": "2026-11-01",
+            "from": "acc-main",
+            "real_growth": "-0.005",
+            "selling_costs": "0.04",
+            "label": "The home",
+        },
+        {
+            "type": "loan",
+            "principal": "38400000",
+            "annual_rate": "0.012",
+            "term_months": 420,
+            "start": "2026-11-01",
+            "into": "acc-main",
+            "label": "Mortgage, 1.2% over 420 months",
+        },
+        {
+            "type": "one_off",
+            "date": "2026-11-01",
+            "amount": "-1900000",
+            "account": "acc-main",
+            "label": "Buying costs",
+        },
+        {
+            "type": "recurring",
+            "amount": "-25000",
+            "cadence": "monthly",
+            "start": "2026-11-01",
+            "account": "acc-main",
+            "label": "Owning costs",
+        },
+        {"type": "stop_recurring", "key": "maple", "from": "2026-11-01", "label": "Rent stopped"},
+    ]
+    assert changes(variable)[1]["label"] == "Variable"
+    assert built.placeholders == ("rent_growth",)
+    assert built.level == templates.Level("Keep renting", "2026-11")
+    assert rent.describes == (
+        "Rent to Maple House goes on: 120000 JPY a month from 2026-11-25, growing 0% a year "
+        "beyond inflation (a placeholder)."
+    )
+    assert buy.describes.startswith(
+        "48000000 JPY on 2026-11-01: 9600000 JPY down from cash and a mortgage of 38400000 JPY "
+        "at 1.2% a year over 420 months;"
+    )
+    assert_never_ranks([o.describes for o in built.options])
+    assert_never_ranks(list(built.notes))
+
+
+def test_a_rent_the_ledger_doesnt_show_is_a_new_cost_and_none_is_none():
+    no_rent = {k: v for k, v in BUY.items() if k != "rent"}
+    _, built = build("rent-or-buy", {**no_rent, "rent_monthly": "95000", "rent_growth": "0.01"})
+    rent, buy = built.options
+    assert changes(rent) == [
+        {
+            "type": "recurring",
+            "amount": "-95000",
+            "cadence": "monthly",
+            "start": "2026-11-01",
+            "real_growth": "0.01",
+            "label": "Rent",
+        }
+    ]
+    assert not any(c["type"] == "stop_recurring" for c in changes(buy))
+    assert built.placeholders == ()
+    # Living rent-free: keeping on is the baseline itself, and no rent's
+    # growth is a placeholder.
+    _, free = build("rent-or-buy", {**no_rent, "rent_monthly": "0"})
+    assert changes(free.options[0]) == [] and free.placeholders == ()
+    assert free.options[0].describes == "No rent, as now: your baseline."
+
+
+def test_a_rent_every_two_weeks_is_stated_again_a_month():
+    """A scenario states a rent weekly, monthly, quarterly or yearly: one the
+    ledger shows every two weeks goes on at its monthly equivalent, 26/12 of
+    it, from the day of the purchase."""
+    fortnightly = dataclasses.replace(MAPLE, cadence="biweekly", amount=Decimal("55000"))
+    facts = dataclasses.replace(FACTS, recurring=(fortnightly,))
+    _, built = build("rent-or-buy", BUY, facts)
+    assert changes(built.options[0])[1] == {
+        "type": "recurring",
+        "amount": "-119167",
+        "cadence": "monthly",
+        "start": "2026-11-01",
+        "account": "acc-main",
+        "label": "Rent: Maple House",
+    }
 
 
 # ── Holdings (decision lab 3b, decision 21) ─────────────────────────────────
