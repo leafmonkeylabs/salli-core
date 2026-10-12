@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from salli.application.ports import Delivery, Notification, Notifier
+
 
 class FakeProfiles:
     """The slice of UserProfileRepository the money path reads: whose ledger is
@@ -35,6 +37,9 @@ class FakeProfiles:
 
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
         self.rows.setdefault(user_id, {})["fi_assumptions"] = stored
+
+    async def set_preference(self, user_id: str, field: str, value: str | None) -> None:
+        self.rows.setdefault(user_id, {})[field] = value
 
 
 class FakeRecords:
@@ -740,6 +745,7 @@ class FakeUoW:
         self.principles = FakePrinciples()
         self.decisions = FakeDecisions()
         self.reminders = FakeReminders()
+        self.notifications = FakeNotifications(self.user_profiles)
 
     async def __aenter__(self) -> FakeUoW:
         return self
@@ -750,3 +756,104 @@ class FakeUoW:
     def factory(self) -> Any:
         """A uow_factory handing out this unit of work."""
         return lambda: self
+
+
+class FakeNotifications:
+    """Digest preferences and the delivery log in memory, claiming a period's
+    send as the SQL repository does: a new row only on the digest day, or a
+    FAILED one with attempts left."""
+
+    def __init__(self, profiles: FakeProfiles) -> None:
+        self.profiles = profiles
+        self.preferences: dict[str, dict[str, Any]] = {}
+        self.log: dict[tuple[str, str], dict[str, Any]] = {}
+        self.runs: list[datetime] = []
+
+    async def get_preferences(self, user_id: str) -> dict[str, Any] | None:
+        stored = self.preferences.get(user_id)
+        return None if stored is None else dict(stored)
+
+    async def save_preferences(self, user_id: str, preferences: dict[str, Any]) -> None:
+        self.preferences[user_id] = {**preferences, "updated_at": datetime.now(UTC)}
+
+    async def opted_in(self) -> list[dict[str, Any]]:
+        found: list[dict[str, Any]] = []
+        for user_id, prefs in sorted(self.preferences.items()):
+            time_zone = self.profiles.rows.get(user_id, {}).get("time_zone")
+            if prefs["enabled"] and time_zone:
+                found.append({**prefs, "user_id": user_id, "time_zone": time_zone})
+        return found
+
+    async def delivery(self, user_id: str, period: str) -> dict[str, Any] | None:
+        row = self.log.get((user_id, period))
+        return None if row is None else dict(row)
+
+    async def claim(
+        self,
+        user_id: str,
+        *,
+        delivery_id: str,
+        period: str,
+        items: list[dict[str, Any]],
+        message_hash: str,
+        now: datetime,
+        first: bool,
+        max_attempts: int,
+    ) -> int | None:
+        row = self.log.get((user_id, period))
+        if row is None:
+            if not first:
+                return None
+            self.log[(user_id, period)] = {
+                "id": delivery_id,
+                "period": period,
+                "status": "sending",
+                "attempts": 1,
+                "items": items,
+                "hash": message_hash,
+                "created_at": now,
+                "last_attempt_at": now,
+                "sent_at": None,
+            }
+            return 1
+        if row["status"] != "failed" or row["attempts"] >= max_attempts:
+            return None
+        row.update(
+            status="sending",
+            attempts=row["attempts"] + 1,
+            items=items,
+            hash=message_hash,
+            last_attempt_at=now,
+        )
+        return row["attempts"]
+
+    async def finish(self, user_id: str, delivery_id: str, status: str, now: datetime) -> None:
+        for (owner, _), row in self.log.items():
+            if owner == user_id and row["id"] == delivery_id and row["status"] == "sending":
+                row.update(status=status, sent_at=now if status == "sent" else None)
+
+    async def deliveries(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        rows = [dict(r) for (owner, _), r in self.log.items() if owner == user_id]
+        return sorted(rows, key=lambda r: r["created_at"], reverse=True)[:limit]
+
+    async def record_run(self, at: datetime) -> None:
+        self.runs.append(at)
+
+    async def last_run(self) -> datetime | None:
+        return self.runs[-1] if self.runs else None
+
+
+class RecordingNotifier(Notifier):
+    """A notifier for tests: keeps every notification it is given and answers
+    with `outcomes` in turn (then the last one again), or raises `error`."""
+
+    def __init__(self, *outcomes: Delivery, error: Exception | None = None) -> None:
+        self.sent: list[Notification] = []
+        self.outcomes = list(outcomes) or [Delivery.SENT]
+        self.error = error
+
+    async def send(self, notification: Notification) -> Delivery:
+        self.sent.append(notification)
+        if self.error is not None:
+            raise self.error
+        return self.outcomes.pop(0) if len(self.outcomes) > 1 else self.outcomes[0]

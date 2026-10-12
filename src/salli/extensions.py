@@ -15,8 +15,9 @@ A spec has two halves, because they are needed at different times:
 - `build(ctx)` — returns an `Extension` with the runtime parts: a `UsageMeter`,
   an `EntitlementPolicy`, a `ChatGPTPlanPolicy` (whether users may use their
   ChatGPT plan: a hosted product needs OpenAI's approval first), an
-  `IdentityProvider` (sign-in through an outside provider, such as OIDC), extra
-  services, and purgers for its own per-user tables. Called by `build_services`, before Salli's own services are built so
+  `IdentityProvider` (sign-in through an outside provider, such as OIDC), a
+  `Notifier` (delivers the digests core builds: an email, a push, a chat),
+  extra services, and purgers and exporters for its own per-user tables. Called by `build_services`, before Salli's own services are built so
   the meter and policy can be injected into them.
 
 Installing a package is not enough to activate it. Only the extensions named in
@@ -32,11 +33,17 @@ from dataclasses import dataclass, field
 from importlib.metadata import EntryPoint, entry_points
 from typing import Any, cast
 
-from salli.application.defaults import ChatGPTPlanAllowed, FullAccess, UnmeteredUsage
+from salli.application.defaults import (
+    ChatGPTPlanAllowed,
+    FullAccess,
+    NoNotifier,
+    UnmeteredUsage,
+)
 from salli.application.ports import (
     ChatGPTPlanPolicy,
     EntitlementPolicy,
     IdentityProvider,
+    Notifier,
     UsageMeter,
 )
 
@@ -86,6 +93,9 @@ class Extension:
     #: An identity provider outside Salli whose tokens the API accepts as a
     #: person's session (see IdentityProvider). Salli ships none.
     identity_provider: IdentityProvider | None = None
+    #: Delivers the digests core builds (see Notifier). Salli ships none, and
+    #: a deployment has at most one.
+    notifier: Notifier | None = None
     #: Extra services, reachable as `services.extensions.services[key]`.
     services: dict[str, Any] = field(default_factory=dict[str, Any])
     user_data_purgers: list[UserDataPurger] = field(default_factory=list[UserDataPurger])
@@ -122,6 +132,10 @@ class Contributions:
     chatgpt_plan: ChatGPTPlanPolicy = field(default_factory=ChatGPTPlanAllowed)
     #: None unless an extension supplied one: Salli's own sign-in is the only one.
     identity_provider: IdentityProvider | None = None
+    #: Sends nothing unless an extension supplied a notifier.
+    notifier: Notifier = field(default_factory=NoNotifier)
+    #: The extension whose notifier is in force; None for Salli's own.
+    notifier_from: str | None = None
 
 
 def parse_enabled(raw: str | None) -> list[str]:
@@ -195,12 +209,14 @@ def build_extensions(specs: list[ExtensionSpec], ctx: ExtensionContext) -> list[
 
 
 def combine(extensions: list[Extension]) -> Contributions:
-    """Merge runtime contributions. A meter or a policy may come from at most one
-    extension — two would leave it ambiguous which one is in force."""
+    """Merge runtime contributions. A meter, a policy, an identity provider or
+    a notifier may come from at most one extension — two would leave it
+    ambiguous which one is in force."""
     meter: tuple[str, UsageMeter] | None = None
     policy: tuple[str, EntitlementPolicy] | None = None
     plan: tuple[str, ChatGPTPlanPolicy] | None = None
     identity: tuple[str, IdentityProvider] | None = None
+    notifier: tuple[str, Notifier] | None = None
     services: dict[str, Any] = {}
     purgers: list[UserDataPurger] = []
     exporters: list[UserDataExporter] = []
@@ -228,6 +244,10 @@ def combine(extensions: list[Extension]) -> Contributions:
                     f"Both {identity[0]!r} and {ext.name!r} provide an identity provider."
                 )
             identity = (ext.name, ext.identity_provider)
+        if ext.notifier is not None:
+            if notifier is not None:
+                raise ExtensionError(f"Both {notifier[0]!r} and {ext.name!r} provide a notifier.")
+            notifier = (ext.name, ext.notifier)
         for key, service in ext.services.items():
             if key in services:
                 raise ExtensionError(f"Service {key!r} is provided by two extensions.")
@@ -244,4 +264,6 @@ def combine(extensions: list[Extension]) -> Contributions:
         names=tuple(ext.name for ext in extensions),
         chatgpt_plan=plan[1] if plan else ChatGPTPlanAllowed(),
         identity_provider=identity[1] if identity else None,
+        notifier=notifier[1] if notifier else NoNotifier(),
+        notifier_from=notifier[0] if notifier else None,
     )

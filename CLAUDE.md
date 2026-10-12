@@ -70,7 +70,7 @@ adapters/     concrete implementations of ports (db, llm, storage, fx, parsing)
 interfaces/   api/ (incl. the MCP server), cli/ (salli-server) — thin wrappers over services
 migrations/   Alembic history, shipped in the package (`salli-server db upgrade`)
 composition.py  single place adapters are bound to ports
-extensions.py   how a deployment adds a usage meter, routes, commands, tables
+extensions.py   how a deployment adds a usage meter, a notifier, routes, commands, tables
 config.py       pydantic-settings, env-driven
 ```
 
@@ -99,10 +99,11 @@ the stable surface extensions build on: keep their names and behaviour.
 
 Salli has no billing, plans or metering. A deployment that needs them supplies
 an extension (`extensions.py`): a `UsageMeter` that may refuse an AI action
-(`domain/usage.py`), an `EntitlementPolicy` that may shape a surface, plus
-routes, `salli-server` command groups, services, tables (own metadata, own migration history and
+(`domain/usage.py`), an `EntitlementPolicy` that may shape a surface, a
+`Notifier` that delivers digests (at most one; see below), plus routes, `salli-server` command groups, services, tables (own metadata, own migration history and
 version table) and per-user purgers/exporters. The defaults —
-`application/defaults.py` — meter nothing and show everything. Call
+`application/defaults.py` — meter nothing, show everything and send nothing
+(`NoNotifier`). Call
 `services.usage.charge(...)` before any new AI action and
 `services.entitlements.for_user(...)` for any new shapeable surface; never
 branch on who a user is. `tests/contract/test_no_commercial_vocabulary.py`
@@ -145,6 +146,12 @@ Reads never write: only `FiService.record_score` (the recompute route, and the a
 `domain/decisions/` ([docs/decisions.md](docs/decisions.md)) is pure. A **principle** (`salli.principle/1`) is a label and a check in the tax rules' expression language in figure mode (`parse(text, figures=True)`: figures by plain name, `emergency_months >= 6`) over a fixed, documented figure set (`figures.FIGURES`, computed from a scenario's outlook by `figures.compute`); checking says keeps, breaks or can't tell, never a ranking. Add a figure only by extending that set (and its docs), never by letting checks read anything else. The **decision journal** is append-only: `journal.entry`/`note`/`review` build `salli.decision/1` documents hashed over their canonical JSON (`domain/canonical.py`), returned exactly as stored. `SQLDecisionRepository` only adds and reads, and core_0017's trigger refuses UPDATE/DELETE/TRUNCATE on `decisions`, `decision_notes` and `decision_reviews` except while `delete_all` erases the user (`salli.erase_user`); never add an update or delete path. `DecisionService` runs every option itself (clients never supply figures), records a review reminder (`source_domain` "decision"), and reviews compare the chosen option's `projection` with the baseline as of a month's end (`review.compare`). MCP tools that store a principle, a decision or a review require `confirmed_by_user: true`.
 
 **Templates** ([docs/templates.md](docs/templates.md)): `domain/decisions/templates.py` (the `salli.template/1` question types, answer checking with paths, `Facts` from the baseline and principles) and `catalogue.py` (the six) build options as scenarios by pure functions of the answers; a default comes only from the date, the person's own debts and principles, or a plain one of Salli's, never an invented figure, and no template holds a country's rule. `start.py` (`salli.decision-start/1`, served by `TemplateService.start`) compares the options, checks the principles, reads the time to a cash target from the engine (`engine.cover_target`; the `set_aside` change keeps part of the surplus in cash), and stores nothing: recording stays `record_decision`, from its `record`. Nothing a template or a start returns may rank: `tests/guardrails.py` fails on a ranking field or word, and the `think_through_decision` and `can_i_afford` prompts end with `mcp_server.GUARDRAILS` (never compute, never name products, a licensed professional for regulated advice, the person's principles, never rank, never record unconfirmed), which tests hold them to.
+
+### Notifications (digests)
+
+Phase 3d of the decision lab (docs/design/decision-lab-phase-3.md, section 4; docs/self-host.md#digests). **Core builds every message and sends none.** `domain/notifications/` is pure: `digest.py` holds the wording table and `build_digest` (each item's kind in Salli's own sentence, a count, the earliest date and the `SALLI_PUBLIC_URL` link; None when nothing is waiting), and `schedule.py` says when a digest goes (the ISO week or month of the person's local date, their weekday, or the month's first one, at their local hour through `zoneinfo`; an hour a clock change skips goes at the next that exists, one it repeats counts once). The items are decision reviews due (reminders with `source_domain` "decision"), the person's own reminders due before the next digest, filing deadlines (`source_domain` "tax_rules") within 14 days, the cash forecast below zero (`InsightsService.cash_below_zero_on`, the `low_balance_ahead` signal at `high`), and, only if chosen, transactions to review; other signals stay in the product. **A message never holds an amount, a name, a question, a note or anything else from the ledger**: the builder is given a reminder's source, due date and status (`ReminderFact`), never its text, and `tests/guardrails.assert_never_urges` (no ranking or urgency word, no streak, no countdown, no number of days, no `!`) and a property test over random people's data hold it. Never pass the builder text, and never let a model write a message.
+
+`NotificationService` keeps the preferences (`notification_preferences`: opt-in, weekly or monthly, weekday, hour, items; `user_profiles.time_zone`, an IANA name, needed to opt in), previews the message (reads only), and `send_due(now)` sends what is due this hour through the deployment's `Notifier` (`Extension.notifier`, merged in `combine` like the meter; `NoNotifier` by default, and then the job does nothing). **Once a period:** the period's row in `notification_deliveries` (unique user and period) is claimed before the send, by an insert or by an update that only matches a FAILED row with attempts left; a FAILED send is retried at the same hour on a later day of the period, three attempts in all; a row left `sending` (the process stopped mid-send) is never retried. The log keeps the items and the message's hash, never its text; failures are logged by the exception's type only. `salli-server jobs send-digests` and `POST /v1/notifications/cron/send-due` (X-Cron-Secret) run it hourly; `salli-server doctor` names the notifier and warns when the job hasn't run in a day. Erasing an account deletes both tables' rows; the export carries them.
 
 ### Agents (LangGraph)
 

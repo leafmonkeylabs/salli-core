@@ -159,6 +159,9 @@ class Profile(BaseModel):
     tax_residency: CountryCode | None = None
     #: The numbers their tax authorities know them by.
     tax_ids: list[TaxId] = Field(default_factory=list[TaxId])
+    #: Their IANA time zone ("Europe/Lisbon"), null until they set it with
+    #: their digest preferences (`notifications.preferences.update`).
+    time_zone: str | None = None
 
 
 class ProfileUpdated(BaseModel):
@@ -422,6 +425,12 @@ class DataExport(BaseModel):
     decision_journal: dict[str, Any] = Field(default_factory=dict)
     """The decision journal as `decisions.export` gives it: every entry,
     note and review exactly as recorded, with its hash."""
+    notification_preferences: dict[str, Any] | None = None
+    """The digest's preferences as stored (null while never set); the time
+    zone is in `profile`."""
+    notification_deliveries: list[dict[str, Any]] = Field(default_factory=list)
+    """The digest's delivery log as `notifications.deliveries.list` shows
+    it: each period's status, items (kinds, counts, dates) and hash."""
 
 
 @router.get("/export")

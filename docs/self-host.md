@@ -13,6 +13,7 @@ there is no outside auth service and no email to configure (decision D13).
 - [Configuration](#configuration)
 - [HTTPS on your own domain](#https-on-your-own-domain)
 - [Scheduled jobs](#scheduled-jobs)
+- [Digests](#digests)
 - [Backup and restore](#backup-and-restore)
 - [Upgrades](#upgrades)
 - [Security](#security)
@@ -116,7 +117,7 @@ is needed to start.
 
 | Setting | Default | |
 |---|---|---|
-| `SALLI_PUBLIC_URL` | `http://localhost:8000` | The URL clients reach Salli at. With the `tls` profile, `https://<SALLI_DOMAIN>`. |
+| `SALLI_PUBLIC_URL` | `http://localhost:8000` | The URL clients reach Salli at. With the `tls` profile, `https://<SALLI_DOMAIN>`. It is also the link in a digest. |
 | `SALLI_BIND` | `127.0.0.1` | The interface the port is published on. `0.0.0.0` publishes it to your network: see [Security](#security). |
 | `SALLI_PORT` | `8000` | The port on that interface. |
 | `SALLI_DOMAIN` | none | The domain Caddy serves with HTTPS (the `tls` profile). |
@@ -156,7 +157,7 @@ way.
 | `SALLI_STORAGE_DIR` | `/var/lib/salli/files` | Where uploaded files are kept. Default outside the image: `~/.salli/storage`. |
 | `BYOK_ENCRYPTION_KEYS` | generated | Encrypts the AI keys and bank credentials people store, as `version:base64`, comma-separated. The highest version encrypts; every listed one decrypts. |
 | `MCP_SIGNING_SECRET` | generated | Signs pending approvals on the consent page. |
-| `CRON_SECRET` | generated | Lets a scheduler call `/v1/advisor/cron/run-due` and `/v1/bank-connections/cron/sync-due`. |
+| `CRON_SECRET` | generated | Lets a scheduler call `/v1/advisor/cron/run-due`, `/v1/bank-connections/cron/sync-due` and `/v1/notifications/cron/send-due`. |
 | `SALLI_INSECURE_DEV_AUTH` | off | Development only: any bearer token is taken as a user id. Honoured only with `ENVIRONMENT=development`. |
 
 To rotate the BYOK key, add a new version to the file in the secrets volume
@@ -193,13 +194,107 @@ Pass `--profile tls` to every `docker compose up`, or set
 
 ## Scheduled jobs
 
-Two jobs run for every user who wants them: the daily advisor report, and
-syncing connected banks. Run them from the host's crontab:
+Three jobs run for every user who wants them: the daily advisor report,
+syncing connected banks, and the digests (below). Run them from the host's
+crontab:
 
 ```cron
 0 6 * * *   cd /path/to/salli && docker compose exec -T salli salli-server jobs run-advisor
 0 */6 * * * cd /path/to/salli && docker compose exec -T salli salli-server jobs sync-banks
+0 * * * *   cd /path/to/salli && docker compose exec -T salli salli-server jobs send-digests
 ```
+
+A scheduler that calls the API instead uses each job's cron route with the
+`X-Cron-Secret` header (the `CRON_SECRET` in the secrets volume):
+`POST /v1/advisor/cron/run-due`, `/v1/bank-connections/cron/sync-due` and
+`/v1/notifications/cron/send-due`.
+
+## Digests
+
+A person can ask for a digest: weekly or monthly, on the weekday and at the
+local hour they choose, saying what is waiting for them in Salli (`salli
+notifications set --on --time-zone Europe/Lisbon`; `salli notifications
+preview` shows the message). Salli builds every message itself and sends
+none: your deployment delivers it, through a **notifier** you plug in as an
+extension. Without one, nothing is sent; people's preferences still save,
+and the preview still works.
+
+**What a message holds.** Each kind of thing waiting (decisions ready for
+review, their own reminders, filing deadlines in the next 14 days, cash
+forecast below zero, and, if they ask, transactions to review), how many,
+the earliest date, and a link to `SALLI_PUBLIC_URL`. Never an amount, a
+balance, a name (an account's, a payee's, a reminder's), a decision's
+question, a note or anything else from the ledger, and never the person's
+email. A message goes through your mail server or push service, so it says
+what is waiting, never what it is about. Nothing goes when nothing is
+waiting, and no more than one a period.
+
+**Scheduling.** Run `salli-server jobs send-digests` every hour (above), or
+call `POST /v1/notifications/cron/send-due` hourly. Each run sends the
+digests whose hour it is, in each person's time zone; every other hour is
+quiet. Running it twice, or on two servers, sends nothing twice: a period's
+digest is claimed in the delivery log before it goes. A send that fails is
+tried again at the same hour on a later day of the period, three attempts
+in all. `salli-server doctor` names the notifier and warns when the job has
+not run in the last day.
+
+**Plugging in a sender.** A notifier is a Python package with an entry point
+in `salli.extensions` whose `build` returns an `Extension` with a
+`notifier`. It gets each `Notification` (`id`, `user_id`, `period`,
+`subject`, `text`, `items`, `link`) and returns a `Delivery`: `SENT`,
+`NO_DESTINATION` (it has nowhere to send this person's) or `FAILED`. It
+finds where to send by the user id, in its own tables: Salli never stores an
+email for sending, a push token or a chat id. A minimal one, which Salli
+does not ship:
+
+```python
+# my_mailer/extension.py
+from salli.application.ports import Delivery, Notification, Notifier
+from salli.extensions import Extension, ExtensionContext, ExtensionSpec
+
+
+class Mailer(Notifier):
+    """Sends each digest by email, to an address kept in its own table."""
+
+    def __init__(self, ctx: ExtensionContext) -> None:
+        self._ctx = ctx  # its own settings, sessions and secrets
+
+    async def send(self, notification: Notification) -> Delivery:
+        address = await self._address_of(notification.user_id)
+        if address is None:
+            return Delivery.NO_DESTINATION
+        try:
+            # The id is the same for every attempt in a period: pass it on
+            # (a Message-ID, an idempotency key) so a repeat can be dropped.
+            await self._smtp(address, notification.subject, notification.text, notification.id)
+        except OSError:
+            return Delivery.FAILED
+        return Delivery.SENT
+
+    async def _address_of(self, user_id: str) -> str | None: ...
+    async def _smtp(self, to: str, subject: str, text: str, key: str) -> None: ...
+
+
+spec = ExtensionSpec(
+    name="mailer",
+    build=lambda ctx: Extension(name="mailer", notifier=Mailer(ctx)),
+    # migrations=...,  # its own Alembic directory, if it keeps tables of its own
+)
+```
+
+```toml
+# my_mailer's pyproject.toml
+[project.entry-points."salli.extensions"]
+mailer = "my_mailer.extension:spec"
+```
+
+Install the package where the server runs (with compose, an image built
+`FROM` Salli's that adds it) and set `SALLI_EXTENSIONS=mailer`. One notifier
+per deployment: two stop startup. Keep to the privacy rule when you render
+the message: restyle it, but add nothing to it. Keep its destinations and
+secrets in its own tables and settings, give the extension
+`user_data_purgers` and `user_data_exporters` for them, so erasing and
+exporting an account reach them, and never log a message's text.
 
 ## Backup and restore
 

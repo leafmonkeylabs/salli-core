@@ -158,6 +158,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Your rules of thumb | `salli principles add "Six months in cash" --check "emergency_months >= 6"`, `salli principles check cash.json instalments.json` |
 | Your decision journal | `salli decisions record …`, `salli decisions reviews`, `salli decisions export` |
 | A review from the advisor | `salli advisor run`, or `salli advisor briefing` to approve a monthly briefing before it is saved |
+| A digest of what is waiting | `salli notifications set --on --time-zone Europe/Lisbon`, `salli notifications preview`, `salli notifications log` |
 | Tax | `salli tax year`, `salli tax compute`, `salli tax explain <line>`, `salli tax return prepare`, `salli profile set --tax-residency GB` |
 | Your own tax rules | `salli tax rules list`, `salli tax rules diff "XA 2031"`, `salli tax rules activate "XA 2031"` (see below) |
 | Choose what powers the AI | `salli ai status`, `salli ai connect chatgpt`, `salli llm-keys set openai` |
@@ -196,6 +197,16 @@ the server, which keeps and renews it. Using the plan counts toward its usage
 limits (https://chatgpt.com/settings/usage). Nothing is kept on your computer and
 no token is printed. Your own Anthropic or OpenAI key works too (`salli
 llm-keys set`), and `salli ai use` chooses between them.
+
+`salli notifications` is your digest: off until you turn it on, then weekly or
+monthly on the weekday and at the local hour you choose (`--day`, `--hour`,
+`--time-zone`; `--time-zone local` uses this computer's). It says what is
+waiting (decisions to review, your reminders, filing deadlines in the next 14
+days, cash going below zero, and with `--items` transactions to review): how
+many and the date, never an amount, a name or a question. Nothing goes when
+nothing is waiting. `salli notifications preview` shows the message that would
+go now, and sends nothing; your server's notifier delivers the real one, and
+without one nothing is sent.
 
 `salli chat` streams the AI's reply as it is written and shows the tools and
 specialists it uses. Before the AI changes anything it says what and asks; nothing

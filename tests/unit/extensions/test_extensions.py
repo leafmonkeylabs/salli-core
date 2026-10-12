@@ -169,6 +169,38 @@ def test_two_identity_providers_are_refused():
         )
 
 
+def test_salli_ships_no_sender_and_an_extension_may_supply_one():
+    from salli.application.defaults import NoNotifier
+    from tests.fakes import RecordingNotifier
+
+    shipped = combine([])
+    assert isinstance(shipped.notifier, NoNotifier)
+    assert shipped.notifier_from is None
+    sender = RecordingNotifier()
+    merged = combine([Extension(name="a"), Extension(name="mailer", notifier=sender)])
+    assert merged.notifier is sender
+    assert merged.notifier_from == "mailer"
+
+
+async def test_no_notifier_sends_nothing():
+    from salli.application.defaults import NoNotifier
+    from salli.application.ports import Delivery
+
+    assert await NoNotifier().send(None) is Delivery.NO_DESTINATION  # type: ignore[arg-type]
+
+
+def test_two_notifiers_are_refused():
+    from tests.fakes import RecordingNotifier
+
+    with pytest.raises(ExtensionError, match="notifier"):
+        combine(
+            [
+                Extension(name="a", notifier=RecordingNotifier()),
+                Extension(name="b", notifier=RecordingNotifier()),
+            ]
+        )
+
+
 def test_a_service_key_claimed_twice_is_refused():
     with pytest.raises(ExtensionError, match="'x'"):
         combine([Extension(name="a", services={"x": 1}), Extension(name="b", services={"x": 2})])

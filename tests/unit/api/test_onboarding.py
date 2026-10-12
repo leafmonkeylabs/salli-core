@@ -46,6 +46,7 @@ def _profile_row() -> dict[str, Any]:
         "preferred_model": None,
         "tax_residency": None,
         "tax_ids": [],
+        "time_zone": "Europe/Lisbon",
     }
 
 

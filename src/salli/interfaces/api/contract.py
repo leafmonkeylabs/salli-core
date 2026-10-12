@@ -169,6 +169,12 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/advisor/briefing/prepare"): "advisor.briefing.prepare",
     ("POST", "/advisor/briefing/resume"): "advisor.briefing.resume",
     ("POST", "/advisor/cron/run-due"): "advisor.cron.runDue",
+    # digests (docs/design/decision-lab-phase-3.md, section 4)
+    ("GET", "/notifications/preferences"): "notifications.preferences.get",
+    ("PATCH", "/notifications/preferences"): "notifications.preferences.update",
+    ("GET", "/notifications/preview"): "notifications.preview",
+    ("GET", "/notifications/deliveries"): "notifications.deliveries.list",
+    ("POST", "/notifications/cron/send-due"): "notifications.cron.sendDue",
     # budgets
     ("GET", "/budget/"): "budgets.list",
     ("POST", "/budget/"): "budgets.create",

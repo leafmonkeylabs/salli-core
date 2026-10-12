@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from salli.adapters.db.decisions import SQLDecisionRepository, SQLPrincipleRepository
+from salli.adapters.db.notifications import SQLNotificationRepository
 from salli.adapters.db.repositories import (
     SQLAdvisoryRepository,
     SQLAgentDocumentRepository,
@@ -65,6 +66,7 @@ from salli.application.ports import (
     LedgerRepository,
     LlmCredentialRepository,
     LoginRepository,
+    NotificationRepository,
     OAuthClientRepository,
     OAuthTokenRepository,
     PersonalAccessTokenRepository,
@@ -118,6 +120,7 @@ class UnitOfWork:
     bank_connections: BankConnectionRepository
     principles: PrincipleRepository
     decisions: DecisionRepository
+    notifications: NotificationRepository
 
     def __init__(
         self,
@@ -163,6 +166,7 @@ class UnitOfWork:
         self.bank_connections = SQLBankConnectionRepository(self._session)
         self.principles = SQLPrincipleRepository(self._session)
         self.decisions = SQLDecisionRepository(self._session)
+        self.notifications = SQLNotificationRepository(self._session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:

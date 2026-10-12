@@ -63,6 +63,7 @@ import {
   uid,
 } from './fixtures';
 import { DecisionsMock } from './decisions';
+import { NotificationsMock } from './notifications';
 import { SCENARIO_COMPARISON, SCENARIO_RUN } from './scenarios';
 import { TaxRulesMock } from './taxrules';
 
@@ -135,6 +136,8 @@ export class MockSalli {
   readonly taxRules = new TaxRulesMock();
   /** Principles and the decision journal (`/v1/principles`, `/v1/decisions`). */
   readonly decisions = new DecisionsMock();
+  /** The digest's preferences, preview and log (`/v1/notifications`). */
+  readonly notifications = new NotificationsMock();
   data = {
     accounts: clone(ACCOUNTS),
     entries: clone(ENTRIES),
@@ -446,6 +449,8 @@ export class MockSalli {
     if (taxRules) return taxRules;
     const decisions = this.decisions.route(req);
     if (decisions) return decisions;
+    const notifications = this.notifications.route(req);
+    if (notifications) return notifications;
 
     if (method === 'GET' && path === '/v1/auth/me') {
       return { status: 200, body: { ...this.user, method: this.pats.has(this.tokenOf(req)) ? 'pat' : 'oauth', permissions: this.permissionsOf(req) } };

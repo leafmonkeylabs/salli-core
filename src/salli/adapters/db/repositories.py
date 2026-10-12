@@ -46,6 +46,8 @@ from salli.adapters.db.models import (
     LoginFailureORM,
     LoginORM,
     LoginSessionORM,
+    NotificationDeliveryORM,
+    NotificationPreferencesORM,
     OAuthAccessTokenORM,
     OAuthAuthorizationCodeORM,
     OAuthClientORM,
@@ -1258,6 +1260,7 @@ class SQLUserProfileRepository(UserProfileRepository):
             "tax_residency": row.tax_residency,
             "tax_ids": list(row.tax_ids or []),
             "fi_assumptions": dict(row.fi_assumptions or {}),
+            "time_zone": row.time_zone,
         }
 
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
@@ -1366,7 +1369,7 @@ class SQLUserProfileRepository(UserProfileRepository):
         sibling, allowlisted for the same reason: so it cannot quietly become a
         way to write any column from a request body.
         """
-        if field not in ("preferred_model",):
+        if field not in ("preferred_model", "time_zone"):
             raise ValueError(f"'{field}' is not a settable profile preference")
         result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
         row = result.scalar_one_or_none()
@@ -2751,6 +2754,9 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(AgentDocumentORM, AgentDocumentORM.user_id)
         await _delete(AgentSessionORM, AgentSessionORM.user_id)
         await _delete(ReminderORM, ReminderORM.user_id)
+        # The digest's preferences and its delivery log go with the account.
+        await _delete(NotificationPreferencesORM, NotificationPreferencesORM.user_id)
+        await _delete(NotificationDeliveryORM, NotificationDeliveryORM.user_id)
         await _delete(UserLlmCredentialORM, UserLlmCredentialORM.user_id)
         # Sealed ChatGPT tokens, the second place a user's AI credential lives.
         await _delete(AiConnectionORM, AiConnectionORM.user_id)
