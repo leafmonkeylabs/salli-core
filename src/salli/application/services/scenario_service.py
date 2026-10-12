@@ -6,15 +6,17 @@ It reads and never writes: a scenario is the baseline plus changes,
 evaluated in memory, and nothing about it is stored. The service does what
 the pure engine can't:
 
-- **Whose ids.** Every account and debt a change names must be the caller's
-  own: an account checked as every write in Salli checks one
-  (`ownership.require_own_accounts`), a debt among their active debts.
-  Anything else is "not found" (AccountNotFound, DebtNotFound), the same for
-  one that doesn't exist and one that is someone else's.
+- **Whose ids.** Every account, debt and holding a change names must be the
+  caller's own: an account checked as every write in Salli checks one
+  (`ownership.require_own_accounts`), a debt among their active debts, a
+  holding among their holdings. Anything else is "not found"
+  (AccountNotFound, DebtNotFound, HoldingNotFound), the same for one that
+  doesn't exist and one that is someone else's: no security the caller
+  doesn't hold gets into a scenario.
 - **Whose tax roles.** A change's `tax_role` must be a role one of the
   caller's rule sets declares (any version still in use, active or not), of
-  kind income or deduction: anything else is a problem at its path, as a
-  mistyped id is. Whether active rules compute it is the engine's to say.
+  kind income or deduction (a sale's, of kind income: its realised gain):
+  anything else is a problem at its path, as a mistyped id is. Whether active rules compute it is the engine's to say.
 - **Which day.** The baseline is built as of the scenario's `as_of` (today
   by this service's clock when it has none), never a day after today; the
   options of a comparison share one.
@@ -32,7 +34,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from salli.application.ownership import require_own_accounts
-from salli.application.ports import DebtNotFound
+from salli.application.ports import DebtNotFound, HoldingNotFound
 from salli.application.services.baseline_service import BaselineService
 from salli.domain.scenarios import comparison, engine, schema, views
 from salli.domain.scenarios.engine import ScenarioError
@@ -51,6 +53,8 @@ def accounts_named(scenarios: Iterable[schema.Scenario]) -> set[str]:
                     account = change.into
                 case schema.InvestChange():
                     account = change.from_
+                case schema.SellChange():
+                    account = change.into
                 case _:
                     account = None
             if account:
@@ -64,8 +68,7 @@ def tax_roles_named(scenarios: Sequence[schema.Scenario]) -> list[tuple[int, int
         (n, i, change.tax_role)
         for n, scenario in enumerate(scenarios)
         for i, change in enumerate(scenario.changes)
-        if isinstance(change, schema.OneOffChange | schema.RecurringChange | schema.IncomeChange)
-        and change.tax_role is not None
+        if isinstance(change, schema.TAGGABLE) and change.tax_role is not None
     ]
 
 
@@ -76,6 +79,16 @@ def debts_named(scenarios: Iterable[schema.Scenario]) -> set[str]:
         for scenario in scenarios
         for change in scenario.changes
         if isinstance(change, schema.ExtraDebtPaymentChange)
+    }
+
+
+def holdings_named(scenarios: Iterable[schema.Scenario]) -> set[str]:
+    """Every holding id a change names."""
+    return {
+        change.holding
+        for scenario in scenarios
+        for change in scenario.changes
+        if isinstance(change, schema.WITH_HOLDING) and change.holding is not None
     }
 
 
@@ -116,9 +129,10 @@ class ScenarioService:
         return schema.json_schema()
 
     async def check_own(self, user_id: str, scenarios: Sequence[schema.Scenario]) -> None:
-        """AccountNotFound / DebtNotFound unless every id the changes name is
-        the user's own (an active debt, for a debt)."""
+        """AccountNotFound / DebtNotFound / HoldingNotFound unless every id
+        the changes name is the user's own (an active debt, for a debt)."""
         debts = debts_named(scenarios)
+        holdings = holdings_named(scenarios)
         tagged = tax_roles_named(scenarios)
         async with self._uow_factory() as uow:
             await require_own_accounts(uow, user_id, accounts_named(scenarios))
@@ -126,6 +140,10 @@ class ScenarioService:
                 mine = {str(d["id"]) for d in await uow.debts.list(user_id, active_only=True)}
                 if debts - mine:
                     raise DebtNotFound(debts - mine)
+            if holdings:
+                held = {str(h["id"]) for h in await uow.holdings.list(user_id, active_only=False)}
+                if holdings - held:
+                    raise HoldingNotFound(holdings - held)
             kinds: dict[str, set[str]] = (
                 await uow.tax_rule_sets.declared_role_kinds(user_id) if tagged else {}
             )
@@ -140,6 +158,16 @@ class ScenarioService:
                         path,
                         f"{role!r} is not a role any of your tax rule sets declares: "
                         "`salli tax rules list` shows your rule sets, and their roles",
+                    )
+                )
+            elif (
+                isinstance(scenarios[n].changes[i], schema.SellChange) and "income" not in declared
+            ):
+                problems.append(
+                    Problem(
+                        path,
+                        f"{role} is a role of kind {sorted(declared)[0]} in your tax rules: a "
+                        "sale's realised gain goes to an income role",
                     )
                 )
             elif not declared & {"income", "deduction"}:

@@ -26,6 +26,7 @@ from salli.application.ports import (
     DecisionNotFound,
     FetchRefused,
     FxUnavailableError,
+    HoldingNotFound,
     PrincipleNotFound,
     ProfileMissing,
 )
@@ -324,6 +325,11 @@ def create_app() -> FastAPI:
     # A debt a scenario names that is not one of the caller's active debts.
     @app.exception_handler(DebtNotFound)
     async def debt_not_found_handler(request: Request, exc: DebtNotFound) -> JSONResponse:
+        return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
+
+    # A holding a scenario names that is not one of the caller's.
+    @app.exception_handler(HoldingNotFound)
+    async def holding_not_found_handler(request: Request, exc: HoldingNotFound) -> JSONResponse:
         return problem(status.HTTP_404_NOT_FOUND, "not-found", "Not found", str(exc))
 
     # A scenario Salli can't run on this user's money (domain/scenarios):

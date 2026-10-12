@@ -27,7 +27,15 @@ does the baseline's own, or a move that goes where it says:
   the schedule starts (`timelines.debt_paths`). The debt's scheduled
   payments it saves join the regular surplus once the debt is gone.
 - `invest`: a move, cash out on its day into the investments, which then
-  grow at the real return.
+  grow at the real return; fees, the person's own, leave cash with it and
+  never reach the investments. Into one of the person's holdings, it also
+  shows the units it buys at the holding's price and opens a lot
+  (`holdings.py`).
+- `sell`: a move, part of a holding sold on its day at its price: the
+  proceeds leave the investments, the proceeds less fees arrive in cash,
+  and the realised gain (from the holding's lots, replayed) may carry a
+  `tax_role`. It needs the holding linked to its investment account, and
+  can't take out more than that account holds (`holdings.py`).
 - `stop_recurring`: regular, what the ledger's recurring flow would have
   moved, put back on each day it would have fallen, from `from` on. Only a
   flow of income or spending: a transfer between the user's own accounts is
@@ -84,6 +92,7 @@ from salli.domain.fi.assumptions import FiAssumptions, assumptions_dict
 from salli.domain.fi.engine import installment_payment
 from salli.domain.reports import forecast as forecasting
 from salli.domain.reports.insights import Recurring as Rhythm
+from salli.domain.scenarios import holdings as trading
 from salli.domain.scenarios import schema
 from salli.domain.scenarios import tax as taxes
 from salli.domain.taxrules.common import Problem, join_path
@@ -159,6 +168,9 @@ class AppliedChange:
     #: with no end; a stop).
     for_good: bool | None = None
     stopped: tuple[Stopped, ...] = ()
+    #: An invest into a holding, or a sale: its units, price, fees, lots
+    #: and gain (`holdings.Trade`).
+    holding: trading.Trade | None = None
 
 
 @dataclass(frozen=True)
@@ -219,6 +231,10 @@ class _Translator:
     until: dt.date
     problems: list[Problem] = field(default_factory=list[Problem])
     notes: list[str] = field(default_factory=list[str])
+    #: The real return a later trade's price grows at: the person's (the
+    #: base scenario's) when None; sensitivity's and the break-evens' when
+    #: they vary it.
+    real_return: Decimal | None = None
 
     def __post_init__(self) -> None:
         months = timelines.periods(self.baseline.as_of, timelines.horizon_months(fi.FI_YEARS))
@@ -311,6 +327,7 @@ class _Translator:
         debts = {d.debt_id: d for d in self.baseline.debts}
         if self.scenario.as_of is not None and self.scenario.as_of != self.baseline.as_of:
             self.problem("as_of", f"is not the baseline's as-of date ({self.baseline.as_of})")
+        trades = self.trades()
 
         for i, change in enumerate(self.scenario.changes):
             at = join_path("changes", i)
@@ -458,6 +475,8 @@ class _Translator:
                 case schema.InvestChange():
                     self.date(here("date"), change.date)
                     self.amount(here("amount"), change.amount)
+                    fees = change.fees or Decimal(0)
+                    self.amount(here("fees"), fees)
                     account = self.account(here("from"), change.from_)
                     if change.date <= self.end:
                         flows.append(
@@ -465,8 +484,40 @@ class _Translator:
                                 change.date, account, -self.money(change.amount), change.label
                             )
                         )
-                        invested.append((change.date.isoformat(), self.money(change.amount)))
-                    applied.append(AppliedChange(i, change.type, change.label))
+                        invested.append(
+                            (change.date.isoformat(), self.money(change.amount) - self.money(fees))
+                        )
+                    trade = trades.trades.get(i)
+                    if trade is not None:
+                        self.said(change.label, trade)
+                    applied.append(AppliedChange(i, change.type, change.label, holding=trade))
+                case schema.SellChange():
+                    self.date(here("date"), change.date)
+                    if change.amount is not None:
+                        self.amount(here("amount"), change.amount)
+                    fees = change.fees or Decimal(0)
+                    self.amount(here("fees"), fees)
+                    account = self.account(here("into"), change.into)
+                    trade = trades.trades.get(i)
+                    label = change.label or (f"Sell {trade.name}" if trade else "Sell")
+                    if trade is not None:
+                        value = self.money(trade.gross_base)
+                        if change.date <= self.end:
+                            flows.append(
+                                self.flow(change.date, account, value - self.money(fees), label)
+                            )
+                            invested.append((change.date.isoformat(), -value))
+                        if change.tax_role is not None and trade.gain_base is not None:
+                            self.tag(here("tax_role"), change.tax_role)
+                            self.income_only(here("tax_role"), change.tax_role)
+                            if change.date <= self.last:
+                                self.tagged.append(
+                                    taxes.Tagged(
+                                        i, change.tax_role, change.date, self.money(trade.gain_base)
+                                    )
+                                )
+                        self.said(label, trade)
+                    applied.append(AppliedChange(i, change.type, label, holding=trade))
                 case schema.SetAsideChange():
                     self.date(here("from"), change.from_)
                     self.amount(here("monthly"), change.monthly)
@@ -558,6 +609,72 @@ class _Translator:
     def tag(self, path: str, role: str) -> None:
         """A change tagged with a tax role, checked against the rules."""
         self.tags.append((path, role))
+
+    def income_only(self, path: str, role: str) -> None:
+        """A sale's gain goes to an income role: a deduction role has no
+        place for one."""
+        kinds = taxes.kinds_of(self.baseline.tax).get(role, set())
+        if kinds and "income" not in kinds:
+            self.problem(
+                path,
+                f"{role} is a role of kind {sorted(kinds)[0]} in your tax rules: a sale's "
+                "realised gain goes to an income role",
+            )
+
+    def trades(self) -> trading.Trades:
+        """The scenario's invests into holdings and sales, priced, replayed
+        and checked against the ledger (`holdings.work_out`)."""
+        asked: list[trading.Asked] = []
+        for i, change in enumerate(self.scenario.changes):
+            if isinstance(change, schema.InvestChange) and change.holding is not None:
+                asked.append(
+                    trading.Asked(
+                        i, "invest", change.date, change.holding, change.amount, None, change.fees
+                    )
+                )
+            elif isinstance(change, schema.SellChange):
+                asked.append(
+                    trading.Asked(
+                        i,
+                        "sell",
+                        change.date,
+                        change.holding,
+                        change.amount,
+                        change.units,
+                        change.fees,
+                        tuple((lot.lot, lot.quantity) for lot in change.lots or ()),
+                        "lots"
+                        if change.lots
+                        else "quantity"
+                        if change.quantity is not None
+                        else "amount",
+                    )
+                )
+        if not asked:
+            return trading.Trades()
+        rate = self.real_return
+        if rate is None:
+            rate = self.baseline.assumptions.real_returns.base
+        found = trading.work_out(self.baseline, asked, rate)
+        self.problems += found.problems
+        return found
+
+    def said(self, label: str, trade: trading.Trade) -> None:
+        """What a trade's result rests on, in its notes."""
+        if trade.fees is None:
+            self.notes.append(f"{label}: no fees given, so none are counted")
+        if trade.grown:
+            self.notes.append(
+                f"{label}: at {trade.name}'s last recorded price ({trade.price_date}) grown at "
+                "your real return and inflation to the trade's month, at the as-of exchange "
+                "rate. Salli forecasts no security's price and no exchange rate"
+            )
+        if trade.stale:
+            self.notes.append(
+                f"{trade.name}'s last recorded price is from {trade.price_date}, more than "
+                f"{trading.STALE_PRICE_DAYS} days before the as-of date: record a newer one "
+                "before deciding"
+            )
 
     def _monthly_in_base(self, s: Stopped) -> Decimal:
         rate = Decimal(1)
@@ -656,12 +773,19 @@ class _Translator:
 
 
 def translate(
-    baseline: Baseline, scenario: schema.Scenario, *, until: dt.date | None = None
+    baseline: Baseline,
+    scenario: schema.Scenario,
+    *,
+    until: dt.date | None = None,
+    real_return: Decimal | None = None,
 ) -> Translation:
     """The scenario's changes as the timelines take them (see the module),
-    with flows made to `until` (the 50-year timeline's end when None).
-    ScenarioError with every problem found."""
-    return _Translator(baseline, scenario, until or dt.date.max).translate()
+    with flows made to `until` (the 50-year timeline's end when None); a
+    later trade in a holding priced with `real_return` (the person's when
+    None). ScenarioError with every problem found."""
+    return _Translator(
+        baseline, scenario, until or dt.date.max, real_return=real_return
+    ).translate()
 
 
 # ── Evaluating ───────────────────────────────────────────────────────────────

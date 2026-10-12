@@ -124,11 +124,11 @@ def test_unknown_fields_types_and_versions_are_refused_with_their_paths():
         "changes[0].currency": "is not a field here",
         "changes[1]": (
             "is not a change type; the types are: one_off, recurring, income_change, loan, "
-            "extra_debt_payment, invest, stop_recurring, set_aside"
+            "extra_debt_payment, invest, stop_recurring, set_aside, sell"
         ),
         "changes[2]": (
             "needs a type: one of one_off, recurring, income_change, loan, "
-            "extra_debt_payment, invest, stop_recurring, set_aside"
+            "extra_debt_payment, invest, stop_recurring, set_aside, sell"
         ),
         "extra": "is not a field here",
     }
@@ -170,9 +170,56 @@ def test_every_change_type_reads():
             {"type": "invest", "amount": "5000", "date": "2026-12-15", "from": "sav", "label": "x"},
             {"type": "stop_recurring", "key": "streamflix", "from": "2026-11-01"},
             {"type": "set_aside", "monthly": "200", "from": "2026-11-01", "to": "2027-10-31"},
+            {"type": "sell", "holding": "h-1", "quantity": "4", "date": "2026-12-15"},
         )
     )
     assert [c.type for c in doc.changes] == list(schema.CHANGE_TYPES)
+
+
+SALE = {"type": "sell", "holding": "h-1", "date": "2026-12-15"}
+
+
+@pytest.mark.parametrize(
+    ("change", "path", "says"),
+    [
+        (SALE, "changes[0]", "give the units to sell (quantity) or the value to sell (amount)"),
+        ({**SALE, "quantity": "1", "amount": "100"}, "changes[0]", "not both"),
+        ({**SALE, "quantity": 4}, "changes[0].quantity", "not as JSON numbers"),
+        ({**SALE, "quantity": "0"}, "changes[0].quantity", "greater than zero"),
+        ({**SALE, "quantity": "1.0000000000000000001"}, "changes[0].quantity", "18 decimal"),
+        ({**SALE, "quantity": "1", "fees": "-2"}, "changes[0].fees", "can't be negative"),
+        (
+            {**SALE, "quantity": "3", "lots": [{"lot": "a", "quantity": "2"}]},
+            "changes[0]",
+            "the lots named add up to 2 units, not the 3 sold",
+        ),
+        (
+            {**SALE, "lots": [{"lot": "a", "quantity": "1"}, {"lot": "a", "quantity": "1"}]},
+            "changes[0]",
+            "names each lot once",
+        ),
+        (
+            {**SALE, "amount": "100", "lots": [{"lot": "a", "quantity": "1"}]},
+            "changes[0]",
+            "not an amount",
+        ),
+        (
+            {"type": "invest", "amount": "100", "date": "2026-12-15", "fees": "100", "label": "x"},
+            "changes[0]",
+            "must be less than it",
+        ),
+    ],
+)
+def test_a_sale_or_an_invest_that_cant_be_read_is_refused_at_its_path(change, path, says):
+    assert says in _problems(_doc(change))[path]
+
+
+def test_a_sale_of_named_lots_needs_no_quantity():
+    doc = schema.load(
+        _doc({**SALE, "lots": [{"lot": "a", "quantity": "1.5"}, {"lot": "b", "quantity": "2"}]})
+    )
+    (sale,) = doc.changes
+    assert isinstance(sale, schema.SellChange) and str(sale.units) == "3.5"
 
 
 def test_the_json_schema_describes_the_document_for_agents():

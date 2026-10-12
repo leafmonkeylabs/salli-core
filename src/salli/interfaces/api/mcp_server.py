@@ -47,6 +47,7 @@ from salli.application.ports import (
     AccountNotFound,
     DebtNotFound,
     DecisionNotFound,
+    HoldingNotFound,
 )
 from salli.application.services.fi_service import decimal_arg
 from salli.application.services.mcp_oauth_service import McpOAuthService
@@ -866,7 +867,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             )
         except (TemplateError, ScenarioError) as exc:
             return _refusal(exc)
-        except (UnknownTemplate, AccountNotFound, DebtNotFound) as exc:
+        except (UnknownTemplate, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -889,7 +890,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return await scenario_svc.run(_current_user_id(), scenario)
         except ScenarioError as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -908,7 +909,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return await scenario_svc.compare(_current_user_id(), options)
         except ScenarioError as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     # ── Principles and the decision journal (docs/decisions.md) ─────────────
@@ -970,7 +971,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return await principle_svc.check(_current_user_id(), options or [])
         except ScenarioError as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
     @mcp.tool()
@@ -1011,7 +1012,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             )
         except (ScenarioError, JournalError) as exc:
             return _refusal(exc)
-        except (AccountNotFound, DebtNotFound) as exc:
+        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
         await _log_audit(
             ledger_svc,
