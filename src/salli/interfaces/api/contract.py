@@ -437,6 +437,10 @@ class Problem(BaseModel):
     #: On a 500: the id the server logged it under (also in `X-Request-Id`),
     #: for a bug report.
     request_id: str | None = None
+    #: On a `/problems/step-up-required`: how recent, in seconds, the password
+    #: check must be. Send the person through the sign-in page again
+    #: (`prompt=login`), then retry.
+    max_age: int | None = None
 
 
 _PROBLEM_REF = {"$ref": "#/components/schemas/Problem"}
@@ -462,6 +466,10 @@ def document_problems(spec: dict[str, Any]) -> dict[str, Any]:
                     "description": "The request failed validation; `detail` lists each field",
                     "content": problem_json,
                 }
+            # An error a route documents in words only is a Problem too.
+            for code, response in responses.items():
+                if code.startswith(("4", "5")) and "content" not in response:
+                    response["content"] = problem_json
             responses.setdefault(
                 "default",
                 {"description": "An error, as RFC 9457 problem details", "content": problem_json},

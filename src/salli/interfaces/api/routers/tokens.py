@@ -20,7 +20,12 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from salli.application.permissions import Permission, may_grant
-from salli.interfaces.api.deps import AppServices, CurrentPrincipal, CurrentUser
+from salli.interfaces.api.deps import (
+    AppServices,
+    CurrentPrincipal,
+    CurrentUser,
+    require_fresh,
+)
 
 router = APIRouter(prefix="/tokens", tags=["tokens"])
 
@@ -59,7 +64,16 @@ async def list_tokens(user_id: CurrentUser, svc: AppServices) -> list[PersonalAc
     return [PersonalAccessToken.model_validate(t) for t in await svc.tokens.list(user_id)]
 
 
-@router.post("", status_code=201)
+@router.post(
+    "",
+    status_code=201,
+    responses={
+        403: {
+            "description": "This sign-in may not make it; `/problems/step-up-required` when "
+            "signing in again on Salli's page first would let it"
+        }
+    },
+)
 async def create_token(
     body: CreateTokenRequest,
     user_id: CurrentUser,
@@ -78,6 +92,11 @@ async def create_token(
         requested=body.permissions,
     )
     if not allowed:
+        # The console's sign-in holds tax:activate only just after the
+        # password: otherwise a script in the page could mint itself a token
+        # that activates. Sign in again, then make it.
+        for permission in missing:
+            require_fresh(principal, permission)
         if principal.method == "oauth" and not principal.first_party_client:
             detail = (
                 "Only your own sign-in to Salli (the app, or the salli CLI) can make a "

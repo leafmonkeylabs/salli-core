@@ -392,15 +392,24 @@ async def propose_version(
 @router.post(
     "/rule-sets/{rule_set_id}/versions/{version_id}/activate",
     dependencies=[require_permission(TAX_ACTIVATE)],
+    responses={
+        403: {
+            "description": "This sign-in doesn't hold `tax:activate`; "
+            "`/problems/step-up-required` when signing in again on Salli's page first "
+            "would give it (the console, more than five minutes after the password)"
+        }
+    },
 )
 async def activate_version(
     rule_set_id: str, version_id: str, actor: CurrentActor, svc: AppServices
 ) -> TaxRuleSetVersion:
     """Make this the version Salli computes with for its jurisdiction and
     year, superseding the active one. Needs `tax:activate`, which only the
-    user's own sign-ins hold (the app, the salli CLI, and a personal access
-    token made with it): 403 for an AI connector, any other application, or
-    a token made without it. 409 unless it passes validation (run again)."""
+    user's own sign-ins hold (a session, the salli CLI, the console within
+    five minutes of its password check, and a personal access token made
+    with it): 403 for an AI connector, any other application, or a token made
+    without it, and a `step-up-required` problem for a console sign-in whose
+    password check is older. 409 unless it passes validation (run again)."""
     return _version(await svc.tax_rules.activate(actor, version_id, rule_set_id))
 
 

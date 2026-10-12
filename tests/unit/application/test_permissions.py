@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import get_args
 
 import pytest
@@ -12,6 +13,7 @@ from salli.application.permissions import (
     Actor,
     Permission,
     may_grant,
+    needs_step_up,
     permissions_for,
     unknown_permissions,
 )
@@ -112,3 +114,100 @@ def test_a_principal_s_token_permissions_are_what_it_stores():
     assert trusted.actor().may(TAX_ACTIVATE)
     # `granted` means nothing to any other sign-in.
     assert Principal("u1", None, "oauth", granted=ACTIVATE).permissions == frozenset()
+
+
+# ── Step-up: the console's tax:activate, within five minutes of the password ──
+
+FIVE_MINUTES = timedelta(seconds=300)
+
+
+@pytest.mark.parametrize(
+    ("age", "holds"),
+    [
+        (timedelta(0), True),
+        (timedelta(minutes=4, seconds=59), True),
+        (timedelta(minutes=5), True),  # five minutes is within five minutes
+        (timedelta(minutes=5, seconds=1), False),
+        (timedelta(hours=11), False),
+        (None, False),  # a sign-in whose password check isn't known
+        (timedelta(seconds=-1), False),  # a check in the future is no check
+    ],
+)
+def test_the_console_holds_tax_activate_only_just_after_the_password(age, holds):
+    held = permissions_for(
+        "oauth", first_party_client=True, sign_in_age=age, fresh_within=FIVE_MINUTES
+    )
+    assert (TAX_ACTIVATE in held) is holds
+    actor = Actor.signed_in(
+        "u1", "oauth", first_party_client=True, sign_in_age=age, fresh_within=FIVE_MINUTES
+    )
+    assert actor.may(TAX_ACTIVATE) is holds
+    assert actor.kind == "user"  # a person either way: only the permission waits
+    assert needs_step_up(
+        "oauth",
+        TAX_ACTIVATE,
+        first_party_client=True,
+        sign_in_age=age,
+        fresh_within=FIVE_MINUTES,
+    ) is (not holds)
+
+
+def test_a_client_that_asks_for_no_recency_keeps_its_permissions_at_any_age():
+    # The CLI: a terminal an agent can't fake is its protection.
+    for age in (None, timedelta(days=30)):
+        assert permissions_for("oauth", first_party_client=True, sign_in_age=age) == ACTIVATE
+        assert not needs_step_up("oauth", TAX_ACTIVATE, first_party_client=True, sign_in_age=age)
+
+
+@pytest.mark.parametrize(
+    ("method", "first_party_client", "granted"),
+    [
+        ("mcp", False, ()),
+        ("mcp", True, ()),
+        ("oauth", False, ()),  # another application
+        ("pat", False, ()),  # a token made without it
+    ],
+)
+def test_signing_in_again_never_gives_what_a_sign_in_can_never_hold(
+    method, first_party_client, granted
+):
+    """MCP never activates, however fresh; nor another application; nor a
+    token made without it. Step-up is no way round any of them."""
+    for age in (timedelta(0), timedelta(hours=1)):
+        assert TAX_ACTIVATE not in permissions_for(
+            method,
+            first_party_client=first_party_client,
+            granted=granted,
+            sign_in_age=age,
+            fresh_within=FIVE_MINUTES,
+        )
+        assert not needs_step_up(
+            method,
+            TAX_ACTIVATE,
+            first_party_client=first_party_client,
+            granted=granted,
+            sign_in_age=age,
+            fresh_within=FIVE_MINUTES,
+        )
+
+
+def test_a_principal_carries_its_sign_in_s_age_into_its_permissions():
+    fresh = Principal(
+        "u1",
+        None,
+        "oauth",
+        first_party_client=True,
+        sign_in_age=timedelta(minutes=4, seconds=59),
+        fresh_within=FIVE_MINUTES,
+    )
+    stale = Principal(
+        "u1",
+        None,
+        "oauth",
+        first_party_client=True,
+        sign_in_age=timedelta(minutes=5, seconds=1),
+        fresh_within=FIVE_MINUTES,
+    )
+    assert fresh.permissions == ACTIVATE and fresh.actor().may(TAX_ACTIVATE)
+    assert stale.permissions == frozenset() and not stale.actor().may(TAX_ACTIVATE)
+    assert stale.needs_step_up(TAX_ACTIVATE) and not fresh.needs_step_up(TAX_ACTIVATE)
