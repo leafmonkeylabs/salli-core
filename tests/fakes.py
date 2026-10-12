@@ -701,17 +701,37 @@ class FakeDecisions:
 
 class FakeReminders:
     """Reminders and alerts, as the SQL repository keeps them (the slice the
-    decision journal uses)."""
+    decision journal and the console's Home use)."""
+
+    #: When every row was made: the fixtures written from these stay fixed.
+    CREATED_AT = "2026-10-01T09:00:00+00:00"
 
     def __init__(self) -> None:
         self.rows: dict[str, dict[str, Any]] = {}
 
     async def list_reminders(self, user_id: str, status: str | None = None) -> list[Any]:
-        return [
-            dict(r)
+        found = [
+            {k: v for k, v in r.items() if k != "user_id"}
             for r in self.rows.values()
             if r["user_id"] == user_id and (status is None or r["status"] == status)
         ]
+        return sorted(found, key=lambda r: r["due_date"])
+
+    async def create_reminder(
+        self, user_id: str, reminder_id: str, kind: str, due_date: str
+    ) -> None:
+        self.rows[reminder_id] = {
+            "id": reminder_id,
+            "user_id": user_id,
+            "kind": kind,
+            "due_date": due_date,
+            "status": "pending",
+            "alert_type": None,
+            "source_domain": None,
+            "source_id": None,
+            "severity": None,
+            "created_at": self.CREATED_AT,
+        }
 
     async def upsert_alert(
         self,
@@ -743,6 +763,7 @@ class FakeReminders:
             "source_domain": source_domain,
             "source_id": source_id,
             "severity": severity,
+            "created_at": self.CREATED_AT,
         }
         return reminder_id
 

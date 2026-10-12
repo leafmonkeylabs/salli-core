@@ -143,15 +143,18 @@ renting_household = _ledger(renting.ledger, renting.AS_OF)
 # -- Asking the API ----------------------------------------------------------
 
 
-async def ask(books: Books, method: str, path: str, body: Any = None) -> Any:
-    """What the API answers `books.user`, as JSON."""
+async def ask(
+    books: Books, method: str, path: str, body: Any = None, ok: tuple[int, ...] = (200,)
+) -> Any:
+    """What the API answers `books.user`, as JSON (an error unless its
+    status is one of `ok`)."""
     app = create_app()
     app.dependency_overrides[get_services] = lambda: books.services
     app.dependency_overrides[get_principal] = lambda: Principal(books.user, None, "dev")
     app.dependency_overrides[get_current_user] = lambda: books.user
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.request(method, path, json=body)
-    if response.status_code != 200:
+    if response.status_code not in ok:
         raise RuntimeError(f"{method} {path}: {response.status_code} {response.text}")
     return response.json()
 
