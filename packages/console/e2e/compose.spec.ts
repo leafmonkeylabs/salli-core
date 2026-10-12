@@ -3,8 +3,11 @@
  * Salli's own page, see Home, end another sign-in, go through the step-up,
  * sign out, be signed out when idle (with a short limit), and weigh a
  * decision in the decision lab: a template run, the decision recorded after
- * its confirmation, found in the journal, a note added. Every page is
- * checked for CSP violations and requests to another origin.
+ * its confirmation, found in the journal, a note added; and where you
+ * stand: an entry added, seen in the ledger and its account, reversed
+ * after confirming; an FI assumption set and cleared; every C2 page
+ * loaded. Every page is checked for CSP violations and requests to
+ * another origin.
  *
  * The server's real step-up answer comes only from activating tax rules or
  * minting a token that may, which C1's pages don't do; so the step-up run
@@ -211,5 +214,94 @@ test('every page of the decision lab loads from the real server, with no problem
   await page.getByRole('button', { name: 'Run it' }).click();
   await expect(page.getByRole('region', { name: 'Cash, day by day' }).getByRole('img').first()).toBeVisible();
   await expect(page.getByRole('region', { name: 'Net worth, month by month' }).getByRole('img').first()).toBeVisible();
+  await seen.check();
+});
+
+/** An account of the owner's, made through the API as `salli accounts add` makes one. */
+async function addAccount(request: APIRequestContext, token: string, body: { code: string; name: string; type: string }): Promise<string> {
+  const response = await request.post('/v1/accounts/', { headers: { Authorization: `Bearer ${token}` }, data: body });
+  expect(response.ok()).toBe(true);
+  return ((await response.json()) as { id: string }).id;
+}
+
+test('adds an entry from one account to another, sees it in the ledger and the balance, and reverses it after confirming', async ({ page, request, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  const token = await session(request);
+  const stamp = Date.now().toString(36);
+  const wallet = await addAccount(request, token, { code: `W${stamp}`, name: `Wallet ${stamp}`, type: 'asset' });
+  const lunches = await addAccount(request, token, { code: `L${stamp}`, name: `Lunches ${stamp}`, type: 'expense' });
+  await signIn(page);
+
+  await page.goto('/console/books/entries/new');
+  const form = page.getByRole('region', { name: 'The entry' });
+  await form.getByRole('textbox', { name: /^Description/ }).fill(`Lunch ${stamp}`);
+  await form.getByRole('combobox', { name: /^From/ }).selectOption(wallet);
+  await form.getByRole('combobox', { name: /^To/ }).selectOption(lunches);
+  await form.getByRole('textbox', { name: /^Amount/ }).fill('12.50');
+  await form.getByRole('button', { name: 'Post it' }).click();
+  const confirm = page.getByRole('alertdialog', { name: 'Post this entry?' });
+  await confirm.getByRole('button', { name: 'Post it' }).click();
+  await expect(form.getByText(/Posted\./)).toBeVisible();
+
+  // In the ledger, and in the wallet's balance.
+  await page.goto(`/console/books/entries?q=${stamp}`);
+  const entries = page.getByRole('region', { name: 'Entries' });
+  await expect(entries.getByText('1 entry')).toBeVisible();
+  await page.goto(`/console/books/accounts/${wallet}`);
+  await expect(page.getByRole('region', { name: 'Balance' }).getByText('EUR -12.50')).toBeVisible();
+  await page.getByRole('region', { name: 'Its entries' }).getByRole('link', { name: `Lunch ${stamp}` }).click();
+
+  // Reversed after a confirmation; both entries stay.
+  const standing = page.getByRole('region', { name: 'Standing' });
+  await standing.getByRole('button', { name: 'Reverse this entry' }).click();
+  await page.getByRole('alertdialog', { name: 'Reverse this entry?' }).getByRole('button', { name: 'Reverse it' }).click();
+  await expect(standing.getByText(/Reversed\. Both entries are in the ledger\./)).toBeVisible();
+  await page.goto(`/console/books/entries?q=${stamp}`);
+  await expect(entries.getByText('2 entries')).toBeVisible();
+  await expect(entries.getByRole('link', { name: `REVERSAL: Lunch ${stamp}` })).toBeVisible();
+  await page.goto(`/console/books/accounts/${wallet}`);
+  await expect(page.getByRole('region', { name: 'Balance' }).getByText('EUR 0.00')).toBeVisible();
+  await seen.check();
+});
+
+test('sets an FI assumption with its source, sees its placeholder flag go, and clears it', async ({ page, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  await signIn(page);
+  await page.goto('/console/fi');
+  const assumptions = page.getByRole('region', { name: 'Assumptions' });
+  const real = assumptions.getByRole('listitem').filter({ has: page.getByText('Real return', { exact: true }) });
+  await expect(real.locator('.placeholder-tag')).toBeVisible();
+  await real.getByRole('button', { name: 'Set your own: Real return' }).click();
+  await real.getByRole('textbox', { name: /Real return: Rate/ }).fill('3.5%');
+  await real.getByRole('textbox', { name: /Where it comes from/ }).fill('My own long-run view, after inflation');
+  await real.getByRole('button', { name: 'Save it' }).click();
+  await expect(assumptions.getByText(/Saved: Real return\./)).toBeVisible();
+  await expect(real.locator('.placeholder-tag')).toHaveCount(0);
+  await expect(real.getByText('You', { exact: true })).toBeVisible();
+  await expect(real.getByText('3.5%')).toBeVisible();
+  // As it was: the placeholder stands in again.
+  await real.getByRole('button', { name: 'Use the placeholder again' }).click();
+  await expect(assumptions.getByText(/Cleared: Real return\./)).toBeVisible();
+  await expect(real.locator('.placeholder-tag')).toBeVisible();
+  await seen.check();
+});
+
+test('every page of where you stand loads from the real server, with no problem shown', async ({ page, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  await signIn(page);
+  for (const [path, heading] of [
+    ['/console/books', 'Books'],
+    ['/console/books/entries', 'Entries'],
+    ['/console/books/entries/new', 'Add an entry'],
+    ['/console/cash', 'Cash'],
+    ['/console/attention', 'Attention'],
+    ['/console/fi', 'Financial independence'],
+    ['/console/more', 'More'],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    await expect(page.locator('.loading')).toHaveCount(0);
+    await expect(page.locator('.problem')).toHaveCount(0);
+  }
   await seen.check();
 });
