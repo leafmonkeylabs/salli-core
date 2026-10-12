@@ -799,6 +799,52 @@ class FakeReminders:
         }
         return reminder_id
 
+    async def sync_source(
+        self,
+        user_id: str,
+        source_domain: str,
+        source_prefix: str,
+        items: list[tuple[str, str, str]],
+    ) -> dict[str, list[str]]:
+        """A source's reminders made to be `items` (a tax rule set's
+        deadlines), as the SQL repository syncs them."""
+        existing = {
+            row["source_id"]: row
+            for row in self.rows.values()
+            if row["user_id"] == user_id
+            and row["source_domain"] == source_domain
+            and str(row["source_id"] or "").startswith(source_prefix)
+        }
+        wanted = {source_id: (kind, due) for source_id, kind, due in items}
+        report: dict[str, list[str]] = {"created": [], "updated": [], "removed": []}
+        for source_id, row in existing.items():
+            if source_id not in wanted:
+                del self.rows[row["id"]]
+                report["removed"].append(row["id"])
+        for source_id, (kind, due) in wanted.items():
+            row = existing.get(source_id)
+            if row is None:
+                reminder_id = str(uuid.uuid4())
+                self.rows[reminder_id] = {
+                    "id": reminder_id,
+                    "user_id": user_id,
+                    "kind": kind,
+                    "due_date": due,
+                    "status": "pending",
+                    "alert_type": None,
+                    "source_domain": source_domain,
+                    "source_id": source_id,
+                    "severity": None,
+                    "created_at": self.CREATED_AT,
+                }
+                report["created"].append(reminder_id)
+            elif (row["kind"], row["due_date"]) != (kind, due):
+                if row["due_date"] != due:
+                    row["status"] = "pending"
+                row.update(kind=kind, due_date=due)
+                report["updated"].append(row["id"])
+        return report
+
     async def mark_done(self, user_id: str, reminder_id: str) -> None:
         row = self.rows.get(reminder_id)
         if row is not None and row["user_id"] == user_id:

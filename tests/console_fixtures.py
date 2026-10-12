@@ -24,6 +24,11 @@ as of 2026-10-11).
   reversed; one posted in dollars at the published rate; one refused for
   want of a rate; a reversal refused; an FI assumption set, and one
   refused), and the strategy of a household that has one.
+- `books.ts`, `tax.ts` and `settings.ts`: imports, the review queue and
+  rules; tax rule sets (the fictional XA 2031) and the tax they compute;
+  tokens, model keys, digests and exports (C4), written by
+  tests/console_c4_fixtures.py over the in-memory storage in
+  tests/console_fakes.py.
 
 So the console's tests read exactly what the server sends today: a fixture
 goes stale when an engine, a service or a response model changes, and
@@ -75,6 +80,7 @@ from salli.application.services.scenario_service import ScenarioService
 from salli.application.services.template_service import TemplateService
 from salli.interfaces.api.deps import Principal, get_current_user, get_principal, get_services
 from salli.interfaces.api.main import create_app
+from tests import console_c4_fixtures as c4
 from tests import fakes
 from tests.cli_fixtures import Books, Fixture, ask, render, uid
 from tests.golden import household as h
@@ -829,11 +835,16 @@ async def files() -> dict[Path, str]:
         lab = await lab_fixtures(due)
     with fixed_ids(), stamped_in_october():
         where = await where_fixtures(home)
-    return {
+    written = {
         FIXTURES / "home.ts": render(HEADER, home),
         FIXTURES / "lab.ts": render(LAB_HEADER, lab),
         FIXTURES / "where.ts": render(WHERE_HEADER, where),
     }
+    # Books, tax and settings (C4): tests/console_c4_fixtures.py.
+    for name, (header, make) in c4.FILES.items():
+        with fixed_ids():
+            written[FIXTURES / name] = render(header, await make())
+    return written
 
 
 def stale() -> list[Path]:
