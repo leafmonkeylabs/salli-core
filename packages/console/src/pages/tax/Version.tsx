@@ -91,18 +91,18 @@ function Changes({ set, version }: { set: TaxRuleSet; version: TaxRuleSetVersion
                               <span className="tag">{v.kinds[change.kind] ?? change.kind}</span> <code className="mono">{change.path}</code>
                               {change.figure ? <span className="tag tag-due"> {v.aFigure}</span> : null}
                             </p>
-                            <dl className="rows">
+                            <dl className="change-values">
                               {change.kind !== 'added' ? (
-                                <div className="row">
+                                <>
                                   <dt>{v.before}</dt>
                                   <dd className="mono change-value">{shownValue(change.before) || v.nothing}</dd>
-                                </div>
+                                </>
                               ) : null}
                               {change.kind !== 'removed' ? (
-                                <div className="row">
+                                <>
                                   <dt>{v.after}</dt>
                                   <dd className="mono change-value">{shownValue(change.after) || v.nothing}</dd>
-                                </div>
+                                </>
                               ) : null}
                             </dl>
                             <p className="muted">{source ? (

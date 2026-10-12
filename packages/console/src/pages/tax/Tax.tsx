@@ -54,7 +54,7 @@ function Year({ year }: { year: TaxYearStatus }) {
           </Row>
         ) : null}
       </Rows>
-      {!year.rule_set_id ? <p className="section-help">{t.noRules}</p> : null}
+      {!year.rule_set_id && !year.latest_year ? <p className="section-help">{t.noRules}</p> : null}
     </>
   );
 }
@@ -242,8 +242,10 @@ function Computation({ result, year }: { result: TaxComputation; year: TaxYearSt
   );
 }
 
+/** The last computation for the year computing uses (the current one, else the latest active year begun). */
 function Latest({ year }: { year: TaxYearStatus }) {
-  const query = useRead('tax.latest', taxLatest, year.year ? { query: { year: year.year } } : undefined);
+  const target = year.latest_year ?? year.year;
+  const query = useRead('tax.latest', taxLatest, target ? { query: { year: target } } : undefined);
   const [done, setDone] = useState(false);
   const compute = useWrite<{ year: string | null }, TaxComputation>('tax.compute', (api, input) => api.call(taxCompute, { body: {}, ...(input.year ? { query: { year: input.year } } : {}) }), {
     invalidate: TAX_READS,
@@ -253,14 +255,14 @@ function Latest({ year }: { year: TaxYearStatus }) {
     <Section label={t.latest} full>
       <Panel>
         <Loaded query={query}>{({ result }) => (result ? <Computation result={result} year={year} /> : <Empty>{t.noComputation}</Empty>)}</Loaded>
-        {year.rule_set_id ? (
+        {target ? (
           <div className="stack-tight">
             <p className="section-help">{t.computeHelp}</p>
             <div className="form-actions">
               <Button
                 onPress={() => {
                   setDone(false);
-                  compute.mutate({ year: year.year });
+                  compute.mutate({ year: target });
                 }}
                 isPending={compute.isPending}
               >
@@ -384,7 +386,7 @@ export function Tax() {
           </Panel>
         </Section>
         <RuleSets />
-        {year.data ? <Latest year={year.data} /> : null}
+        {year.data && (year.data.latest_year ?? year.data.year) ? <Latest year={year.data} /> : null}
         {year.data ? <Deadlines year={year.data} /> : null}
       </Grid>
     </Page>

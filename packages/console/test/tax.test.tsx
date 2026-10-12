@@ -74,6 +74,17 @@ describe('your tax', () => {
     expect(await within(latest).findByRole('link', { name: 'XA 2031, version 2' })).toBeTruthy();
   });
 
+  it('says plainly when Salli has no rules to compute with, and asks the server for nothing it can’t answer', async () => {
+    const api = new MockApi();
+    api.tax.year = { country: null, country_source: null, year: null, region: null, start: null, end: null, rule_set_id: null, rule_set_version_id: null, version: null, latest_year: null, latest_rule_set_version_id: null };
+    await setup({ api, path: '/console/tax' });
+    const year = await screen.findByRole('region', { name: 'This tax year' });
+    expect(await within(year).findByText(/Salli doesn’t know your tax residency/)).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'The last computation' })).toBeNull();
+    expect(api.to('/v1/tax/latest')).toHaveLength(0);
+    expect(document.querySelector('.problem')).toBeNull();
+  });
+
   it('lists every version of a rule set with who wrote it', async () => {
     await setup({ path: `/console/tax/rules/${SET}` });
     expect(await screen.findByRole('heading', { level: 1, name: 'XA 2031' })).toBeTruthy();

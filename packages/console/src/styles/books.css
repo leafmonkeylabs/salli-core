@@ -146,6 +146,30 @@
 .example {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+.change-item code,
+.example code {
+  overflow-wrap: anywhere;
+}
+
+/* A change's before and after: the label beside the value, the value
+   wrapping as it must (a source added is a whole object). */
+.change-values {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 0;
+}
+
+.change-values dt {
+  color: var(--c-muted);
+}
+
+.change-values dd {
+  margin: 0;
+  min-width: 0;
 }
 
 .only-a-person {
