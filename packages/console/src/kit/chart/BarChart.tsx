@@ -13,6 +13,7 @@ import { useLocale } from '../../preferences';
 import { visibleAmount } from '../Money';
 import { ChartFigure } from './ChartFigure';
 import { amountScale, bandScale } from './geometry';
+import { fitTicks } from './ticks';
 
 export interface BarGroup {
   /** What the group is, as the axis shows it ("Apr 2026"). */
@@ -62,7 +63,9 @@ function Plot({ props, layout, variant }: { props: BarChartProps; layout: Layout
   const band = bandScale(groups.length, [left, width - right], 0.3);
   const zero = y('0');
   const bar = Math.max(1, band.width / 2 - 1);
-  const labelled = (i: number): boolean => variant === 'wide' || i === 0 || i === groups.length - 1;
+  // The groups the axis names: every one that fits on a wide drawing, the first and last on a phone's.
+  const candidates = groups.flatMap((g, i) => (variant === 'wide' || i === 0 || i === groups.length - 1 ? [{ index: i, x: band.at(i), text: g.label }] : []));
+  const ticks = new Map(fitTicks(candidates, font, [left, width - right]).map((t) => [t.index, t]));
   return (
     <svg className={`chart-svg chart-${variant}`} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={props.caption}>
       {groups.map((g, i) => {
@@ -82,13 +85,13 @@ function Plot({ props, layout, variant }: { props: BarChartProps; layout: Layout
                 />
               );
             })}
-            {labelled(i) ? (
+            {ticks.has(i) ? (
               <text
                 className="chart-tick"
                 x={x}
                 y={variant === 'wide' ? height - bottom + font * 1.5 : height - bottom / 3}
                 fontSize={font}
-                textAnchor={variant === 'wide' ? 'middle' : i === 0 ? 'start' : 'end'}
+                textAnchor={ticks.get(i)?.anchor ?? 'middle'}
               >
                 {g.label}
               </text>

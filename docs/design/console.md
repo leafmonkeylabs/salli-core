@@ -1357,7 +1357,12 @@ partial month drawn lighter; `LineChart` gained a reference level (the FI
 number), points placed by their days (`dayScale` in the geometry module,
 still the one place an amount becomes a number), no shortfall shading for a
 balance below zero by nature, and axis dates kept inside the plot; the time
-axis's ticks moved to `kit/chart/ticks.ts`; a `Section` another page can
+axis's ticks moved to `kit/chart/ticks.ts`, which also fits every chart's
+axis labels (`fitTicks`: each label's width estimated generously from its
+characters at the chart's font size, in the drawing's own units so it holds
+at any width; one near an edge hangs from that edge; a label closer than a
+font size to the one before is dropped, keeping the first and last where
+both fit), used by `LineChart`, `BarChart` and Home's net worth; a `Section` another page can
 link to. All are exported for editions.
 
 **No API change.** Every page reads and writes through operations the CLI
@@ -1379,17 +1384,17 @@ Home's, and the contract test holds all three files to the server.
 
 | | gzip | brotli | limit |
 |---|---|---|---|
-| Shell and Home | 134.6 kB | 118.3 kB | 150 kB |
+| Shell and Home | 135.0 kB | 118.5 kB | 150 kB |
 | Books (the accounts) | 7.7 kB | 6.7 kB | 75 kB |
-| An account | 10.0 kB | 8.8 kB | 75 kB |
+| An account | 9.8 kB | 8.6 kB | 75 kB |
 | Entries | 25.3 kB | 22.6 kB | 75 kB |
 | Add an entry | 25.9 kB | 23.2 kB | 75 kB |
 | An entry | 25.0 kB | 22.4 kB | 75 kB |
-| Cash | 11.7 kB | 10.3 kB | 75 kB |
+| Cash | 11.4 kB | 10.1 kB | 75 kB |
 | Attention | 23.9 kB | 21.4 kB | 75 kB |
 | Financial independence | 27.7 kB | 24.9 kB | 75 kB |
 | More | 0.4 kB | 0.3 kB | 75 kB |
-| All JavaScript | 215.6 kB | 190.9 kB | 500 kB |
+| All JavaScript | 215.7 kB | 190.9 kB | 500 kB |
 | CSS | 6.1 kB | 5.4 kB | 40 kB |
 
 **Tests.** Component tests for every page on the fixtures, writes and
@@ -1397,7 +1402,10 @@ refusals included; Playwright on the built console under the server's CSP
 for every C2 page at 360, 768 and 1280 px in light and dark (axe, with
 each chart's figures opened too; screenshots; no page wider than the
 screen; the CSP and request watch), and an entry added and reversed by
-keyboard alone. The places changed every page's frame, so C1's and C3's
+keyboard alone. No two axis labels overlap on any chart: a component test
+checks the estimated extents in both drawings of every chart on the
+fixtures, and a browser run measures the real text at 360, 768 and 1280
+px. The places changed every page's frame, so C1's and C3's
 screenshots were written again. Against compose: an entry posted between
 two of the owner's accounts after its confirmation, found in the ledger and
 in the account's balance, reversed after confirming with both entries

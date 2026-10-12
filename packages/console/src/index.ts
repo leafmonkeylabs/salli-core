@@ -34,7 +34,7 @@ export { LineChart, LineKey, type LineChartProps, type LineMark, type LineSeries
 export { RangeChart, type RangeChartProps } from './kit/chart/RangeChart';
 export { DotChart, type DotChartProps, type DotRow } from './kit/chart/DotChart';
 export { amountScale, bandScale, dayScale, extent, indexScale, linePath, spread, stepPath } from './kit/chart/geometry';
-export { firstInMonthTicks, monthTicks, yearTicks } from './kit/chart/ticks';
+export { firstInMonthTicks, fitTicks, labelWidth, monthTicks, placeLabel, yearTicks, type PlacedTick, type TickLabel } from './kit/chart/ticks';
 export { BarChart, type BarChartProps, type BarGroup } from './kit/chart/BarChart';
 export { SubNav, type SubPlace } from './kit/SubNav';
 export { displayDate, displayMoment, displayMonth, displayRange, isoDate } from './kit/dates';

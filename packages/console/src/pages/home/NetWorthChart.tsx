@@ -8,6 +8,7 @@ import type { NetWorthByMonth } from '@leafmonkeylabs/salli-sdk';
 import { negateAmount } from '@leafmonkeylabs/salli-sdk';
 import { ChartFigure } from '../../kit/chart/ChartFigure';
 import { amountScale, bandScale, linePath } from '../../kit/chart/geometry';
+import { fitTicks } from '../../kit/chart/ticks';
 import { displayMonth } from '../../kit/dates';
 import { Money, visibleAmount } from '../../kit/Money';
 import { Table } from '../../kit/Table';
@@ -44,6 +45,11 @@ function Plot({ data, layout, label, variant }: { data: NetWorthByMonth; layout:
   const lastX = band.at(points.length - 1);
   const labelled = (i: number): boolean =>
     layout.every > 0 ? i % layout.every === (points.length - 1) % layout.every : i === 0 || i === points.length - 1;
+  const ticks = fitTicks(
+    points.flatMap((p, i) => (labelled(i) ? [{ index: i, x: band.at(i), text: displayMonth(p.month, locale) }] : [])),
+    font,
+    [left, width - right],
+  );
   return (
     <svg className={`chart-svg chart-${variant}`} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
       <line className="chart-zero" x1={left} x2={width - right} y1={zero} y2={zero} />
@@ -55,13 +61,11 @@ function Plot({ data, layout, label, variant }: { data: NetWorthByMonth; layout:
       ))}
       <path className="chart-line-baseline" d={line} />
       {last ? <circle className="chart-point" cx={lastX} cy={y(last.net_worth)} r={3} /> : null}
-      {points.map((p, i) =>
-        labelled(i) ? (
-          <text key={p.month} className="chart-tick" x={band.at(i)} y={height - bottom / 3} fontSize={font} textAnchor="middle">
-            {displayMonth(p.month, locale)}
-          </text>
-        ) : null,
-      )}
+      {ticks.map((tick) => (
+        <text key={tick.index} className="chart-tick" x={tick.x} y={height - bottom / 3} fontSize={font} textAnchor={tick.anchor}>
+          {tick.text}
+        </text>
+      ))}
       {last && variant === 'wide' ? (
         <text className="chart-end-label" x={lastX + band.width / 2 + 8} y={y(last.net_worth) + font / 3} fontSize={font}>
           {visibleAmount(last.net_worth, data.currency, 'prose', { locale })}

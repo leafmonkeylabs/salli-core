@@ -17,6 +17,7 @@ import { useLocale } from '../../preferences';
 import { visibleAmount } from '../Money';
 import { ChartFigure } from './ChartFigure';
 import { amountScale, dayScale, extent, indexScale, linePath, spread, stepPath } from './geometry';
+import { fitTicks } from './ticks';
 
 export interface LineSeries {
   /** What the line is: "Baseline", or an option's label. */
@@ -85,17 +86,6 @@ export function seriesClass(index: number): string {
   return index === 0 ? 'chart-line-baseline' : `chart-line-option chart-line-${((index - 1) % 5) + 1}`;
 }
 
-/**
- * Where a date on the axis hangs from its point: the first and last from
- * their ends, one near an edge from that edge (so it isn't cut off), the
- * rest from their middle. `half` is about half the label's width.
- */
-function tickAnchor(index: number, count: number, at: number, half: number, [low, high]: readonly [number, number]): 'start' | 'middle' | 'end' {
-  if (index === 0 || at - half < low) return 'start';
-  if (index === count - 1 || at + half > high) return 'end';
-  return 'middle';
-}
-
 function Plot({ props, layout, variant }: { props: LineChartProps; layout: Layout; variant: 'wide' | 'narrow' }) {
   const locale = useLocale();
   const { series, at, currency, marks = [] } = props;
@@ -160,13 +150,15 @@ function Plot({ props, layout, variant }: { props: LineChartProps; layout: Layou
           </g>
         );
       })}
-      {ticks.map((i) =>
-        at[i] !== undefined ? (
-          <text key={i} className="chart-tick" x={x(i)} y={height - bottom / 3} fontSize={font} textAnchor={tickAnchor(i, at.length, x(i), (at[i] ?? '').length * font * 0.3, [left, width - right])}>
-            {at[i]}
-          </text>
-        ) : null,
-      )}
+      {fitTicks(
+        ticks.flatMap((i) => (at[i] === undefined ? [] : [{ index: i, x: x(i), text: at[i] as string }])),
+        font,
+        [left, width - right],
+      ).map((tick) => (
+        <text key={tick.index} className="chart-tick" x={tick.x} y={height - bottom / 3} fontSize={font} textAnchor={tick.anchor}>
+          {tick.text}
+        </text>
+      ))}
       {variant === 'wide'
         ? series.map((s, k) => {
             const i = ends[k] ?? -1;

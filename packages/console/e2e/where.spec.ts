@@ -120,3 +120,58 @@ test('adds an entry and reverses it by keyboard alone, each after its confirmati
   await expect(standing.getByText(/Reversed by/)).toBeVisible();
   await seen.check();
 });
+
+/**
+ * Every visible axis label's real extent, measured in the browser with the
+ * console's own font: no two on one line of one drawing closer than 2
+ * units, on every chart page at each width.
+ */
+async function overlappingLabels(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const found: string[] = [];
+    for (const svg of document.querySelectorAll<SVGSVGElement>('svg.chart-svg')) {
+      if (svg.getBoundingClientRect().width === 0) continue;
+      const lines = new Map<number, Array<{ text: string; from: number; to: number }>>();
+      for (const text of svg.querySelectorAll<SVGTextElement>('text.chart-tick')) {
+        const box = text.getBBox();
+        const key = Math.round(box.y);
+        lines.set(key, [...(lines.get(key) ?? []), { text: text.textContent ?? '', from: box.x, to: box.x + box.width }]);
+      }
+      for (const labels of lines.values()) {
+        labels.sort((a, b) => a.from - b.from);
+        for (let i = 1; i < labels.length; i++) {
+          const a = labels[i - 1];
+          const b = labels[i];
+          if (a && b && b.from < a.to + 2) found.push(`“${a.text}” and “${b.text}”`);
+        }
+      }
+    }
+    return found;
+  });
+}
+
+for (const width of WIDTHS) {
+  test(`no chart's axis labels overlap at ${width} px`, async ({ page }) => {
+    test.setTimeout(120_000);
+    for (const [path, heading] of [
+      ['/', 'Home'],
+      ['/decide/baseline', 'Baseline'],
+      ['/cash', 'Cash'],
+      ['/books/accounts/chk', 'Checking'],
+      ['/books/accounts/usd', 'Dollar account'],
+      ['/books/accounts/card', 'Credit card'],
+      ['/fi', 'Financial independence'],
+    ] as const) {
+      await open(page, path, width, 'light');
+      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+      await settled(page);
+      expect(await overlappingLabels(page), path).toEqual([]);
+    }
+    await open(page, '/decide/scenarios', width, 'light');
+    await page.getByRole('button', { name: 'Add an option' }).click();
+    await page.getByRole('button', { name: 'Compare the 2 options' }).click();
+    await expect(page.getByRole('heading', { name: 'The options compared' })).toBeVisible();
+    await settled(page);
+    expect(await overlappingLabels(page), '/decide/scenarios').toEqual([]);
+  });
+}
