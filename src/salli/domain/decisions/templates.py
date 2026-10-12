@@ -141,7 +141,7 @@ class Facts:
     @property
     def next_month(self) -> dt.date:
         """The first day of the month after the as-of date's: the first
-        month a debt is paid in."""
+        month of things to come, and of a debt's scheduled payments."""
         return month_start(self.as_of, 1)
 
     def debt(self, debt_id: str) -> DebtFact | None:
