@@ -99,7 +99,7 @@ function figureText(out: Output, value: unknown, currency: string, name: string)
 
 // ── Principles ────────────────────────────────────────────────────────────────
 
-function showCheck(app: App, data: PrinciplesCheck): void {
+export function showCheck(app: App, data: PrinciplesCheck): void {
   const out = app.out;
   if (!data.principles.length) {
     out.note('You have no principles yet. Add one with `salli principles add`.');
