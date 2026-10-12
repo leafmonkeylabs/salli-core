@@ -1,7 +1,8 @@
 # The decision lab, phase 3: tax, holdings, rent or buy, notifications
 
 Status: **approved (2026-10-12).** The owner accepted every recommended
-decision below. Building starts with 3a and 3d. It extends the approved [decision lab design](decision-lab.md), whose
+decision below. **3a (tax-aware scenarios) is built** (its "As built"
+notes close section 1); 3d is being built beside it. It extends the approved [decision lab design](decision-lab.md), whose
 rules all still hold. The open questions are at the end, numbered on from that
 design's decisions (6 onwards). Each sub-phase is its own PR.
 
@@ -360,6 +361,64 @@ don't change (if review finds one that does, it goes to 4).
   `assert_never_ranks` over the `tax` section; a test that only an `active`
   version is ever evaluated (a draft with a passing example still gives
   `not_computed`).
+
+### As built (3a)
+
+Built as designed, with these choices where the design left room, or the
+code asked for one:
+
+- **Where the inputs live.** `BaselineInputs.tax` (`TaxInputs`) holds the
+  active versions in the residency whose year ends on or after the as-of
+  date, plus the latest that ended before it (the one later years carry
+  forward), why there are none in `NoTaxRulesError`'s words, and the rates
+  fetched (the as-of date's, and each posting day in the year before it
+  that needs one). `Baseline.tax` (`BaselineTax`) holds the role postings
+  to the as-of date and each role's monthly average; each year's actual is
+  taken from the postings by `domain/scenarios/tax.py`, since a year's
+  dates depend on which rules compute it. The fingerprint includes the
+  rules' refs and rates only when there are rules, so a baseline without
+  any fingerprints as before.
+- **Status, per year.** Each touched year is `computed` or `not_computed`
+  with its reason; the result's `status` is `not_computed` when any touched
+  year is (its `reason` the first year's, the rest in `notes`), and the
+  years that did compute still apply. `years` lists only years with tagged
+  amounts (an untouched year's change is zero); the view shows the first
+  two and the checkpoints' years. `this_year` is null, and the figure 0,
+  when nothing in the as-of year is tagged; the figure is missing when that
+  year's tax isn't computed, or there are no rules to place it in a year.
+- **Stops** take their account's role only when the active rules declare it
+  as `income` or `deduction`; otherwise a stop has no tax, as before.
+- **Answers** a rule set doesn't ask, or that don't fit their question, are
+  refused with their path (`tax.answers.<key>`), as a mistyped id is; a
+  question with no answer and no default leaves its year not computed.
+- **The service** refuses a tag no rule set of the person's declares at all
+  (a new port method, `declared_role_kinds`, over the versions
+  `declared_roles` reads), or one of kind `withholding` or `other`, at
+  `changes[i].tax_role`. The engine refuses the latter too, from the active
+  rules.
+- **A carried-forward year's label** is the next year's number when the
+  rules' label is their start year ("2031" → "2032"), otherwise its dates.
+  A year with no earlier active rules (only later ones) is not computed.
+- **Placeholders** gain `tax_rules_carried_forward` whenever a computed year
+  carries rules forward, beside the per-year `carried_forward`.
+- **Memoised** on the baseline (`BaselineTax.memo`) by rules hash, totals,
+  answers: a comparison of two tagged options with a loan-rate break-even
+  and cash floors on the XA household took 0.86 s against 0.50 s untagged,
+  six evaluations memoised in all.
+- **Templates:** `big-change` asks `income_tax_role`, `windfall` `tax_role`
+  (when the money is new); neither has a default. No template tags a cost.
+- **The CLI:** `salli whatif --tax-role <role>` tags every `--income`,
+  `--recurring` and `--buy` amount, `--tax-answer key=value` answers a
+  question; `salli decide --tax-answer` too. The run shows each tax year's
+  net under the baseline and the scenario, and the change.
+- **`ENGINE_VERSION` stays 3:** no existing golden changed, and a scenario
+  that tags nothing gives exactly the figures it gave. One existing input
+  can now give different figures: a `stop_recurring` of a flow whose
+  account carries a role the person's active rules declare as income or
+  deduction now changes the tax. Whether that warrants engine 4 is the
+  owner's call.
+- Suggested asset accounts are created with `asset_role` `other`; no other
+  default made a tax account cash.
 
 ## 2. Invest changes on the actual holdings
 

@@ -500,8 +500,37 @@ added and a dropped one removed. Reminders the user made are never touched.
 then. `GET /tax/rule-sets/{id}/suggested-accounts` lists the accounts a rule
 set suggests (from its active version, else its newest) and whether the user
 has one with each code; `POST` creates the missing ones, in the base
-currency, with their tax roles. Idempotent: an account whose code is taken
-(open or closed) is left as it is, and reported with how it differs.
+currency, with their tax roles. An asset account it creates has the asset
+role `other`: tax withheld or paid, kept as a receivable, is held, not cash,
+so it never counts in your cash, emergency months or safe-to-spend.
+Idempotent: an account whose code is taken (open or closed) is left as it
+is, and reported with how it differs.
+
+## In scenarios
+
+A [scenario](scenarios.md#tax) change tagged with a role (`tax_role`) is
+before tax, and the change in each year's tax comes from these same rules:
+
+- **Only your active rules**, in your tax residency, as here. The year
+  containing the as-of date and each later one uses its own active rules
+  when it has them (the national ones when a region's are beside them);
+  otherwise your latest active rules are carried forward, every amount in
+  them held level in today's money, and labelled
+  `tax_rules_carried_forward`. A draft never computes, even one whose
+  examples pass.
+- **The roles** a change may carry are your rules' `income` and `deduction`
+  roles; a stopped ledger flow takes its account's role. `withholding` and
+  `other` roles can't be tagged: withholding is projected from your ledger.
+- **The totals** are each role's postings to the as-of date (as above),
+  the rest of the year at the role's monthly average, and the scenario's
+  tagged amounts; the change in tax is the difference in `net`.
+- **Questions** are answered in the scenario (`tax.answers`), checked as a
+  computation checks them; a question with no answer and no default leaves
+  that year's tax not computed, and the result says so.
+
+At an as-of date on a tax year's last day the projection is all actual, so
+the scenario's baseline tax for that year is exactly what
+`POST /tax/compute` gives.
 
 ## Interfaces
 

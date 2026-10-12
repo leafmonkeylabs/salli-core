@@ -64,8 +64,8 @@ Every figure is computed for your baseline and for each option, from the
 same timelines as [scenarios](scenarios.md), and is the value Salli shows
 you: an amount to your currency's smallest unit, months of spending to the
 hundredth, a rate exactly. **Nominal** amounts are in each day's or month's
-own money; **real** ones in today's money. `salli principles figures` (or
-`GET /v1/principles/figures`) lists them.
+own money; **real** ones in today's money. There are 33. `salli principles
+figures` (or `GET /v1/principles/figures`) lists them.
 
 | Figure | Unit | What it is |
 |---|---|---|
@@ -89,6 +89,7 @@ own money; **real** ones in today's money. `salli principles figures` (or
 | `fi_number` | amount, real | A year of the spending you would live on, over your safe withdrawal rate. |
 | `fi_months` | months (whole) | Months from the as-of month to the month you reach it. |
 | `fi_months_gained` | months (whole) | Months sooner (positive) or later (negative) than your baseline; 0 for your baseline. |
+| `tax_change_this_year` | amount, nominal | The change the option makes to the as-of date's tax year's tax (its `net`, after credits), computed with your active tax rules from its changes tagged with a tax role ([scenarios](scenarios.md#tax)); more tax is positive. 0 for your baseline, and when nothing in the year is tagged; missing when the tax isn't computed (no active rules, say). |
 
 The monthly figures come from the 50-year timeline whatever horizon a
 scenario shows, so a check at ten years works on a five-year scenario.
