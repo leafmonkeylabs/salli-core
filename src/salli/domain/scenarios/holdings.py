@@ -485,7 +485,11 @@ def _within_the_ledger(baseline: Baseline, pending: Sequence[_Pending], out: Tra
             room[h.account_id] = account.value
         sold[h.account_id] = sold.get(h.account_id, Decimal(0)) + as_of_value
         holds = room[h.account_id] + invested.get(h.account_id, Decimal(0))
-        if sold[h.account_id] > holds:
+        # Compared to the base currency's smallest unit, as the ledger keeps it.
+        q = quantum(baseline.currency, strict=False)
+        if sold[h.account_id].quantize(q, rounding=ROUND_HALF_EVEN) > holds.quantize(
+            q, rounding=ROUND_HALF_EVEN
+        ):
             cur = baseline.currency
             more = invested.get(h.account_id, Decimal(0))
             what = (

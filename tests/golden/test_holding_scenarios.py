@@ -307,3 +307,15 @@ def test_every_existing_figure_is_unchanged_and_the_engine_stays_at_4():
         "label": "Invest",
     }
     assert engine.run(b, scenario(plain)).changes[0].holding is None
+
+
+def test_a_sale_of_all_the_account_holds_is_allowed_now_or_later():
+    """10 units at 150.00 are the brokerage's 1,500.00 exactly. Later, at the
+    price grown at the real return, they fetch more, but are still counted
+    at the as-of price against what the account holds."""
+    b = books(rules=False).baseline(AS_OF)
+    now = engine.run(b, scenario(sell(quantity="10")))
+    later = engine.run(b, scenario(sell(quantity="10", date="2032-01-15")))
+    assert now.changes[0].holding is not None and later.changes[0].holding is not None
+    assert now.changes[0].holding.gross == D("1500")
+    assert later.changes[0].holding.gross > D("1500")
