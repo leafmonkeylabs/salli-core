@@ -10,6 +10,7 @@ there is no outside auth service and no email to configure (decision D13).
 - [What you need](#what-you-need)
 - [Quickstart](#quickstart)
 - [Who can sign in](#who-can-sign-in)
+- [The console](#the-console)
 - [Configuration](#configuration)
 - [HTTPS on your own domain](#https-on-your-own-domain)
 - [Scheduled jobs](#scheduled-jobs)
@@ -91,20 +92,55 @@ Each member has their own ledger and signs in with `salli login`. Salli sends
 no email, so a forgotten password is reset by the owner, never by a link.
 
 People change their own password with `salli password`. That signs out their
-other sessions; their CLI sign-ins and personal access tokens keep working.
+other sessions; their CLI and console sign-ins and personal access tokens keep
+working. `salli sign-ins list` shows every way they are signed in (sessions,
+the CLI on each machine, the console in each browser tab), and `salli
+sign-ins revoke` ends one.
 
 A reset signs out every session, and lifts any lock from failed sign-ins.
-`--sign-out-everywhere` also revokes the person's CLI sign-ins, AI connectors
-and personal access tokens: use it when you think an account was taken over.
+`--sign-out-everywhere` also revokes the person's CLI and console sign-ins,
+AI connectors and personal access tokens: use it when you think an account
+was taken over.
 
 How each way in works:
 
 | Way in | How | May activate tax rules |
 |---|---|---|
 | The `salli` CLI | `salli login`: the browser or device page, with your password | yes |
+| The console | `salli ui`, or the server's `/console` in a browser: Salli's sign-in page, with your password | only within 5 minutes of entering the password; it asks for it again first |
 | A session | `POST /v1/auth/sessions` with your email and password, for an app or a script | yes |
 | A personal access token | `salli tokens create`, for scripts and CI | only if made with `--allow tax:activate` |
 | An AI client over MCP | approved on Salli's consent page with your password | never |
+
+## The console
+
+The console is Salli in a browser: where you stand, the decision lab, imports,
+tax rules and settings, as pages. The server serves it at
+`{SALLI_PUBLIC_URL}/console`; `salli ui` opens it (or prints the address with
+`--no-open`, to type into a phone). Each household member signs in with their
+own email and password, on Salli's own sign-in page; the console has no
+sign-in form of its own and is handed nothing by the CLI.
+
+> [!NOTE]
+> The console's pages come with the next release; this one has the server
+> side: the sign-in, the switch and the settings. Until an image carries a
+> built console, `/console` is not served, `/v1/meta` says `console_url:
+> null`, and `salli-server doctor` says so.
+
+- **HTTPS, or this machine.** The console signs in only over HTTPS, or at
+  `http://localhost:8000` on the server's own machine: browsers allow the
+  sign-in's cryptography nowhere else, and a password should only cross a
+  network encrypted. To use it from other devices, phones included, use the
+  [`tls` profile](#https-on-your-own-domain). Over plain HTTP on a network
+  address, the server refuses to sign the console in, and says why.
+- **One sign-in per tab.** A reload keeps it; closing the tab ends it. A
+  console sign-in ends 12 hours after the password was entered, however much
+  it is used (`SALLI_CONSOLE_SIGN_IN_HOURS`).
+- **Activating tax rules** from the console, or making a personal access token
+  that can, needs the password entered in the last five minutes: the console
+  sends you through the sign-in page again first.
+- **Switching it off:** `SALLI_CONSOLE=false` serves no console, and its
+  sign-in refuses everyone. The CLI, MCP and the API are unaffected.
 
 ## Configuration
 
@@ -132,6 +168,9 @@ is needed to start.
 | `SALLI_DEFAULT_CURRENCY` | `USD` | The base currency for a new account when none is named (ISO 4217). |
 | `ALLOWED_ORIGINS` | none | Web origins whose pages may call the API from a browser, comma-separated. The CLI, scripts and MCP clients need none. |
 | `SALLI_SESSION_TTL_DAYS` | `30` | How long a session lasts from sign-in, however much it is used. |
+| `SALLI_CONSOLE` | `true` | Whether to serve [the console](#the-console). `false`: no `/console`, and the console's sign-in refuses everyone. |
+| `SALLI_CONSOLE_DIR` | set by the image | Where the console's built files are (`index.html` and `assets/`). Without them, no console is served. |
+| `SALLI_CONSOLE_SIGN_IN_HOURS` | `12` | How long a console sign-in lasts after its password, however often it refreshes (1 to 168). The CLI's sign-ins are not affected. |
 | `SALLI_CHATGPT_PLAN_USAGE` | `true` | Whether people may run Salli's AI on their ChatGPT plan. |
 | `TAVILY_API_KEY` | none | Web search for the agents. |
 | `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` | none, `salli` | Tracing. |
@@ -139,7 +178,7 @@ is needed to start.
 | `ENVIRONMENT` | `production` in the image | `development` serves API docs at `/docs` and allows the development sign-in. Never on a server others can reach. |
 | `MCP_CONSENT_URL` | Salli's own page | Where people approve an MCP connection, if you run your own web app for it. |
 | `MCP_ACCESS_TOKEN_TTL_SECONDS` | `3600` | How long an OAuth access token lasts (the CLI's, an AI client's). |
-| `MCP_REFRESH_TOKEN_TTL_SECONDS` | `2592000` | How long a refresh token lasts (30 days). |
+| `MCP_REFRESH_TOKEN_TTL_SECONDS` | `2592000` | How long a refresh token lasts (30 days). Each refresh issues a new one; a sign-in lasts while it keeps refreshing, except the console's (above). |
 | `MCP_AUTH_CODE_TTL_SECONDS`, `MCP_ART_TTL_SECONDS` | `120`, `1800` | How long an authorisation code, and a pending approval, last. |
 | `SALLI_EXTENSIONS` | none | Extensions to load, comma-separated. They must be installed in the image. |
 | `SALLI_USER_ID` | the owner | Whom a `salli-server` command that acts on one user acts as. |
@@ -367,12 +406,23 @@ restore, as above, onto the new version.
   hashes are stored. Sessions expire after 30 days, and end on sign-out, on a
   password change (the others) and on a reset (all). Nothing uses cookies, so
   there is nothing for another site to forge a request with.
+- **Refresh tokens** (the CLI's, the console's, an AI client's) change with
+  every use. One used a second time ends the whole sign-in it belongs to:
+  whoever copied it and the person both lose it, and the person finds out by
+  being signed out. Signing out of any one token ends the sign-in.
+- **API responses** say `Cache-Control: no-store`, so no browser or proxy
+  keeps a copy of anyone's data.
+- **The console and the sign-in pages** run under a strict Content Security
+  Policy: no script but the console's own (and none at all on the sign-in
+  pages), no third-party request, no framing, and Trusted Types with no
+  policy, so a page can't be made to write HTML into itself.
 - **Wrong passwords and unknown emails** get the same answer, in about the
   same time.
 - **CORS** trusts no web origin unless `ALLOWED_ORIGINS` names it.
 - **AI connectors** never hold `tax:activate`, and their tokens are refused by
   the REST API. Only you, at your own terminal or with your own password, can
-  make a tax rule set the one Salli computes with.
+  make a tax rule set the one Salli computes with: in the console, with the
+  password entered in the last five minutes.
 - **Updates.** The image is rebuilt for each release; pin a version with
   `SALLI_IMAGE` and upgrade on your own schedule.
 
@@ -407,6 +457,14 @@ same computer.
 **After changing `SALLI_PUBLIC_URL`, sign-ins fail.** OAuth tokens are bound
 to the URL they were issued for. Sign in again with `salli login`, and
 reconnect AI clients.
+
+**`salli ui` says the server serves no console.** Check `SALLI_CONSOLE` isn't
+`false`, and that the image is one with the console (`salli-server doctor`
+says). An older server has none.
+
+**The console says it needs HTTPS.** Open it at `http://localhost:8000` on the
+server's own machine, or set up [HTTPS](#https-on-your-own-domain) and open it
+at `https://<your domain>/console`.
 
 **AI features say no model is available.** Set `ANTHROPIC_API_KEY` in `.env`
 and `docker compose up -d`, or add your own key: `salli llm-keys set
