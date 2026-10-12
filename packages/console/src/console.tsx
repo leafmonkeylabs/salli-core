@@ -151,6 +151,9 @@ const BOOKS_TAX_SETTINGS: ConsoleRoute[] = [
   { path: '/books/imports', load: () => import('./pages/books/Imports') },
   { path: '/books/imports/$statement', load: () => import('./pages/books/Review') },
   { path: '/books/rules', load: () => import('./pages/books/Rules') },
+  { path: '/tax', load: () => import('./pages/tax/Tax') },
+  { path: '/tax/rules/$ruleSet', load: () => import('./pages/tax/RuleSet') },
+  { path: '/tax/rules/$ruleSet/versions/$version', load: () => import('./pages/tax/Version') },
 ];
 
 function Settings() {

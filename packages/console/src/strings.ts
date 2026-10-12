@@ -21,6 +21,7 @@ export const strings = {
     cash: 'Cash',
     decide: 'Decide',
     books: 'Books',
+    tax: 'Tax',
     attention: 'Attention',
     fi: 'Independence',
     settings: 'Settings',
@@ -201,6 +202,7 @@ export const strings = {
     title: 'More',
     description: 'The places that don’t fit on a phone’s bar.',
     places: {
+      '/tax': 'Your tax, the rules that compute it, and activating a new version.',
       '/attention': 'What Salli has noticed, and your reminders by due date.',
       '/fi': 'Your FI number, how far along you are, and the assumptions behind it.',
       '/settings': 'Your profile, where you are signed in, and how this device shows Salli.',

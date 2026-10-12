@@ -126,6 +126,7 @@ export function Shell() {
     { to: '/cash', label: strings.nav.cash, icon: 'cash' },
     { to: '/decide', label: strings.nav.decide, icon: 'decide' },
     { to: '/books', label: strings.nav.books, icon: 'books' },
+    { to: '/tax', label: strings.nav.tax, icon: 'page' },
     { to: '/attention', label: strings.nav.attention, icon: 'page' },
     { to: '/fi', label: strings.nav.fi, icon: 'page' },
     ...navigation.map((item) => ({ to: item.to, label: item.label, icon: 'page' as const })),

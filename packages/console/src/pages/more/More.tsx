@@ -1,5 +1,5 @@
 /**
- * More: the places a phone's bar of five has no room for (Attention,
+ * More: the places a phone's bar of five has no room for (Tax, Attention,
  * financial independence, any an edition adds, Settings), each with what
  * it holds. On a wide screen every place is in the top bar as well.
  */
@@ -11,6 +11,7 @@ import { strings } from '../../strings';
 export function More() {
   const { navigation } = useConsoleExtensions();
   const places = [
+    { to: '/tax', label: strings.nav.tax },
     { to: '/attention', label: strings.nav.attention },
     { to: '/fi', label: strings.nav.fi },
     ...navigation.map((item) => ({ to: item.to, label: item.label })),
