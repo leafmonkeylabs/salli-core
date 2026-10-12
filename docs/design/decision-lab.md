@@ -428,7 +428,7 @@ Nudges are quiet, useful and rare:
    - "Invest" changes using the portfolio's actual holdings.
    - A rent-or-buy template.
    - The notification port.
-   - **Status:** designed, for review: [the phase 3 design](decision-lab-phase-3.md)
+   - **Status:** designed and approved (2026-10-12): [the phase 3 design](decision-lab-phase-3.md)
      (sub-phases 3a to 3d, and decisions 6 to 31).
 
 There are no real users yet, so phase 1 changes FI's figures (savings rate, FI

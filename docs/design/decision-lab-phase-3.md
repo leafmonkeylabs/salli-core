@@ -1,7 +1,7 @@
 # The decision lab, phase 3: tax, holdings, rent or buy, notifications
 
-Status: **proposed (2026-10-12),** for the owner's review. Nothing here is
-built. It extends the approved [decision lab design](decision-lab.md), whose
+Status: **approved (2026-10-12).** The owner accepted every recommended
+decision below. Building starts with 3a and 3d. It extends the approved [decision lab design](decision-lab.md), whose
 rules all still hold. The open questions are at the end, numbered on from that
 design's decisions (6 onwards). Each sub-phase is its own PR.
 
@@ -911,12 +911,12 @@ docs/self-host.md and CLAUDE.md where an invariant is added) and records
   figures and templates. Goldens first, as phase 1 did: every existing
   golden must pass unchanged before tax is added.
 
-## Decisions to approve
+## Decisions (2026-10-12)
 
-Numbered on from the approved design's. Each is this document's
-recommendation; the sections above give the options.
+Numbered on from the approved design's. The owner accepted each recommendation
+as it stands; the sections above give the options that were weighed.
 
-| # | Question | Decision (proposed) |
+| # | Question | Decision |
 |---|---|---|
 | 6 | How a scenario's amounts reach tax | A change carries a `tax_role` (only `income` or `deduction` roles); a stopped ledger flow keeps its account's role. Accounts' roles are not used for new changes. |
 | 7 | `income_change`'s amount | Renamed `monthly`: net when untagged, before tax when tagged. No alias. |
