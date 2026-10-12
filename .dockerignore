@@ -1,5 +1,7 @@
 # Only what the image is built from: pyproject.toml, uv.lock, README.md,
-# LICENSE and src/. Everything else stays out of the build context.
+# LICENSE and src/ for the server; the npm workspace's manifests and lock,
+# the SDK's sources and the console for the console. Everything else stays
+# out of the build context.
 *
 !pyproject.toml
 !uv.lock
@@ -8,3 +10,16 @@
 !src/
 src/**/__pycache__
 src/**/*.py[cod]
+!package.json
+!package-lock.json
+!tsconfig.base.json
+!packages/sdk/package.json
+!packages/sdk/src/
+!packages/cli/package.json
+!packages/console/
+packages/**/node_modules
+packages/console/dist
+packages/console/test
+packages/console/e2e
+packages/console/test-results
+packages/console/playwright-report*
