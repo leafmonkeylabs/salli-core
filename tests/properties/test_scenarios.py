@@ -7,6 +7,9 @@ baseline's own, tests/properties/test_baseline.py):
 - adding a cost never improves a cash figure, and adding income never
   worsens one;
 - an extra payment on a debt never adds interest;
+- one from the as-of month never adds interest or raises what is owed at
+  any month's end, and what leaves cash in the as-of month is what is
+  applied: the amount, up to what is owed;
 - setting part of the surplus aside never lowers cash at a month's end, never
   adds to investments, and never puts off when cash covers a target;
 - a comparison doesn't depend on the order of its options;
@@ -23,7 +26,7 @@ from decimal import Decimal
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from salli.domain.baseline import fi
+from salli.domain.baseline import fi, timelines
 from salli.domain.scenarios import comparison, engine, schema, views
 from tests.baseline_ledger import Ledger
 from tests.properties.test_baseline import AS_OF, ledgers
@@ -154,6 +157,56 @@ def test_an_extra_payment_never_adds_interest(
         total = result.debts.total_interest
         assert total.scenario is not None and total.baseline is not None
         assert total.scenario <= total.baseline
+
+
+@_SETTINGS
+@given(
+    ledgers(),
+    amounts,
+    st.integers(min_value=0, max_value=20),
+    st.one_of(st.none(), st.integers(0, 600)),
+)
+def test_an_extra_payment_from_the_as_of_month_is_applied_then(
+    books: Ledger, monthly: Decimal, start: int, length: int | None
+):
+    # AS_OF is 2026-10-11: 0 to 20 days ahead is the rest of the as-of month.
+    baseline = books.baseline(AS_OF)
+    months = timelines.periods(AS_OF, timelines.horizon_months(fi.FI_YEARS))
+    before = {p.debt.debt_id: p for p in timelines.debt_paths(baseline, months)}
+    was = timelines.monthly(baseline, 1)
+    for debt in baseline.debts:
+        doc = _doc(
+            [
+                {
+                    "type": "extra_debt_payment",
+                    "debt": debt.debt_id,
+                    "monthly": f"{monthly}",
+                    "from": _day(start),
+                    "to": None if length is None else _day(start + length),
+                }
+            ]
+        )
+        changes = engine.translate(baseline, doc).changes
+        after = {p.debt.debt_id: p for p in timelines.debt_paths(baseline, months, changes)}
+        paid, unpaid = after[debt.debt_id], before[debt.debt_id]
+        # Never more interest, never more owed at a month's end.
+        assert paid.total_interest <= unpaid.total_interest
+        assert all(a <= b for a, b in zip(paid.owed, unpaid.owed, strict=True))
+        # In the as-of month: the amount, up to what is owed, and nothing else.
+        applied = min(monthly, debt.balance) if debt.balance > 0 else Decimal(0)
+        assert paid.extra[0] == applied
+        assert paid.owed[0] == debt.balance - applied
+        # That much leaves cash by the as-of month's end, on both timelines.
+        # (The monthly timeline's in today's money: back in the month's own.)
+        now = timelines.monthly(baseline, 1, changes)
+        level = now.points[1].deflator
+        assert abs((was.points[1].cash - now.points[1].cash) * level - applied) < Decimal("1e-15")
+        daily_was = dict(timelines.daily(baseline).month_ends)
+        daily_now = dict(timelines.daily(baseline, changes).month_ends)
+        assert daily_was["2026-10"] - daily_now["2026-10"] == applied
+        # Cleared then, it is paid off in the as-of month.
+        if applied and applied == debt.balance:
+            assert paid.paid_off == "2026-10" and paid.total_interest == 0
 
 
 @_SETTINGS

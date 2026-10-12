@@ -49,9 +49,10 @@ you say).
 
 A default comes only from what is honest:
 
-- **The date:** the as-of date, or the first of the next month (debts are
-  paid from the month after the as-of month, so a payment onto one lands
-  then at the earliest).
+- **The date:** the as-of date, or the first of the next month. A payment
+  onto a debt may start in the as-of month: it is paid at the month's end,
+  before the debt's next scheduled payment
+  ([scenarios](scenarios.md#in-the-as-of-month)).
 - **Your debts:** the debt, when you have only one; what a debt owes now,
   when you refinance it.
 - **Your principles:** the months of spending you want your cash to cover, when a

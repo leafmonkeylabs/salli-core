@@ -12,7 +12,7 @@ export const SCENARIO_RUN: ScenarioRun = {
   "as_of": "2026-10-11",
   "horizon_years": 20,
   "currency": "EUR",
-  "hash": "sha256:01756a0b53033b31a1597dcb5d8dfbcea9a89cf8ffa186304cc5b2dc81941b57",
+  "hash": "sha256:6f2513783307730c6c0f34d2583fc5bd9fcb2bb0927da6e99a0d1cdd47d74560",
   "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
   "scenario": {
     "schema": "salli.scenario/1",
@@ -411,7 +411,7 @@ export const SCENARIO_RUN: ScenarioRun = {
   ],
   "versions": {
     "schema": "salli.scenario/1",
-    "engine": "2",
+    "engine": "3",
     "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
     "fire_strategy": null,
     "rule_sets": []
@@ -436,7 +436,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:c67789751bb9861552d93e1440317e8fbbb40fca19d147a1c2213e8ecaec7fe6",
+      "hash": "sha256:b203a631d5c5ed9a54d6da8f092a874d10a8f504fe0c3330962aa022ebd97558",
       "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
       "scenario": {
         "schema": "salli.scenario/1",
@@ -776,7 +776,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       ],
       "versions": {
         "schema": "salli.scenario/1",
-        "engine": "2",
+        "engine": "3",
         "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
         "fire_strategy": null,
         "rule_sets": []
@@ -791,7 +791,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:2ad20594087b83c8e2731062613844d25b4c1af17e4e8270eff1deeb381b35cb",
+      "hash": "sha256:00ce8b55a091b848b4f30a8885e073f5a38819c22491ec02f304f28501b29dfb",
       "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
       "scenario": {
         "schema": "salli.scenario/1",
@@ -1166,7 +1166,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       ],
       "versions": {
         "schema": "salli.scenario/1",
-        "engine": "2",
+        "engine": "3",
         "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
         "fire_strategy": null,
         "rule_sets": []

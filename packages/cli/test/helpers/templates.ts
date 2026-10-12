@@ -534,7 +534,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ]
       },
-      "scenario_hash": "sha256:eeb0c4c72d62bbbdafafe119b65f38da75dcd164fb91993e93ccc39062d958ca"
+      "scenario_hash": "sha256:08e768a93d8b8cb0ff91fb2885b6c6cf3ff5d1496af36ea654cb64f4c6741ae1"
     },
     {
       "label": "Spread over 12 months",
@@ -563,7 +563,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ]
       },
-      "scenario_hash": "sha256:604bc90236a3e83c511af3ec0c55db732220ed59b9cae912c83384af84629117"
+      "scenario_hash": "sha256:3766a9c4f2dc3dafb769d0adec53dcea148cdf4dcc455566b279766521205a86"
     }
   ],
   "comparison": {
@@ -581,7 +581,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:eeb0c4c72d62bbbdafafe119b65f38da75dcd164fb91993e93ccc39062d958ca",
+        "hash": "sha256:08e768a93d8b8cb0ff91fb2885b6c6cf3ff5d1496af36ea654cb64f4c6741ae1",
         "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
         "scenario": {
           "schema": "salli.scenario/1",
@@ -871,7 +871,7 @@ export const AFFORD_IT_START: DecisionStart = {
         ],
         "versions": {
           "schema": "salli.scenario/1",
-          "engine": "2",
+          "engine": "3",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
           "fire_strategy": null,
           "rule_sets": []
@@ -886,7 +886,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:604bc90236a3e83c511af3ec0c55db732220ed59b9cae912c83384af84629117",
+        "hash": "sha256:3766a9c4f2dc3dafb769d0adec53dcea148cdf4dcc455566b279766521205a86",
         "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
         "scenario": {
           "schema": "salli.scenario/1",
@@ -1211,7 +1211,7 @@ export const AFFORD_IT_START: DecisionStart = {
         ],
         "versions": {
           "schema": "salli.scenario/1",
-          "engine": "2",
+          "engine": "3",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
           "fire_strategy": null,
           "rule_sets": []
@@ -1641,7 +1641,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ],
         "label": "Pay cash",
-        "scenario_hash": "sha256:eeb0c4c72d62bbbdafafe119b65f38da75dcd164fb91993e93ccc39062d958ca"
+        "scenario_hash": "sha256:08e768a93d8b8cb0ff91fb2885b6c6cf3ff5d1496af36ea654cb64f4c6741ae1"
       },
       {
         "figures": {
@@ -1690,7 +1690,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ],
         "label": "Spread over 12 months",
-        "scenario_hash": "sha256:604bc90236a3e83c511af3ec0c55db732220ed59b9cae912c83384af84629117"
+        "scenario_hash": "sha256:3766a9c4f2dc3dafb769d0adec53dcea148cdf4dcc455566b279766521205a86"
       }
     ]
   },
@@ -1806,7 +1806,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "horizon_years": 5,
         "changes": []
       },
-      "scenario_hash": "sha256:0cf0e2ae9b1728eb7d126d5c6546bc7f116d21f6f0d6becc76962a351ed99efd"
+      "scenario_hash": "sha256:413f724766433848b39ef3935ee9e13cf911ef6cc9de4f3548abbc6427513f29"
     },
     {
       "label": "Set aside 200.00 a month",
@@ -1826,7 +1826,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ]
       },
-      "scenario_hash": "sha256:4784a3445f70385456c330429e10539f9a9a00b19050fcc66d54f28b83ba37f0"
+      "scenario_hash": "sha256:5f281de534d936a89e7af1a5338cab89f757f5a900291cd1b4709842711f1c30"
     },
     {
       "label": "Set aside 500.00 a month",
@@ -1846,7 +1846,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ]
       },
-      "scenario_hash": "sha256:224f5e0125e85e80f02fc044510f5d939b363f24b392b8d26154405672a95f8f"
+      "scenario_hash": "sha256:e63fb43df705f4779e0163b0143108c026dc72b7701941de4cb1dad44f9cd226"
     }
   ],
   "comparison": {
@@ -1865,7 +1865,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:0cf0e2ae9b1728eb7d126d5c6546bc7f116d21f6f0d6becc76962a351ed99efd",
+        "hash": "sha256:413f724766433848b39ef3935ee9e13cf911ef6cc9de4f3548abbc6427513f29",
         "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
         "scenario": {
           "schema": "salli.scenario/1",
@@ -2135,7 +2135,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         ],
         "versions": {
           "schema": "salli.scenario/1",
-          "engine": "2",
+          "engine": "3",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
           "fire_strategy": null,
           "rule_sets": []
@@ -2150,7 +2150,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:4784a3445f70385456c330429e10539f9a9a00b19050fcc66d54f28b83ba37f0",
+        "hash": "sha256:5f281de534d936a89e7af1a5338cab89f757f5a900291cd1b4709842711f1c30",
         "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
         "scenario": {
           "schema": "salli.scenario/1",
@@ -2440,7 +2440,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         ],
         "versions": {
           "schema": "salli.scenario/1",
-          "engine": "2",
+          "engine": "3",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
           "fire_strategy": null,
           "rule_sets": []
@@ -2455,7 +2455,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:224f5e0125e85e80f02fc044510f5d939b363f24b392b8d26154405672a95f8f",
+        "hash": "sha256:e63fb43df705f4779e0163b0143108c026dc72b7701941de4cb1dad44f9cd226",
         "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
         "scenario": {
           "schema": "salli.scenario/1",
@@ -2745,7 +2745,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         ],
         "versions": {
           "schema": "salli.scenario/1",
-          "engine": "2",
+          "engine": "3",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
           "fire_strategy": null,
           "rule_sets": []
@@ -3443,7 +3443,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "As things are",
-        "scenario_hash": "sha256:0cf0e2ae9b1728eb7d126d5c6546bc7f116d21f6f0d6becc76962a351ed99efd"
+        "scenario_hash": "sha256:413f724766433848b39ef3935ee9e13cf911ef6cc9de4f3548abbc6427513f29"
       },
       {
         "figures": {
@@ -3492,7 +3492,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "Set aside 200.00 a month",
-        "scenario_hash": "sha256:4784a3445f70385456c330429e10539f9a9a00b19050fcc66d54f28b83ba37f0"
+        "scenario_hash": "sha256:5f281de534d936a89e7af1a5338cab89f757f5a900291cd1b4709842711f1c30"
       },
       {
         "figures": {
@@ -3541,7 +3541,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "Set aside 500.00 a month",
-        "scenario_hash": "sha256:224f5e0125e85e80f02fc044510f5d939b363f24b392b8d26154405672a95f8f"
+        "scenario_hash": "sha256:e63fb43df705f4779e0163b0143108c026dc72b7701941de4cb1dad44f9cd226"
       }
     ]
   },

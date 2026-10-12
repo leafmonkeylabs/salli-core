@@ -14,10 +14,10 @@ docs/templates.md). Pure.
 Each builds its options from the answers alone: an amount goes where the
 answers say, on the day they say, and nothing is projected. Where a
 template needs a day the person didn't give, it uses the as-of date or the
-first of the next month (debts are paid from the month after the as-of
-month, so a payment onto one lands then at the earliest). The time cash
-takes to cover a target is the engine's (`engine.cover_target`), never
-worked out here.
+first of the next month. A payment onto a debt may fall in the as-of month:
+the engine pays it at that month's end, before the debt's first scheduled
+payment. The time cash takes to cover a target is the engine's
+(`engine.cover_target`), never worked out here.
 """
 
 from __future__ import annotations
@@ -153,19 +153,6 @@ def _signed(value: Decimal, facts: Facts) -> str:
 def _account(answers: Answers, key: str, field: str = "account") -> dict[str, str]:
     account = answers.get(key)
     return {field: account} if account else {}
-
-
-def _starts_next_month(answers: Answers, facts: Facts, key: str = "start") -> list[Problem]:
-    day = answers.get(key)
-    if isinstance(day, dt.date) and day < facts.next_month:
-        return [
-            Problem(
-                f"answers.{key}",
-                f"is in the as-of month: Salli pays debts from the month after it, so start "
-                f"on {facts.next_month.isoformat()} or later",
-            )
-        ]
-    return []
 
 
 # ── Afford it ────────────────────────────────────────────────────────────────
@@ -331,18 +318,17 @@ AFFORD_IT = Template(
 # ── Debt or invest ───────────────────────────────────────────────────────────
 
 
-def _debt_or_invest_check(answers: Answers, facts: Facts) -> list[Problem]:
-    problems = _starts_next_month(answers, facts)
+def _debt_or_invest_check(answers: Answers, _: Facts) -> list[Problem]:
     split: Decimal | None = answers.get("split_on_debt")
     if split is not None and split >= answers["amount"]:
-        problems.append(
+        return [
             Problem(
                 "answers.split_on_debt",
                 "is the part of the amount that goes on the debt, so less than the amount; "
                 "the rest is invested",
             )
-        )
-    return problems
+        ]
+    return []
 
 
 def _debt_or_invest_build(answers: Answers, facts: Facts) -> Built:
@@ -461,8 +447,9 @@ DEBT_OR_INVEST = Template(
         ),
         _start_question(
             "From when?",
-            "A payment onto a debt lands from next month at the earliest; the money is "
-            "invested on the same day, so both start together.",
+            "The day the first payment goes onto the debt, or is invested: both start "
+            "together. In this month, a payment onto the debt lands at the month's end, "
+            "before its next scheduled payment.",
         ),
         Question(
             "split_on_debt",
@@ -503,7 +490,6 @@ def _windfall_build(answers: Answers, facts: Facts) -> Built:
     new = answers["arrives"] == "new"
     years: int = answers["horizon_years"]
     cur = facts.currency
-    pay_day = max(day, facts.next_month)
     options: list[OptionBuilt] = []
     for split in answers["splits"]:
         changes: list[dict[str, Any]] = []
@@ -526,8 +512,8 @@ def _windfall_build(answers: Answers, facts: Facts) -> Built:
                     "type": "extra_debt_payment",
                     "debt": debt.id,
                     "monthly": facts.money(part.amount),
-                    "from": pay_day.isoformat(),
-                    "to": month_end(pay_day).isoformat(),
+                    "from": day.isoformat(),
+                    "to": month_end(day).isoformat(),
                     "label": f"Onto {debt.name}",
                 }
             )
@@ -549,17 +535,7 @@ def _windfall_build(answers: Answers, facts: Facts) -> Built:
             else f"All {amount} {cur} kept in cash."
         )
         options.append(OptionBuilt(split.label, describes, scenario(split.label, years, changes)))
-    notes: list[str] = []
-    if day < facts.next_month and any(s.debts for s in answers["splits"]):
-        notes.append(
-            f"Debts are paid from {facts.next_month.isoformat()[:7]} on, so a payment onto one "
-            "lands then."
-        )
-    return Built(
-        question=f"How to use {amount} {cur}?",
-        options=tuple(options),
-        notes=tuple(notes),
-    )
+    return Built(question=f"How to use {amount} {cur}?", options=tuple(options))
 
 
 WINDFALL = Template(
@@ -588,8 +564,8 @@ WINDFALL = Template(
             "date",
             "date",
             "When does it arrive, or when would you use it?",
-            "Money is invested on this day; a payment onto a debt lands in this month, or "
-            "next month if this one is the as-of month.",
+            "Money is invested on this day, and a payment onto a debt lands in its month: "
+            "in this month, at the month's end, before the debt's next scheduled payment.",
             default=_as_of,
             default_rule="the as-of date",
         ),
@@ -768,16 +744,11 @@ def _loan_label(offer: LoanOffer) -> str:
     return offer.label or f"{_percent(offer.annual_rate)} over {_months(offer.term_months)}"
 
 
-def _borrow_check(answers: Answers, facts: Facts) -> list[Problem]:
-    problems: list[Problem] = []
-    if answers["purpose"] == "refinance":
-        problems += _starts_next_month(answers, facts)
+def _borrow_check(answers: Answers, _: Facts) -> list[Problem]:
     labels = [_loan_label(o) for o in answers["loans"]]
     if len(set(labels)) != len(labels):
-        problems.append(
-            Problem("answers.loans", "has two loans that would be called the same: label each")
-        )
-    return problems
+        return [Problem("answers.loans", "has two loans that would be called the same: label each")]
+    return []
 
 
 def _borrow_build(answers: Answers, facts: Facts) -> Built:
@@ -848,9 +819,14 @@ def _borrow_build(answers: Answers, facts: Facts) -> Built:
             OptionBuilt(keep, f"{debt.name} as it is: your baseline.", scenario(keep, years, []))
         )
         question = f"Refinance {debt.name}?"
+        when = (
+            f"at the end of {start.isoformat()[:7]}, before its next payment"
+            if start < facts.next_month
+            else f"in {start.isoformat()[:7]}, on top of that month's payment"
+        )
         notes: tuple[str, ...] = (
-            f"The new loan's money pays {debt.name} off in {start.isoformat()[:7]}, on top of "
-            "that month's payment; whatever it doesn't need stays in cash.",
+            f"The new loan's money pays {debt.name} off {when}; whatever it doesn't need "
+            "stays in cash.",
         )
     else:
         options.append(
@@ -906,7 +882,8 @@ BORROW = Template(
             "start",
             "date",
             "When would you take it out?",
-            "To refinance, from next month on: debts are paid from the month after this one.",
+            "The day the money arrives. To refinance, the old debt is paid off with it in "
+            "that month: in this month, at the month's end, before its next payment.",
             default=_borrow_start,
             default_rule="the as-of date; to refinance, the first of next month",
         ),

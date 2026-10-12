@@ -250,6 +250,39 @@ async def test_a_windfall(baseline):
     assert [values[k]["fi_months"] for k in runs] == [185, 185, 186]
 
 
+async def test_a_windfall_used_in_the_as_of_month(baseline):
+    """Used on the day it arrives, in the as-of month: the payment onto the
+    car loan is paid at October's end, before November's payment."""
+    result = run(
+        baseline,
+        "windfall",
+        {
+            "amount": "6000.00",
+            "splits": [
+                {"label": "Car first", "debts": [{"debt": "debt-car", "amount": "6000.00"}]},
+                {"label": "Keep it"},
+            ],
+        },
+    )
+    assert result["notes"] == []
+    runs, values = by_label(result), figures(result)
+    # The car loan owes 9,900.00 - 6,000.00 = 3,900.00 at October's end;
+    # November's interest is on that, 19.18, and 350.00 leaves 3,569.18.
+    # Eleven payments of 350.00 and a last of 170.96 clear it in 2027-10:
+    # 4,020.96 paid, 120.96 of it interest.
+    assert cents(D("3900") * D("0.059") / 12) == D("19.18")
+    assert 11 * D("350.00") + D("170.96") == D("3900.00") + D("120.96")
+    car = next(d for d in runs["Car first"]["debts"]["items"] if d["debt_id"] == "debt-car")
+    assert (car["paid_off"]["scenario"], car["total_interest"]["scenario"]) == (
+        "2027-10",
+        "120.96",
+    )
+    # It arrives and leaves within October, so cash is where it was.
+    assert values["Car first"]["cash_1y"] == "15801.47"
+    assert values["Keep it"]["cash_1y"] == "21801.47"
+    assert values["Car first"]["fi_months"] == 185
+
+
 async def test_a_big_recurring_change(baseline):
     result = run(
         baseline,
@@ -315,6 +348,34 @@ async def test_refinancing_the_car_loan(baseline):
         "3.9% over 36 months",
         "0.0442",
     )
+
+
+async def test_refinancing_the_car_loan_in_the_as_of_month(baseline):
+    """Taken out on the as-of date: the new loan's money pays the car loan
+    off at October's end, before its first payment, so it costs no more
+    interest."""
+    result = run(
+        baseline,
+        "borrow",
+        {
+            "purpose": "refinance",
+            "debt": "debt-car",
+            "start": "2026-10-11",
+            "loans": [{"annual_rate": "0.039", "term_months": 36}],
+        },
+    )
+    runs, values = by_label(result), figures(result)
+    new = runs["3.9% over 36 months"]
+    car = next(d for d in new["debts"]["items"] if d["debt_id"] == "debt-car")
+    assert (car["paid_off"]["scenario"], car["total_interest"]["scenario"]) == ("2026-10", "0.00")
+    # The new loan's payments start in November, as from 2026-11-01 (291.85
+    # a month, 606.49 of interest); with the student loan's 1,223.12.
+    loan = next(d for d in new["debts"]["items"] if d["source"] == "scenario")
+    assert loan["total_interest"]["scenario"] == "606.49"
+    assert new["debts"]["total_interest"]["scenario"] == "1829.61"  # 1,223.12 + 606.49
+    # 9,900.00 in and 9,900.00 out in October.
+    assert values["3.9% over 36 months"]["cash_1y"] == "15801.47"
+    assert values["3.9% over 36 months"]["debt_free_months"] == 77  # the student loan's 2033-03
 
 
 async def test_borrowing_for_a_car(baseline):

@@ -324,14 +324,55 @@ def test_debt_or_invest_moves_the_same_money_each_way():
         {**extra, "monthly": "5000"},
         *({"type": "invest", "amount": "15000", "date": day, "label": "Invested"} for day in days),
     ]
-    # A payment onto a debt lands from next month at the earliest, and the
-    # split is less than the whole.
+    # The split is less than the whole.
     found = problems(
         "debt-or-invest",
         {"debt": "debt-study", "amount": "20000", "start": "2026-10-20", "split_on_debt": "20000"},
     )
-    assert set(found) == {"answers.start", "answers.split_on_debt"}
-    assert found["answers.start"].endswith("so start on 2026-11-01 or later")
+    assert set(found) == {"answers.split_on_debt"}
+
+
+def test_debt_or_invest_may_start_in_the_as_of_month():
+    # The engine pays an extra payment in the as-of month at its end, before
+    # the debt's first scheduled payment: so the start is the person's to
+    # choose, this month included.
+    _, built = build(
+        "debt-or-invest",
+        {"debt": "debt-study", "amount": "20000", "start": "2026-10-11"},
+    )
+    pay, invest = built.options
+    assert changes(pay) == [
+        {
+            "type": "extra_debt_payment",
+            "debt": "debt-study",
+            "monthly": "20000",
+            "from": "2026-10-11",
+            "to": "2026-10-31",
+            "label": "Extra on Study loan",
+        }
+    ]
+    assert changes(invest) == [
+        {"type": "invest", "amount": "20000", "date": "2026-10-11", "label": "Invested"}
+    ]
+    # Every month for the most months there are, from this one.
+    _, built = build(
+        "debt-or-invest",
+        {
+            "debt": "debt-study",
+            "amount": "20000",
+            "how": "monthly",
+            "months": 48,
+            "start": "2026-10-11",
+        },
+    )
+    assert (changes(built.options[0])[0]["from"], changes(built.options[0])[0]["to"]) == (
+        "2026-10-11",
+        "2030-09-30",
+    )
+    assert "answers.months" in problems(
+        "debt-or-invest",
+        {"debt": "debt-study", "amount": "20000", "how": "monthly", "months": 49},
+    )
 
 
 def test_a_windfall_is_shared_out_the_ways_proposed():
@@ -360,15 +401,16 @@ def test_a_windfall_is_shared_out_the_ways_proposed():
         "label": "The windfall",
     }
     car, each, keep = built.options
-    # Debts are paid from next month on, so a payment onto one lands then.
+    # A payment onto a debt lands in the month the money is used, the as-of
+    # month included (at its end, before the debt's next payment).
     assert changes(car) == [
         arrives,
         {
             "type": "extra_debt_payment",
             "debt": "debt-car",
             "monthly": "600000",
-            "from": "2026-11-01",
-            "to": "2026-11-30",
+            "from": "2026-10-20",
+            "to": "2026-10-31",
             "label": "Onto Car loan",
         },
     ]
@@ -383,7 +425,7 @@ def test_a_windfall_is_shared_out_the_ways_proposed():
     assert each.describes == (
         "Of 600000 JPY: 200000 onto Study loan, 300000 invested; the rest kept in cash."
     )
-    assert built.notes == ("Debts are paid from 2026-11 on, so a payment onto one lands then.",)
+    assert built.notes == ()
     # Already in cash, nothing arrives; a split can't use more than there is.
     _, built = build(
         "windfall",
@@ -559,6 +601,29 @@ def test_refinancing_pays_the_old_debt_off_with_the_new_loan():
         "label": "Pay off Car loan",
     }
     assert (keep.label, changes(keep)) == ("Keep Car loan", [])
+    assert built.notes == (
+        "The new loan's money pays Car loan off in 2026-11, on top of that month's payment; "
+        "whatever it doesn't need stays in cash.",
+    )
+
+
+def test_refinancing_may_start_in_the_as_of_month():
+    _, built = build(
+        "borrow",
+        {
+            "purpose": "refinance",
+            "debt": "debt-car",
+            "start": "2026-10-11",
+            "loans": [{"annual_rate": "0.039", "term_months": 36}],
+        },
+    )
+    loan, pay_off = changes(built.options[0])
+    assert (loan["type"], loan["start"]) == ("loan", "2026-10-11")
+    assert (pay_off["from"], pay_off["to"]) == ("2026-10-11", "2026-10-31")
+    assert built.notes == (
+        "The new loan's money pays Car loan off at the end of 2026-10, before its next payment; "
+        "whatever it doesn't need stays in cash.",
+    )
 
 
 def test_an_emergency_fund_sets_amounts_aside_and_reads_the_time_to_the_target():

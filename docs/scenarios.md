@@ -74,7 +74,7 @@ The rules:
 | `recurring` | `amount`, `cadence` (`weekly`, `monthly`, `quarterly`, `yearly`), `start`, `end`?, `account`?, `label` | The same amount again and again: every seven days, or every one, three or twelve months on the start's day of the month. |
 | `income_change` | `monthly_net`, `from`, `to`?, `label` | Your monthly net income changes, from a day's date each month. |
 | `loan` | `principal`, `annual_rate`, `term_months` (1 to 600), `start`, `into`?, `label` | The money arrives on its start day. It is owed from that month's end and repaid in level monthly payments from the next month, rounded to your currency's smallest unit; the last payment clears what the rounding left. |
-| `extra_debt_payment` | `debt`, `monthly`, `from`, `to`?, `label`? | Paid on one of your debts on top of its minimum, each month from `from`'s month to `to`'s, or until it is paid off. Debts are paid from the month after the as-of month. |
+| `extra_debt_payment` | `debt`, `monthly`, `from`, `to`?, `label`? | Paid on one of your debts on top of its minimum, each month from `from`'s month to `to`'s, or until it is paid off. In the as-of month, before the debt's first payment, it is paid at the month's end ([below](#in-the-as-of-month)). |
 | `invest` | `amount`, `date`, `from`?, `label` | Cash moved into your investments, where it then grows at your real return. |
 | `stop_recurring` | `key`, `from`, `label`? | A recurring flow your ledger shows stops: cancel a subscription. `salli insights recurring` lists each one's key. A transfer between your own accounts can't be stopped this way: it is no part of what you earn or spend. |
 | `set_aside` | `monthly`, `from`, `to`?, `label`? | Part of each month's surplus kept in cash, rather than shared out: saving towards an emergency fund or a purchase. Each month from `from`'s month to `to`'s (or for good), that much of the regular surplus stays in cash first, and the share you invest is of what is left. It can't keep more than the month's surplus. |
@@ -95,6 +95,19 @@ shared out, so less is invested. A month whose regular surplus is a deficit
 invests nothing and draws on cash, never on your investments; if cash runs
 out, it goes below zero and the result's `notes` say from when. See
 [the baseline](baseline.md#your-surplus-and-what-you-invest-of-it).
+
+### In the as-of month
+
+A debt's first scheduled payment falls in the month after the as-of month,
+and a loan's in the month after it is taken out. An extra payment in the
+month before (the as-of month for your debts; for a loan, the month it is
+taken out) counts all the same, as a one-off on its day does. It is paid at
+that month's end, up to what the debt owes, out of your cash: the debt owes
+that much less before its schedule starts, and the next month's interest is
+on what is left. A payment that clears the debt pays it off in that month;
+nothing more is scheduled, and its payment joins your regular surplus from
+the next month, as any paid-off debt's does. On the daily timeline it
+leaves cash as every extra payment does, spread over the rest of its month.
 
 **Today's money or the day's own.** Recurring amounts, income changes and
 stopped flows are in today's money: with your inflation set, each rises with
@@ -147,10 +160,11 @@ without it.
   rule sets that cover the as-of date;
 - the as-of date, and how fresh your ledger is (`data_as_of`; `is_stale`
   when its newest entry is more than 45 days old);
-- `hash`: a content hash of the scenario (its as-of date filled in) and of
-  everything your baseline was built from (`baseline_fingerprint`). Key order
-  and how an amount was written don't change it. The same hash means the same
-  figures.
+- `hash`: a content hash of the scenario (its as-of date filled in), of
+  everything your baseline was built from (`baseline_fingerprint`) and of
+  the engine's version. Key order and how an amount was written don't change
+  it. The same hash means the same figures: the engine's version changes
+  whenever the same scenario would give different figures.
 
 ## Comparing options
 

@@ -85,7 +85,9 @@ debt's interest, which your books record as spending, or an unlinked debt's
 whole minimum. The rest of its scheduled payment comes out of your regular
 surplus (below). When a debt is paid off, its payment is freed and joins the
 surplus, and you invest your share of it. An extra payment on top of the
-schedule, which a [scenario](scenarios.md) can make, comes out of your cash.
+schedule, which a [scenario](scenarios.md) can make, comes out of your cash;
+in the as-of month, before the first payment, it is paid at the month's end
+([scenarios](scenarios.md#in-the-as-of-month)).
 
 ## The two timelines
 

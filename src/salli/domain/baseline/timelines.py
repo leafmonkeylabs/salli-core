@@ -12,14 +12,18 @@ comes in two kinds, and only the first is shared out:
   payments that month. So once a debt or a scenario's loan is paid off, its
   payment is freed and joins the regular surplus, whether its schedule ran
   out or an extra payment cleared it early. A debt's first payment falls in
-  the month after the as-of month. A scenario's regular changes add to it in
+  the month after the as-of month (a scenario's loan's, the month after it
+  is taken out). A scenario's regular changes add to it in
   the month they fall: recurring costs and income, income changes, stopped
   flows (`Changes.regular`).
 - **Moves**, which go where they say: one-offs and the money a loan brings
   in, in or out of cash (`Changes.flows`); money moved into investments, out
   of cash and into them (`Changes.invested`); and payments on a debt beyond
   its schedule, out of cash and onto the debt (`Changes.extra`,
-  `BaselineDebt.extra_payment`).
+  `BaselineDebt.extra_payment`). A scenario's extra payment in the month
+  before a debt's first payment (the as-of month; a loan's opening month)
+  is paid at that month's end, up to what is owed, before the schedule
+  starts (`debt_paths`).
 
 The share invested (`Baseline.surplus_invested`, an FI assumption: the
 user's, or the placeholder of all of it) of a month's regular surplus moves
@@ -79,8 +83,9 @@ their days (forecast `Flow`s, in their day's own money; regular ones apart
 from moves), money moved into investments (which then grow with them), loans
 taken out (owed from the month they are taken out, paid from the month
 after, their last payment clearing them), and extra payments on a debt for a
-run of months. A plain sequence of flows is moves of cash alone. The as-of
-point is always the baseline's own: changes start after it.
+run of months (from the as-of month, or a loan's opening month, on). A plain
+sequence of flows is moves of cash alone. The as-of point is always the
+baseline's own: changes start after it.
 
 `safe_to_spend` is the cash forecast's answer to "how much could go out
 today": the lowest the scheduled cash gets before money next comes in.
@@ -129,8 +134,9 @@ class Period:
 class ExtraPayment:
     """Paid on a debt on top of its minimum, each month from `start` to `end`
     ("YYYY-MM", inclusive; None: until it is paid off), in each month's own
-    money. Debts are paid from the month after the as-of month, so an extra
-    payment starts no sooner."""
+    money. In the month before the debt's first payment (the as-of month, or
+    a loan's opening month) it is paid at the month's end, before the
+    schedule starts (`debt_paths`)."""
 
     debt_id: str
     start: str
@@ -235,13 +241,16 @@ class DebtPath:
     """A debt's schedule on the timeline's months, in each month's own money."""
 
     debt: BaselineDebt
-    #: What it is paid in each month of the timeline (nothing in the as-of month).
+    #: What it is paid in each month of the timeline: before its first
+    #: payment (the as-of month; a loan's opening month), only an extra
+    #: payment.
     payments: tuple[Decimal, ...]
     #: The part of each month's payment beyond its schedule: an extra
     #: payment, out of cash. The rest is scheduled (`scheduled`).
     extra: tuple[Decimal, ...]
     #: What it owes at each month's end.
     owed: tuple[Decimal, ...]
+    #: Its payments: an extra payment before the first is month 0.
     schedule: tuple[PayoffScheduleEntry, ...]
     #: The calendar month of its last payment; None when not paid off within
     #: the timeline (or nothing is owed).
@@ -256,22 +265,32 @@ class DebtPath:
         return tuple(p - x for p, x in zip(self.payments, self.extra, strict=True))
 
 
+def _named(extras: Sequence[ExtraPayment], debt_id: str) -> Callable[[str], Decimal]:
+    """What the extra payments named for a debt add up to in a calendar
+    month ("YYYY-MM")."""
+    mine = [x for x in extras if x.debt_id == debt_id]
+
+    def in_month(month: str) -> Decimal:
+        return sum(
+            (x.amount for x in mine if x.start <= month and (x.end is None or month <= x.end)),
+            Decimal(0),
+        )
+
+    return in_month
+
+
 def _extra_for(
     d: BaselineDebt, extras: Sequence[ExtraPayment], first: str
 ) -> Decimal | Callable[[int], Decimal]:
     """What is paid on `d` beyond its minimum in its plan's month m (1 is the
     month `first`): its own constant extra, and the extra payments named for
     it in the months they run."""
-    mine = [x for x in extras if x.debt_id == d.debt_id]
-    if not mine:
+    if not any(x.debt_id == d.debt_id for x in extras):
         return d.extra_payment
+    named = _named(extras, d.debt_id)
 
     def extra(m: int) -> Decimal:
-        month = debt_engine.month_after(first, m - 1)
-        return d.extra_payment + sum(
-            (x.amount for x in mine if x.start <= month and (x.end is None or month <= x.end)),
-            Decimal(0),
-        )
+        return d.extra_payment + named(debt_engine.month_after(first, m - 1))
 
     return extra
 
@@ -299,7 +318,15 @@ def debt_paths(
     first payment in the month after the as-of month; then each loan the
     changes take out, owed from the month it is taken out and paid from its
     first payment's month, its last payment clearing it. Each payment is
-    split into its scheduled part and the extra beyond it."""
+    split into its scheduled part and the extra beyond it.
+
+    An extra payment named for a debt in a month before its first payment
+    (the as-of month, for a debt owed on the as-of date; the month it is
+    taken out, for a loan) is paid at that month's end, up to what is owed,
+    out of cash: what is owed is that much less before the schedule starts,
+    so the interest after it is on less. One that clears the debt pays it
+    off in that month, and nothing is scheduled after it. It is in the
+    schedule as month 0."""
     added = as_changes(changes)
     paths: list[DebtPath] = []
     count = len(months)
@@ -313,13 +340,40 @@ def debt_paths(
         schedule: list[PayoffScheduleEntry] = []
         paid_off: str | None = None
         interest = Decimal(0)
-        if d.balance > 0 and opened < count and first < count:
+        balance = d.balance
+        if balance > 0:
+            # Before its first payment: what extra payments say, at the
+            # month's end, before any interest.
+            named = _named(added.extra, d.debt_id)
+            for i in range(max(opened, 0), min(first, count)):
+                paid = min(named(months[i].month), balance)
+                if paid <= 0:
+                    continue
+                balance -= paid
+                payments[i] = beyond[i] = paid
+                owed[i:] = [balance] * (count - i)
+                schedule.append(
+                    PayoffScheduleEntry(
+                        month=0,
+                        debt_name=d.name,
+                        payment=paid,
+                        principal_paid=paid,
+                        interest_paid=Decimal(0),
+                        remaining_balance=balance,
+                        period=months[i].month,
+                        debt_id=d.debt_id,
+                    )
+                )
+                if balance == 0:
+                    paid_off = months[i].month
+                    break
+        if balance > 0 and opened < count and first < count:
             requested = _extra_for(d, added.extra, months[first].month)
             plan = debt_engine.compute_payoff_plan(
                 [
                     Debt(
                         d.name,
-                        d.balance,
+                        balance,
                         d.apr,
                         d.minimum_payment,
                         id=d.debt_id,
@@ -332,14 +386,14 @@ def debt_paths(
                 money_quantum=quantum(baseline.currency),
                 first_month=months[first].month,
             )
-            schedule = plan.schedule
+            schedule += plan.schedule
             interest = plan.total_interest_paid
             paid_off = plan.debt_free_period
-            for e in schedule:
+            for e in plan.schedule:
                 payments[first - 1 + e.month] = e.payment
                 beyond[first - 1 + e.month] = _beyond_schedule(d, e, requested)
-            remaining = d.balance
-            by_index = {first - 1 + e.month: e.remaining_balance for e in schedule}
+            remaining = balance
+            by_index = {first - 1 + e.month: e.remaining_balance for e in plan.schedule}
             for i in range(first, count):
                 remaining = by_index.get(i, Decimal(0) if paid_off else remaining)
                 owed[i] = remaining
@@ -448,10 +502,12 @@ def cash_plan(
     it, and its share of what an average month's surplus is beyond its
     schedule (the schedule averaged over the daily timeline's twelve full
     months), in the as-of month's money. Not its share of the whole surplus:
-    a salary still to come this month is not a share of one. Debts are paid
-    from the next month on, so they don't touch it. With the scenario's regular changes, that is the month's regular
-    surplus, of which `baseline.surplus_invested` moves into investments at
-    the month's end; extra payments and moves go in and out of cash.
+    a salary still to come this month is not a share of one. Debts' scheduled
+    payments start the next month, so they don't touch it (an extra payment
+    in it is a move, out of cash). With the scenario's regular changes, that
+    is the month's regular surplus, of which `baseline.surplus_invested`
+    moves into investments at the month's end; extra payments and moves go
+    in and out of cash.
 
     An amount a scenario sets aside (`Changes.kept`) stays in cash first:
     the share invested is of the regular surplus less it, and nothing when
