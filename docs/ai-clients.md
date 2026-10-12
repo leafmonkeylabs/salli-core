@@ -53,7 +53,10 @@ choice to you. **Can I afford** does the same with the afford-it template.
 Both prompts, the CLI's skill and the tools' own descriptions hold the AI to these:
 
 - **It never computes.** Every figure is Salli's, quoted with its currency.
-- **It never names a specific product, provider, fund or security.**
+- **It never names a specific product, provider, fund or security of its own.** It
+  may refer to your own holdings as you named them, but never suggests buying or
+  selling any security, yours or another, and never compares your holdings as
+  investments.
 - **Regulated advice is for a licensed professional.** Where a choice is regulated
   financial advice where you live (insurance, pensions, choosing investments), it
   says so and suggests one there, without assuming any country's rules.
