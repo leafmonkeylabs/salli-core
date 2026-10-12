@@ -87,6 +87,18 @@ the change in each year's tax with your active rules; the AI never works out
 an amount after tax itself. Without active rules the result says the tax
 isn't computed, and why.
 
+A scenario may invest into one of your own holdings or sell part of one
+([scenarios](scenarios.md#holdings)):
+
+| Tool | What it does |
+|---|---|
+| `list_holdings` | Your holdings, by your own id, symbol and name, with their units, value at your last recorded price and the investment account each is linked to. |
+| `link_holding` | Links a holding to the investment account in your ledger that holds it (or unlinks it), so a scenario can sell it. A write: the AI shows you the holding and the account first. |
+
+The AI may mention your holdings as you named them, never one you don't
+hold, and never suggests buying or selling any of them or compares them as
+investments. Fees are yours: it asks for them rather than assuming any.
+
 See [scenarios](scenarios.md) for the document and how to read the results.
 
 ### Decisions: templates, principles and the journal

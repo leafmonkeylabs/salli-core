@@ -1,8 +1,8 @@
 # Scenarios
 
 A scenario is your [baseline](baseline.md) plus changes: a purchase, a loan,
-a new rent, a raise, an extra payment on a debt, money invested, a
-subscription cancelled. Salli runs it and reports every figure twice, under
+a new rent, a raise, an extra payment on a debt, money invested, part of a
+holding sold, a subscription cancelled. Salli runs it and reports every figure twice, under
 your baseline and under the scenario, with the change between them. Nothing
 is stored and nothing touches your books.
 
@@ -15,6 +15,7 @@ agent's help if you like.
     salli whatif --buy 2400@2026-11-02
     salli whatif --buy 2400 --loan 2400@6.9%x12 --label Instalments --save instalments.json
     salli compare cash.json instalments.json
+    salli whatif --sell FUND:4 --fees 2 --gain-tax-role gains
 
 Over the API: `POST /v1/scenarios/run` and `POST /v1/scenarios/compare`.
 Over MCP: `run_scenario`, `compare_options`, and `get_scenario_schema` for
@@ -60,10 +61,12 @@ The rules:
   for euros, none for yen. Money in is positive, money out negative.
 - **Dates are ISO** (`YYYY-MM-DD`) and on or after the as-of date: a scenario
   changes what comes next, not what happened.
-- **Accounts and debts are yours.** An account a change names is one of your
-  cash accounts held in your base currency; without one, a change moves your
-  cash total. A debt is one of your active debts (`salli debts list`). Anyone
-  else's id is "not found", exactly like one that doesn't exist.
+- **Accounts, debts and holdings are yours.** An account a change names is
+  one of your cash accounts held in your base currency; without one, a change
+  moves your cash total. A debt is one of your active debts (`salli debts
+  list`), a holding one of your holdings (`salli holdings list`). Anyone
+  else's id is "not found", exactly like one that doesn't exist, so no
+  security you don't hold can get into a scenario.
 - **Unknown fields are refused**, each problem with its path
   (`changes[2].amount`), every problem at once.
 
@@ -76,7 +79,8 @@ The rules:
 | `income_change` | `monthly`, `from`, `to`?, `tax_role`?, `label` | Your monthly income changes, from a day's date each month: what reaches your cash, or, with a `tax_role`, before tax. |
 | `loan` | `principal`, `annual_rate`, `term_months` (1 to 600), `start`, `into`?, `label` | The money arrives on its start day. It is owed from that month's end and repaid in level monthly payments from the next month, rounded to your currency's smallest unit; the last payment clears what the rounding left. |
 | `extra_debt_payment` | `debt`, `monthly`, `from`, `to`?, `label`? | Paid on one of your debts on top of its minimum, each month from `from`'s month to `to`'s, or until it is paid off. In the as-of month, before the debt's first payment, it is paid at the month's end ([below](#in-the-as-of-month)). |
-| `invest` | `amount`, `date`, `from`?, `label` | Cash moved into your investments, where it then grows at your real return. |
+| `invest` | `amount`, `date`, `from`?, `holding`?, `fees`?, `label` | Cash moved into your investments, where it then grows at your real return. Fees (yours) leave cash with the amount and never reach the investments. Into one of your holdings, it also buys units at its price ([below](#holdings)). |
+| `sell` | `holding`, `quantity` or `amount`, `date`, `fees`?, `lots`?, `into`?, `tax_role`?, `label`? | Part of one of your holdings sold: its value leaves your investments, and the proceeds less fees arrive in cash. Salli replays its lots and reports the gain you would realise ([below](#holdings)). |
 | `stop_recurring` | `key`, `from`, `label`? | A recurring flow your ledger shows stops: cancel a subscription. `salli insights recurring` lists each one's key. A transfer between your own accounts can't be stopped this way: it is no part of what you earn or spend. |
 | `set_aside` | `monthly`, `from`, `to`?, `label`? | Part of each month's surplus kept in cash, rather than shared out: saving towards an emergency fund or a purchase. Each month from `from`'s month to `to`'s (or for good), that much of the regular surplus stays in cash first, and the share you invest is of what is left. It can't keep more than the month's surplus. |
 
@@ -114,7 +118,7 @@ leaves cash as every extra payment does, spread over the rest of its month.
 
 **Today's money or the day's own.** Recurring amounts, income changes and
 stopped flows are in today's money: with your inflation set, each rises with
-it, as your average spending does. One-offs, investments, loan payments,
+it, as your average spending does. One-offs, investments, sales, loan payments,
 extra payments, amounts set aside and the change in tax are fixed in the
 money of their own day. With no inflation
 set, the two are the same, and every result says inflation is a placeholder.
@@ -207,6 +211,78 @@ month's surplus rises by 733.33 rather than 1,000.00. In 2032, with no rules
 of its own, the 2031 rules carried forward tax 60,000 at 11,200.00: 4,000.00
 more, 333.33 a month (333.37 in December), labelled
 `tax_rules_carried_forward`.
+
+## Holdings
+
+An `invest` may go into one of your holdings, and a `sell` sells part of
+one, so a scenario can say what a sale fetches, what fees take and the gain
+you would realise, from the holding's own lots. The investments stay one
+pool growing at your one real return: holdings give prices, units, lots,
+fees and gains, never an expected return of their own, so sensitivity and
+the break-evens still vary one figure, and Salli never sets one security
+against another.
+
+- **Your holdings, by your id.** A change names a holding by its id, and the
+  result calls it by your symbol and name. There is no way to put a security
+  you don't hold into a scenario: add the holding first.
+- **The ledger counts.** Your investments are your investment accounts in
+  the ledger. A sale needs its holding linked to the investment account that
+  holds it (`salli holdings update FUND --account brokerage`, `PATCH
+  /v1/portfolio/{id}` with `account_id`), and can't take out more than that
+  account's value on the as-of date, counted at the holding's price on that
+  date and after the scenario's earlier trades on that account's holdings:
+  "your ledger holds 1,200.00 in Brokerage and this sale is worth 1,500.00:
+  bring the ledger up to date, or sell less". An invest needs no link: the
+  money joins the pool either way. Where a linked account and its holdings'
+  value at their recorded prices differ, the baseline's `notes` say by how
+  much; nothing is reconciled silently.
+- **The price** is the holding's last price recorded on or before the as-of
+  date (a close you recorded, or one of its own trades), adjusted for splits.
+  A trade in a later month is at that price grown at your real return and
+  inflation through the months before the trade's month, the growth your
+  investments have in the monthly timeline; every trade converts at the
+  as-of exchange rate. Salli forecasts no security's price and no exchange
+  rate, and the result's `notes` say so. A price older than 45 days is
+  `stale`. Sensitivity and the break-evens price a later trade at the return
+  they vary.
+- **Units.** An invest buys (amount − fees) / rate / price units, to 18
+  places, and opens a lot (`scenario-invest-<n>`, n its place among the
+  changes from 1) that a later sale in the same scenario can sell. A sale
+  sells `quantity` units, or `amount` (its value, in your base currency) /
+  rate / price units, or the units of the `lots` it names.
+- **Lots.** First in, first out, unless the sale names lots (`lots`: each
+  `{lot, quantity}`, a lot's id as `salli portfolio lots` shows it). Salli
+  replays the holding's recorded transactions with the sale appended, in
+  memory (`lots.replay`, unchanged); nothing is written. A sale of more than
+  is held then, or of a lot that isn't, is refused at its path. There is no
+  average-cost pooling: where an authority matches sales by average cost,
+  the gain may differ, and Salli doesn't guess which method applies.
+- **Fees** are your own figure (your broker's), in your base currency. Left
+  out, they are zero, and the result says "no fees given".
+- **The gain** is the proceeds less fees less the consumed lots' cost, in the
+  holding's currency and in yours (each lot at the rate it was bought at;
+  the sale at the as-of rate). With a `tax_role` (a role of kind income in
+  your rules) it adds to that role's total, a loss subtracts, and your rules
+  decide what a loss does; the change in tax follows as for any tagged
+  change ([above](#tax)).
+
+Each trade comes back in its change, as `changes[n].holding`: the units, the
+price and what it rests on (`price_basis`), the fees or that none were given,
+the value in both currencies, and for a sale the lots consumed, their cost
+and the gain.
+
+### Reading one: a sale with fees, taxed
+
+A fund you call "My index fund": 10 units bought at 100.00 with 5.00 of
+fees (a lot costing 1,005.00), a close of 150.00 on the as-of date, held in
+a brokerage account the ledger says holds 1,500.00. Selling 4 units with
+2.00 of fees, first in, first out: proceeds 600.00, cost 402.00 (4/10 of the
+lot), a gain of 196.00. Cash rises by 598.00, the investments fall by
+600.00, and net worth by the 2.00 of fees. Tagged with an income role
+`gains` under the XA rules above (salary and gains taxed together), the
+year's tax rises from 7,200.00 to 7,239.20: 39.20 more, 5.60 a month from
+June to December. Investing 1,000.00 into it with 4.00 of fees buys 6.64
+units: cash falls by 1,000.00, the investments rise by 996.00.
 
 ## What comes back
 
@@ -372,6 +448,10 @@ Which matters more, the buffer or the money, is yours to say.
   what would change the answer, and leave the choice to the user.
 - A problem comes back with its path (`changes[0].date: is before the as-of
   date`): fix the document and run it again.
+- Refer to the user's holdings as they named them. Never suggest buying or
+  selling any security, theirs or another, and never compare holdings as
+  investments: choosing investments is for a licensed professional. Fees are
+  the user's figure: ask, never assume one.
 
 ## Not modelled yet
 
@@ -383,6 +463,9 @@ Which matters more, the buffer or the money, is yours to say.
   covers a target. The [emergency-fund template](templates.md) reads when
   it does.
 - What a purchase buys, as an asset you own.
+- An expected return per holding, a price, dividend or exchange-rate
+  forecast, buying a security you don't hold yet (add the holding first),
+  and average-cost pooling or wash-sale rules for lots.
 - Amounts in a currency other than your base currency, and accounts held in
   one.
 - The day within its month a debt's payment falls on.
