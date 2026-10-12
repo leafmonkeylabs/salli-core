@@ -485,6 +485,13 @@ class FakeActiveRuleSets:
     async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
         return list(self.active)
 
+    async def get_version(self, user_id: str, version_id: str) -> dict[str, Any] | None:
+        for row in self.active:
+            version = row.get("version") or {}
+            if version.get("id") == version_id:
+                return {"validation": {"ok": True}, **version}
+        return None
+
     async def list_sets(self, user_id: str) -> list[dict[str, Any]]:
         if self.sets is not None:
             return list(self.sets)

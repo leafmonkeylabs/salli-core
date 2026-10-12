@@ -442,6 +442,27 @@ async def test_suggested_accounts_are_shown_then_created_once(uow_factory, rules
     assert len(await ledger.list_accounts(A)) == 2
 
 
+async def test_a_suggested_asset_account_is_never_cash(uow_factory, rules):
+    """Tax withheld or paid, kept as a receivable, is held, not money to
+    spend: the account is created with the asset role `other`, so it isn't
+    counted in cash, emergency months or safe-to-spend."""
+    first = await _activate(rules, remitland())
+    await rules.suggested_accounts(ME, first["rule_set_id"], apply=True)
+    created = {a.code: a for a in await LedgerService(uow_factory).list_accounts(A)}
+    assert (created["1490"].type, created["1490"].asset_role) == ("asset", "other")
+    assert created["4600"].asset_role is None
+
+
+async def test_declared_roles_come_with_their_kinds(uow_factory, rules):
+    await _activate(rules, remitland())
+    async with uow_factory() as uow:
+        kinds = await uow.tax_rule_sets.declared_role_kinds(A)
+        assert set(kinds) == await uow.tax_rule_sets.declared_roles(A)
+        assert await uow.tax_rule_sets.declared_role_kinds(B) == {}
+    assert kinds["foreign_income"] == {"income"}
+    assert kinds["tax_withheld"] == {"withholding"}
+
+
 async def test_a_superseded_version_suggests_nothing(rules):
     first = await _activate(rules, remitland())
     second = await rules.new_version(
