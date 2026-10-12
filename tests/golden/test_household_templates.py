@@ -468,6 +468,15 @@ EVERY = {
     "big-change": {"label": "New job", "monthly_income": "+600.00"},
     "borrow": {"principal": "5000.00", "loans": [{"annual_rate": "0.08", "term_months": 24}]},
     "emergency-fund": {"target_months": "6", "set_aside": ["300.00"]},
+    "rent-or-buy": {
+        "price": "350000.00",
+        "deposit": "70000.00",
+        "mortgages": [{"annual_rate": "0.042", "term_months": 300}],
+        "buying_costs": "9000.00",
+        "owning_costs": "250.00",
+        "rent": "city",
+        "selling_costs": "0.03",
+    },
 }
 
 

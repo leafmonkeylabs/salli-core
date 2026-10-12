@@ -18,6 +18,9 @@ recurring cost, so both options state rent the same way.
   the end of 2031-12 (0.00).
 - With selling costs of 0: ahead from the end of July (+1,000.00).
 
+The template `rent-or-buy` builds the same two options from its answers,
+and its start reads the same month and break-evens.
+
 Every figure is the scenario engine's, through the baseline the API builds.
 """
 
@@ -29,8 +32,10 @@ from typing import Any
 import pytest
 
 from salli.domain.baseline import Baseline, timelines
+from salli.domain.decisions import catalogue, start, templates
 from salli.domain.scenarios import comparison, engine, schema, views
 from tests.golden import renting
+from tests.guardrails import assert_never_ranks
 
 
 @pytest.fixture(scope="module")
@@ -204,3 +209,92 @@ def test_what_comes_back_shows_the_home_and_its_value(baseline: Baseline):
     assert "asset_growth" in result["placeholders"]
     stated = views.result_view(engine.run(baseline, buy(real_growth="0")))
     assert "asset_growth" not in stated["placeholders"]
+
+
+# ── The template: the same, from its answers ─────────────────────────────────
+
+ANSWERS = {
+    "price": "200000.00",
+    "date": "2031-07-01",
+    "deposit": "50000.00",
+    "mortgages": [{"annual_rate": "0", "term_months": 120}],
+    "buying_costs": "0",
+    "owning_costs": "0",
+    "rent": renting.RENT_KEY,
+    "selling_costs": "0.03",
+}
+
+
+def started(baseline: Baseline, **answers: Any) -> dict[str, Any]:
+    template = catalogue.get("rent-or-buy")
+    read, built = templates.build(template, {**ANSWERS, **answers}, templates.facts_of(baseline))
+    return start.start(baseline, template, read, built)
+
+
+def test_the_template_builds_the_hand_worked_options(baseline: Baseline):
+    result = started(baseline)
+    assert [o["label"] for o in result["options"]] == ["Keep renting", "Buy"]
+    rent, buy_ = result["comparison"]["options"]
+    # Keeping renting states the ledger's rent again: the baseline exactly.
+    assert all(c["net_worth"]["delta"] == "0.00" for c in rent["monthly"])
+    # Buying: 1,000.00 a month ahead of renting from December, so 234,000.00
+    # ahead by 2051-06; the home at 194,000.00, worth 200,000.00.
+    twenty = buy_["monthly"][-1]
+    assert (twenty["years"], twenty["net_worth"]["delta"]) == (20, "234000.00")
+    assert (twenty["other_assets"]["scenario"], twenty["other_assets_value"]["scenario"]) == (
+        "194000.00",
+        "200000.00",
+    )
+
+
+def test_the_template_reads_when_buying_draws_level(baseline: Baseline):
+    level = started(baseline)["level"]
+    assert (level["against"], level["from"], level["to"]) == ("Keep renting", "2031-07", "2051-06")
+    assert level["options"] == [
+        {
+            "option": "Buy",
+            "month": "2031-12",
+            "months": 5,
+            "net_worth_then": "0.00",
+            "net_worth_at_horizon": "234000.00",
+        }
+    ]
+    ahead = started(baseline, selling_costs="0")["level"]["options"][0]
+    assert (ahead["month"], ahead["months"], ahead["net_worth_then"]) == ("2031-07", 0, "1000.00")
+
+
+def test_the_template_gives_the_three_break_evens(baseline: Baseline):
+    """Over one year: the house-price growth (-3.42%, as above) and the
+    mortgage rate at which buying and renting cost the same."""
+    result = started(baseline, horizon_years=1)
+    kinds = {b["kind"]: b for b in result["comparison"]["break_evens"]}
+    assert set(kinds) == {"asset_growth", "loan_rate"}
+    assert (kinds["asset_growth"]["value"], kinds["asset_growth"]["option"]) == ("-0.0342", "Buy")
+    assert kinds["loan_rate"]["status"] == "found"
+    # Over twenty years, buying is ahead at every growth from -5% to 10%.
+    growth = next(
+        b for b in started(baseline)["comparison"]["break_evens"] if b["kind"] == "asset_growth"
+    )
+    assert (growth["status"], growth["ahead"]) == ("none_in_range", "Buy")
+
+
+def test_the_template_says_what_it_rests_on_and_ranks_nothing(baseline: Baseline):
+    result = started(baseline)
+    assert {"asset_growth", "rent_growth"} <= set(result["placeholders"])
+    sources = {a["id"]: a["source"] for a in result["answers"]}
+    assert (sources["rent_growth"], sources["home_growth"]) == ("placeholder", "placeholder")
+    notes = " ".join(result["notes"])
+    for said in (
+        "never a forecast",
+        "held fixed for its term",
+        "illiquid and undiversified",
+        "leaving them low flatters buying",
+        "comes only from your own rules",
+        "knows nothing about any local property market",
+    ):
+        assert said in notes
+    assert_never_ranks(result)
+    # With the person's own views, neither growth is a placeholder.
+    own = started(baseline, rent_growth="0.005", home_growth="0.01")
+    assert not {"asset_growth", "rent_growth"} & set(own["placeholders"])
+    assert_never_ranks(own)
