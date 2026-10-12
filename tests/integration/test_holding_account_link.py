@@ -108,3 +108,16 @@ async def test_a_holding_never_links_to_someone_elses_or_a_cash_account(books):
     with pytest.raises(ValueError, match="role cash"):
         await svc.update_holding("thandi", books.holding, {"account_id": books.bank})
     assert (await svc.get_holding("thandi", books.holding) or {})["account_id"] is None
+
+
+async def test_a_user_with_a_linked_holding_can_be_deleted(books, uow_factory):
+    """The link has no cascade, so erasing an account removes the holdings
+    before the accounts they point at."""
+    await books.portfolio.update_holding("thandi", books.holding, {"account_id": books.brokerage})
+    async with uow_factory() as uow:
+        counts = await uow.data_portability.delete_all("thandi")
+    assert counts.get("holdings") == 1
+    async with uow_factory() as uow:
+        assert await uow.holdings.list("thandi", active_only=False) == []
+        assert await uow.ledger.get_accounts("thandi", include_inactive=True) == []
+        assert len(await uow.ledger.get_accounts("arjun", include_inactive=True)) == 1

@@ -2740,6 +2740,11 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(DecisionORM, DecisionORM.user_id)
         # debts.account_id -> accounts.id likewise.
         await _delete(DebtORM, DebtORM.user_id)
+        # holdings.account_id -> accounts.id likewise. Transactions cascade
+        # from their holding, but are deleted by owner first, like goal
+        # allocations, rather than relying on the cascade.
+        await _delete(HoldingTransactionORM, HoldingTransactionORM.user_id)
+        await _delete(HoldingORM, HoldingORM.user_id)
 
         # journal_entries cascade-deletes their own postings (ondelete="CASCADE"
         # on postings.entry_id); statements cascade-deletes parsed_transactions
@@ -2775,10 +2780,6 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(FireStrategyORM, FireStrategyORM.user_id)
         await _delete(AdvisoryReportORM, AdvisoryReportORM.user_id)
         await _delete(BudgetORM, BudgetORM.user_id)
-        # Transactions cascade from their holding, but are deleted by owner
-        # first, like goal allocations, rather than relying on the cascade.
-        await _delete(HoldingTransactionORM, HoldingTransactionORM.user_id)
-        await _delete(HoldingORM, HoldingORM.user_id)
         await _delete(HoldingPriceORM, HoldingPriceORM.user_id)
         await _delete(PolicyORM, PolicyORM.user_id)
         await _delete(InsuranceTargetORM, InsuranceTargetORM.user_id)
