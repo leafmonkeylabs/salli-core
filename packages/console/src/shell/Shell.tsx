@@ -1,10 +1,11 @@
 /**
  * The frame every page sits in: a skip link, the logo, the places (the
  * console's own and those extensions add), who is signed in and Sign out; a
- * bottom bar of places on phones. It also keeps the tab's two watches: the
- * idle sign-out, and whether Salli was updated under an open tab.
+ * bottom bar of five places on phones (Home, Cash, Decide, Books and More,
+ * where the rest are). It also keeps the tab's two watches: the idle
+ * sign-out, and whether Salli was updated under an open tab.
  */
-import { Link, Outlet, useRouter } from '@tanstack/react-router';
+import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useSession } from '../api';
 import { idleLimitMs, startIdleTimer } from '../auth/idle';
@@ -16,7 +17,16 @@ import { useServerVersion } from './update';
 interface Place {
   to: string;
   label: string;
-  icon: 'home' | 'decide' | 'settings' | 'page';
+  icon: 'home' | 'cash' | 'decide' | 'books' | 'more' | 'settings' | 'page';
+}
+
+/** The places a phone's bar holds; every other place is under More. */
+const BAR = ['/', '/cash', '/decide', '/books'];
+
+/** Whether `pathname` (under /console) is at `to` or below it. */
+function within(pathname: string, to: string): boolean {
+  const path = pathname.replace(/^\/console/, '') || '/';
+  return to === '/' ? path === '/' : path === to || path.startsWith(`${to}/`);
 }
 
 function Icon({ name }: { name: Place['icon'] }) {
@@ -30,6 +40,19 @@ function Icon({ name }: { name: Place['icon'] }) {
           <path d="M4 7l-2 6h4zM20 7l-2 6h4z" />
         </>
       ) : null}
+      {name === 'cash' ? (
+        <>
+          <rect x="3" y="6" width="18" height="12" />
+          <path d="M3 10h18M7 14h3" />
+        </>
+      ) : null}
+      {name === 'books' ? (
+        <>
+          <path d="M5 4h11l3 3v13H5z" />
+          <path d="M8 10h8M8 14h8M8 18h5" />
+        </>
+      ) : null}
+      {name === 'more' ? <path d="M4 7h16M4 12h16M4 17h16" /> : null}
       {name === 'settings' ? (
         <>
           <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
@@ -97,12 +120,20 @@ export function Shell() {
     });
   }, [router]);
 
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const places: Place[] = [
     { to: '/', label: strings.nav.home, icon: 'home' },
+    { to: '/cash', label: strings.nav.cash, icon: 'cash' },
     { to: '/decide', label: strings.nav.decide, icon: 'decide' },
+    { to: '/books', label: strings.nav.books, icon: 'books' },
+    { to: '/attention', label: strings.nav.attention, icon: 'page' },
+    { to: '/fi', label: strings.nav.fi, icon: 'page' },
     ...navigation.map((item) => ({ to: item.to, label: item.label, icon: 'page' as const })),
     { to: '/settings', label: strings.nav.settings, icon: 'settings' },
   ];
+  const bar: Place[] = [...places.filter((place) => BAR.includes(place.to)), { to: '/more', label: strings.nav.more, icon: 'more' }];
+  // More is the current place for any page the bar doesn't name.
+  const inMore = !BAR.some((to) => within(pathname, to));
   const email = session.state.status === 'signed-in' ? session.state.user.email : '';
 
   return (
@@ -141,9 +172,14 @@ export function Shell() {
       </main>
       <nav aria-label={strings.nav.label} className="bottombar">
         <ul>
-          {places.slice(0, 5).map((place) => (
+          {bar.map((place) => (
             <li key={place.to}>
-              <Link to={place.to} activeOptions={{ exact: place.to === '/' }} activeProps={{ 'aria-current': 'page' }}>
+              <Link
+                to={place.to}
+                activeOptions={{ exact: place.to === '/' }}
+                activeProps={{ 'aria-current': 'page' }}
+                {...(place.to === '/more' && inMore ? { 'aria-current': 'page' as const } : {})}
+              >
                 <Icon name={place.icon} />
                 <span>{place.label}</span>
               </Link>

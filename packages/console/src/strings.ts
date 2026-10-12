@@ -18,7 +18,11 @@ export const strings = {
   nav: {
     label: 'Places',
     home: 'Home',
+    cash: 'Cash',
     decide: 'Decide',
+    books: 'Books',
+    attention: 'Attention',
+    fi: 'Independence',
     settings: 'Settings',
     more: 'More',
     signOut: 'Sign out',
@@ -191,6 +195,16 @@ export const strings = {
     localeInvalid: 'Not a locale this browser knows.',
     localeSave: 'Use this locale',
     localeReset: 'Use the browser’s',
+  },
+
+  more: {
+    title: 'More',
+    description: 'The places that don’t fit on a phone’s bar.',
+    places: {
+      '/attention': 'What Salli has noticed, and your reminders by due date.',
+      '/fi': 'Your FI number, how far along you are, and the assumptions behind it.',
+      '/settings': 'Your profile, where you are signed in, and how this device shows Salli.',
+    } as Record<string, string>,
   },
 
   notFound: {
