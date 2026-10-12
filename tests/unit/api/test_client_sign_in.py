@@ -209,6 +209,24 @@ async def test_approving_the_cli_does_not_switch_mcp_on(client, cli_consent):
     cli_consent.set_mcp_enabled.assert_not_called()
 
 
+async def test_the_consent_page_passes_on_that_it_checked_the_password(client, cli_consent):
+    await client.post(
+        "/mcp/oauth/consent-page",
+        data={"rt": "t", "decision": "allow", "email": "a@b.test", "password": "pw"},
+    )
+    assert cli_consent.complete_consent.await_args.kwargs == {"password_checked": True}
+
+
+async def test_the_json_consent_route_never_counts_as_a_password_check(client, cli_consent):
+    r = await client.post(
+        "/mcp/oauth/consent",
+        json={"rt": "t", "approve": True},
+        headers=AUTH,
+    )
+    assert r.status_code == 200, r.text
+    assert cli_consent.complete_consent.await_args.kwargs == {"password_checked": False}
+
+
 async def test_the_device_page_signs_a_device_in(client, mock_services):
     mock_services.mcp_oauth = AsyncMock()
     mock_services.mcp_oauth.device_request.return_value = {

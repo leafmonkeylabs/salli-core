@@ -3,7 +3,7 @@
   "info": {
     "title": "Salli API",
     "description": "Privacy-first personal finance, tax and financial independence",
-    "version": "0.2.0"
+    "version": "0.3.1"
   },
   "paths": {
     "/v1/auth/me": {
@@ -11517,7 +11517,7 @@
           "mcp-oauth"
         ],
         "summary": "Consent",
-        "description": "A deployment's own consent screen, deciding for the person it has\nsigned in. It checks no password, so it may approve an AI client or\nanother application, never one of Salli's own (the CLI, the console):\nthose sign in on Salli's page, with the password, so no token can be\nturned into a first-party sign-in that holds more than it does.",
+        "description": "A deployment's own consent screen, deciding for the person it has\nsigned in. It checks no password, so it may approve an AI client or\nanother application it knows, never one of Salli's own (the CLI, the\nconsole):\nthose sign in on Salli's page, with the password, so no token can be\nturned into a first-party sign-in that holds more than it does.",
         "operationId": "oauth.consent",
         "requestBody": {
           "content": {

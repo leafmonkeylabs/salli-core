@@ -213,12 +213,13 @@ async def consent(
 ) -> ConsentDecision:
     """A deployment's own consent screen, deciding for the person it has
     signed in. It checks no password, so it may approve an AI client or
-    another application, never one of Salli's own (the CLI, the console):
+    another application it knows, never one of Salli's own (the CLI, the
+    console):
     those sign in on Salli's page, with the password, so no token can be
     turned into a first-party sign-in that holds more than it does."""
     try:
         redirect_url = await svc.mcp_oauth.complete_consent(
-            body.rt, user_id, body.approve, first_party_allowed=False
+            body.rt, user_id, body.approve, password_checked=False
         )
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc

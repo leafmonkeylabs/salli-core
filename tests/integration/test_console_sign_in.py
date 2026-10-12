@@ -288,7 +288,7 @@ async def test_a_web_app_s_consent_screen_cannot_start_a_first_party_sign_in(sal
             "/mcp/oauth/consent", json={"rt": rt, "approve": True}, headers=_bearer(pat)
         )
         assert r.status_code == 403, client_id
-        assert "own page" in r.json()["detail"]
+        assert "sign-in page" in r.json()["detail"]
 
 
 async def test_switched_off_the_console_s_client_refuses_and_its_tokens_stop(db, monkeypatch):

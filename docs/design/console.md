@@ -972,8 +972,11 @@ isolation" in `domain/agents/tools.py`, and "Pro Mode" and the retired
    sign-in), so any sign-in, a personal access token without
    `tax:activate` included, could approve a `salli-cli` or `salli-console`
    request it started itself and take the code from the JSON answer: a sign-in
-   that holds `tax:activate`. That was so for the CLI before C0. Salli's own
-   clients now sign in on Salli's own page only.
+   that holds `tax:activate`. That was so for the CLI before C0, and #53
+   fixed it on main while C0 was being built: `complete_consent` takes
+   `password_checked`, which only the sign-in page sets, and refuses a
+   first-party or unknown client without it. C0 keeps that one mechanism, and
+   the console is first party, so it too signs in on Salli's own page only.
 3. **The CLI takes turns refreshing.** With reuse detection, two `salli`
    commands refreshing one sign-in at once would sign it out. The SDK's
    `createOAuthTokenProvider` takes a `lock`, and the CLI holds a lock

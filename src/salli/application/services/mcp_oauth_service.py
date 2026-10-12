@@ -378,17 +378,22 @@ class McpOAuthService:
         user_id: str,
         approve: bool,
         *,
+        password_checked: bool,
         authenticated_at: datetime | None = None,
-        first_party_allowed: bool = True,
     ) -> str:
         """Returns the final redirect_uri (with ?code=... or ?error=...) to
         send the user's browser to.
 
-        `authenticated_at` is when the person's password was just checked
-        (now, unless said otherwise). `first_party_allowed=False` is for a
-        caller that checked no password (a web app's own consent screen,
-        holding a sign-in): it may never start a sign-in of Salli's own
-        clients, which would hold more than the caller does."""
+        `password_checked` says whether this approval came with the person's
+        password, checked just now on Salli's own sign-in page. Salli's own
+        clients (first party: the CLI, the console) are signed in only that
+        way: their tokens hold `tax:activate`, so approving one on the
+        strength of any other sign-in (a personal access token without it, or
+        a web app's own consent screen) would hand out a permission the caller
+        doesn't have. A client this server doesn't know is refused likewise.
+        `authenticated_at` is when that password was checked (now, unless
+        said otherwise): the sign-in records it, and the console's step-up
+        reads it."""
         payload = self._decode_art(art)
         redirect_uri = payload["redirect_uri"]
         state = payload.get("state")
@@ -399,13 +404,14 @@ class McpOAuthService:
             )
 
         self._check_console_consent(payload["client_id"])
-        if not first_party_allowed:
+        if not password_checked:
             async with self._uow_factory() as uow:
-                client = await uow.oauth_clients.get(payload["client_id"])
-            if client is not None and client.get("first_party"):
+                client: dict[str, Any] | None = await uow.oauth_clients.get(payload["client_id"])
+            if client is None or client.get("first_party"):
                 raise ConsentError(
-                    "Salli's own clients sign in on Salli's own page, with your password."
+                    "Salli's own apps are signed in with your password, on Salli's sign-in page."
                 )
+
         if not await self._may_use(user_id, self.audience(payload.get("resource"))):
             raise ConsentError("MCP access isn't available for this account. Check Settings.")
 

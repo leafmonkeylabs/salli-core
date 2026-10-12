@@ -268,7 +268,7 @@ async def consent_page_decision(
 
     try:
         # The password was checked just now: the sign-in records that.
-        target = await svc.mcp_oauth.complete_consent(rt, caller, approve)
+        target = await svc.mcp_oauth.complete_consent(rt, caller, approve, password_checked=approve)
     except ConsentError as exc:
         return again(_Refusal(str(exc), status.HTTP_403_FORBIDDEN))
     return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
