@@ -91,8 +91,10 @@ from salli.domain.taxrules.common import Problem, join_path
 #: Bumped whenever the same inputs would give different figures. 2: the
 #: share of the regular surplus invested (`surplus_invested`). 3: an extra
 #: payment in the as-of month (or a loan's opening month) is paid, at the
-#: month's end, rather than dropped.
-ENGINE_VERSION = "3"
+#: month's end, rather than dropped. 4: tax-aware scenarios: a stopped flow
+#: whose account's tax role the active rules declare as income or deduction
+#: changes the year's tax (tagged changes are new inputs).
+ENGINE_VERSION = "4"
 #: The years the monthly figures are shown at (and the horizon itself).
 CHECKPOINT_YEARS = (1, 5, 10, 20)
 #: A ledger whose newest entry is older than this is too stale to decide on.

@@ -259,7 +259,9 @@ without it.
   everything your baseline was built from (`baseline_fingerprint`) and of
   the engine's version. Key order and how an amount was written don't change
   it. The same hash means the same figures: the engine's version changes
-  whenever the same scenario would give different figures.
+  whenever the same scenario would give different figures. It is 4: since
+  [tax](#tax), stopping a flow whose account carries an income or deduction
+  role of your active rules changes your tax.
 
 ## Comparing options
 

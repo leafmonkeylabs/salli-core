@@ -193,13 +193,39 @@ def test_a_pension_contribution_is_a_deduction():
 def test_a_stopped_salary_comes_off_its_role():
     """The ledger's salary (its account's role is salary) stopped from
     2031-07-01: 2031's salary is 24,000 → 12,000 taxed → 2,400.00, 4,800.00
-    less; and 2032's, carried forward, nothing: 7,200.00 less."""
-    result = engine.run(
-        baseline(), scenario({"type": "stop_recurring", "key": "acme", "from": "2031-07-01"})
-    )
+    less; and 2032's, carried forward, nothing: 7,200.00 less.
+
+    The case that moved the engine to version 4: the same stop, untagged as
+    every stop is, gave other figures before tax (as it still does with no
+    active rules). The 4,800.00 comes back into cash at 800.00 a month from
+    July, so every month's regular surplus is 800.00 higher than the stop
+    alone leaves it."""
+    stop = scenario({"type": "stop_recurring", "key": "acme", "from": "2031-07-01"})
+    b = baseline()
+    result = engine.run(b, stop)
     assert result.tax.status == "computed"
-    assert year(result, "2031").change == D("-4800.00")
+    y2031 = year(result, "2031")
+    assert (y2031.net_baseline, y2031.net_scenario) == (D("7200.00"), D("2400.00"))
+    assert y2031.change == D("-4800.00")
+    assert [p for _, p in y2031.parts] == [D("-800.00")] * 6
     assert year(result, "2032").change == D("-7200.00")
+
+    untaxed = baseline(residency=None)
+    before = engine.run(untaxed, stop)
+    assert before.tax.status == "none"
+    rise = regular_by_month(b, stop)
+    plain = regular_by_month(untaxed, stop)
+    assert [rise[f"2031-{m:02d}"] - plain[f"2031-{m:02d}"] for m in range(7, 13)] == [
+        D("800.00")
+    ] * 6
+    # Without the salary each month is a deficit, drawn from cash and
+    # investing nothing, so the refund stays in cash: a year on (2032-06),
+    # 4,800.00 for 2031 and six months of 2032's 600.00, 8,400.00 more.
+    taxed_cash, plain_cash = result.monthly[0].cash.scenario, before.monthly[0].cash.scenario
+    assert taxed_cash is not None and plain_cash is not None
+    assert (taxed_cash - plain_cash).quantize(D("0.01")) == D("8400.00")
+    assert result.cash.at_end.scenario is not None and before.cash.at_end.scenario is not None
+    assert result.cash.at_end.scenario - before.cash.at_end.scenario == D("8400.00")
 
 
 def test_tax_never_moves_the_fi_number():

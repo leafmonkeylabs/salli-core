@@ -411,12 +411,13 @@ code asked for one:
   `--recurring` and `--buy` amount, `--tax-answer key=value` answers a
   question; `salli decide --tax-answer` too. The run shows each tax year's
   net under the baseline and the scenario, and the change.
-- **`ENGINE_VERSION` stays 3:** no existing golden changed, and a scenario
-  that tags nothing gives exactly the figures it gave. One existing input
-  can now give different figures: a `stop_recurring` of a flow whose
+- **`ENGINE_VERSION` is 4,** not 3 as designed. No existing golden
+  changed, and a scenario that tags nothing gives exactly the figures it
+  gave, but one existing input can: a `stop_recurring` of a flow whose
   account carries a role the person's active rules declare as income or
-  deduction now changes the tax. Whether that warrants engine 4 is the
-  owner's call.
+  deduction now changes the tax. The rule is that the version moves
+  whenever the same inputs would give different figures, so it moved, as
+  it did from 2 to 3.
 - Suggested asset accounts are created with `asset_role` `other`; no other
   default made a tax account cash.
 
@@ -542,8 +543,8 @@ Salli never names or suggests a security, and phase 3b keeps that so:
 | `domain/decisions/templates.py`, `catalogue.py` | A `holding` question type. `debt-or-invest` and `windfall` may name a holding to invest into; no template sells. |
 | Interfaces | `salli holdings update --account`, `salli whatif --sell`, MCP descriptions; OpenAPI and the SDK regenerated. |
 
-**Data.** One migration (the link). `ENGINE_VERSION` stays 3: `invest`
-without a holding is unchanged.
+**Data.** One migration (the link). `ENGINE_VERSION` doesn't move (4,
+since 3a): `invest` without a holding is unchanged.
 
 ### Out of scope
 
@@ -709,8 +710,8 @@ the "first ahead" month as a reading, beside `cover_target`),
 `domain/decisions/catalogue.py` (`RENT_OR_BUY`), `templates.py` (the
 `recurring` and `amount_or_zero` question types; the `placeholder` default
 source; `Facts` gains the person's recurring outflows), `start.py` (the two
-readings in `salli.decision-start/1`). No migration. `ENGINE_VERSION` stays
-3: nothing existing changes.
+readings in `salli.decision-start/1`). No migration. `ENGINE_VERSION`
+doesn't move (4, since 3a): nothing existing changes.
 
 ### Out of scope
 

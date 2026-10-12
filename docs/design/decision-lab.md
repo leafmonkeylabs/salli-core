@@ -432,7 +432,9 @@ Nudges are quiet, useful and rare:
      (sub-phases 3a to 3d, and decisions 6 to 31). 3a, tax-aware scenarios,
      is built ([docs/scenarios.md](../scenarios.md#tax)): changes tagged with
      a tax role run through the person's active rules, and principles gain a
-     33rd figure, `tax_change_this_year`.
+     33rd figure, `tax_change_this_year`. The engine's version is 4: a
+     stopped flow on an account with an income or deduction role now
+     changes the tax.
 
 There are no real users yet, so phase 1 changes FI's figures (savings rate, FI
 date) outright as the definitions are reconciled. Nothing is kept for

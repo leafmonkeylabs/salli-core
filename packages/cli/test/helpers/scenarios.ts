@@ -12,7 +12,7 @@ export const SCENARIO_RUN: ScenarioRun = {
   "as_of": "2026-10-11",
   "horizon_years": 20,
   "currency": "EUR",
-  "hash": "sha256:6f2513783307730c6c0f34d2583fc5bd9fcb2bb0927da6e99a0d1cdd47d74560",
+  "hash": "sha256:b579cc754b93d786584aefb0f8d86ab3adc56f278a585a48e8029f58d575c931",
   "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
   "scenario": {
     "schema": "salli.scenario/1",
@@ -420,7 +420,7 @@ export const SCENARIO_RUN: ScenarioRun = {
   ],
   "versions": {
     "schema": "salli.scenario/1",
-    "engine": "3",
+    "engine": "4",
     "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
     "fire_strategy": null,
     "rule_sets": []
@@ -445,7 +445,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:b203a631d5c5ed9a54d6da8f092a874d10a8f504fe0c3330962aa022ebd97558",
+      "hash": "sha256:311d95aee64cef15b25d0b51f60b1492848bc4ff1f404a27184712539ef2efe6",
       "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
       "scenario": {
         "schema": "salli.scenario/1",
@@ -794,7 +794,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       ],
       "versions": {
         "schema": "salli.scenario/1",
-        "engine": "3",
+        "engine": "4",
         "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
         "fire_strategy": null,
         "rule_sets": []
@@ -809,7 +809,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:00ce8b55a091b848b4f30a8885e073f5a38819c22491ec02f304f28501b29dfb",
+      "hash": "sha256:8b3d6339ccebc2e9cead34156082728e3f987eceb73e1acf96697097ef22fa8d",
       "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
       "scenario": {
         "schema": "salli.scenario/1",
@@ -1193,7 +1193,7 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       ],
       "versions": {
         "schema": "salli.scenario/1",
-        "engine": "3",
+        "engine": "4",
         "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
         "fire_strategy": null,
         "rule_sets": []
@@ -1613,7 +1613,7 @@ export const TAXED_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:6e67412437b404b701a7c7edfb4ded7fa31242e0094f67c305d58ce97492e522",
+  "hash": "sha256:7af602cb123d50777e1cbb46b9943a18755a7226bd81cd898d5e962879b89ed3",
   "baseline_fingerprint": "sha256:a578b5182f732beb18927582d6f4df47c1df7480735ca96dec7dadb9fe276335",
   "scenario": {
     "schema": "salli.scenario/1",
@@ -2346,7 +2346,7 @@ export const TAXED_RUN: ScenarioRun = {
   ],
   "versions": {
     "schema": "salli.scenario/1",
-    "engine": "3",
+    "engine": "4",
     "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
     "fire_strategy": null,
     "rule_sets": [
