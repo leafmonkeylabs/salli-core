@@ -267,17 +267,24 @@ Numbers are Salli's product.
 
 ## Layout and components
 
-This section is for the web and mobile apps to come.
+For the console, the website and any app. The console's code copy of these
+values is `packages/console/src/styles/tokens.css`.
 
 - **Grid:** 12 columns with 24 px gutters, content up to 1200 px wide. Leave
   generous space: 96–128 px between sections on the website, 32–48 px in the
   app.
+- **Corners are square.** Buttons, fields, selects, cards, panels, tables,
+  dialogs, popovers, menus, toasts, badges, chips, code blocks, tooltips and
+  the focus ring have no radius; chart bars and boxes have none either. Only
+  what is a circle by meaning stays round: a chart's dot, a radio button's
+  indicator, a step's number disc. In code the radius tokens stay, set to 0,
+  so it is one switch.
 - **Surfaces:**
   - paper, with bone panels;
-  - cards with a 1 px hairline border and a 10–14 px radius;
+  - cards with a 1 px hairline border and square corners;
   - no drop shadows, except one faint shadow for overlays.
 - **Section labels:** a small outlined square, then a tracked capital label.
-- **Buttons:** 40 px tall, 8 px radius, no gradients.
+- **Buttons:** 40 px tall, square corners, no gradients.
   - Primary: ledger green fill, paper text.
   - Secondary: sand fill, ink text.
   - Tertiary: text, underlined on hover.
@@ -286,17 +293,27 @@ This section is for the web and mobile apps to come.
   - a sticky header in the label style;
   - figures right-aligned.
 - **Charts:**
-  - 1.5 px lines in ledger green, comparisons in brass or sand;
+  - 1.5 px lines; the baseline in ink, options in ledger green and graphite,
+    told apart by dash pattern and end labels as well as colour (graphite
+    dashed for comparisons);
+  - brass and sand only decorate: brass is 2.4:1 on paper, below the 3:1 WCAG
+    asks of graphics that carry meaning. On night, paper on dark, sand on
+    dark and muted on dark take the places of ink, ledger green and graphite;
   - shortfalls in oxblood at 12% opacity;
   - hairline gridlines;
-  - label the figures on the chart.
-  - No 3D. No pie chart with more than five slices.
+  - label the figures on the chart, each the server's own figure.
+  - No 3D. No pie chart with more than five slices. No animation into place.
 - **Forms:** labels above the inputs; inputs on bone with a hairline border; a
-  2 px brass focus ring.
+  2 px focus ring in ledger green (sand on dark). Not brass: a focus
+  indicator needs 3:1, and brass is 2.4:1 on paper.
 - **Icons:** a 24 px grid, 1.5 px strokes, square caps and joins, geometric.
   Filled squares for bullets.
-- **Motion:** fades and short slides of 120–200 ms, easing out. No bounces, no
-  confetti.
+- **Motion:** fades and short slides of 120–200 ms, easing out, and none when
+  the reader asks for reduced motion. No bounces, no confetti.
+
+The chart colours and the focus ring were changed from brass and sand for
+contrast by the console's design (docs/design/console.md, decision 11); the
+square corners by the owner in October 2026.
 
 ## Motifs and imagery
 
@@ -356,7 +373,12 @@ uvx --with fonttools --with brotli --with uharfbuzz python -I \
 node <repo>/docs/brand/build/render.mjs /tmp/salli-brand <repo>/docs/brand/assets/social-preview.svg <repo>/docs/brand/assets/social-preview.png 1280
 ```
 
-Change the tokens in `build_assets.py` and in this document together.
+Change the tokens in `build_assets.py`, in this document and in
+`packages/console/src/styles/tokens.css` together. The build scripts are kept
+outside the repository (`.gitignore` excludes `build/`); the square corners
+were applied to the SVGs in `assets/` directly (no `rx` on any frame, panel,
+swatch or the app icon's tile) and `salli-icon.png` rendered again from its
+SVG.
 
 ## For agents writing for Salli
 
