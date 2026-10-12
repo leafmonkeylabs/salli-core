@@ -142,6 +142,32 @@ RecurringKey = Annotated[str, StringConstraints(min_length=1, max_length=100)]
 #: At most this many answers to the tax rules' questions.
 MAX_TAX_ANSWERS = 100
 TermMonths = Annotated[int, Field(ge=1, le=MAX_TERM_MONTHS)]
+#: The most a real growth may be either way, a year: 100%.
+MAX_GROWTH = Decimal(1)
+
+
+def _growth(value: Decimal) -> Decimal:
+    if not -MAX_GROWTH <= value <= MAX_GROWTH:
+        raise ValueError('a growth is a yearly fraction from "-1" to "1" ("0.01" is 1%)')
+    return value
+
+
+#: A yearly growth beyond inflation, signed: "0.01" is 1% a year more than
+#: prices, "-0.02" 2% a year less.
+RealGrowth = Annotated[
+    Decimal,
+    BeforeValidator(parse_amount),
+    AfterValidator(_growth),
+    PlainSerializer(lambda d: format(d, "f"), return_type=str, when_used="json"),
+    WithJsonSchema(
+        {
+            "type": "string",
+            "pattern": AMOUNT_PATTERN,
+            "description": 'A yearly growth beyond inflation, as a signed fraction: "0.01" '
+            'is 1% a year more than prices, "-0.02" 2% a year less.',
+        }
+    ),
+]
 HorizonYears = Annotated[int, Field(ge=MIN_HORIZON_YEARS, le=MAX_HORIZON_YEARS)]
 
 
@@ -155,7 +181,8 @@ def _ordered(first: Any, last: Any | None, what: str) -> None:
 
 class OneOffChange(Model):
     """Money in or out once, on a day: a purchase (negative), a gift
-    received (positive). What a purchase buys isn't counted as an asset.
+    received (positive). What a purchase buys isn't counted as an asset
+    (an `asset` change is).
     With a `tax_role`, the amount is before tax: a taxable bonus in an
     income role, a deductible cost in a deduction role."""
 
@@ -173,8 +200,9 @@ class OneOffChange(Model):
 
 class RecurringChange(Model):
     """The same amount again and again: a new rent (negative), a side income
-    (positive). In today's money: with your inflation set, it rises with it.
-    With a `tax_role`, each amount is before tax."""
+    (positive). In today's money: with your inflation set, it rises with it,
+    and with a `real_growth`, by that much more a year. With a `tax_role`,
+    each amount is before tax."""
 
     type: Literal["recurring"]
     #: Each time, signed.
@@ -186,6 +214,10 @@ class RecurringChange(Model):
     account: RefId | None = None
     #: A role of kind income or deduction in your tax rules (see `one_off`).
     tax_role: RoleKey | None = None
+    #: How much it grows a year beyond inflation, a twelfth a month,
+    #: compounded, from its start's month: a rent rising faster than prices.
+    #: Without one, 0: it keeps its value in today's money.
+    real_growth: RealGrowth | None = None
     label: Label
 
     @model_validator(mode="after")
@@ -292,6 +324,30 @@ class SetAsideChange(Model):
         return self
 
 
+class AssetChange(Model):
+    """Something bought that holds its value: a home. The price leaves cash
+    on the day (a move, like an investment), and the asset is counted from
+    that month's end among your other assets, growing at its `real_growth`
+    a twelfth a month, compounded, from the next. It counts in net worth at
+    what it would fetch: its value less its selling costs. Like your other
+    assets, it funds no withdrawals in FI."""
+
+    type: Literal["asset"]
+    #: What it costs, out of cash on the day.
+    price: PositiveAmount
+    date: IsoDate
+    #: The cash account the price leaves; without one, your cash total.
+    from_: RefId | None = Field(default=None, alias="from")
+    #: How much its value grows a year beyond inflation. Without one, 0 (it
+    #: keeps its value in today's money), listed as the `asset_growth`
+    #: placeholder.
+    real_growth: RealGrowth | None = None
+    #: What selling it would cost, as a share of its value: "0.03" is 3%.
+    #: Without one, 0.
+    selling_costs: Rate | None = None
+    label: Label
+
+
 Change = Annotated[
     OneOffChange
     | RecurringChange
@@ -300,7 +356,8 @@ Change = Annotated[
     | ExtraDebtPaymentChange
     | InvestChange
     | StopRecurringChange
-    | SetAsideChange,
+    | SetAsideChange
+    | AssetChange,
     Field(discriminator="type"),
 ]
 
@@ -313,6 +370,7 @@ CHANGE_TYPES = (
     "invest",
     "stop_recurring",
     "set_aside",
+    "asset",
 )
 
 
@@ -351,14 +409,15 @@ TAGGABLE = (OneOffChange, RecurringChange, IncomeChange)
 
 def hashable(scenario: Scenario) -> dict[str, Any]:
     """The scenario as its content hash reads it: as written (by alias),
-    without the tax fields it leaves out, so a scenario that tags nothing
-    hashes as it did before they existed."""
+    without the optional fields it leaves out (tax, a real growth), so a
+    scenario without them hashes as it did before they existed."""
     data = scenario.model_dump(mode="python", by_alias=True)
     if data.get("tax") is None:
         data.pop("tax", None)
     for change in data.get("changes", []):
-        if "tax_role" in change and change["tax_role"] is None:
-            del change["tax_role"]
+        for name in ("tax_role", "real_growth"):
+            if name in change and change[name] is None:
+                del change[name]
     return data
 
 
@@ -461,12 +520,14 @@ def _strip(node: Any, key: str) -> None:
 
 __all__ = [
     "CHANGE_TYPES",
+    "MAX_GROWTH",
     "DEFAULT_HORIZON_YEARS",
     "MAX_CHANGES",
     "MAX_HORIZON_YEARS",
     "MAX_TERM_MONTHS",
     "SCHEMA_ID",
     "TAGGABLE",
+    "AssetChange",
     "Cadence",
     "Change",
     "ExtraDebtPaymentChange",
@@ -474,6 +535,7 @@ __all__ = [
     "InvestChange",
     "LoanChange",
     "OneOffChange",
+    "RealGrowth",
     "RecurringChange",
     "Scenario",
     "ScenarioTax",

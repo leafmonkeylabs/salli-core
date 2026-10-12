@@ -49,7 +49,7 @@ def accounts_named(scenarios: Iterable[schema.Scenario]) -> set[str]:
                     account = change.account
                 case schema.LoanChange():
                     account = change.into
-                case schema.InvestChange():
+                case schema.InvestChange() | schema.AssetChange():
                     account = change.from_
                 case _:
                     account = None

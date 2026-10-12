@@ -12,7 +12,8 @@ does the baseline's own, or a move that goes where it says:
   (monthly and longer keep the start's day of the month, kept to short
   months), from its start to its end or for good. In today's money: each is
   the amount grown by the user's inflation to its month (nothing, with none
-  set), as the baseline's average spending is.
+  set), as the baseline's average spending is, and by its `real_growth`, a
+  twelfth a month, compounded, from its start's month (none without one).
 - `income_change`: regular, the same, monthly from its `from` day.
 - `loan`: the money borrowed is a move, arriving in cash on its start day;
   it is owed from that month's end and repaid from the month after in level
@@ -35,6 +36,11 @@ does the baseline's own, or a move that goes where it says:
 - `set_aside`: neither: it moves no money of its own, but keeps that much of
   each month's regular surplus in cash from `from`'s month to `to`'s, before
   the share invested is taken from the rest (`timelines.KeptInCash`).
+- `asset`: a move, the price out of cash on its day; the asset is counted
+  among other assets from that month's end, growing at its real growth, at
+  its value less its selling costs (`timelines.Asset`). Without a real
+  growth, 0, listed as the `asset_growth` placeholder. It funds no
+  withdrawals, so FI's asset base doesn't count it.
 
 **Tax.** A one-off, a recurring change or an income change with a
 `tax_role` is before tax: its amounts also add to that role's total, and a
@@ -171,6 +177,9 @@ class Translation:
     #: The change in each tax year's tax (its parts are among the regular
     #: flows of `changes`).
     tax: taxes.TaxOutcome = taxes.NO_TAX
+    #: The scenario's own placeholders: "asset_growth" when an asset has no
+    #: real growth of its own.
+    placeholders: tuple[str, ...] = ()
 
 
 def _month_end(month: str) -> dt.date:
@@ -245,9 +254,24 @@ class _Translator:
     def money(self, value: Decimal, currency: str | None = None) -> Decimal:
         return value.quantize(quantum(currency or self.currency), rounding=ROUND_HALF_UP)
 
-    def today_money(self, amount: Decimal, day: dt.date, currency: str | None = None) -> Decimal:
-        """`amount` in today's money, in `day`'s own money."""
+    def today_money(
+        self,
+        amount: Decimal,
+        day: dt.date,
+        currency: str | None = None,
+        *,
+        growth: Decimal | None = None,
+        since: dt.date | None = None,
+    ) -> Decimal:
+        """`amount` in today's money, in `day`'s own money; with a `growth`,
+        grown by it beyond inflation, a twelfth a month, compounded, over
+        the months from `since`'s to `day`'s."""
         level = self.levels.get(day.isoformat()[:7], Decimal(1))
+        if growth and since is not None:
+            months = timelines.month_index(day.isoformat()[:7]) - timelines.month_index(
+                since.isoformat()[:7]
+            )
+            level *= (Decimal(1) + growth / 12) ** months
         return self.money(amount * level, currency)
 
     # ── checks ───────────────────────────────────────────────────────────
@@ -307,6 +331,8 @@ class _Translator:
         extra: list[timelines.ExtraPayment] = []
         kept: list[timelines.KeptInCash] = []
         applied: list[AppliedChange] = []
+        assets: list[timelines.Asset] = []
+        placeholders: list[str] = []
         spending = Decimal(0)  # the change in spending for good, a month
         debts = {d.debt_id: d for d in self.baseline.debts}
         if self.scenario.as_of is not None and self.scenario.as_of != self.baseline.as_of:
@@ -341,10 +367,14 @@ class _Translator:
                     self.amount(here("amount"), change.amount)
                     account = self.account(here("account"), change.account)
                     last = min(change.end or self.end, self.end)
+                    growth, since = change.real_growth, change.start
                     for day in occurrences(change.start, change.cadence, last):
                         regular.append(
                             self.flow(
-                                day, account, self.today_money(change.amount, day), change.label
+                                day,
+                                account,
+                                self.today_money(change.amount, day, growth=growth, since=since),
+                                change.label,
                             )
                         )
                     if change.tax_role is not None:
@@ -352,7 +382,10 @@ class _Translator:
                         through = min(change.end or self.last, self.last)
                         self.tagged += [
                             taxes.Tagged(
-                                i, change.tax_role, day, self.today_money(change.amount, day)
+                                i,
+                                change.tax_role,
+                                day,
+                                self.today_money(change.amount, day, growth=growth, since=since),
                             )
                             for day in occurrences(change.start, change.cadence, through)
                         ]
@@ -467,6 +500,31 @@ class _Translator:
                         )
                         invested.append((change.date.isoformat(), self.money(change.amount)))
                     applied.append(AppliedChange(i, change.type, change.label))
+                case schema.AssetChange():
+                    self.date(here("date"), change.date)
+                    self.amount(here("price"), change.price)
+                    account = self.account(here("from"), change.from_)
+                    if change.date <= self.end:
+                        flows.append(
+                            self.flow(change.date, account, -self.money(change.price), change.label)
+                        )
+                        assets.append(
+                            timelines.Asset(
+                                change.date.isoformat(),
+                                self.money(change.price),
+                                change.real_growth or Decimal(0),
+                                change.selling_costs or Decimal(0),
+                            )
+                        )
+                    if change.real_growth is None:
+                        placeholders.append("asset_growth")
+                    if change.selling_costs:
+                        self.notes.append(
+                            f"{change.label} counts at what it would fetch: its value less its "
+                            "selling costs, so net worth is lower by them from the month it is "
+                            "bought (other_assets_value is its value before them)."
+                        )
+                    applied.append(AppliedChange(i, change.type, change.label))
                 case schema.SetAsideChange():
                     self.date(here("from"), change.from_)
                     self.amount(here("monthly"), change.monthly)
@@ -548,11 +606,13 @@ class _Translator:
                 extra=tuple(extra),
                 regular=tuple(regular),
                 kept=tuple(kept),
+                assets=tuple(assets),
             ),
             tuple(applied),
             scenario_spending,
             tuple(dict.fromkeys(self.notes)),
             outcome,
+            tuple(dict.fromkeys(placeholders)),
         )
 
     def tag(self, path: str, role: str) -> None:
@@ -782,6 +842,11 @@ class Checkpoint:
     cash: Figure
     investments: Figure
     debts: Figure
+    #: Other assets as net worth counts them: an asset a scenario buys at
+    #: its value less its selling costs.
+    other_assets: Figure = Figure(Decimal(0), Decimal(0))
+    #: The same before selling costs: what the assets are worth.
+    other_assets_value: Figure = Figure(Decimal(0), Decimal(0))
 
 
 @dataclass(frozen=True)
@@ -828,7 +893,7 @@ class BreakEven:
     """A value at which the answer changes, solved exactly, or none within
     the range searched."""
 
-    kind: Literal["recurring_cash_floor", "invest_vs_debt_return", "loan_rate"]
+    kind: Literal["recurring_cash_floor", "invest_vs_debt_return", "loan_rate", "asset_growth"]
     #: The option or options it concerns, by label.
     options: tuple[str, ...]
     #: The option and change it varies, when it varies one.
@@ -962,6 +1027,8 @@ def _checkpoints(horizon_years: int, base: Outlook, mine: Outlook) -> tuple[Chec
                 cash=Figure(b.cash, s.cash),
                 investments=Figure(b.investments, s.investments),
                 debts=Figure(b.debts, s.debts),
+                other_assets=Figure(b.other_assets, s.other_assets),
+                other_assets_value=Figure(b.other_assets_value, s.other_assets_value),
             )
         )
     return tuple(out)
@@ -1268,7 +1335,7 @@ def run_with_outlook(
         break_evens=tuple(cash_floors(baseline, scenario, mine, label)),
         tax=_tax(translation.tax, mine, scenario.horizon_years),
         assumptions=baseline.assumptions,
-        placeholders=placeholders(baseline, translation.tax),
+        placeholders=(*placeholders(baseline, translation.tax), *translation.placeholders),
         versions=versions(baseline),
         data_as_of=latest,
         is_stale=stale,

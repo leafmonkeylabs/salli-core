@@ -289,6 +289,8 @@ def result_view(r: ScenarioResult) -> dict[str, Any]:
                 "cash": w.figure(c.cash),
                 "investments": w.figure(c.investments),
                 "debts": w.figure(c.debts),
+                "other_assets": w.figure(c.other_assets),
+                "other_assets_value": w.figure(c.other_assets_value),
             }
             for c in r.monthly
         ],

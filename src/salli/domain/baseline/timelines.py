@@ -67,7 +67,12 @@ each calendar month's end, in today's money:
   a month, compounded, as FI does); what moves into them in a month (the
   share of the regular surplus, or a scenario's investment) grows from the
   next;
-- other assets, keeping their value in today's money;
+- other assets: the baseline's keep their value in today's money; an asset
+  a scenario buys (`Changes.assets`) is counted from the end of the month
+  it is bought, at its price in today's money, and grows at its own real
+  growth (a twelfth of it a month, compounded) from the next. It counts at
+  what it would fetch, its value less its selling costs (`other_assets`);
+  `other_assets_value` is the same before selling costs;
 - debts, on their calendar-month schedules (fixed payments, in each month's
   own money), and liabilities without terms, held as they are;
 - net worth: all of them together.
@@ -80,7 +85,8 @@ same figure, before deflating.
 
 **Changes** (`Changes`, a scenario's) add to both timelines: cash flows on
 their days (forecast `Flow`s, in their day's own money; regular ones apart
-from moves), money moved into investments (which then grow with them), loans
+from moves), money moved into investments (which then grow with them),
+assets bought (their price is one of the moves), loans
 taken out (owed from the month they are taken out, paid from the month
 after, their last payment clearing them), and extra payments on a debt for a
 run of months (from the as-of month, or a loan's opening month, on). A plain
@@ -97,7 +103,7 @@ import calendar
 import datetime as dt
 from collections import defaultdict
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import ROUND_HALF_UP, Decimal
 
 from salli.domain.baseline.models import Baseline, BaselineDebt
@@ -163,6 +169,22 @@ class KeptInCash:
 
 
 @dataclass(frozen=True)
+class Asset:
+    """Something a scenario buys that holds value (an `asset` change): its
+    price leaves cash on `date` (one of `Changes.flows`); the asset is
+    counted from that month's end and grows at `real_growth` a year beyond
+    inflation, a twelfth a month, compounded, from the next. It counts at
+    its value less `selling_costs` (a share of it)."""
+
+    #: The day it is bought ("YYYY-MM-DD").
+    date: str
+    #: Its price in the base currency, in that day's own money.
+    price: Decimal
+    real_growth: Decimal = Decimal(0)
+    selling_costs: Decimal = Decimal(0)
+
+
+@dataclass(frozen=True)
 class Changes:
     """What a scenario adds to the baseline's timelines."""
 
@@ -186,6 +208,9 @@ class Changes:
     #: Amounts set aside in cash out of the regular surplus, before the
     #: share invested is taken from what is left.
     kept: tuple[KeptInCash, ...] = ()
+    #: Assets bought: other assets from their month on. Each price's cash
+    #: side is one of `flows`.
+    assets: tuple[Asset, ...] = ()
 
     @property
     def cash_flows(self) -> tuple[forecasting.Flow, ...]:
@@ -651,13 +676,10 @@ def daily(
     added = as_changes(changes)
     months = periods(baseline.as_of, DAILY_MONTHS)
     end = months[-1].end
-    within = Changes(
+    within = replace(
+        added,
         flows=tuple(_within(added.flows, end)),
-        invested=added.invested,
-        loans=added.loans,
-        extra=added.extra,
         regular=tuple(_within(added.regular, end)),
-        kept=added.kept,
     )
     paths = debt_paths(baseline, months, within)
     plan = cash_plan(baseline, months, paths, within)
@@ -740,6 +762,10 @@ class MonthPoint:
     #: share of the regular surplus and a scenario's investments (nothing at
     #: the as-of point).
     invested: Decimal = Decimal(0)
+    #: Other assets before selling costs: `other_assets` counts a scenario's
+    #: assets at their value less them (always set; the baseline's own other
+    #: assets are the same in both).
+    other_assets_value: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True)
@@ -771,6 +797,30 @@ class MonthlyTimeline:
     surplus_invested: Decimal = Decimal(1)
     #: What a reader should know: from when cash is below zero, if it is.
     notes: tuple[str, ...] = ()
+
+
+class _AssetValues:
+    """A scenario's assets month by month, in today's money: each counted
+    from the end of the month it is bought, at its price deflated to that
+    month, and grown at its real growth from the next month (as money moved
+    into investments is)."""
+
+    def __init__(self, assets: Sequence[Asset], first: str) -> None:
+        self.assets = [a for a in assets if a.date >= first]
+        self.values = [Decimal(0)] * len(self.assets)
+
+    def at(self, month: MonthPlan) -> tuple[Decimal, Decimal]:
+        """After `month`: the assets' value, and what they would fetch (their
+        value less their selling costs)."""
+        value = fetches = Decimal(0)
+        for k, asset in enumerate(self.assets):
+            if self.values[k]:
+                self.values[k] *= Decimal(1) + asset.real_growth / _TWELVE * month.period.share
+            if asset.date[:7] == month.period.month:
+                self.values[k] += asset.price / month.deflator
+            value += self.values[k]
+            fetches += self.values[k] * (Decimal(1) - asset.selling_costs)
+        return value, fetches
 
 
 def horizon_months(horizon_years: int) -> int:
@@ -807,6 +857,7 @@ def monthly(
     investments = baseline.investments
     other_assets = baseline.other_assets
     other_liabilities = baseline.other_liabilities
+    bought = _AssetValues(added.assets, first)
     points = [
         MonthPoint(
             month=baseline.as_of.isoformat()[:7],
@@ -818,6 +869,7 @@ def monthly(
             other_liabilities=other_liabilities,
             net_worth=cash + investments + other_assets - baseline.debts_owed - other_liabilities,
             deflator=Decimal(1),
+            other_assets_value=other_assets,
         )
     ]
     below_zero: str | None = None
@@ -832,20 +884,25 @@ def monthly(
         moved = invested.get(month.period.month, Decimal(0)) + month.invested
         investments += moved / level
         owed = sum((path.owed[i] for path in paths), Decimal(0))
+        value, fetches = bought.at(month)
         points.append(
             MonthPoint(
                 month=month.period.month,
                 date=month.period.end.isoformat(),
                 cash=cash / level,
                 investments=investments,
-                other_assets=other_assets,
+                other_assets=other_assets + fetches,
                 debts=owed / level,
                 other_liabilities=other_liabilities / level,
                 # What is held in money, deflated once, so the same money
                 # moved between cash and a debt changes it by nothing.
-                net_worth=(cash - owed - other_liabilities) / level + investments + other_assets,
+                net_worth=(cash - owed - other_liabilities) / level
+                + investments
+                + other_assets
+                + fetches,
                 deflator=level,
                 invested=moved,
+                other_assets_value=other_assets + value,
             )
         )
 

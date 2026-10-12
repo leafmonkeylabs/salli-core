@@ -124,11 +124,11 @@ def test_unknown_fields_types_and_versions_are_refused_with_their_paths():
         "changes[0].currency": "is not a field here",
         "changes[1]": (
             "is not a change type; the types are: one_off, recurring, income_change, loan, "
-            "extra_debt_payment, invest, stop_recurring, set_aside"
+            "extra_debt_payment, invest, stop_recurring, set_aside, asset"
         ),
         "changes[2]": (
             "needs a type: one of one_off, recurring, income_change, loan, "
-            "extra_debt_payment, invest, stop_recurring, set_aside"
+            "extra_debt_payment, invest, stop_recurring, set_aside, asset"
         ),
         "extra": "is not a field here",
     }
@@ -170,9 +170,82 @@ def test_every_change_type_reads():
             {"type": "invest", "amount": "5000", "date": "2026-12-15", "from": "sav", "label": "x"},
             {"type": "stop_recurring", "key": "streamflix", "from": "2026-11-01"},
             {"type": "set_aside", "monthly": "200", "from": "2026-11-01", "to": "2027-10-31"},
+            {
+                "type": "asset",
+                "price": "250000",
+                "date": "2026-12-01",
+                "from": "chk",
+                "real_growth": "-0.01",
+                "selling_costs": "0.03",
+                "label": "x",
+            },
         )
     )
     assert [c.type for c in doc.changes] == list(schema.CHANGE_TYPES)
+
+
+@pytest.mark.parametrize(
+    ("change", "path", "message"),
+    [
+        (
+            {"type": "asset", "price": "0", "date": "2026-12-01", "label": "x"},
+            "changes[0].price",
+            "must be greater than zero",
+        ),
+        (
+            {
+                "type": "asset",
+                "price": "1",
+                "date": "2026-12-01",
+                "selling_costs": "1.5",
+                "label": "x",
+            },
+            "changes[0].selling_costs",
+            'a rate is a fraction between "0" and "1" ("0.15" is 15%)',
+        ),
+        (
+            {
+                "type": "asset",
+                "price": "1",
+                "date": "2026-12-01",
+                "real_growth": "-2",
+                "label": "x",
+            },
+            "changes[0].real_growth",
+            'a growth is a yearly fraction from "-1" to "1" ("0.01" is 1%)',
+        ),
+        (
+            {
+                "type": "recurring",
+                "amount": "-450",
+                "cadence": "monthly",
+                "start": "2027-01-01",
+                "real_growth": 0.01,
+                "label": "x",
+            },
+            "changes[0].real_growth",
+            "write amounts as decimal strings",
+        ),
+    ],
+)
+def test_an_assets_and_a_growths_fields_are_checked(change, path, message):
+    assert message in _problems(_doc(change))[path]
+
+
+def test_a_recurring_change_without_a_growth_hashes_as_before():
+    """`real_growth` left out is no part of the content hash, so a scenario
+    written before it existed keeps its hash."""
+    rent = {
+        "type": "recurring",
+        "amount": "-450",
+        "cadence": "monthly",
+        "start": "2027-01-01",
+        "label": "x",
+    }
+    hashed = schema.hashable(schema.load(_doc(rent)))
+    assert "real_growth" not in hashed["changes"][0]
+    with_growth = schema.hashable(schema.load(_doc({**rent, "real_growth": "0.01"})))
+    assert with_growth["changes"][0]["real_growth"] == Decimal("0.01")
 
 
 def test_the_json_schema_describes_the_document_for_agents():
