@@ -1,7 +1,8 @@
 """
-Salli's own MCP consent page — where you approve an AI client (Claude, ChatGPT,
-…) connecting to your Salli over MCP, or the salli CLI signing in — and the
-device page, where you approve a sign-in with a code.
+Salli's own sign-in and consent page — where you approve an AI client
+(Claude, ChatGPT, …) connecting to your Salli over MCP, the salli CLI signing
+in, or sign in to the console — and the device page, where you approve a
+sign-in with a code.
 
 The OAuth authorize step redirects here with a short-lived signed request
 token (`rt`). The page shows which client is asking, takes your Salli email and
@@ -13,57 +14,106 @@ needing a web app.
 Plain server-rendered HTML with no script and no session: every decision is
 authenticated by the password submitted with it, so there is no cookie for a
 cross-site request to ride on. The password is never written back into the
-page.
+page. The only place the console's password is typed is here: the console
+has no sign-in form of its own, and comes back here (`prompt=login`) for the
+password again before activating tax rules.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import html
 from dataclasses import dataclass
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from salli.application.services.login_service import SignInRefused, SignInThrottled
-from salli.application.services.mcp_oauth_service import ConsentError
+from salli.application.services.mcp_oauth_service import CONSOLE_CLIENT_ID, ConsentError
 from salli.config import Settings, get_settings, insecure_dev_auth
 from salli.interfaces.api.deps import AppServices
 
 router = APIRouter(tags=["mcp-oauth"])
 
+# The brand (docs/brand/README.md): paper and ink, ledger green for the
+# primary action, sand for the secondary, oxblood (clay at night) for an
+# error; night, paper-on-dark and sand-on-dark in the dark. System fonts, so
+# the page makes no font request. The focus ring is ledger green, and
+# sand-on-dark at night, not the brand's brass: brass is 2.4:1 on paper, below
+# the 3:1 a focus indicator needs (console decision 11).
+_STYLE = (
+    ":root{color-scheme:light dark;--paper:#F6F3EC;--bone:#ECE6D9;--hairline:#DCD4C4;"
+    "--ink:#1C1B19;--graphite:#57524A;--green:#173B33;--sand:#D8CBAE;--error:#6B2620;"
+    "--on-green:#F6F3EC;--focus:#173B33;--mark:#173B33}"
+    "@media (prefers-color-scheme:dark){:root{--paper:#0E1513;--bone:#0F2924;"
+    "--hairline:#2B3A35;--ink:#F2ECDF;--graphite:#9AAAA2;--green:#CDBF9F;--sand:#0F2924;"
+    "--error:#E2A58F;--on-green:#0E1513;--focus:#CDBF9F;--mark:#CDBF9F}}"
+    "*{box-sizing:border-box}"
+    "body{margin:0;background:var(--paper);color:var(--ink);"
+    "font:16px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif}"
+    "main{max-width:26rem;margin:0 auto;padding:4rem 1rem}"
+    ".brand{display:flex;align-items:center;gap:.6rem;margin:0 0 2rem;color:var(--graphite);"
+    "font-size:.8rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase}"
+    ".brand svg{width:28px;height:20px;fill:var(--mark)}"
+    "h1{font-size:1.4rem;line-height:1.3;letter-spacing:-.01em;font-weight:600;margin:0 0 .6rem}"
+    "p{margin:0 0 1rem}"
+    "label{display:block;margin:1rem 0 .3rem;font-size:.875rem;font-weight:500;"
+    "color:var(--graphite)}"
+    "input{width:100%;height:40px;padding:0 .7rem;font:inherit;color:var(--ink);"
+    "background:var(--bone);border:1px solid var(--hairline);border-radius:8px}"
+    ".row{display:flex;gap:.6rem;margin-top:1.4rem}"
+    "button{flex:1;height:40px;padding:0 1rem;font:inherit;font-weight:500;cursor:pointer;"
+    "border-radius:8px;border:1px solid var(--green);background:var(--green);"
+    "color:var(--on-green)}"
+    "button[value=deny]{background:var(--sand);border-color:var(--hairline);color:var(--ink)}"
+    "input:focus-visible,button:focus-visible{outline:2px solid var(--focus);"
+    "outline-offset:2px}"
+    "code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.9em}"
+    ".err{color:var(--error);margin-top:1rem}"
+    ".muted{color:var(--graphite);font-size:.875rem;margin-top:1.4rem}"
+)
+
+#: The mark (docs/brand/assets/salli-mark.svg), inline so the page loads
+#: nothing; coloured by the stylesheet for light and dark.
+_MARK = (
+    '<svg viewBox="0 0 200 140" aria-hidden="true" focusable="false">'
+    '<rect width="130" height="50"/><rect x="147.5" width="52.5" height="50"/>'
+    '<rect y="90" width="52.5" height="50"/><rect x="70" y="90" width="130" height="50"/>'
+    "</svg>"
+)
+
+
+def _style_hash(css: str) -> str:
+    digest = hashlib.sha256(css.encode("utf-8")).digest()
+    return "'sha256-" + base64.b64encode(digest).decode("ascii") + "'"
+
+
 _HEADERS = {
     "Cache-Control": "no-store",
     "X-Frame-Options": "DENY",
-    # No form-action: after a decision the browser is redirected to the
-    # client's own callback, and Chrome applies form-action to that redirect.
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
-    "frame-ancestors 'none'; base-uri 'none'",
+    # Stricter than the console's: no script at all, and only this page's
+    # own stylesheet, by its hash. No form-action: after a decision the
+    # browser is redirected to the client's own callback, and Chrome applies
+    # form-action to that redirect.
+    "Content-Security-Policy": "default-src 'none'; "
+    f"style-src {_style_hash(_STYLE)}; frame-ancestors 'none'; base-uri 'none'; "
+    "require-trusted-types-for 'script'; trusted-types 'none'",
     "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 }
 
-_STYLE = """
-body{font:16px/1.5 system-ui,sans-serif;max-width:26rem;margin:4rem auto;padding:0 1rem;
-color:#1b1b1b;background:#fafaf7}
-h1{font-size:1.3rem}label{display:block;margin:.8rem 0 .2rem}
-input{width:100%;padding:.55rem;font:inherit;box-sizing:border-box;border:1px solid #bbb;
-border-radius:6px}
-.row{display:flex;gap:.6rem;margin-top:1.2rem}
-button{flex:1;padding:.6rem;font:inherit;border-radius:6px;border:1px solid #2E7D6B;
-background:#2E7D6B;color:#fff;cursor:pointer}
-button[value=deny]{background:#fff;color:#2E7D6B}
-.err{color:#a33;margin-top:1rem}.muted{color:#666;font-size:.9rem}
-@media (prefers-color-scheme:dark){body{background:#151515;color:#eee}
-input{background:#222;color:#eee;border-color:#444}button[value=deny]{background:#151515}}
-"""
 
-
-def _page(body: str, status_code: int = 200) -> HTMLResponse:
+def _page(body: str, status_code: int = 200, title: str = "Connect to Salli") -> HTMLResponse:
     return HTMLResponse(
-        "<!doctype html><html lang=en><head><meta charset=utf-8>"
+        "<!doctype html><html lang=en-GB><head><meta charset=utf-8>"
         '<meta name=viewport content="width=device-width,initial-scale=1">'
-        f"<title>Connect to Salli</title><style>{_STYLE}</style></head>"
-        f"<body>{body}</body></html>",
+        f"<title>{html.escape(title)}</title><style>{_STYLE}</style></head>"
+        f"<body><main><p class=brand>{_MARK}<span>Salli</span></p>{body}</main></body></html>",
         status_code=status_code,
         headers=_HEADERS,
     )
@@ -94,19 +144,46 @@ def _asking(client: str, audience: str, scope: str) -> str:
     )
 
 
-def _form(
-    rt: str, client: str, scope: str, dev: bool, error: str = "", audience: str = "mcp"
-) -> str:
+def _is_console(info: dict[str, Any]) -> bool:
+    return info.get("client_id") == CONSOLE_CLIENT_ID
+
+
+def _title(info: dict[str, Any]) -> str:
+    if info.get("reauthenticate"):
+        return "Confirm it's you"
+    if _is_console(info):
+        return "Sign in to Salli"
+    client = str(info.get("client_name") or "An application")
+    if info.get("audience", "mcp") == "api":
+        return f"Sign in to {client}?"
+    return f"Connect {client} to your Salli?"
+
+
+def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
+    """The sign-in form. Salli's console reads plainly as signing in to
+    Salli, with one button; a client asking the person to confirm it's them
+    again says so; any other client is allowed or denied by name."""
     e = html.escape
-    title = (
-        f"Sign in to {e(client)}?" if audience == "api" else f"Connect {e(client)} to your Salli?"
-    )
+    audience = info.get("audience", "mcp")
+    if info.get("reauthenticate"):
+        intro = "<p>Enter your password again to continue.</p>"
+    elif _is_console(info):
+        intro = ""
+    else:
+        intro = f"<p>{_asking(info['client_name'], audience, info.get('scope') or '')}</p>"
+    if info.get("reauthenticate") or _is_console(info):
+        label = "Continue" if info.get("reauthenticate") else "Sign in"
+        buttons = f"<div class=row><button name=decision value=allow>{label}</button></div>"
+    else:
+        buttons = (
+            "<div class=row><button name=decision value=allow>Allow</button>"
+            "<button name=decision value=deny formnovalidate>Deny</button></div>"
+        )
     return (
-        f"<h1>{title}</h1><p>{_asking(client, audience, scope)}</p>"
+        f"<h1>{e(_title(info))}</h1>{intro}"
         "<form method=post>"
         f'<input type=hidden name=rt value="{e(rt)}">{_who(dev)}'
-        "<div class=row><button name=decision value=allow>Allow</button>"
-        "<button name=decision value=deny formnovalidate>Deny</button></div>"
+        + buttons
         + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
         + "<p class=muted>Sign in with the account you use for Salli.</p></form>"
     )
@@ -151,15 +228,7 @@ async def consent_page(
         info = await svc.mcp_oauth.get_consent_info(rt, user_id="")
     except ConsentError as exc:
         return _page(f"<h1>Can't connect</h1><p>{html.escape(str(exc))}</p>", 400)
-    return _page(
-        _form(
-            rt,
-            info["client_name"],
-            info["scope"],
-            insecure_dev_auth(settings),
-            audience=info.get("audience", "mcp"),
-        )
-    )
+    return _page(_form(rt, info, insecure_dev_auth(settings)), title=_title(info))
 
 
 @router.post("/mcp/oauth/consent-page", response_class=HTMLResponse)
@@ -180,17 +249,7 @@ async def consent_page_decision(
     dev = insecure_dev_auth(settings)
 
     def again(refusal: _Refusal) -> HTMLResponse:
-        return _page(
-            _form(
-                rt,
-                info["client_name"],
-                info["scope"],
-                dev,
-                refusal.message,
-                audience=info.get("audience", "mcp"),
-            ),
-            refusal.status_code,
-        )
+        return _page(_form(rt, info, dev, refusal.message), refusal.status_code, title=_title(info))
 
     approve = decision == "allow"
     if approve:
@@ -208,13 +267,16 @@ async def consent_page_decision(
         caller = ""
 
     try:
+        # The password was checked just now: the sign-in records that.
         target = await svc.mcp_oauth.complete_consent(rt, caller, approve)
     except ConsentError as exc:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        return again(_Refusal(str(exc), status.HTTP_403_FORBIDDEN))
     return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
 
 
 # ── Device sign-in (RFC 8628) ───────────────────────────────────────────────
+
+_DEVICE_TITLE = "Sign in a device"
 
 
 def _device_form(user_code: str, dev: bool, error: str = "", client: str = "") -> str:
@@ -244,7 +306,9 @@ async def device_page(
 ):
     info = await svc.mcp_oauth.device_request(user_code) if user_code else None
     client = info["client_name"] if info else ""
-    return _page(_device_form(user_code, insecure_dev_auth(settings), client=client))
+    return _page(
+        _device_form(user_code, insecure_dev_auth(settings), client=client), title=_DEVICE_TITLE
+    )
 
 
 @router.post("/mcp/oauth/device", response_class=HTMLResponse)
@@ -262,13 +326,16 @@ async def device_page_decision(
     info = await svc.mcp_oauth.device_request(user_code)
     if info is None:
         return _page(
-            _device_form(user_code, dev, "That code is not valid, or it has expired."), 400
+            _device_form(user_code, dev, "That code is not valid, or it has expired."),
+            400,
+            title=_DEVICE_TITLE,
         )
 
     def again(refusal: _Refusal) -> HTMLResponse:
         return _page(
             _device_form(user_code, dev, refusal.message, client=info["client_name"]),
             refusal.status_code,
+            title=_DEVICE_TITLE,
         )
 
     approve = decision == "allow"
@@ -285,7 +352,8 @@ async def device_page_decision(
     except ConsentError as exc:
         return again(_Refusal(str(exc)))
     if not approve:
-        return _page("<h1>Declined</h1><p>The device was not signed in.</p>")
+        return _page("<h1>Declined</h1><p>The device was not signed in.</p>", title=_DEVICE_TITLE)
     return _page(
-        "<h1>Signed in</h1><p>You can close this page and go back to your other device.</p>"
+        "<h1>Signed in</h1><p>You can close this page and go back to your other device.</p>",
+        title=_DEVICE_TITLE,
     )

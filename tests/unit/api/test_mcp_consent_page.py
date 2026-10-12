@@ -96,3 +96,79 @@ async def test_a_non_member_cannot_approve(client, consent, mock_services):
     assert "not a member" in r.text
     mock_services.profile.ensure_user.assert_awaited_once_with("owner", None, may_create=False)
     consent.complete_consent.assert_not_awaited()
+
+
+# ── The brand, the console and the CSP (docs/design/console.md, section 2) ──
+
+
+def _style_of(page: str) -> str:
+    return page.split("<style>", 1)[1].split("</style>", 1)[0]
+
+
+async def test_the_page_s_only_style_is_allowed_by_its_hash_and_no_script_runs(client, consent):
+    import base64
+    import hashlib
+
+    r = await client.get(PAGE, params={"rt": "token"})
+    csp = r.headers["content-security-policy"]
+    digest = base64.b64encode(hashlib.sha256(_style_of(r.text).encode()).digest()).decode()
+    assert f"style-src 'sha256-{digest}'" in csp
+    assert "default-src 'none'" in csp and "frame-ancestors 'none'" in csp
+    assert "require-trusted-types-for 'script'; trusted-types 'none'" in csp
+    assert "unsafe-inline" not in csp and "script-src" not in csp
+    assert "<script" not in r.text and " style=" not in r.text
+    for name, value in (
+        ("x-content-type-options", "nosniff"),
+        ("referrer-policy", "no-referrer"),
+        ("cross-origin-opener-policy", "same-origin"),
+    ):
+        assert r.headers[name] == value
+
+
+async def test_the_page_is_in_the_brand(client, consent):
+    style = _style_of((await client.get(PAGE, params={"rt": "token"})).text)
+    for token in ("#F6F3EC", "#1C1B19", "#173B33", "#D8CBAE", "#0E1513", "#F2ECDF"):
+        assert token in style
+    # Not the colours it had before the brand, and no brass focus ring (2.4:1).
+    for old in ("#2E7D6B", "#fafaf7", "#B39A6B"):
+        assert old.lower() not in style.lower()
+    assert "@import" not in style and "url(" not in style  # no font request
+
+
+async def test_the_console_reads_as_signing_in_to_salli_with_one_button(client, consent):
+    consent.get_consent_info.return_value = {
+        "client_id": "salli-console",
+        "client_name": "Salli console",
+        "first_party": True,
+        "scope": "",
+        "audience": "api",
+        "reauthenticate": False,
+    }
+    r = await client.get(PAGE, params={"rt": "token"})
+    assert "<title>Sign in to Salli</title>" in r.text and "<h1>Sign in to Salli</h1>" in r.text
+    assert r.text.count("<button") == 1 and ">Sign in</button>" in r.text
+    assert "is asking" not in r.text
+
+
+async def test_a_client_asking_for_the_password_again_says_so(client, consent):
+    consent.get_consent_info.return_value = {
+        "client_id": "salli-console",
+        "client_name": "Salli console",
+        "scope": "",
+        "audience": "api",
+        "reauthenticate": True,
+    }
+    r = await client.get(PAGE, params={"rt": "token"})
+    assert "Confirm it&#x27;s you" in r.text or "Confirm it's you" in r.text
+    assert "Enter your password again to continue." in r.text
+    assert ">Continue</button>" in r.text
+
+
+async def test_a_refused_consent_is_shown_on_the_page(client, consent, mock_services):
+    consent.complete_consent.side_effect = ConsentError("The console is switched off.")
+    r = await client.post(
+        PAGE, data={"rt": "t", "decision": "allow", "email": "a@b.c", "password": "pw"}
+    )
+    assert r.status_code == 403
+    assert "The console is switched off." in r.text
+    assert r.headers["content-security-policy"].startswith("default-src 'none'")
