@@ -434,22 +434,27 @@ def _export_view(data: dict[str, Any]) -> dict[str, Any]:
 
 QuestionType = Literal[
     "amount",
+    "amount_or_zero",
     "signed_amount",
     "months",
     "years",
     "number",
     "rate",
+    "growth",
     "date",
     "choice",
     "debt",
     "account",
+    "recurring",
     "tax_role",
     "text",
     "amounts",
     "loans",
     "splits",
 ]
-DefaultSource = Literal["as_of", "next_month", "your_debts", "your_principles", "salli"]
+DefaultSource = Literal[
+    "as_of", "next_month", "your_debts", "your_principles", "salli", "placeholder"
+]
 
 
 class TemplateDefault(BaseModel):
@@ -458,7 +463,9 @@ class TemplateDefault(BaseModel):
     #: As the answer would be written.
     value: str | int
     #: "your_debts" and "your_principles" are your own data; "as_of" and
-    #: "next_month" are dates; "salli" a plain default of Salli's.
+    #: "next_month" are dates; "salli" a plain default of Salli's;
+    #: "placeholder" a labelled placeholder, not a forecast (rent-or-buy's
+    #: growths beyond inflation, 0).
     source: DefaultSource
     note: str
 
@@ -478,11 +485,14 @@ class TemplateWhen(BaseModel):
 
 class TemplateQuestion(BaseModel):
     id: str
-    #: amount (above zero, in your base currency), signed_amount, months and
-    #: years (whole numbers), number and rate (decimal strings; a rate is a
-    #: yearly fraction), date, choice, debt and account (your own, by id),
-    #: tax_role (an income or deduction role in your active tax rules, by
-    #: key), text, and the lists amounts, loans and splits.
+    #: amount (above zero, in your base currency), amount_or_zero (0 is an
+    #: answer), signed_amount, months and years (whole numbers), number,
+    #: rate and growth (decimal strings; a rate is a yearly fraction, a
+    #: growth a signed yearly fraction beyond inflation), date, choice, debt
+    #: and account (your own, by id), recurring (one of your recurring
+    #: payments out, by key), tax_role (an income or deduction role in your
+    #: active tax rules, by key), text, and the lists amounts, loans and
+    #: splits.
     type: QuestionType
     prompt: str
     help: str
@@ -553,7 +563,9 @@ class StartAnswer(BaseModel):
     id: str
     value: Any
     #: "given", or where its default came from.
-    source: Literal["given", "as_of", "next_month", "your_debts", "your_principles", "salli"]
+    source: Literal[
+        "given", "as_of", "next_month", "your_debts", "your_principles", "salli", "placeholder"
+    ]
     note: str | None
 
 
@@ -606,6 +618,34 @@ class CoverReading(BaseModel):
     says: str
 
 
+class LevelOption(BaseModel):
+    option: str
+    #: The first month-end from the purchase on from which the option's net
+    #: worth is at least the other's at every month-end to the horizon; null
+    #: when it is behind at the horizon.
+    month: str | None
+    #: Months from the purchase's month.
+    months: int | None
+    #: The option's net worth less the other's at that month's end, and at
+    #: the horizon, in today's money.
+    net_worth_then: Amount | None
+    net_worth_at_horizon: Amount
+
+
+class LevelReading(BaseModel):
+    """When each option draws level with one (rent or buy: each way of
+    buying against keeping renting), read from the monthly timelines; not
+    solved, and not a ranking."""
+
+    #: The option the others are read against.
+    against: str
+    #: The months read: from the purchase's to the horizon's.
+    from_: str = Field(alias="from")
+    to: str
+    options: list[LevelOption]
+    says: str
+
+
 class StartRecord(BaseModel):
     """What `POST /v1/decisions` needs besides the person's own: their
     choice (one of `labels`), their reasons and a review date."""
@@ -636,6 +676,11 @@ class DecisionStart(BaseModel):
     principles: StartPrinciples
     #: For a template with a cash target (the emergency fund).
     cover: CoverReading | None
+    #: For rent or buy: when each way of buying draws level with renting.
+    level: LevelReading | None
+    #: What any option's figures rest on: FI's assumptions, inflation, tax,
+    #: an asset's growth ("asset_growth"), and a template's own placeholder
+    #: answers ("rent_growth").
     placeholders: list[str]
     data_as_of: Day | None
     #: Older than 45 days: bring the ledger up to date before deciding.

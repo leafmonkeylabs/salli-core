@@ -826,14 +826,18 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     @mcp.tool()
     async def list_decision_templates() -> dict[str, Any]:
         """Salli's decision templates: common decisions (afford-it, debt-or-invest,
-        windfall, big-change, borrow, emergency-fund) as a few typed questions
-        and the options their answers build. Each question says its type,
-        whether it is needed, and its default where there is an honest one
-        (from the user's own debts, cash accounts and principles, or the
-        date); answers_schema is the answers' JSON Schema. Conveniences, not
-        advice: ask the person the questions, in your own words, and start
-        one with start_decision. Never fill in an answer they haven't given
-        that has no default (a price, a rate, a target): ask."""
+        windfall, big-change, borrow, emergency-fund, rent-or-buy) as a few
+        typed questions and the options their answers build. Each question
+        says its type, whether it is needed, and its default where there is
+        an honest one (from the user's own debts, cash accounts and
+        principles, or the date); answers_schema is the answers' JSON Schema.
+        Conveniences, not advice: ask the person the questions, in your own
+        words, and start one with start_decision. Never fill in an answer
+        they haven't given that has no default (a price, a rate, a target):
+        ask. Rent-or-buy's growths beyond inflation (rent_growth,
+        home_growth) default to 0 as a labelled placeholder (source
+        "placeholder"), not a forecast: ask for the person's own view, and
+        never supply one."""
         return await template_svc.every(_current_user_id())
 
     @mcp.tool()
@@ -849,8 +853,12 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         options and runs every one on their baseline: the comparison (each
         option's figures, what each gains and gives up against the others,
         sensitivity to the real return, break-evens with a sentence each),
-        which of their principles each keeps or breaks, and for an emergency
-        fund the month cash covers the target. Quote it; never compute. It
+        which of their principles each keeps or breaks, for an emergency
+        fund the month cash covers the target, and for rent-or-buy the month
+        each way of buying draws level with renting (level) and the
+        house-price growth at which the answer turns (the asset_growth
+        break-even). Quote it, with the assumptions it rests on (notes,
+        placeholders); never compute. It
         ranks nothing, and neither do you. It stores nothing: when they have
         chosen and want it recorded, call record_decision with
         record.question (in their words if they change it), record.options,

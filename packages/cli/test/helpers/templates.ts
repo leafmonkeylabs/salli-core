@@ -1756,6 +1756,7 @@ export const AFFORD_IT_START: DecisionStart = {
     ]
   },
   "cover": null,
+  "level": null,
   "placeholders": [
     "real_return",
     "safe_withdrawal_rate",
@@ -3729,6 +3730,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
     ],
     "says": "The first month at whose end cash, in today's money, covers the target; null when it doesn't within 50 years. Cash covers `now` months today."
   },
+  "level": null,
   "placeholders": [
     "real_return",
     "safe_withdrawal_rate",

@@ -19287,6 +19287,16 @@
               }
             ]
           },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LevelReading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "placeholders": {
             "items": {
               "type": "string"
@@ -19337,6 +19347,7 @@
           "comparison",
           "principles",
           "cover",
+          "level",
           "placeholders",
           "data_as_of",
           "is_stale",
@@ -24322,6 +24333,107 @@
           "result"
         ],
         "title": "LatestTaxComputation"
+      },
+      "LevelOption": {
+        "properties": {
+          "option": {
+            "type": "string",
+            "title": "Option"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months"
+          },
+          "net_worth_then": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Worth Then"
+          },
+          "net_worth_at_horizon": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net Worth At Horizon",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "option",
+          "month",
+          "months",
+          "net_worth_then",
+          "net_worth_at_horizon"
+        ],
+        "title": "LevelOption"
+      },
+      "LevelReading": {
+        "properties": {
+          "against": {
+            "type": "string",
+            "title": "Against"
+          },
+          "from": {
+            "type": "string",
+            "title": "From"
+          },
+          "to": {
+            "type": "string",
+            "title": "To"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/LevelOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "against",
+          "from",
+          "to",
+          "options",
+          "says"
+        ],
+        "title": "LevelReading",
+        "description": "When each option draws level with one (rent or buy: each way of\nbuying against keeping renting), read from the monthly timelines; not\nsolved, and not a ranking."
       },
       "LlmKeyStatus": {
         "properties": {
@@ -31045,7 +31157,8 @@
               "next_month",
               "your_debts",
               "your_principles",
-              "salli"
+              "salli",
+              "placeholder"
             ],
             "title": "Source"
           },
@@ -34749,7 +34862,8 @@
               "next_month",
               "your_debts",
               "your_principles",
-              "salli"
+              "salli",
+              "placeholder"
             ],
             "title": "Source"
           },
@@ -34777,15 +34891,18 @@
             "type": "string",
             "enum": [
               "amount",
+              "amount_or_zero",
               "signed_amount",
               "months",
               "years",
               "number",
               "rate",
+              "growth",
               "date",
               "choice",
               "debt",
               "account",
+              "recurring",
               "tax_role",
               "text",
               "amounts",
