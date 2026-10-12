@@ -54,6 +54,7 @@ from salli.application.services.tax_rule_service import TaxRuleError
 from salli.domain.agents.tools import computation_for_agent
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
+from salli.domain.decisions.templates import TemplateError, UnknownTemplate
 from salli.domain.scenarios import schema as scenario_schema
 from salli.domain.scenarios.engine import ScenarioError
 
@@ -184,6 +185,25 @@ def _window(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
 
 
+#: What an agent keeps to whenever it helps someone decide (the
+#: think_through_decision and can_i_afford prompts; docs/ai-clients.md).
+#: tests/unit/api/test_mcp_templates.py holds them to it.
+GUARDRAILS = (
+    "Keep to these throughout. "
+    "Never compute: every figure comes from Salli's tools, quoted with its currency; never "
+    "add, subtract, divide, project or estimate anything yourself, not even roughly. "
+    "Never name a specific product, provider, fund or security: speak of kinds of thing. "
+    "Where a choice is regulated financial advice where I live (insurance, pensions, "
+    "choosing investments), say so and suggest a licensed professional there; don't assume "
+    "any country's rules, and ask where I live if it matters. "
+    "Respect my principles: say which each option keeps or breaks, never set one aside. "
+    "Never rank the options or call one best, recommended or right: Salli doesn't, and "
+    "neither do you. "
+    "Never record a decision I haven't confirmed: record_decision only after I have seen "
+    "what will be recorded and said yes, with my reasons in my own words."
+)
+
+
 def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     ledger_svc = services.ledger
     tax_svc = services.tax
@@ -204,6 +224,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     scenario_svc = services.scenarios
     principle_svc = services.principles
     decision_svc = services.decisions
+    template_svc = services.templates
     tax_rules_svc = services.tax_rules
 
     mcp = FastMCP(
@@ -224,9 +245,14 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "get_baseline shows it with the definitions behind it (months averaged, "
             "exchange rates and their source, account roles, assumptions). "
             "For a decision (can I afford it, cash or instalments, pay down a debt or "
-            "invest, a new flat or job), build the options as scenarios "
+            "invest, a new flat or job), start from a template where one fits "
+            "(list_decision_templates, start_decision), or build the options as scenarios "
             "(get_scenario_schema) and let Salli run and compare them (run_scenario, "
-            "compare_options): never subtract, add or project anything yourself. Salli "
+            "compare_options): never subtract, add or project anything yourself; the "
+            "think_through_decision prompt walks through it. Never name specific products, "
+            "providers or securities, and where a choice is regulated advice where the user "
+            "lives (insurance, pensions, choosing investments), suggest a licensed "
+            "professional there. Salli "
             "doesn't rank options: lay out the trade, the sensitivity and the "
             "break-evens, and leave the choice to the user. The user's principles "
             "(list_principles) are their own rules of thumb: check_principles says which "
@@ -778,6 +804,46 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         flow's key from get_recurring_payments. Build every option of a
         decision with it, never estimate one yourself."""
         return scenario_schema.json_schema()
+
+    @mcp.tool()
+    async def list_decision_templates() -> dict[str, Any]:
+        """Salli's decision templates: common decisions (afford-it, debt-or-invest,
+        windfall, big-change, borrow, emergency-fund) as a few typed questions
+        and the options their answers build. Each question says its type,
+        whether it is needed, and its default where there is an honest one
+        (from the user's own debts, cash accounts and principles, or the
+        date); answers_schema is the answers' JSON Schema. Conveniences, not
+        advice: ask the person the questions, in your own words, and start
+        one with start_decision. Never fill in an answer they haven't given
+        that has no default (a price, a rate, a target): ask."""
+        return await template_svc.every(_current_user_id())
+
+    @mcp.tool()
+    async def start_decision(
+        template: str, answers: dict[str, Any] | None = None, as_of: str | None = None
+    ) -> dict[str, Any]:
+        """Start a decision from a template (list_decision_templates) with the
+        person's answers, by question id (amounts and rates as decimal
+        strings, months as whole numbers, dates YYYY-MM-DD). Salli builds the
+        options and runs every one on their baseline: the comparison (each
+        option's figures, what each gains and gives up against the others,
+        sensitivity to the real return, break-evens with a sentence each),
+        which of their principles each keeps or breaks, and for an emergency
+        fund the month cash covers the target. Quote it; never compute. It
+        ranks nothing, and neither do you. It stores nothing: when they have
+        chosen and want it recorded, call record_decision with
+        record.question (in their words if they change it), record.options,
+        the label they chose, their reasons in their words and a review date,
+        once they confirm. A problem comes back with its path
+        (answers.price), to fix and start again."""
+        try:
+            return await template_svc.start(
+                _current_user_id(), {"template": template, "answers": answers, "as_of": as_of}
+            )
+        except (TemplateError, ScenarioError) as exc:
+            return _refusal(exc)
+        except (UnknownTemplate, AccountNotFound, DebtNotFound) as exc:
+            return {"error": str(exc)}
 
     @mcp.tool()
     async def run_scenario(scenario: ScenarioDocument) -> dict[str, Any]:
@@ -1371,33 +1437,64 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
 
     @mcp.prompt()
+    def think_through_decision(question: str) -> str:
+        """Think a money decision through with the person: their options built
+        and run by Salli, compared, checked against their principles, the
+        trade-offs explained, and the choice left to them."""
+        return (
+            f"Help me think this decision through with Salli: {question}\n"
+            "1. Ask what I am weighing and what matters to me in it (a buffer, owing "
+            "nothing, getting there sooner, something else). Read my principles "
+            "(list_principles); if what I say matters isn't among them, you may suggest one, "
+            "and add it only once I say yes to its exact wording. "
+            "2. Build the options with Salli, never by hand: pick a template that fits "
+            "(list_decision_templates) and ask me its questions in plain words, using the "
+            "defaults it offers and asking for anything without one; or, if none fits, write "
+            "each option as a scenario (get_scenario_schema). "
+            "3. Compare them, with the sensitivity, and check my principles: start_decision "
+            "does all three for a template; otherwise compare_options and check_principles. "
+            "If is_stale is true, ask me to bring my ledger up to date first. "
+            "4. Explain the trade-offs in plain language, quoting Salli's figures: what each "
+            "option gains and gives up, and which of my principles each keeps or breaks. Name "
+            "the assumptions behind the figures, and say plainly which are placeholders "
+            "(placeholders, assumptions.status), offering to set my own. "
+            "5. Say what would change the answer: quote each break-even's sentence (says), and "
+            "how the lead moves between the conservative and growth returns. "
+            "6. Leave the choice to me. If I want it recorded, show me what will be recorded "
+            "(the question, the options, the one I chose, my reasons in my words, a review "
+            "date) and call record_decision with confirmed_by_user only after I say yes; "
+            "start_decision's record has what it needs. " + GUARDRAILS
+        )
+
+    @mcp.prompt()
     def can_i_afford(amount: str, when: str = "", what: str = "") -> str:
-        """Whether a purchase fits, built as scenarios Salli runs and compares:
-        paying cash against instalments, on the user's own baseline."""
+        """Whether a purchase fits, from the afford-it template: paying cash,
+        spreading it, or waiting and saving, run and compared by Salli on the
+        user's own baseline."""
         thing = f" for {what}" if what else ""
         day = f"on {when}" if when else "today"
-        label = what or "the purchase"
+        answers = f'price "{amount}"' + (f', what "{what}"' if what else "")
+        answers += f", date {when}" if when else ""
         return (
-            f"Can I afford {amount}{thing}, {day}? Answer with Salli's figures only. Never "
-            "subtract, add, divide or project anything yourself, not even roughly. "
+            f"Can I afford {amount}{thing}, {day}? Answer with Salli's figures only. "
             "1. Call get_safe_to_spend: what could go out today before money next comes in. "
-            "2. Ask whether paying in instalments is an option, and if so over how many "
-            "months and at what yearly rate. "
-            "3. Build the purchase as scenarios (get_scenario_schema): an option labelled "
-            f'"Pay cash", a one_off of the price as a negative amount {day}, labelled '
-            f'"{label}"; and, if instalments are an option, one labelled "Instalments": the '
-            "same one_off plus a loan of the price at that rate over that term, starting "
-            "the same day. Amounts are decimal strings in my base currency. "
-            "4. Call compare_options with both, or run_scenario with the cash option alone. "
-            "5. Tell me, quoting Salli: my lowest cash in the next twelve months and when, "
-            "against my baseline, and whether any account goes below zero; safe-to-spend; "
-            "the emergency-fund months at the low point; the interest the instalments cost; "
-            "and the FI month with the months gained or lost. Quote the trade between the "
-            "options and the loan-rate break-even (it is in break_evens). If is_stale is "
-            "true, say my ledger's newest entry is from data_as_of and ask me to bring it "
-            "up to date before you answer. Name the assumptions that are placeholders. "
-            "Don't tell me which to choose: say the trade-off in one sentence, and what "
-            "would change it."
+            "2. Ask me how else I could pay: spread it (over how many months, at what yearly "
+            "rate the lender would charge me), wait (for how many months, and how much I'd "
+            "set aside each month meanwhile), or both. Don't assume a rate or an amount: ask. "
+            "3. Call start_decision with the afford-it template and my answers "
+            f"({answers}, and what I told you: instalment_months and instalment_rate, "
+            "wait_months and save_monthly). Amounts and rates are decimal strings: a rate is "
+            'a yearly fraction, "0.069" for 6.9%. '
+            "4. Tell me, quoting Salli: for each option, my lowest cash in the next twelve "
+            "months and when, against my baseline, and whether any account goes below zero; "
+            "the emergency-fund months at the low point; the interest spreading it costs; the "
+            "FI month with the months gained or lost; and which of my principles each keeps "
+            "or breaks. Quote the trade between the options and the break-evens' sentences. "
+            "If is_stale is true, say my ledger's newest entry is from data_as_of and ask me "
+            "to bring it up to date before you answer. Name the assumptions that are "
+            "placeholders. "
+            "5. Say the trade-off in a sentence, and what would change it; leave the choice "
+            "to me. " + GUARDRAILS
         )
 
     @mcp.prompt()
@@ -1489,6 +1586,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_safe_to_spend,
         get_signals,
         get_scenario_schema,
+        list_decision_templates,
+        start_decision,
         run_scenario,
         compare_options,
         list_principles,
@@ -1523,5 +1622,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         review_my_month,
         sort_pending_transactions,
         can_i_afford,
+        think_through_decision,
     )
     return mcp

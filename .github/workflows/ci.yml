@@ -71,6 +71,7 @@ jobs:
           src/salli/domain/decisions src/salli/adapters/db/decisions.py
           src/salli/application/services/principle_service.py
           src/salli/application/services/decision_service.py
+          src/salli/application/services/template_service.py
           src/salli/interfaces/api/routers/principles.py src/salli/interfaces/api/routers/decisions.py
           src/salli/domain/debt src/salli/application/services/debt_service.py
           src/salli/domain/portfolio/lots.py src/salli/domain/portfolio/valuation.py

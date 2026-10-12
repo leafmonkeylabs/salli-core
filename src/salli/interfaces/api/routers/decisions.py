@@ -19,6 +19,15 @@ each with what the chosen option projected against what happened, and
 `POST /v1/decisions/{id}/review` appends the person's reflection with that
 comparison. The journal exports as JSON (every document and hash) or
 Markdown.
+
+Templates (`salli.template/1`, docs/templates.md) are common decisions as a
+few typed questions: `GET /v1/decisions/templates` lists them, `GET
+/v1/decisions/templates/{id}` gives one's questions (each default as it
+stands for the caller) and the answers' JSON Schema, and `POST
+/v1/decisions/start` builds the options from the answers and runs them:
+the comparison, the principles' checks and what recording needs. It
+records nothing, and ranks nothing. Answers Salli can't use are a 422
+whose `detail` lists each problem with its path (`answers.price`).
 """
 
 from __future__ import annotations
@@ -32,14 +41,17 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, WithJsonSchema
 
 from salli.domain.decisions.journal import MAX_QUESTION, MAX_TEXT
 from salli.domain.scenarios.schema import Scenario
+from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalOut
 from salli.interfaces.api.deps import AppServices, CurrentUser
 from salli.interfaces.api.routers.fi import FiAssumptions
 from salli.interfaces.api.routers.principles import (
+    CheckedFigures,
+    CheckedOption,
     FigureValue,
     PrincipleCheckResult,
     PrincipleRef,
 )
-from salli.interfaces.api.routers.scenarios import ScenarioVersions
+from salli.interfaces.api.routers.scenarios import ScenarioComparison, ScenarioVersions
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 
@@ -418,7 +430,245 @@ def _export_view(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ── Templates and starting a decision ────────────────────────────────────────
+
+QuestionType = Literal[
+    "amount",
+    "signed_amount",
+    "months",
+    "years",
+    "number",
+    "rate",
+    "date",
+    "choice",
+    "debt",
+    "account",
+    "text",
+    "amounts",
+    "loans",
+    "splits",
+]
+DefaultSource = Literal["as_of", "next_month", "your_debts", "your_principles", "salli"]
+
+
+class TemplateDefault(BaseModel):
+    """What an answer is when it isn't given, and where that comes from."""
+
+    #: As the answer would be written.
+    value: str | int
+    #: "your_debts" and "your_principles" are your own data; "as_of" and
+    #: "next_month" are dates; "salli" a plain default of Salli's.
+    source: DefaultSource
+    note: str
+
+
+class TemplateChoice(BaseModel):
+    value: str
+    label: str
+
+
+class TemplateWhen(BaseModel):
+    """A question asked only when another is answered (`equals` null), or
+    answered so."""
+
+    question: str
+    equals: str | None
+
+
+class TemplateQuestion(BaseModel):
+    id: str
+    #: amount (above zero, in your base currency), signed_amount, months and
+    #: years (whole numbers), number and rate (decimal strings; a rate is a
+    #: yearly fraction), date, choice, debt and account (your own, by id),
+    #: text, and the lists amounts, loans and splits.
+    type: QuestionType
+    prompt: str
+    help: str
+    #: Whether it must be answered when it has no default.
+    required: bool
+    when: TemplateWhen | None
+    #: Your default, from your own data or the date; null when none applies
+    #: yet (`default_rule` says when one would).
+    default: TemplateDefault | None
+    default_rule: str | None
+    choices: list[TemplateChoice]
+    minimum: int | None
+    maximum: int | None
+    min_items: int | None
+    max_items: int | None
+
+
+class DecisionTemplateSummary(BaseModel):
+    """A common decision, packaged: a convenience, not advice."""
+
+    schema_: Literal["salli.template/1"] = Field(alias="schema")
+    id: str
+    title: str
+    summary: str
+    #: The options it builds.
+    builds: list[str]
+
+
+class DecisionTemplateList(BaseModel):
+    templates: list[DecisionTemplateSummary]
+
+
+class DecisionTemplate(DecisionTemplateSummary):
+    """A template's questions, each with its default as it stands for you,
+    and the answers' JSON Schema."""
+
+    questions: list[TemplateQuestion]
+    #: JSON Schema (Draft 2020-12) of the answers object.
+    answers_schema: dict[str, Any]
+    notes: list[str]
+
+
+class DecisionStartIn(BaseModel):
+    """A template, and the answers to its questions (by id)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    template: Annotated[str, Field(min_length=1, max_length=64)]
+    #: By question id: amounts and rates as decimal strings, months and
+    #: years as whole numbers, dates YYYY-MM-DD.
+    answers: dict[str, Any] = Field(default_factory=dict[str, Any])
+    #: The day your baseline is as of: today when left out, never after today.
+    as_of: dt.date | None = None
+
+
+class StartTemplate(BaseModel):
+    id: str
+    title: str
+
+
+class StartAnswer(BaseModel):
+    id: str
+    value: Any
+    #: "given", or where its default came from.
+    source: Literal["given", "as_of", "next_month", "your_debts", "your_principles", "salli"]
+    note: str | None
+
+
+class StartOption(BaseModel):
+    label: str
+    #: What the option is, in a sentence.
+    describes: str
+    #: The scenario Salli ran, its as-of date filled in.
+    scenario: Scenario
+    scenario_hash: str
+
+
+class StartPrinciples(BaseModel):
+    """Your principles against the baseline and each option. Not a ranking."""
+
+    principles: list[PrincipleRef]
+    baseline: CheckedFigures
+    options: list[CheckedOption]
+
+
+class CoverMonth(BaseModel):
+    #: The first month at whose end cash covers the target; null when not
+    #: within 50 years.
+    month: str | None
+    #: Months from the as-of month (0: already).
+    months: int | None
+
+
+class CoverOption(CoverMonth):
+    option: str
+    #: Months later (positive) or sooner than the baseline's.
+    delta_months: int | None
+
+
+class CoverReading(BaseModel):
+    """When cash, in today's money, covers a number of months of spending:
+    read from the monthly timeline under the baseline and each option."""
+
+    target_months: DecimalOut
+    #: "essential" when your spending carries need tags, "all" otherwise;
+    #: null without spending to count.
+    basis: Literal["essential", "all"] | None
+    monthly_spending: Amount | None
+    #: The target in cash, in today's money.
+    target: Amount | None
+    #: Months of spending your cash covers on the as-of date.
+    now: DecimalOut | None
+    baseline: CoverMonth
+    options: list[CoverOption]
+    says: str
+
+
+class StartRecord(BaseModel):
+    """What `POST /v1/decisions` needs besides the person's own: their
+    choice (one of `labels`), their reasons and a review date."""
+
+    #: A suggestion: the question is the person's to put in their words.
+    question: str
+    #: Each option as run, its as-of date filled in.
+    options: list[Scenario]
+    labels: list[str]
+    #: The first day the review may be set for.
+    earliest_review: Day
+
+
+class DecisionStart(BaseModel):
+    """A template's options compared on your baseline and checked against
+    your principles. Never ranked; nothing is stored."""
+
+    schema_: Literal["salli.decision-start/1"] = Field(alias="schema")
+    template: StartTemplate
+    as_of: Day
+    currency: CurrencyCode
+    horizon_years: int
+    question: str
+    #: The answers as used, defaults filled in, each with its source.
+    answers: list[StartAnswer]
+    options: list[StartOption]
+    comparison: ScenarioComparison
+    principles: StartPrinciples
+    #: For a template with a cash target (the emergency fund).
+    cover: CoverReading | None
+    placeholders: list[str]
+    data_as_of: Day | None
+    #: Older than 45 days: bring the ledger up to date before deciding.
+    is_stale: bool
+    notes: list[str]
+    record: StartRecord
+    says: str
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
+
+_NO_TEMPLATE = {404: {"description": "No template has this id"}}
+
+
+@router.get("/templates")
+async def list_decision_templates(svc: AppServices) -> DecisionTemplateList:
+    """The decision templates: common decisions as a few questions and the
+    options they build. Conveniences, not advice."""
+    return DecisionTemplateList.model_validate(svc.templates.list())
+
+
+@router.get("/templates/{template_id}", responses=_NO_TEMPLATE)  # type: ignore[arg-type]
+async def get_decision_template(
+    template_id: str, user_id: CurrentUser, svc: AppServices
+) -> DecisionTemplate:
+    """A template's questions, each default as it stands for you (from your
+    debts, cash accounts and principles, or the date), and the answers'
+    JSON Schema."""
+    return DecisionTemplate.model_validate(await svc.templates.get(user_id, template_id))
+
+
+@router.post("/start", responses={**_NOT_FOUND, **_NO_TEMPLATE})  # type: ignore[arg-type]
+async def start_decision(
+    body: DecisionStartIn, user_id: CurrentUser, svc: AppServices
+) -> DecisionStart:
+    """Start a decision from a template: the options your answers build,
+    compared on your baseline (the trade, sensitivity and break-evens),
+    checked against your principles, and what recording needs. Never a
+    ranking. Stores nothing: record with `POST /v1/decisions` once you
+    have chosen."""
+    return DecisionStart.model_validate(await svc.templates.start(user_id, body.model_dump()))
 
 
 @router.get("")

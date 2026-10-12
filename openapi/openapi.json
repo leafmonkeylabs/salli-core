@@ -11967,6 +11967,159 @@
         }
       }
     },
+    "/v1/decisions/templates": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "List Decision Templates",
+        "description": "The decision templates: common decisions as a few questions and the\noptions they build. Conveniences, not advice.",
+        "operationId": "decisions.templates.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionTemplateList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions/templates/{template_id}": {
+      "get": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Get Decision Template",
+        "description": "A template's questions, each default as it stands for you (from your\ndebts, cash accounts and principles, or the date), and the answers'\nJSON Schema.",
+        "operationId": "decisions.templates.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No template has this id"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/decisions/start": {
+      "post": {
+        "tags": [
+          "decisions"
+        ],
+        "summary": "Start Decision",
+        "description": "Start a decision from a template: the options your answers build,\ncompared on your baseline (the trade, sensitivity and break-evens),\nchecked against your principles, and what recording needs. Never a\nranking. Stores nothing: record with `POST /v1/decisions` once you\nhave chosen.",
+        "operationId": "decisions.start",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionStartIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionStart"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No template has this id"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/decisions": {
       "get": {
         "tags": [
@@ -17069,6 +17222,190 @@
         "title": "ConsentInfo",
         "description": "What the consent page shows the person before they decide."
       },
+      "CoverMonth": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "months"
+        ],
+        "title": "CoverMonth"
+      },
+      "CoverOption": {
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months"
+          },
+          "option": {
+            "type": "string",
+            "title": "Option"
+          },
+          "delta_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Months"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "months",
+          "option",
+          "delta_months"
+        ],
+        "title": "CoverOption"
+      },
+      "CoverReading": {
+        "properties": {
+          "target_months": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Target Months",
+            "description": "Decimal string, exact; never a float.",
+            "examples": [
+              "10.5"
+            ]
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "essential",
+                  "all"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "monthly_spending": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Spending"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "now": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, exact; never a float.",
+                "examples": [
+                  "10.5"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Now"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/CoverMonth"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/CoverOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_months",
+          "basis",
+          "monthly_spending",
+          "target",
+          "now",
+          "baseline",
+          "options",
+          "says"
+        ],
+        "title": "CoverReading",
+        "description": "When cash, in today's money, covers a number of months of spending:\nread from the monthly timeline under the baseline and each option."
+      },
       "CoverageGapLine": {
         "properties": {
           "policy_type": {
@@ -18540,6 +18877,161 @@
         "title": "DecisionReviewDocument",
         "description": "`salli.decision-review/1`: a review appended to an entry."
       },
+      "DecisionStart": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.decision-start/1",
+            "title": "Schema"
+          },
+          "template": {
+            "$ref": "#/components/schemas/StartTemplate"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "horizon_years": {
+            "type": "integer",
+            "title": "Horizon Years"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/StartAnswer"
+            },
+            "type": "array",
+            "title": "Answers"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/StartOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/ScenarioComparison"
+          },
+          "principles": {
+            "$ref": "#/components/schemas/StartPrinciples"
+          },
+          "cover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverReading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "placeholders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "is_stale": {
+            "type": "boolean",
+            "title": "Is Stale"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "record": {
+            "$ref": "#/components/schemas/StartRecord"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "template",
+          "as_of",
+          "currency",
+          "horizon_years",
+          "question",
+          "answers",
+          "options",
+          "comparison",
+          "principles",
+          "cover",
+          "placeholders",
+          "data_as_of",
+          "is_stale",
+          "notes",
+          "record",
+          "says"
+        ],
+        "title": "DecisionStart",
+        "description": "A template's options compared on your baseline and checked against\nyour principles. Never ranked; nothing is stored."
+      },
+      "DecisionStartIn": {
+        "properties": {
+          "template": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Template"
+          },
+          "answers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Answers"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "template"
+        ],
+        "title": "DecisionStartIn",
+        "description": "A template, and the answers to its questions (by id)."
+      },
       "DecisionSummary": {
         "properties": {
           "id": {
@@ -18619,6 +19111,120 @@
           "status"
         ],
         "title": "DecisionSummary"
+      },
+      "DecisionTemplate": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.template/1",
+            "title": "Schema"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "builds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Builds"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "answers_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Answers Schema"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "title",
+          "summary",
+          "builds",
+          "questions",
+          "answers_schema",
+          "notes"
+        ],
+        "title": "DecisionTemplate",
+        "description": "A template's questions, each with its default as it stands for you,\nand the answers' JSON Schema."
+      },
+      "DecisionTemplateList": {
+        "properties": {
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionTemplateSummary"
+            },
+            "type": "array",
+            "title": "Templates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "templates"
+        ],
+        "title": "DecisionTemplateList"
+      },
+      "DecisionTemplateSummary": {
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "salli.template/1",
+            "title": "Schema"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "builds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Builds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "title",
+          "summary",
+          "builds"
+        ],
+        "title": "DecisionTemplateSummary",
+        "description": "A common decision, packaged: a convenience, not advice."
       },
       "DeclaredEntries": {
         "properties": {
@@ -29135,6 +29741,157 @@
         ],
         "title": "SpendingLine"
       },
+      "StartAnswer": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "given",
+              "as_of",
+              "next_month",
+              "your_debts",
+              "your_principles",
+              "salli"
+            ],
+            "title": "Source"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "value",
+          "source",
+          "note"
+        ],
+        "title": "StartAnswer"
+      },
+      "StartOption": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "describes": {
+            "type": "string",
+            "title": "Describes"
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/Scenario"
+          },
+          "scenario_hash": {
+            "type": "string",
+            "title": "Scenario Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "describes",
+          "scenario",
+          "scenario_hash"
+        ],
+        "title": "StartOption"
+      },
+      "StartPrinciples": {
+        "properties": {
+          "principles": {
+            "items": {
+              "$ref": "#/components/schemas/PrincipleRef"
+            },
+            "type": "array",
+            "title": "Principles"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/CheckedFigures"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/CheckedOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "principles",
+          "baseline",
+          "options"
+        ],
+        "title": "StartPrinciples",
+        "description": "Your principles against the baseline and each option. Not a ranking."
+      },
+      "StartRecord": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "earliest_review": {
+            "type": "string",
+            "title": "Earliest Review"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "options",
+          "labels",
+          "earliest_review"
+        ],
+        "title": "StartRecord",
+        "description": "What `POST /v1/decisions` needs besides the person's own: their\nchoice (one of `labels`), their reasons and a review date."
+      },
+      "StartTemplate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "StartTemplate"
+      },
       "StatementTransaction": {
         "properties": {
           "id": {
@@ -32666,6 +33423,227 @@
         ],
         "title": "TaxYearStatus",
         "description": "The tax year the user is in today, and the one a computation uses when\nno year is named."
+      },
+      "TemplateChoice": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "TemplateChoice"
+      },
+      "TemplateDefault": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Value"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "as_of",
+              "next_month",
+              "your_debts",
+              "your_principles",
+              "salli"
+            ],
+            "title": "Source"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "source",
+          "note"
+        ],
+        "title": "TemplateDefault",
+        "description": "What an answer is when it isn't given, and where that comes from."
+      },
+      "TemplateQuestion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "amount",
+              "signed_amount",
+              "months",
+              "years",
+              "number",
+              "rate",
+              "date",
+              "choice",
+              "debt",
+              "account",
+              "text",
+              "amounts",
+              "loans",
+              "splits"
+            ],
+            "title": "Type"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "help": {
+            "type": "string",
+            "title": "Help"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateWhen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateDefault"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Rule"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateChoice"
+            },
+            "type": "array",
+            "title": "Choices"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "min_items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Items"
+          },
+          "max_items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "prompt",
+          "help",
+          "required",
+          "when",
+          "default",
+          "default_rule",
+          "choices",
+          "minimum",
+          "maximum",
+          "min_items",
+          "max_items"
+        ],
+        "title": "TemplateQuestion"
+      },
+      "TemplateWhen": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "equals": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "equals"
+        ],
+        "title": "TemplateWhen",
+        "description": "A question asked only when another is answered (`equals` null), or\nanswered so."
       },
       "TokenGrant": {
         "properties": {
