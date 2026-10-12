@@ -39,11 +39,11 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/healthz"): "meta.health",
     ("GET", "/meta"): "meta.get",
     ("GET", "/auth/me"): "auth.me",
-    # signing in with a password, sessions, the password itself
+    # signing in with a password, every way in, the password itself
     ("POST", "/auth/sessions"): "auth.sessions.create",
-    ("GET", "/auth/sessions"): "auth.sessions.list",
     ("DELETE", "/auth/sessions/current"): "auth.sessions.signOut",
-    ("DELETE", "/auth/sessions/{session_id}"): "auth.sessions.revoke",
+    ("GET", "/auth/sign-ins"): "auth.signIns.list",
+    ("DELETE", "/auth/sign-ins/{sign_in_id}"): "auth.signIns.revoke",
     ("POST", "/auth/password"): "auth.password.change",
     # accounts
     ("GET", "/accounts/"): "accounts.list",

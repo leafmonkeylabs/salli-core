@@ -92,9 +92,9 @@ async def test_a_session_signs_in_holds_tax_activate_and_signs_out(salli):
     me = (await _me(salli, started["token"])).json()
     assert (me["email"], me["method"], me["permissions"]) == (OWNER, "session", ["tax:activate"])
 
-    listed = (await salli.get("/v1/auth/sessions", headers=_bearer(started["token"]))).json()
-    assert [(s["id"], s["current"], s["user_agent"]) for s in listed] == [
-        (started["id"], True, "test-suite")
+    listed = (await salli.get("/v1/auth/sign-ins", headers=_bearer(started["token"]))).json()
+    assert [(s["id"], s["kind"], s["current"], s["user_agent"]) for s in listed] == [
+        (started["id"], "session", True, "test-suite")
     ]
 
     out = await salli.delete("/v1/auth/sessions/current", headers=_bearer(started["token"]))
@@ -154,10 +154,10 @@ async def test_changing_the_password_ends_the_other_sessions_only(salli):
 async def test_one_user_cannot_end_another_s_session(salli):
     owners = (await _sign_in(salli)).json()
     members = (await _sign_in(salli, MEMBER, MEMBER_PASSWORD)).json()
-    r = await salli.delete(f"/v1/auth/sessions/{owners['id']}", headers=_bearer(members["token"]))
+    r = await salli.delete(f"/v1/auth/sign-ins/{owners['id']}", headers=_bearer(members["token"]))
     assert r.status_code == 404
     assert (await _me(salli, owners["token"])).status_code == 200
-    mine = (await salli.get("/v1/auth/sessions", headers=_bearer(members["token"]))).json()
+    mine = (await salli.get("/v1/auth/sign-ins", headers=_bearer(members["token"]))).json()
     assert [s["id"] for s in mine] == [members["id"]]
 
 
