@@ -2137,6 +2137,7 @@ def _holding_to_dict(r: HoldingORM) -> dict[str, Any]:
         "cost_basis_minor": r.cost_basis_minor,
         "current_value_minor": r.current_value_minor,
         "is_active": r.is_active,
+        "account_id": r.account_id,
         "created_at": r.created_at.isoformat(),
         "updated_at": r.updated_at.isoformat(),
     }
@@ -2159,6 +2160,7 @@ class SQLPortfolioRepository(PortfolioRepository):
                 cost_basis_minor=int(holding["cost_basis_minor"]),
                 current_value_minor=int(holding["current_value_minor"]),
                 is_active=holding.get("is_active", True),
+                account_id=holding.get("account_id"),
             )
         )
         await self._s.flush()
@@ -2198,6 +2200,9 @@ class SQLPortfolioRepository(PortfolioRepository):
         ):
             if k in updates and updates[k] is not None:
                 setattr(r, k, updates[k])
+        # None unlinks the holding from its account.
+        if "account_id" in updates:
+            r.account_id = updates["account_id"]
         await self._s.flush()
 
     async def delete(self, user_id: str, holding_id: str) -> None:
