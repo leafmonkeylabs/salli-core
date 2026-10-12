@@ -278,6 +278,33 @@ describe('createOAuthTokenProvider', () => {
     expect(server.requests).toHaveLength(0);
   });
 
+  it('reloads, refreshes and saves inside the lock it is given', async () => {
+    server = await tokenServer(() => [200, { access_token: 'new', refresh_token: 'rt-2', expires_in: 60 }]);
+    const steps: string[] = [];
+    const provider = createOAuthTokenProvider({
+      tokens: { access_token: 'old', refresh_token: 'rt-1' },
+      tokenEndpoint: `${server.url}/token`,
+      clientId: 'c',
+      reload: () => {
+        steps.push('reload');
+        return undefined;
+      },
+      save: () => {
+        steps.push('save');
+      },
+      lock: async (refresh) => {
+        steps.push('lock');
+        try {
+          return await refresh();
+        } finally {
+          steps.push('unlock');
+        }
+      },
+    });
+    expect(await provider.refresh('old')).toBe('new');
+    expect(steps).toEqual(['lock', 'reload', 'save', 'unlock']);
+  });
+
   it('gives up quietly when the refresh token is refused', async () => {
     server = await tokenServer(() => [400, { error: 'invalid_grant' }]);
     const provider = createOAuthTokenProvider({

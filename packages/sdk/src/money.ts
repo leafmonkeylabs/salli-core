@@ -220,15 +220,61 @@ export function formatDecimal(value: string | number | null | undefined, options
   }).format(text as DecimalString);
 }
 
+export interface AmountInputOptions {
+  /**
+   * The BCP 47 locale the amount was typed in, for its decimal and grouping
+   * marks: in a comma-decimal locale ("de-DE", "fr-FR") `1.234,56` and
+   * `1 234,56` are 1234.56. Omitted: a full stop is the decimal mark and a
+   * comma groups thousands, whatever the runtime's own locale (a script's
+   * amounts never change meaning with the machine it runs on).
+   */
+  locale?: string | readonly string[] | undefined;
+}
+
+/** Spaces a locale may group digits with: space, no-break, narrow no-break, thin. */
+const SPACES = ' \u00a0\u202f\u2009';
+
+/** A locale's decimal mark, from Intl, by formatting a decimal string. */
+function decimalMarkOf(locale: string | readonly string[]): string {
+  try {
+    const parts = new Intl.NumberFormat(locale as string | string[]).formatToParts('1.5' as DecimalString);
+    return parts.find((p) => p.type === 'decimal')?.value ?? '.';
+  } catch {
+    return '.';
+  }
+}
+
+function escapeForClass(marks: string): string {
+  return marks.replace(/[\\\]^-]/g, '\\$&');
+}
+
 /**
  * Normalises an amount someone typed into the API's format, or returns
- * undefined when it is not one. Accepts `1500`, `1500.5`, `-12.30`, and
- * comma thousands separators in their proper places (`1,234,567.89`). It
- * rewrites the text; it never computes with it.
+ * undefined when it is not one. It rewrites the text; it never computes with
+ * it, nor turns it into a number.
+ *
+ * Accepts `1500`, `1500.5`, `-12.30`, and comma thousands separators in
+ * their proper places (`1,234,567.89`). With a comma-decimal `locale`, it
+ * reads that locale's marks instead (`1.234,56`, `1 234,56`, `12,5`), still
+ * takes the API's own `1234.56`, and refuses `1.234`, which could be either.
+ * Anything ambiguous is refused rather than guessed at.
  */
-export function normalizeAmountInput(input: string): string | undefined {
-  let text = input.trim().replace(/^\+/, '');
-  if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(text)) text = text.replaceAll(',', '');
+export function normalizeAmountInput(input: string, options: AmountInputOptions = {}): string | undefined {
+  let text = input.trim().replace(/^\+/, '').replace(/^\u2212/, '-');
+  const commaDecimal = options.locale !== undefined && decimalMarkOf(options.locale) === ',';
+  if (commaDecimal) {
+    // 1.234 is a thousand in this locale and a little over one in the API's
+    // format: refuse rather than guess.
+    if (/^-?\d{1,3}\.\d{3}$/.test(text)) return undefined;
+    if (!AMOUNT.test(text)) {
+      const groups = `.'${SPACES}`;
+      const grouped = new RegExp(`^-?\\d{1,3}(?:([${escapeForClass(groups)}])\\d{3})(?:\\1\\d{3})*(?:,\\d+)?$`);
+      if (grouped.test(text)) text = text.replace(new RegExp(`[${escapeForClass(groups)}]`, 'g'), '');
+      if (/^-?\d*,\d+$/.test(text) || /^-?\d+,$/.test(text)) text = text.replace(',', '.');
+    }
+  } else if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(text)) {
+    text = text.replaceAll(',', '');
+  }
   if (/^-?\d+\.$/.test(text)) text = text.slice(0, -1);
   if (/^-?\.\d+$/.test(text)) text = text.replace('.', '0.');
   return AMOUNT.test(text) ? text : undefined;
