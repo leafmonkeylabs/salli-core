@@ -152,6 +152,7 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | Budgets, debts | `salli budgets summary <id>`, `salli debts payoff-plan` |
 | Investments | `salli portfolio`, `salli portfolio transactions add VTI buy --quantity 10 --price 240`, `salli portfolio performance` |
 | Financial independence | `salli fi score`, `salli fi projections`, `salli fi assumptions` |
+| Work through a common decision | `salli decide --list`, `salli decide afford-it` (asks, compares, and records if you want), `salli decide emergency-fund --set target_months=6 --set set_aside=200,500` |
 | What a change would do | `salli whatif --buy 2400@2026-11-01`, `salli whatif --loan 18000@6.9%x48 --buy 18000` |
 | Options side by side | `salli compare cash.json instalments.json` (make them with `salli whatif … --save`) |
 | Your rules of thumb | `salli principles add "Six months in cash" --check "emergency_months >= 6"`, `salli principles check cash.json instalments.json` |

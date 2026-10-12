@@ -23,7 +23,9 @@ salli decisions reviews
 
 Over the API: `/v1/principles` and `/v1/decisions`. Over MCP:
 `list_principles`, `add_principle`, `check_principles`, `record_decision`,
-`list_decisions`, `get_decision`, `list_due_reviews` and `review_decision`.
+`list_decisions`, `get_decision`, `list_due_reviews` and `review_decision`;
+and, to start from a [template](templates.md), `list_decision_templates`
+and `start_decision`.
 
 ## Principles
 
@@ -199,6 +201,14 @@ again later; each review appends.
 (`salli.decision-journal/1`) holding every entry, note and review exactly
 as recorded, each with its hash. "Export my data" carries it too.
 
+## Templates
+
+For a common decision, a [template](templates.md) asks a few questions,
+builds the options, compares them and checks your principles in one step
+(`salli decide`, `POST /v1/decisions/start`, `start_decision`). Its result
+carries what recording needs, so recording is one more call, with your
+choice, your reasons and a review date.
+
 ## For agents
 
 - **Never compute.** Every figure comes from Salli's tools. Quote a
@@ -223,8 +233,6 @@ as recorded, each with its hash. "Export my data" carries it too.
 
 ## Not yet
 
-- Templates for common decisions, `salli decide`, the
-  `think_through_decision` prompt (phase 2b).
 - Reviews compare at month-ends, in nominal money; a review doesn't yet
   attribute a difference to the assumption behind it.
 - Tax: an option's change in tax isn't among the figures (phase 3).

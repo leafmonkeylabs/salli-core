@@ -18,7 +18,8 @@ agent's help if you like.
 
 Over the API: `POST /v1/scenarios/run` and `POST /v1/scenarios/compare`.
 Over MCP: `run_scenario`, `compare_options`, and `get_scenario_schema` for
-the document's JSON Schema.
+the document's JSON Schema. For common decisions, a
+[template](templates.md) builds the options for you.
 
 ## The document
 
@@ -76,6 +77,7 @@ The rules:
 | `extra_debt_payment` | `debt`, `monthly`, `from`, `to`?, `label`? | Paid on one of your debts on top of its minimum, each month from `from`'s month to `to`'s, or until it is paid off. Debts are paid from the month after the as-of month. |
 | `invest` | `amount`, `date`, `from`?, `label` | Cash moved into your investments, where it then grows at your real return. |
 | `stop_recurring` | `key`, `from`, `label`? | A recurring flow your ledger shows stops: cancel a subscription. `salli insights recurring` lists each one's key. A transfer between your own accounts can't be stopped this way: it is no part of what you earn or spend. |
+| `set_aside` | `monthly`, `from`, `to`?, `label`? | Part of each month's surplus kept in cash, rather than shared out: saving towards an emergency fund or a purchase. Each month from `from`'s month to `to`'s (or for good), that much of the regular surplus stays in cash first, and the share you invest is of what is left. It can't keep more than the month's surplus. |
 
 Fields marked ? are optional.
 
@@ -87,15 +89,18 @@ in cash. One-offs, a loan's money, investments and extra payments are moves:
 they go in or out of cash, and only where they say. A loan's payments, like
 your debts', are scheduled: they come out of the regular surplus, and once
 the loan or debt is paid off its payment is freed into it, including when an
-extra payment cleared it early. A month whose regular surplus is a deficit
+extra payment cleared it early. A set-aside is neither: it moves no money of
+its own, but keeps part of the regular surplus in cash before the rest is
+shared out, so less is invested. A month whose regular surplus is a deficit
 invests nothing and draws on cash, never on your investments; if cash runs
 out, it goes below zero and the result's `notes` say from when. See
 [the baseline](baseline.md#your-surplus-and-what-you-invest-of-it).
 
 **Today's money or the day's own.** Recurring amounts, income changes and
 stopped flows are in today's money: with your inflation set, each rises with
-it, as your average spending does. One-offs, investments, loan payments and
-extra payments are fixed in the money of their own day. With no inflation
+it, as your average spending does. One-offs, investments, loan payments,
+extra payments and amounts set aside are fixed in the money of their own
+day. With no inflation
 set, the two are the same, and every result says inflation is a placeholder.
 
 ## What comes back
@@ -183,7 +188,7 @@ option without a label is named after its file, or "Option n".
 
   Each is solved by bisection on whole numbers (cents, basis points), so the
   same inputs always give the same answer. "None in range" says which option
-  is ahead across the whole range (`ahead`).
+  is ahead across the whole range (`ahead`), and of which.
 
 A break-even turns "it depends" into "it depends on whether you expect more
 than 4.5% a year after inflation". That is a question you can answer, or ask
@@ -257,7 +262,10 @@ Which matters more, the buffer or the money, is yours to say.
 
 - Tax: a change to your income doesn't yet run through your tax rules.
 - A target for your cash: after a one-off has spent some of it, the share of
-  the surplus you invest doesn't rebuild it.
+  the surplus you invest doesn't rebuild it unless a scenario sets an amount
+  aside (`set_aside`), and a set-aside doesn't stop by itself once cash
+  covers a target. The [emergency-fund template](templates.md) reads when
+  it does.
 - What a purchase buys, as an asset you own.
 - Amounts in a currency other than your base currency, and accounts held in
   one.
