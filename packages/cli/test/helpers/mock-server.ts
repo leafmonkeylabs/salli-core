@@ -64,7 +64,7 @@ import {
 } from './fixtures';
 import { DecisionsMock } from './decisions';
 import { NotificationsMock } from './notifications';
-import { SCENARIO_COMPARISON, SCENARIO_RUN, TAXED_RUN } from './scenarios';
+import { ASSET_RUN, SCENARIO_COMPARISON, SCENARIO_RUN, TAXED_RUN } from './scenarios';
 import { TaxRulesMock } from './taxrules';
 
 export interface RecordedRequest {
@@ -668,9 +668,11 @@ export class MockSalli {
         );
       }
       if (path === '/v1/scenarios/run') {
-        // A scenario tagging a change with a tax role: the taxed household's.
-        const tagged = (req.json as { changes?: Array<{ tax_role?: string }> }).changes?.some((c) => c.tax_role);
-        return { status: 200, body: tagged ? TAXED_RUN : SCENARIO_RUN };
+        // A scenario tagging a change with a tax role: the taxed household's;
+        // one buying an asset: the renting household's.
+        const changes = (req.json as { changes?: Array<{ type?: string; tax_role?: string }> }).changes ?? [];
+        if (changes.some((c) => c.type === 'asset')) return { status: 200, body: ASSET_RUN };
+        return { status: 200, body: changes.some((c) => c.tax_role) ? TAXED_RUN : SCENARIO_RUN };
       }
       return { status: 200, body: SCENARIO_COMPARISON };
     }

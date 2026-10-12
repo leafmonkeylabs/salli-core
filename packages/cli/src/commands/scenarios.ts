@@ -168,6 +168,21 @@ export function extraArg(value: string, day: string, now: Date): { debt: string;
   return { debt: head.slice(0, colon).trim(), change: { type: 'extra_debt_payment', monthly: amount, from: date ?? day } };
 }
 
+/** `--asset 450000[@2027-03-01]`: something that holds its value (a home), bought from cash. */
+export function assetArg(value: string, day: string, now: Date, opts: { account?: string; growth?: string; sellingCosts?: string } = {}): Change {
+  const { head, date } = splitAt(value, now, '--asset');
+  const price = priceArg(head, '--asset');
+  return {
+    type: 'asset',
+    price,
+    date: date ?? day,
+    ...(opts.account ? { from: opts.account } : {}),
+    ...(opts.growth !== undefined ? { real_growth: opts.growth } : {}),
+    ...(opts.sellingCosts !== undefined ? { selling_costs: opts.sellingCosts } : {}),
+    label: `Asset of ${price}`,
+  };
+}
+
 /** `--invest 5000[@2026-12-15]`: cash into your investments. */
 export function investArg(value: string, day: string, now: Date, account?: string): Change {
   const { head, date } = splitAt(value, now, '--invest');
@@ -558,6 +573,10 @@ export function registerScenarios(program: Command, app: App): void {
     .option('--income <amount/month[@date]>', 'Your monthly income changes: +600/month, take-home unless --tax-role (repeatable)', collect)
     .option('--extra-payment <debt:amount/month[@date]>', 'Pay more on a debt each month: "car loan:200/month" (repeatable)', collect)
     .option('--invest <amount[@date]>', 'Move cash into your investments (repeatable)', collect)
+    .option('--asset <price[@date]>', 'Buy something that holds its value (a home) from cash (repeatable)', collect)
+    .option('--asset-growth <rate>', 'How much each --asset grows a year beyond inflation: 1%, -0.5% (default 0, a placeholder)')
+    .option('--selling-costs <rate>', 'What selling each --asset would cost, as a share of its value: 3% (default 0)')
+    .option('--recurring-growth <rate>', 'How much each --recurring amount grows a year beyond inflation: 1.5%')
     .option('--cancel <recurring[@date]>', 'Stop a recurring payment, by its key or payee (repeatable)', collect)
     .option('--account <account>', 'The cash account the changes move (default: your cash total)')
     .option('--tax-role <role>', 'The --income, --recurring and --buy amounts are before tax, in this role of your tax rules')
@@ -584,6 +603,7 @@ Examples:
   $ salli whatif --recurring -450/month@2027-01-01 --income +600/month@2027-01-01
   $ salli whatif --extra-payment "student loan:200/month" --years 10
   $ salli whatif --invest 5000 --account savings --save invest.json
+  $ salli whatif --asset 450000@2027-03-01 --selling-costs 3% --loan 360000@4.2%x300@2027-03-01
   $ salli whatif --cancel streamflix
   $ salli whatif --income +1000/month@2027-01-01 --tax-role salary
   $ salli whatif --file scenario.json --json
@@ -603,10 +623,18 @@ before tax, and the result says why.`,
         extraPayment: options.extraPayment ?? [],
         invest: options.invest ?? [],
         cancel: options.cancel ?? [],
+        asset: options.asset ?? [],
         taxAnswer: options.taxAnswer ?? [],
       };
       const flagged =
-        opts.buy.length + opts.loan.length + opts.recurring.length + opts.income.length + opts.extraPayment.length + opts.invest.length + opts.cancel.length;
+        opts.buy.length +
+        opts.loan.length +
+        opts.recurring.length +
+        opts.income.length +
+        opts.extraPayment.length +
+        opts.invest.length +
+        opts.cancel.length +
+        opts.asset.length;
       if (opts.file && flagged) throw new UsageError('Give changes as flags or as --file, not both.');
       if (opts.file && opts.save) throw new UsageError('--save writes the scenario the flags make; with --file you have it already.');
       if (opts.file && (opts.taxRole || opts.taxAnswer.length)) {
@@ -615,6 +643,15 @@ before tax, and the result says why.`,
       if (opts.taxRole && !(opts.buy.length + opts.recurring.length + opts.income.length)) {
         throw new UsageError('--tax-role tags --income, --recurring and --buy changes: give one.');
       }
+      if ((opts.assetGrowth !== undefined || opts.sellingCosts !== undefined) && !opts.asset.length) {
+        throw new UsageError('--asset-growth and --selling-costs describe an --asset: give one.');
+      }
+      if (opts.recurringGrowth !== undefined && !opts.recurring.length) {
+        throw new UsageError('--recurring-growth describes --recurring amounts: give one.');
+      }
+      const assetGrowth = opts.assetGrowth !== undefined ? rateArg(opts.assetGrowth, '--asset-growth') : undefined;
+      const sellingCosts = opts.sellingCosts !== undefined ? rateArg(opts.sellingCosts, '--selling-costs') : undefined;
+      const recurringGrowth = opts.recurringGrowth !== undefined ? rateArg(opts.recurringGrowth, '--recurring-growth') : undefined;
       const taxRole = opts.taxRole ? taxRoleArg(opts.taxRole) : undefined;
       const taxAnswers = taxAnswersArg(opts.taxAnswer);
       const now = app.runtime.now();
@@ -629,7 +666,10 @@ before tax, and the result says why.`,
         if (opts.label) doc.label = opts.label;
       } else {
         if (!flagged) {
-          throw new UsageError('Say what changes: --buy, --loan, --recurring, --income, --extra-payment, --invest or --cancel.', 'Or run a scenario document with --file. See `salli whatif --help`.');
+          throw new UsageError(
+            'Say what changes: --buy, --loan, --recurring, --income, --extra-payment, --invest, --asset or --cancel.',
+            'Or run a scenario document with --file. See `salli whatif --help`.',
+          );
         }
         const day = asOf ?? isoDate(now);
         const account = opts.account ? (await AccountBook.load(api)).resolve(opts.account).id : undefined;
@@ -637,9 +677,13 @@ before tax, and the result says why.`,
         const changes: Change[] = [
           ...opts.buy.map((v) => tag(buyArg(v, day, now, account))),
           ...opts.loan.map((v) => loanArg(v, day, now, account)),
-          ...opts.recurring.map((v) => tag(recurringArg(v, day, now, account))),
+          ...opts.recurring.map((v) => {
+            const recurring = tag(recurringArg(v, day, now, account));
+            return recurringGrowth !== undefined ? ({ ...recurring, real_growth: recurringGrowth } as Change) : recurring;
+          }),
           ...opts.income.map((v) => tag(incomeArg(v, day, now))),
           ...opts.invest.map((v) => investArg(v, day, now, account)),
+          ...opts.asset.map((v) => assetArg(v, day, now, { account, growth: assetGrowth, sellingCosts })),
         ];
         if (opts.extraPayment.length) {
           const debts = (await api.call(debtsList, { query: { active_only: true } })).debts;

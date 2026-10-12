@@ -113,6 +113,43 @@ describe('salli whatif', () => {
     });
   });
 
+  it('buys an asset from flags, and shows it at what it would fetch', async () => {
+    const result = await run([
+      'whatif',
+      '--asset',
+      '200000@2031-07-01',
+      '--selling-costs',
+      '3%',
+      '--loan',
+      '150000@0%x120@2031-07-01',
+      '--recurring',
+      '-1000/month@2031-07-01',
+      '--recurring-growth',
+      '-0.5%',
+    ]);
+    expect(result.code).toBe(0);
+    expect((lastBody('/v1/scenarios/run') as { changes: unknown[] }).changes).toEqual([
+      { type: 'loan', principal: '150000', annual_rate: '0', term_months: 120, start: '2031-07-01', label: 'Loan of 150000' },
+      { type: 'recurring', amount: '-1000', cadence: 'monthly', start: '2031-07-01', label: '-1000 a month', real_growth: '-0.005' },
+      { type: 'asset', price: '200000', date: '2031-07-01', selling_costs: '0.03', label: 'Asset of 200000' },
+    ]);
+    expect(result.stdout).toContain('1  The home               NZD 200,000.00 on Jul 1, 2031, growing 0% (a placeholder) a year beyond inflation, selling costs 3%');
+    expect(result.stdout).toContain('OTHER ASSETS');
+    expect(result.stdout).toMatch(/1 year\s+Jun 2032\s+102,000\.00\s+\+6,000\.00\s+-51,750\.00\s+0\.00\s+\+194,000\.00\s+\+136,250\.00/);
+    expect(result.stderr).toContain('An asset counts at what it would fetch: its value less its selling costs (other assets worth 200,000.00 in 20 years, counted at 194,000.00).');
+    expect(result.stderr).toContain('an asset’s growth (0% beyond inflation: not a forecast, set your own view)');
+  });
+
+  it.each([
+    [['--asset-growth', '1%', '--buy', '10'], '--asset-growth and --selling-costs describe an --asset'],
+    [['--recurring-growth', '1%', '--buy', '10'], '--recurring-growth describes --recurring amounts'],
+    [['--asset', '-5'], '--asset takes an amount above zero'],
+  ])('refuses asset flags that make no sense: %j', async (args, message) => {
+    const result = await run(['whatif', ...args]);
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain(message);
+  });
+
   it('saves the scenario the flags make, to compare later', async () => {
     const saved = join(files, 'cash.json');
     await run(['whatif', '--buy', '2400', '--save', saved]);
