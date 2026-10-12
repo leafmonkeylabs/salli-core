@@ -298,9 +298,9 @@ class TaxOutcome:
     years: tuple[YearTax, ...] = ()
     #: Whether any year's tax was computed with rules carried forward.
     carried_forward: bool = False
-    #: The tax years' plan, every year the timeline reaches with tagged
-    #: amounts (for the as-of date's year in brief).
+    #: The as-of date's tax year, by its label.
     as_of_year: str | None = None
+    #: Why later years aren't computed, beside `reason` (the first's).
     notes: tuple[str, ...] = ()
 
     @property
@@ -312,7 +312,9 @@ class TaxOutcome:
     def change_this_year(self) -> Decimal | None:
         """The change in the as-of date's tax year's tax, in the base
         currency: 0 when nothing in that year is tagged; None when it is but
-        its tax isn't computed."""
+        its tax isn't computed, or there are no rules to tell."""
+        if self.status == "not_computed" and not self.years:
+            return None  # no rules to say which tax year anything falls in
         year = self.this_year
         if year is None:
             return Decimal(0)

@@ -42,10 +42,11 @@ from salli.domain.baseline import timelines
 from salli.domain.baseline.models import Baseline, BaselineDebt
 from salli.domain.currency import quantize
 from salli.domain.scenarios.engine import Outlook
+from salli.domain.scenarios.tax import TaxOutcome
 
 Kind = Literal["amount", "months", "rate", "count", "boolean"]
 Terms = Literal["nominal", "real", "none"]
-Group = Literal["cash", "resilience", "monthly", "debts", "fi"]
+Group = Literal["cash", "resilience", "monthly", "debts", "fi", "tax"]
 
 #: The years the monthly figures are read at.
 YEARS = (1, 5, 10, 20)
@@ -223,6 +224,16 @@ FIGURES: tuple[FigureSpec, ...] = (
         "Months sooner (positive) or later (negative) the option reaches FI than the "
         "baseline does; 0 for the baseline.",
     ),
+    FigureSpec(
+        "tax_change_this_year",
+        "amount",
+        "nominal",
+        "tax",
+        "The change in the as-of date's tax year's tax (its `net`, after credits) the option "
+        "makes, computed with your active tax rules from its changes tagged with a tax role; "
+        "more tax is positive. 0 for the baseline and when nothing in the year is tagged; "
+        "missing when the tax isn't computed (no active rules, say).",
+    ),
 )
 
 BY_NAME: Mapping[str, FigureSpec] = {f.name: f for f in FIGURES}
@@ -277,10 +288,12 @@ def compute(
     mine: Outlook,
     base: Outlook,
     loans: Sequence[BaselineDebt] = (),
+    tax: TaxOutcome | None = None,
 ) -> Figures:
     """The figures for `mine` (an option's outlook, or the baseline's own),
     against the baseline's outlook `base` (for the months gained), with the
-    loans the option takes out (`loans`)."""
+    loans the option takes out (`loans`) and its tax (`tax`, its
+    translation's; none for the baseline)."""
     currency = baseline.currency
 
     def money(value: Decimal) -> Decimal:
@@ -370,6 +383,15 @@ def compute(
         missing["fi_months_gained"] = (
             "FI isn't reached within 50 years under the baseline or the option"
         )
+
+    # Tax.
+    change = Decimal(0) if tax is None else tax.change_this_year
+    if change is None:
+        missing["tax_change_this_year"] = (
+            tax.reason if tax is not None and tax.reason else "the tax isn't computed"
+        )
+    else:
+        values["tax_change_this_year"] = money(change)
 
     return Figures(currency, values, missing, accounts)
 

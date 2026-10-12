@@ -494,12 +494,14 @@ def _windfall_build(answers: Answers, facts: Facts) -> Built:
     for split in answers["splits"]:
         changes: list[dict[str, Any]] = []
         if new:
+            role: str | None = answers.get("tax_role")
             changes.append(
                 {
                     "type": "one_off",
                     "date": day.isoformat(),
                     "amount": amount,
                     **_account(answers, "account"),
+                    **({"tax_role": role} if role else {}),
                     "label": "The windfall",
                 }
             )
@@ -534,6 +536,8 @@ def _windfall_build(answers: Answers, facts: Facts) -> Built:
             if said
             else f"All {amount} {cur} kept in cash."
         )
+        if new and answers.get("tax_role"):
+            describes += f" It arrives before tax, as {answers['tax_role']}."
         options.append(OptionBuilt(split.label, describes, scenario(split.label, years, changes)))
     return Built(question=f"How to use {amount} {cur}?", options=tuple(options))
 
@@ -559,6 +563,15 @@ WINDFALL = Template(
                 Choice("new", "New money: it arrives on the day"),
                 Choice("in_cash", "Already in my cash"),
             ),
+        ),
+        Question(
+            "tax_role",
+            "tax_role",
+            "Is it taxable? In which of your tax rules' roles?",
+            "Leave it out if the amount is what reaches you. If it is taxable before it "
+            "reaches you (a bonus, say), name the role your active tax rules count it in: the "
+            "amount is then before tax, and Salli works out the tax with your rules.",
+            when=When("arrives", "new"),
         ),
         Question(
             "date",
@@ -650,16 +663,22 @@ def _big_change_build(answers: Answers, facts: Facts) -> Built:
         said.append(f"spending {_signed(costs, facts)} {cur} a month")
     income: Decimal | None = answers.get("monthly_income")
     if income is not None:
+        role: str | None = answers.get("income_tax_role")
         changes.append(
             {
                 "type": "income_change",
                 "monthly": _signed(income, facts),
                 "from": start.isoformat(),
                 **({"to": end.isoformat()} if end else {}),
+                **({"tax_role": role} if role else {}),
                 "label": f"{label}: income",
             }
         )
-        said.append(f"take-home pay {_signed(income, facts)} {cur} a month")
+        said.append(
+            f"pay before tax {_signed(income, facts)} {cur} a month, as {role}"
+            if role
+            else f"take-home pay {_signed(income, facts)} {cur} a month"
+        )
     span = f"from {start.isoformat()}" + (f" to {end.isoformat()}" if end else "")
     return Built(
         question=f"{label}: what would it do to my money?",
@@ -703,8 +722,17 @@ BIG_CHANGE = Template(
             "monthly_income",
             "signed_amount",
             "How much more would you take home a month?",
-            'After tax, in your base currency: "+600" more, "-300" less. Leave it out if it '
-            "stays the same.",
+            'In your base currency: "+600" more, "-300" less. After tax, unless you name the '
+            "tax role it is paid in (next): then before tax. Leave it out if it stays the same.",
+        ),
+        Question(
+            "income_tax_role",
+            "tax_role",
+            "Is that pay before tax? In which of your tax rules' roles?",
+            "Leave it out if the amount is take-home pay. If it is before tax, name the role "
+            "your active tax rules count it in (your salary's, say): Salli then works out the "
+            "tax with your rules.",
+            when=When("monthly_income"),
         ),
         Question(
             "upfront",

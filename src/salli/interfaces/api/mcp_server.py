@@ -798,11 +798,20 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     async def get_scenario_schema() -> dict[str, Any]:
         """The JSON Schema of a scenario document (salli.scenario/1): the
         baseline plus changes (one_off, recurring, income_change, loan,
-        extra_debt_payment, invest, stop_recurring). Amounts and rates are
-        decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD; account and
-        debt ids come from get_accounts and get_payoff_plan, a recurring
-        flow's key from get_recurring_payments. Build every option of a
-        decision with it, never estimate one yourself."""
+        extra_debt_payment, invest, stop_recurring, set_aside). Amounts and
+        rates are decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD;
+        account and debt ids come from get_accounts and get_payoff_plan, a
+        recurring flow's key from get_recurring_payments. Build every option
+        of a decision with it, never estimate one yourself.
+
+        Tax: an amount is what reaches cash unless you tag the change with a
+        `tax_role` (one_off, recurring, income_change): a role of kind income
+        or deduction in the user's tax rules (get_tax_rule_set shows them), and
+        the amount is then before tax. A raise in the salary's role, a
+        taxable bonus, a deductible pension contribution. Salli computes the
+        change in each year's tax with the user's active rules; put answers
+        to the rules' questions in the scenario's `tax.answers`. Never work
+        out a net figure yourself: tag the gross one."""
         return scenario_schema.json_schema()
 
     @mcp.tool()
@@ -820,7 +829,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     @mcp.tool()
     async def start_decision(
-        template: str, answers: dict[str, Any] | None = None, as_of: str | None = None
+        template: str,
+        answers: dict[str, Any] | None = None,
+        as_of: str | None = None,
+        tax_answers: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Start a decision from a template (list_decision_templates) with the
         person's answers, by question id (amounts and rates as decimal
@@ -835,10 +847,20 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         record.question (in their words if they change it), record.options,
         the label they chose, their reasons in their words and a review date,
         once they confirm. A problem comes back with its path
-        (answers.price), to fix and start again."""
+        (answers.price), to fix and start again. Where a template asks for a
+        tax role (big-change's pay, a taxable windfall), the amount is then
+        before tax and Salli computes the tax with the user's active rules;
+        `tax_answers` answers the rules' questions, by key, for every
+        option."""
         try:
             return await template_svc.start(
-                _current_user_id(), {"template": template, "answers": answers, "as_of": as_of}
+                _current_user_id(),
+                {
+                    "template": template,
+                    "answers": answers,
+                    "as_of": as_of,
+                    "tax_answers": tax_answers,
+                },
             )
         except (TemplateError, ScenarioError) as exc:
             return _refusal(exc)
@@ -853,9 +875,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         lowest and when, accounts going below zero, safe-to-spend), net worth,
         cash, investments and debts at 1, 5, 10 and 20 years and the horizon
         in today's money, each debt's payoff month and interest, emergency-fund
-        months, and the FI number and month with months gained or lost. It
-        records the assumptions (placeholders flagged), versions and a hash of
-        its inputs. Stores nothing. Quote its figures; never compute your own.
+        months, and the FI number and month with months gained or lost. With
+        changes tagged with a tax role, `tax` gives each tax year's role
+        totals, the change in tax from the user's active rules and how it
+        comes out of cash; `tax.status` "not_computed" says why not (the
+        tagged amounts then count before tax: say so). It records the
+        assumptions (placeholders flagged), versions and a hash of its
+        inputs. Stores nothing. Quote its figures; never compute your own.
         A problem comes back with its path, to fix and run again."""
         try:
             return await scenario_svc.run(_current_user_id(), scenario)

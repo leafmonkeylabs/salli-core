@@ -98,7 +98,7 @@ class DecisionFigure(BaseModel):
     unit: str
     #: "nominal": each day's or month's own money; "real": today's money.
     terms: Literal["nominal", "real", "none"]
-    group: Literal["cash", "resilience", "monthly", "debts", "fi"]
+    group: Literal["cash", "resilience", "monthly", "debts", "fi", "tax"]
     description: str
 
 

@@ -676,7 +676,9 @@ class TaxRuleService:
     ) -> dict[str, Any]:
         """The accounts a rule set suggests (`suggested_accounts`), each with
         whether the user has one with that code; with `apply`, the missing
-        ones created, held in the base currency with the suggested tax role.
+        ones created, held in the base currency with the suggested tax role
+        (an asset account with the asset role `other`, so a receivable such
+        as tax withheld is never counted as cash).
 
         Idempotent: an account whose code is taken (active or not) is left as
         it is, whatever its name or role, and reported so. The version is the
@@ -729,6 +731,10 @@ class TaxRuleService:
                                 type=s.type,
                                 currency=base,
                                 tax_role=s.tax_role,
+                                # What a rule set suggests holding (tax
+                                # withheld, a receivable) is not cash: it
+                                # mustn't count as money to spend.
+                                asset_role="other" if s.type == "asset" else None,
                             ),
                         )
                         row["status"] = "created"

@@ -104,7 +104,9 @@ def start(
     evaluated: list[tuple[str, engine.Evaluated, figure_set.Figures]] = []
     for option in built.options:
         _, done = engine.run_with_outlook(baseline, option.scenario, base=base)
-        figures = figure_set.compute(baseline, done.outlook, base, done.translation.changes.loans)
+        figures = figure_set.compute(
+            baseline, done.outlook, base, done.translation.changes.loans, done.translation.tax
+        )
         evaluated.append((option.label, done, figures))
     base_figures = figure_set.compute(baseline, base, base)
 

@@ -241,6 +241,12 @@ class TaxRuleSetRepository(ABC):
         ...
 
     @abstractmethod
+    async def declared_role_kinds(self, user_id: str) -> dict[str, set[str]]:
+        """The roles `declared_roles` gives, each with the kinds (income,
+        deduction, withholding, other) the versions declaring it give it."""
+        ...
+
+    @abstractmethod
     async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
         """Every rule set of the user's that has an active version: the set's
         fields with `version`, that version in full (content included)."""

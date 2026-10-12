@@ -10,7 +10,8 @@ scenario engine and the choice to them. So a template:
 - **asks typed questions**, each validated with a path people can follow
   (`answers.instalment_rate`): an amount in the base currency, a whole number
   of months, a rate, a date, a choice, one of the person's debts or cash
-  accounts, a short text, or a list of amounts, loans or splits;
+  accounts, one of the income or deduction roles in their active tax rules,
+  a short text, or a list of amounts, loans or splits;
 - **draws a default only from what is honest**: the as-of date or the first
   of the next month, the person's own debts (the only one they have, and
   what it owes) and their own principles (the months of spending one asks
@@ -65,6 +66,7 @@ QuestionType = Literal[
     "choice",
     "debt",
     "account",
+    "tax_role",
     "text",
     "amounts",
     "loans",
@@ -119,6 +121,16 @@ class AccountFact:
 
 
 @dataclass(frozen=True)
+class TaxRoleFact:
+    """A role in the person's active tax rules a change may be tagged with:
+    of kind income or deduction."""
+
+    key: str
+    kind: str
+    label: str
+
+
+@dataclass(frozen=True)
 class CoverPrinciple:
     """A principle asking cash to cover a number of months of spending
     (`emergency_months >= 6`)."""
@@ -137,6 +149,7 @@ class Facts:
     debts: tuple[DebtFact, ...] = ()
     accounts: tuple[AccountFact, ...] = ()
     cover_principles: tuple[CoverPrinciple, ...] = ()
+    tax_roles: tuple[TaxRoleFact, ...] = ()
 
     @property
     def next_month(self) -> dt.date:
@@ -149,6 +162,9 @@ class Facts:
 
     def account(self, account_id: str) -> AccountFact | None:
         return next((a for a in self.accounts if a.id == account_id), None)
+
+    def tax_role(self, key: str) -> TaxRoleFact | None:
+        return next((r for r in self.tax_roles if r.key == key), None)
 
     def money(self, value: Decimal) -> str:
         """An amount as a decimal string to the currency's smallest unit."""
@@ -206,7 +222,19 @@ def facts_of(baseline: Baseline, principles: Sequence[tuple[Principle, Expr]] = 
             if b.role == "cash" and b.currency == baseline.currency and b.is_active
         ),
         cover_principles=cover_principles(principles),
+        tax_roles=tax_roles_of(baseline),
     )
+
+
+def tax_roles_of(baseline: Baseline) -> tuple[TaxRoleFact, ...]:
+    """The roles a change may be tagged with: those of kind income or
+    deduction in the person's active tax rules, each once, by key."""
+    found: dict[str, TaxRoleFact] = {}
+    for rules in baseline.tax.rules:
+        for role in rules.document.roles:
+            if role.kind in ("income", "deduction") and role.key not in found:
+                found[role.key] = TaxRoleFact(role.key, role.kind, role.label)
+    return tuple(sorted(found.values(), key=lambda r: r.key))
 
 
 # ── Dates ────────────────────────────────────────────────────────────────────
@@ -409,6 +437,18 @@ def _date(value: Any, facts: Facts) -> dt.date:
     return day
 
 
+def _tax_role(value: Any, facts: Facts) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError("is a role in your active tax rules, by its key")
+    if facts.tax_role(value) is None:
+        yours = ", ".join(f"{r.key} ({r.kind})" for r in facts.tax_roles)
+        raise ValueError(
+            f"{value!r} is not an income or deduction role of your active tax rules; "
+            + (f"yours: {yours}" if yours else "you have no active tax rules")
+        )
+    return value
+
+
 def _text(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError("is a few words of text")
@@ -497,6 +537,8 @@ def _parse(question: Question, value: Any, facts: Facts, path: str, out: _Proble
             return attempt(lambda: _debt(value, facts))
         case "account":
             return attempt(lambda: _account(value, facts))
+        case "tax_role":
+            return attempt(lambda: _tax_role(value, facts))
         case "choice":
             values = [c.value for c in question.choices]
             if value not in values:
@@ -729,16 +771,44 @@ def resolve(template: Template, data: Any, facts: Facts) -> Answers:
     return answers
 
 
-def build(template: Template, data: Any, facts: Facts) -> tuple[Answers, Built]:
-    """The answers read and the options built; TemplateError with every
+def tax_answers(data: Any) -> schema.ScenarioTax | None:
+    """Answers to the person's tax rules' questions (`tax_answers`), as every
+    option's `tax`; TemplateError with each problem under `tax_answers`."""
+    if data is None or data == {}:
+        return None
+    try:
+        return schema.ScenarioTax.model_validate({"answers": data})
+    except ValidationError as error:
+        raise TemplateError(
+            [
+                Problem(join_path("tax_answers", *[str(x) for x in e["loc"][1:]]), e["msg"])
+                for e in error.errors(include_url=False)
+            ]
+        ) from None
+
+
+def build(template: Template, data: Any, facts: Facts, tax: Any = None) -> tuple[Answers, Built]:
+    """The answers read and the options built, each with the answers to the
+    tax rules' questions (`tax`) when given; TemplateError with every
     problem found (a scenario a template built that isn't valid is a bug,
     reported with its option's path rather than hidden)."""
     answers = resolve(template, data, facts)
+    asked = tax_answers(tax)
     built = template.build(answers, facts)
     labels = [o.label for o in built.options]
     if len(set(labels)) != len(labels):
         raise TemplateError(
             [Problem("answers", "two options would have one label: give each its own")]
+        )
+    if asked is not None:
+        built = Built(
+            built.question,
+            tuple(
+                OptionBuilt(o.label, o.describes, o.scenario.model_copy(update={"tax": asked}))
+                for o in built.options
+            ),
+            built.cover_months,
+            built.notes,
         )
     return answers, built
 
@@ -856,6 +926,15 @@ def _value_schema(q: Question, facts: Facts | None) -> dict[str, Any]:
             }
             if facts is not None and facts.accounts:
                 out["enum"] = [a.id for a in facts.accounts]
+            return out
+        case "tax_role":
+            out = {
+                "type": "string",
+                "description": "A role of kind income or deduction in your active tax rules, "
+                "by its key.",
+            }
+            if facts is not None and facts.tax_roles:
+                out["enum"] = [r.key for r in facts.tax_roles]
             return out
         case "amounts":
             return {

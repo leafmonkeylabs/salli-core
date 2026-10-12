@@ -260,6 +260,23 @@ class SQLTaxRuleSetRepository(TaxRuleSetRepository):
         )
         return {str(key) for (key,) in rows if key}
 
+    async def declared_role_kinds(self, user_id: str) -> dict[str, set[str]]:
+        # The same versions as declared_roles.
+        rows = await self._s.execute(
+            text(
+                "SELECT DISTINCT role ->> 'key', role ->> 'kind' FROM tax_rule_set_versions v"
+                " CROSS JOIN LATERAL jsonb_array_elements(v.content -> 'roles') AS role"
+                " WHERE v.user_id = :user_id AND v.content_hash IS NOT NULL"
+                " AND v.status <> 'superseded'"
+            ),
+            {"user_id": user_id},
+        )
+        out: dict[str, set[str]] = {}
+        for key, kind in rows:
+            if key:
+                out.setdefault(str(key), set()).add(str(kind))
+        return out
+
     async def active_versions(self, user_id: str) -> list[dict[str, Any]]:
         rows = (
             await self._s.execute(

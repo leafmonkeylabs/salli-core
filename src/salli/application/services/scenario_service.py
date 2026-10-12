@@ -11,6 +11,10 @@ the pure engine can't:
   (`ownership.require_own_accounts`), a debt among their active debts.
   Anything else is "not found" (AccountNotFound, DebtNotFound), the same for
   one that doesn't exist and one that is someone else's.
+- **Whose tax roles.** A change's `tax_role` must be a role one of the
+  caller's rule sets declares (any version still in use, active or not), of
+  kind income or deduction: anything else is a problem at its path, as a
+  mistyped id is. Whether active rules compute it is the engine's to say.
 - **Which day.** The baseline is built as of the scenario's `as_of` (today
   by this service's clock when it has none), never a day after today; the
   options of a comparison share one.
@@ -52,6 +56,17 @@ def accounts_named(scenarios: Iterable[schema.Scenario]) -> set[str]:
             if account:
                 named.add(account)
     return named
+
+
+def tax_roles_named(scenarios: Sequence[schema.Scenario]) -> list[tuple[int, int, str]]:
+    """(option, change, role) for every change tagged with a tax role."""
+    return [
+        (n, i, change.tax_role)
+        for n, scenario in enumerate(scenarios)
+        for i, change in enumerate(scenario.changes)
+        if isinstance(change, schema.OneOffChange | schema.RecurringChange | schema.IncomeChange)
+        and change.tax_role is not None
+    ]
 
 
 def debts_named(scenarios: Iterable[schema.Scenario]) -> set[str]:
@@ -104,12 +119,39 @@ class ScenarioService:
         """AccountNotFound / DebtNotFound unless every id the changes name is
         the user's own (an active debt, for a debt)."""
         debts = debts_named(scenarios)
+        tagged = tax_roles_named(scenarios)
         async with self._uow_factory() as uow:
             await require_own_accounts(uow, user_id, accounts_named(scenarios))
             if debts:
                 mine = {str(d["id"]) for d in await uow.debts.list(user_id, active_only=True)}
                 if debts - mine:
                     raise DebtNotFound(debts - mine)
+            kinds: dict[str, set[str]] = (
+                await uow.tax_rule_sets.declared_role_kinds(user_id) if tagged else {}
+            )
+        problems: list[Problem] = []
+        many = len(scenarios) > 1
+        for n, i, role in tagged:
+            path = join_path(*(["options", n] if many else []), "changes", i, "tax_role")
+            declared = kinds.get(role)
+            if not declared:
+                problems.append(
+                    Problem(
+                        path,
+                        f"{role!r} is not a role any of your tax rule sets declares: "
+                        "`salli tax rules list` shows your rule sets, and their roles",
+                    )
+                )
+            elif not declared & {"income", "deduction"}:
+                problems.append(
+                    Problem(
+                        path,
+                        f"{role} is a role of kind {sorted(declared)[0]} in your tax rules: "
+                        "only income and deduction roles can be tagged",
+                    )
+                )
+        if problems:
+            raise ScenarioError(problems)
 
     def as_of_for(self, scenarios: Sequence[schema.Scenario], *, options: bool = False) -> dt.date:
         """The day the baseline is as of: the scenarios' (one day, for every
