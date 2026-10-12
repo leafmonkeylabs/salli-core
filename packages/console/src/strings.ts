@@ -177,7 +177,9 @@ export const strings = {
     invalidCountry: 'A country is two letters, such as NZ.',
     signIns: 'Sign-ins',
     signInsHelp:
-      'Every way you are signed in: sessions, the salli command on each machine, the console in each tab. AI connections are listed with salli mcp connections.',
+      'Every way you are signed in: sessions, the salli command on each machine, the console in each tab. AI connections and tokens have pages of their own.',
+    password:
+      'Your password is changed with salli password. The console never asks for it: it is typed only on Salli’s own sign-in page and into the salli command.',
     kind: { session: 'Session', cli: 'salli command', console: 'Console', app: 'Application' } as Record<string, string>,
     started: 'Started',
     lastUsed: 'Last used',

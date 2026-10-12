@@ -174,6 +174,7 @@ function SignInsSection() {
     <Section label={s.signIns}>
       <Panel>
         <p className="section-help">{s.signInsHelp}</p>
+        <p className="provenance">{s.password}</p>
         {query.isPending ? <Loading lines={3} /> : null}
         {query.isError ? <ProblemView error={query.error} compact onRetry={() => void query.refetch()} /> : null}
         {query.data && query.data.length === 0 ? <Empty>{s.noSignIns}</Empty> : null}
