@@ -1,9 +1,9 @@
 """
 The defaults for the extension seams in application/ports.py.
 
-Salli's own behaviour: nothing is metered, every user sees everything, and
-anyone may use their ChatGPT plan. An extension (salli/extensions.py) can
-replace any of them.
+Salli's own behaviour: nothing is metered, every user sees everything, anyone
+may use their ChatGPT plan, and nothing is sent. An extension
+(salli/extensions.py) can replace any of them.
 """
 
 from __future__ import annotations
@@ -12,7 +12,10 @@ from typing import Any
 
 from salli.application.ports import (
     ChatGPTPlanPolicy,
+    Delivery,
     EntitlementPolicy,
+    Notification,
+    Notifier,
     PayloadView,
     Surface,
     UsageMeter,
@@ -54,3 +57,12 @@ class ChatGPTPlanAllowed(ChatGPTPlanPolicy):
 
     async def allows(self, user_id: str) -> bool:
         return True
+
+
+class NoNotifier(Notifier):
+    """Sends nothing: Salli ships no sender. Preferences still save and the
+    preview still works, so a person can set up their digest before the
+    operator enables a notifier; the digest job sends nothing without one."""
+
+    async def send(self, notification: Notification) -> Delivery:
+        return Delivery.NO_DESTINATION

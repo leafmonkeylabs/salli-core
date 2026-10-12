@@ -1,8 +1,11 @@
 # The decision lab, phase 3: tax, holdings, rent or buy, notifications
 
 Status: **approved (2026-10-12).** The owner accepted every recommended
-decision below. **3a (tax-aware scenarios) is built** (its "As built"
-notes close section 1); 3d is being built beside it. It extends the approved [decision lab design](decision-lab.md), whose
+decision below. Building started with 3a and 3d, and both are built.
+**3a, tax-aware scenarios,** is built (its "As built" notes close section
+1). **3d, the notification port,** is built
+([docs/self-host.md](../self-host.md#digests); as built in
+[decision-lab.md](decision-lab.md#phases)). It extends the approved [decision lab design](decision-lab.md), whose
 rules all still hold. The open questions are at the end, numbered on from that
 design's decisions (6 onwards). Each sub-phase is its own PR.
 

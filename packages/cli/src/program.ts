@@ -21,6 +21,7 @@ import { registerInsights } from './commands/insights';
 import { registerPlanningAhead } from './commands/fi';
 import { registerLedger } from './commands/ledger';
 import { registerMore, registerYourData } from './commands/more';
+import { registerNotifications } from './commands/notifications';
 import { registerOnboarding } from './commands/onboarding';
 import { registerPassword } from './commands/password';
 import { registerPlanning } from './commands/plan';
@@ -96,6 +97,7 @@ Start with:  salli login   then   salli status`,
 
   program.commandsGroup('Your data and settings:');
   registerYourData(program, app);
+  registerNotifications(program, app);
   registerAi(program, app);
   registerSkills(program, app);
   registerExports(program, app);

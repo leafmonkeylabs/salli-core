@@ -75,6 +75,7 @@ from salli.interfaces.api.routers import (
     mcp_consent_page,
     mcp_oauth,
     meta,
+    notifications,
     onboarding,
     portfolio,
     principles,
@@ -298,6 +299,7 @@ def create_app() -> FastAPI:
     # document's order stable).
     app.include_router(principles.router, prefix=API_PREFIX)
     app.include_router(decisions.router, prefix=API_PREFIX)
+    app.include_router(notifications.router, prefix=API_PREFIX)
 
     # ── Exception handlers ────────────────────────────────────────────────────
     # Every error is RFC 9457 problem details (contract.Problem). `detail` keeps

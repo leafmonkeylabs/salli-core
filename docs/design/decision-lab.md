@@ -429,12 +429,44 @@ Nudges are quiet, useful and rare:
    - A rent-or-buy template.
    - The notification port.
    - **Status:** designed and approved (2026-10-12): [the phase 3 design](decision-lab-phase-3.md)
-     (sub-phases 3a to 3d, and decisions 6 to 31). 3a, tax-aware scenarios,
-     is built ([docs/scenarios.md](../scenarios.md#tax)): changes tagged with
-     a tax role run through the person's active rules, and principles gain a
-     33rd figure, `tax_change_this_year`. The engine's version is 4: a
-     stopped flow on an account with an income or deduction role now
-     changes the tax.
+     (sub-phases 3a to 3d, and decisions 6 to 31). 3a and 3d are built.
+   - **As built in 3a:** tax-aware scenarios
+     ([docs/scenarios.md](../scenarios.md#tax); the phase 3 design's "As
+     built (3a)" notes): changes tagged with a tax role run through the
+     person's active rules, and principles gain a 33rd figure,
+     `tax_change_this_year`. The engine's version is 4: a stopped flow on
+     an account with an income or deduction role now changes the tax.
+   - **As built in 3d:**
+     - **The port** is as designed: `Notifier`, `Notification`,
+       `NotificationItem` and `Delivery` in `application/ports.py` (the two
+       message classes live in `domain/notifications/digest.py`, which builds
+       them, and ports re-exports them), `NoNotifier` by default, and
+       `Extension.notifier` merged like the meter. Core ships no sender;
+       docs/self-host.md shows a minimal one.
+     - **The message** says each item in a sentence from the wording table,
+       a count, the earliest date and the link. A filing deadline gives its
+       date only, not the rules' label for it: the label is text the person
+       or their agent wrote, so it falls under decision 29's "never a name".
+       The cash item's date is the first day the forecast is below zero, not
+       the signal's lowest point. The person's own reminders count up to the
+       day before the next digest; reviews up to today.
+     - **Timing.** A monthly digest goes on the month's first chosen weekday.
+       A failed send is retried at the chosen hour on a later day of the
+       same period (never at another hour, so the quiet holds), three
+       attempts in all. A first send happens only on the digest day: a run
+       missed that day waits for the next period. An attempt whose outcome
+       was never recorded stays `sending` and is never retried, since it may
+       have gone.
+     - **Doctor** reads when the job last ran from `instance_settings`, not
+       the delivery log: a run with nothing to send logs nothing.
+     - **Storage** is migration `core_0019_notifications` (the design said
+       core_0020): `user_profiles.time_zone`, `notification_preferences` and
+       `notification_deliveries`. `tzdata` is a dependency.
+     - **Interfaces** as designed: `GET`/`PATCH
+       /v1/notifications/preferences`, `GET /v1/notifications/preview`,
+       `GET /v1/notifications/deliveries`, `POST
+       /v1/notifications/cron/send-due`, `salli-server jobs send-digests`,
+       and `salli notifications show|set|preview|log`. No MCP tools.
 
 There are no real users yet, so phase 1 changes FI's figures (savings rate, FI
 date) outright as the definitions are reconciled. Nothing is kept for

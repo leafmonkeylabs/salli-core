@@ -18,12 +18,16 @@ from salli.interfaces.cli.support import leaf_commands
 ROOT = Path(__file__).resolve().parents[3]
 
 
-@pytest.fixture(autouse=True)
 def plain_output(monkeypatch):
     # --json switches the process into JSON mode for good and points the
     # console at stderr: undo both for each test.
     monkeypatch.setattr(support, "_json_mode", False)
     monkeypatch.setattr(support.console, "_file", None)
+
+
+@pytest.fixture(autouse=True)
+def _plain(monkeypatch):
+    plain_output(monkeypatch)
 
 
 def _commands() -> set[str]:
@@ -69,6 +73,7 @@ def test_the_server_has_only_operator_commands():
         "secrets init",
         "jobs run-advisor",
         "jobs sync-banks",
+        "jobs send-digests",
         "jobs recompute-tax",
     }
 
@@ -200,6 +205,83 @@ def test_the_tax_job_is_a_dry_run_unless_told_to_apply(monkeypatch, capsys):
 
     assert _run(monkeypatch, capsys, "jobs", "recompute-tax", "--apply").exit_code == 0
     tax.recompute_stored.assert_awaited_with(apply=True)
+
+
+def _digest_counts(**over: object) -> dict[str, object]:
+    return {
+        "notifier": "mailer",
+        "due": 3,
+        "sent": 2,
+        "nothing_waiting": 1,
+        "no_destination": 0,
+        "failed": 0,
+        "skipped": 0,
+        **over,
+    }
+
+
+def test_the_digest_job_sends_what_is_due_and_counts_it(monkeypatch, capsys):
+    notifications = SimpleNamespace(send_due=AsyncMock(return_value=_digest_counts()))
+    monkeypatch.setattr(jobs, "services", lambda: SimpleNamespace(notifications=notifications))
+    result = _run(monkeypatch, capsys, "jobs", "send-digests", "--json")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == _digest_counts()
+    plain_output(monkeypatch)
+    plain = _run(monkeypatch, capsys, "jobs", "send-digests")
+    assert "Due: 3 · sent 2 · nothing waiting 1" in plain.output
+
+
+def test_the_digest_job_fails_when_a_send_failed(monkeypatch, capsys):
+    notifications = SimpleNamespace(send_due=AsyncMock(return_value=_digest_counts(failed=1)))
+    monkeypatch.setattr(jobs, "services", lambda: SimpleNamespace(notifications=notifications))
+    assert _run(monkeypatch, capsys, "jobs", "send-digests").exit_code == 1
+
+
+def test_the_digest_job_without_a_notifier_says_so_and_succeeds(monkeypatch, capsys):
+    counts = _digest_counts(notifier=None, due=0, sent=0, nothing_waiting=0)
+    notifications = SimpleNamespace(send_due=AsyncMock(return_value=counts))
+    monkeypatch.setattr(jobs, "services", lambda: SimpleNamespace(notifications=notifications))
+    result = _run(monkeypatch, capsys, "jobs", "send-digests")
+    assert result.exit_code == 0
+    assert "No notifier is enabled" in result.output
+
+
+def _notifications(name: str | None, last: object = None) -> SimpleNamespace:
+    return SimpleNamespace(
+        notifications=SimpleNamespace(
+            sender_enabled=name is not None,
+            notifier_name=name,
+            last_run=AsyncMock(return_value=last),
+        )
+    )
+
+
+def test_doctor_says_which_notifier_sends_and_whether_the_job_runs(monkeypatch):
+    import datetime
+
+    now = datetime.datetime.now(datetime.UTC)
+    monkeypatch.setattr(support, "services", lambda: _notifications(None))
+    none = doctor.notifications_check()
+    assert (none.status, none.detail.startswith("no notifier enabled")) == ("ok", True)
+
+    monkeypatch.setattr(support, "services", lambda: _notifications("mailer"))
+    never = doctor.notifications_check()
+    assert never.status == "warn"
+    assert "mailer" in never.detail and "never" in never.detail
+    assert "salli-server jobs send-digests" in never.detail
+
+    stale = now - datetime.timedelta(days=2)
+    monkeypatch.setattr(support, "services", lambda: _notifications("mailer", stale))
+    assert doctor.notifications_check().status == "warn"
+
+    monkeypatch.setattr(
+        support, "services", lambda: _notifications("mailer", now - datetime.timedelta(hours=1))
+    )
+    ok = doctor.notifications_check()
+    assert (ok.status, ok.detail) == (
+        "ok",
+        "notifier from mailer; the digest job ran in the last day",
+    )
 
 
 # ── doctor ────────────────────────────────────────────────────────────────────

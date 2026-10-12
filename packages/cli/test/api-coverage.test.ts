@@ -37,6 +37,7 @@ const EXEMPT: Record<string, string> = {
   'oauth.consent': 'submitted by a web app’s MCP consent screen, not by a person',
   'advisor.cron.runDue': 'for the server’s scheduler, authenticated by X-Cron-Secret; operators run `salli-server jobs run-advisor`',
   'bankConnections.cron.syncDue': 'for the server’s scheduler, authenticated by X-Cron-Secret; operators run `salli-server jobs sync-banks`',
+  'notifications.cron.sendDue': 'for the server’s scheduler, hourly, authenticated by X-Cron-Secret; operators run `salli-server jobs send-digests`',
   'accounts.get': '`salli accounts show` uses accounts.overview, which returns the same account with its balances',
   'onboarding.goals': 'the onboarding wizard’s batch form of goals.create; `salli goals add` adds goals one at a time',
 };

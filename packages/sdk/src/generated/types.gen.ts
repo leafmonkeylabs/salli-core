@@ -3042,6 +3042,24 @@ export type DataExport = {
     decision_journal?: {
         [key: string]: unknown;
     };
+    /**
+     * Notification Preferences
+     *
+     * The digest's preferences as stored (null while never set); the time
+     * zone is in `profile`.
+     */
+    notification_preferences?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Notification Deliveries
+     *
+     * The digest's delivery log as `notifications.deliveries.list` shows
+     * it: each period's status, items (kinds, counts, dates) and hash.
+     */
+    notification_deliveries?: Array<{
+        [key: string]: unknown;
+    }>;
     [key: string]: unknown;
 };
 
@@ -3896,6 +3914,24 @@ export type DeleteAccountRequest = {
 };
 
 /**
+ * DeliveredItem
+ */
+export type DeliveredItem = {
+    /**
+     * Kind
+     */
+    kind: 'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review';
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Date
+     */
+    date: string | null;
+};
+
+/**
  * DeviceAuthorization
  *
  * RFC 8628 §3.2.
@@ -3925,6 +3961,146 @@ export type DeviceAuthorization = {
      * Interval
      */
     interval: number;
+};
+
+/**
+ * Digest
+ *
+ * A digest, exactly as a notifier would be given it.
+ */
+export type Digest = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'digest';
+    /**
+     * Period
+     */
+    period: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Items
+     */
+    items: Array<DigestItem>;
+    /**
+     * Link
+     */
+    link: string | null;
+};
+
+/**
+ * DigestDeliveries
+ */
+export type DigestDeliveries = {
+    /**
+     * Deliveries
+     */
+    deliveries: Array<DigestDelivery>;
+};
+
+/**
+ * DigestDelivery
+ *
+ * One period's digest in the delivery log. The log keeps the items and
+ * the message's hash, never its text.
+ */
+export type DigestDelivery = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Period
+     */
+    period: string;
+    /**
+     * Status
+     */
+    status: 'sending' | 'sent' | 'no_destination' | 'failed';
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Items
+     */
+    items: Array<DeliveredItem>;
+    /**
+     * Hash
+     */
+    hash: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Attempt At
+     */
+    last_attempt_at: string;
+    /**
+     * Sent At
+     */
+    sent_at: string | null;
+};
+
+/**
+ * DigestItem
+ *
+ * One kind of thing waiting, in Salli's own words.
+ */
+export type DigestItem = {
+    /**
+     * Kind
+     */
+    kind: 'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Date
+     */
+    date: string | null;
+};
+
+/**
+ * DigestPreview
+ *
+ * The digest that would go now. Nothing is sent or stored.
+ */
+export type DigestPreview = {
+    /**
+     * Period
+     */
+    period: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Time Zone
+     */
+    time_zone: string | null;
+    digest: Digest | null;
+    /**
+     * Note
+     */
+    note: string;
 };
 
 /**
@@ -6680,6 +6856,78 @@ export type NoteIn = {
 };
 
 /**
+ * NotificationPreferences
+ *
+ * A person's digest: off until they turn it on.
+ */
+export type NotificationPreferences = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Cadence
+     */
+    cadence: 'weekly' | 'monthly';
+    /**
+     * Weekday
+     */
+    weekday: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+    /**
+     * Hour
+     */
+    hour: number;
+    /**
+     * Items
+     */
+    items: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review'>;
+    /**
+     * Time Zone
+     */
+    time_zone: string | null;
+    /**
+     * Next At
+     */
+    next_at: string | null;
+    /**
+     * Sender Enabled
+     */
+    sender_enabled: boolean;
+};
+
+/**
+ * NotificationPreferencesUpdate
+ *
+ * Only the fields given change.
+ */
+export type NotificationPreferencesUpdate = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean | null;
+    /**
+     * Cadence
+     */
+    cadence?: 'weekly' | 'monthly' | null;
+    /**
+     * Weekday
+     */
+    weekday?: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday' | null;
+    /**
+     * Hour
+     */
+    hour?: number | null;
+    /**
+     * Items
+     */
+    items?: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review'> | null;
+    /**
+     * Time Zone
+     */
+    time_zone?: string | null;
+};
+
+/**
  * OAuthErrorBody
  *
  * RFC 6749 §5.2.
@@ -7858,6 +8106,10 @@ export type Profile = {
      * Tax Ids
      */
     tax_ids?: Array<TaxId>;
+    /**
+     * Time Zone
+     */
+    time_zone?: string | null;
 };
 
 /**
@@ -9542,6 +9794,22 @@ export type ScheduledAdvisorRuns = {
  * Accepted: each due connection syncs after this response.
  */
 export type ScheduledBankSyncs = {
+    /**
+     * Due
+     */
+    due: number;
+    /**
+     * Scheduled
+     */
+    scheduled: boolean;
+};
+
+/**
+ * ScheduledDigests
+ *
+ * Accepted: each digest due this hour is sent after this response.
+ */
+export type ScheduledDigests = {
     /**
      * Due
      */
@@ -19368,6 +19636,154 @@ export type DecisionsReviewResponses = {
 };
 
 export type DecisionsReviewResponse = DecisionsReviewResponses[keyof DecisionsReviewResponses];
+
+export type NotificationsPreferencesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/notifications/preferences';
+};
+
+export type NotificationsPreferencesGetErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type NotificationsPreferencesGetError = NotificationsPreferencesGetErrors[keyof NotificationsPreferencesGetErrors];
+
+export type NotificationsPreferencesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationPreferences;
+};
+
+export type NotificationsPreferencesGetResponse = NotificationsPreferencesGetResponses[keyof NotificationsPreferencesGetResponses];
+
+export type NotificationsPreferencesUpdateData = {
+    body: NotificationPreferencesUpdate;
+    path?: never;
+    query?: never;
+    url: '/v1/notifications/preferences';
+};
+
+export type NotificationsPreferencesUpdateErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type NotificationsPreferencesUpdateError = NotificationsPreferencesUpdateErrors[keyof NotificationsPreferencesUpdateErrors];
+
+export type NotificationsPreferencesUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationPreferences;
+};
+
+export type NotificationsPreferencesUpdateResponse = NotificationsPreferencesUpdateResponses[keyof NotificationsPreferencesUpdateResponses];
+
+export type NotificationsPreviewData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/notifications/preview';
+};
+
+export type NotificationsPreviewErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type NotificationsPreviewError = NotificationsPreviewErrors[keyof NotificationsPreviewErrors];
+
+export type NotificationsPreviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: DigestPreview;
+};
+
+export type NotificationsPreviewResponse = NotificationsPreviewResponses[keyof NotificationsPreviewResponses];
+
+export type NotificationsDeliveriesListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/v1/notifications/deliveries';
+};
+
+export type NotificationsDeliveriesListErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type NotificationsDeliveriesListError = NotificationsDeliveriesListErrors[keyof NotificationsDeliveriesListErrors];
+
+export type NotificationsDeliveriesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: DigestDeliveries;
+};
+
+export type NotificationsDeliveriesListResponse = NotificationsDeliveriesListResponses[keyof NotificationsDeliveriesListResponses];
+
+export type NotificationsCronSendDueData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Cron-Secret
+         */
+        'x-cron-secret'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/notifications/cron/send-due';
+};
+
+export type NotificationsCronSendDueErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type NotificationsCronSendDueError = NotificationsCronSendDueErrors[keyof NotificationsCronSendDueErrors];
+
+export type NotificationsCronSendDueResponses = {
+    /**
+     * Successful Response
+     */
+    202: ScheduledDigests;
+};
+
+export type NotificationsCronSendDueResponse = NotificationsCronSendDueResponses[keyof NotificationsCronSendDueResponses];
 
 export type MetaHealthData = {
     body?: never;

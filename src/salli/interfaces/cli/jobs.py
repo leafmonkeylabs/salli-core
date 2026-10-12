@@ -2,9 +2,9 @@
 `salli-server jobs` — work an operator schedules for every user at once.
 
 Each job does in-process what a cron route does over HTTP (the API's
-/advisor/cron/run-due and /bank-connections/cron/sync-due, behind
-X-Cron-Secret), so a self-hoster can use a system crontab instead of exposing
-those routes. They act on every user, which is why they belong to the server's
+/advisor/cron/run-due, /bank-connections/cron/sync-due and
+/notifications/cron/send-due, behind X-Cron-Secret), so a self-hoster can use
+a system crontab instead of exposing those routes. They act on every user, which is why they belong to the server's
 command line and not to anyone's client.
 """
 
@@ -74,6 +74,27 @@ def sync_banks(
         console.print(
             f"{counts['synced']} of {counts['due']} synced, {counts['failed']} failed, "
             f"{counts['skipped']} already syncing."
+        )
+    if counts["failed"]:
+        raise typer.Exit(1)
+
+
+@jobs_app.command("send-digests")
+def send_digests() -> None:
+    """Send the digests due this hour, through the enabled notifier. Run it hourly."""
+    counts: dict[str, Any] = asyncio.run(services().notifications.send_due())
+    if counts["notifier"] is None:
+        if not emit(counts):
+            console.print(
+                "[yellow]No notifier is enabled:[/yellow] nothing is sent. An extension "
+                "supplies one (docs/self-host.md#digests)."
+            )
+        return
+    if not emit(counts):
+        console.print(
+            f"Due: {counts['due']} · sent {counts['sent']} · nothing waiting "
+            f"{counts['nothing_waiting']} · no destination {counts['no_destination']} · "
+            f"failed {counts['failed']} · already handled {counts['skipped']}"
         )
     if counts["failed"]:
         raise typer.Exit(1)

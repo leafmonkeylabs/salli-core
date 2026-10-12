@@ -206,11 +206,16 @@ class InsightsService:
         return {"items": items}
 
     async def _project(
-        self, user_id: str, days: int, changes: Sequence[forecasting.Flow] = ()
+        self,
+        user_id: str,
+        days: int,
+        changes: Sequence[forecasting.Flow] = (),
+        today: dt.date | None = None,
     ) -> _Run:
         """The cash forecast and the baseline it rests on, for the forecast,
-        safe-to-spend and the signals alike."""
-        today = self._today()
+        safe-to-spend and the signals alike (as of `today`, the clock's day
+        unless given)."""
+        today = today or self._today()
         baseline = await self._baselines.build(user_id, today)
         result, notes = timelines.forecast(baseline, today + dt.timedelta(days=days), changes)
         return _Run(result, baseline, [*baseline.cash_notes, *notes])
@@ -377,6 +382,27 @@ class InsightsService:
                 for sig in signal_rules.ranked(detected)
             ]
         }
+
+    async def cash_below_zero_on(self, user_id: str, today: dt.date) -> dt.date | None:
+        """The first day the cash forecast goes below zero, when the
+        `low_balance_ahead` signal says it does (at `high`), over the signals'
+        60 days from `today` (a person's own local date, for their digest)."""
+        run = await self._project(user_id, 60, today=today)
+        result = run.result
+        signals = signal_rules.low_balance_ahead(
+            result.lowest, result.lowest_date, result.today, None, run.base
+        )
+        if not any(s.severity == "high" for s in signals):
+            return None
+        first = next((d for d, balance in result.daily if balance < 0), result.lowest_date)
+        return dt.date.fromisoformat(first)
+
+    async def transactions_waiting(self, user_id: str) -> tuple[int, dt.date | None]:
+        """How many imported transactions wait for review, and the oldest one's
+        date (the `review_waiting` signal's figures)."""
+        pending = await self._pending(user_id)
+        oldest = min((t.raw.date for t in pending), default=None)
+        return len(pending), None if oldest is None else dt.date.fromisoformat(oldest)
 
     async def _pending(self, user_id: str) -> list[Any]:
         async with self._uow_factory() as uow:

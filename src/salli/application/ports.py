@@ -16,6 +16,10 @@ from typing import Any, Protocol, TypedDict
 from pydantic import BaseModel
 
 from salli.domain.llm import Tier
+
+# The message a `Notifier` delivers, built by core (domain/notifications).
+from salli.domain.notifications.digest import Notification as Notification
+from salli.domain.notifications.digest import NotificationItem as NotificationItem
 from salli.domain.usage import AIAction
 
 
@@ -1816,3 +1820,103 @@ class EntitlementPolicy(ABC):
 
     @abstractmethod
     async def for_user(self, user_id: str, email: str | None = None) -> PayloadView: ...
+
+
+# ── Notifications ────────────────────────────────────────────────────────────
+#
+# The third seam: delivering a digest (docs/design/decision-lab-phase-3.md,
+# section 4). Core builds every message (domain/notifications), deterministic
+# and in its own words; where it goes is the deployment's. Salli ships no
+# sender: `NoNotifier` (application/defaults.py) sends nothing, and an
+# extension supplies a `Notifier` (Extension.notifier), at most one per
+# deployment.
+
+
+class Delivery(StrEnum):
+    """What became of a notification handed to a `Notifier`."""
+
+    SENT = "sent"
+    #: The deployment has nowhere to send this person's messages.
+    NO_DESTINATION = "no_destination"
+    #: Not delivered: tried again on a later run in the same period, at most
+    #: three attempts in all.
+    FAILED = "failed"
+
+
+class Notifier(ABC):
+    """Delivers a message core built, to wherever the deployment sends this
+    person's messages (an email, a push, a chat). It gets the user's id and
+    keeps its own destinations: core never stores an address, a push token
+    or a chat id for sending. It may restyle the message, never add to it.
+    `Notification.id` is the same for every attempt in a period, so a sender
+    can drop a repeat. Must not raise for an ordinary failure: return FAILED."""
+
+    @abstractmethod
+    async def send(self, notification: Notification) -> Delivery: ...
+
+
+class NotificationRepository(ABC):
+    """A person's digest preferences and the log of what was delivered, and
+    when the digest job last ran. Every per-user query names the owner."""
+
+    @abstractmethod
+    async def get_preferences(self, user_id: str) -> dict[str, Any] | None:
+        """`{"enabled", "cadence", "weekday", "hour", "items"}`, or None
+        while the person has set nothing."""
+        ...
+
+    @abstractmethod
+    async def save_preferences(self, user_id: str, preferences: dict[str, Any]) -> None:
+        """Store them whole (insert or replace)."""
+        ...
+
+    @abstractmethod
+    async def opted_in(self) -> list[dict[str, Any]]:
+        """Everyone with digests on and a time zone: their preferences, with
+        `user_id` and `time_zone`."""
+        ...
+
+    @abstractmethod
+    async def delivery(self, user_id: str, period: str) -> dict[str, Any] | None:
+        """The log's row for this person and period, if any."""
+        ...
+
+    @abstractmethod
+    async def claim(
+        self,
+        user_id: str,
+        *,
+        delivery_id: str,
+        period: str,
+        items: list[dict[str, Any]],
+        message_hash: str,
+        now: datetime,
+        first: bool,
+        max_attempts: int,
+    ) -> int | None:
+        """Take this period's send for this person, atomically: a new row
+        (only when `first`), or a FAILED one with fewer than `max_attempts`
+        attempts. Marks it `sending` and counts the attempt. Returns the
+        attempt's number, or None when another run has it, it went, or its
+        attempts are used up. The unique (user, period) key decides a race."""
+        ...
+
+    @abstractmethod
+    async def finish(self, user_id: str, delivery_id: str, status: str, now: datetime) -> None:
+        """Record what became of the attempt: a `Delivery` value."""
+        ...
+
+    @abstractmethod
+    async def deliveries(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        """The person's log, newest period first."""
+        ...
+
+    @abstractmethod
+    async def record_run(self, at: datetime) -> None:
+        """Note that the digest job ran (for `salli-server doctor`)."""
+        ...
+
+    @abstractmethod
+    async def last_run(self) -> datetime | None:
+        """When the digest job last ran, if ever."""
+        ...
