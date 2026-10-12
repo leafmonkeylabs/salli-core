@@ -39,7 +39,8 @@ class Debt:
 
 @dataclass(frozen=True)
 class PayoffScheduleEntry:
-    #: 1 for the first payment, 2 for the next, ...
+    #: 1 for the first payment, 2 for the next, ...; 0 for an extra payment
+    #: before the first (the baseline's timelines, `timelines.debt_paths`).
     month: int
     debt_name: str
     payment: Decimal

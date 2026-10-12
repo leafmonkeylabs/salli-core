@@ -196,3 +196,151 @@ def test_money_moved_into_investments_grows_with_them():
     gained = after.points[-1].investments - before.points[-1].investments
     assert gained.quantize(cent) == grown.quantize(cent) == Decimal("1037.28")
     assert before.points[-1].cash - after.points[-1].cash == Decimal("1000")
+
+
+# ── An extra payment before a debt's first payment ───────────────────────────
+#
+# A debt owed on the as-of date is first paid in the month after the as-of
+# month, a loan in the month after it is taken out. An extra payment in the
+# month before (the as-of month, or the loan's opening month) is paid at
+# that month's end, up to what is owed, out of cash, before the schedule
+# starts.
+
+
+def _card() -> Baseline:
+    """The books with a card owing 1,000.00 at 12% a year (1% a month),
+    100.00 a month, the ledger not holding it."""
+    books = _books()
+    books.debt("card", "1000", "0.12", "100")
+    return books.baseline(AS_OF)
+
+
+def _extra(amount: str, start: str = "2026-10", end: str | None = "2026-10") -> timelines.Changes:
+    return timelines.Changes(extra=(timelines.ExtraPayment("card", start, end, Decimal(amount)),))
+
+
+def test_an_extra_payment_in_the_as_of_month_is_paid_at_its_end():
+    baseline = _card()
+    months = timelines.periods(AS_OF, 13)
+    (before,) = timelines.debt_paths(baseline, months)
+    (after,) = timelines.debt_paths(baseline, months, _extra("300"))
+    # Owed at the as-of month's end: 1,000.00 - 300.00, nothing scheduled yet.
+    assert after.owed[0] == Decimal("700") and before.owed[0] == Decimal("1000")
+    assert (after.payments[0], after.extra[0], after.scheduled[0]) == (
+        Decimal("300"),
+        Decimal("300"),
+        Decimal(0),
+    )
+    # November's interest is on 700.00: 7.00, so 100.00 leaves 607.00
+    # (10.00 and 910.00 without it).
+    nov = next(e for e in after.schedule if e.period == "2026-11")
+    assert (nov.interest_paid, nov.payment, nov.remaining_balance) == (
+        Decimal("7.00"),
+        Decimal("100.00"),
+        Decimal("607.00"),
+    )
+    assert after.owed[1] == Decimal("607.00") and before.owed[1] == Decimal("910.00")
+    # Then, at 1% a month and 100.00 a month (half up to the cent):
+    # 607.00 → 6.07 → 513.07 → 5.13 → 418.20 → 4.18 → 322.38 → 3.22 → 225.60
+    # → 2.26 → 127.86 → 1.28 → 29.14 → 0.29, the last 29.43 clearing it in
+    # 2027-06. Interest: 7.00 + 6.07 + 5.13 + 4.18 + 3.22 + 2.26 + 1.28 +
+    # 0.29 = 29.43.
+    assert [e.interest_paid for e in after.schedule if e.month] == [
+        Decimal(x) for x in ("7.00", "6.07", "5.13", "4.18", "3.22", "2.26", "1.28", "0.29")
+    ]
+    assert after.total_interest == Decimal("29.43") < before.total_interest
+    assert after.paid_off == "2027-06"
+    # In the schedule as month 0, in the as-of month.
+    assert (after.schedule[0].month, after.schedule[0].period) == (0, "2026-10")
+    # Out of cash in the as-of month: the plan's extra, and so its cash.
+    plan = timelines.cash_plan(baseline, months, [after], _extra("300"))
+    base = timelines.cash_plan(baseline, months, [before])
+    assert plan[0].extra == Decimal("300")
+    assert base[0].cash_change - plan[0].cash_change == Decimal("300")
+    # Both timelines agree: 300.00 less cash at the as-of month's end, on
+    # the daily timeline (spread over the rest of the month, as every extra
+    # payment is) and the monthly, whose debts are 300.00 less too, so net
+    # worth is the same.
+    daily = dict(timelines.daily(baseline).month_ends)
+    daily_after = dict(timelines.daily(baseline, _extra("300")).month_ends)
+    assert daily["2026-10"] - daily_after["2026-10"] == Decimal("300")
+    was = timelines.monthly(baseline, 1).points[1]
+    now = timelines.monthly(baseline, 1, _extra("300")).points[1]
+    assert (was.cash - now.cash, was.debts - now.debts) == (Decimal("300"), Decimal("300"))
+    assert now.net_worth == was.net_worth
+    monthly = timelines.monthly(baseline, 1, _extra("300"))
+    (card,) = monthly.debts
+    assert (card.total_interest, card.owed[0]) == (Decimal("29.43"), Decimal("700"))
+
+
+def test_an_extra_payment_that_clears_the_debt_pays_it_off_in_the_as_of_month():
+    baseline = _card()
+    months = timelines.periods(AS_OF, 13)
+    (before,) = timelines.debt_paths(baseline, months)
+    # 1,500.00 asked, 1,000.00 owed: only what is owed is paid.
+    (after,) = timelines.debt_paths(baseline, months, _extra("1500"))
+    assert after.paid_off == "2026-10"
+    assert after.extra[0] == Decimal("1000") and after.total_interest == 0
+    assert all(owed == 0 for owed in after.owed)
+    assert sum(after.payments) == Decimal("1000") and sum(after.scheduled) == 0
+    # Its 100.00 a month is freed into the regular surplus from November,
+    # and 1,000.00 (not 1,500.00) leaves cash in October.
+    plan = timelines.cash_plan(baseline, months, [after], _extra("1500"))
+    base = timelines.cash_plan(baseline, months, [before])
+    assert plan[0].extra == Decimal("1000")
+    assert plan[1].planned - base[1].planned == Decimal("100")
+    monthly = timelines.monthly(baseline, 1, _extra("1500"))
+    assert monthly.debt_free == "2026-10"
+    assert monthly.points[1].debts == 0
+
+
+def test_a_recurring_extra_payment_from_the_as_of_month_keeps_that_months_one():
+    baseline = _card()
+    months = timelines.periods(AS_OF, 13)
+    (path,) = timelines.debt_paths(baseline, months, _extra("50", "2026-10", "2026-12"))
+    # 50.00 at October's end, then 100.00 + 50.00 in November and December:
+    # 950.00 → 9.50 → 809.50 → 8.10 → 667.60.
+    assert path.extra[:4] == (Decimal("50"), Decimal("50"), Decimal("50"), Decimal(0))
+    assert path.owed[:3] == (Decimal("950"), Decimal("809.50"), Decimal("667.60"))
+    plan = timelines.cash_plan(baseline, months, [path], _extra("50", "2026-10", "2026-12"))
+    assert [m.extra for m in plan[:4]] == [Decimal("50"), Decimal("50"), Decimal("50"), 0]
+
+
+def test_an_extra_payment_in_a_loans_opening_month_is_paid_at_its_end():
+    baseline = _books().baseline(AS_OF)
+    loan = BaselineDebt(
+        debt_id="later",
+        name="Later",
+        apr=Decimal("0.06"),
+        minimum_payment=Decimal("858.03"),  # 5,000 at 6% over 6 months
+        balance=Decimal("5000"),
+        source="scenario",
+        account_id=None,
+        already_paid=Decimal(0),
+        opened="2027-01",
+        first_payment="2027-02",
+        term_months=6,
+    )
+    arrives = Flow("2027-01-15", None, Decimal("5000"), "NOK", "Borrowed", "change")
+    changes = timelines.Changes(
+        flows=(arrives,),
+        loans=(loan,),
+        extra=(timelines.ExtraPayment("later", "2027-01", "2027-01", Decimal("2000")),),
+    )
+    months = timelines.periods(AS_OF, 13)
+    (path,) = timelines.debt_paths(baseline, months, changes)
+    owed = dict(zip((p.month for p in months), path.owed, strict=True))
+    extra = dict(zip((p.month for p in months), path.extra, strict=True))
+    # Owed 5,000.00 from January, 2,000.00 of it paid at its end.
+    assert owed["2026-12"] == 0 and owed["2027-01"] == Decimal("3000")
+    assert extra["2027-01"] == Decimal("2000")
+    # Then 858.03 a month at 0.5%: 3,000.00 → 15.00 → 2,156.97 → 10.78 →
+    # 1,309.72 → 6.55 → 458.24 → 2.29, the last 460.53 clearing it in May.
+    assert [e.interest_paid for e in path.schedule if e.month] == [
+        Decimal(x) for x in ("15.00", "10.78", "6.55", "2.29")
+    ]
+    assert path.schedule[-1].payment == Decimal("460.53")
+    assert (path.paid_off, path.total_interest) == ("2027-05", Decimal("34.62"))
+    # Out of cash in January, as an extra payment.
+    plan = timelines.cash_plan(baseline, months, [path], changes)
+    assert plan[3].period.month == "2027-01" and plan[3].extra == Decimal("2000")

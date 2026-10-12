@@ -21,8 +21,10 @@ does the baseline's own, or a move that goes where it says:
   out of the regular surplus, and fixed in their own day's money; once it
   is paid off they are freed.
 - `extra_debt_payment`: a move, paid out of cash onto a debt on top of its
-  minimum each month from `from`'s month to `to`'s (debts are paid from the
-  month after the as-of month), until it is paid off. The debt's scheduled
+  minimum each month from `from`'s month to `to`'s, until it is paid off.
+  Debts are first paid in the month after the as-of month; in the as-of
+  month itself, it is paid at the month's end, up to what is owed, before
+  the schedule starts (`timelines.debt_paths`). The debt's scheduled
   payments it saves join the regular surplus once the debt is gone.
 - `invest`: a move, cash out on its day into the investments, which then
   grow at the real return.
@@ -78,8 +80,10 @@ from salli.domain.scenarios import schema
 from salli.domain.taxrules.common import Problem, join_path
 
 #: Bumped whenever the same inputs would give different figures. 2: the
-#: share of the regular surplus invested (`surplus_invested`).
-ENGINE_VERSION = "2"
+#: share of the regular surplus invested (`surplus_invested`). 3: an extra
+#: payment in the as-of month (or a loan's opening month) is paid, at the
+#: month's end, rather than dropped.
+ENGINE_VERSION = "3"
 #: The years the monthly figures are shown at (and the horizon itself).
 CHECKPOINT_YEARS = (1, 5, 10, 20)
 #: A ledger whose newest entry is older than this is too stale to decide on.
