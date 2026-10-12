@@ -552,9 +552,11 @@ def cash_plan(
     regular = _by_month(baseline, added.regular, first)
 
     levels = deflators(baseline, months)
+    # Each path's scheduled payments once: `scheduled` builds them all.
+    schedules = [path.scheduled for path in paths]
     planned: list[Decimal] = [Decimal(0)]
     for i in range(1, len(months)):
-        scheduled = sum((path.scheduled[i] for path in paths), Decimal(0))
+        scheduled = sum((s[i] for s in schedules), Decimal(0))
         planned.append(_money((surplus + already) * levels[i] - scheduled, currency))
 
     # The as-of month's rest: what an average month's surplus is beyond its
