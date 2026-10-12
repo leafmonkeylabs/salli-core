@@ -12592,6 +12592,256 @@
         }
       }
     },
+    "/v1/notifications/preferences": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Get Preferences",
+        "description": "Your digest preferences and time zone.",
+        "operationId": "notifications.preferences.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Update Preferences",
+        "description": "Turn your digest on or off, or change when it goes and what it holds.\nTurning it on needs a time zone.",
+        "operationId": "notifications.preferences.update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferencesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/notifications/preview": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Preview",
+        "description": "The digest that would go now, built by the same code as a real one.\nSends nothing and stores nothing.",
+        "operationId": "notifications.preview",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestPreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/notifications/deliveries": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Deliveries",
+        "description": "What was delivered to you: each period's status, items and hash.",
+        "operationId": "notifications.deliveries.list",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestDeliveries"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/cron/send-due": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Cron Send Due",
+        "description": "Send the digests due this hour, for a scheduler (call it hourly).\nAuth: X-Cron-Secret header. `salli-server jobs send-digests` does the same.",
+        "operationId": "notifications.cron.sendDue",
+        "parameters": [
+          {
+            "name": "x-cron-secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Cron-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledDigests"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -17809,6 +18059,28 @@
             "type": "object",
             "title": "Decision Journal",
             "description": "The decision journal as `decisions.export` gives it: every entry,\nnote and review exactly as recorded, with its hash."
+          },
+          "notification_preferences": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Preferences",
+            "description": "The digest's preferences as stored (null while never set); the time\nzone is in `profile`."
+          },
+          "notification_deliveries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Notification Deliveries",
+            "description": "The digest's delivery log as `notifications.deliveries.list` shows\nit: each period's status, items (kinds, counts, dates) and hash."
           }
         },
         "additionalProperties": true,
@@ -19271,6 +19543,43 @@
         ],
         "title": "DeleteAccountRequest"
       },
+      "DeliveredItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "decision_review_due",
+              "reminder_due",
+              "filing_deadline",
+              "cash_below_zero_ahead",
+              "transactions_to_review"
+            ],
+            "title": "Kind"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "count",
+          "date"
+        ],
+        "title": "DeliveredItem"
+      },
       "DeviceAuthorization": {
         "properties": {
           "device_code": {
@@ -19309,6 +19618,237 @@
         ],
         "title": "DeviceAuthorization",
         "description": "RFC 8628 §3.2."
+      },
+      "Digest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "digest",
+            "title": "Kind"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DigestItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "period",
+          "subject",
+          "text",
+          "items",
+          "link"
+        ],
+        "title": "Digest",
+        "description": "A digest, exactly as a notifier would be given it."
+      },
+      "DigestDeliveries": {
+        "properties": {
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/DigestDelivery"
+            },
+            "type": "array",
+            "title": "Deliveries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deliveries"
+        ],
+        "title": "DigestDeliveries"
+      },
+      "DigestDelivery": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sending",
+              "sent",
+              "no_destination",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveredItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "last_attempt_at": {
+            "type": "string",
+            "title": "Last Attempt At"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "period",
+          "status",
+          "attempts",
+          "items",
+          "hash",
+          "created_at",
+          "last_attempt_at",
+          "sent_at"
+        ],
+        "title": "DigestDelivery",
+        "description": "One period's digest in the delivery log. The log keeps the items and\nthe message's hash, never its text."
+      },
+      "DigestItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "decision_review_due",
+              "reminder_due",
+              "filing_deadline",
+              "cash_below_zero_ahead",
+              "transactions_to_review"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "count",
+          "date"
+        ],
+        "title": "DigestItem",
+        "description": "One kind of thing waiting, in Salli's own words."
+      },
+      "DigestPreview": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Zone"
+          },
+          "digest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "as_of",
+          "time_zone",
+          "digest",
+          "note"
+        ],
+        "title": "DigestPreview",
+        "description": "The digest that would go now. Nothing is sent or stored."
       },
       "DiscardRequest": {
         "properties": {
@@ -24558,6 +25098,192 @@
         ],
         "title": "NoteIn"
       },
+      "NotificationPreferences": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "cadence": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly"
+            ],
+            "title": "Cadence"
+          },
+          "weekday": {
+            "type": "string",
+            "enum": [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday",
+              "sunday"
+            ],
+            "title": "Weekday"
+          },
+          "hour": {
+            "type": "integer",
+            "title": "Hour"
+          },
+          "items": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "decision_review_due",
+                "reminder_due",
+                "filing_deadline",
+                "cash_below_zero_ahead",
+                "transactions_to_review"
+              ]
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Zone"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "sender_enabled": {
+            "type": "boolean",
+            "title": "Sender Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "cadence",
+          "weekday",
+          "hour",
+          "items",
+          "time_zone",
+          "next_at",
+          "sender_enabled"
+        ],
+        "title": "NotificationPreferences",
+        "description": "A person's digest: off until they turn it on."
+      },
+      "NotificationPreferencesUpdate": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "cadence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "weekly",
+                  "monthly"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "monday",
+                  "tuesday",
+                  "wednesday",
+                  "thursday",
+                  "friday",
+                  "saturday",
+                  "sunday"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "hour": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 23.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hour"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "decision_review_due",
+                    "reminder_due",
+                    "filing_deadline",
+                    "cash_below_zero_ahead",
+                    "transactions_to_review"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Zone"
+          }
+        },
+        "type": "object",
+        "title": "NotificationPreferencesUpdate",
+        "description": "Only the fields given change."
+      },
       "OAuthErrorBody": {
         "properties": {
           "error": {
@@ -26654,6 +27380,17 @@
             },
             "type": "array",
             "title": "Tax Ids"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Zone"
           }
         },
         "type": "object",
@@ -29344,6 +30081,25 @@
         ],
         "title": "ScheduledBankSyncs",
         "description": "Accepted: each due connection syncs after this response."
+      },
+      "ScheduledDigests": {
+        "properties": {
+          "due": {
+            "type": "integer",
+            "title": "Due"
+          },
+          "scheduled": {
+            "type": "boolean",
+            "title": "Scheduled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "due",
+          "scheduled"
+        ],
+        "title": "ScheduledDigests",
+        "description": "Accepted: each digest due this hour is sent after this response."
       },
       "SeededReminders": {
         "properties": {

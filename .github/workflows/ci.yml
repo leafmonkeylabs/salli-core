@@ -87,6 +87,9 @@ jobs:
           src/salli/application/services/tax_rule_service.py
           src/salli/application/services/tax_service.py src/salli/application/tax_deadlines.py
           src/salli/interfaces/api/routers/tax_rules.py src/salli/interfaces/api/routers/tax.py
+          src/salli/domain/notifications src/salli/adapters/db/notifications.py
+          src/salli/application/services/notification_service.py
+          src/salli/interfaces/api/routers/notifications.py
       - name: Tests
         # Includes the contract tests: the OpenAPI document matches the app, and
         # salli-core carries no billing vocabulary.

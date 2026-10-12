@@ -12,6 +12,7 @@ issue.
 from __future__ import annotations
 
 import asyncio
+import datetime
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
@@ -236,6 +237,7 @@ def run_checks() -> list[Check]:
         checks += migration_checks(settings)
         if all(c.status == "ok" for c in checks if c.name.startswith("Migrations")):
             checks.append(owner_check())
+            checks.append(notifications_check())
     else:
         checks.append(Check("Migrations", "warn", "not checked: fix the database first"))
     return checks
@@ -253,6 +255,39 @@ def owner_check() -> Check:
     if owner is None:
         return Check("Owner", "warn", "none yet: run `salli-server setup`")
     return Check("Owner", "ok", "set up")
+
+
+#: How recently `salli-server jobs send-digests` should have run, with a notifier.
+DIGEST_JOB_WITHIN = datetime.timedelta(days=1)
+
+
+def notifications_check() -> Check:
+    """Which notifier delivers digests, if any, and, with one, whether the
+    hourly digest job has run in the last day."""
+    from salli.interfaces.cli.support import services
+
+    try:
+        svc = services().notifications
+        last: datetime.datetime | None = asyncio.run(svc.last_run()) if svc.sender_enabled else None
+    except Exception as exc:  # noqa: BLE001 — report it and carry on
+        return Check("Notifications", "fail", f"could not read: {type(exc).__name__}")
+    if not svc.sender_enabled:
+        return Check(
+            "Notifications",
+            "ok",
+            "no notifier enabled: digests are not sent (people's preferences still save)",
+        )
+    name = svc.notifier_name
+    now = datetime.datetime.now(datetime.UTC)
+    if last is None or now - last > DIGEST_JOB_WITHIN:
+        when = "never" if last is None else f"last at {last.isoformat(timespec='minutes')}"
+        return Check(
+            "Notifications",
+            "warn",
+            f"notifier from {name}, but the digest job has not run in the last day ({when}): "
+            "schedule `salli-server jobs send-digests` hourly",
+        )
+    return Check("Notifications", "ok", f"notifier from {name}; the digest job ran in the last day")
 
 
 _STYLE: dict[Status, str] = {"ok": "green", "warn": "yellow", "fail": "red"}
