@@ -115,6 +115,80 @@ class Ledger:
         }
         return id_
 
+    def holding(
+        self,
+        id_: str,
+        name: str,
+        *,
+        symbol: str | None = None,
+        currency: str | None = None,
+        account_id: str | None = None,
+    ) -> str:
+        """A holding, as the portfolio keeps it (the person's own symbol and
+        name), linked to `account_id` if given."""
+        self.uow.holdings.rows[id_] = {
+            "id": id_,
+            "user_id": USER,
+            "symbol": symbol or id_.upper(),
+            "name": name,
+            "asset_class": "equity",
+            "currency": currency or self.base,
+            "cost_basis_minor": 0,
+            "current_value_minor": 0,
+            "is_active": True,
+            "account_id": account_id,
+            "created_at": "",
+            "updated_at": "",
+        }
+        return id_
+
+    def trade(
+        self,
+        holding: str,
+        kind: str,
+        day: str,
+        quantity: str,
+        price: str,
+        *,
+        fees: str = "0",
+        fx: str = "1",
+        id_: str | None = None,
+    ) -> str:
+        """A buy or a sale of a holding, as the portfolio stores it."""
+        from salli.domain.money import to_minor
+
+        currency = self.uow.holdings.rows[holding]["currency"]
+        self._n += 1
+        tid = id_ or f"t{self._n}"
+        self.uow.holding_transactions.rows[tid] = {
+            **self.uow.holding_transactions.DEFAULTS,
+            "id": tid,
+            "user_id": USER,
+            "holding_id": holding,
+            "kind": kind,
+            "transaction_date": day,
+            "quantity": Decimal(quantity),
+            "price": Decimal(price),
+            "fees_minor": to_minor(Decimal(fees), currency),
+            "fx_rate": Decimal(fx),
+            "created_at": "",
+            "updated_at": "",
+        }
+        return tid
+
+    def close(self, holding: str, day: str, price: str) -> None:
+        """A closing price the person recorded for a holding's symbol."""
+        row = self.uow.holdings.rows[holding]
+        self.uow.holding_prices.rows[f"p{len(self.uow.holding_prices.rows) + 1}"] = {
+            "id": f"p{len(self.uow.holding_prices.rows) + 1}",
+            "user_id": USER,
+            "symbol": row["symbol"],
+            "price_date": day,
+            "close": Decimal(price),
+            "currency": row["currency"],
+            "source": "user",
+        }
+
     def assume(self, **figures: str) -> None:
         """Set the user's own FI assumptions ("inflation", "real_return", ...)."""
         self.uow.user_profiles.rows.setdefault(USER, {})["fi_assumptions"] = {

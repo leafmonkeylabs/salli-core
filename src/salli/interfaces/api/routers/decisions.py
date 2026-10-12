@@ -445,6 +445,7 @@ QuestionType = Literal[
     "choice",
     "debt",
     "account",
+    "holding",
     "recurring",
     "tax_role",
     "text",
@@ -488,8 +489,8 @@ class TemplateQuestion(BaseModel):
     #: amount (above zero, in your base currency), amount_or_zero (0 is an
     #: answer), signed_amount, months and years (whole numbers), number,
     #: rate and growth (decimal strings; a rate is a yearly fraction, a
-    #: growth a signed yearly fraction beyond inflation), date, choice, debt
-    #: and account (your own, by id), recurring (one of your recurring
+    #: growth a signed yearly fraction beyond inflation), date, choice, debt,
+    #: account and holding (your own, by id), recurring (one of your recurring
     #: payments out, by key), tax_role (an income or deduction role in your
     #: active tax rules, by key), text, and the lists amounts, loans and
     #: splits.

@@ -17,6 +17,7 @@ from typing import Any
 from salli.domain.baseline.models import RuleSetRef
 from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import assumptions_dict, rate_text
+from salli.domain.portfolio.lots import plain
 from salli.domain.scenarios.comparison import Comparison, Delta, Sensitive
 from salli.domain.scenarios.engine import (
     BreakEven,
@@ -25,6 +26,7 @@ from salli.domain.scenarios.engine import (
     MonthFigure,
     ScenarioResult,
 )
+from salli.domain.scenarios.holdings import Trade
 from salli.domain.scenarios.tax import YearTax
 
 _HUNDREDTH = Decimal("0.01")
@@ -220,6 +222,54 @@ def _year_view(y: YearTax, w: _Writer) -> dict[str, Any]:
     }
 
 
+def trade_view(t: Trade, base: str) -> dict[str, Any]:
+    """An invest into a holding, or a sale: the holding as the person named
+    it, the units, the price and what it rests on, the fees, and a sale's
+    lots and realised gain, in the holding's currency and the base one. No
+    expected return: there is none per holding."""
+    w = _Writer(base)
+
+    def native(value: Decimal | None) -> str | None:
+        return w.money(value, t.currency)
+
+    return {
+        "holding_id": t.holding_id,
+        "symbol": t.symbol,
+        "name": t.name,
+        "currency": t.currency,
+        "fx_rate": plain(t.fx_rate),
+        "units": plain(t.units),
+        "price": plain(t.price),
+        "price_basis": {
+            "date": t.price_date,
+            "source": t.price_source,
+            "price": plain(t.recorded_price),
+            "grown": t.grown,
+            "stale": t.stale,
+        },
+        "fees_given": t.fees_given,
+        "fees": w.money(t.fees if t.fees is not None else Decimal(0)),
+        "value": native(t.gross),
+        "value_base": w.money(t.gross_base),
+        "cost": native(t.cost),
+        "cost_base": w.money(t.cost_base),
+        "gain": native(t.gain),
+        "gain_base": w.money(t.gain_base),
+        "lots": [
+            {
+                "lot_id": lot.lot_id,
+                "opened_on": lot.opened_on,
+                "units": plain(lot.quantity),
+                "cost": native(lot.cost),
+                "cost_base": w.money(lot.cost_base),
+            }
+            for lot in t.lots
+        ],
+        "lot_id": t.lot_id,
+        "account_id": t.account_id,
+    }
+
+
 def tax_view(r: ScenarioResult) -> dict[str, Any]:
     """A result's tax section: each tax year the scenario touches (the first
     two, and the years of the monthly checkpoints; the timeline uses all of
@@ -277,6 +327,7 @@ def result_view(r: ScenarioResult) -> dict[str, Any]:
                     }
                     for s in c.stopped
                 ],
+                "holding": None if c.holding is None else trade_view(c.holding, r.currency),
             }
             for c in r.changes
         ],

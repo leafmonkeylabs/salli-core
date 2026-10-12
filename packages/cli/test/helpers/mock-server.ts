@@ -64,7 +64,7 @@ import {
 } from './fixtures';
 import { DecisionsMock } from './decisions';
 import { NotificationsMock } from './notifications';
-import { ASSET_RUN, SCENARIO_COMPARISON, SCENARIO_RUN, TAXED_RUN } from './scenarios';
+import { ASSET_RUN, HOLDING_RUN, SCENARIO_COMPARISON, SCENARIO_RUN, TAXED_RUN } from './scenarios';
 import { TaxRulesMock } from './taxrules';
 
 export interface RecordedRequest {
@@ -169,11 +169,13 @@ export class MockSalli {
           id: uid(421), symbol: 'VTI', name: 'Total Stock Market', asset_class: 'equity', currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', is_active: true, ...STAMPS,
           tracking: 'transactions', unrealised_gain: '2250.40', native: { currency: 'USD', cost_basis: '9000.00', current_value: '11250.40', unrealised_gain: '2250.40' },
           quantity: '40', price: { date: '2026-10-08', close: '281.26', per_unit: '281.26', source: 'user' }, fx_rate: '1', priced: true, converted: true, notes: [],
+          account_id: null,
         },
         {
           id: uid(422), symbol: 'BND', name: 'Total Bond Market', asset_class: 'bond', currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', is_active: true, ...STAMPS,
           tracking: 'declared', unrealised_gain: '-109.90', native: { currency: 'USD', cost_basis: '3000.00', current_value: '2890.10', unrealised_gain: '-109.90' },
           quantity: null, price: null, fx_rate: null, priced: null, converted: null, notes: [],
+          account_id: null,
         },
       ],
       '/v1/subscriptions/': [
@@ -668,11 +670,14 @@ export class MockSalli {
         );
       }
       if (path === '/v1/scenarios/run') {
-        // A scenario tagging a change with a tax role: the taxed household's;
+        // A scenario tagging a change with a tax role: the taxed household's.
+        const changes = (req.json as { changes?: Array<{ type?: string; holding?: string; tax_role?: string }> }).changes ?? [];
+        // A scenario trading one of the person's holdings: the 3b household's;
         // one buying an asset: the renting household's.
-        const changes = (req.json as { changes?: Array<{ type?: string; tax_role?: string }> }).changes ?? [];
+        if (changes.some((c) => c.type === 'sell' || c.holding)) return { status: 200, body: HOLDING_RUN };
         if (changes.some((c) => c.type === 'asset')) return { status: 200, body: ASSET_RUN };
-        return { status: 200, body: changes.some((c) => c.tax_role) ? TAXED_RUN : SCENARIO_RUN };
+        const tagged = changes.some((c) => c.tax_role);
+        return { status: 200, body: tagged ? TAXED_RUN : SCENARIO_RUN };
       }
       return { status: 200, body: SCENARIO_COMPARISON };
     }

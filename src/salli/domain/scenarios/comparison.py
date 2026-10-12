@@ -53,6 +53,7 @@ from salli.domain import canonical
 from salli.domain.baseline import fi, timelines
 from salli.domain.baseline.models import Baseline
 from salli.domain.currency import quantum
+from salli.domain.scenarios import holdings as trading
 from salli.domain.scenarios import schema
 from salli.domain.scenarios.engine import (
     BreakEven,
@@ -260,18 +261,26 @@ def sensitivity(
     translated: Sequence[tuple[timelines.Changes, Decimal]],
     labels: Sequence[str],
     horizon_years: int,
+    scenarios: Sequence[schema.Scenario] | None = None,
 ) -> tuple[tuple[tuple[str, Decimal], ...], list[OptionSensitivity]]:
     """Each option's net worth and investments at the horizon and its FI
-    month, against the baseline's, under each of the three real returns."""
+    month, against the baseline's, under each of the three real returns.
+    With the `scenarios`, an option that trades a holding after the as-of
+    month is translated again at each return, so its trades' prices grow at
+    the return the investments do."""
     returns = tuple(baseline.assumptions.real_returns.as_dict().items())
     at = 12 * horizon_years + 1
     base_number = fi.fi_number(baseline)
     bases = {name: fi.full_timeline(baseline, real_return=rate) for name, rate in returns}
     out: list[OptionSensitivity] = []
-    for (changes, spending), label in zip(translated, labels, strict=True):
+    for n, ((changes, spending), label) in enumerate(zip(translated, labels, strict=True)):
         number = fi.fi_number(baseline, spending)
         rows: list[tuple[str, Sensitive]] = []
+        scenario = scenarios[n] if scenarios is not None else None
+        retrade = scenario is not None and trading.depends_on_return(baseline, scenario.changes)
         for name, rate in returns:
+            if retrade and scenario is not None:
+                changes = translate(baseline, scenario, real_return=rate).changes
             base, mine = bases[name], fi.full_timeline(baseline, changes, real_return=rate)
             b_fi = fi.months_to_fi(base.points, base_number)
             s_fi = fi.months_to_fi(mine.points, number)
@@ -315,7 +324,7 @@ def _net_worth(
 ) -> Decimal:
     """Net worth at the scenario's horizon, in today's money."""
     months = timelines.periods(baseline.as_of, timelines.horizon_months(scenario.horizon_years))
-    changes = translate(baseline, scenario, until=months[-1].end).changes
+    changes = translate(baseline, scenario, until=months[-1].end, real_return=real_return).changes
     timeline = timelines.monthly(baseline, scenario.horizon_years, changes, real_return=real_return)
     return timeline.points[-1].net_worth
 
@@ -529,7 +538,7 @@ def compare(baseline: Baseline, scenarios: Sequence[schema.Scenario]) -> Compari
     results = [run(baseline, s, base=base) for s in options]
     translated = [(t.changes, t.spending) for t in (translate(baseline, s) for s in options)]
     horizon = options[0].horizon_years
-    returns, sensitive = sensitivity(baseline, translated, labels, horizon)
+    returns, sensitive = sensitivity(baseline, translated, labels, horizon, options)
     floors = [b for r in results for b in r.break_evens]
     between = pairwise(baseline, list(zip(labels, options, strict=True)))
     return Comparison(

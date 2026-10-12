@@ -11,15 +11,16 @@ scenario engine and the choice to them. So a template:
   (`answers.instalment_rate`): an amount in the base currency (above zero,
   or one where 0 is an answer), a whole number of months, a rate, a growth
   beyond inflation, a date, a choice, one of the person's debts, cash
-  accounts or recurring payments, one of the income or deduction roles in
-  their active tax rules, a short text, or a list of amounts, loans or
-  splits;
+  accounts, holdings or recurring payments, one of the income or deduction
+  roles in their active tax rules, a short text, or a list of amounts, loans
+  or splits;
 - **draws a default only from what is honest**: the as-of date or the first
   of the next month, the person's own debts (the only one they have, and
   what it owes) and their own principles (the months of spending one asks
   cash to cover). A question with no honest default has none, and must be
-  answered: a template never invents a price, a rate or a target. The one
-  exception is rent-or-buy's two growths beyond inflation (a rent's, a
+  answered: a template never invents a price, a rate or a target, and never
+  picks a holding, even the only one (where money goes is the person's). The
+  one exception is rent-or-buy's two growths beyond inflation (a rent's, a
   home's), which default to 0 as a labelled placeholder (source
   `placeholder`): not a forecast, but how the baseline already treats every
   other asset and recurring amount, with the break-even beside it
@@ -77,6 +78,7 @@ QuestionType = Literal[
     "choice",
     "debt",
     "account",
+    "holding",
     "recurring",
     "tax_role",
     "text",
@@ -133,6 +135,17 @@ class AccountFact:
     a scenario's change may move."""
 
     id: str
+    name: str
+
+
+@dataclass(frozen=True)
+class HoldingFact:
+    """One of the person's holdings a scenario can invest into (its
+    transactions recorded, a price on or before the as-of date, and a rate
+    into the base currency): their own id, symbol and name for it."""
+
+    id: str
+    symbol: str
     name: str
 
 
@@ -198,6 +211,7 @@ class Facts:
     accounts: tuple[AccountFact, ...] = ()
     cover_principles: tuple[CoverPrinciple, ...] = ()
     tax_roles: tuple[TaxRoleFact, ...] = ()
+    holdings: tuple[HoldingFact, ...] = ()
     recurring: tuple[RecurringFact, ...] = ()
 
     @property
@@ -214,6 +228,9 @@ class Facts:
 
     def tax_role(self, key: str) -> TaxRoleFact | None:
         return next((r for r in self.tax_roles if r.key == key), None)
+
+    def holding(self, holding_id: str) -> HoldingFact | None:
+        return next((h for h in self.holdings if h.id == holding_id), None)
 
     def payment(self, key: str) -> RecurringFact | None:
         return next((r for r in self.recurring if r.key == key), None)
@@ -275,6 +292,11 @@ def facts_of(baseline: Baseline, principles: Sequence[tuple[Principle, Expr]] = 
         ),
         cover_principles=cover_principles(principles),
         tax_roles=tax_roles_of(baseline),
+        holdings=tuple(
+            HoldingFact(h.holding_id, h.symbol, h.name)
+            for h in baseline.holdings
+            if h.tracked and h.price is not None and h.fx_rate is not None
+        ),
         recurring=recurring_of(baseline),
     )
 
@@ -602,6 +624,18 @@ def _debt(value: Any, facts: Facts) -> str:
     return value
 
 
+def _holding(value: Any, facts: Facts) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError("is one of your holdings, by its id (salli holdings list)")
+    if facts.holding(value) is None:
+        names = ", ".join(f"{h.name} ({h.id})" for h in facts.holdings) or "none"
+        raise ValueError(
+            f"{value!r} is not one of your holdings with its transactions and a price "
+            f"recorded; yours: {names}"
+        )
+    return value
+
+
 def _account(value: Any, facts: Facts) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError("is one of your cash accounts, by its id")
@@ -676,6 +710,8 @@ def _parse(question: Question, value: Any, facts: Facts, path: str, out: _Proble
             return attempt(lambda: _debt(value, facts))
         case "account":
             return attempt(lambda: _account(value, facts))
+        case "holding":
+            return attempt(lambda: _holding(value, facts))
         case "recurring":
             return attempt(lambda: _recurring(value, facts))
         case "tax_role":
@@ -1095,6 +1131,14 @@ def _value_schema(q: Question, facts: Facts | None) -> dict[str, Any]:
             }
             if facts is not None and facts.accounts:
                 out["enum"] = [a.id for a in facts.accounts]
+            return out
+        case "holding":
+            out = {
+                "type": "string",
+                "description": "One of your own holdings, by its id. Salli never picks one.",
+            }
+            if facts is not None and facts.holdings:
+                out["enum"] = [h.id for h in facts.holdings]
             return out
         case "recurring":
             out = {

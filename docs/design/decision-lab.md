@@ -429,13 +429,23 @@ Nudges are quiet, useful and rare:
    - A rent-or-buy template.
    - The notification port.
    - **Status:** designed and approved (2026-10-12): [the phase 3 design](decision-lab-phase-3.md)
-     (sub-phases 3a to 3d, and decisions 6 to 31). 3a, 3c and 3d are built.
+     (sub-phases 3a to 3d, and decisions 6 to 31). All four are built.
    - **As built in 3a:** tax-aware scenarios
      ([docs/scenarios.md](../scenarios.md#tax); the phase 3 design's "As
      built (3a)" notes): changes tagged with a tax role run through the
      person's active rules, and principles gain a 33rd figure,
      `tax_change_this_year`. The engine's version is 4: a stopped flow on
      an account with an income or deduction role now changes the tax.
+   - **As built in 3b:** invest and sell changes on the person's own
+     holdings ([docs/scenarios.md](../scenarios.md#holdings); the phase 3
+     design's "As built (3b)" notes): a holding links to the investment
+     account that holds it (`holdings.account_id`, migration
+     `core_0020_holding_account`); `invest` takes a `holding` and `fees`, and
+     a `sell` replays the holding's lots in memory, capped at what its
+     account holds, its gain taxable through an income role. One real
+     return; no price forecast; no template picks a holding; the guardrail
+     allows the person's own holdings and forbids suggesting or comparing
+     any. The engine's version stays 4.
    - **As built in 3c:** the rent-or-buy template
      ([docs/templates.md](../templates.md#rent-or-buy); the phase 3
      design's "As built (3c)" notes): an `asset` change counted at its value

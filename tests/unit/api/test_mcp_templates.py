@@ -70,7 +70,11 @@ def _guarded(text: str) -> None:
     assert "Never compute" in text
     assert "never add, subtract, divide, project or estimate anything yourself" in text
     assert "never work out tax or what I'd keep after it" in text
-    assert "Never name a specific product, provider, fund or security" in text
+    assert "Never name a specific product, provider, fund or security of your own" in text
+    # The person's own holdings may be mentioned; no security suggested or compared.
+    assert "You may refer to my own holdings as I named them" in text
+    assert "never suggest buying or selling any security, mine or another" in text
+    assert "never compare my holdings as investments" in text
     assert (
         "regulated financial advice where I live (insurance, pensions, choosing investments)"
         in text

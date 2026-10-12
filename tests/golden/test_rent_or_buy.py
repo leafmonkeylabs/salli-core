@@ -298,3 +298,51 @@ def test_the_template_says_what_it_rests_on_and_ranks_nothing(baseline: Baseline
     own = started(baseline, rent_growth="0.005", home_growth="0.01")
     assert not {"asset_growth", "rent_growth"} & set(own["placeholders"])
     assert_never_ranks(own)
+
+
+def test_a_sale_of_holdings_can_fund_the_deposit_on_a_home():
+    """3b's household (tests/golden/test_holding_scenarios.py): all 10
+    units of "My index fund" sold on 2031-07-01, at the 150.00 recorded on
+    the as-of date grown a month at the 4% real return (1,500.17, no fees),
+    put towards a flat for 20,000.00 bought that day with a mortgage of
+    15,000.00 at 0% over 120 months, no growth and no selling costs. At the
+    end of July: cash 1,500.17 + 15,000.00 − 20,000.00 = −3,499.83 against
+    the baseline, investments −1,500.17, the flat 20,000.00 and 15,000.00
+    owed: net worth exactly as it was. Each works as it does alone."""
+    from tests.golden import test_holding_scenarios as holdings
+
+    b = holdings.books().baseline(holdings.AS_OF)
+    both = schema.load(
+        {
+            "schema": "salli.scenario/1",
+            "changes": [
+                {"type": "sell", "holding": "fund", "quantity": "10", "date": "2031-07-01"},
+                {
+                    "type": "asset",
+                    "price": "20000.00",
+                    "date": "2031-07-01",
+                    "real_growth": "0",
+                    "label": "A flat",
+                },
+                {
+                    "type": "loan",
+                    "principal": "15000.00",
+                    "annual_rate": "0",
+                    "term_months": 120,
+                    "start": "2031-07-01",
+                    "label": "Mortgage",
+                },
+            ],
+        }
+    )
+    result, done = engine.run_with_outlook(b, both)
+    base = {p.month: p for p in engine.baseline_outlook(b).monthly.points[1:]}
+    july = {p.month: p for p in done.outlook.monthly.points[1:]}["2031-07"]
+    cent = D("0.01")
+    assert (july.cash - base["2031-07"].cash).quantize(cent) == D("-3499.83")
+    assert (july.investments - base["2031-07"].investments).quantize(cent) == D("-1500.17")
+    assert (july.other_assets, july.debts) == (D("20000.00"), D("15000.00"))
+    assert (july.net_worth - base["2031-07"].net_worth).quantize(cent) == 0
+    assert [c.type for c in result.changes] == ["sell", "asset", "loan"]
+    assert result.changes[0].holding is not None and result.changes[0].holding.units == 10
+    assert "asset_growth" not in result.placeholders

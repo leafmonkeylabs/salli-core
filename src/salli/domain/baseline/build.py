@@ -20,6 +20,9 @@ Building the baseline from what the application gathered. Pure.
   with, the postings on accounts whose tax role they declare (to the as-of
   date), and each role's monthly average over the months observed, as
   income and expenses are averaged (`domain/scenarios/tax.py`).
+- **Holdings** (`holdings.py`): each as of the as-of date at its last
+  recorded price, never counted (the ledger's investment accounts are), and
+  a note where a linked account and its holdings disagree.
 - **A fingerprint** of the inputs (`fingerprint`): a content hash a result
   computed from the baseline records, so the same inputs are known to give
   the same figures.
@@ -33,6 +36,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from salli.domain import canonical
 from salli.domain.accounting.models import Account, StoredJournalEntry
+from salli.domain.baseline import holdings as holdings_
 from salli.domain.baseline.flows import summarize
 from salli.domain.baseline.models import (
     ROLE_OF,
@@ -191,6 +195,13 @@ def fingerprint(inputs: BaselineInputs) -> str:
                 if inputs.tax.rules
                 else {}
             ),
+            # Only when there are holdings, so a baseline without any
+            # fingerprints as it did before scenarios could sell one.
+            **(
+                {"holdings": sorted(inputs.holdings, key=lambda h: h.holding_id)}
+                if inputs.holdings
+                else {}
+            ),
         },
         floats=True,
     )
@@ -295,6 +306,9 @@ def build(inputs: BaselineInputs) -> Baseline:
             )
         )
 
+    held, holding_notes = holdings_.build(inputs.holdings, as_of, base, inputs.rates, balances)
+    notes += holding_notes
+
     used = sorted({b.currency for b in balances} - {base})
     rates = tuple(inputs.rates.get(c) or Rate(c, None, None, None) for c in used)
     return Baseline(
@@ -316,4 +330,5 @@ def build(inputs: BaselineInputs) -> Baseline:
         rule_sets=tuple(inputs.rule_sets),
         tax=_tax(inputs, entries, accounts, flows),
         fingerprint=fingerprint(inputs),
+        holdings=held,
     )

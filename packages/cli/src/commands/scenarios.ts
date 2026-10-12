@@ -28,6 +28,7 @@ import { plural, singleLine } from '../output/text';
 import { displayDate, displayMonth, isoDate, parseDate } from '../util/dates';
 import { readAllStdin } from '../util/stdin';
 import { resolveById } from '../util/resolve';
+import { resolveHolding } from './investments';
 import { AccountBook, amountArg, collect, countArg, rateArg } from './shared';
 
 type Change = NonNullable<Scenario['changes']>[number];
@@ -190,6 +191,22 @@ export function investArg(value: string, day: string, now: Date, account?: strin
   return { type: 'invest', amount, date: date ?? day, ...(account ? { from: account } : {}), label: `Invest ${amount}` };
 }
 
+/** `--sell HOLDING:UNITS[@date]` or `--sell-value HOLDING:AMOUNT[@date]`: part of one of your holdings sold. */
+export function sellArg(
+  value: string,
+  day: string,
+  now: Date,
+  flag: '--sell' | '--sell-value',
+): { holding: string; how: { quantity: string } | { amount: string }; date: string } {
+  const { head, date } = splitAt(value, now, flag);
+  const colon = head.lastIndexOf(':');
+  const example = flag === '--sell' ? 'FUND:4' : 'FUND:2500';
+  if (colon <= 0) throw new UsageError(`${flag} takes HOLDING:${flag === '--sell' ? 'UNITS' : 'AMOUNT'}, like ${example} (got "${value}").`);
+  const holding = head.slice(0, colon).trim();
+  const figure = priceArg(head.slice(colon + 1), flag);
+  return { holding, how: flag === '--sell' ? { quantity: figure } : { amount: figure }, date: date ?? day };
+}
+
 /** Reads a scenario document: a file, or stdin for "-". */
 export async function readScenario(app: App, path: string): Promise<Record<string, unknown>> {
   let text: string;
@@ -286,8 +303,19 @@ function describeChange(out: Output, run: ScenarioRun, index: number): string {
       return `${out.money(doc.principal, cur)} at ${out.percent(doc.annual_rate, 2)} over ${plural(doc.term_months, 'month')}: ${out.money(applied?.payment, cur)} a month from ${month(out, applied?.first_payment)}`;
     case 'extra_debt_payment':
       return `${out.money(doc.monthly, cur)} a month from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}`;
-    case 'invest':
-      return `${out.money(doc.amount, cur)} on ${on(doc.date)}`;
+    case 'invest': {
+      const trade = applied?.holding;
+      const into = trade
+        ? `: ${trade.units} units of ${singleLine(trade.name)} at ${trade.currency} ${out.decimal(trade.price, 4)}${trade.fees_given ? `, fees ${out.money(trade.fees, cur)}` : ''}`
+        : '';
+      return `${out.money(doc.amount, cur)} on ${on(doc.date)}${into}`;
+    }
+    case 'sell': {
+      const trade = applied?.holding;
+      if (!trade) return `on ${on(doc.date)}`;
+      const gain = trade.gain === null ? '' : `, a gain of ${out.money(trade.gain, trade.currency)}${taxed(doc.tax_role).replace('before tax', 'taxed')}`;
+      return `${trade.units} units of ${singleLine(trade.name)} at ${trade.currency} ${out.decimal(trade.price, 4)} on ${on(doc.date)}: ${out.money(trade.value, trade.currency)}, fees ${trade.fees_given ? out.money(trade.fees, cur) : 'none given'}${gain}`;
+    }
     case 'set_aside':
       return `${out.money(doc.monthly, cur)} a month kept in cash from ${on(doc.from)}${doc.to ? ` to ${on(doc.to)}` : ''}`;
     case 'asset': {
@@ -573,6 +601,11 @@ export function registerScenarios(program: Command, app: App): void {
     .option('--income <amount/month[@date]>', 'Your monthly income changes: +600/month, take-home unless --tax-role (repeatable)', collect)
     .option('--extra-payment <debt:amount/month[@date]>', 'Pay more on a debt each month: "car loan:200/month" (repeatable)', collect)
     .option('--invest <amount[@date]>', 'Move cash into your investments (repeatable)', collect)
+    .option('--holding <holding>', 'The --invest changes go into this holding of yours (symbol or id)')
+    .option('--sell <holding:units[@date]>', 'Sell units of one of your holdings: FUND:4 (repeatable)', collect)
+    .option('--sell-value <holding:amount[@date]>', 'Sell this much of one of your holdings, in your base currency (repeatable)', collect)
+    .option('--fees <amount>', 'Your broker\'s fees on each --sell, --sell-value and --invest into a --holding (default: none)')
+    .option('--gain-tax-role <role>', 'A --sell\'s realised gain counts in this income role of your tax rules')
     .option('--asset <price[@date]>', 'Buy something that holds its value (a home) from cash (repeatable)', collect)
     .option('--asset-growth <rate>', 'How much each --asset grows a year beyond inflation: 1%, -0.5% (default 0, a placeholder)')
     .option('--selling-costs <rate>', 'What selling each --asset would cost, as a share of its value: 3% (default 0)')
@@ -606,12 +639,21 @@ Examples:
   $ salli whatif --asset 450000@2027-03-01 --selling-costs 3% --loan 360000@4.2%x300@2027-03-01
   $ salli whatif --cancel streamflix
   $ salli whatif --income +1000/month@2027-01-01 --tax-role salary
+  $ salli whatif --invest 1000 --holding FUND --fees 4
+  $ salli whatif --sell FUND:4@2026-11-02 --fees 2 --gain-tax-role gains
   $ salli whatif --file scenario.json --json
 
 With --tax-role, the amounts are before tax: Salli works out the change in
 each year's tax with your active tax rules (\`salli tax rules list\`), and
 it comes out of cash month by month. Without active rules the amounts count
-before tax, and the result says why.`,
+before tax, and the result says why.
+
+A holding is one of yours, by symbol or id (\`salli holdings list\`). A sale
+is at its last recorded price (grown at your real return and inflation for a
+later month: no price is forecast), first in, first out; it needs the holding
+linked to the investment account that holds it (\`salli holdings update
+FUND --account <account>\`) and can't sell more than that account holds.
+Fees are yours to give: none are counted without --fees.`,
     )
     .action(async (options) => {
       const opts = {
@@ -622,6 +664,8 @@ before tax, and the result says why.`,
         income: options.income ?? [],
         extraPayment: options.extraPayment ?? [],
         invest: options.invest ?? [],
+        sell: options.sell ?? [],
+        sellValue: options.sellValue ?? [],
         cancel: options.cancel ?? [],
         asset: options.asset ?? [],
         taxAnswer: options.taxAnswer ?? [],
@@ -633,8 +677,11 @@ before tax, and the result says why.`,
         opts.income.length +
         opts.extraPayment.length +
         opts.invest.length +
+        opts.sell.length +
+        opts.sellValue.length +
         opts.cancel.length +
         opts.asset.length;
+      const trades = opts.sell.length + opts.sellValue.length + (opts.holding ? opts.invest.length : 0);
       if (opts.file && flagged) throw new UsageError('Give changes as flags or as --file, not both.');
       if (opts.file && opts.save) throw new UsageError('--save writes the scenario the flags make; with --file you have it already.');
       if (opts.file && (opts.taxRole || opts.taxAnswer.length)) {
@@ -652,6 +699,16 @@ before tax, and the result says why.`,
       const assetGrowth = opts.assetGrowth !== undefined ? rateArg(opts.assetGrowth, '--asset-growth') : undefined;
       const sellingCosts = opts.sellingCosts !== undefined ? rateArg(opts.sellingCosts, '--selling-costs') : undefined;
       const recurringGrowth = opts.recurringGrowth !== undefined ? rateArg(opts.recurringGrowth, '--recurring-growth') : undefined;
+      if (opts.file && (opts.holding || opts.fees || opts.gainTaxRole)) {
+        throw new UsageError('With --file, put holding, fees and tax_role on the changes themselves.');
+      }
+      if (opts.holding && !opts.invest.length) throw new UsageError('--holding is the holding --invest goes into: give --invest.');
+      if (opts.fees && !trades) throw new UsageError('--fees are on a --sell, a --sell-value or an --invest into a --holding: give one.');
+      if (opts.gainTaxRole && !(opts.sell.length + opts.sellValue.length)) {
+        throw new UsageError('--gain-tax-role tags a --sell\'s realised gain: give --sell or --sell-value.');
+      }
+      const fees = opts.fees ? amountArg(opts.fees, '--fees') : undefined;
+      const gainRole = opts.gainTaxRole ? taxRoleArg(opts.gainTaxRole) : undefined;
       const taxRole = opts.taxRole ? taxRoleArg(opts.taxRole) : undefined;
       const taxAnswers = taxAnswersArg(opts.taxAnswer);
       const now = app.runtime.now();
@@ -667,7 +724,7 @@ before tax, and the result says why.`,
       } else {
         if (!flagged) {
           throw new UsageError(
-            'Say what changes: --buy, --loan, --recurring, --income, --extra-payment, --invest, --asset or --cancel.',
+            'Say what changes: --buy, --loan, --recurring, --income, --extra-payment, --invest, --sell, --asset or --cancel.',
             'Or run a scenario document with --file. See `salli whatif --help`.',
           );
         }
@@ -682,9 +739,41 @@ before tax, and the result says why.`,
             return recurringGrowth !== undefined ? ({ ...recurring, real_growth: recurringGrowth } as Change) : recurring;
           }),
           ...opts.income.map((v) => tag(incomeArg(v, day, now))),
-          ...opts.invest.map((v) => investArg(v, day, now, account)),
           ...opts.asset.map((v) => assetArg(v, day, now, { account, growth: assetGrowth, sellingCosts })),
         ];
+        const holdingOf = new Map<string, { id: string; name: string }>();
+        const holding = async (query: string): Promise<{ id: string; name: string }> => {
+          const known = holdingOf.get(query);
+          if (known) return known;
+          const found = await resolveHolding(api, query);
+          holdingOf.set(query, found);
+          return found;
+        };
+        const into = opts.holding ? await holding(opts.holding) : undefined;
+        for (const value of opts.invest) {
+          const invest = investArg(value, day, now, account);
+          changes.push(
+            into && invest.type === 'invest'
+              ? { ...invest, holding: into.id, ...(fees ? { fees } : {}), label: `Invest ${invest.amount} in ${into.name}` }
+              : invest,
+          );
+        }
+        for (const [flag, values] of [['--sell', opts.sell], ['--sell-value', opts.sellValue]] as const) {
+          for (const value of values) {
+            const sale = sellArg(value, day, now, flag);
+            const found = await holding(sale.holding);
+            changes.push({
+              type: 'sell',
+              holding: found.id,
+              ...sale.how,
+              date: sale.date,
+              ...(fees ? { fees } : {}),
+              ...(account ? { into: account } : {}),
+              ...(gainRole ? { tax_role: gainRole } : {}),
+              label: `Sell ${found.name}`,
+            });
+          }
+        }
         if (opts.extraPayment.length) {
           const debts = (await api.call(debtsList, { query: { active_only: true } })).debts;
           for (const value of opts.extraPayment) {

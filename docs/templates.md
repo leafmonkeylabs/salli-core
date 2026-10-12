@@ -44,7 +44,7 @@ you say).
 | Field | What it is |
 |---|---|
 | `id` | What the answer is called. |
-| `type` | `amount` (above zero, in your base currency, a decimal string), `amount_or_zero` (the same, where `"0"` is an answer), `signed_amount` (`"+450"` more, `"-200"` less), `months` and `years` (whole numbers), `number` (a decimal string, like months of spending), `rate` (a yearly fraction: `"0.069"` is 6.9%), `growth` (a signed yearly fraction beyond inflation: `"0.01"` is 1% a year more than prices, `"-0.005"` half a percent less), `date` (`YYYY-MM-DD`, not before the as-of date), `choice`, `debt` and `account` (one of your own, by id), `recurring` (one of your recurring payments out, by its key: `salli insights recurring`), `tax_role` (an `income` or `deduction` role of your active tax rules, by key), `text`, and the lists `amounts`, `loans` and `splits`. |
+| `type` | `amount` (above zero, in your base currency, a decimal string), `amount_or_zero` (the same, where `"0"` is an answer), `signed_amount` (`"+450"` more, `"-200"` less), `months` and `years` (whole numbers), `number` (a decimal string, like months of spending), `rate` (a yearly fraction: `"0.069"` is 6.9%), `growth` (a signed yearly fraction beyond inflation: `"0.01"` is 1% a year more than prices, `"-0.005"` half a percent less), `date` (`YYYY-MM-DD`, not before the as-of date), `choice`, `debt`, `account` and `holding` (one of your own, by id), `recurring` (one of your recurring payments out, by its key: `salli insights recurring`), `tax_role` (an `income` or `deduction` role of your active tax rules, by key), `text`, and the lists `amounts`, `loans` and `splits`. |
 | `required` | Whether it must be answered when it has no default. |
 | `when` | When it is asked: once another question is answered, or answered so. |
 | `default` | What it is when you leave it out, where that comes from (`source`) and a sentence saying so (`note`). |
@@ -63,8 +63,19 @@ A default comes only from what is honest:
   20-year horizon.
 
 Nothing else has a default. A price, a rate, a target, an amount to set
-aside, a tax role: you give them, or the template asks. A template never
-invents a figure about your money.
+aside, a tax role, a holding: you give them, or the template asks. A template
+never invents a figure about your money, and never picks a holding, even
+when you have only one: where money goes is yours.
+
+## Holdings
+
+`debt-or-invest` and `windfall` ask, optionally, which of your holdings the
+money invested goes into (`holding`: one with its transactions and a price
+recorded, by its id). Named, each invest change goes into it, and the result
+shows the units it buys at the holding's price
+([scenarios](scenarios.md#holdings)); left out, the money goes into your
+investments as a whole, as before. No template sells a holding: write a
+`sell` change yourself, or use `salli whatif --sell`.
 
 **One exception, labelled:** rent-or-buy's two growths beyond inflation
 (`rent_growth`, `home_growth`) default to 0 with the source `placeholder`

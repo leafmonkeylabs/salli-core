@@ -4461,7 +4461,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
                 "amount": "-1500.00",
                 "currency": "EUR"
               }
-            ]
+            ],
+            "holding": null
           },
           {
             "index": 1,
@@ -4472,7 +4473,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": null,
             "monthly": "-1500.00",
             "for_good": true,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           }
         ],
         "cash": {
@@ -4913,7 +4915,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": null,
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 1,
@@ -4924,7 +4927,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": "2026-12",
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 2,
@@ -4935,7 +4939,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": null,
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 3,
@@ -4946,7 +4951,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": null,
             "monthly": "-250.00",
             "for_good": true,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 4,
@@ -4964,7 +4970,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
                 "amount": "-1500.00",
                 "currency": "EUR"
               }
-            ]
+            ],
+            "holding": null
           }
         ],
         "cash": {
@@ -5442,7 +5449,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": null,
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 1,
@@ -5453,7 +5461,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": "2026-12",
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 2,
@@ -5464,7 +5473,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": null,
             "monthly": null,
             "for_good": null,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 3,
@@ -5475,7 +5485,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "first_payment": null,
             "monthly": "-250.00",
             "for_good": true,
-            "stopped": []
+            "stopped": [],
+            "holding": null
           },
           {
             "index": 4,
@@ -5493,7 +5504,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
                 "amount": "-1500.00",
                 "currency": "EUR"
               }
-            ]
+            ],
+            "holding": null
           }
         ],
         "cash": {

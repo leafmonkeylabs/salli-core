@@ -152,7 +152,7 @@ class FakeHoldings(FakeRecords):
     the table's ON DELETE CASCADE does."""
 
     def __init__(self, transactions: FakeHoldingTransactions) -> None:
-        super().__init__(is_active=True)
+        super().__init__(is_active=True, account_id=None)
         self.transactions = transactions
         self.locked: list[str] = []
 
@@ -772,6 +772,9 @@ class FakeUoW:
         self.decisions = FakeDecisions()
         self.reminders = FakeReminders()
         self.notifications = FakeNotifications(self.user_profiles)
+        self.holding_transactions = FakeHoldingTransactions()
+        self.holdings = FakeHoldings(self.holding_transactions)
+        self.holding_prices = FakeHoldingPrices()
 
     async def __aenter__(self) -> FakeUoW:
         return self

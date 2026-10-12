@@ -1213,6 +1213,14 @@ class HoldingORM(Base):
     cost_basis_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     current_value_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # The investment account in the ledger that holds it, if any (decision
+    # lab 3b): the ledger stays the one source of balances, and a scenario
+    # can sell a holding only from the account that holds it. The service
+    # checks it is the owner's own investment-role asset account; the
+    # database, that it exists. An account may hold many holdings.
+    account_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("accounts.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -1222,6 +1230,7 @@ class HoldingORM(Base):
 
     __table_args__ = (
         Index("ix_holdings_user_active", "user_id", "is_active"),
+        Index("ix_holdings_account", "account_id"),
         CheckConstraint("currency ~ '^[A-Z]{3}$'", name="ck_holdings_currency"),
     )
 

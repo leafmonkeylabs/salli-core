@@ -607,6 +607,20 @@ class AccountNotFound(KeyError):
         return "Account not found: " + ", ".join(self.account_ids)
 
 
+class HoldingNotFound(KeyError):
+    """A scenario names a holding that is not one of the caller's: one that
+    does not exist, or another user's. They look the same, so a holding id
+    says nothing about anyone else's portfolio, and a security the caller
+    doesn't hold can never get into a scenario."""
+
+    def __init__(self, holding_ids: Collection[str]) -> None:
+        self.holding_ids = tuple(sorted(holding_ids))
+        super().__init__(self.holding_ids)
+
+    def __str__(self) -> str:
+        return "Holding not found: " + ", ".join(self.holding_ids)
+
+
 class DebtNotFound(KeyError):
     """A request names a debt that is not one of the caller's active debts:
     one that does not exist, one they closed, or another user's. They look
