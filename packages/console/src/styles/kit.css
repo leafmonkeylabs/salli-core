@@ -769,6 +769,68 @@ main:focus {
   margin: 0;
 }
 
+/*
+ * A checkbox is drawn square, as every corner is (brand README, "Corners"):
+ * the browser's own box is rounded. A radio stays the browser's, a circle by
+ * meaning. With forced colours the system draws the checkbox again.
+ */
+input[type='checkbox'] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.5px solid var(--c-text);
+  border-radius: 0;
+  background: var(--c-page);
+  cursor: pointer;
+}
+
+input[type='checkbox']::before {
+  content: '';
+  width: 10px;
+  height: 5px;
+  border-bottom: 2px solid var(--c-button-text);
+  border-left: 2px solid var(--c-button-text);
+  transform: translateY(-1px) rotate(-45deg);
+  visibility: hidden;
+}
+
+input[type='checkbox']:checked {
+  border-color: var(--c-button);
+  background: var(--c-button);
+}
+
+input[type='checkbox']:checked::before {
+  visibility: visible;
+}
+
+input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
+input[type='checkbox'][aria-invalid='true'] {
+  border-color: var(--c-negative);
+}
+
+input[type='checkbox']:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (forced-colors: active) {
+  input[type='checkbox'] {
+    appearance: auto;
+  }
+
+  input[type='checkbox']::before {
+    display: none;
+  }
+}
+
 /* ── Dialogs ────────────────────────────────────────────────────────────── */
 
 .modal {

@@ -88,9 +88,9 @@ export function Field({
 }: FieldProps & {
   value: string;
   onChange: (value: string) => void;
-  type?: 'text' | 'date';
+  type?: 'text' | 'date' | 'password';
   name?: string;
-  inputProps?: { inputMode?: 'text' | 'decimal' | 'numeric'; placeholder?: string; min?: string; spellCheck?: boolean; autoComplete?: string; className?: string };
+  inputProps?: { inputMode?: 'text' | 'decimal' | 'numeric'; placeholder?: string; min?: string; spellCheck?: boolean; autoComplete?: string; className?: string; list?: string };
 }) {
   return (
     <TextField
@@ -231,6 +231,91 @@ export function RadioField({
         </p>
       ) : null}
     </fieldset>
+  );
+}
+
+/**
+ * A file from this device, as the browser's own file input (no script
+ * reads the disk; the CSP has nothing to refuse). The chosen file is the
+ * caller's; `accept` hints which kinds, and the server decides.
+ */
+export function FileField({
+  label,
+  description,
+  error,
+  isRequired,
+  accept,
+  onChange,
+}: FieldProps & { accept?: string; onChange: (file: File | undefined) => void }) {
+  const id = useId();
+  const help = `${id}-help`;
+  const err = `${id}-error`;
+  const described = [description ? help : '', error ? err : ''].filter(Boolean).join(' ');
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={id}>
+        {label}
+      </label>
+      <input
+        id={id}
+        type="file"
+        className="field-input field-file"
+        {...(accept ? { accept } : {})}
+        required={isRequired ?? false}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={described || undefined}
+        onChange={(event) => onChange(event.currentTarget.files?.[0] ?? undefined)}
+      />
+      {description ? (
+        <p id={help} className="field-help">
+          {description}
+        </p>
+      ) : null}
+      {error ? (
+        <p id={err} className="field-error">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Yes or no, as the browser's own checkbox, its label beside it. */
+export function CheckboxField({
+  label,
+  description,
+  error,
+  checked,
+  onChange,
+}: FieldProps & { checked: boolean; onChange: (checked: boolean) => void }) {
+  const id = useId();
+  const help = `${id}-help`;
+  const err = `${id}-error`;
+  const described = [description ? help : '', error ? err : ''].filter(Boolean).join(' ');
+  return (
+    <div className="field field-check">
+      <label className="choice" htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.currentTarget.checked)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={described || undefined}
+        />
+        <span>{label}</span>
+      </label>
+      {description ? (
+        <p id={help} className="field-help">
+          {description}
+        </p>
+      ) : null}
+      {error ? (
+        <p id={err} className="field-error">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

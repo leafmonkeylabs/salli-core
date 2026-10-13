@@ -1,12 +1,13 @@
 /*
  * Where you stand (C2): the books, cash, attention and financial
- * independence, and the shell's places growing to seven. Tokens only
- * (tokens.css); square corners.
+ * independence, and the shell's places growing to seven (eight in C4).
+ * Tokens only (tokens.css); square corners.
  */
 
-/* The places: on a screen too narrow for one row beside the logo, the
-   places take a row of their own under it. */
-@media (max-width: 1080px) and (min-width: 721px) {
+/* The places (eight since C4, with Tax): on a screen too narrow for one
+   row beside the logo and who is signed in, the places take a row of their
+   own under it. */
+@media (max-width: 1180px) and (min-width: 721px) {
   .topbar-inner {
     flex-wrap: wrap;
     row-gap: 4px;
@@ -21,6 +22,11 @@
   .topnav ul {
     flex-wrap: wrap;
   }
+}
+
+/* Sign out stays on one line, however long the email beside it. */
+.topbar-user .button {
+  white-space: nowrap;
 }
 
 /* More: a phone's list of the places its bar has no room for. */

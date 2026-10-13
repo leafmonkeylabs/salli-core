@@ -13,8 +13,11 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
+import { bookStrings } from '../src/books-strings';
 import { labStrings } from '../src/lab-strings';
+import { settingsStrings } from '../src/settings-strings';
 import { strings } from '../src/strings';
+import { taxStrings } from '../src/tax-strings';
 import { whereStrings } from '../src/where-strings';
 
 // The tests run in packages/console.
@@ -79,8 +82,15 @@ const ALLOWED = new Set([
 ]);
 
 describe('the catalogue', () => {
-  // The shell's words, and the decision lab's and where you stand's, which load with their pages.
-  const all = [...catalogue(strings), ...catalogue(labStrings, 'labStrings'), ...catalogue(whereStrings, 'whereStrings')];
+  // The shell's words, and the decision lab's, where you stand's, and books', tax's and settings', which load with their pages.
+  const all = [
+    ...catalogue(strings),
+    ...catalogue(labStrings, 'labStrings'),
+    ...catalogue(whereStrings, 'whereStrings'),
+    ...catalogue(bookStrings, 'bookStrings'),
+    ...catalogue(taxStrings, 'taxStrings'),
+    ...catalogue(settingsStrings, 'settingsStrings'),
+  ];
 
   it('ranks nothing and urges nothing', () => {
     const ranking = /\b(best|worst|better|worse|top|ranked|rank|winner|optimal|ideal|recommended|recommend|should choose|smartest|cheapest option)\b/i;

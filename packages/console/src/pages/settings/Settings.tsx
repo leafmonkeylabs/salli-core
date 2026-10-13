@@ -3,7 +3,9 @@
  * change: name, base currency while it can change, tax residency, time
  * zone), every sign-in with a way to end each (`GET`/`DELETE
  * /v1/auth/sign-ins`), what this device shows, and the panels extensions
- * add. Each write confirms or reports in Salli's words.
+ * add. Each write confirms or reports in Salli's words. The rest of
+ * Settings (C4: tokens, AI connections, digests, your data) are pages of
+ * their own, under Settings' own places (nav.tsx).
  */
 import {
   authSignInsList,
@@ -27,6 +29,7 @@ import { ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
 import { isLocale, usePreferences, type Theme } from '../../preferences';
 import { strings } from '../../strings';
+import { SettingsNav } from './nav';
 
 const s = strings.settings;
 
@@ -171,6 +174,7 @@ function SignInsSection() {
     <Section label={s.signIns}>
       <Panel>
         <p className="section-help">{s.signInsHelp}</p>
+        <p className="provenance">{s.password}</p>
         {query.isPending ? <Loading lines={3} /> : null}
         {query.isError ? <ProblemView error={query.error} compact onRetry={() => void query.refetch()} /> : null}
         {query.data && query.data.length === 0 ? <Empty>{s.noSignIns}</Empty> : null}
@@ -312,6 +316,7 @@ export function Settings() {
   const { settingsPanels } = useConsoleExtensions();
   return (
     <Page title={s.title} description={s.description}>
+      <SettingsNav />
       <div className="stack">
         <ProfileSection />
         <SignInsSection />

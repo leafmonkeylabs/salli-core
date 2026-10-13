@@ -3,11 +3,13 @@
  * and the visual and accessibility runs (behind Playwright's `page.route`).
  * Home's reads answer what the real server answers on the golden household
  * (home.ts), the decision lab's (lab-api.ts) and where you stand's
- * (where-api.ts) likewise; the sign-in answers as Salli's OAuth endpoints do.
+ * (where-api.ts) and books, tax and settings' (c4-api.ts) likewise; the
+ * sign-in answers as Salli's OAuth endpoints do.
  */
-import type { NotificationPreferences, Profile } from '@leafmonkeylabs/salli-sdk';
+import type { Profile } from '@leafmonkeylabs/salli-sdk';
 import { ME, metaAt, ORIGIN, PROFILE, SIGN_INS } from './auth';
 import * as home from './home';
+import { BooksState, SettingsState, TaxState } from './c4-api';
 import { LabState } from './lab-api';
 import { WhereState } from './where-api';
 
@@ -29,16 +31,6 @@ export interface Recorded {
 
 type Override = (request: Recorded) => Answer | undefined;
 
-export const PREFERENCES: NotificationPreferences = {
-  enabled: false,
-  cadence: 'weekly',
-  weekday: 'monday',
-  hour: 8,
-  items: ['decision_review_due', 'reminder_due', 'filing_deadline', 'cash_below_zero_ahead'],
-  time_zone: 'Europe/Lisbon',
-  next_at: null,
-  sender_enabled: false,
-};
 
 /**
  * The reads Home makes, by path, but its reminders: those are where you
@@ -69,6 +61,12 @@ export class MockApi {
   lab = new LabState();
   /** Where you stand's reads and writes (where-api.ts): the books, cash, attention, FI. */
   where = new WhereState();
+  /** Imports, review and rules (c4-api.ts). */
+  books = new BooksState();
+  /** Tax: rule sets, versions, computations (c4-api.ts). */
+  tax = new TaxState();
+  /** Tokens, AI connections, digests and your data (c4-api.ts). */
+  settings = new SettingsState();
   issued = 0;
 
   constructor(origin: string = ORIGIN) {
@@ -99,15 +97,19 @@ export class MockApi {
     // An assumption set changes the FI score, which Home reads too.
     if (stands && method === 'PATCH' && path === '/v1/fi/assumptions' && stands.status === 200) this.reads['/v1/fi/score'] = this.where.score;
     if (stands) return stands;
+    const c4 = this.books.answer(request) ?? this.tax.answer(request) ?? this.settings.answer(request);
+    if (c4) {
+      // A digest's time zone is the profile's too.
+      if (method === 'PATCH' && path === '/v1/notifications/preferences') {
+        const changes = JSON.parse(request.body) as { time_zone?: string };
+        if (changes.time_zone) this.profile = { ...this.profile, time_zone: changes.time_zone };
+      }
+      return c4;
+    }
     if (method === 'GET' && path === '/v1/onboarding/profile') return { status: 200, body: this.profile };
     if (method === 'PATCH' && path === '/v1/onboarding/profile') {
       this.profile = { ...this.profile, ...(JSON.parse(request.body) as Partial<Profile>) };
       return { status: 200, body: this.profile };
-    }
-    if (method === 'PATCH' && path === '/v1/notifications/preferences') {
-      const changes = JSON.parse(request.body) as { time_zone?: string };
-      if (changes.time_zone) this.profile = { ...this.profile, time_zone: changes.time_zone };
-      return { status: 200, body: { ...PREFERENCES, ...changes } };
     }
     if (method === 'GET' && path === '/v1/auth/sign-ins') return { status: 200, body: this.signIns };
     const revoke = /^\/v1\/auth\/sign-ins\/([^/]+)$/.exec(path);

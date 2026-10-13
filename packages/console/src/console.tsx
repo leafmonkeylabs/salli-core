@@ -143,6 +143,23 @@ const WHERE: ConsoleRoute[] = [
   { path: '/more', load: () => import('./pages/more/More') },
 ];
 
+/**
+ * Books, tax and settings (C4): imports and review, rules, tax with its
+ * rule sets, and the rest of Settings, each page a chunk of its own.
+ */
+const BOOKS_TAX_SETTINGS: ConsoleRoute[] = [
+  { path: '/books/imports', load: () => import('./pages/books/Imports') },
+  { path: '/books/imports/$statement', load: () => import('./pages/books/Review') },
+  { path: '/books/rules', load: () => import('./pages/books/Rules') },
+  { path: '/tax', load: () => import('./pages/tax/Tax') },
+  { path: '/tax/rules/$ruleSet', load: () => import('./pages/tax/RuleSet') },
+  { path: '/tax/rules/$ruleSet/versions/$version', load: () => import('./pages/tax/Version') },
+  { path: '/settings/tokens', load: () => import('./pages/settings/Tokens') },
+  { path: '/settings/ai', load: () => import('./pages/settings/Ai') },
+  { path: '/settings/digests', load: () => import('./pages/settings/Digests') },
+  { path: '/settings/data', load: () => import('./pages/settings/Data') },
+];
+
 function Settings() {
   return (
     <Suspense fallback={<Loading lines={6} />}>
@@ -156,7 +173,7 @@ function buildRouter(extensions: readonly ConsoleExtension[], history: (() => Ro
   const pages: AnyRoute[] = [
     createRoute({ getParentRoute: () => root, path: '/', component: Home }),
     createRoute({ getParentRoute: () => root, path: '/settings', component: Settings }),
-    ...[...WHERE, ...LAB].map((route) => createRoute({ getParentRoute: () => root, path: route.path, component: pageOf(route) })),
+    ...[...WHERE, ...LAB, ...BOOKS_TAX_SETTINGS].map((route) => createRoute({ getParentRoute: () => root, path: route.path, component: pageOf(route) })),
   ];
   for (const extension of extensions) {
     for (const route of extension.routes ?? []) {

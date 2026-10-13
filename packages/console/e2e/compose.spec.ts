@@ -1,22 +1,25 @@
 /**
  * The console end to end, against compose.yaml (decision 25): sign in on
- * Salli's own page, see Home, end another sign-in, go through the step-up,
- * sign out, be signed out when idle (with a short limit), and weigh a
- * decision in the decision lab: a template run, the decision recorded after
- * its confirmation, found in the journal, a note added; and where you
- * stand: an entry added, seen in the ledger and its account, reversed
- * after confirming; an FI assumption set and cleared; every C2 page
- * loaded. Every page is checked for CSP violations and requests to
- * another origin.
+ * Salli's own page, see Home, end another sign-in, sign out, be signed out
+ * when idle (with a short limit), and weigh a decision in the decision lab:
+ * a template run, the decision recorded after its confirmation, found in
+ * the journal, a note added; where you stand: an entry added, seen in the
+ * ledger and its account, reversed after confirming; an FI assumption set
+ * and cleared; and books, tax and settings (C4): a rule made, a CSV
+ * statement imported, reviewed and posted, its entries found in the
+ * ledger; a token made and revoked; MCP turned off and on; and a tax rule
+ * set activated through a real step-up. Every page is loaded, and checked
+ * for CSP violations and requests to another origin.
  *
- * The server's real step-up answer comes only from activating tax rules or
- * minting a token that may, which C1's pages don't do; so the step-up run
- * makes Salli's first answer to one profile save the server's own
- * `/problems/step-up-required` problem, and everything after it (the
- * sign-in page asking again, the grants, the retry) is the real server's.
+ * The step-up is the server's own: a console sign-in holds tax:activate
+ * only within five minutes of its password check (decision 6), and no
+ * setting shortens that, so the test waits the five minutes out. Then
+ * Salli answers activating with `/problems/step-up-required`, its sign-in
+ * page asks the same person again, the console swaps its grant, and the
+ * activation runs on return.
  */
+import { readFileSync } from 'node:fs';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import { STEP_UP } from '../test/fixtures/api';
 import { watch } from './watch';
 
 const EMAIL = process.env.SALLI_E2E_EMAIL ?? '';
@@ -78,43 +81,6 @@ test('ends another sign-in from Settings', async ({ page, request, baseURL }) =>
   // The session no longer works.
   const me = await request.get('/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } });
   expect(me.status()).toBe(401);
-  await seen.check();
-});
-
-test('asks for the password again, keeps the person’s place and retries the save once', async ({ page, request, baseURL }) => {
-  const seen = await watch(page, new URL(baseURL ?? '').origin);
-  const token = await session(request);
-  const consoleIds = async (): Promise<string[]> => (await signIns(request, token)).filter((s) => s.kind === 'console').map((s) => s.id);
-  const others = await consoleIds();
-  await signIn(page);
-  const mine = (await consoleIds()).filter((id) => !others.includes(id));
-  expect(mine).toHaveLength(1);
-  await page.getByRole('navigation', { name: 'Places' }).filter({ visible: true }).getByRole('link', { name: 'Settings' }).click();
-
-  let refused = 0;
-  await page.route('**/v1/onboarding/profile', async (route) => {
-    if (route.request().method() === 'PATCH' && refused === 0) {
-      refused += 1;
-      return route.fulfill({ status: STEP_UP.status, headers: { 'content-type': 'application/problem+json', ...STEP_UP.headers }, body: JSON.stringify(STEP_UP.body) });
-    }
-    return route.continue();
-  });
-  const name = `Owner ${Date.now().toString(36)}`;
-  await page.getByRole('textbox', { name: 'Name' }).fill(name);
-  await page.getByRole('button', { name: 'Save the profile' }).click();
-
-  // Salli's own page, asking the same person to confirm it's them.
-  await signInOnSallisPage(page, "Confirm it's you", 'Continue');
-  await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
-  expect(new URL(page.url()).pathname).toBe('/console/settings');
-  await expect(page.getByRole('region', { name: 'Profile' }).getByText(/Saved\./)).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue(name);
-  expect(refused).toBe(1);
-
-  // This tab's grant was swapped for the new one: the old one is revoked.
-  const now = (await consoleIds()).filter((id) => !others.includes(id));
-  expect(now).toHaveLength(1);
-  expect(now).not.toContain(mine[0]);
   await seen.check();
 });
 
@@ -297,6 +263,216 @@ test('every page of where you stand loads from the real server, with no problem 
     ['/console/attention', 'Attention'],
     ['/console/fi', 'Financial independence'],
     ['/console/more', 'More'],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    await expect(page.locator('.loading')).toHaveCount(0);
+    await expect(page.locator('.problem')).toHaveCount(0);
+  }
+  await seen.check();
+});
+
+// ── Books, tax and settings (C4) ─────────────────────────────────────────
+
+async function api<T>(request: APIRequestContext, token: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, data?: unknown): Promise<T> {
+  const response = await request.fetch(path, { method, headers: { Authorization: `Bearer ${token}` }, ...(data === undefined ? {} : { data }) });
+  expect(response.ok(), `${method} ${path}: ${response.status()}`).toBe(true);
+  return (response.status() === 204 ? undefined : await response.json()) as T;
+}
+
+test('makes a rule, imports a CSV statement, reviews it, posts it after confirming, and finds the entries in the ledger', async ({ page, request, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  const token = await session(request);
+  const stamp = Date.now().toString(36);
+  const wallet = await addAccount(request, token, { code: `C${stamp}`, name: `Current ${stamp}`, type: 'asset' });
+  const groceries = await addAccount(request, token, { code: `G${stamp}`, name: `Groceries ${stamp}`, type: 'expense' });
+  const bakery = await addAccount(request, token, { code: `B${stamp}`, name: `Bakery ${stamp}`, type: 'expense' });
+  await signIn(page);
+
+  // A rule first: what it decides needs no model (compose has none).
+  await page.goto('/console/books/rules');
+  const form = page.getByRole('region', { name: 'Add a rule' });
+  await form.getByRole('textbox', { name: /Its name/ }).fill(`Market ${stamp}`);
+  await form.getByRole('textbox', { name: /^Value/ }).fill(`MARKET ${stamp.toUpperCase()}`);
+  await form.getByRole('combobox', { name: /Where the other side goes/ }).selectOption(groceries);
+  await form.getByRole('button', { name: 'Save the rule' }).click();
+  await expect(page.getByText(`Saved: Market ${stamp}.`)).toBeVisible();
+
+  // The statement, uploaded from this device for the new account.
+  await page.goto('/console/books/imports');
+  const upload = page.getByRole('region', { name: 'Import a statement' });
+  await upload.getByLabel('The statement file').setInputFiles({
+    name: `statement-${stamp}.csv`,
+    mimeType: 'text/csv',
+    buffer: Buffer.from(`Date,Description,Amount\n2026-10-07,MARKET ${stamp.toUpperCase()},-46.20\n2026-10-08,CORNER BAKERY ${stamp.toUpperCase()},-8.40\n`),
+  });
+  await upload.getByRole('combobox', { name: /The account it is for/ }).selectOption(wallet);
+  await upload.getByRole('button', { name: 'Import it' }).click();
+  await expect(upload.getByText(/Read 2 transactions from .* Nothing is booked yet\./)).toBeVisible();
+  // Nothing booked yet.
+  expect((await api<{ transactions: unknown[] }>(request, token, 'GET', `/v1/accounts/${wallet}/overview`)).transactions).toHaveLength(0);
+  await upload.getByRole('link', { name: 'Review them' }).click();
+
+  const queue = page.getByRole('region', { name: 'Waiting for review' });
+  const market = queue.getByRole('listitem').filter({ hasText: `MARKET ${stamp.toUpperCase()}` });
+  await expect(market.getByText(`Proposed by your rule “Market ${stamp}”`)).toBeVisible();
+  await queue.getByRole('combobox', { name: new RegExp(`Where it went: CORNER BAKERY ${stamp.toUpperCase()}`) }).selectOption(bakery);
+  await expect(queue.getByText(/Kept: CORNER BAKERY .* now goes to the account you chose\./)).toBeVisible();
+  await queue.getByRole('button', { name: 'Select every one that is complete and not a possible duplicate' }).click();
+  await expect(queue.getByText('2 selected')).toBeVisible();
+  await queue.getByRole('button', { name: 'Post the selected' }).click();
+  await page.getByRole('alertdialog', { name: 'Post these to your books?' }).getByRole('button', { name: 'Post them' }).click();
+  await expect(queue.getByText(/Posted 2 entries\./)).toBeVisible();
+  await expect(queue.getByText('Nothing in this statement waits for review.')).toBeVisible();
+
+  // In the ledger: both entries, on the statement's account.
+  await queue.getByRole('link', { name: 'See them in your books' }).click();
+  const entries = page.getByRole('region', { name: 'Entries' });
+  await expect(entries.getByText('2 entries')).toBeVisible();
+  await expect(entries.getByRole('link', { name: `MARKET ${stamp.toUpperCase()}` })).toBeVisible();
+  await expect(entries.getByRole('link', { name: `CORNER BAKERY ${stamp.toUpperCase()}` })).toBeVisible();
+  await page.goto(`/console/books/accounts/${wallet}`);
+  await expect(page.getByRole('region', { name: 'Balance' }).getByText('EUR -54.60').first()).toBeVisible();
+  await seen.check();
+});
+
+test('makes a personal access token, sees it once, and revokes it after confirming', async ({ page, request, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  const token = await session(request);
+  const name = `Script ${Date.now().toString(36)}`;
+  await signIn(page);
+  await page.goto('/console/settings/tokens');
+  const make = page.getByRole('region', { name: 'Make a token' });
+  await make.getByRole('textbox', { name: /Its name/ }).fill(name);
+  await make.getByRole('button', { name: 'Make the token' }).click();
+  const shown = make.getByLabel('Your new token');
+  await expect(shown).toHaveValue(/^salli_pat_/);
+  const secret = await shown.inputValue();
+  // It works, as the server's own.
+  const me = await request.get('/v1/auth/me', { headers: { Authorization: `Bearer ${secret}` } });
+  expect(me.ok()).toBe(true);
+  await make.getByRole('button', { name: 'I have copied it' }).click();
+  expect(await page.content()).not.toContain(secret);
+
+  const row = page.getByRole('region', { name: 'Your tokens' }).getByRole('row').filter({ hasText: name });
+  await row.getByRole('button', { name: `Revoke ${name}` }).click();
+  await page.getByRole('alertdialog', { name: 'Revoke this token?' }).getByRole('button', { name: 'Revoke it' }).click();
+  await expect(page.getByText(`Revoked: ${name}.`)).toBeVisible();
+  expect((await request.get('/v1/auth/me', { headers: { Authorization: `Bearer ${secret}` } })).status()).toBe(401);
+  expect((await api<Array<{ name: string }>>(request, token, 'GET', '/v1/tokens')).map((t) => t.name)).not.toContain(name);
+  await seen.check();
+});
+
+test('turns MCP off after confirming, and on again', async ({ page, request, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  const token = await session(request);
+  await signIn(page);
+  await page.goto('/console/settings/ai');
+  const mcp = page.getByRole('region', { name: 'MCP' });
+  // An owner starts with MCP off: on first, at once.
+  if (!(await api<{ enabled: boolean }>(request, token, 'GET', '/v1/mcp/connections/enabled')).enabled) {
+    await mcp.getByRole('button', { name: 'Turn MCP on' }).click();
+    await expect(mcp.getByText(/MCP is on\./)).toBeVisible();
+  }
+  await mcp.getByRole('button', { name: 'Turn MCP off' }).click();
+  await page.getByRole('alertdialog', { name: 'Turn MCP off?' }).getByRole('button', { name: 'Turn it off' }).click();
+  await expect(mcp.getByText(/MCP is off\./)).toBeVisible();
+  expect((await api<{ enabled: boolean }>(request, token, 'GET', '/v1/mcp/connections/enabled')).enabled).toBe(false);
+  await mcp.getByRole('button', { name: 'Turn MCP on' }).click();
+  await expect(mcp.getByText(/MCP is on\./)).toBeVisible();
+  expect((await api<{ enabled: boolean }>(request, token, 'GET', '/v1/mcp/connections/enabled')).enabled).toBe(true);
+  await seen.check();
+});
+
+/** The fictional rules XA 2031 (tests/golden/rules/xa2031.json), as a new version of the owner's XA 2031, proposed. */
+async function proposeXa(request: APIRequestContext, token: string, note: string): Promise<{ set: string; version: string; number: number }> {
+  const document = readFileSync(new URL('../../../tests/golden/rules/xa2031.json', import.meta.url), 'utf8');
+  const sets = await api<Array<{ id: string; country: string; year_label: string }>>(request, token, 'GET', '/v1/tax/rule-sets');
+  const existing = sets.find((s) => s.country === 'XA' && s.year_label === '2031');
+  const made = existing
+    ? await api<{ id: string; rule_set_id: string; version: number }>(request, token, 'POST', `/v1/tax/rule-sets/${existing.id}/versions`, { document, note })
+    : await api<{ id: string; rule_set_id: string; version: number }>(request, token, 'POST', '/v1/tax/rule-sets', { document, note });
+  await api(request, token, 'POST', `/v1/tax/rule-sets/${made.rule_set_id}/versions/${made.id}/propose`);
+  return { set: made.rule_set_id, version: made.id, number: made.version };
+}
+
+test('activates a tax rule set through a real step-up: five minutes after the password, Salli asks again', async ({ page, request, baseURL }) => {
+  test.setTimeout(9 * 60_000);
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  const token = await session(request);
+  const consoleIds = async (): Promise<string[]> => (await signIns(request, token)).filter((s) => s.kind === 'console').map((s) => s.id);
+  const note = `For the step-up, ${Date.now().toString(36)}`;
+  const xa = await proposeXa(request, token, note);
+  const others = await consoleIds();
+  await signIn(page);
+  const signedInAt = Date.now();
+  const mine = (await consoleIds()).filter((id) => !others.includes(id));
+  expect(mine).toHaveLength(1);
+
+  // The review, while the sign-in is fresh.
+  await page.goto(`/console/tax/rules/${xa.set}/versions/${xa.version}`);
+  await expect(page.getByRole('heading', { level: 1, name: `XA 2031, version ${xa.number}` })).toBeVisible();
+  await expect(page.getByText(`“${note}”`)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Worked examples' }).getByText('Passes')).toHaveCount(4);
+  await expect(page.getByRole('region', { name: 'Activating' }).getByText(/Only a person activates tax rules, never an AI/)).toBeVisible();
+
+  // Past the five minutes the console's sign-in holds tax:activate for.
+  await page.waitForTimeout(Math.max(0, signedInAt + 305_000 - Date.now()));
+  // A key or a click keeps the console from its idle sign-out, which is 30 minutes anyway.
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: `XA 2031, version ${xa.number}` })).toBeVisible();
+
+  const answers: number[] = [];
+  page.on('response', (response) => {
+    if (response.request().method() === 'POST' && response.url().endsWith(`/versions/${xa.version}/activate`)) answers.push(response.status());
+  });
+  const activating = page.getByRole('region', { name: 'Activating' });
+  await activating.getByRole('button', { name: `Activate version ${xa.number}` }).click();
+  await page.getByRole('alertdialog', { name: `Activate version ${xa.number}?` }).getByRole('button', { name: 'Activate it' }).click();
+
+  // Salli's own page asks the same person to confirm it's them.
+  await signInOnSallisPage(page, "Confirm it's you", 'Continue');
+  await expect(page.getByRole('heading', { level: 1, name: `XA 2031, version ${xa.number}` })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe(`/console/tax/rules/${xa.set}/versions/${xa.version}`);
+  await expect(page.getByText(`Activated. Salli computes XA 2031 with version ${xa.number}.`)).toBeVisible();
+  // The server refused once with its step-up answer, then activated on the retry.
+  expect(answers).toEqual([403, 200]);
+  const version = await api<{ status: string; author_kind: string }>(request, token, 'GET', `/v1/tax/rule-sets/${xa.set}/versions/${xa.version}`);
+  expect(version.status).toBe('active');
+
+  // This tab's grant was swapped for the new one: the old one is revoked.
+  const now = (await consoleIds()).filter((id) => !others.includes(id));
+  expect(now).toHaveLength(1);
+  expect(now).not.toContain(mine[0]);
+
+  // Just after the password, a token that may activate is made at once, shown once, and revoked.
+  await page.goto('/console/settings/tokens');
+  const make = page.getByRole('region', { name: 'Make a token' });
+  const name = `Tax helper ${Date.now().toString(36)}`;
+  await make.getByRole('textbox', { name: /Its name/ }).fill(name);
+  await make.getByRole('checkbox', { name: /It may activate tax rules/ }).check();
+  await make.getByRole('button', { name: 'Make the token' }).click();
+  await page.getByRole('alertdialog', { name: 'Make a token that may activate tax rules?' }).getByRole('button', { name: 'Make it' }).click();
+  await expect(make.getByLabel('Your new token')).toHaveValue(/^salli_pat_/);
+  const row = page.getByRole('region', { name: 'Your tokens' }).getByRole('row').filter({ hasText: name });
+  await expect(row.getByText('Read and write your data, and activate tax rules')).toBeVisible();
+  await row.getByRole('button', { name: `Revoke ${name}` }).click();
+  await page.getByRole('alertdialog', { name: 'Revoke this token?' }).getByRole('button', { name: 'Revoke it' }).click();
+  await expect(page.getByText(`Revoked: ${name}.`)).toBeVisible();
+  await seen.check();
+});
+
+test('every page of books, tax and settings loads from the real server, with no problem shown', async ({ page, baseURL }) => {
+  const seen = await watch(page, new URL(baseURL ?? '').origin);
+  await signIn(page);
+  for (const [path, heading] of [
+    ['/console/books/imports', 'Imports'],
+    ['/console/books/rules', 'Rules'],
+    ['/console/tax', 'Tax'],
+    ['/console/settings/tokens', 'Personal access tokens'],
+    ['/console/settings/ai', 'AI connections'],
+    ['/console/settings/digests', 'Digests'],
+    ['/console/settings/data', 'Your data'],
   ] as const) {
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();

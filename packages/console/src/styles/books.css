@@ -1,0 +1,219 @@
+/*
+ * Books, tax and settings (C4): the review queue, rules, the tax pages and
+ * the rest of Settings. Tokens only (tokens.css); square corners.
+ */
+
+/* ── The review queue ───────────────────────────────────────────────────── */
+
+.review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.review-item {
+  display: grid;
+  grid-template-columns: var(--target) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.review-item-selected {
+  background: var(--c-panel);
+}
+
+.review-select {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+/* Its checkbox is the kit's (kit.css): square, 18 px. */
+
+.review-body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.review-date {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-muted);
+}
+
+.review-description {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.review-amount {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.review-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 8px 16px;
+  align-items: end;
+}
+
+.review-choice {
+  display: grid;
+  gap: 4px;
+}
+
+.review-fixed {
+  display: grid;
+  gap: 4px;
+  min-height: var(--button-height);
+  align-content: end;
+}
+
+.review-who {
+  font-size: var(--size-small);
+}
+
+.confirm-list > li {
+  padding: 4px 0;
+}
+
+/* ── Rules ──────────────────────────────────────────────────────────────── */
+
+.rule {
+  display: grid;
+  gap: 4px;
+}
+
+.conditions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.condition {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-rule);
+  border-radius: var(--radius-card);
+}
+
+.condition-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.condition-fields > legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+/* ── Tax ────────────────────────────────────────────────────────────────── */
+
+.expr,
+.change-value,
+.source-url {
+  overflow-wrap: anywhere;
+}
+
+.explanation {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--c-rule);
+  border-radius: var(--radius-card);
+  background: var(--c-panel);
+}
+
+.change-item,
+.example {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.change-item code,
+.example code {
+  overflow-wrap: anywhere;
+}
+
+/* A change's before and after: the label beside the value, the value
+   wrapping as it must (a source added is a whole object). */
+.change-values {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 0;
+}
+
+.change-values dt {
+  color: var(--c-muted);
+}
+
+.change-values dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.only-a-person {
+  font-weight: 500;
+}
+
+/* ── Settings ───────────────────────────────────────────────────────────── */
+
+.secret {
+  display: grid;
+  gap: 8px;
+}
+
+.secret-value {
+  overflow-x: auto;
+}
+
+.digest-text {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--c-rule);
+  border-radius: var(--radius-card);
+  font-family: var(--font-sans);
+  font-size: var(--size-small);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.key-row {
+  display: grid;
+  gap: 8px;
+}
+
+.field-file {
+  padding: 6px 8px;
+}
+
+.field-file::file-selector-button {
+  margin-right: 12px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--c-rule);
+  border-radius: var(--radius-button);
+  background: var(--c-page);
+  color: var(--c-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.notes > li {
+  font-size: var(--size-small);
+}

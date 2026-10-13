@@ -21,6 +21,7 @@ export const strings = {
     cash: 'Cash',
     decide: 'Decide',
     books: 'Books',
+    tax: 'Tax',
     attention: 'Attention',
     fi: 'Independence',
     settings: 'Settings',
@@ -149,8 +150,16 @@ export const strings = {
   },
 
   settings: {
+    places: {
+      label: 'Settings',
+      profile: 'Profile and sign-ins',
+      tokens: 'Tokens',
+      ai: 'AI connections',
+      digests: 'Digests',
+      data: 'Your data',
+    },
     title: 'Settings',
-    description: 'Your profile, where you are signed in, and how this device shows Salli.',
+    description: 'Your profile, where you are signed in, and how this device shows Salli. Tokens, AI connections, digests and your data are in their own places.',
     profile: 'Profile',
     profileHelp: 'What Salli knows about you. Your tax residency decides whose tax rules compute your tax.',
     email: 'Email',
@@ -168,7 +177,9 @@ export const strings = {
     invalidCountry: 'A country is two letters, such as NZ.',
     signIns: 'Sign-ins',
     signInsHelp:
-      'Every way you are signed in: sessions, the salli command on each machine, the console in each tab. AI connections are listed with salli mcp connections.',
+      'Every way you are signed in: sessions, the salli command on each machine, the console in each tab. AI connections and tokens have pages of their own.',
+    password:
+      'Your password is changed with salli password. The console never asks for it: it is typed only on Salli’s own sign-in page and into the salli command.',
     kind: { session: 'Session', cli: 'salli command', console: 'Console', app: 'Application' } as Record<string, string>,
     started: 'Started',
     lastUsed: 'Last used',
@@ -201,9 +212,10 @@ export const strings = {
     title: 'More',
     description: 'The places that don’t fit on a phone’s bar.',
     places: {
+      '/tax': 'Your tax, the rules that compute it, and activating a new version.',
       '/attention': 'What Salli has noticed, and your reminders by due date.',
       '/fi': 'Your FI number, how far along you are, and the assumptions behind it.',
-      '/settings': 'Your profile, where you are signed in, and how this device shows Salli.',
+      '/settings': 'Your profile and sign-ins, tokens, AI connections, digests and your data.',
     } as Record<string, string>,
   },
 
