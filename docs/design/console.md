@@ -2,12 +2,14 @@
 
 Status: **approved (2026-10-12); v1 complete.** C0, the server
 groundwork, C1, the console's foundations and Home, C2, where you stand,
-C3, the decision lab, and C4, books, tax and settings, are built. The owner
-accepted every recommended decision below. Each sub-phase is its own PR;
-C5 and C6 come later. What C0 to C4 built, and where they depart from the
+C3, the decision lab, C4, books, tax and settings, and C5, the console's
+look from the approved mockup, are built. The owner accepted every
+recommended decision below. Each sub-phase is its own PR; C6 and the later
+pages (C7) come later. What C0 to C5 built, and where they depart from the
 text above, is in [As built (C0)](#as-built-c0),
 [As built (C1)](#as-built-c1), [As built (C3)](#as-built-c3),
-[As built (C2)](#as-built-c2) and [As built (C4)](#as-built-c4).
+[As built (C2)](#as-built-c2), [As built (C4)](#as-built-c4) and
+[As built (C5)](#as-built-c5).
 
 ## Why
 
@@ -833,7 +835,8 @@ from the token.
 C0  server groundwork ──► C1  console foundations and Home ──┬──► C3  decision lab
                                                               ├──► C2  where you stand
                                                               └──► C4  books, tax and settings ──► v1
-later: C5 more pages · C6 the sign-in methods seam (with the closed edition) · chat, members
+then: C5 the look from the approved mockup
+later: C6 the sign-in methods seam (with the closed edition) · C7 more pages · chat, members
 ```
 
 | Sub-phase | What | Depends on | Can run beside |
@@ -843,7 +846,8 @@ later: C5 more pages · C6 the sign-in methods seam (with the closed edition) ·
 | **C2** Where you stand | Accounts and ledger, Cash, Attention, Financial independence. | C1 | C3, C4 |
 | **C3** The decision lab | Baseline, templates, scenarios, compare, principles, journal, reviews. | C1 | C2, C4 |
 | **C4** Books, tax and settings | Imports and review, rules; Tax with step-up; the rest of Settings. v1 is complete. | C1 | C2, C3 |
-| **C5** Later pages | Budgets and goals, debts, investments, insurance, subscriptions, the advisor, bank connections. | v1 | |
+| **C5** The console's look | The shell, the kit and every page from the owner's approved mockup (As built (C5)). Planned here as the later pages, which moved to C7 when the owner asked for the look first. | v1 | |
+| **C7** Later pages | Budgets and goals, debts, investments, insurance, subscriptions, the advisor, bank connections. | v1 | |
 | **C6** Sign-in methods seam | `Extension.sign_in_methods` on the server's pages; built with the closed edition's first SSO method. | C0 | anything |
 
 If one sub-phase runs at a time after C1, C3 comes first: the decision lab is
@@ -1701,3 +1705,217 @@ through the real step-up; every C4 page loaded with no problem shown.
     Salli's own sign-in page, never into the console's script, and a
     change needs the current one and the new. Settings says where it is
     changed instead.
+
+## As built (C5)
+
+C5 is the console's look, from the mockup the owner approved ("I like it.
+Lets get them to the console"): the shell, the kit and every C1 to C4 page
+moved onto them. Nothing new is computed and no API changed: every page
+reads and writes what it did, through the same operations.
+
+**The shell.** A 56 px top bar on paper: the outlined logo (Source Serif
+is never loaded; the wordmark is the outlined file), the server's address
+and version as a chip (`/v1/meta`'s `server_version`), a theme switch
+(light or dark, the other way from how the page looks; Settings keeps "as
+the system"), and who is signed in (their initial and name, from
+`profile.get`) opening a panel with Settings and Sign out. Under it, a
+side menu on paper: Home and Cash; Books, Decide and Tax; Attention, with
+a count of the signals Salli gives (`insights.signals`, the count beside
+the name, its words for a screen reader), and Independence; an edition's
+places; Settings at the foot; "Self-hosted · AGPL-3.0". The current
+place's own places are listed under it. The menu folds to a rail of
+icons, each keeping its name; it is open from 1081 px and a rail below
+until the person chooses, and the choice is kept on the device beside
+the theme (`salli-console:side`). A bar over the page holds the menu's
+switch, the way back (to the crumb before), and where you are: the place,
+its own place, anything a page names between (a rule set above its
+version), then the page (`src/shell/places.ts`, one list for the menu,
+the crumbs, the page's tile and each place's row of places). The working
+area is bone; every section a paper card.
+
+**Phones** keep the design's bottom bar of five places (Home, Cash,
+Decide, Books, More), decided in section 4 and unchanged: the side menu
+and its switch are not shown at 720 px and below, and the top bar keeps
+the logo, the theme and who is signed in.
+
+**The kit grew; nothing forked**, all exported for editions:
+- `Page` gains its header card: the place's tile (or `icon`), the one h1,
+  `facts` as chips, the description, `actions`; and `trail` for the
+  crumbs. A `Section` is a card with its label inside, and `aside` puts a
+  control at its head (a chart's range); a `Panel` in a section is the
+  card's body.
+- `SubNav` is a segmented row on a bone track.
+- `Icon` (24 px grid, 1.5 px strokes, square caps); `Chip`, `IdChip` (an
+  id's first eight characters, as the salli command shows them, the
+  whole id on hover), `AccountChip` and `TypeMark` (asset filled,
+  liability hollow, income sand, spending graphite, equity brass, the
+  type in words too), `Status` (Posted, Reversed struck through, Reversal
+  in the brand's colour, a warning with its "!"), `Count`.
+- `Popover`, a disclosure (not a modal, and not React Aria's): the panel
+  takes the focus, Escape gives it back to the button, a click or the
+  focus outside closes it.
+- `KeyFigures` and `KeyFigure` (a labelled group, not a region: a figure
+  often shares its name with the section that details it), `Segmented`.
+- `Pagination` and `usePages`: what is shown of how many, 15, 25 or 50
+  rows, the page before and after. It counts rows, never money.
+- `Sheet`: one thing from a list beside it, a complementary region whose
+  title takes the focus, closed by Escape or Close with the focus given
+  back; over the list's far edge from 1081 px, under it below.
+- `Bar`: a bar beside a figure, its length from the geometry module
+  (`amountScale`), still the one place an amount becomes a number.
+- `Table` gains cell classes, `aria-sort` and a selected row, and a table
+  wider than its card takes the focus, named by its caption, so the
+  keyboard can scroll it. `<Money variant="figure">` shows its code small
+  in Geist Mono before the figure, and a negative in brackets, as a
+  statement does.
+- New token roles in `tokens.css` and `theme.ts`: `chrome`, `work`,
+  `card`, `well`, `hover`, `selected`, `tile`, `tile-text`, `dash` and the
+  five `type-*`. The tile is ledger green with paper-on-dark (sand with
+  night on dark).
+
+**The pages.**
+- **Home:** key figures (net worth with its assets and liabilities, safe
+  to spend until when, the month so far with its income and spending,
+  the FI score with its grade and FI month); net worth by month with a
+  month to read off, picked from a list or by a click on the chart, the
+  picked month outlined; safe to spend line by line, cash today and each
+  commitment above the server's figure under a double rule, then the
+  next income and the rates; what needs attention in one card (what
+  Salli noticed, what is coming up with Overdue as a badge and the due
+  date, decisions due for review); spending this month by account with
+  bars and the server's total; the FI score's parts with bars, the way
+  there, the savings rate, the assumptions, and a link to the FI page.
+  The header offers "Think this through with your AI" and "Think a
+  decision through" (the decision lab).
+- **Every books page** carries the books' facts (the base currency, how
+  many accounts, and "Trial balance nets 0.00" with a tick, the server's
+  `ledger.trialBalance.net`, ticked only when its digits say zero) and its
+  actions, Import a statement and Add an entry. Add an entry left the row
+  of places (Accounts, Entries, Imports, Rules) for the header.
+- **Accounts:** the balance sheet's totals as key figures; each account an
+  account chip.
+- **Entries:** a toolbar (Filters, a dashed button counting what is on,
+  opening the dates and the account; each filter a chip that removes it;
+  words searched as they are typed, kept in the address; Export; a
+  Columns menu for the id, the source and the status); the table (id
+  chips, the date sortable newest or oldest first, the description,
+  from and to as account chips with "+1" for more, the amount with the
+  currency in the header when the page shares one, the source, the
+  status, and an eye); a page at a time. The eye opens the entry in a
+  sheet: its lines, debit and credit, a total row only where each side is
+  one line in one currency (so it is that line's own amount), "Debits
+  equal credits in your base currency: Salli posts no entry that doesn't
+  balance", its id, date, source and lines, Reverse after the same
+  confirmation, and its own page, which still works as before.
+- **An entry:** facts (id, date, source, lines), its lines as the sheet
+  shows them with the rate column, its standing and Reverse.
+- **An account:** facts (code, type, role, currency, entries), key figures
+  (its balance, in the base too when held in another currency, how many
+  entries since the first, the latest), the balance chart with a range
+  (the last 90 days, six months, all), its details, its entries with the
+  balance after each, a page at a time.
+- **Every other page** (cash, attention, independence, the decision lab,
+  tax, settings, More) has the header card with its place's tile, its
+  sections as cards and its row of places segmented. A tax version's
+  status is a badge among its facts and its rule set a crumb; Your data's
+  status line is no longer an empty card; More lists its places in one.
+
+**Rules, as tests.** Component tests cover the key figures, the month
+read off the chart, the toolbar (the filters' popover, removing a chip,
+words as typed), pages, the columns menu and the sheet; the money test
+holds a key figure's digits exact. In the browser, for the filters' and
+who-is-signed-in popovers and an entry's sheet at 360, 768 and 1280 px in
+both themes: axe, the focus moving in and back, no page wider than the
+screen, screenshots; the side menu folding to a rail, kept after a
+reload, and the breadcrumb's way back. The shell changed every page's
+frame, so every screenshot was made again in Playwright's image.
+
+**The budget** (gzip level 9, brotli beside it):
+
+| | gzip | brotli | limit |
+|---|---|---|---|
+| Shell and Home | 140.4 kB | 122.2 kB | 150 kB |
+| Settings (the profile and sign-ins) | 19.6 kB | 17.7 kB | 75 kB |
+| Overview (the lab) | 9.3 kB | 8.1 kB | 75 kB |
+| Templates | 36.5 kB | 32.7 kB | 75 kB |
+| Scenarios | 37.2 kB | 33.4 kB | 75 kB |
+| Principles | 27.3 kB | 24.4 kB | 75 kB |
+| Journal | 10.1 kB | 8.8 kB | 75 kB |
+| A journal entry | 29.8 kB | 26.6 kB | 75 kB |
+| Baseline | 13.0 kB | 11.5 kB | 75 kB |
+| Books (the accounts) | 8.7 kB | 7.6 kB | 75 kB |
+| An account | 12.0 kB | 10.6 kB | 75 kB |
+| Entries | 30.5 kB | 27.3 kB | 75 kB |
+| Add an entry | 27.1 kB | 24.3 kB | 75 kB |
+| An entry | 27.0 kB | 24.1 kB | 75 kB |
+| Cash | 12.4 kB | 10.9 kB | 75 kB |
+| Attention | 24.6 kB | 22.0 kB | 75 kB |
+| Financial independence | 28.5 kB | 25.5 kB | 75 kB |
+| More | 0.4 kB | 0.3 kB | 75 kB |
+| Imports | 30.8 kB | 27.4 kB | 75 kB |
+| The review queue | 34.5 kB | 30.8 kB | 75 kB |
+| Rules | 32.9 kB | 29.4 kB | 75 kB |
+| Tax | 22.7 kB | 20.5 kB | 75 kB |
+| A rule set | 3.9 kB | 3.4 kB | 75 kB |
+| A version | 23.0 kB | 20.7 kB | 75 kB |
+| Tokens | 22.7 kB | 20.4 kB | 75 kB |
+| AI connections | 22.1 kB | 19.9 kB | 75 kB |
+| Digests | 22.2 kB | 19.9 kB | 75 kB |
+| Your data | 21.1 kB | 19.0 kB | 75 kB |
+| All JavaScript | 260.3 kB | 229.5 kB | 500 kB |
+| CSS | 9.4 kB | 8.4 kB | 40 kB |
+
+**Departures from the mockup, and why.** The rules above win over it.
+1. **No single-key hints.** The mockup's segmented rows show A, E, T. The
+   console has no single-key shortcuts, and WCAG 2.1.4 would need them to
+   be switched off, remapped or active only on focus; it shows no hints
+   rather than hints that do nothing.
+2. **No arithmetic, so some figures are not there.** The account's "In,
+   last 30 days", "Out, last 30 days" and "Lowest, last 90 days", Home's
+   change "since Sep 30" and "Spent … · no income yet" would be sums,
+   differences or a window the server doesn't compute: the account shows
+   its balance (and in the base), how many entries and the latest instead,
+   and Home the server's income and spending for the month. The account's
+   entries have no amount column and no money in or out filter: the
+   server gives the balance after each, not the movement.
+3. **No "Show in EUR" switch.** Converting an entry's amount into the base
+   currency would be arithmetic; the amount column names the currency in
+   its header when the page shares one, and each amount carries its code
+   when not.
+4. **An entry's total** is a row only where each side is one line in one
+   currency; with more lines the console would have to add them. Every
+   entry says what Salli checks of it instead.
+5. **No Trial balance or Exports tab.** Neither is a page: the trial
+   balance's net is a fact on every books page and its balances are the
+   accounts', and Export opens Settings, Your data (Beancount, hledger,
+   JSON), where the exports are. The account's own tabs (Overview,
+   Entries, Imports, Details) are one page, under the books' row.
+6. **Reversing asks in the console's confirmation dialog** (the browser's
+   modal `<dialog>`, as every write does), not inline in the sheet.
+7. **The server chip is not a switch.** A console belongs to the server
+   that serves it; it shows the address and version only. The wordmark is
+   the outlined logo, not live Source Serif.
+8. **Home writes nothing**, as section 5 has it: reminders are marked done
+   on Attention, not from Home, and a decision due opens the journal.
+9. **Status words** say Overdue and the due date, not "6 days overdue": a
+   message gives a date, not a count of days (tests/guardrails.py).
+10. **The net worth chart keeps its bars** (what you own above the line,
+    what you owe below) with the line over them; a month is picked from a
+    list (the keyboard's way) or by a click, rather than by buttons drawn
+    on the chart, which would sit inside its `role="img"`.
+11. **The side menu's foot** says "Self-hosted · AGPL-3.0" only: "Your data
+    stays on this server" isn't so once a model key or an AI client is
+    connected.
+12. **Key figures are groups, not regions**, and the crumb bar is a
+    navigation landmark (axe's region rule).
+13. **Tax** joins the side menu after Books and Decide; the mockup's menu
+    predates it.
+
+**Not done, because neither the API nor the CLI does it:** the ⌘K command
+search, an "as of" date picker, pinning a page to Home, a help button, and
+editing an account from its details. A density switch (the mockup's
+compact rows) is left out as a display choice nobody asked for.
+
+**Against compose.** The run's selectors follow the shell (Sign out under
+who is signed in, the key figures, the pager's count); all fourteen pass
+against the image this change builds, the real step-up among them.
