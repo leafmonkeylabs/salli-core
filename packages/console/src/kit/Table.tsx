@@ -5,7 +5,7 @@
  * each row becomes a short list that keeps its figures right-aligned (each
  * cell carries its column's header as `data-label`).
  */
-import type { ReactNode } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface Column<T> {
   key: string;
@@ -38,11 +38,35 @@ export interface TableProps<T> {
   selected?: (row: T) => boolean;
 }
 
+/**
+ * Whether a table is wider than its card, so it scrolls: then its wrapper
+ * takes the focus, named by the caption, and the keyboard can scroll it.
+ */
+function useScrolls(): [React.RefObject<HTMLDivElement | null>, boolean] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const check = (): void => setScrolls(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, scrolls];
+}
+
 export function Table<T>({ caption, captionHidden, columns, rows, rowKey, total, selected }: TableProps<T>) {
+  const [wrap, scrolls] = useScrolls();
+  const captionId = useId();
   return (
-    <div className="table-wrap">
+    <div ref={wrap} className="table-wrap" {...(scrolls ? { tabIndex: 0, role: 'group', 'aria-labelledby': captionId } : {})}>
       <table className="table">
-        <caption className={captionHidden ? 'sr-only' : undefined}>{caption}</caption>
+        <caption id={captionId} className={captionHidden ? 'sr-only' : undefined}>
+          {caption}
+        </caption>
         <thead>
           <tr>
             {columns.map((column) => (

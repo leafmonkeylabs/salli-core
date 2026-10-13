@@ -180,7 +180,7 @@ function Side({ places, path, expanded, id }: { places: readonly Place[]; path: 
 
 function Crumbs({ crumbs }: { crumbs: readonly Crumb[] }) {
   return (
-    <nav aria-label={strings.shell.breadcrumb} className="crumbs">
+    <div className="crumbs">
       <ol>
         {crumbs.map((crumb, i) => (
           <li key={`${i}-${crumb.label}`}>
@@ -201,7 +201,7 @@ function Crumbs({ crumbs }: { crumbs: readonly Crumb[] }) {
           </li>
         ))}
       </ol>
-    </nav>
+    </div>
   );
 }
 
@@ -275,7 +275,7 @@ export function Shell() {
         <div className="shell-body">
           <Side places={places} path={path} expanded={expanded} id="side" />
           <div className="shell-main">
-            <div className="crumbbar">
+            <nav className="crumbbar" aria-label={strings.shell.breadcrumb}>
               <button
                 type="button"
                 className="icon-button icon-button-bare side-switch"
@@ -292,7 +292,7 @@ export function Shell() {
                 </Link>
               ) : null}
               <Crumbs crumbs={crumbs} />
-            </div>
+            </nav>
             <UpdateBanner />
             <Notice />
             <main id="main" ref={main} tabIndex={-1}>
