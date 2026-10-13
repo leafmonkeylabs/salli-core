@@ -2261,7 +2261,8 @@ a.chip:hover {
 
 .bar-row-label {
   min-width: 0;
-  overflow-wrap: anywhere;
+  /* Breaks between words; a word longer than the column still wraps. */
+  overflow-wrap: break-word;
 }
 
 .bar-row .money,
@@ -2560,7 +2561,8 @@ h3.subhead {
 
 /* Bars in rows that share their columns. */
 .bar-rows {
-  grid-template-columns: minmax(0, 1fr) minmax(48px, 1fr) max-content;
+  /* The label column is at least its longest word, so no word is cut. */
+  grid-template-columns: minmax(min-content, 1fr) minmax(48px, 1fr) max-content;
   column-gap: 12px;
 }
 
