@@ -25,6 +25,7 @@ from salli.domain.scenarios.engine import (
     Figure,
     MonthFigure,
     ScenarioResult,
+    Timeline,
 )
 from salli.domain.scenarios.holdings import Trade
 from salli.domain.scenarios.tax import YearTax
@@ -295,9 +296,36 @@ def tax_view(r: ScenarioResult) -> dict[str, Any]:
     }
 
 
+def timeline_view(t: Timeline, w: _Writer) -> dict[str, Any]:
+    """Both timelines as JSON-ready data: money in the currency's precision."""
+    return {
+        "daily": [
+            {"date": d.date, "baseline": w.money(d.baseline), "scenario": w.money(d.scenario)}
+            for d in t.daily
+        ],
+        "monthly": [
+            {
+                "month": m.month,
+                "date": m.date,
+                "cash": w.figure(m.cash),
+                "net_worth": w.figure(m.net_worth),
+            }
+            for m in t.monthly
+        ],
+    }
+
+
 def result_view(r: ScenarioResult) -> dict[str, Any]:
-    """A scenario's result as JSON-ready data."""
+    """A scenario's result as JSON-ready data; its timelines only when it
+    carries them (they were asked for)."""
     w = _Writer(r.currency)
+    view = _result_view(r, w)
+    if r.timeline is not None:
+        view["timeline"] = timeline_view(r.timeline, w)
+    return view
+
+
+def _result_view(r: ScenarioResult, w: _Writer) -> dict[str, Any]:
     cash = r.cash
     return {
         "schema": r.versions.schema,

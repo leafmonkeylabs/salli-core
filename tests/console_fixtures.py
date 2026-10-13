@@ -3,23 +3,34 @@ The console's fixtures, written by the real server.
 
 The console's component tests and its visual and accessibility runs
 (packages/console/test, packages/console/e2e) answer the API with the
-fixtures in `packages/console/test/fixtures/home.ts`: what the API app
+fixtures in `packages/console/test/fixtures/`: what the API app
 (`interfaces/api/main.create_app`, so through its request and response
-models) answers Home's eight reads on the golden household
-(tests/golden/household.py: euros, as of 2026-10-11), with two reminders
-of the person's own and a decision recorded in August, due for review on
-2026-09-30. So the console's tests read exactly what the server sends today:
-a fixture goes stale when an engine, a service or a response model changes,
-and `tests/contract/test_console_fixtures.py` fails until it is written
+models) answers on the golden household (tests/golden/household.py: euros,
+as of 2026-10-11).
+
+- `home.ts`: Home's eight reads, with two reminders of the person's own and
+  a decision recorded in August, due for review on 2026-09-30.
+- `lab.ts`: the decision lab's reads on the same household after the
+  person's own writes (three principles, one archived; a laptop weighed with
+  the afford-it template and recorded on the household's date, with a note),
+  and the answers to the writes the console makes, made after every read (a
+  principle added, edited and refused; a template's answers refused; the
+  August decision reviewed). Its reviews due are Home's, which the console
+  reads for both.
+
+So the console's tests read exactly what the server sends today: a fixture
+goes stale when an engine, a service or a response model changes, and
+`tests/contract/test_console_fixtures.py` fails until they are written
 again:
 
     uv run python -m tests.console_fixtures            # write them
     uv run python -m tests.console_fixtures --check    # what the contract test does
 
-The ids the services make (the reminders', the decision's) are fixed, so the
-file is the same each time it is written. The sign-in's own fixtures (who
-is signed in, the profile, the sign-ins) are not a household's books, and
-are written by hand in `auth.ts` beside it, typed by the SDK.
+The ids the services make (the reminders', the decisions', the
+principles') are fixed, so each file is the same each time it is written.
+The sign-in's own fixtures (who is signed in, the profile, the sign-ins) are
+not a household's books, and are written by hand in `auth.ts` beside them,
+typed by the SDK.
 """
 
 from __future__ import annotations
@@ -31,20 +42,29 @@ import logging
 import sys
 import uuid
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
+from httpx import ASGITransport, AsyncClient
+
 from salli.application.services.baseline_service import BaselineService
+from salli.application.services.debt_service import DebtService
 from salli.application.services.decision_service import DecisionService
 from salli.application.services.fi_service import FiService
 from salli.application.services.insights_service import InsightsService
 from salli.application.services.ledger_service import LedgerService
+from salli.application.services.portfolio_service import PortfolioService
 from salli.application.services.principle_service import PrincipleService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.report_service import ReportService
 from salli.application.services.scenario_service import ScenarioService
+from salli.application.services.template_service import TemplateService
+from salli.interfaces.api.deps import Principal, get_current_user, get_principal, get_services
+from salli.interfaces.api.main import create_app
+from tests import fakes
 from tests.cli_fixtures import Books, Fixture, ask, render, uid
 from tests.golden import household as h
 
@@ -76,34 +96,73 @@ def fixed_ids() -> Iterator[None]:
         yield
 
 
+#: When Home's decision was recorded, and when the decision lab's writes are
+#: made: the household's date, in the morning.
+AUGUST = dt.datetime(2026, 8, 11, 9, tzinfo=dt.UTC)
+OCTOBER = dt.datetime(2026, 10, 11, 10, tzinfo=dt.UTC)
+
+
+class _October(dt.datetime):
+    """The time the in-memory repositories stamp on a row (a principle's
+    `created_at`, as the database's `now()` would): the household's date."""
+
+    @classmethod
+    def now(cls, tz: dt.tzinfo | None = None) -> _October:  # type: ignore[override]
+        return cls.fromtimestamp(OCTOBER.timestamp(), tz)
+
+
+@contextlib.contextmanager
+def stamped_in_october() -> Iterator[None]:
+    with mock.patch.object(fakes, "datetime", _October):
+        yield
+
+
+@dataclass
+class Clock:
+    """When the decision journal records something: Home's decision in
+    August, the decision lab's writes on the household's date."""
+
+    at: dt.datetime = AUGUST
+
+    def now(self) -> dt.datetime:
+        return self.at
+
+
 async def household() -> Books:
-    """The golden household, with every service Home reads."""
+    """The golden household, with every service Home and the decision lab
+    read."""
     uow = h.uow()
     today = lambda: h.AS_OF  # noqa: E731
     baselines = BaselineService(uow.factory(), fx=h.fx(), today=today)
     ledger = LedgerService(uow.factory(), fx=h.fx())
     fi = FiService(uow.factory(), baselines=baselines, today=today)
     scenarios = ScenarioService(uow.factory(), baselines=baselines)
+    principles = PrincipleService(uow.factory(), scenarios)
+    clock = Clock()
     services = SimpleNamespace(
         ledger=ledger,
         fi=fi,
         reports=ReportService(ledger, fi),
         reminders=ReminderService(uow.factory()),
         insights=InsightsService(uow.factory(), today=today, baselines=baselines),
+        baseline=baselines,
+        debt=DebtService(uow.factory(), baselines=baselines, today=today),
+        portfolio=PortfolioService(uow.factory(), today=today),
         scenarios=scenarios,
-        principles=PrincipleService(uow.factory(), scenarios),
+        principles=principles,
+        templates=TemplateService(scenarios, principles),
         decisions=DecisionService(
-            uow.factory(),
-            scenarios,
-            PrincipleService(uow.factory(), scenarios),
-            now=lambda: dt.datetime(2026, 8, 11, 9, tzinfo=dt.UTC),
+            uow.factory(), scenarios, PrincipleService(uow.factory(), scenarios), now=clock.now
         ),
+        # Not a service: the journal's clock, which the decision lab moves on.
+        clock=clock,
     )
     return Books(h.USER, services)
 
 
-async def home_fixtures() -> list[Fixture]:
-    books = await household()
+async def home_writes(books: Books) -> None:
+    """What the person did before Home's reads: two reminders of their own,
+    and a decision recorded in August, due for review on 2026-09-30."""
 
     async def post(path: str, body: dict[str, Any]) -> None:
         await ask(books, "POST", path, body, ok=(201,))
@@ -123,6 +182,11 @@ async def home_fixtures() -> list[Fixture]:
             "review_on": "2026-09-30",
         },
     )
+
+
+async def home_fixtures() -> list[Fixture]:
+    books = await household()
+    await home_writes(books)
     month = f"from_date={MONTH['from_date']}&to_date={MONTH['to_date']}"
 
     async def get(path: str) -> Any:
@@ -147,10 +211,312 @@ async def home_fixtures() -> list[Fixture]:
     ]
 
 
+LAB_HEADER = (
+    "/**\n"
+    " * What a real server answers the decision lab's reads and writes\n"
+    " * (docs/design/console.md, section 5) on the golden household ledger\n"
+    " * (tests/golden/household.py, as of Oct 11, 2026, in euros), after what\n"
+    " * Home's fixtures (home.ts) rest on: three principles (one archived), a\n"
+    " * laptop weighed with the afford-it template and recorded on Oct 11 with a\n"
+    " * note, beside the August decision that is due for review. The writes at\n"
+    " * the end (a principle added and edited, the August decision reviewed)\n"
+    " * come after every read, so the reads are what the console sees first.\n"
+    " *\n"
+    f" * Written by tests/console_fixtures.py (`{COMMAND}`):\n"
+    " * tests/contract/test_console_fixtures.py fails while it differs from what\n"
+    " * the server answers. Don't edit it by hand.\n"
+    " */"
+)
+
+SIX_MONTHS = {"label": "Six months of essentials in cash", "check": "emergency_months >= 6"}
+CHECKING = {
+    "label": "Checking above 5,000",
+    "check": "account_lowest >= 5000",
+    "account": "chk",
+    "note": "The rent and the card come out of it.",
+}
+DEAR_DEBT = {
+    "label": "Clear debt above 7% before investing",
+    "check": "max_debt_rate_while_investing <= 0.07",
+}
+#: The afford-it answers the laptop was weighed with.
+LAPTOP_ANSWERS = {
+    "price": "2400.00",
+    "what": "Laptop",
+    "date": "2026-11-02",
+    "account": "chk",
+    "instalment_months": 12,
+    "instalment_rate": "0.069",
+    "wait_months": 6,
+    "save_monthly": "400.00",
+    "horizon_years": 5,
+}
+RENT_OR_BUY_ANSWERS = {
+    "price": "350000.00",
+    "deposit": "70000.00",
+    "account": "chk",
+    "mortgages": [
+        {"annual_rate": "0.042", "term_months": 300},
+        {"annual_rate": "0.039", "term_months": 240, "label": "Shorter"},
+    ],
+    "buying_costs": "9000.00",
+    "owning_costs": "250.00",
+    "rent": "city",
+    "selling_costs": "0.03",
+}
+EMERGENCY_ANSWERS = {"target_months": "9", "set_aside": ["200.00", "500.00"], "horizon_years": 5}
+LAPTOP = {
+    "type": "one_off",
+    "date": "2026-11-02",
+    "amount": "-2400.00",
+    "account": "chk",
+    "label": "Laptop",
+}
+INSTALMENTS = {
+    "type": "loan",
+    "principal": "2400.00",
+    "annual_rate": "0.069",
+    "term_months": 12,
+    "start": "2026-11-02",
+    "into": "chk",
+    "label": "Laptop instalments",
+}
+
+
+def scenario(label: str, *changes: dict[str, Any]) -> dict[str, Any]:
+    """An option over five years, as the laptop is weighed."""
+    return {
+        "schema": "salli.scenario/1",
+        "label": label,
+        "horizon_years": 5,
+        "changes": list(changes),
+    }
+
+
+async def lab_fixtures(home_due: Any) -> list[Fixture]:
+    """The decision lab on the household Home shows: its reads after the
+    person's own writes, then the answers to the writes the console makes.
+    Its reviews due must be Home's (`home_due`), which the console reads for
+    both."""
+    books = await household()
+    await home_writes(books)
+    books.services.clock.at = OCTOBER
+
+    async def get(path: str) -> Any:
+        return await ask(books, "GET", path)
+
+    async def post(path: str, body: Any = None, ok: tuple[int, ...] = (200,)) -> Any:
+        return await ask(books, "POST", path, body, ok=ok)
+
+    # The person's own writes, before anything is read.
+    kept = [await post("/v1/principles", p, ok=(201,)) for p in (SIX_MONTHS, CHECKING, DEAR_DEBT)]
+    await post(f"/v1/principles/{kept[2]['id']}/archive")
+    afford = await post("/v1/decisions/start", {"template": "afford-it", "answers": LAPTOP_ANSWERS})
+    recorded = await post(
+        "/v1/decisions",
+        {
+            "question": "Laptop: pay cash, spread it or wait?",
+            "options": afford["record"]["options"],
+            "chosen": afford["record"]["labels"][0],
+            "reasons": "The old one is failing, and I would rather not owe anything.",
+            "review_on": "2027-04-30",
+        },
+        ok=(201,),
+    )
+    laptop = recorded["id"]
+    note = await post(
+        f"/v1/decisions/{laptop}/notes",
+        {"text": "The shop held the price until November."},
+        ok=(201,),
+    )
+    due = await get("/v1/decisions/reviews")
+    august = due["reviews"][0]["id"]
+    compare = {
+        "options": [scenario("Pay cash", LAPTOP), scenario("Instalments", LAPTOP, INSTALMENTS)]
+    }
+
+    reads = [
+        Fixture("BASELINE", "Baseline", None, await get("/v1/baseline")),
+        Fixture("ACCOUNTS", "Account[]", None, await get("/v1/accounts/")),
+        Fixture("DEBTS", "DebtList", None, await get("/v1/debt/?active_only=true")),
+        Fixture("HOLDINGS", "HoldingList", None, await get("/v1/portfolio/?active_only=true")),
+        Fixture("RECURRING", "RecurringPayments", None, await get("/v1/insights/recurring")),
+        Fixture("TEMPLATES", "DecisionTemplateList", None, await get("/v1/decisions/templates")),
+        *[
+            Fixture(name, "DecisionTemplate", None, await get(f"/v1/decisions/templates/{id_}"))
+            for name, id_ in (
+                ("AFFORD_IT", "afford-it"),
+                ("DEBT_OR_INVEST", "debt-or-invest"),
+                ("WINDFALL", "windfall"),
+                ("BIG_CHANGE", "big-change"),
+                ("BORROW", "borrow"),
+                ("EMERGENCY_FUND", "emergency-fund"),
+                ("RENT_OR_BUY", "rent-or-buy"),
+            )
+        ],
+        Fixture(
+            "AFFORD_IT_START",
+            "DecisionStart",
+            "The laptop: 2,400.00 on Nov 2, paid at once, over 12 months at 6.9%, or\n"
+            "after six months of setting 400.00 aside; over five years.",
+            await post("/v1/decisions/start", {"template": "afford-it", "answers": LAPTOP_ANSWERS}),
+        ),
+        Fixture(
+            "RENT_OR_BUY_START",
+            "DecisionStart",
+            "Keep renting from City Lettings, or buy a home for 350,000.00 with\n"
+            "70,000.00 down on either of two mortgages.",
+            await post(
+                "/v1/decisions/start", {"template": "rent-or-buy", "answers": RENT_OR_BUY_ANSWERS}
+            ),
+        ),
+        Fixture(
+            "EMERGENCY_FUND_START",
+            "DecisionStart",
+            "Nine months of spending in cash, setting aside 200.00 or 500.00 a month.",
+            await post(
+                "/v1/decisions/start", {"template": "emergency-fund", "answers": EMERGENCY_ANSWERS}
+            ),
+        ),
+        Fixture(
+            "SCENARIO_RUN",
+            "ScenarioRun",
+            "The laptop paid at once, with both timelines.",
+            await post("/v1/scenarios/run?timeline=true", scenario("Pay cash", LAPTOP)),
+        ),
+        Fixture(
+            "SCENARIO_COMPARISON",
+            "ScenarioComparison",
+            "Paying cash against instalments, with each option's timelines.",
+            await post("/v1/scenarios/compare?timeline=true", compare),
+        ),
+        Fixture(
+            "PRINCIPLES",
+            "PrincipleList",
+            None,
+            await get("/v1/principles?include_archived=true"),
+        ),
+        Fixture("FIGURES", "DecisionFigures", None, await get("/v1/principles/figures")),
+        Fixture(
+            "BASELINE_CHECK",
+            "PrinciplesCheck",
+            "The principles in use, checked on the baseline alone.",
+            await post("/v1/principles/check", {"options": []}),
+        ),
+        Fixture(
+            "PRINCIPLE_CHECK",
+            "PrinciplesCheck",
+            "The principles in use, checked on paying cash and on instalments.",
+            await post("/v1/principles/check", compare),
+        ),
+        Fixture("DECISIONS", "DecisionList", None, await get("/v1/decisions")),
+        Fixture(
+            "DECISION",
+            "Decision",
+            "The laptop, with its note.",
+            await get(f"/v1/decisions/{laptop}"),
+        ),
+        Fixture(
+            "DECISION_DUE",
+            "Decision",
+            "The August decision, due for review.",
+            await get(f"/v1/decisions/{august}"),
+        ),
+        Fixture("JOURNAL", "DecisionJournal", None, await get("/v1/decisions/export")),
+        Fixture(
+            "JOURNAL_MARKDOWN",
+            "string",
+            None,
+            await markdown(books, "/v1/decisions/export/markdown"),
+        ),
+        Fixture("RECORDED", "Decision", "The answer to recording the laptop.", recorded),
+        Fixture("NOTE", "DecisionNote", "The answer to the laptop's note.", note),
+    ]
+    if due != home_due:
+        raise RuntimeError("The decision lab's household has other reviews due than Home's")
+
+    # The console's writes, after every read.
+    added = await post(
+        "/v1/principles",
+        {
+            "label": "Never below 2,000 in checking",
+            "check": "account_lowest >= 2000",
+            "account": "chk",
+        },
+        ok=(201,),
+    )
+    edited = await ask(
+        books,
+        "PATCH",
+        f"/v1/principles/{kept[0]['id']}",
+        {"label": "Nine months of essentials in cash", "check": "emergency_months >= 9"},
+    )
+    reviewed = await post(
+        f"/v1/decisions/{august}/review",
+        {"reflection": "Nothing needed changing, and nothing did."},
+        ok=(201,),
+    )
+    writes = [
+        Fixture("PRINCIPLE_ADDED", "Principle", None, added),
+        Fixture("PRINCIPLE_EDITED", "Principle", None, edited),
+        Fixture(
+            "PRINCIPLE_REFUSED",
+            "ProblemDetails",
+            "A check naming a figure that doesn't exist, refused with where and why.",
+            await post(
+                "/v1/principles",
+                {"label": "Half a year in cash", "check": "emergency_month >= 6"},
+                ok=(422,),
+            ),
+        ),
+        Fixture(
+            "START_REFUSED",
+            "ProblemDetails",
+            "Afford it with no price and a rate that isn't one, refused at their paths.",
+            await post(
+                "/v1/decisions/start",
+                {
+                    "template": "afford-it",
+                    "answers": {"instalment_months": 12, "instalment_rate": "6.9%"},
+                },
+                ok=(422,),
+            ),
+        ),
+        Fixture(
+            "REVIEWED", "DecisionReview", "The answer to reviewing the August decision.", reviewed
+        ),
+        Fixture(
+            "DECISION_REVIEWED",
+            "Decision",
+            "The August decision once reviewed.",
+            await get(f"/v1/decisions/{august}"),
+        ),
+    ]
+    return [*reads, *writes]
+
+
+async def markdown(books: Books, path: str) -> str:
+    """What the API answers as text (Markdown), not JSON."""
+    app = create_app()
+    app.dependency_overrides[get_services] = lambda: books.services
+    app.dependency_overrides[get_principal] = lambda: Principal(books.user, None, "dev")
+    app.dependency_overrides[get_current_user] = lambda: books.user
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(path)
+    response.raise_for_status()
+    return response.text
+
+
 async def files() -> dict[Path, str]:
     with fixed_ids():
-        fixtures = await home_fixtures()
-    return {FIXTURES / "home.ts": render(HEADER, fixtures)}
+        home = await home_fixtures()
+    due = next(f.value for f in home if f.name == "REVIEWS_DUE")
+    with fixed_ids(), stamped_in_october():
+        lab = await lab_fixtures(due)
+    return {
+        FIXTURES / "home.ts": render(HEADER, home),
+        FIXTURES / "lab.ts": render(LAB_HEADER, lab),
+    }
 
 
 def stale() -> list[Path]:

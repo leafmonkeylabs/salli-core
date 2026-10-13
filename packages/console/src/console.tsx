@@ -84,7 +84,7 @@ function RouteError({ error }: { error: unknown }) {
 }
 
 /** A route's page: its component, or its loader's in a chunk of its own. */
-function pageOf(route: ConsoleRoute): ComponentType {
+function pageOf(route: ConsoleRoute): () => ReactElement {
   if (route.load) {
     const Lazy = lazy(route.load);
     return function LazyPage() {
@@ -95,7 +95,10 @@ function pageOf(route: ConsoleRoute): ComponentType {
       );
     };
   }
-  return route.component ?? NotFound;
+  const Component = route.component ?? NotFound;
+  return function RoutePage() {
+    return <Component />;
+  };
 }
 
 /** A page of an extension: only when this server runs its server half. */
@@ -107,6 +110,21 @@ function guarded(requires: string, Page: ComponentType): () => ReactElement {
 }
 
 const SettingsPage = lazy(() => import('./pages/settings/Settings'));
+
+/**
+ * The decision lab (C3): each view a chunk of its own, loaded when it is
+ * opened, so the shell and Home stay within their budget.
+ */
+const LAB: ConsoleRoute[] = [
+  { path: '/decide', load: () => import('./pages/decide/Lab') },
+  { path: '/decide/templates', load: () => import('./pages/decide/Templates').then((m) => ({ default: m.TemplateList })) },
+  { path: '/decide/templates/$template', load: () => import('./pages/decide/Templates') },
+  { path: '/decide/scenarios', load: () => import('./pages/decide/Scenarios') },
+  { path: '/decide/principles', load: () => import('./pages/decide/Principles') },
+  { path: '/decide/journal', load: () => import('./pages/decide/Journal') },
+  { path: '/decide/journal/$decision', load: () => import('./pages/decide/Entry') },
+  { path: '/decide/baseline', load: () => import('./pages/decide/Baseline') },
+];
 
 function Settings() {
   return (
@@ -121,6 +139,7 @@ function buildRouter(extensions: readonly ConsoleExtension[], history: (() => Ro
   const pages: AnyRoute[] = [
     createRoute({ getParentRoute: () => root, path: '/', component: Home }),
     createRoute({ getParentRoute: () => root, path: '/settings', component: Settings }),
+    ...LAB.map((route) => createRoute({ getParentRoute: () => root, path: route.path, component: pageOf(route) })),
   ];
   for (const extension of extensions) {
     for (const route of extension.routes ?? []) {

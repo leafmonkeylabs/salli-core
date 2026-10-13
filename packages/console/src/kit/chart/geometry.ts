@@ -32,11 +32,17 @@ export function extent(amounts: readonly string[]): { low: string; high: string 
 }
 
 /**
- * A linear scale from amounts to pixels: `from` maps to `range[0]`, `to` to
- * `range[1]`. Zero is always inside the domain, so bars stand on it.
+ * A linear scale from amounts (or rates: any decimal strings) to pixels:
+ * the lowest maps to `range[0]`, the highest to `range[1]`. Zero is inside
+ * the domain unless `withZero` is false, so bars stand on it; a line far
+ * from zero (net worth over twenty years) leaves it out.
  */
-export function amountScale(amounts: readonly string[], range: readonly [number, number]): (amount: string) => number {
-  const span = extent([...amounts, '0']) ?? { low: '0', high: '0' };
+export function amountScale(
+  amounts: readonly string[],
+  range: readonly [number, number],
+  { withZero = true }: { withZero?: boolean } = {},
+): (amount: string) => number {
+  const span = extent(withZero ? [...amounts, '0'] : amounts) ?? { low: '0', high: '0' };
   const low = position(span.low);
   const high = position(span.high);
   const [r0, r1] = range;
@@ -54,4 +60,42 @@ export function bandScale(count: number, range: readonly [number, number], paddi
 /** An SVG path through points, as straight segments. */
 export function linePath(points: ReadonlyArray<readonly [number, number]>): string {
   return points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+}
+
+/**
+ * Positions for `count` points spread evenly across `range`, the first at
+ * `range[0]` and the last at `range[1]`: a timeline's days or months.
+ */
+export function indexScale(count: number, range: readonly [number, number]): (index: number) => number {
+  const [r0, r1] = range;
+  if (count <= 1) return () => (r0 + r1) / 2;
+  return (index) => r0 + (index / (count - 1)) * (r1 - r0);
+}
+
+/** An SVG path through points as steps: level until the next point, then up or down. */
+export function stepPath(points: ReadonlyArray<readonly [number, number]>): string {
+  return points.map(([x, y], i) => (i === 0 ? `M${x.toFixed(1)} ${y.toFixed(1)}` : `H${x.toFixed(1)} V${y.toFixed(1)}`)).join(' ');
+}
+
+/**
+ * Pixel positions for labels that must not overlap: each wanted position,
+ * moved apart to at least `gap` pixels, kept inside `range` where they fit.
+ * Returned in the order given.
+ */
+export function spread(wanted: readonly number[], gap: number, range: readonly [number, number]): number[] {
+  const order = wanted.map((y, i) => ({ y, i })).sort((a, b) => a.y - b.y);
+  const [low, high] = range[0] < range[1] ? range : [range[1], range[0]];
+  for (let k = 0; k < order.length; k++) {
+    const item = order[k] as { y: number; i: number };
+    const before = order[k - 1];
+    item.y = Math.max(item.y, low, before ? before.y + gap : low);
+  }
+  for (let k = order.length - 1; k >= 0; k--) {
+    const item = order[k] as { y: number; i: number };
+    const after = order[k + 1];
+    item.y = Math.min(item.y, high, after ? after.y - gap : high);
+  }
+  const out = new Array<number>(wanted.length);
+  for (const item of order) out[item.i] = item.y;
+  return out;
 }

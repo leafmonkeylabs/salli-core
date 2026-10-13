@@ -1058,6 +1058,38 @@ class TaxResult:
 
 
 @dataclass(frozen=True)
+class TimelineDay:
+    """Cash, all accounts together, at the end of a day: under the baseline
+    and under the scenario, in that day's own money."""
+
+    date: str
+    baseline: Decimal
+    scenario: Decimal
+
+
+@dataclass(frozen=True)
+class TimelineMonth:
+    """The monthly timeline at one point (the as-of date, then each month's
+    end), in today's money."""
+
+    month: str
+    date: str
+    cash: Figure
+    net_worth: Figure
+
+
+@dataclass(frozen=True)
+class Timeline:
+    """Both timelines, the baseline's and the scenario's, as the figures are
+    read from them: every day of the cash forecast (the as-of month and the
+    twelve after it) and every point of the monthly timeline from the as-of
+    date to the horizon. For drawing them; asked for, never stored."""
+
+    daily: tuple[TimelineDay, ...]
+    monthly: tuple[TimelineMonth, ...]
+
+
+@dataclass(frozen=True)
 class ScenarioResult:
     label: str | None
     as_of: dt.date
@@ -1085,6 +1117,8 @@ class ScenarioResult:
     data_as_of: str | None
     is_stale: bool
     notes: tuple[str, ...]
+    #: Both timelines, when the caller asked for them (`run(timeline=True)`).
+    timeline: Timeline | None = None
 
 
 def content_hash(baseline: Baseline, scenario: schema.Scenario) -> str:
@@ -1156,6 +1190,29 @@ def _checkpoints(horizon_years: int, base: Outlook, mine: Outlook) -> tuple[Chec
             )
         )
     return tuple(out)
+
+
+def _timeline(horizon_years: int, base: Outlook, mine: Outlook) -> Timeline:
+    """The two outlooks' timelines side by side: the daily cash forecast,
+    and the monthly timeline from the as-of date to the horizon's month end
+    (the points the checkpoints are read from)."""
+    days = tuple(
+        TimelineDay(day, before, after)
+        for (day, before), (_, after) in zip(
+            base.cash.forecast.daily, mine.cash.forecast.daily, strict=True
+        )
+    )
+    last = 12 * horizon_years + 2
+    months = tuple(
+        TimelineMonth(
+            month=b.month,
+            date=b.date,
+            cash=Figure(b.cash, s.cash),
+            net_worth=Figure(b.net_worth, s.net_worth),
+        )
+        for b, s in zip(base.monthly.points[:last], mine.monthly.points[:last], strict=True)
+    )
+    return Timeline(daily=days, monthly=months)
 
 
 def _debts(baseline: Baseline, base: Outlook, mine: Outlook) -> DebtsResult:
@@ -1383,12 +1440,17 @@ def cash_floors(
 
 
 def run(
-    baseline: Baseline, scenario: schema.Scenario, *, base: Outlook | None = None
+    baseline: Baseline,
+    scenario: schema.Scenario,
+    *,
+    base: Outlook | None = None,
+    timeline: bool = False,
 ) -> ScenarioResult:
     """The scenario against the baseline: every figure under each, and the
     delta. `base` is the baseline's own outlook, when the caller has it
-    already (a comparison evaluates it once). Writes nothing."""
-    return run_with_outlook(baseline, scenario, base=base)[0]
+    already (a comparison evaluates it once); `timeline` adds both
+    timelines, for drawing them. Writes nothing."""
+    return run_with_outlook(baseline, scenario, base=base, timeline=timeline)[0]
 
 
 @dataclass(frozen=True)
@@ -1430,7 +1492,11 @@ def placeholders(baseline: Baseline, outcome: taxes.TaxOutcome) -> tuple[str, ..
 
 
 def run_with_outlook(
-    baseline: Baseline, scenario: schema.Scenario, *, base: Outlook | None = None
+    baseline: Baseline,
+    scenario: schema.Scenario,
+    *,
+    base: Outlook | None = None,
+    timeline: bool = False,
 ) -> tuple[ScenarioResult, Evaluated]:
     """`run`, and the outlook and translation its figures come from."""
     translation = translate(baseline, scenario)
@@ -1474,5 +1540,6 @@ def run_with_outlook(
                 ]
             )
         ),
+        timeline=_timeline(scenario.horizon_years, base, mine) if timeline else None,
     )
     return result, Evaluated(result, mine, translation)

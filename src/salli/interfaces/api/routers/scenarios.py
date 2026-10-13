@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from salli.domain.scenarios.schema import Scenario
@@ -390,6 +390,35 @@ class ScenarioVersions(BaseModel):
     rule_sets: list[ScenarioRuleSet]
 
 
+class TimelineDay(BaseModel):
+    """Cash, all accounts together, at the end of a day, under the baseline
+    and under the scenario, in that day's own money."""
+
+    date: Day
+    baseline: Amount
+    scenario: Amount
+
+
+class TimelineMonth(BaseModel):
+    """The monthly timeline at one point (the as-of date, then each month's
+    end), in today's money."""
+
+    month: str
+    date: Day
+    cash: AmountFigure
+    net_worth: AmountFigure
+
+
+class ScenarioTimeline(BaseModel):
+    """Both timelines the figures are read from, under the baseline and
+    under the scenario, for drawing them: every day of the cash forecast
+    (the as-of month and the twelve after it), and the monthly timeline from
+    the as-of date to the horizon."""
+
+    daily: list[TimelineDay]
+    monthly: list[TimelineMonth]
+
+
 class ScenarioRun(BaseModel):
     """A scenario's figures under the baseline and under the scenario."""
 
@@ -435,6 +464,8 @@ class ScenarioRun(BaseModel):
     #: Older than 45 days: bring the ledger up to date before deciding.
     is_stale: bool
     notes: list[str]
+    #: Both timelines, only when asked for (`?timeline=true`); null otherwise.
+    timeline: ScenarioTimeline | None = None
 
 
 class TradeDelta(BaseModel):
@@ -504,20 +535,35 @@ class CompareOptions(BaseModel):
     options: Annotated[list[Scenario], Field(min_length=2, max_length=5)]
 
 
+_TIMELINE = Query(
+    False,
+    description=(
+        "Include both timelines, the baseline's and the scenario's: every day of the "
+        "cash forecast and every point of the monthly timeline to the horizon"
+    ),
+)
+
+
 @router.post("/run", responses=_NOT_FOUND)  # type: ignore[arg-type]
-async def run_scenario(body: Scenario, user_id: CurrentUser, svc: AppServices) -> ScenarioRun:
+async def run_scenario(
+    body: Scenario, user_id: CurrentUser, svc: AppServices, timeline: bool = _TIMELINE
+) -> ScenarioRun:
     """Run a scenario on your baseline: cash over the next twelve months, the
     monthly figures at 1, 5, 10 and 20 years and the horizon, debts,
     resilience and FI, each under the baseline and the scenario with the
-    delta. Stores nothing."""
-    return ScenarioRun.model_validate(await svc.scenarios.run(user_id, body))
+    delta; with `timeline`, the timelines they are read from. Stores
+    nothing."""
+    return ScenarioRun.model_validate(await svc.scenarios.run(user_id, body, timeline=timeline))
 
 
 @router.post("/compare", responses=_NOT_FOUND)  # type: ignore[arg-type]
 async def compare_scenarios(
-    body: CompareOptions, user_id: CurrentUser, svc: AppServices
+    body: CompareOptions, user_id: CurrentUser, svc: AppServices, timeline: bool = _TIMELINE
 ) -> ScenarioComparison:
     """Compare two to five options side by side: each one's figures, what
     each gains and gives up against the others, their sensitivity to the
-    real return, and the break-evens. Never a ranking. Stores nothing."""
-    return ScenarioComparison.model_validate(await svc.scenarios.compare(user_id, body.options))
+    real return, and the break-evens; with `timeline`, each option's
+    timelines. Never a ranking. Stores nothing."""
+    return ScenarioComparison.model_validate(
+        await svc.scenarios.compare(user_id, body.options, timeline=timeline)
+    )

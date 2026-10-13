@@ -1,0 +1,285 @@
+/*
+ * The decision lab's pages (C3): its own row of places, the options side by
+ * side, the trade, principles kept and broken, the journal. Tokens only
+ * (tokens.css); square corners.
+ */
+
+.subnav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 4px;
+  border-bottom: 1px solid var(--c-rule);
+}
+
+.subnav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--button-height);
+  padding: 0 12px;
+  color: var(--c-text);
+  text-decoration: none;
+}
+
+.subnav a:hover {
+  background: var(--c-panel);
+}
+
+.subnav a[aria-current='page'] {
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--c-brand);
+}
+
+@media (max-width: 720px) {
+  .subnav ul {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .subnav a {
+    white-space: nowrap;
+  }
+}
+
+.cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: var(--gutter);
+}
+
+.card-title {
+  font-size: var(--size-h3);
+}
+
+.card-title a {
+  color: var(--c-text);
+}
+
+.template-list > li {
+  display: grid;
+  gap: 2px;
+}
+
+.basis-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: var(--size-small);
+  display: grid;
+  gap: 4px;
+}
+
+.result {
+  display: grid;
+  gap: var(--section-gap);
+}
+
+.result:focus {
+  outline: none;
+}
+
+.result-title {
+  font-size: var(--size-h2);
+  letter-spacing: -0.02em;
+  border-top: 1px solid var(--c-rule);
+  padding-top: 24px;
+}
+
+.answer-value {
+  font-family: var(--font-mono);
+  font-size: var(--size-mono);
+  overflow-wrap: anywhere;
+}
+
+.check {
+  white-space: nowrap;
+}
+
+.check-mark {
+  display: inline-block;
+  min-width: 1em;
+  font-weight: 600;
+}
+
+.check-breaks .check-mark {
+  color: var(--c-warn);
+}
+
+.check-keeps .check-mark {
+  color: var(--c-brand);
+}
+
+.check-unknown {
+  color: var(--c-muted);
+}
+
+.reasons > li {
+  font-size: var(--size-small);
+}
+
+.trade {
+  display: grid;
+  gap: 20px;
+}
+
+.trade-pair {
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--c-rule);
+}
+
+.trade-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 8px 32px;
+}
+
+.trade-columns .list > li {
+  padding: 4px 0;
+}
+
+.break-evens {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.break-even-kind {
+  font-weight: 500;
+}
+
+.tag-due {
+  color: var(--c-text);
+  font-weight: 500;
+}
+
+.principle {
+  display: grid;
+  gap: 6px;
+}
+
+.scenario-form {
+  display: grid;
+  gap: 20px;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: var(--gutter);
+  align-items: start;
+}
+
+.option-cell {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  min-width: 0;
+}
+
+.option-form {
+  margin: 0;
+  width: 100%;
+}
+
+.option-legend {
+  font-weight: 500;
+  font-size: var(--size-body);
+  padding: 0 4px;
+}
+
+.change {
+  width: 100%;
+}
+
+.add-change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.add-change .field {
+  flex: 1 1 240px;
+}
+
+.shared-fields {
+  max-width: 640px;
+}
+
+.document-preview {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.basis-placeholders {
+  font-size: var(--size-small);
+  font-weight: 500;
+}
+
+.section-quarter {
+  grid-column: span 3;
+}
+
+@media (max-width: 1080px) {
+  .grid > .section-quarter {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 720px) {
+  .grid > .section-quarter {
+    grid-column: span 12;
+  }
+}
+
+.result-head {
+  display: grid;
+  gap: 4px;
+}
+
+.notes-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: var(--size-small);
+}
+
+.table .placeholder-tag {
+  white-space: nowrap;
+}
+
+/* The page's one column never grows past the screen for something wide in
+   it (the row of places, a table): those scroll within themselves. */
+.page {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.subnav {
+  min-width: 0;
+}
+
+/* A fieldset is as wide as its widest content by default; these fit their column. */
+fieldset {
+  min-width: 0;
+}
+
+/* A select is as wide as its longest option unless held to its column. */
+.form,
+.field,
+.group,
+.group-item {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.field-select {
+  min-width: 0;
+  max-width: 100%;
+}

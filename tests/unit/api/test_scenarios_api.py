@@ -177,6 +177,54 @@ async def test_options_compare_side_by_side_with_the_trade_and_break_evens(
     mock_services.usage.charge.assert_not_called()
 
 
+async def test_the_timelines_come_only_when_asked_for_and_hold_the_figures(client, uow):
+    plain = (await client.post("/v1/scenarios/run", json=_doc(LAPTOP), headers=AUTH)).json()
+    assert plain["timeline"] is None
+    r = await client.post("/v1/scenarios/run?timeline=true", json=_doc(LAPTOP), headers=AUTH)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # Asking for the lines changes no figure, nor the hash.
+    assert {k: v for k, v in body.items() if k != "timeline"} == {
+        k: v for k, v in plain.items() if k != "timeline"
+    }
+    daily, monthly = body["timeline"]["daily"], body["timeline"]["monthly"]
+    # Every day of the cash forecast: the as-of date to the twelfth month's end.
+    assert (daily[0]["date"], daily[-1]["date"]) == (body["cash"]["start"], body["cash"]["end"])
+    assert len(daily) == 386
+    # The laptop leaves cash on its day, and the lowest point is a day's.
+    nov2 = next(d for d in daily if d["date"] == "2026-11-02")
+    assert nov2 != {**nov2, "scenario": nov2["baseline"]}
+    lowest = body["cash"]["lowest"]
+    assert lowest["scenario"] in {d["scenario"] for d in daily}
+    assert lowest["baseline"] in {d["baseline"] for d in daily}
+    # The monthly timeline from the as-of date to the horizon's month end,
+    # and each checkpoint is one of its points.
+    assert monthly[0]["date"] == "2026-10-11"
+    assert monthly[1]["date"] == "2026-10-31"
+    assert len(monthly) == 12 * 20 + 2
+    points = {p["month"]: p for p in monthly[1:]}
+    for checkpoint in body["monthly"]:
+        point = points[checkpoint["month"]]
+        assert point["date"] == checkpoint["date"]
+        assert point["net_worth"] == checkpoint["net_worth"]
+        assert point["cash"] == checkpoint["cash"]
+
+
+async def test_a_comparison_carries_each_options_timelines_when_asked(client, uow):
+    options = {"options": [_doc(LAPTOP, label="Now"), _doc(label="Not at all")]}
+    plain = (await client.post("/v1/scenarios/compare", json=options, headers=AUTH)).json()
+    assert [o["timeline"] for o in plain["options"]] == [None, None]
+    r = await client.post("/v1/scenarios/compare?timeline=true", json=options, headers=AUTH)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    now, none = (o["timeline"] for o in body["options"])
+    # One baseline under every option.
+    assert [d["baseline"] for d in now["daily"]] == [d["baseline"] for d in none["daily"]]
+    assert all(d["scenario"] == d["baseline"] for d in none["daily"])
+    assert len(now["monthly"]) == len(none["monthly"]) == 12 * 20 + 2
+    assert body["break_evens"] == plain["break_evens"]
+
+
 @pytest.mark.parametrize(
     ("doc", "where"),
     [

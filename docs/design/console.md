@@ -1,11 +1,11 @@
 # The Salli console: your books in a browser
 
-Status: **approved (2026-10-12); C0, the server groundwork, and C1, the
-console's foundations and Home, built.** The owner accepted every
-recommended decision below. C2, C3 and C4 are next (C3 first if one at a
-time). Each sub-phase is its own PR. What C0 and C1 built, and where they
-depart from the text above, is in [As built (C0)](#as-built-c0) and
-[As built (C1)](#as-built-c1).
+Status: **approved (2026-10-12); C0, the server groundwork, C1, the
+console's foundations and Home, and C3, the decision lab, built.** The owner
+accepted every recommended decision below. C2 and C4 are next. Each
+sub-phase is its own PR. What C0, C1 and C3 built, and where they depart
+from the text above, is in [As built (C0)](#as-built-c0),
+[As built (C1)](#as-built-c1) and [As built (C3)](#as-built-c3).
 
 ## Why
 
@@ -1119,3 +1119,151 @@ Playwright's image, where the screenshots are made.
    must be released first; `release.yml` stops a `server-v` tag until it is.
 9. **`playwright-core` is pinned** (and overridden at the root) so
    `@axe-core/playwright`'s peer resolves to Playwright's own version.
+
+## As built (C3)
+
+C3 is the decision lab: `/console/decide` and the six views under it, each
+a chunk of its own, with **Decide** among the console's places (after Home,
+on a phone's bottom bar too). Every figure is the server's, shown exactly;
+nothing is ranked, and every option keeps the order it was given in.
+
+**The pages.**
+- **Overview** (`/decide`): the decisions due for review, the seven
+  templates and the other views.
+- **Baseline** (`baseline.get`): cash day by day for the as-of month and
+  the twelve after it (a step line, the low point labelled) and net worth
+  month by month to the horizon, drawn; income and spending as averaged;
+  balances by role and by account; debts counted once; the assumptions,
+  each placeholder flagged; the exchange rates; the fingerprint.
+- **Templates** (`decisions.templates.list`, `.get`, `decisions.start`,
+  with `accounts.list`, `debts.list`, `holdings.list` and
+  `insights.recurring` for the names): a template's questions as a form
+  built from its question schema (an input for each type, the lists of
+  amounts, loans and splits, the questions that depend on another), each
+  default with where it comes from, problems at their paths, the form's own
+  and Salli's. The result: the options and what each is; what the figures
+  rest on (placeholders, the ledger's freshness, the tax computed or not
+  and why); the options side by side; the emergency fund's cover; rent or
+  buy's level reading; the trade for each two options; the sensitivity at
+  three returns, drawn; the break-evens, each on the range Salli searched
+  (the house-price growth among them); the principles kept and broken; the
+  answers as used, with where each came from. **Recording** is asked for:
+  the question in the person's words, the option they chose (none is chosen
+  for them), their reasons, the review date from the earliest the server
+  allows, then a confirmation saying the entry can't be changed;
+  `decisions.record` with `record.options`.
+- **Scenarios** (`scenarios.run`, `scenarios.compare`,
+  `principles.check`): options built from changes, a form for each of the
+  ten `salli.scenario/1` types, or a scenario document pasted or loaded
+  from a file; one runs, two to five compare. Cash day by day and net worth
+  month by month are drawn for the baseline and each option, with the
+  break-evens beside them; then the figures side by side, the trade, the
+  sensitivity and the principles. An option can be saved on the device as
+  a document (`salli whatif --file` runs it).
+- **Principles** (`principles.list`, `.figures`, `.check`, `.create`,
+  `.update`, `.archive`): those in use, each with whether the baseline keeps
+  it; add and edit, Salli's problem shown at the check with its caret;
+  archive after a confirmation; the archived kept below; the 33 figures.
+- **The journal** (`decisions.list`, `.get`, `.reviews.due`, `.notes.add`,
+  `.review`, `.export`, `.exportMarkdown`, `.markdown`): entries with their
+  status; what is due; the journal saved on the device as JSON (every
+  document exactly as recorded, with its hash) or Markdown. An entry: what
+  was chosen, when and how, the review date, the hash and whether it still
+  matches; the person's reasons and any agent's summary, marked as the
+  agent's; the options' figures as recorded; the principles as they stood;
+  notes; reviews, each projected beside actual with the reflection; from
+  the review date, the review itself, its reflection added after a
+  confirmation; the entry saved as JSON or Markdown.
+
+**What the API gained.** `?timeline=true` on `POST /v1/scenarios/run` and
+`/compare` adds `timeline` to each result: every day of the cash forecast
+and every point of the monthly timeline from the as-of date to the horizon,
+baseline and scenario. The figures and the hash are the same either way;
+without it `timeline` is null, and MCP's results are unchanged.
+`salli whatif --timeline` and `salli compare --timeline` ask for it in the
+JSON, so the console still adds nothing the CLI lacks. The OpenAPI
+document, the SDK (still 0.4.0, unreleased) and the CLI's fixtures were
+written again; docs/scenarios.md says what comes back.
+
+**The kit grew; nothing forked.** `LineChart`, `RangeChart` and `DotChart`
+beside `ChartFigure`, which now makes its table only when opened; the
+geometry module's `indexScale`, `stepPath` and `spread`, and `amountScale`
+may leave zero out (still the one place an amount becomes a number);
+`Field`, `TextAreaField`, `SelectField` and `RadioField`, each taking its
+error from the caller; `inputs.ts` (amounts in the locale's marks, a rate
+typed as 6.9% turned into 0.069 by moving the point in the text, whole
+numbers read only as plain digits); `saveText` for files saved on the
+device; `<Money signed>` for a change's plus; `Loaded` from Home. All are
+exported for editions.
+
+**Rules, as tests.** `test/lab-guards.test.tsx` reads `RANKING_WORDS` and
+`NEGATED` from tests/guardrails.py and holds the lab's catalogue, and what
+its pages render from the fixtures (three template results, a comparison,
+the journal, an entry, a review, the principles, the baseline, with every
+chart's figures opened), to them. The fixtures (`test/fixtures/lab.ts`) are
+written by tests/console_fixtures.py on Home's household, after the
+person's own writes, with the answers to the console's writes made after
+every read; the generator fails if the lab's reviews due differ from
+Home's, and the contract test holds both files to the server.
+
+**The budget** (gzip level 9, brotli beside it):
+
+| | gzip | brotli | limit |
+|---|---|---|---|
+| Shell and Home | 131.8 kB | 115.5 kB | 150 kB |
+| Settings | 18.9 kB | 17.1 kB | 75 kB |
+| Overview | 9.0 kB | 7.9 kB | 75 kB |
+| Templates (the list and a template) | 36.8 kB | 33.0 kB | 75 kB |
+| Scenarios | 36.8 kB | 33.1 kB | 75 kB |
+| Principles | 28.8 kB | 25.8 kB | 75 kB |
+| Journal | 9.9 kB | 8.6 kB | 75 kB |
+| An entry | 29.4 kB | 26.3 kB | 75 kB |
+| Baseline | 13.5 kB | 12.0 kB | 75 kB |
+| All JavaScript | 188.4 kB | 166.3 kB | 500 kB |
+| CSS | 5.9 kB | 5.3 kB | 40 kB |
+
+**Tests.** Component tests for every view on the fixtures; Playwright on
+the built console under the server's CSP: axe, screenshots at 360, 768 and
+1280 px in light and dark, the CSP and request watch, and no page wider
+than the screen, for every lab page (with each chart's figures opened for
+axe too); a decision recorded by keyboard alone; the journal saved as files
+under the CSP. Against compose: a template run, the decision recorded after
+its confirmation, found in the journal, a note added and read back; every
+lab page loaded from the real server.
+
+**Departures from the text above, and why.**
+1. **The decision lab's words are a catalogue of their own**
+   (`src/lab-strings.ts`), loaded with its pages: in `strings.ts` they put
+   the shell 7 kB nearer its 150. The catalogue tests cover both.
+2. **A template's result has no timelines.** `decisions.start` doesn't
+   carry them, and adding them there too seemed more than the console
+   needed; the result draws the sensitivity and the break-evens. The
+   Scenarios page draws both lines for options built there; handing a
+   template's options to it is left for later.
+3. **Compare is part of Scenarios,** two to five options on one page, not
+   a view of its own; **reviews are on each entry,** with the reviews due
+   listed on the overview and the journal, not a page of their own.
+4. **The sensitivity is a dot plot** (each option a row, a mark at each
+   return) and a break-even a value on the range Salli searched; the
+   design names the charts, not their shape.
+5. **Charts are drawn for the room they have,** by container queries
+   rather than the screen's width, so a chart in a narrow column on a wide
+   screen gets the phone's drawing. Home's chart looks as it did.
+6. **What asks first:** recording, a note, a review and archiving a
+   principle confirm; adding or editing a principle doesn't (an edit is
+   versioned, and recorded decisions keep the old one), as C1's profile
+   save doesn't.
+7. **Not in the console yet:** answers to tax rules' questions
+   (`tax_answers`, a scenario's `tax.answers`; `salli decide --tax-answer`
+   has them) and a sale's named lots (`lots`; a sale is first in, first
+   out). A document carrying them runs as written.
+8. **No new React Aria component.** Selects, radios and dates are the
+   browser's own; the text area is React Aria's `TextArea` inside its
+   `TextField`, already checked in C1. Nothing announces through React
+   Aria's live announcer (C1's warning); the browser runs report no CSP or
+   Trusted Types violation on any lab page.
+9. **A whole number** (months, years, a term) is read with `JSON.parse`
+   from plain digits, so the money lint's one escape stays in the
+   geometry module; it is never an amount.
+10. **The fixtures are large** (`lab.ts`, about 0.8 MB): the lines of two
+    timelines for each option are what the charts draw.

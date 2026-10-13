@@ -13,6 +13,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
+import { labStrings } from '../src/lab-strings';
 import { strings } from '../src/strings';
 
 // The tests run in packages/console.
@@ -77,7 +78,8 @@ const ALLOWED = new Set([
 ]);
 
 describe('the catalogue', () => {
-  const all = catalogue(strings);
+  // The shell's words and the decision lab's, which load with its pages.
+  const all = [...catalogue(strings), ...catalogue(labStrings, 'labStrings')];
 
   it('ranks nothing and urges nothing', () => {
     const ranking = /\b(best|worst|better|worse|top|ranked|rank|winner|optimal|ideal|recommended|recommend|should choose|smartest|cheapest option)\b/i;

@@ -1,3 +1,5 @@
+import { configure } from '@testing-library/react';
+
 /**
  * What jsdom lacks that the console uses: the modal <dialog>'s showModal
  * and close (the browser's own, in the end-to-end runs).
@@ -12,3 +14,11 @@ if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.sho
     this.dispatchEvent(new Event('close'));
   };
 }
+
+// The router restores the scroll position on a new page; jsdom has no layout to scroll.
+if (typeof window !== 'undefined') window.scrollTo = () => undefined;
+
+// Pages load their data and lazy chunks before they render; under a busy CI
+// runner that can take longer than Testing Library's 1 s default, which made
+// the find* queries flaky. Wait up to 5 s: a real failure still fails.
+configure({ asyncUtilTimeout: 5000 });

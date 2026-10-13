@@ -96,7 +96,9 @@ jobs:
           cache: npm
       - name: The console end to end, in a browser
         # Signs in on the real sign-in page, sees Home, ends a sign-in, goes
-        # through the step-up, signs out and is signed out when idle.
+        # through the step-up, signs out and is signed out when idle; weighs
+        # a decision, records it after confirming, adds a note, and loads
+        # every page of the decision lab.
         run: |
           npm ci
           cd packages/console

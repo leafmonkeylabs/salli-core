@@ -9809,6 +9809,7 @@ export type ScenarioRun = {
      * Notes
      */
     notes: Array<string>;
+    timeline?: ScenarioTimeline | null;
 };
 
 /**
@@ -10041,6 +10042,25 @@ export type ScenarioTaxYear = {
      * Monthly
      */
     monthly: Array<ScenarioTaxPart>;
+};
+
+/**
+ * ScenarioTimeline
+ *
+ * Both timelines the figures are read from, under the baseline and
+ * under the scenario, for drawing them: every day of the cash forecast
+ * (the as-of month and the twelve after it), and the monthly timeline from
+ * the as-of date to the horizon.
+ */
+export type ScenarioTimeline = {
+    /**
+     * Daily
+     */
+    daily: Array<TimelineDay>;
+    /**
+     * Monthly
+     */
+    monthly: Array<TimelineMonth>;
 };
 
 /**
@@ -12597,6 +12617,50 @@ export type TemplateWhen = {
      * Equals
      */
     equals: string | null;
+};
+
+/**
+ * TimelineDay
+ *
+ * Cash, all accounts together, at the end of a day, under the baseline
+ * and under the scenario, in that day's own money.
+ */
+export type TimelineDay = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Baseline
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    baseline: string;
+    /**
+     * Scenario
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    scenario: string;
+};
+
+/**
+ * TimelineMonth
+ *
+ * The monthly timeline at one point (the as-of date, then each month's
+ * end), in today's money.
+ */
+export type TimelineMonth = {
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Date
+     */
+    date: string;
+    cash: AmountFigure;
+    net_worth: AmountFigure;
 };
 
 /**
@@ -19109,7 +19173,14 @@ export type MetaGetResponse = MetaGetResponses[keyof MetaGetResponses];
 export type ScenariosRunData = {
     body: Scenario;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Timeline
+         *
+         * Include both timelines, the baseline's and the scenario's: every day of the cash forecast and every point of the monthly timeline to the horizon
+         */
+        timeline?: boolean;
+    };
     url: '/v1/scenarios/run';
 };
 
@@ -19142,7 +19213,14 @@ export type ScenariosRunResponse = ScenariosRunResponses[keyof ScenariosRunRespo
 export type ScenariosCompareData = {
     body: CompareOptions;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Timeline
+         *
+         * Include both timelines, the baseline's and the scenario's: every day of the cash forecast and every point of the monthly timeline to the horizon
+         */
+        timeline?: boolean;
+    };
     url: '/v1/scenarios/compare';
 };
 

@@ -4,8 +4,10 @@
  * before a tracked capital label, bone panels with hairline borders, and
  * figures with their provenance beside them.
  */
+import type { UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useId, type ReactNode } from 'react';
 import { strings } from '../strings';
+import { ProblemView } from './Problem';
 
 export function Page({ title, description, actions, children }: { title: string; description?: string; actions?: ReactNode; children: ReactNode }) {
   useEffect(() => {
@@ -26,10 +28,10 @@ export function Page({ title, description, actions, children }: { title: string;
 }
 
 /** A section of a page: a labelled region with the brand's section label. */
-export function Section({ label, children, className, wide }: { label: string; children: ReactNode; className?: string; wide?: boolean }) {
+export function Section({ label, children, className, wide, full }: { label: string; children: ReactNode; className?: string; wide?: boolean; full?: boolean }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className={['section', wide ? 'section-wide' : '', className ?? ''].filter(Boolean).join(' ')}>
+    <section aria-labelledby={id} className={['section', wide ? 'section-wide' : '', full ? 'section-full' : '', className ?? ''].filter(Boolean).join(' ')}>
       <h2 id={id} className="section-label">
         {label}
       </h2>
@@ -82,4 +84,11 @@ export function Loading({ lines = 3 }: { lines?: number }) {
 /** A quiet sentence for an empty section. */
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty">{children}</p>;
+}
+
+/** A read's section: its shape while it loads, its problem with a retry, or its content. */
+export function Loaded<T>({ query, children, lines }: { query: UseQueryResult<T, Error>; children: (data: T) => ReactNode; lines?: number }) {
+  if (query.isPending) return <Loading {...(lines ? { lines } : {})} />;
+  if (query.isError) return <ProblemView error={query.error} compact onRetry={() => void query.refetch()} />;
+  return <>{children(query.data)}</>;
 }

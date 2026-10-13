@@ -13,8 +13,12 @@
  * Screen readers hear "minus 370.00 US dollars": the currency as a word and
  * the sign as a word, not a hyphen some readers skip or brackets they read as
  * nothing (docs/design/console.md, section 4).
+ *
+ * `signed` is for a change the server computed (a delta, a difference): a
+ * positive one shows its plus (`+120.00`, "plus 120.00 euros"), read from
+ * the text as the minus is.
  */
-import { formatAmount, isAmount, isNegativeAmount, negateAmount } from '@leafmonkeylabs/salli-sdk';
+import { amountSign, formatAmount, isAmount, isNegativeAmount, negateAmount } from '@leafmonkeylabs/salli-sdk';
 import { useLocale } from '../preferences';
 import { strings } from '../strings';
 
@@ -24,15 +28,23 @@ export interface MoneyProps {
   variant?: 'prose' | 'table' | 'figure';
   /** In a table: show the code too (a column of mixed currencies). */
   withCode?: boolean;
+  /** A change: show a positive one's plus as well as a negative's minus. */
+  signed?: boolean;
+}
+
+/** Whether a change shows a plus: above zero, read from its text. */
+function plus(amount: string, signed: boolean | undefined): boolean {
+  return Boolean(signed) && isAmount(amount.trim()) && amountSign(amount) > 0;
 }
 
 /** What a screen reader says for an amount: "minus 370.00 US dollars". */
-export function spokenAmount(amount: string, currency: string, locale?: string): string {
+export function spokenAmount(amount: string, currency: string, locale?: string, signed?: boolean): string {
   if (!isAmount(amount.trim())) return amount;
   const negative = isNegativeAmount(amount);
   const magnitude = negative ? negateAmount(amount) : amount;
   const words = formatAmount(magnitude, currency, { display: 'name', locale });
-  return negative ? `${strings.money.minus} ${words}` : words;
+  if (negative) return `${strings.money.minus} ${words}`;
+  return plus(amount, signed) ? `${strings.money.plus} ${words}` : words;
 }
 
 /** The visible text of an amount, as `variant` shows it. */
@@ -40,29 +52,30 @@ export function visibleAmount(
   amount: string,
   currency: string,
   variant: MoneyProps['variant'] = 'prose',
-  options: { locale?: string | undefined; withCode?: boolean } = {},
+  options: { locale?: string | undefined; withCode?: boolean; signed?: boolean } = {},
 ): string {
-  const { locale, withCode = false } = options;
+  const { locale, withCode = false, signed } = options;
   if (!isAmount(amount.trim())) return amount;
   const code = currency.toUpperCase();
+  const sign = plus(amount, signed) ? '+' : '';
   if (variant === 'table') {
     const negative = isNegativeAmount(amount);
     const digits = formatAmount(negative ? negateAmount(amount) : amount, code, { display: 'none', locale });
-    const shown = negative ? `(${digits})` : digits;
+    const shown = negative ? `(${digits})` : `${sign}${digits}`;
     return withCode ? `${code} ${shown}` : shown;
   }
-  return `${code} ${formatAmount(amount, code, { display: 'none', locale })}`;
+  return `${code} ${sign}${formatAmount(amount, code, { display: 'none', locale })}`;
 }
 
-export function Money({ amount, currency, variant = 'prose', withCode }: MoneyProps) {
+export function Money({ amount, currency, variant = 'prose', withCode, signed }: MoneyProps) {
   const locale = useLocale();
   if (amount === null || amount === undefined || amount === '') return null;
   const negative = isAmount(amount.trim()) && isNegativeAmount(amount);
   const className = ['money', `money-${variant}`, negative ? 'money-negative' : ''].filter(Boolean).join(' ');
   return (
     <span className={className} data-amount={amount}>
-      <span aria-hidden="true">{visibleAmount(amount, currency, variant, { locale, withCode: withCode ?? false })}</span>
-      <span className="sr-only">{spokenAmount(amount, currency, locale)}</span>
+      <span aria-hidden="true">{visibleAmount(amount, currency, variant, { locale, withCode: withCode ?? false, signed: signed ?? false })}</span>
+      <span className="sr-only">{spokenAmount(amount, currency, locale, signed)}</span>
     </span>
   );
 }

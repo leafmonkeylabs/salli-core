@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -414,7 +415,7 @@ TEMPLATES_HEADER = (
 
 
 def render(header: str, fixtures: list[Fixture]) -> str:
-    types = sorted({f.type for f in fixtures})
+    types = sorted({name for f in fixtures for name in re.findall(r"\b[A-Z]\w*", f.type)})
     parts = [header, f"import type {{ {', '.join(types)} }} from '@leafmonkeylabs/salli-sdk';", ""]
     for fixture in fixtures:
         if fixture.doc:

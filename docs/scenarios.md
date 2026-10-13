@@ -346,6 +346,17 @@ without it.
   amount's real growth are new inputs, and left out they change nothing, so
   they kept it at 4.
 
+**The timelines, when asked for.** `?timeline=true` on a run or a
+comparison (`salli whatif --timeline --json`, `salli compare --timeline
+--json`) adds `timeline` to each result: every day of the cash forecast
+(`daily`: the as-of date to the end of the twelfth month, cash under your
+baseline and under the scenario, in each day's own money) and every point of
+the monthly timeline (`monthly`: the as-of date, then each month's end to the
+horizon, cash and net worth as `{"baseline", "scenario", "delta"}` in today's
+money). They are the lines every figure above is read from, for drawing them
+(the console's charts); the figures and the hash are the same either way.
+Without it, `timeline` is null.
+
 ## Comparing options
 
 `salli compare a.json b.json` (or `compare_options`) takes two to five

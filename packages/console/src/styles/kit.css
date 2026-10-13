@@ -564,6 +564,11 @@ main:focus {
   padding-right: 0;
 }
 
+.table .num + th,
+.table .num + td {
+  padding-left: 16px;
+}
+
 .table tfoot tr.total th,
 .table tfoot tr.total td {
   font-weight: 500;
@@ -864,6 +869,9 @@ main:focus {
 
 .chart-plot {
   position: relative;
+  /* A chart is drawn for the room it has: a phone's drawing in a narrow
+     column, whatever the screen. */
+  container-type: inline-size;
 }
 
 .chart-svg {
@@ -878,7 +886,7 @@ main:focus {
   display: none;
 }
 
-@media (max-width: 560px) {
+@container (max-width: 560px) {
   .chart-wide {
     display: none;
   }
@@ -961,4 +969,295 @@ main:focus {
     opacity: 0;
     transform: translateY(4px);
   }
+}
+
+/* ── Added for the decision lab (C3): wider grids, more fields, more charts ── */
+
+.grid > .section-full,
+.grid > .section-full.section {
+  grid-column: 1 / -1;
+}
+
+.panel-title {
+  font-size: var(--size-body);
+  font-weight: 500;
+}
+
+.stack-tight {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.warn-line {
+  font-size: var(--size-small);
+}
+
+.strong-link {
+  font-weight: 500;
+}
+
+.mono,
+.check-code,
+.hash {
+  font-family: var(--font-mono);
+  font-size: var(--size-mono);
+}
+
+.hash {
+  overflow-wrap: anywhere;
+}
+
+.own-words {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.snippet {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: var(--size-mono);
+  white-space: pre;
+  overflow-x: auto;
+  background: var(--c-input);
+  border: 1px solid var(--c-rule);
+  border-radius: var(--radius-field);
+}
+
+/* Fields: a text area, a select, groups of fields that repeat. */
+.form-wide {
+  max-width: 640px;
+}
+
+.field-textarea {
+  min-height: calc(var(--button-height) * 2.5);
+  resize: vertical;
+}
+
+.field-select {
+  appearance: none;
+  padding-right: 36px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--c-muted) 50%), linear-gradient(135deg, var(--c-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 13px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+.field-select:focus-visible,
+.field-input[type='date']:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 1px;
+}
+
+.field-select[aria-invalid='true'] {
+  border-color: var(--c-negative);
+}
+
+.field-row,
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.group > .group-item,
+.group > .field-help,
+.group > .field-error {
+  width: 100%;
+}
+
+.group > legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.group-item {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--c-rule);
+  border-radius: var(--radius-card);
+  justify-items: start;
+}
+
+.group-item > .field,
+.group-item > .field-row,
+.group-item > .field-grid {
+  width: 100%;
+}
+
+.group-item > legend {
+  padding: 0 4px;
+}
+
+.choices-field {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.choices-field > legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.default-note {
+  color: var(--c-text);
+}
+
+.file-button {
+  position: relative;
+  cursor: pointer;
+}
+
+.file-button:focus-within {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
+/* Charts: lines for options, marks, keys, ranges, dots. */
+.chart-axis {
+  stroke: var(--c-chart-grid);
+  stroke-width: 1;
+}
+
+.chart-line-1,
+.chart-line-3,
+.chart-line-5 {
+  stroke: var(--c-chart-1);
+}
+
+.chart-line-2,
+.chart-line-4 {
+  stroke: var(--c-chart-2);
+}
+
+.chart-line-1 {
+  stroke-dasharray: none;
+}
+
+.chart-line-2 {
+  stroke-dasharray: var(--chart-dash);
+}
+
+.chart-line-3 {
+  stroke-dasharray: 2 3;
+}
+
+.chart-line-4 {
+  stroke-dasharray: 9 3 2 3;
+}
+
+.chart-line-5 {
+  stroke-dasharray: 12 5;
+}
+
+.chart-mark-label {
+  fill: var(--c-text);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-end-amount {
+  font-weight: 400;
+  fill: var(--c-muted);
+}
+
+.chart-key {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: var(--size-small);
+}
+
+.chart-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-key-amount {
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-key-narrow {
+  display: none;
+}
+
+@container (max-width: 560px) {
+  .chart-key-narrow {
+    display: flex;
+    flex-direction: column;
+    margin-top: 6px;
+  }
+}
+
+.chart-swatch {
+  width: 28px;
+  height: 8px;
+  flex: none;
+  overflow: visible;
+}
+
+.chart-swatch-dot {
+  width: 12px;
+  height: 12px;
+}
+
+.chart-range {
+  stroke: var(--c-chart-baseline);
+  stroke-width: var(--chart-line);
+}
+
+.chart-range-none {
+  stroke: var(--c-chart-2);
+  stroke-dasharray: var(--chart-dash);
+}
+
+.chart-range-end {
+  stroke: var(--c-chart-baseline);
+  stroke-width: 1;
+}
+
+.chart-range-mark {
+  stroke: var(--c-chart-1);
+  stroke-width: 3;
+}
+
+.chart-range-plot {
+  margin-top: 4px;
+}
+
+.chart-dot {
+  fill: var(--c-chart-1);
+  stroke: var(--c-chart-1);
+  stroke-width: 1.5;
+}
+
+.chart-dot-open {
+  fill: var(--c-page);
+}
+
+.chart-spread {
+  stroke: var(--c-chart-1);
+  stroke-width: var(--chart-line);
 }

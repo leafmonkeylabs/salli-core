@@ -21,26 +21,17 @@ import {
   type FinanceSignal,
   type Reminder,
 } from '@leafmonkeylabs/salli-sdk';
-import type { UseQueryResult } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
 import { useRead } from '../../api';
 import { displayDate, displayMonth, displayRange, isoDate, monthToDate } from '../../kit/dates';
-import { Empty, Grid, Loading, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
+import { Empty, Grid, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
-import { ProblemView } from '../../kit/Problem';
 import { ThinkItThrough } from '../../kit/ThinkItThrough';
 import { useLocale } from '../../preferences';
 import { strings } from '../../strings';
 import { NetWorthChart } from './NetWorthChart';
 
 const s = strings.home;
-
-/** A section's query: loading, its problem with a retry, or its content. */
-function Loaded<T>({ query, children, lines }: { query: UseQueryResult<T, Error>; children: (data: T) => ReactNode; lines?: number }) {
-  if (query.isPending) return <Loading {...(lines ? { lines } : {})} />;
-  if (query.isError) return <ProblemView error={query.error} compact onRetry={() => void query.refetch()} />;
-  return <>{children(query.data)}</>;
-}
 
 function NetWorth({ today }: { today: string }) {
   const locale = useLocale();
@@ -295,7 +286,7 @@ function Reviews() {
                 <li key={review.id} className="dated">
                   <span className="dated-date">{displayDate(review.review_on, locale)}</span>
                   <span>
-                    {review.question} <span className="muted">· {review.chosen}</span>
+                    <Link to={`/decide/journal/${encodeURIComponent(review.id)}`}>{review.question}</Link> <span className="muted">· {review.chosen}</span>
                   </span>
                 </li>
               ))}

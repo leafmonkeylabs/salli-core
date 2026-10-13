@@ -477,7 +477,8 @@ export const SCENARIO_RUN: ScenarioRun = {
   },
   "data_as_of": "2026-10-09",
   "is_stale": false,
-  "notes": []
+  "notes": [],
+  "timeline": null
 };
 
 export const SCENARIO_COMPARISON: ScenarioComparison = {
@@ -894,7 +895,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       },
       "data_as_of": "2026-10-09",
       "is_stale": false,
-      "notes": []
+      "notes": [],
+      "timeline": null
     },
     {
       "schema": "salli.scenario/1",
@@ -1337,7 +1339,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       },
       "data_as_of": "2026-10-09",
       "is_stale": false,
-      "notes": []
+      "notes": [],
+      "timeline": null
     }
   ],
   "trade": [
@@ -2540,7 +2543,8 @@ export const TAXED_RUN: ScenarioRun = {
   },
   "data_as_of": "2031-06-25",
   "is_stale": false,
-  "notes": []
+  "notes": [],
+  "timeline": null
 };
 
 /**
@@ -3107,7 +3111,8 @@ export const HOLDING_RUN: ScenarioRun = {
   "is_stale": false,
   "notes": [
     "Invest 1000.00 in My index fund: no fees given, so none are counted"
-  ]
+  ],
+  "timeline": null
 };
 
 /**
@@ -3516,5 +3521,6 @@ export const ASSET_RUN: ScenarioRun = {
   "is_stale": false,
   "notes": [
     "The home counts at what it would fetch: its value less its selling costs, so net worth is lower by them from the month it is bought (other_assets_value is its value before them)."
-  ]
+  ],
+  "timeline": null
 };
