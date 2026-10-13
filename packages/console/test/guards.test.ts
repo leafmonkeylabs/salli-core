@@ -15,6 +15,7 @@ import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 import { labStrings } from '../src/lab-strings';
 import { strings } from '../src/strings';
+import { whereStrings } from '../src/where-strings';
 
 // The tests run in packages/console.
 const root = resolve(process.cwd(), '../..');
@@ -78,8 +79,8 @@ const ALLOWED = new Set([
 ]);
 
 describe('the catalogue', () => {
-  // The shell's words and the decision lab's, which load with its pages.
-  const all = [...catalogue(strings), ...catalogue(labStrings, 'labStrings')];
+  // The shell's words, and the decision lab's and where you stand's, which load with their pages.
+  const all = [...catalogue(strings), ...catalogue(labStrings, 'labStrings'), ...catalogue(whereStrings, 'whereStrings')];
 
   it('ranks nothing and urges nothing', () => {
     const ranking = /\b(best|worst|better|worse|top|ranked|rank|winner|optimal|ideal|recommended|recommend|should choose|smartest|cheapest option)\b/i;

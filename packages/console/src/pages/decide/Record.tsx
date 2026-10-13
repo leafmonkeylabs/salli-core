@@ -13,7 +13,7 @@ import { displayDate } from '../../kit/dates';
 import { Button, Confirm, Field, RadioField, TextAreaField } from '../../kit/forms';
 import { dateInput } from '../../kit/inputs';
 import { Panel, Row, Rows } from '../../kit/layout';
-import { ProblemView } from '../../kit/Problem';
+import { fieldErrors, ProblemView } from '../../kit/Problem';
 import { useLocale } from '../../preferences';
 import { labStrings } from '../../lab-strings';
 import { strings } from '../../strings';
@@ -145,18 +145,4 @@ export function RecordDecision({ data }: { data: DecisionStart }) {
       </Confirm>
     </Panel>
   );
-}
-
-/** Salli's problems with a write, by the field they are about (`["body", "reasons"]` → `reasons`). */
-export function fieldErrors(error: unknown): Record<string, string> {
-  const detail = (error as { detail?: unknown } | null)?.detail;
-  const out: Record<string, string> = {};
-  if (!Array.isArray(detail)) return out;
-  for (const item of detail as Array<{ loc?: unknown; msg?: unknown }>) {
-    if (!Array.isArray(item.loc) || typeof item.msg !== 'string') continue;
-    const loc = item.loc as Array<string | number>;
-    const key = loc[0] === 'body' ? loc[1] : loc[0];
-    if (typeof key === 'string' && !(key in out)) out[key] = item.msg;
-  }
-  return out;
 }

@@ -26,12 +26,15 @@ export { Empty, Grid, Loaded, Loading, Page, Panel, Provenance, Row, Rows, Secti
 export { Button, Confirm, Field, RadioField, SelectField, TextAreaField, TextField, type ConfirmProps, type FieldProps } from './kit/forms';
 export { amountInput, dateInput, nonNegativeAmountInput, positiveAmountInput, rateInput, signedAmountInput, wholeNumberInput } from './kit/inputs';
 export { saveText, textOf } from './kit/download';
-export { ProblemView } from './kit/Problem';
+export { fieldErrors, ProblemView } from './kit/Problem';
 export { ThinkItThrough } from './kit/ThinkItThrough';
 export { Logo } from './kit/Logo';
 export { ChartFigure } from './kit/chart/ChartFigure';
 export { LineChart, LineKey, type LineChartProps, type LineMark, type LineSeries } from './kit/chart/LineChart';
 export { RangeChart, type RangeChartProps } from './kit/chart/RangeChart';
 export { DotChart, type DotChartProps, type DotRow } from './kit/chart/DotChart';
-export { amountScale, bandScale, extent, indexScale, linePath, spread, stepPath } from './kit/chart/geometry';
+export { amountScale, bandScale, dayScale, extent, indexScale, linePath, spread, stepPath } from './kit/chart/geometry';
+export { firstInMonthTicks, fitTicks, labelWidth, monthTicks, placeLabel, yearTicks, type PlacedTick, type TickLabel } from './kit/chart/ticks';
+export { BarChart, type BarChartProps, type BarGroup } from './kit/chart/BarChart';
+export { SubNav, type SubPlace } from './kit/SubNav';
 export { displayDate, displayMoment, displayMonth, displayRange, isoDate } from './kit/dates';

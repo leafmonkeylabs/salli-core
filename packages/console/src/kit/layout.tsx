@@ -27,11 +27,28 @@ export function Page({ title, description, actions, children }: { title: string;
   );
 }
 
-/** A section of a page: a labelled region with the brand's section label. */
-export function Section({ label, children, className, wide, full }: { label: string; children: ReactNode; className?: string; wide?: boolean; full?: boolean }) {
+/**
+ * A section of a page: a labelled region with the brand's section label.
+ * `anchor` lets another page link straight to it (`/cash#forecast`).
+ */
+export function Section({
+  label,
+  children,
+  className,
+  wide,
+  full,
+  anchor,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+  wide?: boolean;
+  full?: boolean;
+  anchor?: string;
+}) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className={['section', wide ? 'section-wide' : '', full ? 'section-full' : '', className ?? ''].filter(Boolean).join(' ')}>
+    <section id={anchor} aria-labelledby={id} className={['section', wide ? 'section-wide' : '', full ? 'section-full' : '', className ?? ''].filter(Boolean).join(' ')}>
       <h2 id={id} className="section-label">
         {label}
       </h2>

@@ -391,6 +391,34 @@ class FakeLedger:
             key=lambda e: e.entry_date,
         )
 
+    async def get_entry_by_id(self, user_id: str, entry_id: str) -> Any:
+        return next((e for e in self.entries if e.id == entry_id and e.user_id == user_id), None)
+
+    async def save_entry(self, user_id: str, entry: Any) -> str:
+        """Stores `entry` as the SQL repository does: a new id for it and for
+        each of its postings (uuid4, so a test can fix them), refusing an
+        account that isn't the user's."""
+        from salli.application.ports import AccountNotFound
+        from salli.domain.accounting.models import StoredJournalEntry
+
+        named = {p.account_id for p in entry.postings}
+        owned = {a.id for a in self.accounts if a.user_id == user_id}
+        if named - owned:
+            raise AccountNotFound(named - owned)
+        entry_id = str(uuid.uuid4())
+        postings = [p.model_copy(update={"id": str(uuid.uuid4())}) for p in entry.postings]
+        fields = entry.model_dump(exclude={"postings"})
+        self.entries.append(
+            StoredJournalEntry(**fields, postings=postings, id=entry_id, user_id=user_id)
+        )
+        return entry_id
+
+    async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
+        self.entries = [
+            e.model_copy(update={"reversed_by": reversing_id}) if e.id == entry_id else e
+            for e in self.entries
+        ]
+
     async def posting_totals(
         self, user_id: str, account_ids: Any, to_date: str | None = None
     ) -> list[tuple[str, str, Decimal, Decimal]]:
@@ -449,18 +477,22 @@ class FakeScores:
 
     def __init__(self) -> None:
         self.rows: list[dict[str, Any]] = []
+        #: When each row was kept, as the table's `created_at` stamps it.
+        self.kept: list[str] = []
 
     async def save(self, user_id: str, score: dict[str, Any]) -> str:
         self.rows.append(dict(score))
+        self.kept.append(datetime.now(UTC).isoformat())
         return str(len(self.rows))
 
     async def get_latest(self, user_id: str) -> dict[str, Any] | None:
         return dict(self.rows[-1]) if self.rows else None
 
     async def history(self, user_id: str) -> list[dict[str, Any]]:
+        """Newest first, as the SQL repository orders them."""
         return [
-            {"score": float(r["overall_score"]), "net_worth": r.get("net_worth"), "created_at": ""}
-            for r in reversed(self.rows)
+            {"score": float(r["overall_score"]), "net_worth": r.get("net_worth"), "created_at": at}
+            for r, at in reversed(list(zip(self.rows, self.kept, strict=True)))
         ]
 
 
@@ -771,6 +803,11 @@ class FakeReminders:
         row = self.rows.get(reminder_id)
         if row is not None and row["user_id"] == user_id:
             row["status"] = "done"
+
+    async def delete_reminder(self, user_id: str, reminder_id: str) -> None:
+        row = self.rows.get(reminder_id)
+        if row is not None and row["user_id"] == user_id:
+            del self.rows[reminder_id]
 
 
 class FakeUoW:

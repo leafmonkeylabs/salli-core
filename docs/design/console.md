@@ -1,11 +1,12 @@
 # The Salli console: your books in a browser
 
 Status: **approved (2026-10-12); C0, the server groundwork, C1, the
-console's foundations and Home, and C3, the decision lab, built.** The owner
-accepted every recommended decision below. C2 and C4 are next. Each
-sub-phase is its own PR. What C0, C1 and C3 built, and where they depart
-from the text above, is in [As built (C0)](#as-built-c0),
-[As built (C1)](#as-built-c1) and [As built (C3)](#as-built-c3).
+console's foundations and Home, C2, where you stand, and C3, the decision
+lab, built.** The owner accepted every recommended decision below. C4 is
+next. Each sub-phase is its own PR. What C0 to C3 built, and where they
+depart from the text above, is in [As built (C0)](#as-built-c0),
+[As built (C1)](#as-built-c1), [As built (C3)](#as-built-c3) and
+[As built (C2)](#as-built-c2).
 
 ## Why
 
@@ -1267,3 +1268,179 @@ lab page loaded from the real server.
    geometry module; it is never an amount.
 10. **The fixtures are large** (`lab.ts`, about 0.8 MB): the lines of two
     timelines for each option are what the charts draw.
+
+## As built (C2)
+
+C2 is where you stand: the books, cash, attention and financial
+independence, each page a chunk of its own, with their words in a
+catalogue of their own (`src/where-strings.ts`). Every figure is the
+server's, shown exactly; the console adds, converts and projects nothing.
+
+**The places.** Home, Cash, Decide, Books, Attention, Independence and
+Settings across the top (an edition's places before Settings), on a second
+row under the logo between 721 and 1080 px. A phone's bar holds the
+design's five: Home, Cash, Decide, Books and More; **More** (`/more`) lists
+Attention, Independence, an edition's places and Settings, and is the
+current place on any page the bar doesn't name.
+
+**The pages.**
+- **Books** (`/books`; `accounts.list`, `ledger.trialBalance`,
+  `reports.balanceSheet`, `accounts.overview`): the balance sheet's totals,
+  then every account by type, each balance in the base currency as the
+  trial balance keeps it (debits as they are, credits in brackets, said in
+  words), and for an account held in another currency its balance in that
+  currency too, from its overview (as `salli accounts list --balances` and
+  `salli accounts show`).
+- **An account** (`/books/accounts/$account`; `accounts.overview`): its
+  balance in its own currency and, if that isn't the base, in the base at
+  the rates its entries recorded (or that its own is unknown); what it is;
+  its balance after each day with an entry, drawn as steps placed by their
+  dates, from zero; its entries newest first with the balance after each.
+- **Entries** (`/books/entries`; `entries.list`): narrowed by date at the
+  server (`from_date`, `to_date`) and by account and words picked from what
+  it sent (as the CLI's `--account` and `--search`), in the address so a
+  list can be reloaded or shared; newest first, the latest 50 until asked
+  for all; each with its amount (its one debit's, or how many parts), from
+  where to where, and whether it is reversed or a reversal.
+- **An entry** (`/books/entries/$entry`; `entries.get`,
+  `entries.provenance`): its lines, each amount in its own currency with
+  the rate into the base; its tags; where it came from; and where it
+  stands: reversed by which entry, the reversal of which (found by the
+  ledger's own `reversed_by`), or standing, with **Reverse this entry**.
+  The page says plainly that posted entries are never edited; reversing
+  asks first, saying what Salli will post (`entries.reverse`).
+- **Add an entry** (`/books/entries/new`; `entries.create`, decision 16):
+  one amount from one account to another, the same decimal string on both
+  lines, so the entry balances with nothing added up. Its currency is the
+  base or one of the two accounts' own (an account's own is offered first);
+  in another, the rate field says Salli uses the published rate for the day
+  unless the bank's is given, and once posted the page reads the entry back
+  and says which rate Salli used. A warning says when a currency would
+  leave an account's own balance unknown. It asks before posting, saying
+  that a posted entry is corrected by reversing it. Problems are shown at
+  their fields: the form's own, Salli's at their paths, and "no published
+  rate" at the rate.
+- **Cash** (`/cash`; `insights.forecast`, `.safeToSpend`, `.cashFlow`,
+  `.spending`, `.recurring`): the next 60 days as a step line with its low
+  point labelled (a shortfall would be shaded); safe to spend until money
+  next comes in, and what it is committed to before then; each cash
+  account today, at its lowest and at the forecast's end, in its own
+  currency; what is expected to come and go; cash flow by month as paired
+  bars, income and spending, with what was left under each and the monthly
+  average; spending by category; recurring payments. The rates and notes
+  the server gives are shown beside the figures they qualify.
+- **Attention** (`/attention`; `insights.signals`, `reminders.list`,
+  `.markDone`, `.delete`): each signal in the order Salli gives it, with
+  its kind, its detail and where to look (a part of Cash by its anchor, or
+  the decision in the journal; imported transactions to review point to
+  `salli statements pending` until C4); reminders overdue, due today and
+  coming up, the done ones folded away, each marked done or deleted after a
+  confirmation; a decision's review reminder opens the decision in C3's
+  journal.
+- **Financial independence** (`/fi`; `fi.score.get`, `fi.projections`,
+  `fi.assumptions`, `fi.assumptions.set`, `fi.score.history`,
+  `fi.strategy.get`): where you are (the FI number, invested now, the way
+  there, the FI month, the savings rate, the monthly figures, the emergency
+  fund); the invested money projected at the three real returns, drawn
+  against the FI number, with the month each reaches it (and each year in
+  its own money too once inflation is set); the score's parts; the
+  assumptions, each with where it came from, every placeholder flagged,
+  and setting your own (real return, inflation, withdrawal rate, share of
+  surplus invested, nominal return) with its source and a note, or
+  clearing yours; the score over time; and the FIRE strategy when there is
+  one, its rationale marked as the AI's words.
+
+**The kit grew; nothing forked.** `SubNav` (the lab's row of places now
+uses it); `fieldErrors` moved to the kit, by field and by whole path;
+`BarChart`, paired bars with the server's figure under each pair and a
+partial month drawn lighter; `LineChart` gained a reference level (the FI
+number), points placed by their days (`dayScale` in the geometry module,
+still the one place an amount becomes a number), no shortfall shading for a
+balance below zero by nature, and axis dates kept inside the plot; the time
+axis's ticks moved to `kit/chart/ticks.ts`, which also fits every chart's
+axis labels (`fitTicks`: each label's width estimated generously from its
+characters at the chart's font size, in the drawing's own units so it holds
+at any width; one near an edge hangs from that edge; a label closer than a
+font size to the one before is dropped, keeping the first and last where
+both fit), used by `LineChart`, `BarChart` and Home's net worth; a `Section` another page can
+link to. All are exported for editions.
+
+**No API change.** Every page reads and writes through operations the CLI
+already has.
+
+**Rules, as tests.** `test/where-guards.test.tsx` holds C2's catalogue,
+and what its pages render from the fixtures with every chart's figures
+opened, to `tests/guardrails.py`'s words; `score` is allowed on the FI page
+only, as the FI score's name. `test/guards.test.ts` holds the catalogue to
+the voice and British English. Amounts a float can't hold are shown digit
+for digit in the books and in cash, and every amount sent is a decimal
+string. The fixtures (`test/fixtures/where.ts`) are written by
+tests/console_fixtures.py on Home's household, after one reminder of the
+person's own is marked done, with the answers to C2's writes made after
+every read; the generator fails if what Home also reads differs from
+Home's, and the contract test holds all three files to the server.
+
+**The budget** (gzip level 9, brotli beside it):
+
+| | gzip | brotli | limit |
+|---|---|---|---|
+| Shell and Home | 135.0 kB | 118.5 kB | 150 kB |
+| Books (the accounts) | 7.7 kB | 6.7 kB | 75 kB |
+| An account | 9.8 kB | 8.6 kB | 75 kB |
+| Entries | 25.3 kB | 22.6 kB | 75 kB |
+| Add an entry | 25.9 kB | 23.2 kB | 75 kB |
+| An entry | 25.0 kB | 22.4 kB | 75 kB |
+| Cash | 11.4 kB | 10.1 kB | 75 kB |
+| Attention | 23.9 kB | 21.4 kB | 75 kB |
+| Financial independence | 27.7 kB | 24.9 kB | 75 kB |
+| More | 0.4 kB | 0.3 kB | 75 kB |
+| All JavaScript | 215.7 kB | 190.9 kB | 500 kB |
+| CSS | 6.1 kB | 5.4 kB | 40 kB |
+
+**Tests.** Component tests for every page on the fixtures, writes and
+refusals included; Playwright on the built console under the server's CSP
+for every C2 page at 360, 768 and 1280 px in light and dark (axe, with
+each chart's figures opened too; screenshots; no page wider than the
+screen; the CSP and request watch), and an entry added and reversed by
+keyboard alone. No two axis labels overlap on any chart: a component test
+checks the estimated extents in both drawings of every chart on the
+fixtures, and a browser run measures the real text at 360, 768 and 1280
+px. The places changed every page's frame, so C1's and C3's
+screenshots were written again. Against compose: an entry posted between
+two of the owner's accounts after its confirmation, found in the ledger and
+in the account's balance, reversed after confirming with both entries
+kept; the real return set with its source and its placeholder flag gone,
+then cleared; every C2 page loaded with no problem shown.
+
+**Departures from the text above, and why.**
+1. **Reminders can be deleted** as well as marked done, after a
+   confirmation that says a deleted one can't be brought back
+   (`reminders.delete`, which `salli reminders delete` already makes); the
+   Attention row lists only marking done.
+2. **Posting tags are shown, not set.** An entry's page shows each line's
+   tags; changing them (`entries.postings.setTags`, `tags.list`) stays with
+   `salli entries tag` for now.
+3. **What asks first:** posting an entry, reversing one, and marking a
+   reminder done or deleting it confirm; setting or clearing an FI
+   assumption doesn't (it can be set again, as C3's principle edits and
+   C1's profile save don't).
+4. **The chart of accounts reads the trial balance's signs** (credits in
+   brackets, as `salli accounts list --balances` shows them), with the
+   balance sheet's totals beside them; the console turns no sign round.
+   An account held in another currency costs one `accounts.overview` read
+   for its own balance.
+5. **A reversal's link back** to the entry it reverses is found in the
+   entries list (the original's `reversed_by`): the server's reversal
+   carries no reference of its own.
+6. **The cash forecast is 60 days**, as `salli insights forecast` asks by
+   default; cash flow is six full months and this one; spending is by
+   category over three months.
+7. **Spending by category is a table** (the server's order, largest
+   first, with each share); the design's charts table names no shape for
+   it.
+8. **No new React Aria component.** Selects and dates are the browser's
+   own, confirmations the browser's modal `<dialog>`; nothing announces
+   through React Aria's live announcer, and the browser runs report no CSP
+   or Trusted Types violation on any C2 page.
+9. **The FI score's history is a table**, not a chart: a score is kept
+   only when its inputs change, so there are often too few points to draw.

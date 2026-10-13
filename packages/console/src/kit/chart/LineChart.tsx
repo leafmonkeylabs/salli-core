@@ -16,7 +16,8 @@ import type { ReactNode } from 'react';
 import { useLocale } from '../../preferences';
 import { visibleAmount } from '../Money';
 import { ChartFigure } from './ChartFigure';
-import { amountScale, extent, indexScale, linePath, spread, stepPath } from './geometry';
+import { amountScale, dayScale, extent, indexScale, linePath, spread, stepPath } from './geometry';
+import { fitTicks } from './ticks';
 
 export interface LineSeries {
   /** What the line is: "Baseline", or an option's label. */
@@ -39,6 +40,11 @@ export interface LineChartProps {
   currency: string;
   /** Each point's date or month, as shown on the axis. */
   at: ReadonlyArray<string>;
+  /**
+   * Each point's day (YYYY-MM-DD), when the points fall on irregular days:
+   * they are then placed by their dates rather than evenly.
+   */
+  days?: ReadonlyArray<string>;
   /** The points whose date the axis labels, on a wide screen and on a phone. */
   ticks: { wide: readonly number[]; narrow: readonly number[] };
   /** The baseline first, then each option. */
@@ -48,6 +54,16 @@ export interface LineChartProps {
   marks?: readonly LineMark[];
   /** Draw zero, and shade below it, even when nothing goes below. */
   zero?: boolean;
+  /**
+   * Shade below zero as a shortfall (the default). Off for a balance that is
+   * below zero by nature: what a card or a loan account holds.
+   */
+  shortfall?: boolean;
+  /**
+   * A level the lines are read against (the FI number), drawn across the
+   * plot as a dashed hairline and labelled with the server's figure.
+   */
+  reference?: { value: string; label: string };
   /** The same data as a table: the accessible way in. */
   figures: ReactNode;
 }
@@ -74,12 +90,12 @@ function Plot({ props, layout, variant }: { props: LineChartProps; layout: Layou
   const locale = useLocale();
   const { series, at, currency, marks = [] } = props;
   const { width, height, top, bottom, left, right, font } = layout;
-  const all = series.flatMap((s) => s.values.filter((v): v is string => v !== null));
+  const all = [...series.flatMap((s) => s.values.filter((v): v is string => v !== null)), ...(props.reference ? [props.reference.value] : [])];
   const span = extent(all);
   const below = span ? compareAmounts(span.low, '0') < 0 : false;
   const withZero = props.zero || below;
   const y = amountScale(withZero ? [...all, '0'] : all, [height - bottom, top], { withZero });
-  const x = indexScale(at.length, [left, width - right]);
+  const x = props.days ? dayScale(props.days, [left, width - right]) : indexScale(at.length, [left, width - right]);
   const path = props.step ? stepPath : linePath;
   const zero = y('0');
   const ticks = variant === 'wide' ? props.ticks.wide : props.ticks.narrow;
@@ -97,11 +113,19 @@ function Plot({ props, layout, variant }: { props: LineChartProps; layout: Layou
     <svg className={`chart-svg chart-${variant}`} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={props.caption}>
       {withZero ? (
         <>
-          {below ? <rect className="chart-shortfall" x={left} width={width - right - left} y={zero} height={Math.max(0, height - bottom - zero)} /> : null}
+          {below && props.shortfall !== false ? <rect className="chart-shortfall" x={left} width={width - right - left} y={zero} height={Math.max(0, height - bottom - zero)} /> : null}
           <line className="chart-zero" x1={left} x2={width - right} y1={zero} y2={zero} />
         </>
       ) : null}
       <line className="chart-axis" x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
+      {props.reference ? (
+        <g>
+          <line className="chart-reference" x1={left} x2={width - right} y1={y(props.reference.value)} y2={y(props.reference.value)} />
+          <text className="chart-mark-label" x={left + 2} y={y(props.reference.value) - font * 0.6} fontSize={font}>
+            {`${props.reference.label} ${visibleAmount(props.reference.value, currency, 'prose', { locale })}`}
+          </text>
+        </g>
+      ) : null}
       {series.map((s, k) => {
         const points = s.values.flatMap((v, i) => (v === null ? [] : [[x(i), y(v)] as const]));
         return <path key={s.label} className={seriesClass(k)} d={path(points)} />;
@@ -126,13 +150,15 @@ function Plot({ props, layout, variant }: { props: LineChartProps; layout: Layou
           </g>
         );
       })}
-      {ticks.map((i) =>
-        at[i] !== undefined ? (
-          <text key={i} className="chart-tick" x={x(i)} y={height - bottom / 3} fontSize={font} textAnchor={i === 0 ? 'start' : i === at.length - 1 ? 'end' : 'middle'}>
-            {at[i]}
-          </text>
-        ) : null,
-      )}
+      {fitTicks(
+        ticks.flatMap((i) => (at[i] === undefined ? [] : [{ index: i, x: x(i), text: at[i] as string }])),
+        font,
+        [left, width - right],
+      ).map((tick) => (
+        <text key={tick.index} className="chart-tick" x={tick.x} y={height - bottom / 3} fontSize={font} textAnchor={tick.anchor}>
+          {tick.text}
+        </text>
+      ))}
       {variant === 'wide'
         ? series.map((s, k) => {
             const i = ends[k] ?? -1;

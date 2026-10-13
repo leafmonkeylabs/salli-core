@@ -126,6 +126,23 @@ const LAB: ConsoleRoute[] = [
   { path: '/decide/baseline', load: () => import('./pages/decide/Baseline') },
 ];
 
+/**
+ * Where you stand (C2): the books, cash, attention and financial
+ * independence, each page a chunk of its own; and More, a phone's list of
+ * the places its bar has no room for.
+ */
+const WHERE: ConsoleRoute[] = [
+  { path: '/books', load: () => import('./pages/books/Accounts') },
+  { path: '/books/accounts/$account', load: () => import('./pages/books/Account') },
+  { path: '/books/entries', load: () => import('./pages/books/Entries') },
+  { path: '/books/entries/new', load: () => import('./pages/books/AddEntry') },
+  { path: '/books/entries/$entry', load: () => import('./pages/books/Entry') },
+  { path: '/cash', load: () => import('./pages/cash/Cash') },
+  { path: '/attention', load: () => import('./pages/attention/Attention') },
+  { path: '/fi', load: () => import('./pages/fi/Fi') },
+  { path: '/more', load: () => import('./pages/more/More') },
+];
+
 function Settings() {
   return (
     <Suspense fallback={<Loading lines={6} />}>
@@ -139,7 +156,7 @@ function buildRouter(extensions: readonly ConsoleExtension[], history: (() => Ro
   const pages: AnyRoute[] = [
     createRoute({ getParentRoute: () => root, path: '/', component: Home }),
     createRoute({ getParentRoute: () => root, path: '/settings', component: Settings }),
-    ...LAB.map((route) => createRoute({ getParentRoute: () => root, path: route.path, component: pageOf(route) })),
+    ...[...WHERE, ...LAB].map((route) => createRoute({ getParentRoute: () => root, path: route.path, component: pageOf(route) })),
   ];
   for (const extension of extensions) {
     for (const route of extension.routes ?? []) {

@@ -2,7 +2,7 @@
  * The decision lab's own places, under the page's title: a second row of
  * links (the lab is one place in the console's navigation, "Decide").
  */
-import { Link } from '@tanstack/react-router';
+import { SubNav } from '../../kit/SubNav';
 import { labStrings } from '../../lab-strings';
 
 const n = labStrings.nav;
@@ -27,17 +27,5 @@ export function templatePath(id: string): string {
 }
 
 export function LabNav() {
-  return (
-    <nav aria-label={n.label} className="subnav">
-      <ul>
-        {LAB_PLACES.map((place) => (
-          <li key={place.to}>
-            <Link to={place.to} activeOptions={{ exact: place.exact }} activeProps={{ 'aria-current': 'page' }}>
-              {place.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
+  return <SubNav label={n.label} places={LAB_PLACES} />;
 }

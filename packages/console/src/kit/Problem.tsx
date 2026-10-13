@@ -69,3 +69,25 @@ export function ProblemView({ error, onRetry, compact }: { error: unknown; onRet
     </div>
   );
 }
+
+/**
+ * Salli's problems with a write, by the field they are about, so a form can
+ * show each beside its field: `["body", "reasons"]` → `reasons`, and a
+ * deeper one by its whole path too (`["body", "postings", 0, "amount"]` →
+ * `postings` and `postings.0.amount`). The first problem at a path wins.
+ */
+export function fieldErrors(error: unknown): Record<string, string> {
+  const detail = (error as { detail?: unknown } | null)?.detail;
+  const out: Record<string, string> = {};
+  if (!Array.isArray(detail)) return out;
+  for (const item of detail as Array<{ loc?: unknown; msg?: unknown }>) {
+    if (!Array.isArray(item.loc) || typeof item.msg !== 'string') continue;
+    const loc = item.loc as Array<string | number>;
+    const path = loc[0] === 'body' ? loc.slice(1) : loc;
+    const key = path[0];
+    if (typeof key === 'string' && !(key in out)) out[key] = item.msg;
+    const whole = path.map(String).join('.');
+    if (path.length > 1 && !(whole in out)) out[whole] = item.msg;
+  }
+  return out;
+}

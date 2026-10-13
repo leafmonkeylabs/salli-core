@@ -25,12 +25,11 @@ import { useRead, useWrite } from '../../api';
 import { displayDate } from '../../kit/dates';
 import { Button, Confirm, Field, SelectField } from '../../kit/forms';
 import { Empty, Loaded, Page, Panel, Section } from '../../kit/layout';
-import { ProblemView } from '../../kit/Problem';
+import { fieldErrors, ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
 import { labStrings } from '../../lab-strings';
 import { LabNav } from './LabNav';
-import { fieldErrors } from './Record';
 
 const p = labStrings.principles;
 const INVALIDATE = ['principles.list', 'principles.check'];

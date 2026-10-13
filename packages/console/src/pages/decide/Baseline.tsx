@@ -20,7 +20,7 @@ import { labStrings } from '../../lab-strings';
 import { Basis } from './Basis';
 import { monthText, rateText } from './format';
 import { LabNav } from './LabNav';
-import { monthTicks, yearTicks } from './Timelines';
+import { monthTicks, yearTicks } from '../../kit/chart/ticks';
 
 const b = labStrings.baseline;
 

@@ -69,8 +69,9 @@ npm test --workspace @leafmonkeylabs/salli-console          # component tests on
 (cd packages/console && npx playwright test)               # axe, screenshots, CSP (screenshots: in Playwright's image)
 (cd packages/console && npm run e2e:compose)               # against compose: SALLI_E2E_EMAIL, SALLI_E2E_PASSWORD
 SALLI_CONSOLE_DIR=packages/console/dist uv run salli-server serve
-# After changing what one of Home's or the decision lab's reads returns: the
-# console's fixtures (packages/console/test/fixtures/home.ts and lab.ts);
+# After changing what one of Home's, the decision lab's or where you stand's
+# reads returns: the console's fixtures (packages/console/test/fixtures/
+# home.ts, lab.ts and where.ts);
 # test_console_fixtures.py fails while they differ
 uv run python -m tests.console_fixtures
 ```
@@ -94,12 +95,12 @@ config.py       pydantic-settings, env-driven
 
 `salli-server` and the API both call `build_services(settings)` from `composition.py`, so the core is exercised identically from both surfaces.
 
-Outside `src/`: `packages/sdk` is the TypeScript SDK, generated from `openapi/openapi.json`, and `packages/cli` is the `salli` command line (npm `@leafmonkeylabs/salli`), a client of the API built on it. The console (`packages/console`, npm `@leafmonkeylabs/salli-console`, AGPL-3.0-only; [docs/design/console.md](docs/design/console.md), C0, C1 and C3 built) is the household's pages in a browser, served by the server at `/console` (`interfaces/api/console.py`: static files from `SALLI_CONSOLE_DIR`, `/opt/salli-console` in the image, registered in `create_app` before the MCP app's catch-all, with its CSP and headers; `SALLI_CONSOLE=false` removes it). Its rules:
+Outside `src/`: `packages/sdk` is the TypeScript SDK, generated from `openapi/openapi.json`, and `packages/cli` is the `salli` command line (npm `@leafmonkeylabs/salli`), a client of the API built on it. The console (`packages/console`, npm `@leafmonkeylabs/salli-console`, AGPL-3.0-only; [docs/design/console.md](docs/design/console.md), C0 to C3 built) is the household's pages in a browser, served by the server at `/console` (`interfaces/api/console.py`: static files from `SALLI_CONSOLE_DIR`, `/opt/salli-console` in the image, registered in `create_app` before the MCP app's catch-all, with its CSP and headers; `SALLI_CONSOLE=false` removes it). Its rules:
 
 - **A client of the API, like the CLI.** It computes nothing, adds no feature the CLI lacks, ranks nothing, and reads data only through the SDK's generated functions (`useRead`/`useWrite` in `src/api.tsx`): no URL by hand, no response type of its own.
 - **No arithmetic on money, not even exact.** Amounts stay decimal strings to the screen through `<Money>` (`src/kit/Money.tsx`); only `src/kit/chart/geometry.ts` may turn one into a number, for pixel positions (its lint escape is `-- not money: pixel geometry`, and a test fails if it appears elsewhere).
 - **Text only through React.** No `innerHTML`, `dangerouslySetInnerHTML`, `eval` or `new Function` (lint, with no escape hatch). It runs under a strict CSP with Trusted Types: no inline script or style, no third-party request, no telemetry, no service worker. A library that needs more is replaced, not accommodated.
-- **Every word in the catalogue** (`src/strings.ts`; the decision lab's in `src/lab-strings.ts`, loaded with its pages), British English, in the brand's voice, and nothing in the lab ranks (`test/lab-guards.test.tsx` holds it to `tests/guardrails.py`'s words); colours only from `src/styles/tokens.css`; square corners; no firm or billing words (the guards scan `packages/*/src`).
+- **Every word in the catalogue** (`src/strings.ts`; the decision lab's in `src/lab-strings.ts` and where you stand's in `src/where-strings.ts`, each loaded with its pages), British English, in the brand's voice, and nothing in the lab or C2's pages ranks (`test/lab-guards.test.tsx` and `test/where-guards.test.tsx` hold them to `tests/guardrails.py`'s words); colours only from `src/styles/tokens.css`; square corners; no firm or billing words (the guards scan `packages/*/src`).
 - **Signing in** is PKCE as `salli-console` on Salli's own page (`src/auth/session.ts`): the access token in memory, the refresh token in the tab's sessionStorage, refreshes under a Web Lock, one sign-in per tab, step-up on `/problems/step-up-required`, idle sign-out after 30 minutes.
 - **Editions** add pages, navigation and settings panels through `createConsole({ extensions })`, each shown only when `/v1/meta.extensions` lists its `requires`; the open console is built through the same call with none.
 - **The budget** (`scripts/budget.mjs`, part of the build): 150 kB compressed for the shell and Home, 75 kB a later page, 500 kB in all, 40 kB of CSS.

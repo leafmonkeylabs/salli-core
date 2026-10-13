@@ -10,29 +10,13 @@ import type { ScenarioRun } from '@leafmonkeylabs/salli-sdk';
 import { useMemo } from 'react';
 import { displayDate, displayMonth } from '../../kit/dates';
 import { LineChart, type LineMark, type LineSeries } from '../../kit/chart/LineChart';
+import { monthTicks, yearTicks } from '../../kit/chart/ticks';
 import { Money, visibleAmount } from '../../kit/Money';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
 import { labStrings } from '../../lab-strings';
 
 const t = labStrings.lines;
-
-/** Every `step`th first-of-the-month, and the last day: where the axis says a date. */
-export function monthTicks(dates: readonly string[], step: number): number[] {
-  const firsts = dates.flatMap((d, i) => (d.endsWith('-01') ? [i] : []));
-  return firsts.filter((_, k) => k % step === 0);
-}
-
-/**
- * The as-of date, then every `step`th whole year on: the month-ends in the
- * as-of month's month of the year (the first of them is the as-of month's
- * own end, beside the as-of date, so it isn't labelled again).
- */
-export function yearTicks(months: readonly string[], step: number): number[] {
-  const month = (months[0] ?? '').slice(5, 7);
-  const years = months.flatMap((m, i) => (i > 0 && m.slice(5, 7) === month ? [i] : []));
-  return [0, ...years.filter((_, k) => k > 0 && k % step === 0)];
-}
 
 interface DayRow {
   date: string;
