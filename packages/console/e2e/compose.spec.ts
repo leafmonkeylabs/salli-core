@@ -228,7 +228,7 @@ test('adds an entry from one account to another, sees it in the ledger and the b
   await expect(entries.getByText('Showing 1–2 of 2 entries')).toBeVisible();
   await expect(entries.getByRole('link', { name: `REVERSAL: Lunch ${stamp}` })).toBeVisible();
   await page.goto(`/console/books/accounts/${wallet}`);
-  await expect(page.getByRole('group', { name: 'Balance', exact: true }).getByText('0.00', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Balance', exact: true }).locator('.money-figure [aria-hidden="true"]')).toHaveText(/^EUR\s*0\.00$/);
   await seen.check();
 });
 
