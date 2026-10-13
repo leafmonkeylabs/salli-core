@@ -23,12 +23,19 @@ USER = "u1"
 pytestmark = pytest.mark.asyncio
 
 
+# The day these tests stand on: the golden households' as-of date. Every
+# figure here depends on it (the months averaged, each month's own money and
+# where its rounding falls), so it is fixed rather than read from the clock:
+# a real-against-nominal check that rounds each month's own money to the cent
+# drifted from 0.04 to 0.11 across the days of a quarter, and failed on some.
+TODAY = datetime.date(2026, 10, 11)
+
+
 def _last_month(day: int) -> datetime.date:
     # Pinned to last month rather than "N days ago": the service averages over
     # the calendar months from the earliest entry to today, so a fixed number
-    # of days back spans two months on some dates and three on others (it
-    # failed in CI, in UTC, on a date it passed locally).
-    first_of_this_month = datetime.date.today().replace(day=1)
+    # of days back spans two months on some dates and three on others.
+    first_of_this_month = TODAY.replace(day=1)
     return (first_of_this_month - datetime.timedelta(days=1)).replace(day=day)
 
 
@@ -111,7 +118,7 @@ def _service(base: str = "USD", strategy: dict[str, Any] | None = None, **row: A
     uow.fire_strategies = _Strategies(strategy)  # type: ignore[assignment]
     uow.user_profiles = profiles  # type: ignore[assignment]
     factory = uow.factory()
-    return FiService(factory), profiles, scores, factory
+    return FiService(factory, today=lambda: TODAY), profiles, scores, factory
 
 
 def _own(**figures: Any) -> dict[str, Any]:
