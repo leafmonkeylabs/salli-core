@@ -28,6 +28,43 @@ export const strings = {
     more: 'More',
     signOut: 'Sign out',
     signedInAs: (email: string) => `Signed in as ${email}`,
+    // A place's own places, in the side menu and on its pages.
+    accounts: 'Accounts',
+    entries: 'Entries',
+    imports: 'Imports',
+    rules: 'Rules',
+    overview: 'Overview',
+    templates: 'Templates',
+    scenarios: 'Scenarios',
+    principles: 'Principles',
+    journal: 'Journal',
+    baseline: 'Baseline',
+  },
+
+  shell: {
+    showSide: 'Show the side menu',
+    hideSide: 'Hide the side menu',
+    breadcrumb: 'Where you are',
+    backTo: (place: string) => `Back to ${place}`,
+    server: (host: string, version: string) => `Server ${host}, Salli ${version}`,
+    useDark: 'Use the dark theme',
+    useLight: 'Use the light theme',
+    you: 'You',
+    youAre: (name: string, email: string) => `${name}, signed in as ${email}`,
+    foot: 'Self-hosted · AGPL-3.0',
+    signals: (n: number) => (n === 1 ? '1 signal' : `${n} signals`),
+  },
+
+  pager: {
+    showing: (from: number, to: number, of: string) => `Showing ${from}–${to} of ${of}`,
+    rows: 'Rows per page',
+    page: (page: number, pages: number) => `Page ${page} of ${pages}`,
+    previous: 'Previous page',
+    next: 'Next page',
+  },
+
+  sheet: {
+    close: 'Close',
   },
 
   update: {
@@ -140,6 +177,20 @@ export const strings = {
       `Net worth at the end of each month, and this month so far: ${latest} in ${month}. What you own is above the line, what you owe below it.`,
     netWorthEmpty: 'No month has ended since your books began.',
     month: 'Month',
+    asOf: (date: string) => `As of ${date}`,
+    thinkDecision: 'Think a decision through',
+    safeLines: 'Safe to spend, line by line',
+    safeTotal: 'Safe to spend',
+    spentIn: (month: string) => `Spent in ${month}`,
+    nothingSpent: 'Nothing spent yet this month.',
+    incomeAndSpending: (income: string, spending: string) => `Income ${income} · spending ${spending}`,
+    fiParts: 'What the FI score is made of',
+    fiMore: 'Financial independence, in full',
+    fiNote: (grade: string) => `FI score · ${grade}`,
+    noticed: 'What Salli noticed',
+    review: 'Review',
+    due: (date: string) => `Due ${date}`,
+    pickMonth: 'Month shown',
     severity: { high: 'High', medium: 'Medium', info: 'For information' } as Record<string, string>,
     prompt: (date: string) =>
       [

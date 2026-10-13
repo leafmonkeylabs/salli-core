@@ -4,38 +4,47 @@
  * (tokens.css); square corners.
  */
 
+/* A place's own places: a segmented row on a bone track (kit.css has the
+   rest of the kit; this stays with the lab, which drew the first). */
 .subnav ul {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 4px;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 4px;
-  border-bottom: 1px solid var(--c-rule);
+  gap: 2px;
+  width: max-content;
+  max-width: 100%;
+  background: var(--c-well);
+  border: 1px solid var(--c-rule);
 }
 
 .subnav a {
   display: inline-flex;
   align-items: center;
-  min-height: var(--button-height);
+  min-height: 34px;
   padding: 0 12px;
-  color: var(--c-text);
+  color: var(--c-muted);
+  font-weight: 500;
   text-decoration: none;
+  border: 1px solid transparent;
 }
 
 .subnav a:hover {
-  background: var(--c-panel);
+  color: var(--c-text);
 }
 
 .subnav a[aria-current='page'] {
-  font-weight: 500;
-  box-shadow: inset 0 -2px 0 var(--c-brand);
+  background: var(--c-card);
+  color: var(--c-text);
+  border-color: var(--c-rule);
 }
 
 @media (max-width: 720px) {
   .subnav ul {
     flex-wrap: nowrap;
     overflow-x: auto;
+    width: auto;
   }
 
   .subnav a {

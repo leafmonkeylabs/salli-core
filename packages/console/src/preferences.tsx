@@ -1,15 +1,19 @@
 /**
- * What this device shows: a light, dark or system theme, and a locale for
- * numbers and dates (the browser's unless chosen). Kept in localStorage,
+ * What this device shows: a light, dark or system theme, a locale for
+ * numbers and dates (the browser's unless chosen), and whether the side
+ * menu is open. Kept in localStorage,
  * the only thing the console keeps on disk besides the tab's sign-in
  * (docs/design/console.md, section 4); never sent to Salli.
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 export type Theme = 'system' | 'light' | 'dark';
+/** The side menu: as the screen's width has it, or as the person left it. */
+export type Side = 'auto' | 'open' | 'closed';
 
 const THEME_KEY = 'salli-console:theme';
 const LOCALE_KEY = 'salli-console:locale';
+const SIDE_KEY = 'salli-console:side';
 
 function read(key: string): string | null {
   try {
@@ -53,12 +57,19 @@ export function storedLocale(): string | undefined {
   return value && isLocale(value) ? value : undefined;
 }
 
+export function storedSide(): Side {
+  const value = read(SIDE_KEY);
+  return value === 'open' || value === 'closed' ? value : 'auto';
+}
+
 export interface Preferences {
   theme: Theme;
   setTheme(theme: Theme): void;
   /** The chosen locale, or undefined for the browser's. */
   locale: string | undefined;
   setLocale(locale: string | undefined): void;
+  side: Side;
+  setSide(side: Side): void;
 }
 
 const PreferencesContext = createContext<Preferences | null>(null);
@@ -75,7 +86,12 @@ export function PreferencesProvider({ children, locale: fixed }: { children: Rea
     write(LOCALE_KEY, next ?? null);
     setLocaleState(next);
   }, []);
-  const value = useMemo(() => ({ theme, setTheme, locale, setLocale }), [theme, setTheme, locale, setLocale]);
+  const [side, setSideState] = useState<Side>(storedSide);
+  const setSide = useCallback((next: Side) => {
+    write(SIDE_KEY, next === 'auto' ? null : next);
+    setSideState(next);
+  }, []);
+  const value = useMemo(() => ({ theme, setTheme, locale, setLocale, side, setSide }), [theme, setTheme, locale, setLocale, side, setSide]);
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 }
 

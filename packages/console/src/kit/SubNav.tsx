@@ -1,24 +1,26 @@
 /**
- * A place's own places, under the page's title: a second row of links, the
- * current one marked (the decision lab's, the books'). The console's own
- * navigation names the place; this names what is inside it.
+ * A place's own places, under the page's header (the decision lab's, the
+ * books', Settings'): a segmented row of links on a bone track, the
+ * current one raised on paper. The console's side menu names the place;
+ * this names what is inside it. No single-key shortcuts: the console has
+ * none (WCAG 2.1.4), so it shows none.
  */
-import { Link } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
+import { appPath, isCurrent, type SubPlace } from '../shell/places';
 
-export interface SubPlace {
-  to: string;
-  label: string;
-  /** Current only on exactly this path (an overview), not below it. */
-  exact?: boolean;
-}
+export type { SubPlace };
+
+/** TanStack marks a link current below its path too; the console says which itself. */
+const EXACT = { exact: true } as const;
 
 export function SubNav({ label, places }: { label: string; places: readonly SubPlace[] }) {
+  const path = appPath(useRouterState({ select: (state) => state.location.pathname }));
   return (
     <nav aria-label={label} className="subnav">
       <ul>
         {places.map((place) => (
           <li key={place.to}>
-            <Link to={place.to} activeOptions={{ exact: place.exact ?? false }} activeProps={{ 'aria-current': 'page' }}>
+            <Link to={place.to} activeOptions={EXACT} {...(isCurrent(place, path) ? { 'aria-current': 'page' as const } : {})}>
               {place.label}
             </Link>
           </li>
