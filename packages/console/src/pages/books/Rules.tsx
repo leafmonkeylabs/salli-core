@@ -16,7 +16,7 @@ import { Button, Confirm } from '../../kit/forms';
 import { Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
 import { ProblemView } from '../../kit/Problem';
 import { useLocale } from '../../preferences';
-import { BooksNav, useAccountBook, type AccountBook } from './ledger';
+import { BooksActions, BooksFacts, BooksNav, useAccountBook, type AccountBook } from './ledger';
 import { actionWords, conditionWords, RULE_READS, RuleForm, type RuleStart } from './rule-form';
 
 const r = bookStrings.rules;
@@ -224,7 +224,7 @@ function Book({ book }: { book: AccountBook }) {
 export function Rules() {
   const { query, book } = useAccountBook();
   return (
-    <Page title={r.title} description={r.description}>
+    <Page title={r.title} description={r.description} facts={<BooksFacts />} actions={<BooksActions />}>
       <BooksNav />
       <Grid>
         <Loaded query={query}>{() => (book ? <Book book={book} /> : null)}</Loaded>

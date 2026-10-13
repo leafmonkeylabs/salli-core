@@ -23,7 +23,7 @@ import { Money, visibleAmount } from '../../kit/Money';
 import { fieldErrors, ProblemView } from '../../kit/Problem';
 import { useLocale } from '../../preferences';
 import { whereStrings } from '../../where-strings';
-import { BooksNav, entryPath, LEDGER_READS, useAccountBook, type AccountBook } from './ledger';
+import { BooksFacts, BooksNav, entryPath, LEDGER_READS, useAccountBook, type AccountBook } from './ledger';
 
 const f = whereStrings.add;
 
@@ -230,7 +230,7 @@ export function AddEntry() {
   const { query, book } = useAccountBook();
   const profile = useRead('profile.get', profileGet);
   return (
-    <Page title={f.title} description={f.description}>
+    <Page title={f.title} description={f.description} facts={<BooksFacts />}>
       <BooksNav />
       <Grid>
         <Section label={f.form} full>

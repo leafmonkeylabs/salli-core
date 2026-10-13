@@ -28,7 +28,7 @@ import { Money } from '../../kit/Money';
 import { fieldErrors, ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
-import { BooksNav, useAccountBook, type AccountBook } from './ledger';
+import { BooksActions, BooksFacts, BooksNav, useAccountBook, type AccountBook } from './ledger';
 import { periodOf, reviewPath, statementName } from './statements';
 
 const t = bookStrings.imports;
@@ -270,7 +270,7 @@ export function Imports() {
   const { query, book } = useAccountBook();
   const statements = useRead('statements.list', statementsList, { query: { limit: 200 } });
   return (
-    <Page title={t.title} description={t.description}>
+    <Page title={t.title} description={t.description} facts={<BooksFacts />} actions={<BooksActions />}>
       <BooksNav />
       <Grid>
         <Section label={t.upload} full>

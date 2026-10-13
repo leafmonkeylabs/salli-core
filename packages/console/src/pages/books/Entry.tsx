@@ -7,73 +7,21 @@
  * says so, and a correction is a reversal (`entries.reverse`), posted after
  * a confirmation that says what Salli will do.
  */
-import { entriesGet, entriesList, entriesProvenance, entriesReverse, profileGet, type EntryProvenance, type JournalEntry, type Posting, type Ref } from '@leafmonkeylabs/salli-sdk';
+import { entriesGet, entriesList, entriesProvenance, profileGet, type EntryProvenance, type JournalEntry } from '@leafmonkeylabs/salli-sdk';
 import { Link, useParams } from '@tanstack/react-router';
-import { useState } from 'react';
-import { useRead, useWrite } from '../../api';
+import { useRead } from '../../api';
+import { Chip, IdChip, Status } from '../../kit/chips';
 import { displayDate, displayRange } from '../../kit/dates';
-import { Button, Confirm } from '../../kit/forms';
 import { Grid, Loaded, Page, Panel, Provenance, Section } from '../../kit/layout';
-import { Money, visibleAmount } from '../../kit/Money';
+import { visibleAmount } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
-import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
 import { whereStrings } from '../../where-strings';
-import { accountPath, BooksNav, entryLine, entryPath, LEDGER_READS, reversedOf, useAccountBook, type AccountBook } from './ledger';
+import { EntryLines, ReverseEntry } from './entry-parts';
+import { BooksActions, BooksNav, entryPath, reversedOf, useAccountBook, type AccountBook } from './ledger';
 
 const x = whereStrings.entry;
-
-/** A rate other than 1: the posting is in another currency than the base. */
-function isConverted(p: Posting): boolean {
-  return !/^1(\.0*)?$/.test(p.fx_rate.trim());
-}
-
-function Lines({ entry, book, base }: { entry: JournalEntry; book: AccountBook; base: string | undefined }) {
-  const converted = entry.postings.some(isConverted);
-  const tagged = entry.postings.some((p) => Object.keys(p.tags ?? {}).length > 0);
-  return (
-    <>
-      <p className="section-help">{x.linesHelp}</p>
-      <Table<Posting>
-        caption={x.lines}
-        captionHidden
-        rows={entry.postings}
-        rowKey={(p) => p.id}
-        columns={[
-          { key: 'account', header: x.account, label: x.account, render: (p) => <Link to={accountPath(p.account_id)}>{book.label(p.account_id)}</Link> },
-          { key: 'debit', header: x.debit, label: x.debit, align: 'end', render: (p) => (p.direction > 0 ? <Money amount={p.amount} currency={p.currency} variant="table" withCode /> : null) },
-          { key: 'credit', header: x.credit, label: x.credit, align: 'end', render: (p) => (p.direction < 0 ? <Money amount={p.amount} currency={p.currency} variant="table" withCode /> : null) },
-          ...(converted
-            ? [{ key: 'rate', header: x.rate, label: x.rate, align: 'end' as const, render: (p: Posting) => (isConverted(p) && base ? x.rateText(p.currency, p.fx_rate, base) : '—') }]
-            : []),
-          ...(tagged
-            ? [
-                {
-                  key: 'tags',
-                  header: x.tags,
-                  label: x.tags,
-                  render: (p: Posting) => {
-                    const tags = Object.entries(p.tags ?? {});
-                    return tags.length ? (
-                      <span className="tags">
-                        {tags.map(([axis, slug]) => (
-                          <span key={axis} className="tag mono">
-                            {axis}={slug}
-                          </span>
-                        ))}
-                      </span>
-                    ) : (
-                      x.noTags
-                    );
-                  },
-                },
-              ]
-            : []),
-        ]}
-      />
-    </>
-  );
-}
+const e = whereStrings.entries;
 
 function Origin({ provenance }: { provenance: EntryProvenance }) {
   const locale = useLocale();
@@ -98,65 +46,25 @@ function Origin({ provenance }: { provenance: EntryProvenance }) {
 
 function Standing({ entry, all, book }: { entry: JournalEntry; all: readonly JournalEntry[]; book: AccountBook }) {
   const locale = useLocale();
-  const [confirming, setConfirming] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
-  const reverse = useWrite<{ id: string }, Ref>('entries.reverse', (api, input) => api.call(entriesReverse, { path: { entry_id: input.id } }), {
-    invalidate: LEDGER_READS,
-    onSuccess: (ref) => {
-      setConfirming(false);
-      setDone(ref.id);
-    },
-  });
   const link = (other: JournalEntry | undefined, id: string) => (
     <Link to={entryPath(id)}>{other ? x.openIt(other.description, displayDate(other.entry_date, locale)) : id}</Link>
   );
   const reversal = entry.reversed_by;
   const original = reversedOf(entry, all);
-  const line = entryLine(entry, book);
   return (
     <Panel>
       {reversal ? (
         <p>
-          <span className="tag">{whereStrings.entries.reversed}</span> {x.reversedBy}: {link(all.find((o) => o.id === reversal), reversal)}
+          <Status kind="reversed">{e.reversed}</Status> {x.reversedBy}: {link(all.find((o) => o.id === reversal), reversal)}
         </p>
       ) : null}
       {original ? (
         <p>
-          <span className="tag">{whereStrings.entries.reversal}</span> {x.reverses}: {link(original, original.id)}
+          <Status kind="reversal">{e.reversal}</Status> {x.reverses}: {link(original, original.id)}
         </p>
       ) : null}
       <p className="section-help">{x.neverEdited}</p>
-      {!reversal && !original ? (
-        <div className="form-actions">
-          <Button variant="secondary" onPress={() => setConfirming(true)}>
-            {x.reverse}
-          </Button>
-        </div>
-      ) : null}
-      <p role="status" className="quiet-success">
-        {done ? (
-          <>
-            <span aria-hidden="true">✓</span> {x.reversedNow} <Link to={entryPath(done)}>{x.openReversal}</Link>
-          </>
-        ) : null}
-      </p>
-      {reverse.isError && !reverse.stepUpPending ? <ProblemView error={reverse.error} compact /> : null}
-      <Confirm
-        isOpen={confirming}
-        onOpenChange={setConfirming}
-        title={x.confirmTitle}
-        confirmLabel={reverse.isPending ? x.reversing : x.confirm}
-        cancelLabel={x.cancel}
-        isPending={reverse.isPending}
-        onConfirm={() => reverse.mutate({ id: entry.id })}
-      >
-        <p>{x.confirmBody(entry.description, displayDate(entry.entry_date, locale))}</p>
-        {line.amount ? (
-          <p>
-            <Money amount={line.amount.amount} currency={line.amount.currency} /> · {line.from} → {line.to}
-          </p>
-        ) : null}
-      </Confirm>
+      {!original ? <ReverseEntry entry={entry} book={book} /> : null}
     </Panel>
   );
 }
@@ -168,12 +76,25 @@ function EntryPage({ entry }: { entry: JournalEntry }) {
   const all = useRead('entries.list', entriesList);
   const base = useRead('profile.get', profileGet).data?.base_currency ?? undefined;
   return (
-    <Page title={entry.description} description={x.posted(displayDate(entry.entry_date, locale), x.sources[entry.source] ?? entry.source)}>
+    <Page
+      title={entry.description}
+      description={x.posted(displayDate(entry.entry_date, locale), x.sources[entry.source] ?? entry.source)}
+      facts={
+        <>
+          <IdChip id={entry.id} />
+          <Chip>{displayDate(entry.entry_date, locale)}</Chip>
+          <Chip>{e.sourceShort[entry.source] ?? entry.source}</Chip>
+          <Chip>{x.lineCount(entry.postings.length)}</Chip>
+        </>
+      }
+      actions={<BooksActions />}
+    >
       <BooksNav />
       <Grid>
         <Section label={x.lines} wide>
           <Panel>
-            <Loaded query={accounts}>{() => (book ? <Lines entry={entry} book={book} base={base} /> : null)}</Loaded>
+            <p className="section-help">{x.linesHelp}</p>
+            <Loaded query={accounts}>{() => (book ? <EntryLines entry={entry} book={book} base={base} /> : null)}</Loaded>
           </Panel>
         </Section>
         <Section label={x.standing}>
