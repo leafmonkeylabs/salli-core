@@ -1,0 +1,63 @@
+{
+  "name": "@leafmonkeylabs/salli-console",
+  "version": "0.3.1",
+  "description": "The Salli console: a household's books in a browser. Served by the Salli server at /console.",
+  "license": "AGPL-3.0-only",
+  "author": "Leaf Monkey Labs",
+  "homepage": "https://github.com/leafmonkeylabs/salli-core/tree/main/packages/console#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leafmonkeylabs/salli-core.git",
+    "directory": "packages/console"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "sideEffects": [
+    "*.css",
+    "./src/main.tsx"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles/index.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "index.html",
+    "public",
+    "vite.config.ts",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/budget.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:compose": "playwright test -c playwright.compose.config.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource/geist-mono": "5.3.0",
+    "@leafmonkeylabs/salli-sdk": "0.4.0",
+    "@tanstack/react-query": "5.104.0",
+    "@tanstack/react-router": "1.170.40",
+    "react": "19.3.0",
+    "react-aria-components": "1.21.1",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "jsdom": "30.1.1",
+    "playwright-core": "1.63.0",
+    "vite": "8.3.4"
+  }
+}

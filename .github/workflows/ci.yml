@@ -101,7 +101,8 @@ jobs:
         run: uv run pytest -q
 
   cli:
-    # The TypeScript SDK and the `salli` command line (packages/).
+    # The TypeScript packages (packages/): the SDK, the `salli` command line
+    # and the console's type check, lint, component tests and build.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -120,6 +121,9 @@ jobs:
         # is reached by a salli command, or exempt with a reason.
         run: npm test
       - name: Build
+        # Includes the console's build and its budget (decision 14): over
+        # 150 kB compressed for the shell and Home, 75 kB a page, 500 kB in
+        # all or 40 kB of CSS fails.
         run: |
           npm run build
           node packages/cli/dist/salli.js --version
@@ -129,10 +133,41 @@ jobs:
         # npm silently rewrites what it considers invalid when it publishes
         # (salli 0.1.0's `./dist/salli.js` bin): publish what we wrote.
         run: |
-          for p in packages/cli packages/sdk; do
+          for p in packages/cli packages/sdk packages/console; do
             (cd "$p" && npm pkg fix)
             git diff --exit-code -- "$p/package.json"
           done
+
+  console:
+    # The console in a browser (packages/console/e2e/console.spec.ts): the
+    # build served with the server's CSP and headers, the API answered from
+    # the fixtures the server writes; axe on every page in both themes at
+    # 360, 768 and 1280 px, visual regression against the committed
+    # screenshots, and CSP violations or requests to another origin as
+    # failures. In Playwright's own image, where the screenshots were made.
+    # (End to end against compose runs in image.yml.)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Build, within the budget
+        run: npm run build --workspace @leafmonkeylabs/salli-console
+      - name: Accessibility, visual regression, CSP and requests
+        working-directory: packages/console
+        run: npx playwright test
+      - name: Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-playwright-report
+          path: |
+            packages/console/playwright-report
+            packages/console/test-results
+          retention-days: 7
 
   cla-bot:
     runs-on: ubuntu-latest

@@ -4,8 +4,9 @@
 #   docker compose exec salli salli-server setup
 #
 # Then, on your own computer: npm install --global @leafmonkeylabs/salli
-# and salli login. docs/self-host.md has the rest: settings, HTTPS on your own
-# domain, backups and upgrades.
+# and salli login; salli ui opens the console, served at /console.
+# docs/self-host.md has the rest: settings, HTTPS on your own domain, backups
+# and upgrades.
 #
 # Settings go in a .env file next to this one (see .env.example); none is
 # needed to start. Secrets are generated on the first run and kept in the

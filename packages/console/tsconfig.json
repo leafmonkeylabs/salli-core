@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "paths": {
+      "@leafmonkeylabs/salli-sdk": ["../sdk/src/index.ts"]
+    }
+  },
+  "include": ["src", "test", "e2e", "scripts", "*.config.ts", "../sdk/src/env.d.ts"]
+}

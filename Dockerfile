@@ -5,13 +5,40 @@
 #
 #   docker build -t salli .
 #
-# Two stages: uv installs the locked dependencies and Salli into a virtual
-# environment, and the final image is that environment on a slim Python, with
-# no uv, no compiler and no source tree, running as an unprivileged user.
+# The image serves the HTTP API, the MCP server and the console (/console).
+#
+# Three stages: Node builds the console (packages/console) from
+# package-lock.json; uv installs the locked dependencies and Salli into a
+# virtual environment; and the final image is that environment on a slim
+# Python, with the console's built files beside it (SALLI_CONSOLE_DIR), and
+# no Node.js, no uv, no compiler and no source tree, running as an
+# unprivileged user.
 
 # Base images are pinned by digest, so a build is the same build tomorrow; the
 # uv version matches CI's.
 FROM ghcr.io/astral-sh/uv:0.12.18@sha256:3adc3706091ce7c2fe595e669628caedd6d951551b92b258b7e7dbe06d9440bc AS uv
+
+# ── Build: the console ────────────────────────────────────────────────────────
+# Static files, the same on every platform: built once, on the builder's own
+# platform, and copied into each image (docs/design/console.md, section 9).
+FROM --platform=$BUILDPLATFORM node:22.23.3-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS console
+
+WORKDIR /src
+# The workspace's manifests and lock first: npm ci installs exactly the
+# console's locked dependencies, and runs no package's install scripts.
+COPY package.json package-lock.json ./
+COPY packages/sdk/package.json packages/sdk/
+COPY packages/cli/package.json packages/cli/
+COPY packages/console/package.json packages/console/
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --workspace @leafmonkeylabs/salli-console --ignore-scripts --no-audit --no-fund
+# The console builds from the SDK's sources, as its tests do.
+COPY tsconfig.base.json ./
+COPY packages/sdk/src packages/sdk/src
+COPY packages/console packages/console
+# The build checks the budget (scripts/budget.mjs) and fails over it.
+RUN npm run build --workspace @leafmonkeylabs/salli-console \
+ && rm -rf packages/console/dist/.vite
 
 # ── Build: the locked environment ─────────────────────────────────────────────
 FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS build
@@ -61,6 +88,9 @@ RUN groupadd --system --gid 10001 salli \
  && chmod 0755 /var/lib/salli/secrets
 
 COPY --from=build --chown=root:root /opt/salli /opt/salli
+# The console, served at /console (SALLI_CONSOLE_DIR); SALLI_CONSOLE=false
+# switches it off.
+COPY --from=console --chown=root:root /src/packages/console/dist /opt/salli-console
 
 # Settings come from the environment only (docs/self-host.md lists them).
 ENV PATH=/opt/salli/bin:$PATH \
@@ -68,7 +98,8 @@ ENV PATH=/opt/salli/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     HOME=/var/lib/salli \
     ENVIRONMENT=production \
-    SALLI_STORAGE_DIR=/var/lib/salli/files
+    SALLI_STORAGE_DIR=/var/lib/salli/files \
+    SALLI_CONSOLE_DIR=/opt/salli-console
 
 # Numeric, so a runtime can tell it isn't root without resolving names.
 USER 10001:10001

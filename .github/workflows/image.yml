@@ -2,7 +2,8 @@
 #
 # On a pull request that touches it: lint the Dockerfile and compose.yaml,
 # build the image for amd64 and arm64 (pushing nothing), and run compose.yaml
-# end to end: up, set up an owner, sign in, health, down.
+# end to end: up, set up an owner, sign in, health, the console in a browser
+# (packages/console/e2e/compose.spec.ts), down.
 #
 # On a `server-v<version>` tag (see RELEASING.md): build both platforms and
 # push them to GHCR as <version>, <major>.<minor> and, unless it is a
@@ -23,6 +24,11 @@ on:
       - pyproject.toml
       - uv.lock
       - src/**
+      - package.json
+      - package-lock.json
+      - tsconfig.base.json
+      - packages/sdk/src/**
+      - packages/console/**
       - .github/workflows/image.yml
   push:
     tags: ['server-v*']
@@ -66,6 +72,9 @@ jobs:
       - name: Set up an owner, sign in, check health
         run: |
           password="$(openssl rand -base64 24)"
+          echo "::add-mask::$password"
+          echo "SALLI_E2E_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "SALLI_E2E_EMAIL=owner@example.org" >> "$GITHUB_ENV"
           printf '%s\n' "$password" | docker compose exec -T salli \
             salli-server setup --email owner@example.org --currency EUR --password-stdin
           docker compose exec -T salli salli-server doctor
@@ -76,6 +85,32 @@ jobs:
           echo "::add-mask::$token"
           curl --fail --silent http://127.0.0.1:8000/v1/auth/me -H "Authorization: Bearer $token" \
             | jq -e '.method == "session" and .email == "owner@example.org"'
+      - name: The console is served, under its CSP
+        run: |
+          curl --fail --silent http://127.0.0.1:8000/v1/meta | jq -e '.console_url == "http://localhost:8000/console"'
+          curl --fail --silent --head http://127.0.0.1:8000/console/ \
+            | grep -i "^content-security-policy: .*require-trusted-types-for 'script'"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: The console end to end, in a browser
+        # Signs in on the real sign-in page, sees Home, ends a sign-in, goes
+        # through the step-up, signs out and is signed out when idle.
+        run: |
+          npm ci
+          cd packages/console
+          npx playwright install --with-deps chromium
+          npm run e2e:compose
+      - name: Console report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: console-compose-report
+          path: |
+            packages/console/playwright-report-compose
+            packages/console/test-results
+          retention-days: 7
       - name: Logs
         if: failure()
         run: docker compose logs

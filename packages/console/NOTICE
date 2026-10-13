@@ -1,0 +1,17 @@
+Salli console
+Copyright 2026 Leaf Monkey Labs
+
+This product is licensed under the GNU Affero General Public License,
+version 3 only (see LICENSE), like the Salli server that serves it. The
+TypeScript SDK it is built on (@leafmonkeylabs/salli-sdk) is separately
+licensed under the Apache License, Version 2.0.
+
+It includes, in its built files:
+
+- Geist and Geist Mono, Copyright 2024 The Geist Project Authors
+  (https://github.com/vercel/geist-font), under the SIL Open Font License,
+  Version 1.1, from the fontsource packages. The licence travels with the
+  fonts: the build writes it to licences/geist.txt and
+  licences/geist-mono.txt.
+- React and React DOM (MIT), React Aria Components (Apache-2.0), and
+  TanStack Router and TanStack Query (MIT).

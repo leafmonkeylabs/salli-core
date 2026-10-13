@@ -1,0 +1,132 @@
+/*
+ * Salli's brand tokens for the console, from the design direction (version 1,
+ * October 2026): docs/brand/README.md. The site mirrors the same tables
+ * (site/src/styles/tokens.css in leafmonkeylabs/salli); change a value here
+ * only when it changes there. No other file in the console names a colour.
+ *
+ * Light and dark come from one set of roles: each is light-dark(light, dark),
+ * resolved by `color-scheme`, which follows the system unless the person
+ * chose light or dark on this device (`data-theme` on <html>).
+ */
+
+:root {
+  /* Colour: the palette, by name (brand README, "Colour") */
+  --paper: #f6f3ec; /* the page */
+  --bone: #ece6d9; /* panels, inputs */
+  --hairline: #dcd4c4; /* rules and borders, 1 px */
+  --ink: #1c1b19; /* text and positive figures */
+  --graphite: #57524a; /* secondary text */
+  --stone: #8a8378; /* large labels and decoration only (3.4:1) */
+  --ledger-green: #173b33; /* the brand colour */
+  --deep-green: #0f2924; /* dark panels */
+  --sand: #d8cbae; /* secondary actions, highlights */
+  --brass: #b39a6b; /* decoration only (2.4:1) */
+  --oxblood: #6b2620; /* negative figures, sparingly */
+
+  /* Colour: on dark (brand README, "On dark") */
+  --night: #0e1513;
+  --paper-on-dark: #f2ecdf;
+  --muted-on-dark: #9aaaa2;
+  --sand-on-dark: #cdbf9f;
+  --clay: #e2a58f;
+
+  /* Roles: what the console uses, light then dark. */
+  --c-page: light-dark(var(--paper), var(--night));
+  --c-panel: light-dark(var(--bone), var(--deep-green));
+  --c-input: light-dark(var(--bone), var(--night));
+  --c-rule: light-dark(var(--hairline), rgb(242 236 223 / 0.16));
+  --c-text: light-dark(var(--ink), var(--paper-on-dark));
+  --c-muted: light-dark(var(--graphite), var(--muted-on-dark));
+  --c-brand: light-dark(var(--ledger-green), var(--sand-on-dark));
+  --c-mark: light-dark(var(--ledger-green), var(--sand-on-dark));
+  --c-wordmark: light-dark(var(--ink), var(--paper-on-dark));
+  --c-negative: light-dark(var(--oxblood), var(--clay));
+  /* The "!" before a warning: words always say it too. Clay is 2.0:1 on
+     paper, so light uses oxblood (decision 11's reasoning). */
+  --c-warn: light-dark(var(--oxblood), var(--clay));
+  --c-button: light-dark(var(--ledger-green), var(--sand-on-dark));
+  --c-button-text: light-dark(var(--paper), var(--night));
+  --c-button-2: light-dark(var(--sand), var(--deep-green));
+  --c-button-2-text: light-dark(var(--ink), var(--paper-on-dark));
+  --c-mark-square: light-dark(var(--graphite), var(--muted-on-dark));
+  --c-decoration: light-dark(var(--brass), var(--sand-on-dark));
+
+  /* Decision 11: the focus ring is ledger green (sand on dark), not brass,
+     which is 2.4:1 on paper, below the 3:1 a focus indicator needs. */
+  --c-focus: light-dark(var(--ledger-green), var(--sand-on-dark));
+
+  /* Decision 11: charts. The baseline in ink, options in ledger green and
+     graphite (dashed), told apart by dash and labels as well as colour;
+     brass and sand only decorate. On dark, sand and muted take their places.
+     Shortfalls in oxblood at 12%. */
+  --c-chart-baseline: light-dark(var(--ink), var(--paper-on-dark));
+  --c-chart-1: light-dark(var(--ledger-green), var(--sand-on-dark));
+  --c-chart-2: light-dark(var(--graphite), var(--muted-on-dark));
+  --c-chart-grid: light-dark(var(--hairline), rgb(242 236 223 / 0.16));
+  --c-chart-shortfall: light-dark(rgb(107 38 32 / 0.12), rgb(226 165 143 / 0.16));
+  --chart-line: 1.5px;
+  --c-scrim: rgb(14 21 19 / 0.4); /* behind a dialog: night at 40% */
+  --shadow-overlay: 0 12px 32px rgb(14 21 19 / 0.18); /* the one faint shadow, for overlays */
+  --chart-dash: 5 4;
+
+  /* Type (brand README, "Typography") */
+  --font-sans: 'Geist Variable', 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --size-h1: 44px; /* 1.1, −2.5% */
+  --size-h2: 30px; /* 1.2, −2% */
+  --size-h3: 22px; /* 1.3, −1% */
+  --size-body: 16px; /* 1.55 */
+  --size-small: 14px; /* 1.5 */
+  --size-label: 12.5px; /* Geist 500, capitals, +12% */
+  --size-mono: 14px; /* 1.5 */
+  --size-figure: 30px; /* a headline figure: Heading 2's size */
+
+  /* Layout (brand README, "Layout and components"): 32–48 px in the app */
+  --content-max: 1200px;
+  --gutter: 24px;
+  --section-gap: 40px;
+  /* Corners are square (brand README, "Corners"): every radius is 0, kept
+     as tokens so it stays one switch. Only what is a circle by meaning (a
+     chart's dot, a radio's indicator) is round. */
+  --radius-card: 0; /* cards, panels, tables, dialogs, banners, problems */
+  --radius-button: 0; /* buttons, links styled as places */
+  --radius-field: 0; /* inputs, selects, text areas */
+  --radius-chip: 0; /* tags, badges, loading lines */
+  --radius-focus: 0; /* the focus ring's outline */
+  --button-height: 40px;
+  --target: 24px; /* WCAG 2.2's 2.5.8 */
+  --measure: 68ch;
+
+  /* Motion: fades and short slides, 120–200 ms, easing out; none with
+     prefers-reduced-motion (base.css). */
+  --motion: 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  color-scheme: light dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --size-h1: 32px;
+    --size-h2: 26px;
+    --size-h3: 20px;
+    --size-figure: 26px;
+    --section-gap: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --gutter: 16px;
+    --size-h1: 28px;
+    --size-mono: 13px;
+  }
+}

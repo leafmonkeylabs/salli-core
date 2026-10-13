@@ -1,9 +1,11 @@
 # The Salli console: your books in a browser
 
-Status: **approved (2026-10-12); C0, the server groundwork, built.** The
-owner accepted every recommended decision below. C1 (the console itself) is
-next. Each sub-phase is its own PR. What C0 built, and where it departs from
-the text above, is in [As built (C0)](#as-built-c0).
+Status: **approved (2026-10-12); C0, the server groundwork, and C1, the
+console's foundations and Home, built.** The owner accepted every
+recommended decision below. C2, C3 and C4 are next (C3 first if one at a
+time). Each sub-phase is its own PR. What C0 and C1 built, and where they
+depart from the text above, is in [As built (C0)](#as-built-c0) and
+[As built (C1)](#as-built-c1).
 
 ## Why
 
@@ -993,3 +995,127 @@ isolation" in `domain/agents/tools.py`, and "Pro Mode" and the retired
    error already was, so a few existing responses in the API document gained
    their content.
 
+
+## As built (C1)
+
+C1 is the console's foundations and its first pages: `packages/console`
+(`@leafmonkeylabs/salli-console`, AGPL-3.0-only, with `LICENSE` and
+`NOTICE`), served by the image at `/console`.
+
+**The stack (decision 10).** React 19.3.0, React DOM 19.3.0, React Aria
+Components 1.21.1, TanStack Router 1.170.40 and Query 5.104.0, Geist
+(`@fontsource-variable/geist` 5.3.0) and Geist Mono (`@fontsource/geist-mono`
+5.3.0); built with Vite 8.3.4, tested with Vitest, jsdom 30.1.1, Testing
+Library, Playwright 1.63.0 and `@axe-core/playwright` 4.13.0. Every version
+is exact (a test holds it). Data comes only through the workspace's SDK.
+
+**Signing in (decisions 3 to 6), `src/auth/`.**
+- PKCE (S256) as `salli-console` through Salli's sign-in page, back to
+  `/console/callback`; the state and verifier wait in sessionStorage. The
+  console first moves to `SALLI_PUBLIC_URL`'s origin, and refuses to start
+  outside a secure context, saying why.
+- The access token in memory; the refresh token in memory and the tab's
+  sessionStorage, through the SDK's new `oauth.createBrowserTokenProvider`,
+  which refreshes under a Web Lock (`oauth.webLock`; the SDK is 0.4.0).
+- One sign-in per tab: the tab holds a Web Lock named for its sign-in while
+  it lives; a duplicated tab finds it held and drops its copy, and signs in
+  afresh.
+- Step-up: a write answered `/problems/step-up-required` (`useWrite` in
+  `src/api.tsx`) sends the person through the sign-in page with
+  `prompt=login`, keeping their place and the write (its name and JSON
+  input). On return the console asks `auth.me` who signed in: the same
+  person, and it revokes the old grant, keeps the new one and retries the
+  write once (a second step-up answer is shown, not followed); anyone else,
+  and it revokes what they started, keeps the sign-in that asked and says
+  nothing was changed.
+- Sign-out revokes the grant (`/mcp/oauth/revoke`) and clears the tab and
+  the query cache; a 401 the refresh can't mend says the sign-in has ended.
+- Idle sign-out after 30 minutes without a key or a click, checked again
+  when the tab is shown; a test may shorten it (never lengthen it) with
+  `salli-console:idle-seconds` in sessionStorage.
+
+**Money (decision 12).** `<Money>` formats the decimal string with
+`formatAmount` in the device's locale: `USD -370.00` in prose, `(370.00)`
+in oxblood in tables, read out as "minus 370.00 US dollars". Only
+`src/kit/chart/geometry.ts` turns an amount into a number, for pixel
+positions; which value is highest is decided on the strings. The money lint
+covers `.tsx` under the browser's globals; a test fails on the escape
+anywhere but there, and on any amount a float can't hold not shown digit
+for digit (`9007199254740993.01`, `0.30000000000000004`, KWD, JPY).
+
+**The kit and pages.** Tokens (`src/styles/tokens.css`) in light and dark
+through `light-dark()`, with the device's light, dark or system choice;
+layout, sections, rows, tables (lists on a phone), forms, problem details,
+`ChartFigure` with **Show the figures**, and the outlined logo. Home is
+`salli status` as a page, with decisions due for review and net worth over
+time (the design's Home row); Settings has the profile, sign-ins and this
+device's display choices. Every string is in `src/strings.ts` (British
+English), and a test holds it to the voice: nothing ranks or urges.
+**Think this through with your AI** copies a prompt; there is no chat.
+
+**`createConsole({ extensions })` (decision 19).** The open console's
+`main.tsx` is `createConsole().mount(root)`. An extension's routes (a
+component, or a loader for its own chunk), navigation and settings panels
+appear only when `/v1/meta.extensions` lists its `requires`; a test
+extension adds all three, and on a server without it the console is the
+open one.
+
+**Serving, the CSP and the budget (decisions 7 and 14).** The Dockerfile's
+Node stage builds the console on the builder's platform (`npm ci`, no
+install scripts) and the final image copies `dist` to `/opt/salli-console`
+(`SALLI_CONSOLE_DIR`): 1.5 MB more image, no Node.js. Under the server's
+CSP and Trusted Types no violation is reported on any page (the browser
+runs fail on one). The budget, checked by every build (gzip level 9, the
+larger of what the server sends; brotli beside it):
+
+| | gzip | brotli | limit |
+|---|---|---|---|
+| Shell and Home | 128.5 kB | 111.6 kB | 150 kB |
+| Settings | 18.0 kB | 16.2 kB | 75 kB |
+| All JavaScript | 146.4 kB | 127.9 kB | 500 kB |
+| CSS | 4.6 kB | 4.1 kB | 40 kB |
+
+**Tests and CI (decision 25).** Component tests on fixtures the server
+writes (`tests/console_fixtures.py`, a sibling of `tests/cli_fixtures.py`,
+with `tests/contract/test_console_fixtures.py` failing while they differ);
+Playwright on the built console under the server's headers (a server test
+holds `e2e/console-headers.json` to `CONSOLE_HEADERS`): axe and visual
+regression on Home, Settings, its confirmation and the signed-out page at
+360, 768 and 1280 px in both themes, with CSP violations, script errors and
+requests to another origin as failures; and Playwright end to end against
+compose in `image.yml`. CI's `console` job runs the browser checks in
+Playwright's image, where the screenshots are made.
+
+**Departures from the text above, and why.**
+1. **A held Web Lock, not a BroadcastChannel question, finds a duplicated
+   tab.** Asking races when two tabs start together; holding a lock named
+   for the sign-in, for the page's life, cannot. A reload waits up to 1.5
+   seconds for the old page's lock.
+2. **The end-to-end step-up is triggered by substitution.** Only activating
+   tax rules and minting a token that may are behind step-up, and neither
+   is a C1 page. The compose run answers one profile save with the server's
+   exact problem; the sign-in page asking again, the identity check, the
+   grant swap and the retry are the real server's. C4 can trigger it for
+   real.
+3. **React Aria, checked against the CSP, needed two changes.** Its press
+   handling adds a `<style>` unless one with its id exists: the rule is in
+   `kit.css` and `createConsole` marks it present. Its modal adds one on
+   iOS to stop scrolling, so the confirmation is the browser's own modal
+   `<dialog>` instead. Its live announcer clears with `innerHTML = ''`,
+   which Trusted Types refuses; none of the components C1 uses announces.
+   C2 to C4 must check each new React Aria component the same way.
+4. **The profile's time zone** is saved through
+   `notifications.preferences.update`, the one operation that sets it.
+5. **The sign-in fixtures are written by hand** (`test/fixtures/auth.ts`),
+   typed by the SDK: who is signed in, the profile and the sign-ins are not
+   a golden household's books.
+6. **The warning mark is oxblood on light.** Clay is 2.0:1 on paper; the
+   words say it too.
+7. **Square corners.** The owner changed the design system during C1: every
+   radius token is 0, and only dots and radio indicators are round. The
+   brand README records it with decision 11's chart and focus-ring change.
+8. **The npm package is the console's source**, which an edition's Vite
+   build compiles, and depends on the SDK at an exact version (0.4.0), which
+   must be released first; `release.yml` stops a `server-v` tag until it is.
+9. **`playwright-core` is pinned** (and overridden at the root) so
+   `@axe-core/playwright`'s peer resolves to Playwright's own version.

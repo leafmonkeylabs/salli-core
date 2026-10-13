@@ -1,16 +1,18 @@
 # Releasing
 
-Salli has three things to release, each from GitHub Actions, each with its own
-version and its own tags:
+Salli has four things to release, each from GitHub Actions. Three have their
+own version and tag; the console shares the server's:
 
 | What | Where | Tag |
 |---|---|---|
 | `packages/cli` (the `salli` command) | [`@leafmonkeylabs/salli`](https://www.npmjs.com/package/@leafmonkeylabs/salli) on npm | `cli-v<version>` |
 | `packages/sdk` | [`@leafmonkeylabs/salli-sdk`](https://www.npmjs.com/package/@leafmonkeylabs/salli-sdk) on npm | `sdk-v<version>` |
-| The server's container image | `ghcr.io/leafmonkeylabs/salli` | `server-v<version>` |
+| The server's container image, with the console built into it | `ghcr.io/leafmonkeylabs/salli` | `server-v<version>` |
+| `packages/console` | [`@leafmonkeylabs/salli-console`](https://www.npmjs.com/package/@leafmonkeylabs/salli-console) on npm, for editions that build on it | `server-v<version>` (the same tag) |
 
-The CLI and SDK are released by [`release.yml`](.github/workflows/release.yml), the
-image by [`image.yml`](.github/workflows/image.yml) ([below](#the-server-image)).
+The CLI, the SDK and the console's npm package are released by
+[`release.yml`](.github/workflows/release.yml), the image by
+[`image.yml`](.github/workflows/image.yml) ([below](#the-server-image)).
 
 ## The CLI and SDK
 
@@ -120,6 +122,25 @@ pushes nothing.
 
 Until the first image is published, `compose.yaml` works only from a checkout:
 `docker compose up -d --build`.
+
+## The console
+
+The console ships at the server's version (docs/design/console.md, decision
+24): the image built from `server-v<version>` carries it, and the same tag
+stages `@leafmonkeylabs/salli-console` at that version on npm, so an edition
+can build against exactly the open console its base image carries.
+
+- Bump `packages/console/package.json`'s version with the server's
+  (`npm version <version> --workspace @leafmonkeylabs/salli-console
+  --no-git-tag-version`): a test fails while they differ, and so does the
+  release.
+- The npm package is the console's source (`src/`), which an edition's own
+  Vite build compiles; it depends on `@leafmonkeylabs/salli-sdk` at an exact
+  version. **Release that SDK version first** (`sdk-v<version>`): the release
+  stops while it isn't on npm. The console in this tree needs SDK 0.4.0 (its
+  browser token provider).
+- The first release of the console is staged with the bootstrap token, like
+  the others' first releases ([above](#once-the-first-release)).
 
 ## Not yet
 
