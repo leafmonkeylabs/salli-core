@@ -33,7 +33,7 @@ import { Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
 import { useLocale } from '../../preferences';
-import { BooksNav, entryPath, LEDGER_READS, useAccountBook, type AccountBook } from './ledger';
+import { BooksActions, BooksFacts, BooksNav, entryPath, LEDGER_READS, useAccountBook, type AccountBook } from './ledger';
 import { RuleForm, type RuleStart } from './rule-form';
 import { periodOf, statementName } from './statements';
 
@@ -368,7 +368,7 @@ export function Review() {
       ? { from: statement.period_start, to: statement.period_end, account: statement.account_id }
       : undefined;
   return (
-    <Page title={statements.isSuccess && !statement ? t.notFound : title} description={t.description}>
+    <Page title={statements.isSuccess && !statement ? t.notFound : title} description={t.description} facts={<BooksFacts />} actions={<BooksActions />}>
       <BooksNav />
       <p>
         <Link to="/books/imports">{t.back}</Link>

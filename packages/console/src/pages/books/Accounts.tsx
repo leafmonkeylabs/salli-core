@@ -8,41 +8,37 @@
  * Nothing here is added up by the console.
  */
 import { accountsOverview, ledgerTrialBalance, reportsBalanceSheet, type Account, type TrialBalance } from '@leafmonkeylabs/salli-sdk';
-import { Link } from '@tanstack/react-router';
 import { useRead } from '../../api';
-import { Empty, Grid, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
+import { AccountChip } from '../../kit/chips';
+import { KeyFigure, KeyFigures } from '../../kit/figures';
+import { Empty, Grid, Loaded, Page, Panel, Provenance, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { Table } from '../../kit/Table';
 import { whereStrings } from '../../where-strings';
-import { accountPath, BooksNav, useAccountBook } from './ledger';
+import { accountPath, BooksActions, BooksFacts, BooksNav, useAccountBook } from './ledger';
 
 const b = whereStrings.books;
 const TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as const;
 
+/** The balance sheet's totals, as key figures. */
 function Standing() {
   const query = useRead('reports.balanceSheet', reportsBalanceSheet);
   return (
-    <Section label={b.standing}>
-      <Loaded query={query}>
-        {(sheet) => (
-          <Panel>
-            <Rows>
-              <Row label={b.assets}>
-                <Money amount={sheet.total_assets} currency={sheet.currency} variant="table" withCode />
-              </Row>
-              <Row label={b.liabilities}>
-                <Money amount={sheet.total_liabilities} currency={sheet.currency} variant="table" withCode />
-              </Row>
-              <Row label={b.netWorth} total>
-                <Money amount={sheet.net_worth} currency={sheet.currency} variant="table" withCode />
-              </Row>
-            </Rows>
-            <Provenance>{b.standingHelp}</Provenance>
-            <Provenance>{b.balancesNote}</Provenance>
-          </Panel>
-        )}
-      </Loaded>
-    </Section>
+    <Loaded query={query}>
+      {(sheet) => (
+        <KeyFigures label={b.standing}>
+          <KeyFigure label={b.assets} note={b.standingHelp}>
+            <Money amount={sheet.total_assets} currency={sheet.currency} variant="figure" />
+          </KeyFigure>
+          <KeyFigure label={b.liabilities}>
+            <Money amount={sheet.total_liabilities} currency={sheet.currency} variant="figure" />
+          </KeyFigure>
+          <KeyFigure label={b.netWorth}>
+            <Money amount={sheet.net_worth} currency={sheet.currency} variant="figure" />
+          </KeyFigure>
+        </KeyFigures>
+      )}
+    </Loaded>
   );
 }
 
@@ -74,15 +70,13 @@ function TypeTable({ type, accounts, trial }: { type: (typeof TYPES)[number]; ac
                 label: b.account,
                 render: (a) => (
                   <>
-                    <Link to={accountPath(a.id)}>
-                      <span className="mono muted">{a.code}</span> {a.name}
-                    </Link>
+                    <AccountChip code={a.code} name={a.name} type={a.type} typeLabel={b.typeOne[a.type] ?? a.type} to={accountPath(a.id)} />
                     {a.is_active ? null : <span className="tag"> {b.inactive}</span>}
                   </>
                 ),
               },
               ...(type === 'asset' ? [{ key: 'holds', header: b.holds, label: b.holds, render: (a: Account) => (a.asset_role ? (b.roles[a.asset_role] ?? a.asset_role) : '') }] : []),
-              { key: 'currency', header: b.currency, label: b.currency, render: (a) => a.currency },
+              { key: 'currency', header: b.currency, label: b.currency, render: (a) => <span className="mono">{a.currency}</span> },
               ...(foreign
                 ? [
                     {
@@ -115,10 +109,11 @@ export function Accounts() {
   const { query, book } = useAccountBook();
   const trial = useRead('ledger.trialBalance', ledgerTrialBalance);
   return (
-    <Page title={b.title} description={b.description}>
+    <Page title={b.title} description={b.description} facts={<BooksFacts />} actions={<BooksActions />}>
       <BooksNav />
+      <Standing />
+      <Provenance>{b.balancesNote}</Provenance>
       <Grid>
-        <Standing />
         <Loaded query={query}>
           {() => (
             <Loaded query={trial}>

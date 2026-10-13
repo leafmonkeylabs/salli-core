@@ -42,17 +42,20 @@ describe('the books', () => {
     const card = within(region('Liabilities')).getByRole('link', { name: /Credit card/ }).closest('tr') as HTMLElement;
     expect(within(card).getByText('(691.68)')).toBeTruthy();
     expect(within(card).getByText('minus 691.68 euros')).toBeTruthy();
-    // The totals are the balance sheet's.
-    expect(within(region('Where the books stand')).getByText('EUR 344,026.47')).toBeTruthy();
+    // The totals are the balance sheet's, as key figures.
+    expect(within(screen.getByRole('group', { name: 'Where the books stand' })).getByText('344,026.47')).toBeTruthy();
+    // The books' facts: the trial balance's net as the server gave it.
+    expect(screen.getByText('Trial balance nets 0.00')).toBeTruthy();
     expect(screen.getByRole('navigation', { name: 'Books' })).toBeTruthy();
   });
 
   it('shows an account: its balances, its balance over time and its entries, newest first', async () => {
     await setup({ path: '/console/books/accounts/usd' });
     expect(await screen.findByRole('heading', { level: 1, name: 'Dollar account' })).toBeTruthy();
-    const balance = region('Balance');
-    expect(within(balance).getByText('USD 2,500.00')).toBeTruthy();
-    expect(within(balance).getByText('EUR 2,275.00')).toBeTruthy();
+    const balance = screen.getByRole('group', { name: 'Balance' });
+    expect(within(balance).getByText('2,500.00')).toBeTruthy();
+    expect(within(balance).getByText('2,500.00 US dollars')).toBeTruthy();
+    expect(within(screen.getByRole('group', { name: /^In EUR/ })).getByText('2,275.00')).toBeTruthy();
     const chart = region('Balance over time');
     expect(within(chart).getAllByRole('img')[0]?.getAttribute('aria-label')).toBe('Dollar account’s balance after each day with an entry, from Mar 31, 2026 to Jul 15, 2026. Now USD 2,500.00.');
     await click(within(chart).getByRole('button', { name: 'Show the figures' }));
@@ -71,25 +74,59 @@ describe('the books', () => {
   it('narrows the entries by account and words from the address, and by date at the server', async () => {
     const { api } = await setup({ path: '/console/books/entries?account=usd' });
     const list = await screen.findByRole('region', { name: 'Entries' });
-    expect(await within(list).findByText('2 entries')).toBeTruthy();
+    expect(await within(list).findByText('Showing 1–2 of 2 entries')).toBeTruthy();
     expect(within(list).getByRole('link', { name: 'TO DOLLAR ACCOUNT' })).toBeTruthy();
-    // By date: the server's filter.
-    const filters = region('Find entries');
-    type(within(filters).getByLabelText('From'), '2026-10-01');
-    choose(within(filters).getByRole('combobox', { name: 'Account' }), '');
-    type(within(filters).getByRole('textbox', { name: 'Words in the description' }), 'freshmart');
-    await click(within(filters).getByRole('button', { name: 'Show these' }));
-    expect(await within(region('Entries')).findByText('1 entry')).toBeTruthy();
-    expect(api.requests.some((r) => r.path === '/v1/entries/' && r.search.includes('from_date=2026-10-01'))).toBe(true);
+    // The account filter, as a chip that removes it; the button counts it.
+    expect(within(list).getByText('1200 Dollar account')).toBeTruthy();
+    const filters = within(list).getByRole('button', { name: /^Filters, 1 filter on/ });
+    // By date: the server's filter, set in the popover.
+    await click(filters);
+    const form = within(list).getByRole('search', { name: 'Find entries' });
+    type(within(form).getByLabelText('From'), '2026-10-01');
+    choose(within(form).getByRole('combobox', { name: 'Account' }), '');
+    await click(within(form).getByRole('button', { name: 'Show these' }));
+    await waitFor(() => expect(api.requests.some((r) => r.path === '/v1/entries/' && r.search.includes('from_date=2026-10-01'))).toBe(true));
+    // Words: picked from what the server sent, as they are typed.
+    type(within(region('Entries')).getByRole('searchbox', { name: 'Search descriptions' }), 'freshmart');
+    expect(await within(region('Entries')).findByText('Showing 1–1 of 1 entry')).toBeTruthy();
+    // The date chip removes the date filter.
+    await click(within(region('Entries')).getByRole('button', { name: 'Remove the date filter' }));
+    expect(await within(region('Entries')).findByText(/of \d+ entries$/)).toBeTruthy();
   });
 
   it('refuses a date range that runs backwards before asking', async () => {
     await setup({ path: '/console/books/entries' });
-    const filters = await screen.findByRole('region', { name: 'Find entries' });
-    type(within(filters).getByLabelText('From'), '2026-10-01');
-    type(within(filters).getByLabelText('To'), '2026-09-01');
-    await click(within(filters).getByRole('button', { name: 'Show these' }));
-    expect(within(filters).getAllByText('The first day comes after the last.').length).toBeGreaterThan(0);
+    const list = await screen.findByRole('region', { name: 'Entries' });
+    await click(await within(list).findByRole('button', { name: /^Filters/ }));
+    const form = within(list).getByRole('search', { name: 'Find entries' });
+    type(within(form).getByLabelText('From'), '2026-10-01');
+    type(within(form).getByLabelText('To'), '2026-09-01');
+    await click(within(form).getByRole('button', { name: 'Show these' }));
+    expect(within(form).getAllByText('The first day comes after the last.').length).toBeGreaterThan(0);
+  });
+
+  it('pages the entries, shows chosen columns, and opens one beside the list', async () => {
+    await setup({ path: '/console/books/entries' });
+    const list = await screen.findByRole('region', { name: 'Entries' });
+    expect(await within(list).findByText(/^Showing 1–15 of \d+ entries$/)).toBeTruthy();
+    await click(within(list).getByRole('button', { name: 'Next page' }));
+    expect(within(list).getByText(/^Showing 16–30 of/)).toBeTruthy();
+    // The columns menu hides the source.
+    expect(within(list).getAllByRole('columnheader', { name: 'Source' })).toHaveLength(1);
+    await click(within(list).getByRole('button', { name: 'Columns' }));
+    await click(within(list).getByRole('checkbox', { name: 'Source' }));
+    expect(within(list).queryAllByRole('columnheader', { name: 'Source' })).toHaveLength(0);
+    // The eye opens an entry in a sheet: its lines, a total that is its one line's, and its page.
+    await click(within(list).getByRole('button', { name: 'Previous page' }));
+    const eye = within(list).getAllByRole('button', { name: /^Open FRESHMART beside the list/ })[0] as HTMLElement;
+    await click(eye);
+    const sheet = within(list).getByRole('complementary', { name: 'FRESHMART' });
+    expect(within(sheet).getByText('Total')).toBeTruthy();
+    expect(within(sheet).getByText(/Debits equal credits/)).toBeTruthy();
+    expect(within(sheet).getByRole('link', { name: 'Open its page' }).getAttribute('href')).toMatch(/^\/console\/books\/entries\//);
+    expect(within(sheet).getByRole('button', { name: 'Reverse this entry' })).toBeTruthy();
+    await click(within(sheet).getByRole('button', { name: 'Close' }));
+    expect(within(list).queryByRole('complementary')).toBeNull();
   });
 
   it('shows an entry in another currency with the rate it was posted at', async () => {
@@ -218,7 +255,7 @@ describe('cash', () => {
     expect(label).toContain('EUR 15,801.47 today, lowest EUR 15,727.02 on Oct 18, 2026, EUR 19,626.59 at the end');
     expect(within(forecast).getByText('USD at 0.86, ecb, Oct 9, 2026')).toBeTruthy();
     const safe = region('Safe to spend');
-    expect(within(safe).getByText('EUR 15,727.02')).toBeTruthy();
+    expect(within(safe).getByText('15,727.02')).toBeTruthy();
     expect(within(safe).getByText('until Oct 25, 2026, when Acme Salary comes in')).toBeTruthy();
     expect(within(safe).getByText('Oct 18, 2026 · Bistro Novo')).toBeTruthy();
     const accounts = region('Cash accounts');

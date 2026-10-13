@@ -1,7 +1,8 @@
 /**
  * Net worth over time (`insights.netWorth`): at each month's end, what you
  * own above the line in ledger green, what you owe below it in graphite, and
- * net worth as a 1.5 px line in ink, labelled at its end. Phones get their
+ * net worth as a 1.5 px line in ink, labelled at its end; the month picked
+ * above it outlined (a click on a month picks it too). Phones get their
  * own drawing: fewer month labels, the label below the plot.
  */
 import type { NetWorthByMonth } from '@leafmonkeylabs/salli-sdk';
@@ -32,7 +33,21 @@ interface Layout {
 const WIDE: Layout = { width: 640, height: 240, top: 16, bottom: 28, left: 8, right: 128, font: 12, every: 3 };
 const NARROW: Layout = { width: 320, height: 200, top: 12, bottom: 24, left: 4, right: 4, font: 11, every: 0 };
 
-function Plot({ data, layout, label, variant }: { data: NetWorthByMonth; layout: Layout; label: string; variant: 'wide' | 'narrow' }) {
+function Plot({
+  data,
+  layout,
+  label,
+  variant,
+  selected,
+  onSelect,
+}: {
+  data: NetWorthByMonth;
+  layout: Layout;
+  label: string;
+  variant: 'wide' | 'narrow';
+  selected: number;
+  onSelect: (index: number) => void;
+}) {
   const locale = useLocale();
   const points = data.points;
   const { width, height, top, bottom, left, right, font } = layout;
@@ -60,6 +75,19 @@ function Plot({ data, layout, label, variant }: { data: NetWorthByMonth; layout:
         </g>
       ))}
       <path className="chart-line-baseline" d={line} />
+      {points[selected] ? (
+        <rect
+          className="chart-selected"
+          x={band.at(selected) - band.width / 2 - 3}
+          width={band.width + 6}
+          y={top - 4}
+          height={height - bottom - top + 8}
+        />
+      ) : null}
+      {/* A month picked by pointer; the keyboard picks it from the list above. */}
+      {points.map((p, i) => (
+        <rect key={`hit-${p.month}`} className="chart-hit" x={band.at(i) - band.width / 2} width={band.width} y={top} height={height - bottom - top} onClick={() => onSelect(i)} />
+      ))}
       {last ? <circle className="chart-point" cx={lastX} cy={y(last.net_worth)} r={3} /> : null}
       {ticks.map((tick) => (
         <text key={tick.index} className="chart-tick" x={tick.x} y={height - bottom / 3} fontSize={font} textAnchor={tick.anchor}>
@@ -75,7 +103,7 @@ function Plot({ data, layout, label, variant }: { data: NetWorthByMonth; layout:
   );
 }
 
-export function NetWorthChart({ data }: { data: NetWorthByMonth }) {
+export function NetWorthChart({ data, selected, onSelect }: { data: NetWorthByMonth; selected: number; onSelect: (index: number) => void }) {
   const locale = useLocale();
   const last = data.points[data.points.length - 1];
   if (!last) return <p className="empty">{strings.home.netWorthEmpty}</p>;
@@ -106,8 +134,8 @@ export function NetWorthChart({ data }: { data: NetWorthByMonth }) {
         />
       }
     >
-      <Plot data={data} layout={WIDE} label={caption} variant="wide" />
-      <Plot data={data} layout={NARROW} label={caption} variant="narrow" />
+      <Plot data={data} layout={WIDE} label={caption} variant="wide" selected={selected} onSelect={onSelect} />
+      <Plot data={data} layout={NARROW} label={caption} variant="narrow" selected={selected} onSelect={onSelect} />
       <p className="chart-narrow-label" aria-hidden="true">
         {latest}
       </p>

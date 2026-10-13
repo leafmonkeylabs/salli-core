@@ -19,6 +19,7 @@ export function More() {
   ];
   return (
     <Page title={strings.more.title} description={strings.more.description}>
+      <div className="panel">
       <ul className="list places">
         {places.map((place) => (
           <li key={place.to}>
@@ -29,6 +30,7 @@ export function More() {
           </li>
         ))}
       </ul>
+      </div>
     </Page>
   );
 }

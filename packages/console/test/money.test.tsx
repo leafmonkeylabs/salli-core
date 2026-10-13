@@ -83,10 +83,12 @@ describe('Home', () => {
     const api = new MockApi();
     for (const [path, body] of Object.entries(HOME_READS)) api.reads[path] = hardAmounts(body);
     await setup({ api });
-    const netWorth = await screen.findByRole('region', { name: 'Net worth' });
-    await waitFor(() => expect(within(netWorth).getAllByText('EUR 9,007,199,254,740,993.01').length).toBeGreaterThan(0));
-    const month = screen.getByRole('region', { name: 'October 2026 so far' });
-    await waitFor(() => expect(within(month).getAllByText('EUR (9,007,199,254,740,993.01)').length).toBeGreaterThan(0));
+    const netWorth = await screen.findByRole('group', { name: 'Net worth' });
+    await waitFor(() => expect(within(netWorth).getAllByText('9,007,199,254,740,993.01').length).toBeGreaterThan(0));
+    expect(within(netWorth).getAllByText('EUR 9,007,199,254,740,993.01').length).toBeGreaterThan(0);
+    // A key figure: its code apart, a negative in brackets as a statement shows it.
+    const month = screen.getByRole('group', { name: 'October 2026 so far' });
+    await waitFor(() => expect(within(month).getAllByText('(9,007,199,254,740,993.01)').length).toBeGreaterThan(0));
     // Nowhere does the rounded float appear.
     expect(document.body.textContent).not.toMatch(/9,007,199,254,740,992|9007199254740992/);
   });

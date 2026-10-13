@@ -38,4 +38,13 @@ export { amountScale, bandScale, dayScale, extent, indexScale, linePath, spread,
 export { firstInMonthTicks, fitTicks, labelWidth, monthTicks, placeLabel, yearTicks, type PlacedTick, type TickLabel } from './kit/chart/ticks';
 export { BarChart, type BarChartProps, type BarGroup } from './kit/chart/BarChart';
 export { SubNav, type SubPlace } from './kit/SubNav';
+export { Icon, type IconName } from './kit/Icon';
+export { AccountChip, Chip, Count, IdChip, Status, TypeMark, type AccountChipProps } from './kit/chips';
+export { Popover, type PopoverProps, type PopoverTriggerProps } from './kit/Popover';
+export { KeyFigure, KeyFigures, Segmented } from './kit/figures';
+export { Pagination, usePages, type Paged } from './kit/Pagination';
+export { Sheet, type SheetProps } from './kit/Sheet';
+export { Bar } from './kit/chart/Bar';
+export { type PageProps } from './kit/layout';
+export { type Crumb, type Place } from './shell/places';
 export { displayDate, displayMoment, displayMonth, displayRange, isoDate } from './kit/dates';

@@ -1,10 +1,14 @@
 /**
- * Home: `salli status` as a page (docs/design/console.md, section 5). Net
- * worth, safe to spend, the month so far, the FI score and date, what needs
- * attention, what's coming up, decisions due for review and net worth over
- * time. Every figure is the API's, shown exactly, with where it came from;
- * the page computes nothing. Each section loads, fails and retries on its
- * own, as `salli status` reports a part it couldn't read.
+ * Home: `salli status` as a page (docs/design/console.md, section 5). Key
+ * figures first (net worth, safe to spend, the month so far, the FI
+ * score), then net worth by month with a month to read off, safe to spend
+ * line by line, what needs attention (what Salli noticed, what's coming
+ * up, decisions due for review), spending this month by account, and the
+ * FI score's parts. Every figure is the API's, shown exactly, with where
+ * it came from; the page computes nothing (a bar's length comes from the
+ * geometry module, for pixels only). Each part loads, fails and retries
+ * on its own, as `salli status` reports a part it couldn't read. Home
+ * writes nothing.
  */
 import {
   compareAmounts,
@@ -19,11 +23,18 @@ import {
   remindersList,
   reportsBalanceSheet,
   type FinanceSignal,
+  type NetWorthByMonth,
   type Reminder,
 } from '@leafmonkeylabs/salli-sdk';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 import { useRead } from '../../api';
+import { Bar } from '../../kit/chart/Bar';
+import { amountScale } from '../../kit/chart/geometry';
+import { Chip, Status } from '../../kit/chips';
 import { displayDate, displayMonth, displayRange, isoDate, monthToDate } from '../../kit/dates';
+import { KeyFigure, KeyFigures } from '../../kit/figures';
+import { Icon } from '../../kit/Icon';
 import { Empty, Grid, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { ThinkItThrough } from '../../kit/ThinkItThrough';
@@ -33,69 +44,161 @@ import { NetWorthChart } from './NetWorthChart';
 
 const s = strings.home;
 
-function NetWorth({ today }: { today: string }) {
+/** The key figures: net worth, safe to spend, the month so far, the FI score. */
+function Figures({ today, now }: { today: string; now: Date }) {
   const locale = useLocale();
-  const query = useRead('reports.balanceSheet', reportsBalanceSheet);
+  const period = monthToDate(now);
+  const sheet = useRead('reports.balanceSheet', reportsBalanceSheet);
+  const safe = useRead('insights.safeToSpend', insightsSafeToSpend);
+  const month = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: period.from, to_date: period.to } });
+  const fi = useRead('fi.score.get', fiScoreGet);
   return (
-    <Section label={s.netWorth}>
-      <Loaded query={query}>
-        {(sheet) => (
-          <Panel>
-            <p className="figure">
-              <Money amount={sheet.net_worth} currency={sheet.currency} variant="figure" />
-            </p>
-            <Rows>
-              <Row label={s.assets}>
-                <Money amount={sheet.total_assets} currency={sheet.currency} variant="table" withCode />
-              </Row>
-              <Row label={s.liabilities}>
-                <Money amount={sheet.total_liabilities} currency={sheet.currency} variant="table" withCode />
-              </Row>
-            </Rows>
-            <Provenance>{s.asOfToday(displayDate(today, locale))}</Provenance>
-          </Panel>
-        )}
+    <KeyFigures>
+      <KeyFigure
+        label={s.netWorth}
+        note={
+          sheet.data ? (
+            <>
+              <span>
+                {s.assets} <Money amount={sheet.data.total_assets} currency={sheet.data.currency} variant="table" withCode /> · {s.liabilities}{' '}
+                <Money amount={sheet.data.total_liabilities} currency={sheet.data.currency} variant="table" withCode />
+              </span>
+              <span>{s.asOfToday(displayDate(today, locale))}</span>
+            </>
+          ) : null
+        }
+      >
+        <Loaded query={sheet}>{(data) => <Money amount={data.net_worth} currency={data.currency} variant="figure" />}</Loaded>
+      </KeyFigure>
+      <KeyFigure label={s.safeToSpend} note={safe.data ? s.safeUntil(displayDate(safe.data.until, locale)) : null}>
+        <Loaded query={safe}>{(data) => <Money amount={data.amount} currency={data.currency} variant="figure" />}</Loaded>
+      </KeyFigure>
+      <KeyFigure
+        label={s.thisMonth(displayMonth(period.month, locale, 'long'))}
+        note={
+          month.data ? (
+            <>
+              <span>
+                {s.income} <Money amount={month.data.total_income} currency={month.data.currency} variant="table" withCode /> · {s.spending}{' '}
+                <Money amount={month.data.total_expenses} currency={month.data.currency} variant="table" withCode />
+              </span>
+              <span>{s.thisMonthRange(displayRange(month.data.from_date, month.data.to_date, locale))}</span>
+            </>
+          ) : null
+        }
+      >
+        <Loaded query={month}>
+          {(data) => (
+            <>
+              <span className="sr-only">{s.netIncome} </span>
+              <Money amount={data.net_income} currency={data.currency} variant="figure" />
+            </>
+          )}
+        </Loaded>
+      </KeyFigure>
+      <KeyFigure
+        label={s.fi}
+        note={
+          fi.data ? (
+            <>
+              <span>{s.fiNote(s.fiGrade(fi.data.grade))}</span>
+              {fi.data.projected_fi_month ? (
+                <span>
+                  {s.fiBy} {displayMonth(fi.data.projected_fi_month, locale)}
+                </span>
+              ) : null}
+            </>
+          ) : null
+        }
+      >
+        <Loaded query={fi}>{(data) => <span className="figure-number">{formatDecimal(data.overall_score, { locale })}</span>}</Loaded>
+      </KeyFigure>
+    </KeyFigures>
+  );
+}
+
+/** The month a readout shows: picked from the list, or by a click on the chart. */
+function MonthReadout({ data, selected, onSelect }: { data: NetWorthByMonth; selected: number; onSelect: (index: number) => void }) {
+  const locale = useLocale();
+  const point = data.points[selected];
+  if (!point) return null;
+  const code = data.currency.toUpperCase();
+  return (
+    <div className="readout">
+      <label>
+        <span className="sr-only">{s.pickMonth}</span>
+        <select className="pager-select" value={point.month} onChange={(event) => onSelect(data.points.findIndex((p) => p.month === event.target.value))}>
+          {data.points.map((p) => (
+            <option key={p.month} value={p.month}>
+              {displayMonth(p.month, locale)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <strong>
+        <Money amount={point.net_worth} currency={code} />
+      </strong>
+      <span className="muted">
+        {s.assets} <Money amount={point.assets} currency={code} variant="table" />
+      </span>
+      <span className="muted">
+        {s.liabilities} <Money amount={point.liabilities} currency={code} variant="table" />
+      </span>
+    </div>
+  );
+}
+
+function NetWorthOverTime() {
+  const query = useRead('insights.netWorth', insightsNetWorth, { query: { months: 12 } });
+  const [picked, setPicked] = useState<number | null>(null);
+  return (
+    <Section label={s.netWorthOverTime} wide>
+      <Loaded query={query} lines={6}>
+        {(data) => {
+          const selected = picked ?? data.points.length - 1;
+          return (
+            <Panel>
+              <MonthReadout data={data} selected={selected} onSelect={setPicked} />
+              <NetWorthChart data={data} selected={selected} onSelect={setPicked} />
+            </Panel>
+          );
+        }}
       </Loaded>
     </Section>
   );
 }
 
+/** Safe to spend, line by line: cash today, what is committed before the next income, the server's figure under a double rule. */
 function SafeToSpend() {
   const locale = useLocale();
   const query = useRead('insights.safeToSpend', insightsSafeToSpend);
   return (
-    <Section label={s.safeToSpend}>
+    <Section label={s.safeLines}>
       <Loaded query={query}>
         {(safe) => (
           <Panel>
-            <p className="figure">
-              <Money amount={safe.amount} currency={safe.currency} variant="figure" />{' '}
-              <span className="figure-note">{s.safeUntil(displayDate(safe.until, locale))}</span>
-            </p>
+            <p className="section-help">{s.safeUntil(displayDate(safe.until, locale))}</p>
             <Rows>
               <Row label={s.cashToday}>
                 <Money amount={safe.cash_today} currency={safe.currency} variant="table" withCode />
               </Row>
-              {safe.next_income ? (
-                <Row label={`${s.nextIncome}, ${displayDate(safe.next_income.date, locale)}`}>
+              {safe.committed.map((flow, i) => (
+                <Row key={`${flow.date}-${i}`} label={`${flow.description}, ${displayDate(flow.date, locale)}`}>
+                  <Money amount={flow.amount} currency={flow.currency} variant="table" withCode />
+                </Row>
+              ))}
+              <Row label={s.safeTotal} total>
+                <Money amount={safe.amount} currency={safe.currency} variant="table" withCode />
+              </Row>
+            </Rows>
+            {safe.committed.length ? null : <Provenance>{s.nothingCommitted}</Provenance>}
+            {safe.next_income ? (
+              <Rows>
+                <Row label={`${s.nextIncome}: ${safe.next_income.description}, ${displayDate(safe.next_income.date, locale)}`}>
                   <Money amount={safe.next_income.amount} currency={safe.next_income.currency} variant="table" withCode />
                 </Row>
-              ) : null}
-            </Rows>
-            {safe.committed.length ? (
-              <details className="disclosure">
-                <summary>{s.committed}</summary>
-                <Rows>
-                  {safe.committed.map((flow, i) => (
-                    <Row key={`${flow.date}-${i}`} label={`${displayDate(flow.date, locale)} · ${flow.description}`}>
-                      <Money amount={flow.amount} currency={flow.currency} variant="table" withCode />
-                    </Row>
-                  ))}
-                </Rows>
-              </details>
-            ) : (
-              <Provenance>{s.nothingCommitted}</Provenance>
-            )}
+              </Rows>
+            ) : null}
             {(safe.fx ?? []).map((rate) =>
               rate.rate ? (
                 <Provenance key={rate.currency}>{s.rate(rate.currency, rate.rate, rate.source ?? '', displayDate(rate.as_of, locale))}</Provenance>
@@ -111,128 +214,27 @@ function SafeToSpend() {
   );
 }
 
-function ThisMonth({ now }: { now: Date }) {
-  const locale = useLocale();
-  const period = monthToDate(now);
-  const query = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: period.from, to_date: period.to } });
-  return (
-    <Section label={s.thisMonth(displayMonth(period.month, locale, 'long'))}>
-      <Loaded query={query}>
-        {(statement) => {
-          if (!statement.lines.length) return <Empty>{s.nothingThisMonth}</Empty>;
-          const spending = statement.lines.filter((line) => line.type === 'expense').sort((a, b) => compareAmounts(b.amount, a.amount));
-          return (
-            <Panel>
-              <Rows>
-                <Row label={s.income}>
-                  <Money amount={statement.total_income} currency={statement.currency} variant="table" withCode />
-                </Row>
-                <Row label={s.spending}>
-                  <Money amount={statement.total_expenses} currency={statement.currency} variant="table" withCode />
-                </Row>
-                <Row label={s.netIncome} total>
-                  <Money amount={statement.net_income} currency={statement.currency} variant="table" withCode />
-                </Row>
-              </Rows>
-              {spending.length ? (
-                <>
-                  <p className="subhead">{s.mostOn}</p>
-                  <Rows>
-                    {spending.slice(0, 3).map((line) => (
-                      <Row key={line.account_id} label={line.name} indent>
-                        <Money amount={line.amount} currency={statement.currency} variant="table" withCode />
-                      </Row>
-                    ))}
-                  </Rows>
-                </>
-              ) : null}
-              <Provenance>{s.thisMonthRange(displayRange(statement.from_date, statement.to_date, locale))}</Provenance>
-            </Panel>
-          );
-        }}
-      </Loaded>
-    </Section>
-  );
-}
-
-function Fi() {
-  const locale = useLocale();
-  const query = useRead('fi.score.get', fiScoreGet);
-  return (
-    <Section label={s.fi}>
-      <Loaded query={query}>
-        {(fi) => (
-          <Panel>
-            <p className="figure">
-              <span className="figure-number">{formatDecimal(fi.overall_score, { locale })}</span>{' '}
-              <span className="figure-note">
-                {s.fiScore} · {s.fiGrade(fi.grade)}
-              </span>
-            </p>
-            <p>{s.fiProgress(formatRatio(fi.progress_to_fi, { locale }))}</p>
-            <Rows>
-              <Row label={s.savingsRate}>{s.savingsRateOf(formatRatio(fi.savings_rate, { locale }))}</Row>
-              {fi.projected_fi_month ? <Row label={s.fiBy}>{displayMonth(fi.projected_fi_month, locale)}</Row> : null}
-            </Rows>
-            {fi.assumptions ? (
-              <Provenance>
-                {fi.assumptions.status === 'placeholder' ? <span className="placeholder-tag">{s.placeholders}</span> : s.ownAssumptions}{' '}
-                {fi.assumptions.message}
-              </Provenance>
-            ) : null}
-            {fi.as_of ? <Provenance>{s.fiScoreAsOf(displayDate(fi.as_of, locale))}</Provenance> : null}
-          </Panel>
-        )}
-      </Loaded>
-    </Section>
-  );
-}
-
 function SignalItem({ signal }: { signal: FinanceSignal }) {
   const locale = useLocale();
   return (
-    <li className="signal">
-      <p className="signal-title">
-        {signal.severity === 'high' ? (
-          <span className="warn-mark" aria-hidden="true">
-            !
-          </span>
-        ) : null}{' '}
-        {signal.title}
-        <span className="sr-only">
-          {' '}
-          ({s.severity[signal.severity] ?? signal.severity})
-        </span>
-      </p>
-      <p className="signal-detail">{signal.detail}</p>
-      {signal.amount && signal.currency ? (
-        <p>
-          <Money amount={signal.amount} currency={signal.currency} />
-          {signal.date ? ` · ${displayDate(signal.date, locale)}` : ''}
+    <li>
+      <span className={signal.severity === 'high' ? 'waiting-icon waiting-icon-warn' : 'waiting-icon'} aria-hidden="true">
+        {signal.severity === 'high' ? '!' : <Icon name="attention" small />}
+      </span>
+      <div className="waiting-body">
+        <p className="signal-title">
+          {signal.title}
+          <span className="sr-only"> ({s.severity[signal.severity] ?? signal.severity})</span>
         </p>
-      ) : null}
+        <p className="signal-detail">{signal.detail}</p>
+        {signal.amount && signal.currency ? (
+          <p className="waiting-meta">
+            <Money amount={signal.amount} currency={signal.currency} />
+            {signal.date ? ` · ${displayDate(signal.date, locale)}` : ''}
+          </p>
+        ) : null}
+      </div>
     </li>
-  );
-}
-
-function Attention() {
-  const query = useRead('insights.signals', insightsSignals);
-  return (
-    <Section label={s.attention}>
-      <Loaded query={query}>
-        {({ signals }) =>
-          signals.length ? (
-            <ul className="list">
-              {signals.map((signal, i) => (
-                <SignalItem key={`${signal.kind}-${i}`} signal={signal} />
-              ))}
-            </ul>
-          ) : (
-            <Empty>{s.nothingNeedsAttention}</Empty>
-          )
-        }
-      </Loaded>
-    </Section>
   );
 }
 
@@ -242,26 +244,49 @@ function humanize(kind: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function ComingUp({ today }: { today: string }) {
+/** What needs attention: what Salli noticed, what is coming up, and decisions due for review. */
+function Attention({ today }: { today: string }) {
   const locale = useLocale();
-  const query = useRead('reminders.list', remindersList, { query: { status: 'pending' } });
+  const signals = useRead('insights.signals', insightsSignals);
+  const reminders = useRead('reminders.list', remindersList, { query: { status: 'pending' } });
+  const reviews = useRead('decisions.reviews.due', decisionsReviewsDue);
   return (
-    <Section label={s.comingUp}>
-      <Loaded query={query}>
-        {({ reminders }) => {
-          const pending = reminders.filter((r: Reminder) => r.status === 'pending').sort((a, b) => a.due_date.localeCompare(b.due_date));
+    <Section label={s.attention}>
+      <h3 className="subhead">{s.noticed}</h3>
+      <Loaded query={signals}>
+        {({ signals: list }) =>
+          list.length ? (
+            <ul className="waiting">
+              {list.map((signal, i) => (
+                <SignalItem key={`${signal.kind}-${i}`} signal={signal} />
+              ))}
+            </ul>
+          ) : (
+            <Empty>{s.nothingNeedsAttention}</Empty>
+          )
+        }
+      </Loaded>
+      <h3 className="subhead">{s.comingUp}</h3>
+      <Loaded query={reminders}>
+        {({ reminders: list }) => {
+          const pending = list.filter((r: Reminder) => r.status === 'pending').sort((a, b) => a.due_date.localeCompare(b.due_date));
           if (!pending.length) return <Empty>{s.nothingDue}</Empty>;
           return (
-            <ul className="list">
+            <ul className="waiting">
               {pending.map((reminder) => {
                 const overdue = reminder.due_date < today;
                 return (
-                  <li key={reminder.id} className="dated">
-                    <span className={overdue ? 'dated-date negative' : 'dated-date'}>{displayDate(reminder.due_date, locale)}</span>
-                    <span>
-                      {humanize(reminder.kind)}
-                      {overdue ? <span className="tag tag-warn"> {s.overdue}</span> : null}
+                  <li key={reminder.id}>
+                    <span className="waiting-icon" aria-hidden="true">
+                      <Icon name="attention" small />
                     </span>
+                    <div className="waiting-body">
+                      <p className="signal-title">{humanize(reminder.kind)}</p>
+                      <p className="waiting-meta">
+                        {overdue ? <Status kind="warn">{s.overdue}</Status> : null}
+                        <span>{s.due(displayDate(reminder.due_date, locale))}</span>
+                      </p>
+                    </div>
                   </li>
                 );
               })}
@@ -269,25 +294,25 @@ function ComingUp({ today }: { today: string }) {
           );
         }}
       </Loaded>
-    </Section>
-  );
-}
-
-function Reviews() {
-  const locale = useLocale();
-  const query = useRead('decisions.reviews.due', decisionsReviewsDue);
-  return (
-    <Section label={s.reviews}>
-      <Loaded query={query}>
-        {({ reviews }) =>
-          reviews.length ? (
-            <ul className="list">
-              {reviews.map((review) => (
-                <li key={review.id} className="dated">
-                  <span className="dated-date">{displayDate(review.review_on, locale)}</span>
-                  <span>
-                    <Link to={`/decide/journal/${encodeURIComponent(review.id)}`}>{review.question}</Link> <span className="muted">· {review.chosen}</span>
+      <h3 className="subhead">{s.reviews}</h3>
+      <Loaded query={reviews}>
+        {({ reviews: list }) =>
+          list.length ? (
+            <ul className="waiting">
+              {list.map((review) => (
+                <li key={review.id}>
+                  <span className="waiting-icon" aria-hidden="true">
+                    <Icon name="decide" small />
                   </span>
+                  <div className="waiting-body">
+                    <p className="signal-title">
+                      <Link to={`/decide/journal/${encodeURIComponent(review.id)}`}>{review.question}</Link>
+                    </p>
+                    <p className="waiting-meta">
+                      <span>{s.reviewDue(displayDate(review.review_on, locale))}</span>
+                      <span>· {review.chosen}</span>
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -300,35 +325,124 @@ function Reviews() {
   );
 }
 
-function NetWorthOverTime() {
-  const query = useRead('insights.netWorth', insightsNetWorth, { query: { months: 12 } });
+/** Spending this month by account, the largest first, each with a bar; the server's total under a double rule. */
+function Spending({ now }: { now: Date }) {
+  const locale = useLocale();
+  const period = monthToDate(now);
+  const query = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: period.from, to_date: period.to } });
   return (
-    <Section label={s.netWorthOverTime} wide>
-      <Loaded query={query} lines={6}>
-        {(data) => (
-          <Panel>
-            <NetWorthChart data={data} />
-          </Panel>
-        )}
+    <Section label={s.spentIn(displayMonth(period.month, locale, 'long'))}>
+      <Loaded query={query}>
+        {(statement) => {
+          const spending = statement.lines.filter((line) => line.type === 'expense').sort((a, b) => compareAmounts(b.amount, a.amount));
+          if (!spending.length) return <Empty>{s.nothingSpent}</Empty>;
+          const x = amountScale(
+            spending.map((line) => line.amount),
+            [0, 100],
+          );
+          return (
+            <Panel>
+              <div className="bar-rows">
+                {spending.map((line) => (
+                  <div key={line.account_id} className="bar-row">
+                    <span className="bar-row-label">{line.name}</span>
+                    <Bar length={x(line.amount)} />
+                    <Money amount={line.amount} currency={statement.currency} variant="table" withCode />
+                  </div>
+                ))}
+                <div className="bar-row bar-row-total">
+                  <span>{s.spending}</span>
+                  <Money amount={statement.total_expenses} currency={statement.currency} variant="table" withCode />
+                </div>
+              </div>
+              <Provenance>{s.thisMonthRange(displayRange(statement.from_date, statement.to_date, locale))}</Provenance>
+            </Panel>
+          );
+        }}
+      </Loaded>
+    </Section>
+  );
+}
+
+/** The FI score's parts, each with its bar, and where it stands. */
+function FiParts() {
+  const locale = useLocale();
+  const query = useRead('fi.score.get', fiScoreGet);
+  return (
+    <Section label={s.fiParts}>
+      <Loaded query={query}>
+        {(fi) => {
+          const x = amountScale([...fi.components.map((c) => c.score), '100'], [0, 100]);
+          return (
+            <Panel>
+              {fi.components.length ? (
+                <div className="bar-rows">
+                  {fi.components.map((c) => (
+                    <div key={c.key} className="bar-row" title={c.detail}>
+                      <span className="bar-row-label">{c.label}</span>
+                      <Bar length={x(c.score)} alt />
+                      <span className="bar-row-figure">{formatDecimal(c.score, { locale })}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <p>{s.fiProgress(formatRatio(fi.progress_to_fi, { locale }))}</p>
+              <Rows>
+                <Row label={s.savingsRate}>{s.savingsRateOf(formatRatio(fi.savings_rate, { locale }))}</Row>
+                {fi.projected_fi_month ? <Row label={s.fiBy}>{displayMonth(fi.projected_fi_month, locale)}</Row> : null}
+              </Rows>
+              {fi.assumptions ? (
+                <Provenance>
+                  {fi.assumptions.status === 'placeholder' ? <span className="placeholder-tag">{s.placeholders}</span> : s.ownAssumptions}{' '}
+                  {fi.assumptions.message}
+                </Provenance>
+              ) : null}
+              {fi.as_of ? <Provenance>{s.fiScoreAsOf(displayDate(fi.as_of, locale))}</Provenance> : null}
+              <p>
+                <Link to="/fi" className="strong-link">
+                  {s.fiMore}
+                </Link>
+              </p>
+            </Panel>
+          );
+        }}
       </Loaded>
     </Section>
   );
 }
 
 export function Home() {
+  const locale = useLocale();
   const now = new Date();
   const today = isoDate(now);
+  const sheet = useRead('reports.balanceSheet', reportsBalanceSheet);
   return (
-    <Page title={s.title} description={s.description} actions={<ThinkItThrough prompt={s.prompt(today)} />}>
+    <Page
+      title={s.title}
+      description={s.description}
+      facts={
+        <>
+          <Chip>{s.asOf(displayDate(today, locale))}</Chip>
+          {sheet.data ? <Chip mono>{sheet.data.currency.toUpperCase()}</Chip> : null}
+        </>
+      }
+      actions={
+        <>
+          <ThinkItThrough prompt={s.prompt(today)} />
+          <Link to="/decide" className="button button-primary">
+            <Icon name="decide" />
+            {s.thinkDecision}
+          </Link>
+        </>
+      }
+    >
+      <Figures today={today} now={now} />
       <Grid>
-        <NetWorth today={today} />
-        <SafeToSpend />
-        <ThisMonth now={now} />
-        <Fi />
-        <Attention />
-        <ComingUp today={today} />
         <NetWorthOverTime />
-        <Reviews />
+        <SafeToSpend />
+        <Attention today={today} />
+        <Spending now={now} />
+        <FiParts />
       </Grid>
     </Page>
   );

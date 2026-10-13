@@ -97,6 +97,10 @@ describe('signing out', () => {
   it('revokes the tab’s grant and clears the tab', async () => {
     const { api, app, storage } = await setup();
     await screen.findByRole('heading', { level: 1, name: 'Home' });
+    // Sign out is under who is signed in, in the top bar.
+    await act(async () => {
+      screen.getByRole('button', { name: /signed in as ana@example\.org/ }).click();
+    });
     await act(async () => {
       screen.getByRole('button', { name: 'Sign out' }).click();
     });

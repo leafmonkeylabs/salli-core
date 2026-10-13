@@ -51,6 +51,29 @@
   --c-mark-square: light-dark(var(--graphite), var(--muted-on-dark));
   --c-decoration: light-dark(var(--brass), var(--sand-on-dark));
 
+  /* The shell and its cards (C5): the bars and the side menu on paper, the
+     working area bone, each section a paper card with a hairline border;
+     wells (inputs, table headers, a segmented control's track) bone. On
+     dark, night with deep-green cards. */
+  --c-chrome: light-dark(var(--paper), var(--night));
+  --c-work: light-dark(var(--bone), var(--night));
+  --c-card: light-dark(var(--paper), var(--deep-green));
+  --c-well: light-dark(var(--bone), var(--night));
+  --c-hover: light-dark(rgb(28 27 25 / 0.035), rgb(242 236 223 / 0.04));
+  --c-selected: light-dark(rgb(23 59 51 / 0.07), rgb(205 191 159 / 0.1));
+  --c-tile: light-dark(var(--ledger-green), var(--sand-on-dark));
+  --c-tile-text: light-dark(var(--paper-on-dark), var(--night));
+  /* A dashed outline (the Filters button): decoration, its words say it. */
+  --c-dash: light-dark(var(--stone), var(--muted-on-dark));
+  /* An account's type, as a small square beside its name: asset filled,
+     liability hollow, income sand, spending graphite, equity brass. The
+     type is in words too (a heading, a title, a screen reader's text). */
+  --c-type-asset: light-dark(var(--ledger-green), var(--sand-on-dark));
+  --c-type-liability: light-dark(var(--ink), var(--paper-on-dark));
+  --c-type-income: light-dark(var(--sand), var(--muted-on-dark));
+  --c-type-expense: light-dark(var(--graphite), var(--muted-on-dark));
+  --c-type-equity: var(--brass);
+
   /* Decision 11: the focus ring is ledger green (sand on dark), not brass,
      which is 2.4:1 on paper, below the 3:1 a focus indicator needs. */
   --c-focus: light-dark(var(--ledger-green), var(--sand-on-dark));
@@ -95,6 +118,9 @@
   --radius-chip: 0; /* tags, badges, loading lines */
   --radius-focus: 0; /* the focus ring's outline */
   --button-height: 40px;
+  --topbar-height: 56px;
+  --side-width: 236px;
+  --side-rail: 64px;
   --target: 24px; /* WCAG 2.2's 2.5.8 */
   --measure: 68ch;
 

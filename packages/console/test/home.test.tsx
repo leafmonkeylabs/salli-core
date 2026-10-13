@@ -10,45 +10,56 @@ import * as home from './fixtures/home';
 import { setup } from './harness';
 
 const section = (name: string): HTMLElement => screen.getByRole('region', { name });
+const figure = (name: string): HTMLElement => screen.getByRole('group', { name });
 
 describe('Home', () => {
   it('shows where the household stands, as the server computed it', async () => {
     await setup();
     expect(await screen.findByRole('heading', { level: 1, name: 'Home' })).toBeTruthy();
 
-    const netWorth = section('Net worth');
+    // The key figures, each the server's.
+    const netWorth = figure('Net worth');
     expect(home.BALANCE_SHEET.net_worth).toBe('344026.47');
-    await waitFor(() => expect(within(netWorth).getByText('EUR 344,026.47')).toBeTruthy());
+    await waitFor(() => expect(within(netWorth).getByText('344,026.47')).toBeTruthy());
+    expect(within(netWorth).getByText('344,026.47 euros')).toBeTruthy();
     expect(within(netWorth).getByText('As of Oct 11, 2026, from your ledger')).toBeTruthy();
+    expect(within(netWorth).getByText('EUR 354,618.15')).toBeTruthy();
 
-    const safe = section('Safe to spend');
-    await waitFor(() => expect(within(safe).getByText(`EUR 15,727.02`)).toBeTruthy());
-    expect(within(safe).getByText('until Oct 25, 2026')).toBeTruthy();
+    const safeFigure = figure('Safe to spend');
+    await waitFor(() => expect(within(safeFigure).getByText('15,727.02')).toBeTruthy());
+    expect(within(safeFigure).getByText('until Oct 25, 2026')).toBeTruthy();
+
+    const month = figure('October 2026 so far');
+    // A negative key figure: in brackets, as a statement shows it, and read out with its sign.
+    await waitFor(() => expect(within(month).getByText('(1,750.99)')).toBeTruthy());
+    expect(within(month).getByText('minus 1,750.99 euros')).toBeTruthy();
+
+    const fiFigure = figure('Financial independence');
+    await waitFor(() => expect(within(fiFigure).getByText('60.08')).toBeTruthy());
+    expect(within(fiFigure).getByText('FI score · Strong')).toBeTruthy();
+
+    // Safe to spend line by line: the server's figure under the double rule.
+    const safe = section('Safe to spend, line by line');
+    await waitFor(() => expect(within(safe).getByText('EUR 15,801.47')).toBeTruthy());
+    expect(within(safe).getByText('EUR (74.45)')).toBeTruthy();
+    expect(within(safe).getByText('Safe to spend').closest('.row-total')).toBeTruthy();
     expect(within(safe).getByText('USD at 0.86, ecb, Oct 9, 2026')).toBeTruthy();
 
-    const month = section('October 2026 so far');
-    await waitFor(() => expect(within(month).getByText('Net income')).toBeTruthy());
-    // A negative in a statement: in brackets, and read out with its sign.
-    expect(within(month).getByText('EUR (1,750.99)')).toBeTruthy();
-    expect(within(month).getByText('minus 1,750.99 euros')).toBeTruthy();
-    expect(within(month).getByText('Most spent on')).toBeTruthy();
+    const spent = section('Spent in October 2026');
+    await waitFor(() => expect(within(spent).getByText('Rent')).toBeTruthy());
+    expect(within(spent).getByText('EUR 1,750.99')).toBeTruthy();
 
-    const fi = section('Financial independence');
-    await waitFor(() => expect(within(fi).getByText('60.08')).toBeTruthy());
-    expect(within(fi).getByText(/Placeholder assumptions/)).toBeTruthy();
-    expect(within(fi).getByText('5.9% of the way to financial independence')).toBeTruthy();
+    const parts = section('What the FI score is made of');
+    await waitFor(() => expect(within(parts).getByText(/Placeholder assumptions/)).toBeTruthy());
+    expect(within(parts).getByText('5.9% of the way to financial independence')).toBeTruthy();
 
     const attention = section('Needs attention');
     await waitFor(() => expect(within(attention).getByText('A decision is ready for review')).toBeTruthy());
-
-    const coming = section('Coming up');
-    await waitFor(() => expect(within(coming).getByText('Send the landlord the signed lease')).toBeTruthy());
+    await waitFor(() => expect(within(attention).getByText('Send the landlord the signed lease')).toBeTruthy());
     // Oct 5 is before Oct 11: overdue, in words as well as colour.
-    const lease = within(coming).getByText('Send the landlord the signed lease').closest('li') as HTMLElement;
+    const lease = within(attention).getByText('Send the landlord the signed lease').closest('li') as HTMLElement;
     expect(within(lease).getByText('Overdue')).toBeTruthy();
-
-    const reviews = section('Decisions to review');
-    await waitFor(() => expect(within(reviews).getByText('Change anything?')).toBeTruthy());
+    await waitFor(() => expect(within(attention).getByText('Change anything?')).toBeTruthy());
   });
 
   it('asks for the month so far, and nothing it would have to compute', async () => {
@@ -67,6 +78,11 @@ describe('Home', () => {
     const last = home.NET_WORTH.points[home.NET_WORTH.points.length - 1];
     expect(last?.net_worth).toBe('344026.47');
     expect(within(chart).getAllByRole('img')[0]?.getAttribute('aria-label')).toContain('EUR 344,026.47 in Oct 2026');
+    // A month read off the chart: the list picks it, the server's figures beside it.
+    const months = within(chart).getByRole('combobox', { name: 'Month shown' }) as HTMLSelectElement;
+    expect(months.value).toBe(last?.month);
+    fireEvent.change(months, { target: { value: home.NET_WORTH.points[0]?.month } });
+    expect(months.value).toBe(home.NET_WORTH.points[0]?.month);
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     const table = within(chart).getByRole('table');
@@ -81,12 +97,12 @@ describe('Home', () => {
         : undefined,
     );
     await setup({ api });
-    const fi = section('Financial independence');
+    const fi = section('What the FI score is made of');
     expect(await within(fi).findByText('Scoring unavailable')).toBeTruthy();
     expect(within(fi).getByText('The FI engine is busy. Try again in a minute.')).toBeTruthy();
     expect(within(fi).getByText(/Request req-42/)).toBeTruthy();
     expect(within(fi).getByRole('button', { name: 'Try again' })).toBeTruthy();
-    await waitFor(() => expect(within(section('Net worth')).getByText('EUR 344,026.47')).toBeTruthy());
+    await waitFor(() => expect(within(figure('Net worth')).getByText('344,026.47')).toBeTruthy());
   });
 
   it('says plainly when there is nothing yet', async () => {
@@ -95,16 +111,17 @@ describe('Home', () => {
     api.reads['/v1/reminders/'] = { reminders: [] };
     api.reads['/v1/decisions/reviews'] = { as_of: '2026-10-11', reviews: [] };
     await setup({ api });
-    expect(await within(section('Needs attention')).findByText('Nothing needs attention.')).toBeTruthy();
-    expect(await within(section('Coming up')).findByText('Nothing due.')).toBeTruthy();
-    expect(await within(section('Decisions to review')).findByText('No decision is due for review.')).toBeTruthy();
+    const attention = section('Needs attention');
+    expect(await within(attention).findByText('Nothing needs attention.')).toBeTruthy();
+    expect(await within(attention).findByText('Nothing due.')).toBeTruthy();
+    expect(await within(attention).findByText('No decision is due for review.')).toBeTruthy();
   });
 
   it('copies a prompt for your own AI, and sends nothing', async () => {
     const written: string[] = [];
     Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text: string) => void written.push(text) }, configurable: true });
     const { api } = await setup();
-    await within(section('Net worth')).findByText('EUR 344,026.47');
+    await within(figure('Net worth')).findByText('344,026.47');
     const before = api.requests.length;
     fireEvent.click(screen.getByRole('button', { name: 'Think this through with your AI' }));
     await screen.findAllByText(/Copied\./);

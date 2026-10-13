@@ -1,67 +1,44 @@
 /**
- * The frame every page sits in: a skip link, the logo, the places (the
- * console's own and those extensions add), who is signed in and Sign out; a
- * bottom bar of five places on phones (Home, Cash, Decide, Books and More,
- * where the rest are). It also keeps the tab's two watches: the idle
+ * The frame every page sits in (C5): a skip link; a 56 px top bar with the
+ * logo, the server and its version, the theme and who is signed in; a
+ * side menu of the places (the current place's own places under it, a
+ * count beside Attention), which folds to a rail of icons; a bar under the
+ * top one with the side menu's switch, the way back and where you are;
+ * then the page. On a phone the side menu gives way to the bottom bar of
+ * five places (Home, Cash, Decide, Books and More, where the rest are), as
+ * the design decided. It also keeps the tab's two watches: the idle
  * sign-out, and whether Salli was updated under an open tab.
  */
+import { insightsSignals, profileGet } from '@leafmonkeylabs/salli-sdk';
 import { Link, Outlet, useRouter, useRouterState } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
-import { useSession } from '../api';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useRead, useSession } from '../api';
 import { idleLimitMs, startIdleTimer } from '../auth/idle';
 import { useConsoleExtensions } from '../console-context';
+import { Count } from '../kit/chips';
+import { Icon, type IconName } from '../kit/Icon';
 import { Logo } from '../kit/Logo';
+import { Popover } from '../kit/Popover';
+import { usePreferences } from '../preferences';
 import { strings } from '../strings';
+import { ShellContext, type ShellPage } from './context';
+import { appPath, crumbsOf, isCurrent, placesOf, within, type Crumb, type Place } from './places';
 import { useServerVersion } from './update';
-
-interface Place {
-  to: string;
-  label: string;
-  icon: 'home' | 'cash' | 'decide' | 'books' | 'more' | 'settings' | 'page';
-}
 
 /** The places a phone's bar holds; every other place is under More. */
 const BAR = ['/', '/cash', '/decide', '/books'];
+/** TanStack marks a link current below its path too; the console says which itself. */
+const EXACT = { exact: true } as const;
 
-/** Whether `pathname` (under /console) is at `to` or below it. */
-function within(pathname: string, to: string): boolean {
-  const path = pathname.replace(/^\/console/, '') || '/';
-  return to === '/' ? path === '/' : path === to || path.startsWith(`${to}/`);
-}
-
-function Icon({ name }: { name: Place['icon'] }) {
-  return (
-    <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
-      {name === 'home' ? <path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z" /> : null}
-      {name === 'decide' ? (
-        <>
-          <path d="M12 3v18M7 21h10" />
-          <path d="M4 7h16" />
-          <path d="M4 7l-2 6h4zM20 7l-2 6h4z" />
-        </>
-      ) : null}
-      {name === 'cash' ? (
-        <>
-          <rect x="3" y="6" width="18" height="12" />
-          <path d="M3 10h18M7 14h3" />
-        </>
-      ) : null}
-      {name === 'books' ? (
-        <>
-          <path d="M5 4h11l3 3v13H5z" />
-          <path d="M8 10h8M8 14h8M8 18h5" />
-        </>
-      ) : null}
-      {name === 'more' ? <path d="M4 7h16M4 12h16M4 17h16" /> : null}
-      {name === 'settings' ? (
-        <>
-          <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
-          <rect x="14" y="5" width="4" height="4" />
-          <rect x="6" y="15" width="4" height="4" />
-        </>
-      ) : null}
-      {name === 'page' ? <rect x="5" y="4" width="14" height="16" /> : null}
-    </svg>
+/** Whether a media query matches, following it as it changes. */
+function useMedia(query: string): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      const list = globalThis.matchMedia?.(query);
+      list?.addEventListener('change', listener);
+      return () => list?.removeEventListener('change', listener);
+    },
+    () => globalThis.matchMedia?.(query).matches ?? false,
   );
 }
 
@@ -100,11 +77,143 @@ function UpdateBanner() {
   );
 }
 
+/** Light or dark, the other way from how the page looks now. */
+function ThemeSwitch() {
+  const { theme, setTheme } = usePreferences();
+  const systemDark = useMedia('(prefers-color-scheme: dark)');
+  const dark = theme === 'dark' || (theme === 'system' && systemDark);
+  return (
+    <button type="button" className="icon-button" aria-label={dark ? strings.shell.useLight : strings.shell.useDark} onClick={() => setTheme(dark ? 'light' : 'dark')}>
+      <Icon name={dark ? 'sun' : 'moon'} />
+    </button>
+  );
+}
+
+/** Who is signed in: their initial and name, and a panel with Settings and Sign out. */
+function You() {
+  const session = useSession();
+  const profile = useRead('profile.get', profileGet);
+  const email = session.state.status === 'signed-in' ? session.state.user.email : '';
+  const name = profile.data?.display_name?.trim() || email;
+  const initial = (name || strings.shell.you).charAt(0).toUpperCase();
+  return (
+    <Popover
+      label={strings.shell.you}
+      align="end"
+      role="group"
+      className="you"
+      trigger={(props) => (
+        <button {...props} className="you-button">
+          <span className="avatar" aria-hidden="true">
+            {initial}
+          </span>
+          <span className="you-name" aria-hidden="true">
+            {name}
+          </span>
+          <span className="sr-only">{strings.shell.youAre(name, email)}</span>
+          <Icon name="down" small />
+        </button>
+      )}
+    >
+      {(close) => (
+        <>
+          <p className="you-email">{strings.nav.signedInAs(email)}</p>
+          <Link to="/settings" className="menu-item" activeOptions={EXACT} onClick={close}>
+            <Icon name="settings" small />
+            {strings.nav.settings}
+          </Link>
+          <button type="button" className="menu-item" onClick={() => void session.signOut('signed-out')}>
+            <Icon name="back" small />
+            {strings.nav.signOut}
+          </button>
+        </>
+      )}
+    </Popover>
+  );
+}
+
+function PlaceLink({ place, path, count }: { place: Place; path: string; count?: number }) {
+  const current = within(path, place.to);
+  return (
+    <Link to={place.to} className="side-link" activeOptions={EXACT} title={place.label} {...(current ? { 'aria-current': 'page' as const } : {})}>
+      <Icon name={place.icon} />
+      <span className="side-label">{place.label}</span>
+      {count ? <Count n={count} words={strings.shell.signals(count)} /> : null}
+    </Link>
+  );
+}
+
+function Side({ places, path, expanded, id }: { places: readonly Place[]; path: string; expanded: boolean; id: string }) {
+  const signals = useRead('insights.signals', insightsSignals);
+  const waiting = signals.data?.signals.length ?? 0;
+  const groups = [0, 1, 2, 3].map((group) => places.filter((place) => place.group === group));
+  return (
+    <nav id={id} aria-label={strings.nav.label} className="side">
+      <div className="side-inner">
+        {groups.map((group, i) =>
+          group.length ? (
+            <ul key={i} className={i === 3 ? 'side-group side-foot-group' : 'side-group'}>
+              {group.map((place) => (
+                <li key={place.to}>
+                  <PlaceLink place={place} path={path} {...(place.to === '/attention' ? { count: waiting } : {})} />
+                  {expanded && place.children && within(path, place.to) ? (
+                    <ul className="side-subs">
+                      {place.children.map((sub) => (
+                        <li key={sub.to}>
+                          <Link to={sub.to} className="side-sub" activeOptions={EXACT} {...(isCurrent(sub, path) ? { 'aria-current': 'page' as const } : {})}>
+                            {sub.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null,
+        )}
+        <p className="side-foot">{strings.shell.foot}</p>
+      </div>
+    </nav>
+  );
+}
+
+function Crumbs({ crumbs }: { crumbs: readonly Crumb[] }) {
+  return (
+    <div className="crumbs">
+      <ol>
+        {crumbs.map((crumb, i) => (
+          <li key={`${i}-${crumb.label}`}>
+            {i > 0 ? (
+              <span className="crumb-sep" aria-hidden="true">
+                <Icon name="right" small />
+              </span>
+            ) : null}
+            {crumb.to ? (
+              <Link to={crumb.to} activeOptions={EXACT}>
+                {crumb.label}
+              </Link>
+            ) : (
+              <span aria-current="page" className="crumb-here">
+                {crumb.label}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+const BAR_ICONS: Record<string, IconName> = { '/': 'home', '/cash': 'cash', '/decide': 'decide', '/books': 'books', '/more': 'more' };
+
 export function Shell() {
   const session = useSession();
   const router = useRouter();
   const { navigation } = useConsoleExtensions();
+  const { side, setSide } = usePreferences();
   const main = useRef<HTMLElement>(null);
+  const wide = useMedia('(min-width: 1081px)');
 
   useEffect(() => {
     const timer = startIdleTimer(() => void session.signOut('idle'), idleLimitMs(session.env.storage));
@@ -120,74 +229,93 @@ export function Shell() {
     });
   }, [router]);
 
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const places: Place[] = [
-    { to: '/', label: strings.nav.home, icon: 'home' },
-    { to: '/cash', label: strings.nav.cash, icon: 'cash' },
-    { to: '/decide', label: strings.nav.decide, icon: 'decide' },
-    { to: '/books', label: strings.nav.books, icon: 'books' },
-    { to: '/tax', label: strings.nav.tax, icon: 'page' },
-    { to: '/attention', label: strings.nav.attention, icon: 'page' },
-    { to: '/fi', label: strings.nav.fi, icon: 'page' },
-    ...navigation.map((item) => ({ to: item.to, label: item.label, icon: 'page' as const })),
-    { to: '/settings', label: strings.nav.settings, icon: 'settings' },
-  ];
-  const bar: Place[] = [...places.filter((place) => BAR.includes(place.to)), { to: '/more', label: strings.nav.more, icon: 'more' }];
+  const path = appPath(useRouterState({ select: (state) => state.location.pathname }));
+  const places = useMemo(() => placesOf(navigation), [navigation]);
+  const [page, setPage] = useState<{ title: string; trail: readonly Crumb[] }>({ title: '', trail: [] });
+  const report = useCallback<ShellPage['report']>((title, trail) => {
+    setPage((was) => (was.title === title && JSON.stringify(was.trail) === JSON.stringify(trail) ? was : { title, trail }));
+  }, []);
+  const shell = useMemo(() => ({ places, report }), [places, report]);
+  const crumbs = crumbsOf(path, places, page.title, page.trail);
+  const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : undefined;
+  const expanded = side === 'auto' ? wide : side === 'open';
+
+  const bar = [...BAR.flatMap((to) => places.filter((place) => place.to === to)), { to: '/more', label: strings.nav.more }];
   // More is the current place for any page the bar doesn't name.
-  const inMore = !BAR.some((to) => within(pathname, to));
-  const email = session.state.status === 'signed-in' ? session.state.user.email : '';
+  const inMore = !BAR.some((to) => within(path, to));
+  const host = typeof window === 'undefined' ? '' : window.location.host;
+  const version = session.meta?.server_version ?? '';
 
   return (
-    <div className="shell">
-      <a className="skip-link" href="#main">
-        {strings.skipToContent}
-      </a>
-      <header className="topbar">
-        <div className="topbar-inner">
-          <Link to="/" className="brand-link" aria-label={`${strings.product}, ${strings.nav.home}`}>
+    <ShellContext.Provider value={shell}>
+      <div className="shell" data-side={expanded ? 'open' : 'rail'}>
+        <a className="skip-link" href="#main">
+          {strings.skipToContent}
+        </a>
+        <header className="topbar">
+          <Link to="/" activeOptions={EXACT} className="brand-link" aria-label={`${strings.product}, ${strings.nav.home}`}>
             <Logo />
           </Link>
-          <nav aria-label={strings.nav.label} className="topnav">
-            <ul>
-              {places.map((place) => (
-                <li key={place.to}>
-                  <Link to={place.to} activeOptions={{ exact: place.to === '/' }} activeProps={{ 'aria-current': 'page' }}>
-                    {place.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-          <div className="topbar-user">
-            {email ? <span className="muted user-email">{strings.nav.signedInAs(email)}</span> : null}
-            <button type="button" className="button button-secondary" onClick={() => void session.signOut('signed-out')}>
-              {strings.nav.signOut}
-            </button>
+          {host ? (
+            <>
+              <span className="topbar-slash" aria-hidden="true">
+                /
+              </span>
+              <span className="server" title={strings.shell.server(host, version)}>
+                <span className="server-mark" aria-hidden="true" />
+                <span className="mono">{host}</span>
+                {version ? <span className="chip chip-id">{version}</span> : null}
+              </span>
+            </>
+          ) : null}
+          <span className="topbar-gap" />
+          <ThemeSwitch />
+          <You />
+        </header>
+        <div className="shell-body">
+          <Side places={places} path={path} expanded={expanded} id="side" />
+          <div className="shell-main">
+            <nav className="crumbbar" aria-label={strings.shell.breadcrumb}>
+              <button
+                type="button"
+                className="icon-button icon-button-bare side-switch"
+                aria-expanded={expanded}
+                aria-controls="side"
+                aria-label={expanded ? strings.shell.hideSide : strings.shell.showSide}
+                onClick={() => setSide(expanded ? 'closed' : 'open')}
+              >
+                <Icon name="sidebar" />
+              </button>
+              {parent?.to ? (
+                <Link to={parent.to} activeOptions={EXACT} className="icon-button icon-button-bare" aria-label={strings.shell.backTo(parent.label)}>
+                  <Icon name="back" />
+                </Link>
+              ) : null}
+              <Crumbs crumbs={crumbs} />
+            </nav>
+            <UpdateBanner />
+            <Notice />
+            <main id="main" ref={main} tabIndex={-1}>
+              <Outlet />
+            </main>
           </div>
         </div>
-      </header>
-      <UpdateBanner />
-      <Notice />
-      <main id="main" ref={main} tabIndex={-1}>
-        <Outlet />
-      </main>
-      <nav aria-label={strings.nav.label} className="bottombar">
-        <ul>
-          {bar.map((place) => (
-            <li key={place.to}>
-              <Link
-                to={place.to}
-                activeOptions={{ exact: place.to === '/' }}
-                activeProps={{ 'aria-current': 'page' }}
-                {...(place.to === '/more' && inMore ? { 'aria-current': 'page' as const } : {})}
-              >
-                <Icon name={place.icon} />
-                <span>{place.label}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </div>
+        <nav aria-label={strings.nav.label} className="bottombar">
+          <ul>
+            {bar.map((place) => {
+              const current = place.to === '/more' ? inMore : within(path, place.to);
+              return (
+                <li key={place.to}>
+                  <Link to={place.to} activeOptions={EXACT} {...(current ? { 'aria-current': 'page' as const } : {})}>
+                    <Icon name={BAR_ICONS[place.to] ?? 'page'} />
+                    <span>{place.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </div>
+    </ShellContext.Provider>
   );
 }

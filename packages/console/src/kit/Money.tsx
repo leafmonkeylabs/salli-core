@@ -9,6 +9,8 @@
  * - `prose` (the default): `USD -370.00`, the code first, as the CLI shows it.
  * - `table`: `(370.00)` in oxblood for a negative, with no code (the column
  *   header names the currency), right-aligned in tabular figures.
+ * - `figure`: a key figure, its code small in Geist Mono before it and the
+ *   figure as a statement shows it: `EUR (370.00)`.
  *
  * Screen readers hear "minus 370.00 US dollars": the currency as a word and
  * the sign as a word, not a hyphen some readers skip or brackets they read as
@@ -72,6 +74,18 @@ export function Money({ amount, currency, variant = 'prose', withCode, signed }:
   if (amount === null || amount === undefined || amount === '') return null;
   const negative = isAmount(amount.trim()) && isNegativeAmount(amount);
   const className = ['money', `money-${variant}`, negative ? 'money-negative' : ''].filter(Boolean).join(' ');
+  if (variant === 'figure' && isAmount(amount.trim())) {
+    // A key figure: its currency's code small before it, the figure as a statement shows it.
+    return (
+      <span className={className} data-amount={amount}>
+        <span aria-hidden="true">
+          <span className="money-code">{currency.toUpperCase()}</span>
+          {visibleAmount(amount, currency, 'table', { locale, signed: signed ?? false })}
+        </span>
+        <span className="sr-only">{spokenAmount(amount, currency, locale, signed)}</span>
+      </span>
+    );
+  }
   return (
     <span className={className} data-amount={amount}>
       <span aria-hidden="true">{visibleAmount(amount, currency, variant, { locale, withCode: withCode ?? false, signed: signed ?? false })}</span>

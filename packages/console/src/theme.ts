@@ -27,6 +27,20 @@ export const TOKEN_NAMES = [
   'chart-2',
   'chart-grid',
   'chart-shortfall',
+  'chrome',
+  'work',
+  'card',
+  'well',
+  'hover',
+  'selected',
+  'tile',
+  'tile-text',
+  'dash',
+  'type-asset',
+  'type-liability',
+  'type-income',
+  'type-expense',
+  'type-equity',
 ] as const;
 
 export type TokenName = (typeof TOKEN_NAMES)[number];

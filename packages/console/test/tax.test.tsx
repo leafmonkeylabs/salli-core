@@ -91,7 +91,7 @@ describe('your tax', () => {
     const versions = await screen.findByRole('region', { name: 'Versions' });
     const rows = (await within(versions).findAllByRole('row')).slice(1);
     expect(rows.map((r) => r.textContent)).toEqual([
-      expect.stringContaining('XA 2031, version 3DraftAn agent: ClaudeRounding the examples.'),
+      expect.stringContaining('XA 2031, version 3!DraftAn agent: ClaudeRounding the examples.'),
       expect.stringContaining('XA 2031, version 2ProposedAn agent: ClaudeThe 2031 budget raises the relief to 12,500.'),
       expect.stringContaining('XA 2031, version 1ActiveYouFrom the Act'),
     ]);

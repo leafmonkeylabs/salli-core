@@ -73,6 +73,66 @@ for (const theme of THEMES) {
   }
 }
 
+for (const theme of THEMES) {
+  for (const width of WIDTHS) {
+    test(`the shell's popovers and an entry's sheet, ${width} px, ${theme}`, async ({ page }) => {
+      test.setTimeout(120_000);
+      const seen = await open(page, '/books/entries', width, theme);
+      await expect(page.getByRole('heading', { level: 1, name: 'Entries' })).toBeVisible();
+      await settled(page);
+      const list = page.getByRole('region', { name: 'Entries' });
+      // The filters, in their popover.
+      await list.getByRole('button', { name: /^Filters/ }).click();
+      await expect(list.getByRole('search', { name: 'Find entries' })).toBeVisible();
+      await axe(page);
+      await page.keyboard.press('Escape');
+      await expect(list.getByRole('search', { name: 'Find entries' })).toBeHidden();
+      await expect(list.getByRole('button', { name: /^Filters/ })).toBeFocused();
+      // Who is signed in.
+      await page.getByRole('button', { name: /signed in as/ }).click();
+      await expect(page.getByRole('group', { name: 'You' }).getByRole('button', { name: 'Sign out' })).toBeVisible();
+      await axe(page);
+      await page.keyboard.press('Escape');
+      // An entry beside the list.
+      await list.getByRole('searchbox', { name: 'Search descriptions' }).fill('dollar');
+      await list.getByRole('button', { name: 'Open TO DOLLAR ACCOUNT beside the list' }).click();
+      const sheet = list.getByRole('complementary', { name: 'TO DOLLAR ACCOUNT' });
+      await expect(sheet).toBeVisible();
+      await expect(sheet.getByRole('heading', { name: 'TO DOLLAR ACCOUNT' })).toBeFocused();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await axe(page);
+      await expect(page).toHaveScreenshot(`books-entries-sheet-${width}-${theme}.png`, { fullPage: true });
+      await page.keyboard.press('Escape');
+      await expect(sheet).toBeHidden();
+      await expect(list.getByRole('button', { name: 'Open TO DOLLAR ACCOUNT beside the list' })).toBeFocused();
+      await seen.check();
+    });
+  }
+}
+
+test('the side menu folds to a rail and opens again, and remembers it on this device', async ({ page }) => {
+  const seen = await open(page, '/books', 1280, 'light');
+  await settled(page);
+  const side = page.getByRole('navigation', { name: 'Places' }).filter({ visible: true });
+  await expect(side.getByRole('link', { name: 'Entries' })).toBeVisible();
+  await page.getByRole('button', { name: 'Hide the side menu' }).click();
+  // Folded: each place keeps its name.
+  await expect(side.getByRole('link', { name: 'Books' })).toHaveAttribute('aria-current', 'page');
+  expect(await side.evaluate((el) => el.getBoundingClientRect().width)).toBeLessThan(80);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Show the side menu' })).toHaveAttribute('aria-expanded', 'false');
+  await page.getByRole('button', { name: 'Show the side menu' }).click();
+  await expect(page.getByRole('button', { name: 'Hide the side menu' })).toHaveAttribute('aria-expanded', 'true');
+  // Where you are, and the way back.
+  await page.goto('/console/books/accounts/chk');
+  const crumbs = page.getByRole('navigation', { name: 'Where you are' });
+  await expect(crumbs.getByRole('link', { name: 'Accounts', exact: true })).toBeVisible();
+  await expect(crumbs.getByText('Checking')).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('link', { name: 'Back to Accounts' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Books' })).toBeVisible();
+  await seen.check();
+});
+
 /** Presses Tab until `target` has the focus. */
 async function tabTo(page: Page, target: ReturnType<Page['getByRole']>): Promise<void> {
   for (let i = 0; i < 60 && !(await target.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');

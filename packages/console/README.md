@@ -112,6 +112,22 @@ const example: ConsoleExtension = {
 createConsole({ extensions: [example] }).mount(document.getElementById('root')!);
 ```
 
-Its pages appear only when the server runs that extension. The kit
-(`Money`, `Table`, `Page`, `Section`, `TextField`, `FileField`, `Confirm`,
-`Secret`, `ChartFigure` and the rest) is exported, so its pages read and look like the console's own.
+Its pages appear only when the server runs that extension, as a place in
+the side menu (before Settings) and under More on a phone. The kit
+(`Money`, `Table`, `Page` with its header card's `facts`, `actions` and
+`trail`, `Section`, `KeyFigure`, `Chip`, `AccountChip`, `Status`,
+`Popover`, `Pagination`, `Sheet`, `Icon`, `TextField`, `FileField`,
+`Confirm`, `Secret`, `ChartFigure` and the rest) is exported, so its pages
+read and look like the console's own.
+
+## The shell
+
+A top bar (the logo, the server and its version, the theme, who is
+signed in with Settings and Sign out), a side menu of the places that
+folds to a rail of icons (kept on the device), and a bar with the way
+back and where you are; each page a header card, then its sections as
+cards. The places, their own places and the crumbs come from one list,
+`src/shell/places.ts`. On a phone the side menu gives way to the bottom
+bar of five places and More. Why each piece looks as it does, and where
+it departs from the approved mockup: docs/design/console.md, "As built
+(C5)".
