@@ -3,6 +3,7 @@
  * from the console), a version's status in words, who wrote it, and where
  * a rule set's and a version's pages are.
  */
+import { Status } from '../../kit/chips';
 import type { TaxRuleSetVersionSummary } from '@leafmonkeylabs/salli-sdk';
 import { taxStrings } from '../../tax-strings';
 import { httpsUrl, type Source } from './document';
@@ -32,7 +33,7 @@ export function SourceLink({ source }: { source: Source }) {
 export function StatusTag({ status }: { status: string }) {
   const warn = status === 'invalid' || status === 'draft';
   const due = status === 'proposed';
-  return <span className={['tag', warn ? 'tag-warn' : '', due ? 'tag-due' : ''].filter(Boolean).join(' ')}>{s.statuses[status] ?? status}</span>;
+  return <Status kind={warn ? 'warn' : status === 'active' ? 'brand' : due ? 'plain' : 'posted'}>{s.statuses[status] ?? status}</Status>;
 }
 
 /** "You", or "An agent: Claude". */

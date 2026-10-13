@@ -79,7 +79,7 @@ export function Data() {
             </div>
           </Panel>
         </Section>
-        <div className="section section-full">
+        <div className="status-line">
           <p role="status" className="quiet-success">
             {saved ? (
               <>

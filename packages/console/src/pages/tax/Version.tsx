@@ -380,7 +380,12 @@ export function Version() {
         .join(' ')
     : undefined;
   return (
-    <Page title={title} {...(description ? { description } : {})} actions={version ? <StatusTag status={version.status} /> : undefined}>
+    <Page
+      title={title}
+      {...(description ? { description } : {})}
+      facts={version ? <StatusTag status={version.status} /> : undefined}
+      trail={name ? [{ label: name, to: ruleSetPath(target.ruleSet) }] : []}
+    >
       <p>
         <Link to={ruleSetPath(target.ruleSet)}>{name ? v.back(name) : strings.loading}</Link>
       </p>
