@@ -43,7 +43,7 @@ for (const theme of THEMES) {
     test.describe(`${width} px, ${theme}`, () => {
       test('Home', async ({ page }) => {
         const seen = await open(page, width, theme);
-        await expect(page.getByRole('region', { name: 'Net worth', exact: true }).getByText('EUR 344,026.47')).toBeVisible();
+        await expect(page.getByRole('group', { name: 'Net worth', exact: true }).locator('.money-figure')).toContainText('344,026.47');
         await settled(page);
         await axe(page);
         await expect(page).toHaveScreenshot(`home-${width}-${theme}.png`, { fullPage: true });
@@ -81,6 +81,7 @@ for (const theme of THEMES) {
       test('signed out', async ({ page }) => {
         const seen = await open(page, width, theme);
         await settled(page);
+        await page.getByRole('button', { name: /signed in as/ }).click();
         await page.getByRole('button', { name: 'Sign out', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'Signed out' })).toBeVisible();
         await axe(page);

@@ -57,7 +57,7 @@ async function signIns(request: APIRequestContext, token: string): Promise<Array
 test('signs in through Salli’s own page, and sees Home', async ({ page, baseURL }) => {
   const seen = await watch(page, new URL(baseURL ?? '').origin);
   await signIn(page);
-  await expect(page.getByRole('region', { name: 'Net worth', exact: true }).locator('.money').first()).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Net worth', exact: true }).locator('.money').first()).toBeVisible();
   await expect(page.locator('.loading')).toHaveCount(0);
   // A reload keeps the sign-in.
   await page.reload();
@@ -90,7 +90,9 @@ test('signs out, revoking the grant', async ({ page, request, baseURL }) => {
   const before = (await signIns(request, token)).filter((s) => s.kind === 'console').length;
   await signIn(page);
   expect((await signIns(request, token)).filter((s) => s.kind === 'console').length).toBe(before + 1);
-  await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
+  // Sign out is under who is signed in, in the top bar.
+  await page.getByRole('button', { name: /signed in as/ }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Signed out' })).toBeVisible();
   await expect.poll(async () => (await signIns(request, token)).filter((s) => s.kind === 'console').length).toBe(before);
   await seen.check();
@@ -212,9 +214,9 @@ test('adds an entry from one account to another, sees it in the ledger and the b
   // In the ledger, and in the wallet's balance.
   await page.goto(`/console/books/entries?q=${stamp}`);
   const entries = page.getByRole('region', { name: 'Entries' });
-  await expect(entries.getByText('1 entry')).toBeVisible();
+  await expect(entries.getByText('Showing 1–1 of 1 entry')).toBeVisible();
   await page.goto(`/console/books/accounts/${wallet}`);
-  await expect(page.getByRole('region', { name: 'Balance' }).getByText('EUR -12.50')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Balance', exact: true }).getByText('(12.50)')).toBeVisible();
   await page.getByRole('region', { name: 'Its entries' }).getByRole('link', { name: `Lunch ${stamp}` }).click();
 
   // Reversed after a confirmation; both entries stay.
@@ -223,10 +225,10 @@ test('adds an entry from one account to another, sees it in the ledger and the b
   await page.getByRole('alertdialog', { name: 'Reverse this entry?' }).getByRole('button', { name: 'Reverse it' }).click();
   await expect(standing.getByText(/Reversed\. Both entries are in the ledger\./)).toBeVisible();
   await page.goto(`/console/books/entries?q=${stamp}`);
-  await expect(entries.getByText('2 entries')).toBeVisible();
+  await expect(entries.getByText('Showing 1–2 of 2 entries')).toBeVisible();
   await expect(entries.getByRole('link', { name: `REVERSAL: Lunch ${stamp}` })).toBeVisible();
   await page.goto(`/console/books/accounts/${wallet}`);
-  await expect(page.getByRole('region', { name: 'Balance' }).getByText('EUR 0.00')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Balance', exact: true }).getByText('0.00', { exact: true })).toBeVisible();
   await seen.check();
 });
 
@@ -328,11 +330,11 @@ test('makes a rule, imports a CSV statement, reviews it, posts it after confirmi
   // In the ledger: both entries, on the statement's account.
   await queue.getByRole('link', { name: 'See them in your books' }).click();
   const entries = page.getByRole('region', { name: 'Entries' });
-  await expect(entries.getByText('2 entries')).toBeVisible();
+  await expect(entries.getByText('Showing 1–2 of 2 entries')).toBeVisible();
   await expect(entries.getByRole('link', { name: `MARKET ${stamp.toUpperCase()}` })).toBeVisible();
   await expect(entries.getByRole('link', { name: `CORNER BAKERY ${stamp.toUpperCase()}` })).toBeVisible();
   await page.goto(`/console/books/accounts/${wallet}`);
-  await expect(page.getByRole('region', { name: 'Balance' }).getByText('EUR -54.60').first()).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Balance', exact: true }).getByText('(54.60)').first()).toBeVisible();
   await seen.check();
 });
 
