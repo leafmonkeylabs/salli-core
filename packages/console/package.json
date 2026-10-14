@@ -1,6 +1,6 @@
 {
   "name": "@leafmonkeylabs/salli-console",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The Salli console: a household's books in a browser. Served by the Salli server at /console.",
   "license": "AGPL-3.0-only",
   "author": "Leaf Monkey Labs",

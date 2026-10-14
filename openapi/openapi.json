@@ -3,7 +3,7 @@
   "info": {
     "title": "Salli API",
     "description": "Privacy-first personal finance, tax and financial independence",
-    "version": "0.4.0"
+    "version": "0.4.1"
   },
   "paths": {
     "/v1/auth/me": {
