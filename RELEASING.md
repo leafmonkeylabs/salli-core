@@ -105,8 +105,15 @@ which `docker buildx imagetools inspect ghcr.io/leafmonkeylabs/salli:<version>
 
    A tag that doesn't match `pyproject.toml` stops the workflow.
 3. Approve the **publish** job when it waits for the `ghcr` environment.
-4. Say what changed in a GitHub release for the tag, including any setting a
-   self-hoster has to change.
+4. Say what changed in the GitHub release for the tag, including any setting a
+   self-hoster has to change. The same tag releases the console's npm package
+   ([below](#the-console)), and a tag holds one release, so the Release
+   workflow puts the console's files on this one: usually it runs first and
+   leaves a draft titled "Server <version>" with a "The console on npm"
+   section. Write the server's notes above that section
+   (`gh release edit server-v<version> --notes-file notes.md`), keep it, and
+   publish the draft. If you made the release first, the workflow attaches the
+   console's package and `SHA256SUMS-console` to it and adds the section.
 
 To rehearse, run **Actions → Image → Run workflow**: it builds both platforms and
 pushes nothing.
@@ -140,7 +147,12 @@ can build against exactly the open console its base image carries.
   stops while it isn't on npm. The console in this tree needs SDK 0.4.0 (its
   browser token provider).
 - The first release of the console is staged with the bootstrap token, like
-  the others' first releases ([above](#once-the-first-release)).
+  the others' first releases ([above](#once-the-first-release)). 0.4.0 was
+  that release.
+- Its GitHub release is the server's: the package and `SHA256SUMS-console`
+  are attached to the `server-v<version>` release, with a "The console on
+  npm" section, never a release of their own. A tag holds one release, so a
+  separate draft could not be published.
 
 ## Not yet
 

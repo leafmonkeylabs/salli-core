@@ -4,13 +4,14 @@
 # Push a tag to release one package (see RELEASING.md):
 #   cli-v0.2.0     →  salli 0.2.0 on npm, plus standalone binaries
 #   sdk-v0.2.0     →  @leafmonkeylabs/salli-sdk 0.2.0 on npm
-#   server-v0.3.1  →  @leafmonkeylabs/salli-console 0.3.1 on npm: the console
+#   server-v0.4.0  →  @leafmonkeylabs/salli-console 0.4.0 on npm: the console
 #                     ships at the server's version (decision 24), beside the
 #                     image image.yml builds from the same tag
 #
 # The npm package is *staged*, not published: it reaches users only once a
 # maintainer approves it on npmjs.com with 2FA. The GitHub release is made
-# as a draft for the same reason. Run it by hand ("Run workflow") for a dry
+# as a draft for the same reason; the console's files join the server's
+# release for its tag, since a tag holds one release. Run it by hand ("Run workflow") for a dry
 # run that builds and tests everything and publishes nothing.
 #
 # Third-party actions are pinned to commit SHAs: this workflow can publish.
@@ -233,11 +234,19 @@ jobs:
           merge-multiple: true
       - name: Checksums
         working-directory: assets
+        env:
+          PACKAGE: ${{ needs.verify.outputs.package }}
         run: |
-          rm -f SHA256SUMS
-          sha256sum -- * > SHA256SUMS
-          cat SHA256SUMS
+          # The console's tag is the server's, and its files go on the
+          # server's release beside the image's notes: its own name keeps
+          # them apart from anything else attached there.
+          sums=SHA256SUMS
+          [ "$PACKAGE" = console ] && sums=SHA256SUMS-console
+          rm -f "$sums"
+          sha256sum -- * > "$sums"
+          cat "$sums"
       - name: Draft the GitHub release
+        if: needs.verify.outputs.package != 'console'
         env:
           GH_TOKEN: ${{ github.token }}
           PACKAGE: ${{ needs.verify.outputs.package }}
@@ -269,3 +278,39 @@ jobs:
           gh release create "$GITHUB_REF_NAME" assets/* \
             --repo "$GITHUB_REPOSITORY" --verify-tag --draft $prerelease \
             --title "$NAME $VERSION" --notes-file notes.md
+      - name: The console's files, on the server's release
+        # A tag holds one GitHub release, and server-v<version> is the
+        # server's (RELEASING.md). The console's package and its checksums
+        # join that release, with a section saying how to install it; when
+        # the release isn't there yet, this makes it as a draft, for the
+        # maintainer to write the server's notes into.
+        if: needs.verify.outputs.package == 'console'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ needs.verify.outputs.name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          DIST_TAG: ${{ needs.verify.outputs.dist_tag }}
+        run: |
+          heading="## The console on npm"
+          cat > console.md <<NOTES
+          $heading
+          \`$NAME\` $VERSION, for editions that build on the open console: published with npm provenance once a maintainer approves it, with the package and its checksums (\`SHA256SUMS-console\`) attached here.
+
+          \`\`\`bash
+          npm install $NAME@$VERSION
+          \`\`\`
+          NOTES
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq .body > notes.md 2>/dev/null; then
+            gh release upload "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" --clobber
+            if ! grep -qxF "$heading" notes.md; then
+              printf '\n' >> notes.md
+              cat console.md >> notes.md
+              gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+            fi
+          else
+            prerelease=""
+            [ "$DIST_TAG" = next ] && prerelease="--prerelease"
+            gh release create "$GITHUB_REF_NAME" assets/* \
+              --repo "$GITHUB_REPOSITORY" --verify-tag --draft $prerelease \
+              --title "Server $VERSION" --notes-file console.md
+          fi
