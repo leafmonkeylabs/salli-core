@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "salli-core"
-version = "0.4.0"
+version = "0.4.1"
 description = "Self-hosted personal finance platform — ledger, budgets, investments, tax and FIRE. An HTTP API and an MCP server, with the salli-server operator CLI"
 readme = "README.md"
 license = "AGPL-3.0-only"
