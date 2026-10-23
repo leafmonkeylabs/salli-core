@@ -28,7 +28,11 @@ from salli.application.services.login_service import (
     SignInRefused,
     SignInThrottled,
 )
-from salli.application.services.mcp_oauth_service import CLI_CLIENT_ID, CONSOLE_CLIENT_ID
+from salli.application.services.mcp_oauth_service import (
+    CLI_CLIENT_ID,
+    CONSOLE_CLIENT_ID,
+    MOBILE_CLIENT_ID,
+)
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentPrincipal, CurrentUser
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -90,8 +94,9 @@ class SignIn(BaseModel):
     id: str
     #: `session`: signed in with your password (`POST /v1/auth/sessions`);
     #: `cli`: the salli CLI, on one machine; `console`: the console, in one
-    #: browser tab; `app`: another application signed in to the API as you.
-    kind: Literal["session", "cli", "console", "app"]
+    #: browser tab; `mobile`: the Salli app, on one phone; `app`: another
+    #: application signed in to the API as you.
+    kind: Literal["session", "cli", "console", "mobile", "app"]
     #: The OAuth client's name ("Salli CLI", "Salli console", or as another
     #: application named itself). None for a session.
     client_name: str | None
@@ -166,11 +171,13 @@ async def sign_out(user_id: CurrentUser, principal: CurrentPrincipal, svc: AppSe
 # ── Every way in ──────────────────────────────────────────────────────────────
 
 
-def _oauth_kind(client_id: str) -> Literal["cli", "console", "app"]:
+def _oauth_kind(client_id: str) -> Literal["cli", "console", "mobile", "app"]:
     if client_id == CLI_CLIENT_ID:
         return "cli"
     if client_id == CONSOLE_CLIENT_ID:
         return "console"
+    if client_id == MOBILE_CLIENT_ID:
+        return "mobile"
     return "app"
 
 

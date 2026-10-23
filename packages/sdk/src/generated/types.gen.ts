@@ -7123,6 +7123,14 @@ export type OAuthInfo = {
      * Console Client Id
      */
     console_client_id: string;
+    /**
+     * Mobile Client Id
+     */
+    mobile_client_id: string;
+    /**
+     * Mobile Redirect Uri
+     */
+    mobile_redirect_uri: string;
 };
 
 /**
@@ -10362,7 +10370,7 @@ export type SignIn = {
     /**
      * Kind
      */
-    kind: 'session' | 'cli' | 'console' | 'app';
+    kind: 'session' | 'cli' | 'console' | 'mobile' | 'app';
     /**
      * Client Name
      */

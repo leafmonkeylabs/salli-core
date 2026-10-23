@@ -25,6 +25,8 @@ export function metaAt(origin: string, extensions: string[] = []): Meta {
       device_verification_uri: `${origin}/mcp/oauth/device`,
       cli_client_id: 'salli-cli',
       console_client_id: 'salli-console',
+      mobile_client_id: 'salli-mobile',
+      mobile_redirect_uri: 'money.salli.app:/oauth/callback',
     },
     default_currency: 'EUR',
     console_url: `${origin}/console`,

@@ -370,6 +370,8 @@ export class MockSalli {
         device_verification_uri: `${base}/mcp/oauth/device`,
         cli_client_id: CLI_CLIENT_ID,
         console_client_id: 'salli-console',
+        mobile_client_id: 'salli-mobile',
+        mobile_redirect_uri: 'money.salli.app:/oauth/callback',
       },
       default_currency: 'USD',
       console_url: 'consoleUrl' in this.options ? (this.options.consoleUrl ?? null) : `${base}/console`,

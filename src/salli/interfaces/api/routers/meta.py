@@ -13,7 +13,12 @@ from importlib.metadata import PackageNotFoundError, version
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from salli.application.services.mcp_oauth_service import CLI_CLIENT_ID, CONSOLE_CLIENT_ID
+from salli.application.services.mcp_oauth_service import (
+    CLI_CLIENT_ID,
+    CONSOLE_CLIENT_ID,
+    MOBILE_CLIENT_ID,
+    MOBILE_REDIRECT_URI,
+)
 from salli.config import console_index, get_settings
 from salli.extensions import enabled_specs
 from salli.interfaces.api.contract import API_VERSION, CurrencyCode
@@ -48,6 +53,12 @@ class OAuthInfo(BaseModel):
     #: redirect `{issuer}/console/callback`. It holds `tax:activate` only
     #: within five minutes of the password check.
     console_client_id: str
+    #: The client id the phone app signs in as: Salli's own, with one
+    #: redirect, `mobile_redirect_uri`. Like the console's, it holds
+    #: `tax:activate` only within five minutes of the password check.
+    mobile_client_id: str
+    #: The app's one redirect, a private-use URI scheme (RFC 8252).
+    mobile_redirect_uri: str
 
 
 class Meta(BaseModel):
@@ -82,6 +93,8 @@ async def get_meta() -> Meta:
             device_verification_uri=f"{base}/mcp/oauth/device",
             cli_client_id=CLI_CLIENT_ID,
             console_client_id=CONSOLE_CLIENT_ID,
+            mobile_client_id=MOBILE_CLIENT_ID,
+            mobile_redirect_uri=MOBILE_REDIRECT_URI,
         ),
         default_currency=settings.salli_default_currency.upper(),
         console_url=f"{base}/console" if console_index(settings) else None,

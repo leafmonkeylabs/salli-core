@@ -25833,6 +25833,14 @@
           "console_client_id": {
             "type": "string",
             "title": "Console Client Id"
+          },
+          "mobile_client_id": {
+            "type": "string",
+            "title": "Mobile Client Id"
+          },
+          "mobile_redirect_uri": {
+            "type": "string",
+            "title": "Mobile Redirect Uri"
           }
         },
         "type": "object",
@@ -25846,7 +25854,9 @@
           "api_resource",
           "device_verification_uri",
           "cli_client_id",
-          "console_client_id"
+          "console_client_id",
+          "mobile_client_id",
+          "mobile_redirect_uri"
         ],
         "title": "OAuthInfo"
       },
@@ -31715,6 +31725,7 @@
               "session",
               "cli",
               "console",
+              "mobile",
               "app"
             ],
             "title": "Kind"
