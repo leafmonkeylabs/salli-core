@@ -47,6 +47,8 @@ export interface Theme {
   tileMuted: string;
   /** Negative figures and warnings. */
   negative: string;
+  /** A chart's line: ledger green, sand on night. */
+  chart: string;
   focus: string;
   /** Behind a sheet. */
   scrim: string;
@@ -70,6 +72,7 @@ export const light: Theme = {
   tileText: brand.paperOnDark,
   tileMuted: brand.sand,
   negative: brand.oxblood,
+  chart: brand.ledgerGreen,
   focus: brand.ledgerGreen,
   scrim: 'rgba(14, 21, 19, 0.4)',
 };
@@ -92,6 +95,7 @@ export const night: Theme = {
   tileText: brand.night,
   tileMuted: brand.deepGreen,
   negative: brand.clay,
+  chart: brand.sandOnDark,
   focus: brand.sandOnDark,
   scrim: 'rgba(14, 21, 19, 0.6)',
 };

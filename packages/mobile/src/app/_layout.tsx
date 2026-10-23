@@ -42,6 +42,9 @@ function Navigator() {
         <Stack.Screen name="oauth/callback" />
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="account/[id]" />
+          <Stack.Screen name="entry/[id]" />
+          <Stack.Screen name="add" options={{ presentation: 'modal' }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="welcome" />

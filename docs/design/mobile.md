@@ -1,10 +1,11 @@
 # The Salli app: your books on a phone
 
 Status: **in development (October 2026).** M0, the server's sign-in for the
-app, and M1, the app's first screens, are built: finding a server, signing
-in, Home from the server's figures, and signing out
-([packages/mobile](../../packages/mobile/README.md)). Cash, Decide and
-Books open the console for now.
+app, M1, the app's first screens (finding a server, signing in, Home from
+the server's figures, signing out), and M2, the four places (Cash, Books
+with an account and an entry, adding an entry, Decide's reviews), are built
+([packages/mobile](../../packages/mobile/README.md)). Servers and this
+phone (Face ID, the app-switcher cover, more than one server) come next.
 
 ## Why
 
@@ -90,6 +91,25 @@ seeded by `core_0022_mobile_client`:
   string exactly (`intlFormatsExactly`) and, where it doesn't, writes the
   digits itself, taking only the locale's marks from Intl. Its tests run
   every case both ways against Node's exact Intl.
+
+## Built with M2
+
+- **Cash:** the next 60 days from `insights.forecast` as a step line, its
+  lowest day marked and zero drawn only when the line reaches it; what's
+  coming up, and each cash account's lowest. `src/lib/chart.ts` is the one
+  place an amount becomes a number, for pixels, under the console's lint
+  escape.
+- **Books:** accounts by type with the trial balance's balances; an
+  account's entries newest first with the running balance; an entry's
+  lines, where it came from, and reversing it after a confirmation (an
+  entry is never edited).
+- **Adding an entry:** said in a line and drafted by the server's model
+  (`entries.parse`; without a model, a 503, the fields are filled by hand),
+  then checked and booked. The draft is shown in plain words before
+  booking; the app adds nothing to it.
+- **Decide:** the reviews due, each with what the chosen option projected
+  against what happened, and a reflection to record. Templates and
+  scenarios stay in the console.
 
 ## Later
 

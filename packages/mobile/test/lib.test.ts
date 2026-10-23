@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { amountParts, displayDate, monthNameOf, monthOf, todayIso } from '../src/lib/display';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
+import { stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 
 const REDIRECT = 'money.salli.app:/oauth/callback';
@@ -133,5 +134,35 @@ describe('figures on a screen', () => {
     expect(monthNameOf('2026-10-11')).toBe('October');
     expect(monthOf('2026-10-11')).toEqual({ from: '2026-10-01', to: '2026-10-11' });
     expect(todayIso(new Date(2026, 9, 11, 9, 41))).toBe('2026-10-11');
+  });
+});
+
+describe('the forecast chart', () => {
+  it('steps through each day and finds the lowest and the end', () => {
+    const days = [
+      { date: '2026-10-24', balance: '100.00' },
+      { date: '2026-10-25', balance: '50.00' },
+      { date: '2026-10-26', balance: '150.00' },
+    ];
+    const chart = stepChart(days, { date: '2026-10-25', balance: '50.00' }, 200, 100, 0);
+    // 40 to 160 with the margin: 100 is halfway, 50 near the bottom, 150 near the top.
+    expect(chart.path).toBe('M0.0 50.0 H100.0 V91.7 H200.0 V8.3');
+    expect(chart.low.x).toBe(100);
+    expect(chart.end.x).toBe(200);
+    expect(chart.zero).toBeUndefined();
+  });
+
+  it('marks zero when the line goes below it', () => {
+    const chart = stepChart(
+      [
+        { date: '2026-10-24', balance: '100' },
+        { date: '2026-10-25', balance: '-100' },
+      ],
+      { date: '2026-10-25', balance: '-100' },
+      100,
+      100,
+      0,
+    );
+    expect(chart.zero).toBeCloseTo(50);
   });
 });

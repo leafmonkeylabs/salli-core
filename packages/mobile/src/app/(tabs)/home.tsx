@@ -11,13 +11,13 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Loading, Money, Row, SectionLabel } from '../../kit';
+import { Body, Button, Card, Icon, Loading, Money, Row, SectionLabel } from '../../kit';
 import { displayDate, monthNameOf, monthOf, todayIso } from '../../lib/display';
 import { strings } from '../../strings';
 import { size, useTheme } from '../../theme';
-import { Header } from '../../shell';
+import { Header, Pull } from '../../shell';
 
 const t = strings.home;
 
@@ -30,15 +30,21 @@ export default function Home() {
   const spent = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: month.from, to_date: month.to } });
   const fi = useRead('fi.score.get', fiScoreGet);
   const reads = [safe, sheet, spent, fi];
-  const refreshing = reads.some((r) => r.isRefetching);
   const monthName = monthNameOf(today);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.work }}>
-      <Header server />
+      <Header
+        server
+        action={
+          <Pressable accessibilityRole="button" accessibilityLabel={t.add} onPress={() => router.push('/add')} style={styles.plus}>
+            <Icon name="plus" colour={theme.text} />
+          </Pressable>
+        }
+      />
       <ScrollView
         contentContainerStyle={styles.page}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => reads.forEach((r) => void r.refetch())} />}
+        refreshControl={<Pull read={() => Promise.all(reads.map((r) => r.refetch()))} />}
       >
         <Card tile style={{ gap: 6 }}>
           <SectionLabel onTile>{t.safe}</SectionLabel>
@@ -153,6 +159,7 @@ function Attention() {
 
 const styles = StyleSheet.create({
   page: { padding: size.gutter, gap: size.gap },
+  plus: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
   tileLine: { fontFamily: 'Geist_400Regular', fontSize: 15, lineHeight: 21 },
   tileSmall: { fontFamily: 'Geist_400Regular', fontSize: size.small },
   figures: { padding: 0, flexDirection: 'row', flexWrap: 'wrap' },
