@@ -1,7 +1,10 @@
 # The Salli app: your books on a phone
 
 Status: **in development (October 2026).** M0, the server's sign-in for the
-app, is built. The app itself starts in `packages/mobile`.
+app, and M1, the app's first screens, are built: finding a server, signing
+in, Home from the server's figures, and signing out
+([packages/mobile](../../packages/mobile/README.md)). Cash, Decide and
+Books open the console for now.
 
 ## Why
 
@@ -77,8 +80,16 @@ seeded by `core_0022_mobile_client`:
 | **A push notifier and a relay** | Apple's and Google's push keys belong to whoever publishes the app, so a self-hosted server can't push to it directly. It needs a notifier extension that keeps device tokens in its own tables, and a relay run by the publisher. The digest already carries no amounts. Core allows one notifier per deployment, so push can't sit beside email until that changes. |
 | **Where an entry came from** | An entry keeps only its source (`manual`). Showing which app and which model drafted it, and what was typed, needs the parse note, the client and the model kept on the entry. |
 | **The rule behind a draft** | `POST /v1/entries/parse` works out which rule booked a draft, but `ParsedEntryDraft` drops it. |
-| **Money formatting under Hermes** | The SDK's `formatAmount` relies on `Intl.NumberFormat` formatting decimal strings exactly. Hermes, React Native's engine, must be checked; if it falls short, the SDK needs a formatter on strings alone, never floats. |
 | **Pairing by a code** | `salli ui --qr`, or a console page showing a code to scan, so a phone needs no typed address. |
+
+## Built with M1
+
+- **Money under Hermes.** React Native's engine has an `Intl.NumberFormat`
+  that refuses `signDisplay: 'negative'` and reads a decimal string as a
+  float. The SDK now checks once whether the runtime formats a decimal
+  string exactly (`intlFormatsExactly`) and, where it doesn't, writes the
+  digits itself, taking only the locale's marks from Intl. Its tests run
+  every case both ways against Node's exact Intl.
 
 ## Later
 
