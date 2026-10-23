@@ -124,6 +124,7 @@ const KINDS: Record<SignIn['kind'], string> = {
   session: 'session',
   cli: 'CLI',
   console: 'console',
+  mobile: 'phone app',
   app: 'app',
 };
 

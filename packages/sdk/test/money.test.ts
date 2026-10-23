@@ -6,11 +6,13 @@ import {
   formatAmount,
   formatDecimal,
   formatRatio,
+  intlFormatsExactly,
   isAmount,
   isNegativeAmount,
   isZeroAmount,
   negateAmount,
   normalizeAmountInput,
+  useStringFormattingForTests,
 } from '../src/money';
 
 // Intl separates a currency code from the number with a no-break space.
@@ -214,5 +216,68 @@ describe('compareAmounts', () => {
 
   it('sorts a list without converting to numbers', () => {
     expect(['1800.00', '412.35', '9.99', '1800.01'].sort(compareAmounts)).toEqual(['9.99', '412.35', '1800.00', '1800.01']);
+  });
+});
+
+describe('without exact Intl (as on React Native’s Hermes)', () => {
+  const both = <T>(run: () => T): [T, T] => {
+    useStringFormattingForTests(false);
+    const intl = run();
+    useStringFormattingForTests(true);
+    const own = run();
+    useStringFormattingForTests(undefined);
+    return [own, intl];
+  };
+
+  it('knows whether this runtime formats exactly', () => {
+    expect(intlFormatsExactly()).toBe(true);
+    useStringFormattingForTests(true);
+    expect(intlFormatsExactly()).toBe(false);
+    useStringFormattingForTests(undefined);
+  });
+
+  it.each([
+    ['1234.5', 'USD', { locale: 'en-US' }],
+    ['-1234.50', 'USD', { locale: 'en-US' }],
+    ['-1234.50', 'USD', { locale: 'en-US', display: 'none' }],
+    ['-0.00', 'USD', { locale: 'en-US' }],
+    ['1200', 'JPY', { locale: 'en-US', display: 'none' }],
+    ['5', 'KWD', { locale: 'en-US' }],
+    ['1234.567', 'KWD', { locale: 'en-US', display: 'none' }],
+    ['15727.02', 'EUR', { locale: 'en', display: 'none' }],
+    ['344026.47', 'EUR', { locale: 'de-DE', display: 'none' }],
+    ['1234567.891', 'EUR', { locale: 'fr-FR', display: 'none' }],
+    ['123456789012345678901234567890.12', 'USD', { locale: 'en-US', display: 'none' }],
+    ['9007199254740993', 'USD', { locale: 'en-US', display: 'none' }],
+    ['12.5', 'USD', { locale: 'en-US', display: 'none', signDisplay: 'always' }],
+    ['0', 'USD', { locale: 'en-US', display: 'none', signDisplay: 'exceptZero' }],
+    ['-12.5', 'USD', { locale: 'en-US', display: 'none', signDisplay: 'never' }],
+    ['1234.5', 'USD', { locale: 'en-US', display: 'none', grouping: false }],
+  ] as const)('formats %s %s as Intl does, %o', (amount, currency, options) => {
+    const [own, intl] = both(() => formatAmount(amount, currency, options));
+    expect(own).toBe(intl);
+  });
+
+  it.each([
+    ['0.185', {}],
+    ['-0.0587', { maximumFractionDigits: 2 }],
+    ['1', {}],
+    ['0.49065', { maximumFractionDigits: 2 }],
+    ['0.99995', { maximumFractionDigits: 2 }],
+  ] as const)('formats the ratio %s as Intl does', (fraction, options) => {
+    const [own, intl] = both(() => formatRatio(fraction, { locale: 'en', ...options }));
+    expect(own).toBe(intl);
+  });
+
+  it.each([
+    ['1.871411691201311695', {}],
+    ['8.10', {}],
+    ['9.995', {}],
+    ['99.999', { maximumFractionDigits: 1 }],
+    ['60.08', { maximumFractionDigits: 0 }],
+    ['-2.5', { maximumFractionDigits: 0 }],
+  ] as const)('formats the decimal %s as Intl does, rounding half away from zero', (value, options) => {
+    const [own, intl] = both(() => formatDecimal(value, { locale: 'en', ...options }));
+    expect(own).toBe(intl);
   });
 });

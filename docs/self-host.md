@@ -108,6 +108,7 @@ How each way in works:
 |---|---|---|
 | The `salli` CLI | `salli login`: the browser or device page, with your password | yes |
 | The console | `salli ui`, or the server's `/console` in a browser: Salli's sign-in page, with your password | only within 5 minutes of entering the password; it asks for it again first |
+| The Salli app (in development) | Salli's sign-in page in the phone's secure browser sheet, with your password; HTTPS needed | only within 5 minutes of entering the password |
 | A session | `POST /v1/auth/sessions` with your email and password, for an app or a script | yes |
 | A personal access token | `salli tokens create`, for scripts and CI | only if made with `--allow tax:activate` |
 | An AI client over MCP | approved on Salli's consent page with your password | never |

@@ -32,7 +32,11 @@ from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from salli.application.services.login_service import SignInRefused, SignInThrottled
-from salli.application.services.mcp_oauth_service import CONSOLE_CLIENT_ID, ConsentError
+from salli.application.services.mcp_oauth_service import (
+    CONSOLE_CLIENT_ID,
+    MOBILE_CLIENT_ID,
+    ConsentError,
+)
 from salli.config import Settings, get_settings, insecure_dev_auth
 from salli.interfaces.api.deps import AppServices
 
@@ -204,14 +208,16 @@ def _asking(client: str, audience: str, scope: str) -> str:
     )
 
 
-def _is_console(info: dict[str, Any]) -> bool:
-    return info.get("client_id") == CONSOLE_CLIENT_ID
+def _is_salli(info: dict[str, Any]) -> bool:
+    """Salli's console or its app: signing in to Salli itself, not letting
+    another application in."""
+    return info.get("client_id") in (CONSOLE_CLIENT_ID, MOBILE_CLIENT_ID)
 
 
 def _title(info: dict[str, Any]) -> str:
     if info.get("reauthenticate"):
         return "Confirm it's you"
-    if _is_console(info):
+    if _is_salli(info):
         return "Sign in to Salli"
     client = str(info.get("client_name") or "An application")
     if info.get("audience", "mcp") == "api":
@@ -220,18 +226,18 @@ def _title(info: dict[str, Any]) -> str:
 
 
 def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
-    """The sign-in form. Salli's console reads plainly as signing in to
-    Salli, with one button; a client asking the person to confirm it's them
+    """The sign-in form. Salli's console and its app read plainly as signing
+    in to Salli, with one button; a client asking the person to confirm it's them
     again says so; any other client is allowed or denied by name."""
     e = html.escape
     audience = info.get("audience", "mcp")
     if info.get("reauthenticate"):
         intro = "<p>Enter your password again to continue.</p>"
-    elif _is_console(info):
+    elif _is_salli(info):
         intro = ""
     else:
         intro = f"<p>{_asking(info['client_name'], audience, info.get('scope') or '')}</p>"
-    if info.get("reauthenticate") or _is_console(info):
+    if info.get("reauthenticate") or _is_salli(info):
         label = "Continue" if info.get("reauthenticate") else "Sign in"
         buttons = f"<div class=row><button name=decision value=allow>{label}</button></div>"
     else:

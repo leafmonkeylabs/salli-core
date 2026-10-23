@@ -258,7 +258,7 @@ export const strings = {
       'Every way you are signed in: sessions, the salli command on each machine, the console in each tab. AI connections and tokens have pages of their own.',
     password:
       'Your password is changed with salli password. The console never asks for it: it is typed only on Salli’s own sign-in page and into the salli command.',
-    kind: { session: 'Session', cli: 'salli command', console: 'Console', app: 'Application' } as Record<string, string>,
+    kind: { session: 'Session', cli: 'salli command', console: 'Console', mobile: 'Salli app', app: 'Application' } as Record<string, string>,
     started: 'Started',
     lastUsed: 'Last used',
     ends: 'Ends',

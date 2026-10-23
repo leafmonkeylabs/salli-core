@@ -92,6 +92,11 @@ CLI_CLIENT_ID = "salli-cli"
 CONSOLE_CLIENT_ID = "salli-console"
 #: Where the console receives its code, under SALLI_PUBLIC_URL.
 CONSOLE_CALLBACK_PATH = "/console/callback"
+#: The phone app's client: first party, seeded by core_0022. A native app's
+#: private-use URI scheme (RFC 8252, section 7.1), the reverse of salli.money,
+#: is its one redirect, stored and matched exactly.
+MOBILE_CLIENT_ID = "salli-mobile"
+MOBILE_REDIRECT_URI = "money.salli.app:/oauth/callback"
 #: How often a grant's `last_used_at` is written, at most.
 _TOUCH_EVERY = timedelta(minutes=1)
 
@@ -316,6 +321,16 @@ class McpOAuthService:
             if not self._console_secure:
                 raise OAuthError(
                     "The console signs in only over HTTPS, or on this machine at localhost: "
+                    "set SALLI_PUBLIC_URL to an https:// address (docs/self-host.md)."
+                )
+        if client_id == MOBILE_CLIENT_ID:
+            if audience != API:
+                raise OAuthError("The app signs in to the API only (resource {base}/v1).")
+            # The same test as the console's: a password crosses a network
+            # only encrypted, and a simulator reaches this machine at localhost.
+            if not self._console_secure:
+                raise OAuthError(
+                    "The app signs in only over HTTPS, or on this machine at localhost: "
                     "set SALLI_PUBLIC_URL to an https:// address (docs/self-host.md)."
                 )
         if not self._matches(client, redirect_uri):
@@ -733,9 +748,11 @@ class McpOAuthService:
     ) -> dict[str, Any]:
         """A device code to poll with and a user code for the person to approve."""
         self.audience(resource)
-        if client_id == CONSOLE_CLIENT_ID:
-            # The console is a web page: it signs in through its redirect.
-            raise OAuthError("The console signs in with the authorization code grant only.")
+        if client_id in (CONSOLE_CLIENT_ID, MOBILE_CLIENT_ID):
+            # The console and the app sign in through their redirect.
+            raise OAuthError(
+                "The console and the app sign in with the authorization code grant only."
+            )
         async with self._uow_factory() as uow:
             if await uow.oauth_clients.get(client_id) is None:
                 raise OAuthError("unknown client_id")

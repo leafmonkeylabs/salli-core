@@ -728,6 +728,59 @@ async def test_the_console_needs_a_secure_public_url(world, clock):
         )
 
 
+# ── The phone app's client (docs/design/mobile.md) ──────────────────────────
+
+
+APP = "salli-mobile"
+APP_CALLBACK = "money.salli.app:/oauth/callback"
+
+
+def _app(clients):
+    return clients.seed(APP, "Salli app", [APP_CALLBACK], step_up_seconds=300)
+
+
+async def test_the_app_signs_in_to_its_one_redirect_with_no_absolute_end(world, clock):
+    service, clients, tokens, _ = world
+    _app(clients)
+    pair = await _sign_in(service, APP, APP_CALLBACK, f"{BASE}/v1")
+    record = await service.verify_access_token(pair["access_token"], audience=API)
+    assert (record["client_first_party"], record["client_step_up_seconds"]) == (True, 300)
+    [grant] = tokens.grants.values()
+    assert grant["expires_at"] is None
+
+
+@pytest.mark.parametrize(
+    "requested",
+    [
+        "money.salli.app:/oauth/callback/",
+        "money.salli.app://oauth/callback",
+        "money.salli.app:/oauth/callback?next=x",
+        "money.salli.evil:/oauth/callback",
+        "http://127.0.0.1:5000/oauth/callback",
+    ],
+)
+async def test_nothing_but_the_app_s_exact_redirect_matches(world, requested):
+    service, clients, *_ = world
+    _app(clients)
+    _, challenge = _pkce()
+    with pytest.raises(OAuthError, match="redirect_uri"):
+        await service.build_consent_redirect(
+            APP, requested, challenge, "S256", "", f"{BASE}/v1", None
+        )
+
+
+async def test_the_app_signs_in_to_the_api_only_and_never_by_device(world):
+    service, clients, *_ = world
+    _app(clients)
+    _, challenge = _pkce()
+    with pytest.raises(OAuthError, match="API only"):
+        await service.build_consent_redirect(
+            APP, APP_CALLBACK, challenge, "S256", "", f"{BASE}/mcp", None
+        )
+    with pytest.raises(OAuthError, match="authorization code grant only"):
+        await service.start_device_authorization(APP, "", f"{BASE}/v1")
+
+
 # ── Grants: rotation, reuse, the absolute lifetime ───────────────────────────
 
 

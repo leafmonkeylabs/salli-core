@@ -5,7 +5,10 @@
  * precision ("1234.50", "1200", "1.234") with the currency alongside. These
  * helpers format that string exactly, through `Intl.NumberFormat`'s decimal
  * string support: the amount never passes through a binary float, so
- * "123456789012345678.91" prints as exactly that.
+ * "123456789012345678.91" prints as exactly that. Where a runtime's Intl
+ * can't (React Native's Hermes, which reads the string as a float and lacks
+ * `signDisplay: 'negative'`), they write the digits themselves, taking only
+ * the locale's marks from Intl.
  *
  * Nothing here does arithmetic on an amount. Totals, balances and
  * conversions come from the server; a client only shows them.
@@ -117,6 +120,99 @@ export interface FormatAmountOptions {
 
 const formatterCache = new Map<string, Intl.NumberFormat>();
 
+// ── Where Intl can't format a decimal string exactly ─────────────────────────
+
+let exactIntl: boolean | undefined;
+
+/**
+ * Whether this runtime's `Intl.NumberFormat` formats a decimal string
+ * exactly (ECMA-402's NumberFormat v3) and knows `signDisplay: 'negative'`.
+ * Checked once, on an amount no binary float can hold.
+ */
+export function intlFormatsExactly(): boolean {
+  if (exactIntl === undefined) {
+    try {
+      const probe = new Intl.NumberFormat('en', { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'negative' });
+      exactIntl = probe.format('-12345678901234567.89' as DecimalString) === '-12,345,678,901,234,567.89';
+    } catch {
+      exactIntl = false;
+    }
+  }
+  return exactIntl;
+}
+
+/** For tests: format as a runtime without exact Intl would (`true`), or ask Intl again (`undefined`). */
+export function useStringFormattingForTests(on: boolean | undefined): void {
+  exactIntl = on === undefined ? undefined : !on;
+}
+
+const marksCache = new Map<string, { group: string; decimal: string }>();
+
+/** A locale's grouping and decimal marks, from formatting a number that isn't money. */
+function marksOf(locale: string | readonly string[] | undefined): { group: string; decimal: string } {
+  const key = JSON.stringify(locale ?? null);
+  let marks = marksCache.get(key);
+  if (!marks) {
+    marks = { group: ',', decimal: '.' };
+    try {
+      const parts = new Intl.NumberFormat(locale as string | string[] | undefined).formatToParts(1234567.5);
+      marks = {
+        group: parts.find((p) => p.type === 'group')?.value ?? ',',
+        decimal: parts.find((p) => p.type === 'decimal')?.value ?? '.',
+      };
+    } catch {
+      // No formatToParts: the API's own marks.
+    }
+    marksCache.set(key, marks);
+  }
+  return marks;
+}
+
+/** Rounds an unsigned decimal string to at most `max` decimals, half away from zero, by its digits. */
+function roundDigits(unsigned: string, max: number): string {
+  const [whole = '0', fraction = ''] = unsigned.split('.');
+  if (fraction.length <= max) return unsigned;
+  const digits = `${whole}${fraction.slice(0, max)}`.split('');
+  if (fraction.charAt(max) >= '5') {
+    let i = digits.length - 1;
+    for (; i >= 0 && digits[i] === '9'; i--) digits[i] = '0';
+    if (i < 0) digits.unshift('1');
+    else digits[i] = String.fromCharCode((digits[i] ?? '0').charCodeAt(0) + 1);
+  }
+  const text = digits.join('');
+  return max > 0 ? `${text.slice(0, text.length - max)}.${text.slice(text.length - max)}` : text;
+}
+
+interface TextOptions {
+  minimumFractionDigits: number;
+  maximumFractionDigits: number;
+  grouping: boolean;
+  signDisplay: NonNullable<FormatAmountOptions['signDisplay']>;
+  locale: string | readonly string[] | undefined;
+}
+
+/** A decimal string written out as Intl would, from its digits: never a float. */
+function formatText(text: string, options: TextOptions): string {
+  const negative = text.trim().startsWith('-');
+  const rounded = roundDigits(text.trim().replace(/^[+-]/, ''), options.maximumFractionDigits);
+  let [whole = '0', fraction = ''] = rounded.split('.');
+  whole = whole.replace(/^0+(?=\d)/, '');
+  fraction = fraction.replace(/0+$/, '').padEnd(options.minimumFractionDigits, '0');
+  const zero = /^0*$/.test(whole + fraction);
+  const marks = marksOf(options.locale);
+  const grouped = options.grouping ? whole.replace(/\B(?=(\d{3})+(?!\d))/g, marks.group) : whole;
+  const body = fraction ? `${grouped}${marks.decimal}${fraction}` : grouped;
+  const sign =
+    options.signDisplay === 'never'
+      ? ''
+      : negative && !zero
+        ? '-'
+        : options.signDisplay === 'always' || (options.signDisplay === 'exceptZero' && !zero)
+          ? '+'
+          : '';
+  return `${sign}${body}`;
+}
+
 function formatter(
   locale: string | readonly string[] | undefined,
   options: Intl.NumberFormatOptions,
@@ -155,6 +251,19 @@ export function formatAmount(
     signDisplay: options.signDisplay ?? 'negative',
   };
   const display = options.display ?? 'code';
+  if (!intlFormatsExactly()) {
+    const body = formatText(text, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: numberOptions.maximumFractionDigits ?? digits,
+      grouping: options.grouping ?? true,
+      signDisplay: options.signDisplay ?? 'negative',
+      locale: options.locale,
+    });
+    if (display === 'none') return body;
+    // The code, as Intl writes it in English: before the figure, after any sign.
+    const signed = /^[+-]/.exec(body)?.[0] ?? '';
+    return `${signed}${currency.toUpperCase()}\u00a0${body.slice(signed.length)}`;
+  }
   if (display !== 'none') {
     try {
       return formatter(options.locale, {
@@ -190,12 +299,31 @@ export function formatRatio(
   if (fraction === null || fraction === undefined || fraction === '') return '';
   const text = typeof fraction === 'number' ? String(fraction) : fraction.trim();
   if (typeof fraction === 'string' && !isAmount(text)) return text;
+  if (!intlFormatsExactly() && isAmount(text)) {
+    return `${formatText(percentOf(text), {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: options.maximumFractionDigits ?? 1,
+      grouping: true,
+      signDisplay: options.signDisplay ?? 'negative',
+      locale: options.locale,
+    })}%`;
+  }
   return formatter(options.locale, {
     style: 'percent',
     minimumFractionDigits: 0,
     maximumFractionDigits: options.maximumFractionDigits ?? 1,
     signDisplay: options.signDisplay ?? 'negative',
   }).format(text as DecimalString);
+}
+
+/** A fraction as a percentage's digits ("0.185" → "18.5"), by moving its decimal point: no arithmetic. */
+function percentOf(fraction: string): string {
+  const negative = fraction.startsWith('-');
+  const [whole = '0', part = ''] = fraction.replace(/^[+-]/, '').split('.');
+  const digits = `${whole}${part.padEnd(2, '0')}`;
+  const point = whole.length + 2;
+  const moved = `${digits.slice(0, point)}${point < digits.length ? `.${digits.slice(point)}` : ''}`;
+  return `${negative ? '-' : ''}${moved.replace(/^0+(?=\d)/, '')}`;
 }
 
 export interface FormatDecimalOptions {
@@ -214,6 +342,15 @@ export function formatDecimal(value: string | number | null | undefined, options
   if (value === null || value === undefined || value === '') return '';
   const text = typeof value === 'number' ? String(value) : value.trim();
   if (typeof value === 'string' && !isAmount(text)) return text;
+  if (!intlFormatsExactly() && isAmount(text)) {
+    return formatText(text, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: options.maximumFractionDigits ?? 2,
+      grouping: true,
+      signDisplay: 'negative',
+      locale: options.locale,
+    });
+  }
   return formatter(options.locale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: options.maximumFractionDigits ?? 2,

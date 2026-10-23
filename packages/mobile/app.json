@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Salli",
+    "slug": "salli",
+    "scheme": "money.salli.app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "money.salli.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSFaceIDUsageDescription": "Salli opens with Face ID, so only you see your books."
+      }
+    },
+    "android": {
+      "package": "money.salli.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#173B33"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "root": "./src/app"
+        }
+      ],
+      "expo-web-browser",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 120,
+          "backgroundColor": "#F6F3EC",
+          "dark": {
+            "image": "./assets/icon.png",
+            "backgroundColor": "#0E1513"
+          }
+        }
+      ]
+    ]
+  }
+}
