@@ -1,0 +1,207 @@
+/**
+ * The app's parts, as the console's kit has them (docs/design/mobile.md):
+ * square corners, hairline cards, 48 px to touch, the outlined-square label,
+ * figures exactly as the server sent them.
+ */
+import type { ReactNode } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type PressableProps, type TextStyle, type ViewStyle } from 'react-native';
+import Svg, { Path, Rect, SvgXml } from 'react-native-svg';
+import { LOGO_DARK, LOGO_LIGHT } from './brand/logo';
+import { amountParts } from './lib/display';
+import { font, size, useTheme } from './theme';
+
+export function Logo({ height = 36 }: { height?: number }) {
+  const theme = useTheme();
+  // The file's viewBox is 472.214 × 137.829, its clear space inside it.
+  return <SvgXml xml={theme.dark ? LOGO_DARK : LOGO_LIGHT} height={height} width={(height * 472.214) / 137.829} accessibilityLabel="Salli" />;
+}
+
+export function Card({ children, style, tile }: { children: ReactNode; style?: ViewStyle; tile?: boolean }) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.card, tile ? { backgroundColor: theme.tile } : { backgroundColor: theme.card, borderColor: theme.rule, borderWidth: StyleSheet.hairlineWidth }, style]}>
+      {children}
+    </View>
+  );
+}
+
+/** A section's label: a small outlined square, then tracked capitals. */
+export function SectionLabel({ children, onTile }: { children: string; onTile?: boolean }) {
+  const theme = useTheme();
+  const colour = onTile ? theme.tileMuted : theme.muted;
+  return (
+    <View style={styles.label} accessibilityRole="header">
+      <View style={[styles.square, { borderColor: colour }]} />
+      <Text style={[styles.labelText, { color: colour }]}>{children.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+export function Title({ children }: { children: string }) {
+  const theme = useTheme();
+  return (
+    <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      {children}
+    </Text>
+  );
+}
+
+export function Body({ children, muted, small, style }: { children: ReactNode; muted?: boolean; small?: boolean; style?: TextStyle }) {
+  const theme = useTheme();
+  return (
+    <Text style={[small ? styles.small : styles.body, { color: muted ? theme.muted : theme.text }, style]}>{children}</Text>
+  );
+}
+
+type ButtonKind = 'primary' | 'secondary' | 'tertiary';
+
+export function Button({ label, kind = 'primary', busy, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean } & Omit<PressableProps, 'children'>) {
+  const theme = useTheme();
+  const fill = kind === 'primary' ? theme.button : kind === 'secondary' ? theme.button2 : 'transparent';
+  const colour = kind === 'primary' ? theme.buttonText : kind === 'secondary' ? theme.button2Text : theme.text;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!rest.disabled || !!busy, busy: !!busy }}
+      style={({ pressed }) => [styles.button, { backgroundColor: fill, opacity: pressed || rest.disabled ? 0.8 : 1 }]}
+      {...rest}
+    >
+      {busy ? <ActivityIndicator color={colour} /> : null}
+      <Text style={[styles.buttonText, { color: colour }, kind === 'tertiary' ? styles.underline : null]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * An amount exactly as the server sent it: the code small before a key
+ * figure, negatives in brackets (oxblood in tables), what a reader says
+ * spelled out.
+ */
+export function Money({ amount, currency, figure, onTile, style }: { amount: string; currency: string; figure?: 'key' | 'hero'; onTile?: boolean; style?: TextStyle }) {
+  const theme = useTheme();
+  const parts = amountParts(amount, currency);
+  const shown = parts.negative ? `(${parts.digits})` : parts.digits;
+  const colour = onTile ? theme.tileText : parts.negative ? theme.negative : theme.text;
+  if (!figure) {
+    return (
+      <Text accessibilityLabel={parts.spoken} style={[styles.figures, styles.body, { color: colour }, style]}>
+        {shown}
+      </Text>
+    );
+  }
+  return (
+    <View accessible accessibilityLabel={parts.spoken} style={styles.figureRow}>
+      <Text style={[styles.code, { color: onTile ? theme.tileMuted : theme.muted }]}>{currency}</Text>
+      <Text
+        adjustsFontSizeToFit
+        numberOfLines={1}
+        minimumFontScale={0.6}
+        style={[styles.figures, figure === 'hero' ? styles.hero : styles.keyFigure, { color: colour }, style]}
+      >
+        {shown}
+      </Text>
+    </View>
+  );
+}
+
+/** A list row: a bullet, a title and a line under it, and what it opens. */
+export function Row({ title, detail, onPress, action, last }: { title: string; detail?: string; onPress?: () => void; action?: ReactNode; last?: boolean }) {
+  const theme = useTheme();
+  const content = (
+    <>
+      <View style={[styles.bullet, { backgroundColor: theme.muted }]} />
+      <View style={styles.rowText}>
+        <Body>{title}</Body>
+        {detail ? <Body small muted>{detail}</Body> : null}
+      </View>
+      {action}
+      {onPress ? <Icon name="chevron" size={16} colour={theme.muted} /> : null}
+    </>
+  );
+  const style = [styles.row, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
+  return onPress ? (
+    <Pressable accessibilityRole="link" onPress={onPress} style={style}>
+      {content}
+    </Pressable>
+  ) : (
+    <View style={style}>{content}</View>
+  );
+}
+
+export function Loading({ what }: { what: string }) {
+  return (
+    <Body small muted style={{ paddingVertical: 8 }}>
+      {what}
+    </Body>
+  );
+}
+
+/** A problem: what happened, then what to do. */
+export function Problem({ title, body, children }: { title: string; body: string; children?: ReactNode }) {
+  return (
+    <Card style={{ gap: 10 }}>
+      <Text accessibilityRole="header" style={[styles.heading, { color: useTheme().text }]}>
+        {title}
+      </Text>
+      <Body>{body}</Body>
+      {children}
+    </Card>
+  );
+}
+
+const ICONS = {
+  home: 'M4 11 12 4l8 7v9h-5v-6H9v6H4z',
+  decide: 'M12 4v16M8 20h8M5 8h14M5 8l-2.5 6h5zM19 8l-2.5 6h5z',
+  more: 'M4 7h16M4 12h16M4 17h16',
+  plus: 'M12 5v14M5 12h14',
+  chevron: 'M9 5l7 7-7 7',
+  down: 'M6 9l6 6 6-6',
+  back: 'M15 5l-7 7 7 7',
+  external: 'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
+} as const;
+
+export type IconName = keyof typeof ICONS | 'cash' | 'books';
+
+/** The console's icons: a 24 grid, 1.5 strokes, square caps, mitred joins. */
+export function Icon({ name, size: px = 24, colour }: { name: IconName; size?: number; colour: string }) {
+  const stroke = { stroke: colour, strokeWidth: (1.5 * 24) / px, strokeLinecap: 'square' as const, strokeLinejoin: 'miter' as const, fill: 'none' };
+  return (
+    <Svg width={px} height={px} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no">
+      {name === 'cash' ? (
+        <>
+          <Rect x={3} y={7} width={18} height={10} {...stroke} />
+          <Path d="M12 9.5v5M9.5 12h5" {...stroke} />
+        </>
+      ) : name === 'books' ? (
+        <>
+          <Rect x={4} y={4} width={16} height={16} {...stroke} />
+          <Path d="M4 9h16M4 14h16M10 4v16" {...stroke} />
+        </>
+      ) : (
+        <Path d={ICONS[name]} {...stroke} />
+      )}
+    </Svg>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: { padding: 16, borderRadius: 0 },
+  label: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 20 },
+  square: { width: 8, height: 8, borderWidth: 1.5 },
+  labelText: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
+  title: { fontFamily: font.semibold, fontSize: size.title, letterSpacing: -0.025 * size.title, lineHeight: size.title * 1.15 },
+  heading: { fontFamily: font.medium, fontSize: size.heading, letterSpacing: -0.01 * size.heading, lineHeight: size.heading * 1.3 },
+  body: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
+  small: { fontFamily: font.regular, fontSize: size.small, lineHeight: size.small * 1.5 },
+  button: { minHeight: size.target, paddingHorizontal: 18, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 0 },
+  buttonText: { fontFamily: font.medium, fontSize: size.body },
+  underline: { textDecorationLine: 'underline' },
+  figureRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' },
+  code: { fontFamily: font.mono, fontSize: 13 },
+  figures: { fontVariant: ['tabular-nums'] },
+  hero: { fontFamily: font.semibold, fontSize: size.figure, letterSpacing: -0.03 * size.figure, flexShrink: 1 },
+  keyFigure: { fontFamily: font.medium, fontSize: size.keyFigure, letterSpacing: -0.01 * size.keyFigure, flexShrink: 1 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
+  bullet: { width: 6, height: 6 },
+  rowText: { flex: 1, gap: 2 },
+});
