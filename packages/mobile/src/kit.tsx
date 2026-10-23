@@ -46,10 +46,10 @@ export function Title({ children }: { children: string }) {
   );
 }
 
-export function Body({ children, muted, small, style }: { children: ReactNode; muted?: boolean; small?: boolean; style?: TextStyle }) {
+export function Body({ children, muted, small, style, alert }: { children: ReactNode; muted?: boolean; small?: boolean; style?: TextStyle; alert?: boolean }) {
   const theme = useTheme();
   return (
-    <Text style={[small ? styles.small : styles.body, { color: muted ? theme.muted : theme.text }, style]}>{children}</Text>
+    <Text {...(alert ? { accessibilityRole: 'alert' as const, accessibilityLiveRegion: 'polite' as const } : {})} style={[small ? styles.small : styles.body, { color: muted ? theme.muted : theme.text }, style]}>{children}</Text>
   );
 }
 
@@ -63,7 +63,7 @@ export function Button({ label, kind = 'primary', busy, ...rest }: { label: stri
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!rest.disabled || !!busy, busy: !!busy }}
-      style={({ pressed }) => [styles.button, { backgroundColor: fill, opacity: pressed || rest.disabled ? 0.8 : 1 }]}
+      style={({ pressed }) => [styles.button, { backgroundColor: fill, opacity: rest.disabled ? 0.45 : pressed ? 0.8 : 1 }]}
       {...rest}
     >
       {busy ? <ActivityIndicator color={colour} /> : null}
@@ -125,6 +125,51 @@ export function Row({ title, detail, onPress, action, last }: { title: string; d
     </Pressable>
   ) : (
     <View style={style}>{content}</View>
+  );
+}
+
+/** A row with a figure at its end: a label, a line under it, the amount. */
+export function AmountRow({ title, detail, amount, currency, onPress, last }: { title: string; detail?: string; amount: string; currency: string; onPress?: () => void; last?: boolean }) {
+  const theme = useTheme();
+  const style = [styles.amountRow, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
+  const content = (
+    <>
+      <View style={styles.rowText}>
+        <Body>{title}</Body>
+        {detail ? (
+          <Body small muted>
+            {detail}
+          </Body>
+        ) : null}
+      </View>
+      <Money amount={amount} currency={currency} />
+      {onPress ? <Icon name="chevron" size={16} colour={theme.muted} /> : null}
+    </>
+  );
+  return onPress ? (
+    <Pressable accessibilityRole="link" onPress={onPress} style={style}>
+      {content}
+    </Pressable>
+  ) : (
+    <View style={style}>{content}</View>
+  );
+}
+
+/** A card's first line: its label, and a line saying what it holds. */
+export function CardHead({ label, help, end }: { label: string; help?: string; end?: string }) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: 4, paddingBottom: 4 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <SectionLabel>{label}</SectionLabel>
+        {end ? <Text style={[styles.labelText, { color: theme.muted }]}>{end}</Text> : null}
+      </View>
+      {help ? (
+        <Body small muted>
+          {help}
+        </Body>
+      ) : null}
+    </View>
   );
 }
 
@@ -202,6 +247,7 @@ const styles = StyleSheet.create({
   hero: { fontFamily: font.semibold, fontSize: size.figure, letterSpacing: -0.03 * size.figure, flexShrink: 1 },
   keyFigure: { fontFamily: font.medium, fontSize: size.keyFigure, letterSpacing: -0.01 * size.keyFigure, flexShrink: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 8 },
   bullet: { width: 6, height: 6 },
   rowText: { flex: 1, gap: 2 },
 });

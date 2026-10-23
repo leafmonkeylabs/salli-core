@@ -2,32 +2,88 @@
  * The frame around a place: the bar at the top (which server, and adding an
  * entry), and a place still to come, which says where it is meanwhile.
  */
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Body, Button, Card, Icon, Title } from './kit';
 import { useSession } from './session';
 import { strings } from './strings';
 import { font, size, useTheme } from './theme';
 
-/** The top bar: a place's title, or on Home the server you are on. */
-export function Header({ title, server }: { title?: string; server?: boolean }) {
+/** The top bar: a way back, or on Home the server you are on; one action; a place's title. */
+export function Header({ title, server, back, action }: { title?: string; server?: boolean; back?: { label: string; onPress: () => void }; action?: ReactNode }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { session } = useSession();
   const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
+  const lead = back ? (
+    <BackLink label={back.label} onPress={back.onPress} />
+  ) : server ? (
+    <View accessible accessibilityLabel={strings.home.switchServer(host)} style={styles.server}>
+      <Text style={[styles.host, { color: theme.text }]} numberOfLines={1}>
+        {host}
+      </Text>
+    </View>
+  ) : null;
   return (
     <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.chrome, borderBottomColor: theme.rule }]}>
-      {server ? (
-        <View accessible accessibilityLabel={strings.home.switchServer(host)} style={styles.server}>
-          <Text style={[styles.host, { color: theme.text }]} numberOfLines={1}>
-            {host}
-          </Text>
+      {lead || action ? (
+        <View style={styles.bar}>
+          {lead ?? <View />}
+          {action}
         </View>
-      ) : (
+      ) : null}
+      {title ? (
         <View style={styles.titleBox}>
-          <Title>{title ?? ''}</Title>
+          <Title>{title}</Title>
         </View>
-      )}
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Pulling down to read again. The spinner is the person's pull only: a read
+ * that runs again after a change, in the background, doesn't show it.
+ */
+export function Pull({ read }: { read: () => Promise<unknown> }) {
+  const [pulling, setPulling] = useState(false);
+  return (
+    <RefreshControl
+      refreshing={pulling}
+      onRefresh={() => {
+        setPulling(true);
+        void read().finally(() => setPulling(false));
+      }}
+    />
+  );
+}
+
+/** A place: its header, then its cards, pulled down to read again. */
+export function Page({
+  title,
+  back,
+  action,
+  children,
+  onRefresh,
+}: {
+  title?: string;
+  back?: { label: string; onPress: () => void };
+  action?: ReactNode;
+  children: ReactNode;
+  onRefresh?: () => Promise<unknown>;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.work }}>
+      <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={action} />
+      <ScrollView
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={onRefresh ? <Pull read={onRefresh} /> : undefined}
+      >
+        {children}
+      </ScrollView>
     </View>
   );
 }
@@ -62,6 +118,7 @@ export function BackLink({ label, onPress }: { label: string; onPress: () => voi
 
 const styles = StyleSheet.create({
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
+  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: size.target },
   server: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 8 },
   host: { fontFamily: font.mono, fontSize: size.small },
   titleBox: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 8, paddingBottom: 8 },
