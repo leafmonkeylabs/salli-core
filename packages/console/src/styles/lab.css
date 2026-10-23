@@ -6,6 +6,10 @@
 
 /* A place's own places: a segmented row on a bone track (kit.css has the
    rest of the kit; this stays with the lab, which drew the first). */
+.subnav {
+  min-width: 0;
+}
+
 .subnav ul {
   list-style: none;
   margin: 0;
@@ -22,7 +26,7 @@
 .subnav a {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
+  min-height: max(34px, var(--target));
   padding: 0 12px;
   color: var(--c-muted);
   font-weight: 500;
@@ -34,21 +38,18 @@
   color: var(--c-text);
 }
 
+/* The card and its hairline are under 3:1 on the track, so a bar marks it too. */
 .subnav a[aria-current='page'] {
   background: var(--c-card);
   color: var(--c-text);
   border-color: var(--c-rule);
+  box-shadow: inset 0 -2px 0 var(--c-brand);
 }
 
+/* On a phone the row wraps onto lines of 44 px places; nothing scrolls sideways. */
 @media (max-width: 720px) {
   .subnav ul {
-    flex-wrap: nowrap;
-    overflow-x: auto;
     width: auto;
-  }
-
-  .subnav a {
-    white-space: nowrap;
   }
 }
 
@@ -264,31 +265,7 @@
   white-space: nowrap;
 }
 
-/* The page's one column never grows past the screen for something wide in
-   it (the row of places, a table): those scroll within themselves. */
-.page {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.subnav {
-  min-width: 0;
-}
-
 /* A fieldset is as wide as its widest content by default; these fit their column. */
 fieldset {
   min-width: 0;
-}
-
-/* A select is as wide as its longest option unless held to its column. */
-.form,
-.field,
-.group,
-.group-item {
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-}
-
-.field-select {
-  min-width: 0;
-  max-width: 100%;
 }

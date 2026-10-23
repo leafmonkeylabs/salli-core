@@ -144,13 +144,13 @@ test('saves the journal on the device, under the CSP', async ({ page }) => {
   const seen = await open(page, '/decide/journal', 1280, 'light');
   await settled(page);
   const json = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download as JSON' }).click();
+  await page.getByRole('button', { name: 'Save as JSON' }).click();
   const file = await json;
   expect(file.suggestedFilename()).toBe('salli-decisions-2026-10-11.json');
   const text = await (await file.createReadStream()).toArray();
   expect(JSON.parse(Buffer.concat(text).toString('utf8'))).toMatchObject({ schema: 'salli.decision-journal/1' });
   const md = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download as Markdown' }).click();
+  await page.getByRole('button', { name: 'Save as Markdown' }).click();
   expect((await md).suggestedFilename()).toBe('salli-decisions-2026-10-11.md');
   await seen.check();
 });

@@ -256,7 +256,7 @@ async def test_a_row_in_another_currency_than_the_account_is_skipped(world):
 
     assert len(result.transactions) == 6
     assert "INCOMING WIRE" not in " ".join(t.raw.description for t in result.transactions)
-    assert result.errors == ["Skipped 1 transaction(s) in GBP: Checking is kept in USD"]
+    assert result.errors == ["Skipped 1 transaction in GBP: Checking is kept in USD."]
 
 
 async def test_a_currency_that_contradicts_the_account_is_refused(world):
@@ -374,7 +374,7 @@ async def test_nothing_to_import(world):
         USER, [_row("HOTEL", "120.00", currency="EUR")], bank="", account_id="checking"
     )
     assert result.errors == [
-        "Skipped 1 transaction(s) in EUR: Checking is kept in USD",
+        "Skipped 1 transaction in EUR: Checking is kept in USD.",
         "No transactions to import",
     ]
     assert world.statements.statements == {}
@@ -630,7 +630,7 @@ async def test_an_account_the_model_invents_is_dropped(world, monkeypatch):
 
     (txn,) = result.transactions
     assert (txn.debit_account_id, txn.credit_account_id, txn.confidence) == ("", "checking", 0.0)
-    assert result.errors == ["1 transaction(s) still need an account; choose one to post"]
+    assert result.errors == ["1 transaction still needs an account; choose one to post."]
 
 
 class NoKey:
@@ -655,8 +655,8 @@ async def test_without_an_ai_key_the_rules_sort_what_they_can(world, model, cred
     assert groceries.confidence == 0.0
     assert model == []
     assert result.errors == [
-        "1 transaction(s) need an account: with no AI key set up, only your rules sorted "
-        "this statement"
+        "1 transaction needs an account: with no AI key set up, only your rules sorted "
+        "this statement."
     ]
     assert len(world.statements.rows) == 2  # imported all the same, for review
 
@@ -976,7 +976,7 @@ async def test_a_placeholder_date_is_skipped_not_a_server_error(world):
         USER, rows, bank="", account_id="checking", api_key="k"
     )
     assert [t.raw.description for t in result.transactions] == ["COFFEE"]
-    assert "Skipped 1 transaction(s) without a real date" in result.errors
+    assert "Skipped 1 transaction without a real date." in result.errors
 
 
 def test_shifting_a_date_past_the_calendar_stays_within_it():

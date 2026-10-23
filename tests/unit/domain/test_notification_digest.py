@@ -24,6 +24,7 @@ from salli.domain.notifications.digest import (
     item_title,
     message_hash,
     notification_id,
+    on_screen,
     waiting_items,
 )
 from tests.guardrails import assert_never_urges
@@ -63,7 +64,7 @@ def test_a_decision_review_counts_once_its_date_has_come():
     )
     (item,) = waiting_items(waiting, TODAY, UNTIL, ITEM_KINDS)
     assert item == NotificationItem(
-        "decision_review_due", "2 decisions ready for review (since 2026-10-05)", 2, "2026-10-05"
+        "decision_review_due", "2 decisions ready for review (since Oct 5, 2026)", 2, "2026-10-05"
     )
 
 
@@ -82,7 +83,7 @@ def test_the_persons_own_reminders_count_until_the_next_digest():
     (item,) = waiting_items(waiting, TODAY, UNTIL, ITEM_KINDS)
     assert item.kind == "reminder_due"
     assert (item.count, item.date) == (2, "2026-10-01")
-    assert item.title == "2 reminders due, the first on 2026-10-01"
+    assert item.title == "2 reminders due, the first on Oct 1, 2026"
 
 
 def test_filing_deadlines_count_from_today_to_fourteen_days_ahead():
@@ -97,13 +98,16 @@ def test_filing_deadlines_count_from_today_to_fourteen_days_ahead():
     )
     (item,) = waiting_items(waiting, TODAY, UNTIL, ITEM_KINDS)
     assert (item.kind, item.count, item.date) == ("filing_deadline", 2, "2026-10-12")
-    assert item.title == "2 filing deadlines, the first on 2026-10-12"
+    assert item.title == "2 filing deadlines, the first on Oct 12, 2026"
 
 
 def test_cash_below_zero_says_the_day():
     (item,) = waiting_items(Waiting(cash_below_zero_on=d("2026-11-02")), TODAY, UNTIL, ITEM_KINDS)
     assert item == NotificationItem(
-        "cash_below_zero_ahead", "Your cash forecast goes below zero on 2026-11-02", 1, "2026-11-02"
+        "cash_below_zero_ahead",
+        "Your cash forecast goes below zero on Nov 2, 2026",
+        1,
+        "2026-11-02",
     )
 
 
@@ -113,7 +117,7 @@ def test_transactions_to_review_only_when_chosen():
     (item,) = waiting_items(waiting, TODAY, UNTIL, ITEM_KINDS)
     assert item == NotificationItem(
         "transactions_to_review",
-        "4 transactions to review (waiting since 2026-10-01)",
+        "4 transactions to review (waiting since Oct 1, 2026)",
         4,
         "2026-10-01",
     )
@@ -121,10 +125,10 @@ def test_transactions_to_review_only_when_chosen():
 
 def test_one_of_a_kind_reads_in_the_singular():
     assert item_title("decision_review_due", 1, d("2026-10-05")) == (
-        "1 decision ready for review (since 2026-10-05)"
+        "1 decision ready for review (since Oct 5, 2026)"
     )
-    assert item_title("reminder_due", 1, d("2026-10-14")) == "1 reminder due on 2026-10-14"
-    assert item_title("filing_deadline", 1, d("2026-10-20")) == "1 filing deadline on 2026-10-20"
+    assert item_title("reminder_due", 1, d("2026-10-14")) == "1 reminder due on Oct 14, 2026"
+    assert item_title("filing_deadline", 1, d("2026-10-20")) == "1 filing deadline on Oct 20, 2026"
     assert item_title("transactions_to_review", 1, None) == "1 transaction to review"
     with pytest.raises(ValueError):
         item_title("reminder_due", 0, None)
@@ -168,13 +172,13 @@ def test_a_weekly_digest_reads_in_full():
     n = build_digest("u1", _items(), period="2026-W42", cadence="weekly", today=TODAY, link=LINK)
     assert n is not None
     assert (n.kind, n.period, n.user_id, n.link) == ("digest", "2026-W42", "u1", LINK)
-    assert n.subject == "Salli: what is waiting, week of 2026-10-12"
+    assert n.subject == "Salli: what is waiting, week of Oct 12, 2026"
     assert n.text == (
-        "What is waiting for you in Salli, as of 2026-10-12:\n"
+        "What is waiting for you in Salli, as of Oct 12, 2026:\n"
         "\n"
-        "- 1 decision ready for review (since 2026-10-05)\n"
-        "- 1 reminder due on 2026-10-14\n"
-        "- Your cash forecast goes below zero on 2026-11-02\n"
+        "- 1 decision ready for review (since Oct 5, 2026)\n"
+        "- 1 reminder due on Oct 14, 2026\n"
+        "- Your cash forecast goes below zero on Nov 2, 2026\n"
         "\n"
         "Open Salli to see them: https://money.example.org\n"
         "\n"
@@ -188,7 +192,7 @@ def test_a_monthly_digest_without_a_link():
         "u1", _items(), period="2026-11", cadence="monthly", today=d("2026-11-02"), link=None
     )
     assert n is not None
-    assert n.subject == "Salli: what is waiting, 2026-11"
+    assert n.subject == "Salli: what is waiting, Nov 2026"
     assert "Open Salli, or run `salli status`, to see them." in n.text
     assert "every month" in n.text
     assert n.link is None
@@ -273,8 +277,21 @@ def test_every_title_has_a_date_and_never_a_number_of_days():
     for kind in ITEM_KINDS:
         for count in (1, 2, 30):
             title = item_title(kind, count, d("2026-12-31"))
-            assert "2026-12-31" in title
+            assert "Dec 31, 2026" in title and "2026-12-31" not in title
             assert_never_urges({"title": title})
+
+
+def test_dates_read_as_the_brand_writes_them_on_screen():
+    assert on_screen(d("2026-09-30")) == "Sep 30, 2026"
+    assert on_screen(d("2027-01-01")) == "Jan 1, 2027"
+    n = build_digest(
+        "u1", _items(), period="2026-10", cadence="monthly", today=d("2026-10-05"), link=None
+    )
+    assert n is not None
+    assert n.subject == "Salli: what is waiting, Oct 2026"
+    assert "as of Oct 5, 2026:" in n.text
+    # The data keeps ISO 8601.
+    assert [i.date for i in n.items] == ["2026-10-05", "2026-10-14", "2026-11-02"]
 
 
 def test_the_guard_catches_what_it_is_for():

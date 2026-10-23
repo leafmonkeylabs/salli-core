@@ -29,7 +29,7 @@ import { useRead, useWrite } from '../../api';
 import { bookStrings } from '../../books-strings';
 import { displayDate } from '../../kit/dates';
 import { Button, Confirm } from '../../kit/forms';
-import { Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
+import { Blank, Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
 import { useLocale } from '../../preferences';
@@ -110,7 +110,7 @@ function Item({
       </select>
     </label>
   );
-  const moneyName = money ? book.label(money) : '—';
+  const moneyName = money ? book.label(money) : <Blank>{t.notChosen}</Blank>;
   return (
     <li className={['review-item', selected ? 'review-item-selected' : ''].filter(Boolean).join(' ')}>
       <div className="review-select">

@@ -30,7 +30,7 @@ import { BarChart } from '../../kit/chart/BarChart';
 import { LineChart } from '../../kit/chart/LineChart';
 import { monthTicks } from '../../kit/chart/ticks';
 import { displayDate, displayMonth } from '../../kit/dates';
-import { Empty, Grid, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
+import { Blank, Empty, Grid, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
 import { Money, visibleAmount } from '../../kit/Money';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
@@ -254,7 +254,7 @@ function FlowChart({ data }: { data: CashFlow }) {
             { key: 'income', header: `${c.income} (${code})`, label: c.income, align: 'end', render: (m) => <Money amount={m.income} currency={code} variant="table" /> },
             { key: 'spending', header: `${c.spending} (${code})`, label: c.spending, align: 'end', render: (m) => <Money amount={m.expenses} currency={code} variant="table" /> },
             { key: 'net', header: `${c.leftOver} (${code})`, label: c.leftOver, align: 'end', render: (m) => <Money amount={m.net} currency={code} variant="table" /> },
-            { key: 'saved', header: c.saved, label: c.saved, align: 'end', render: (m) => (m.savings_rate === null ? '—' : formatRatio(m.savings_rate, { locale })) },
+            { key: 'saved', header: c.saved, label: c.saved, align: 'end', render: (m) => (m.savings_rate === null ? <Blank>{c.noIncome}</Blank> : formatRatio(m.savings_rate, { locale })) },
           ]}
         />
       }
@@ -317,7 +317,7 @@ function Spending() {
                 columns={[
                   { key: 'key', header: c.category, label: c.category, render: (l) => l.key },
                   { key: 'total', header: `${c.total} (${code})`, label: c.total, align: 'end', render: (l) => <Money amount={l.total} currency={code} variant="table" /> },
-                  { key: 'share', header: c.share, label: c.share, align: 'end', render: (l) => (l.share === null ? '—' : formatRatio(l.share, { locale })) },
+                  { key: 'share', header: c.share, label: c.share, align: 'end', render: (l) => (l.share === null ? <Blank>{c.noShare}</Blank> : formatRatio(l.share, { locale })) },
                 ]}
               />
             </Panel>
@@ -353,8 +353,8 @@ function Recurring() {
                     align: 'end',
                     render: (r) => (
                       <>
-                        {r.varies ? <span className="muted">{c.about} </span> : null}
                         <Money amount={r.typical_amount} currency={r.currency} variant="table" withCode />
+                        {r.varies ? <span className="muted"> {c.varies}</span> : null}
                       </>
                     ),
                   },

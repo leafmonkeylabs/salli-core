@@ -16,6 +16,7 @@ import { Money } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
+import { Blank } from '../../kit/layout';
 import { whereStrings } from '../../where-strings';
 import { AccountChipOf, entryLine, entryPath, LEDGER_READS, type AccountBook } from './ledger';
 
@@ -76,7 +77,7 @@ export function EntryLines({ entry, book, base, compact }: { entry: JournalEntry
             render: (p) => (p.direction < 0 ? <Money amount={p.amount} currency={p.currency} variant="table" withCode={!code} /> : null),
           },
           ...(converted && !compact
-            ? [{ key: 'rate', header: x.rate, label: x.rate, align: 'end' as const, render: (p: Posting) => (isConverted(p) && base ? x.rateText(p.currency, p.fx_rate, base) : '—') }]
+            ? [{ key: 'rate', header: x.rate, label: x.rate, align: 'end' as const, render: (p: Posting) => (isConverted(p) && base ? x.rateText(p.currency, p.fx_rate, base) : <Blank>{x.baseCurrency}</Blank>) }]
             : []),
           ...(tagged
             ? [
@@ -95,7 +96,7 @@ export function EntryLines({ entry, book, base, compact }: { entry: JournalEntry
                         ))}
                       </span>
                     ) : (
-                      x.noTags
+                      <Blank>{x.noTags}</Blank>
                     );
                   },
                 },

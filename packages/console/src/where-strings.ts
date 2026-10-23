@@ -12,7 +12,7 @@
  */
 
 export const whereStrings = {
-  // ── Books: the chart of accounts and the ledger ────────────────────────
+  // Books: the chart of accounts and the ledger
   books: {
     nav: 'Books',
     accounts: 'Accounts',
@@ -133,8 +133,11 @@ export const whereStrings = {
     words: 'Words',
     remove: (what: string) => `Remove the ${what.toLowerCase()} filter`,
     done: 'Show these',
-    export: 'Export',
-    exportHelp: 'Your books as Beancount, hledger or JSON, from Settings, Your data.',
+    export: 'Exports, in Your data',
+    exportHelp: 'Exports of your books, as Beancount, hledger or JSON, are in Settings, Your data.',
+    noAccount: 'None',
+    moreAccounts: (n: number) => (n === 1 ? 'Show the other account' : `Show the other ${n} accounts`),
+    fewerAccounts: 'Show fewer',
     columns: 'Columns',
     columnNames: { id: 'Entry', source: 'Source', status: 'Status' } as Record<string, string>,
     alwaysShown: 'Date, description, accounts and amount are always shown.',
@@ -144,6 +147,7 @@ export const whereStrings = {
     posted: 'Posted',
     sourceShort: { manual: 'You', statement: 'Statement', sms: 'Text message', system: 'Salli' } as Record<string, string>,
     amountIn: (code: string) => `Amount (${code})`,
+    order: 'Order',
     newestFirst: 'Newest first',
     oldestFirst: 'Oldest first',
     open: (what: string) => `Open ${what} beside the list`,
@@ -171,7 +175,8 @@ export const whereStrings = {
     rate: 'Rate',
     rateText: (one: string, rate: string, base: string) => `1 ${one} = ${rate} ${base}`,
     tags: 'Tags',
-    noTags: '—',
+    noTags: 'No tags',
+    baseCurrency: 'Base currency',
     standing: 'Standing',
     reversedBy: 'Reversed by',
     reverses: 'Reverses',
@@ -246,7 +251,7 @@ export const whereStrings = {
     another: 'Add another',
   },
 
-  // ── Cash ────────────────────────────────────────────────────────────────
+  // Cash
   cash: {
     title: 'Cash',
     description: 'Where your cash is heading, what is safe to spend until money next comes in, and where it went.',
@@ -311,7 +316,9 @@ export const whereStrings = {
     tracked: 'Tracked',
     yes: 'Yes',
     no: 'No',
-    about: 'about',
+    varies: 'varies',
+    noIncome: 'No income',
+    noShare: 'None',
     cadence: {
       weekly: 'Week',
       biweekly: 'Two weeks',
@@ -323,7 +330,7 @@ export const whereStrings = {
     noRecurring: 'No recurring payments found yet.',
   },
 
-  // ── Attention ───────────────────────────────────────────────────────────
+  // Attention
   attention: {
     title: 'Attention',
     description: 'What Salli has noticed in your finances, and your reminders by when they are due.',
@@ -348,7 +355,7 @@ export const whereStrings = {
     noneComing: 'Nothing is coming up.',
     done: (n: number) => `Done (${n})`,
     noneDone: 'Nothing marked done yet.',
-    alert: { warning: 'Warning', critical: 'Critical', info: 'For information' } as Record<string, string>,
+    alert: { warning: 'Warning', critical: 'Important', info: 'For information' } as Record<string, string>,
     openDecision: 'Open the decision',
     markDone: 'Mark done',
     markDoneLabel: (what: string) => `Mark “${what}” done`,
@@ -368,7 +375,7 @@ export const whereStrings = {
     deleted: (what: string) => `Deleted: ${what}.`,
   },
 
-  // ── Financial independence ──────────────────────────────────────────────
+  // Financial independence
   fi: {
     title: 'Financial independence',
     description:
@@ -436,6 +443,7 @@ export const whereStrings = {
     strategy: 'Your FIRE strategy',
     placeholder: 'Placeholder',
     notSet: 'Not set',
+    none: 'None',
     source: 'Source',
     setOn: (date: string) => `Set ${date}`,
     setYours: 'Set your own',

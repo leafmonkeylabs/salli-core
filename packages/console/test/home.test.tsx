@@ -52,6 +52,9 @@ describe('Home', () => {
     const parts = section('What the FI score is made of');
     await waitFor(() => expect(within(parts).getByText(/Placeholder assumptions/)).toBeTruthy());
     expect(within(parts).getByText('5.9% of the way to financial independence')).toBeTruthy();
+    // Each part says what it is on screen, not only on hover; placeholders link to where they are set.
+    expect(within(parts).getByText('Saving 49.07% of income')).toBeTruthy();
+    expect(within(parts).getByRole('link', { name: 'Set your own on Independence' }).getAttribute('href')).toBe('/console/fi#assumptions');
 
     const attention = section('Needs attention');
     await waitFor(() => expect(within(attention).getByText('A decision is ready for review')).toBeTruthy());
@@ -123,7 +126,7 @@ describe('Home', () => {
     const { api } = await setup();
     await within(figure('Net worth')).findByText('344,026.47');
     const before = api.requests.length;
-    fireEvent.click(screen.getByRole('button', { name: 'Think this through with your AI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy a prompt for your AI' }));
     await screen.findAllByText(/Copied\./);
     expect(written[0]).toContain('as of 2026-10-11');
     expect(written[0]).toContain('never compute');

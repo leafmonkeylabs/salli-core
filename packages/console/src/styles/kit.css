@@ -6,7 +6,7 @@
  * tabular figures, totals with a hairline above and a double rule below.
  */
 
-/* ── The shell ──────────────────────────────────────────────────────────── */
+/* The shell */
 
 /*
  * A 56 px top bar on paper; under it the side menu on paper beside the
@@ -16,6 +16,7 @@
  */
 .shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--c-work);
@@ -75,13 +76,6 @@
   text-overflow: ellipsis;
 }
 
-.server-mark {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  background: var(--c-type-asset);
-}
-
 .topbar-gap {
   flex: 1;
 }
@@ -132,7 +126,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 38px;
+  min-height: max(38px, var(--target));
   padding: 0 8px;
   border: 0;
   background: none;
@@ -163,12 +157,14 @@
   position: sticky;
   top: 0;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow-y: auto;
   padding: 14px 10px;
   display: flex;
   flex-direction: column;
   gap: 18px;
   min-height: calc(100vh - var(--topbar-height));
+  min-height: calc(100dvh - var(--topbar-height));
 }
 
 .side-group,
@@ -203,9 +199,11 @@
   color: var(--c-text);
 }
 
+/* Hover and well alone are under 3:1, so the place you are in has a bar too. */
 .side-link[aria-current='page'] {
   background: var(--c-well);
   color: var(--c-text);
+  box-shadow: inset 3px 0 0 var(--c-brand);
 }
 
 .side-link .icon {
@@ -297,9 +295,9 @@
   position: absolute;
   top: 0;
   right: 0;
-  min-width: 18px;
-  height: 16px;
-  font-size: 10.5px;
+  min-width: 20px;
+  height: 18px;
+  font-size: 12px;
   padding: 0 3px;
 }
 
@@ -438,6 +436,7 @@ main:focus {
   .bottombar a[aria-current='page'] {
     color: var(--c-text);
     font-weight: 500;
+    box-shadow: inset 0 2px 0 var(--c-brand);
   }
 }
 
@@ -464,7 +463,7 @@ main:focus {
   height: 16px;
 }
 
-/* ── Banners and screens ────────────────────────────────────────────────── */
+/* Banners and screens */
 
 .banner {
   margin: 16px 24px 0;
@@ -481,6 +480,7 @@ main:focus {
 
 .screen {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: var(--gutter);
@@ -509,10 +509,13 @@ main:focus {
   height: 32px;
 }
 
-/* ── Pages and sections ─────────────────────────────────────────────────── */
+/* Pages and sections */
 
+/* The page's one column never grows past the screen for something wide in
+   it (a table): that scrolls within itself. */
 .page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   max-width: 1400px;
   animation: slide-in var(--motion) both;
@@ -576,9 +579,13 @@ main:focus {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  max-width: 520px;
+  max-width: 680px;
+}
+
+.page-actions .think {
+  max-width: 320px;
 }
 
 @media (max-width: 900px) {
@@ -589,7 +596,6 @@ main:focus {
   .page-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
-    max-width: none;
   }
 }
 
@@ -714,7 +720,7 @@ main:focus {
   }
 }
 
-/* ── Figures ────────────────────────────────────────────────────────────── */
+/* Figures */
 
 .figure {
   display: flex;
@@ -897,7 +903,12 @@ main:focus {
   height: 24px;
 }
 
-/* ── Tables ─────────────────────────────────────────────────────────────── */
+.loading-what {
+  font-size: var(--size-small);
+  color: var(--c-muted);
+}
+
+/* Tables */
 
 /* Hairline rows, no stripes; the header in the label style on a bone
    well; figures right-aligned in tabular figures; a total with a hairline
@@ -911,6 +922,7 @@ main:focus {
 .table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 14.5px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -924,7 +936,7 @@ main:focus {
   position: sticky;
   top: 0;
   background: var(--c-well);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.4;
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -973,7 +985,18 @@ main:focus {
 
 .table .cell-description {
   font-weight: 500;
-  overflow-wrap: anywhere;
+  min-width: 10em;
+  overflow-wrap: normal;
+}
+
+.table .cell-description a,
+.table th[scope='row'] a:not(.chip) {
+  color: var(--c-text);
+  text-decoration: none;
+}
+
+.table .cell-description a:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 720px) {
@@ -1032,7 +1055,7 @@ main:focus {
   }
 }
 
-/* ── Buttons and forms ──────────────────────────────────────────────────── */
+/* Buttons and forms */
 
 .button {
   display: inline-flex;
@@ -1093,7 +1116,9 @@ main:focus {
 
 .form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
+  min-width: 0;
   max-width: 520px;
 }
 
@@ -1108,9 +1133,12 @@ main:focus {
   gap: 12px 16px;
 }
 
+/* A select is as wide as its longest option unless held to its column. */
 .field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+  min-width: 0;
 }
 
 .field-label {
@@ -1122,7 +1150,7 @@ main:focus {
 .think-fallback textarea {
   min-height: var(--button-height);
   padding: 8px 12px;
-  border: 1px solid var(--c-rule);
+  border: 1px solid var(--c-field-border);
   border-radius: var(--radius-field);
   background: var(--c-input);
   color: var(--c-text);
@@ -1240,7 +1268,7 @@ input[type='checkbox']:disabled {
   }
 }
 
-/* ── Dialogs ────────────────────────────────────────────────────────────── */
+/* Dialogs */
 
 .modal {
   width: calc(100% - 2 * var(--gutter));
@@ -1295,7 +1323,7 @@ input[type='checkbox']:disabled {
   touch-action: pan-x pan-y pinch-zoom;
 }
 
-/* ── Problems ───────────────────────────────────────────────────────────── */
+/* Problems */
 
 .problem {
   display: grid;
@@ -1317,7 +1345,7 @@ input[type='checkbox']:disabled {
   padding-left: 20px;
 }
 
-/* ── Think it through ───────────────────────────────────────────────────── */
+/* Think it through */
 
 .think {
   display: grid;
@@ -1331,7 +1359,7 @@ input[type='checkbox']:disabled {
   width: 100%;
 }
 
-/* ── Charts ─────────────────────────────────────────────────────────────── */
+/* Charts */
 
 .chart {
   display: grid;
@@ -1427,7 +1455,7 @@ input[type='checkbox']:disabled {
   fill: var(--c-chart-shortfall);
 }
 
-/* ── Motion: fades and short slides, easing out; none when reduced ────── */
+/* Motion: fades and short slides, easing out; none when reduced */
 
 @keyframes fade-in {
   from {
@@ -1442,7 +1470,7 @@ input[type='checkbox']:disabled {
   }
 }
 
-/* ── Added for the decision lab (C3): wider grids, more fields, more charts ── */
+/* Added for the decision lab (C3): wider grids, more fields, more charts */
 
 .grid > .section-full,
 .grid > .section-full.section {
@@ -1508,6 +1536,8 @@ input[type='checkbox']:disabled {
 
 .field-select {
   appearance: none;
+  min-width: 0;
+  max-width: 100%;
   padding-right: 36px;
   background-image: linear-gradient(45deg, transparent 50%, var(--c-muted) 50%), linear-gradient(135deg, var(--c-muted) 50%, transparent 50%);
   background-position:
@@ -1542,8 +1572,10 @@ input[type='checkbox']:disabled {
   padding: 0;
   margin: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   justify-items: start;
+  min-width: 0;
 }
 
 .group > .group-item,
@@ -1559,7 +1591,9 @@ input[type='checkbox']:disabled {
 
 .group-item {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
   margin: 0;
   padding: 14px;
   border: 1px solid var(--c-rule);
@@ -1733,7 +1767,7 @@ input[type='checkbox']:disabled {
   stroke-width: var(--chart-line);
 }
 
-/* ── Added for C5: buttons, chips, popovers, toolbars, key figures, sheets ── */
+/* Added for C5: buttons, chips, popovers, toolbars, key figures, sheets */
 
 /* A line button: paper with a hairline (Export, Clear the filters). */
 .button-line {
@@ -1758,7 +1792,7 @@ input[type='checkbox']:disabled {
 }
 
 .button-small {
-  min-height: 32px;
+  min-height: max(32px, var(--target));
   padding: 0 12px;
 }
 
@@ -1788,8 +1822,8 @@ input[type='checkbox']:disabled {
 }
 
 .icon-button-small {
-  width: 32px;
-  height: 32px;
+  width: max(32px, var(--target));
+  height: max(32px, var(--target));
 }
 
 .icon-button-bare {
@@ -1879,6 +1913,24 @@ a.chip:hover {
   margin-left: 4px;
 }
 
+/* A chip that is a button: an id that shows itself whole, the rest of an entry's accounts. */
+.chip-button {
+  min-height: max(24px, var(--target));
+  cursor: pointer;
+}
+
+.chip-button:hover {
+  border-color: var(--c-text);
+  color: var(--c-text);
+}
+
+.chip-id[aria-expanded='true'] {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  user-select: text;
+}
+
 .type-mark {
   width: 8px;
   height: 8px;
@@ -1913,10 +1965,11 @@ a.chip:hover {
 .status {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   min-height: 22px;
   padding: 0 7px;
   border: 1px solid var(--c-rule);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2036,12 +2089,13 @@ a.chip:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 32px;
+  min-height: max(32px, var(--target));
+  max-width: 100%;
   padding: 0 4px 0 10px;
   border: 1px solid var(--c-rule);
   background: var(--c-well);
   font-size: 13px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .filter-chip b {
@@ -2049,8 +2103,9 @@ a.chip:hover {
 }
 
 .filter-chip button {
-  width: 24px;
-  height: 24px;
+  flex: none;
+  width: var(--target);
+  height: var(--target);
   display: grid;
   place-items: center;
   padding: 0;
@@ -2071,7 +2126,7 @@ a.chip:hover {
   gap: 8px;
   min-height: var(--button-height);
   padding: 0 10px;
-  border: 1px solid var(--c-rule);
+  border: 1px solid var(--c-field-border);
   background: var(--c-card);
   color: var(--c-muted);
   min-width: min(100%, 220px);
@@ -2099,7 +2154,7 @@ a.chip:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 32px;
+  min-height: max(32px, var(--target));
   cursor: pointer;
 }
 
@@ -2158,7 +2213,7 @@ a.chip:hover {
 }
 
 .segmented button {
-  min-height: 28px;
+  min-height: max(28px, var(--target));
   padding: 0 10px;
   border: 1px solid transparent;
   background: none;
@@ -2176,6 +2231,7 @@ a.chip:hover {
   background: var(--c-card);
   color: var(--c-text);
   border-color: var(--c-rule);
+  box-shadow: inset 0 -2px 0 var(--c-brand);
 }
 
 /* A card's head: its label, then what it offers, at the far end. */
@@ -2208,9 +2264,9 @@ a.chip:hover {
 }
 
 .pager-select {
-  min-height: 32px;
+  min-height: max(32px, var(--target));
   padding: 0 8px;
-  border: 1px solid var(--c-rule);
+  border: 1px solid var(--c-field-border);
   border-radius: var(--radius-field);
   background: var(--c-card);
   color: var(--c-text);
@@ -2240,14 +2296,19 @@ a.chip:hover {
   fill: var(--c-chart-2);
 }
 
+/* Bars in rows that share their columns; the label column is at least its
+   longest word, so no word is cut. */
 .bar-rows {
   display: grid;
+  grid-template-columns: minmax(min-content, 1fr) minmax(48px, 1fr) max-content;
+  column-gap: 12px;
   border-top: 1px solid var(--c-rule);
 }
 
 .bar-row {
   display: grid;
-  grid-template-columns: minmax(96px, 9em) minmax(0, 1fr) auto;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
   gap: 12px;
   min-height: 40px;
@@ -2265,6 +2326,13 @@ a.chip:hover {
   overflow-wrap: break-word;
 }
 
+/* What a part is, under its name: on screen, not only on hover. */
+.bar-row-detail {
+  display: block;
+  color: var(--c-muted);
+  font-size: var(--size-small);
+}
+
 .bar-row .money,
 .bar-row-figure {
   text-align: right;
@@ -2272,7 +2340,6 @@ a.chip:hover {
 }
 
 .bar-row-total {
-  grid-template-columns: minmax(0, 1fr) auto;
   border-top: 1px solid var(--c-text);
   border-bottom: 3px double var(--c-text);
   font-weight: 600;
@@ -2281,6 +2348,10 @@ a.chip:hover {
 
 .bar-row-total:last-child {
   border-bottom: 3px double var(--c-text);
+}
+
+.bar-row-total > :first-child {
+  grid-column: 1 / 3;
 }
 
 /* A side sheet: over the list's far edge on a wide screen, under it on a
@@ -2484,25 +2555,6 @@ a.chip:hover {
   max-width: 100%;
 }
 
-.th-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: var(--target);
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-}
-
-.th-button:hover {
-  color: var(--c-text);
-}
-
 .fx-line {
   display: block;
   margin-top: 4px;
@@ -2521,58 +2573,6 @@ h3.subhead {
   color: var(--c-muted);
   margin-right: 8px;
   vertical-align: 0.5em;
-}
-
-.status {
-  gap: 4px;
-}
-
-.table {
-  font-size: 14.5px;
-}
-
-.table .cell-description {
-  min-width: 10em;
-  overflow-wrap: normal;
-}
-
-.table .cell-description a,
-.table th[scope='row'] a:not(.chip) {
-  color: var(--c-text);
-  text-decoration: none;
-}
-
-.table .cell-description a:hover {
-  text-decoration: underline;
-}
-
-.chips-inline {
-  flex-wrap: nowrap;
-}
-
-.page-actions {
-  max-width: 680px;
-  align-items: flex-start;
-}
-
-.page-actions .think {
-  max-width: 320px;
-}
-
-/* Bars in rows that share their columns. */
-.bar-rows {
-  /* The label column is at least its longest word, so no word is cut. */
-  grid-template-columns: minmax(min-content, 1fr) minmax(48px, 1fr) max-content;
-  column-gap: 12px;
-}
-
-.bar-row {
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-}
-
-.bar-row-total > :first-child {
-  grid-column: 1 / 3;
 }
 
 @media (max-width: 720px) {

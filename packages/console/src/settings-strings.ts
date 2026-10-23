@@ -168,6 +168,7 @@ export const settingsStrings = {
     statuses: { sending: 'Sending', sent: 'Sent', no_destination: 'Nowhere to send it', failed: 'Failed' } as Record<string, string>,
     what: 'What it said',
     sentAt: 'Sent',
+    notSent: 'Not sent',
     attempts: 'Tries',
     itemCount: (n: number, kind: string) => `${kind}: ${n}`,
   },

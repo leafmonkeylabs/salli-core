@@ -346,15 +346,14 @@ class McpOAuthService:
             )
         except ExpiredSignatureError as exc:
             raise ConsentError(
-                "This authorization request has expired. Please try connecting again."
+                "This sign-in link has expired. Go back to the app and start again."
             ) from exc
         except JWTError as exc:
-            # Logged distinctly from genuine expiry — a signature/issuer
-            # mismatch here means signing_secret changed between mint and
-            # verify (e.g. an env var rotation), not that time ran out.
+            # Logged apart from expiry: a signature or issuer mismatch means the
+            # signing secret changed between mint and verify, not that time ran out.
             _log.warning("MCP consent: ART failed to decode (%s: %s)", type(exc).__name__, exc)
             raise ConsentError(
-                "This connection link is no longer valid. Please try connecting again."
+                "This sign-in link is no longer valid. Go back to the app and start again."
             ) from exc
         return payload
 

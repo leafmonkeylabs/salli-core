@@ -23,7 +23,7 @@ import { useRead, useWrite } from '../../api';
 import { bookStrings } from '../../books-strings';
 import { displayDate, displayMoment, displayRange } from '../../kit/dates';
 import { Button, Field, FileField, SelectField } from '../../kit/forms';
-import { Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
+import { Blank, Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { fieldErrors, ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
@@ -186,7 +186,7 @@ function Statements({ statements, book }: { statements: readonly BankStatement[]
       columns={[
         { key: 'imported', header: t.imported, label: t.imported, render: (s) => displayDate(s.created_at, locale) },
         { key: 'bank', header: t.statementBank, label: t.statementBank, render: (s) => statementName(s, book) },
-        { key: 'account', header: t.statementAccount, label: t.statementAccount, render: (s) => (s.account_id ? book.label(s.account_id) : '—') },
+        { key: 'account', header: t.statementAccount, label: t.statementAccount, render: (s) => (s.account_id ? book.label(s.account_id) : <Blank>{t.noAccount}</Blank>) },
         { key: 'period', header: t.period, label: t.period, render: (s) => periodOf(s, locale) },
         {
           key: 'status',
@@ -248,7 +248,7 @@ function Banks({ book }: { book: AccountBook | undefined }) {
                             header: t.bankBalance,
                             label: t.bankBalance,
                             align: 'end',
-                            render: (a) => (a.balance ? <Money amount={a.balance} currency={a.currency} variant="table" withCode /> : '—'),
+                            render: (a) => (a.balance ? <Money amount={a.balance} currency={a.currency} variant="table" withCode /> : <Blank>{t.noBalance}</Blank>),
                           },
                         ]}
                       />

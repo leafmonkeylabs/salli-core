@@ -363,7 +363,7 @@ async def test_five_failures_lock_an_email_for_fifteen_minutes_without_checking(
     # Even the right password is not checked while locked.
     assert len(world.hasher.verified) == checked
     assert throttled.value.retry_after == 15 * 60
-    assert "Try again in 15 minutes" in str(throttled.value)
+    assert str(throttled.value) == "Too many failed sign-ins. Wait a few minutes, then try again."
 
     world.clock.advance(minutes=15)
     assert (await world.service.authenticate("ada@example.org", PASSWORD)).email

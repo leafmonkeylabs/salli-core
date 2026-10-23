@@ -15,7 +15,9 @@ person chose it:
 | `transactions_to_review` | imported transactions waiting for review | no |
 
 **What a message may say** (decision 29): each item's kind in a sentence
-from the wording table below, how many, the earliest date, and a link.
+from the wording table below, how many, the earliest date (as the brand
+writes dates on screen, "Sep 30, 2026"; the item's `date` stays ISO 8601),
+and a link.
 Never an amount, a balance, a name (an account's, a payee's, a rule set's,
 a reminder's), a decision's question, a note, anything else from the ledger,
 or the person's email. The builder is given nothing it could leak: a
@@ -131,6 +133,21 @@ def notification_id(user_id: str, kind: str, period: str) -> str:
     return hashlib.sha256(f"{user_id}\n{kind}\n{period}".encode()).hexdigest()
 
 
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def on_screen(day: dt.date) -> str:
+    """A date as the brand writes it in prose and on screens: "Sep 30, 2026".
+    Not by locale, so every message reads the same wherever it is built."""
+    return f"{_MONTHS[day.month - 1]} {day.day}, {day.year}"
+
+
+def _month(period: str) -> str:
+    """A monthly period ("2026-10") as "Oct 2026"."""
+    year, month = period.split("-")
+    return f"{_MONTHS[int(month) - 1]} {year}"
+
+
 def _plural(n: int, one: str, many: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
@@ -140,7 +157,7 @@ def item_title(kind: ItemKind, count: int, date: dt.date | None) -> str:
     count and a date are put in."""
     if count < 1:
         raise ValueError("an item counts at least one thing")
-    on = date.isoformat() if date else None
+    on = on_screen(date) if date else None
     if kind == "decision_review_due":
         what = _plural(count, "decision ready for review", "decisions ready for review")
         return f"{what} (since {on})" if on else what
@@ -220,8 +237,8 @@ def subject(period: str, cadence: Cadence, today: dt.date) -> str:
     """The message's subject line."""
     if cadence == "weekly":
         monday, _ = period_bounds(today, cadence)
-        return f"Salli: what is waiting, week of {monday.isoformat()}"
-    return f"Salli: what is waiting, {period}"
+        return f"Salli: what is waiting, week of {on_screen(monday)}"
+    return f"Salli: what is waiting, {_month(period)}"
 
 
 def build_digest(
@@ -240,7 +257,7 @@ def build_digest(
         return None
     every = "every week" if cadence == "weekly" else "every month"
     lines = [
-        f"What is waiting for you in Salli, as of {today.isoformat()}:",
+        f"What is waiting for you in Salli, as of {on_screen(today)}:",
         "",
         *(f"- {item.title}" for item in listed),
         "",

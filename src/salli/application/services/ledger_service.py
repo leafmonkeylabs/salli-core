@@ -336,7 +336,7 @@ class LedgerService:
                 for p in entry.postings
             ):
                 raise ValueError(
-                    f"This account has entries in {account.currency}, so its currency can't change"
+                    f"This account has entries in {account.currency}, so its currency can't change."
                 )
             await uow.ledger.update_account(
                 user_id,
@@ -439,9 +439,11 @@ class LedgerService:
         async with self._uow_factory() as uow:
             original = await uow.ledger.get_entry_by_id(user_id, entry_id)
             if original is None:
-                raise ValueError(f"Entry {entry_id} not found")
+                raise ValueError(f"Entry {entry_id} not found.")
             if original.reversed_by:
-                raise ValueError("Entry is already reversed")
+                raise ValueError(
+                    "That entry is already reversed. An entry can be reversed only once."
+                )
 
             reversed_postings = [
                 Posting(

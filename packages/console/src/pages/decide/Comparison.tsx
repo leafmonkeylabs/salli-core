@@ -11,6 +11,7 @@ import { ChartFigure } from '../../kit/chart/ChartFigure';
 import { DotChart } from '../../kit/chart/DotChart';
 import { RangeChart } from '../../kit/chart/RangeChart';
 import { displayDate } from '../../kit/dates';
+import { Blank } from '../../kit/layout';
 import { Money, visibleAmount } from '../../kit/Money';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
@@ -128,9 +129,9 @@ export function SideBySide({ runs, labels, caption }: { runs: readonly ScenarioR
           header: `${label} (${code})`,
           label,
           align: 'end' as const,
-          render: (row: FigureRow) => row.values[i] ?? '—',
+          render: (row: FigureRow) => row.values[i] ?? <Blank>{f.none}</Blank>,
         })),
-        ...(one ? [{ key: 'change', header: `${labStrings.entry.difference} (${code})`, label: labStrings.entry.difference, align: 'end' as const, render: (row: FigureRow) => row.change ?? '—' }] : []),
+        ...(one ? [{ key: 'change', header: `${labStrings.entry.difference} (${code})`, label: labStrings.entry.difference, align: 'end' as const, render: (row: FigureRow) => row.change ?? <Blank>{f.none}</Blank> }] : []),
       ]}
     />
   );

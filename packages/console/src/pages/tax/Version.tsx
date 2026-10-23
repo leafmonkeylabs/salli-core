@@ -42,10 +42,9 @@ import { isStepUpRequired } from '../../auth/session';
 import { displayDate, displayMoment } from '../../kit/dates';
 import { saveText } from '../../kit/download';
 import { Button, Confirm } from '../../kit/forms';
-import { Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
+import { Blank, Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
 import { ProblemView } from '../../kit/Problem';
 import { useLocale } from '../../preferences';
-import { strings } from '../../strings';
 import { taxStrings } from '../../tax-strings';
 import { deadlinesOf, shownValue, sourcesOf, type Source } from './document';
 import { authorOf, ruleSetPath, SourceLink, StatusTag } from './parts';
@@ -95,13 +94,13 @@ function Changes({ set, version }: { set: TaxRuleSet; version: TaxRuleSetVersion
                               {change.kind !== 'added' ? (
                                 <>
                                   <dt>{v.before}</dt>
-                                  <dd className="mono change-value">{shownValue(change.before) || v.nothing}</dd>
+                                  <dd className="mono change-value">{shownValue(change.before) || <Blank>{v.nothing}</Blank>}</dd>
                                 </>
                               ) : null}
                               {change.kind !== 'removed' ? (
                                 <>
                                   <dt>{v.after}</dt>
-                                  <dd className="mono change-value">{shownValue(change.after) || v.nothing}</dd>
+                                  <dd className="mono change-value">{shownValue(change.after) || <Blank>{v.nothing}</Blank>}</dd>
                                 </>
                               ) : null}
                             </dl>
@@ -386,9 +385,11 @@ export function Version() {
       facts={version ? <StatusTag status={version.status} /> : undefined}
       trail={name ? [{ label: name, to: ruleSetPath(target.ruleSet) }] : []}
     >
-      <p>
-        <Link to={ruleSetPath(target.ruleSet)}>{name ? v.back(name) : strings.loading}</Link>
-      </p>
+      {name ? (
+        <p>
+          <Link to={ruleSetPath(target.ruleSet)}>{v.back(name)}</Link>
+        </p>
+      ) : null}
       <Grid>
         <Loaded query={query}>
           {(found) => (

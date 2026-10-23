@@ -36,6 +36,13 @@ import uuid
 from contextvars import ContextVar
 from typing import Any
 
+#: An unexpected error's title and detail (a 500), in Salli's words.
+UNEXPECTED_TITLE = "Salli hit an error it didn't expect"
+UNEXPECTED_DETAIL = (
+    "Salli couldn't finish this request. Try again; if it happens again, "
+    "quote the request id when you report it."
+)
+
 _request_id: ContextVar[str] = ContextVar("salli_request_id", default="")
 _log = logging.getLogger("salli.request")
 
@@ -91,9 +98,9 @@ class RequestContextMiddleware:
                 status_code=500,
                 content={
                     "type": "about:blank",
-                    "title": "Internal Server Error",
+                    "title": UNEXPECTED_TITLE,
                     "status": 500,
-                    "detail": "Internal server error",
+                    "detail": UNEXPECTED_DETAIL,
                     "request_id": rid,
                 },
                 media_type="application/problem+json",

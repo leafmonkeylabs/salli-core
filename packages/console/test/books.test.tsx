@@ -34,7 +34,7 @@ describe('imports', () => {
     fireEvent.change(within(upload).getByRole('combobox', { name: /Dates in the file/ }), { target: { value: 'YMD' } });
     await click(within(upload).getByRole('button', { name: 'Import it' }));
     expect(await within(upload).findByText(/Read 5 transactions from Example Bank for Oct 1 – 10, 2026\. Nothing is booked yet\./)).toBeTruthy();
-    expect(within(upload).getByText(/4 transaction\(s\) need an account/)).toBeTruthy();
+    expect(within(upload).getByText(/4 transactions need an account/)).toBeTruthy();
     expect(within(upload).getByRole('link', { name: 'Review them' }).getAttribute('href')).toBe(REVIEW);
     const sent = api.to('/v1/statements/upload', 'POST');
     expect(sent).toHaveLength(1);

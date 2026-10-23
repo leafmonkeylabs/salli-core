@@ -14,30 +14,30 @@ export function monthText(value: string | null | undefined, locale: string | und
 }
 
 export function monthsChange(delta: number | null | undefined): string {
-  if (delta === null || delta === undefined) return '—';
+  if (delta === null || delta === undefined) return f.notReached;
   if (delta === 0) return f.sameMonth;
   return delta > 0 ? f.monthsLater(delta) : f.monthsSooner(-delta);
 }
 
 export function daysChange(delta: number | null | undefined): string {
-  if (delta === null || delta === undefined) return '—';
+  if (delta === null || delta === undefined) return f.none;
   if (delta === 0) return f.sameDay;
   return delta > 0 ? f.daysLater(delta) : f.daysSooner(-delta);
 }
 
 /** A yearly rate or growth as a percentage, to a basis point: "6.9%", "-1.46%". */
 export function rateText(value: string | null | undefined, locale: string | undefined): string {
-  return value === null || value === undefined ? '—' : formatRatio(value, { locale, maximumFractionDigits: 2 });
+  return value === null || value === undefined ? f.none : formatRatio(value, { locale, maximumFractionDigits: 2 });
 }
 
 /** Months of spending covered, to the hundredth: "7.37". */
 export function monthsOfSpending(value: string | null | undefined, locale: string | undefined): string {
-  return value === null || value === undefined ? '—' : formatDecimal(value, { locale });
+  return value === null || value === undefined ? f.none : formatDecimal(value, { locale });
 }
 
-/** A day as the CLI shows it, or a dash. */
+/** A day as the CLI shows it, or "None". */
 export function dayText(value: string | null | undefined, locale: string | undefined): string {
-  return value ? displayDate(value, locale) : '—';
+  return value ? displayDate(value, locale) : f.none;
 }
 
 /** A trade figure's name: "lowest cash", "net worth in 5 years". */

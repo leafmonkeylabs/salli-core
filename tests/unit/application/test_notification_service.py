@@ -216,7 +216,7 @@ async def test_the_preview_is_the_message_and_sends_and_writes_nothing(
     assert preview["as_of"] == "2026-10-12"
     assert preview["time_zone"] == "Europe/Lisbon"
     digest = preview["digest"]
-    assert digest["subject"] == "Salli: what is waiting, week of 2026-10-12"
+    assert digest["subject"] == "Salli: what is waiting, week of Oct 12, 2026"
     assert [i["kind"] for i in digest["items"]] == [
         "decision_review_due",
         "cash_below_zero_ahead",
@@ -262,7 +262,7 @@ async def test_a_digest_goes_in_its_hour_and_is_logged(uow, reminders, insights,
     }
     (sent,) = notifier.sent
     assert (sent.user_id, sent.period, sent.kind) == ("u1", "2026-W42", "digest")
-    assert [i.title for i in sent.items] == ["1 reminder due on 2026-10-14"]
+    assert [i.title for i in sent.items] == ["1 reminder due on Oct 14, 2026"]
     assert "Zephyrine" not in sent.text and "950" not in sent.text
     assert reminders.synced == [("u1", "2026-10-12")]
     (row,) = await service.deliveries("u1")

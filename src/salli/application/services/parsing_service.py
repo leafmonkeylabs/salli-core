@@ -68,6 +68,15 @@ def _slugify(label: str) -> str:
 _NEEDS = ("essential", "discretionary", "savings")
 
 
+def _transactions(n: int) -> str:
+    """ "1 transaction", "4 transactions"."""
+    return f"{n} transaction" if n == 1 else f"{n} transactions"
+
+
+def _need(n: int) -> str:
+    return "needs" if n == 1 else "need"
+
+
 class ParsingService:
     def __init__(
         self,
@@ -215,7 +224,7 @@ class ParsingService:
                 period_end="",
                 errors=[
                     *errors,
-                    refusal or "No transactions found in the file. Check the format is supported",
+                    refusal or "No transactions found in the file. Check the format is supported.",
                 ],
             )
         return await self._import(
@@ -303,7 +312,7 @@ class ParsingService:
             # A feed (or any caller) can hand over a placeholder such as
             # 9999-12-31: no transaction's date, and past what date
             # arithmetic can reach.
-            errors.append(f"Skipped {undated} transaction(s) without a real date")
+            errors.append(f"Skipped {_transactions(undated)} without a real date.")
         if account is not None:
             kept, skipped = _in_currency_of(account, kept)
             errors += skipped
@@ -457,11 +466,13 @@ class ParsingService:
         missing = sum(1 for t in live if not _booked(t))
         if missing and why_not:
             errors.append(
-                f"{missing} transaction(s) need an account: {why_not}, only your rules "
-                "sorted this statement"
+                f"{_transactions(missing)} {_need(missing)} an account: {why_not}, only "
+                "your rules sorted this statement."
             )
         elif missing:
-            errors.append(f"{missing} transaction(s) still need an account; choose one to post")
+            errors.append(
+                f"{_transactions(missing)} still {_need(missing)} an account; choose one to post."
+            )
 
         for txn in parsed:
             # Sure when the statement and a rule decided it, the model's
@@ -831,7 +842,7 @@ def _in_currency_of(account: Account, rows: list[RawRow]) -> tuple[list[RawRow],
     """
     other = Counter(row.currency for row in rows if row.currency != account.currency)
     return [row for row in rows if row.currency == account.currency], [
-        f"Skipped {count} transaction(s) in {code}: {account.name} is kept in {account.currency}"
+        f"Skipped {_transactions(count)} in {code}: {account.name} is kept in {account.currency}."
         for code, count in other.items()
     ]
 
@@ -1029,6 +1040,6 @@ def _raw_rows(
         )
     for code, count in unknown.items():
         errors.append(
-            f"Skipped {count} transaction(s) in {code!r}, which is not an ISO 4217 currency code"
+            f"Skipped {_transactions(count)} in {code!r}, which is not an ISO 4217 currency code."
         )
     return rows, errors

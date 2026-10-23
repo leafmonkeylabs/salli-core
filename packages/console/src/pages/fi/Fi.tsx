@@ -55,7 +55,7 @@ type Key = (typeof KEYS)[number];
 
 /** A yearly rate or a share as a percentage, to a hundredth of a point: "3.5%". */
 function rate(value: string | number | null | undefined, locale: string | undefined): string {
-  return value === null || value === undefined ? '—' : formatRatio(value, { locale, maximumFractionDigits: 2 });
+  return value === null || value === undefined ? f.none : formatRatio(value, { locale, maximumFractionDigits: 2 });
 }
 
 function PlaceholderTag() {
@@ -354,7 +354,7 @@ function Assumptions() {
   const [said, setSaid] = useState('');
   const query = useRead('fi.assumptions', fiAssumptions);
   return (
-    <Section label={f.assumptions} full>
+    <Section label={f.assumptions} full anchor="assumptions">
       <Loaded query={query}>
         {(report) => {
           const strategy = [report.applied.real_return, report.applied.safe_withdrawal_rate, report.applied.surplus_invested].some((a) => a.origin === 'strategy');

@@ -4,6 +4,7 @@
  * tax was computed. Never folded away: a figure resting on a placeholder
  * says so beside it.
  */
+import { Link } from '@tanstack/react-router';
 import { Panel } from '../../kit/layout';
 import { displayDate } from '../../kit/dates';
 import { useLocale } from '../../preferences';
@@ -49,7 +50,12 @@ export function Basis({ placeholders, isStale, dataAsOf, tax, notes = [], asOf }
       {tax && tax.status === 'computed' ? <p className="provenance">{b.taxComputed}</p> : null}
       {placeholders.length ? (
         <>
-          <p className="basis-placeholders">{b.placeholders}</p>
+          <p className="basis-placeholders">
+            {b.placeholders}{' '}
+            <Link to="/fi" hash="assumptions">
+              {b.setOwn}
+            </Link>
+          </p>
           <ul className="basis-list">
             {placeholders.map((key) => (
               <li key={key}>{placeholderText(key)}</li>

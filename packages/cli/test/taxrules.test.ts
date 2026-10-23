@@ -317,8 +317,8 @@ describe('salli tax rules diff', () => {
     expect(diff?.query.get('to')).toBe(V2);
     expect(diff?.query.has('from')).toBe(false); // the server's default: the active one
     expect(result.stdout).toContain('XA 2031: version 1 (active) → version 2 (proposed)');
-    expect(result.stdout).toContain('Changed figures (1)\n  ~ blocks[key=allowance].amount  12000 → 12500\n      source: Budget Statement 2031 — https://example.org/xa/budget-2031, retrieved 2031-03-02');
-    expect(result.stdout).toContain('+ sources[id=budget]  added: Budget Statement 2031 — https://example.org/xa/budget-2031');
+    expect(result.stdout).toContain('Changed figures (1)\n  ~ blocks[key=allowance].amount  12000 → 12500\n      source: Budget Statement 2031, https://example.org/xa/budget-2031, retrieved 2031-03-02');
+    expect(result.stdout).toContain('+ sources[id=budget]  added: Budget Statement 2031, https://example.org/xa/budget-2031');
     expect(result.stdout).toContain('Worked examples (2 of 2 pass)');
   });
 
@@ -427,7 +427,7 @@ describe('salli tax rules activate', () => {
     expect(screen).toMatch(/Written by +an agent \(Claude\)/);
     expect(screen).toMatch(/Why +Allowance raised to 12,500 by the 2031 budget/);
     expect(screen).toContain('~ blocks[key=allowance].amount  12000 → 12500');
-    expect(screen).toContain('source: Budget Statement 2031 — https://example.org/xa/budget-2031');
+    expect(screen).toContain('source: Budget Statement 2031, https://example.org/xa/budget-2031');
     expect(screen).toContain('✓ Salary of 30,000');
     expect(screen).toContain('✓ Salary of 60,000');
     expect(screen).toContain('it does not vouch for them');

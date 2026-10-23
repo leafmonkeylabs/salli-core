@@ -238,8 +238,8 @@ describe('digests', () => {
     });
     expect(await within(screen.getByRole('region', { name: 'When' })).findByText(/Saved\./)).toBeTruthy();
     const preview = screen.getByRole('region', { name: 'Preview' });
-    expect(within(preview).getByText('Salli: what is waiting, week of 2026-10-05')).toBeTruthy();
-    expect(within(preview).getByText(/1 decision ready for review \(since 2026-09-30\)/)).toBeTruthy();
+    expect(within(preview).getByText('Salli: what is waiting, week of Oct 5, 2026')).toBeTruthy();
+    expect(within(preview).getByText(/1 decision ready for review \(since Sep 30, 2026\)/)).toBeTruthy();
     const sent = screen.getByRole('region', { name: 'Digests sent' });
     const row = within(sent).getByText('2026-W41').closest('tr') as HTMLElement;
     expect(within(row).getByText('Sent')).toBeTruthy();

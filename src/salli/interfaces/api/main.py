@@ -54,7 +54,7 @@ from salli.extensions import enabled_specs
 from salli.interfaces.api.console import NoStoreMiddleware, console_router
 from salli.interfaces.api.contract import API_PREFIX, document_problems, operation_id
 from salli.interfaces.api.deps import StepUpRequired, get_services
-from salli.interfaces.api.request_context import RequestContextMiddleware
+from salli.interfaces.api.request_context import UNEXPECTED_TITLE, RequestContextMiddleware
 from salli.interfaces.api.routers import (
     accounts,
     advisor,
@@ -610,13 +610,27 @@ def create_app() -> FastAPI:
     return app
 
 
-def _status_title(code: int) -> str:
-    from http import HTTPStatus
+#: A plain HTTP error's title (`about:blank`) in Salli's words, not the
+#: status's reason phrase; `detail` says what happened and what to do.
+_STATUS_TITLES = {
+    400: "Salli didn't do this",
+    401: "Not signed in",
+    403: "Not permitted",
+    404: "Not found",
+    405: "Not something this address does",
+    409: "Not possible right now",
+    413: "Too large to accept",
+    415: "Not a kind of file Salli reads",
+    422: "Salli couldn't use what was sent",
+    429: "Too many attempts",
+    500: UNEXPECTED_TITLE,
+    502: "Another service refused",
+    503: "Not available right now",
+}
 
-    try:
-        return HTTPStatus(code).phrase
-    except ValueError:
-        return "Error"
+
+def _status_title(code: int) -> str:
+    return _STATUS_TITLES.get(code) or (UNEXPECTED_TITLE if code >= 500 else "Salli didn't do this")
 
 
 app = create_app()

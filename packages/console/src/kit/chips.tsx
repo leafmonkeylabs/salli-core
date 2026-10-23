@@ -7,18 +7,26 @@
  * each says it in words too.
  */
 import { Link } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { strings } from '../strings';
 
 export function Chip({ children, mono, quiet, className }: { children: ReactNode; mono?: boolean; quiet?: boolean; className?: string }) {
   return <span className={['chip', mono ? 'chip-mono' : '', quiet ? 'chip-quiet' : '', className ?? ''].filter(Boolean).join(' ')}>{children}</span>;
 }
 
-/** An id, as the salli command shows it: its first eight characters, the whole id on hover. */
+/**
+ * An id, as the salli command shows it: its first eight characters, and a
+ * press shows the whole id in place, where it can be selected and copied.
+ */
 export function IdChip({ id }: { id: string }) {
+  const [whole, setWhole] = useState(false);
+  const short = id.slice(0, 8);
+  if (short === id) return <span className="chip chip-id">{id}</span>;
   return (
-    <span className="chip chip-id" title={id}>
-      {id.slice(0, 8)}
-    </span>
+    <button type="button" className="chip chip-id chip-button" aria-expanded={whole} onClick={() => setWhole(!whole)}>
+      {whole ? id : short}
+      <span className="sr-only">, {strings.chips.wholeId}</span>
+    </button>
   );
 }
 

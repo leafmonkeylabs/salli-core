@@ -16,10 +16,11 @@ import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useRead } from '../../api';
 import { IdChip, Status } from '../../kit/chips';
 import { displayDate } from '../../kit/dates';
+import { Segmented } from '../../kit/figures';
 import { Field, SelectField } from '../../kit/forms';
 import { Icon } from '../../kit/Icon';
 import { dateInput } from '../../kit/inputs';
-import { Empty, Loaded, Page, Section } from '../../kit/layout';
+import { Blank, Empty, Loaded, Page, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { Pagination, usePages } from '../../kit/Pagination';
 import { Popover } from '../../kit/Popover';
@@ -135,7 +136,23 @@ function Search({ filters }: { filters: EntryFilters }) {
 type Optional = 'id' | 'source' | 'status';
 type Shown = Record<Optional, boolean>;
 
-function Toolbar({ filters, book, shown, setShown }: { filters: EntryFilters; book: AccountBook | undefined; shown: Shown; setShown: (next: Shown) => void }) {
+type Order = 'newest' | 'oldest';
+
+function Toolbar({
+  filters,
+  book,
+  shown,
+  setShown,
+  order,
+  setOrder,
+}: {
+  filters: EntryFilters;
+  book: AccountBook | undefined;
+  shown: Shown;
+  setShown: (next: Shown) => void;
+  order: Order;
+  setOrder: (next: Order) => void;
+}) {
   const locale = useLocale();
   const navigate = useNavigate();
   const remove = (change: Partial<EntryFilters>): void => void navigate({ to: '/books/entries', search: searchOf({ ...filters, ...change }) });
@@ -175,8 +192,17 @@ function Toolbar({ filters, book, shown, setShown }: { filters: EntryFilters; bo
         </span>
       ))}
       <Search key={filters.q} filters={filters} />
+      <Segmented
+        label={e.order}
+        value={order}
+        onChange={setOrder}
+        options={[
+          { value: 'newest', label: e.newestFirst },
+          { value: 'oldest', label: e.oldestFirst },
+        ]}
+      />
       <span className="toolbar-gap" />
-      <Link to="/settings/data" className="button button-line" title={e.exportHelp}>
+      <Link to="/settings/data" className="button button-line">
         <Icon name="download" />
         {e.export}
       </Link>
@@ -206,27 +232,32 @@ function Toolbar({ filters, book, shown, setShown }: { filters: EntryFilters; bo
   );
 }
 
-/** One side of an entry: its first account as a chip, and how many more. */
+/**
+ * One side of an entry: its first account as a chip, and a button that shows
+ * the rest beside it. In place, not in a popover: the table's own scroll
+ * would clip a panel.
+ */
 function Side({ ids, book }: { ids: string[]; book: AccountBook }) {
+  const [all, setAll] = useState(false);
   const [first, ...rest] = ids;
-  if (!first) return <>—</>;
-  const others = rest.map((id) => book.label(id)).join(', ');
+  if (!first) return <Blank>{e.noAccount}</Blank>;
   return (
     <span className="chips-inline">
       <AccountChipOf id={first} book={book} />
+      {all ? rest.map((id, i) => <AccountChipOf key={`${id}-${i}`} id={id} book={book} />) : null}
       {rest.length ? (
-        <span className="chip chip-more" title={others}>
-          <span aria-hidden="true">+{rest.length}</span>
-          <span className="sr-only">{e.andMore('', rest.length)}: {others}</span>
-        </span>
+        <button type="button" className="chip chip-more chip-button" aria-expanded={all} onClick={() => setAll(!all)}>
+          {all ? e.fewerAccounts : `+${rest.length}`}
+          {all ? null : <span className="sr-only">, {e.moreAccounts(rest.length)}</span>}
+        </button>
       ) : null}
     </span>
   );
 }
 
-function List({ entries, book, filters, shown }: { entries: readonly JournalEntry[]; book: AccountBook; filters: EntryFilters; shown: Shown }) {
+function List({ entries, book, filters, shown, order }: { entries: readonly JournalEntry[]; book: AccountBook; filters: EntryFilters; shown: Shown; order: Order }) {
   const locale = useLocale();
-  const [oldest, setOldest] = useState(false);
+  const oldest = order === 'oldest';
   const [open, setOpen] = useState<string | null>(null);
   const eyes = useRef(new Map<string, HTMLButtonElement>());
   const reversals = useMemo(() => new Set(entries.flatMap((x) => (x.reversed_by ? [x.reversed_by] : []))), [entries]);
@@ -254,13 +285,7 @@ function List({ entries, book, filters, shown }: { entries: readonly JournalEntr
     shown.id && { key: 'id', header: e.id, label: e.id, className: 'cell-tight', render: (x) => <IdChip id={x.id} /> },
     {
       key: 'date',
-      header: (
-        <button type="button" className="th-button" onClick={() => setOldest(!oldest)}>
-          {e.date}
-          <Icon name="sort" small />
-          <span className="sr-only">, {oldest ? e.oldestFirst : e.newestFirst}</span>
-        </button>
-      ),
+      header: e.date,
       sort: oldest ? 'ascending' : 'descending',
       label: e.date,
       className: 'cell-tight',
@@ -334,6 +359,7 @@ export function Entries() {
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const filters = useMemo(() => filtersOf(search), [search]);
   const [shown, setShown] = useState<Shown>({ id: true, source: true, status: true });
+  const [order, setOrder] = useState<Order>('newest');
   const { query: accounts, book } = useAccountBook();
   const from = dateInput(filters.from);
   const to = dateInput(filters.to);
@@ -342,9 +368,10 @@ export function Entries() {
     <Page title={e.title} description={e.description} facts={<BooksFacts />} actions={<BooksActions />}>
       <BooksNav />
       <Section label={e.title} className="with-sheet">
-        <Toolbar filters={filters} book={book} shown={shown} setShown={setShown} />
+        <Toolbar filters={filters} book={book} shown={shown} setShown={setShown} order={order} setOrder={setOrder} />
+        <p className="section-help">{e.exportHelp}</p>
         <Loaded query={accounts}>
-          {() => <Loaded query={query}>{(entries) => (book ? <List entries={entries} book={book} filters={filters} shown={shown} /> : null)}</Loaded>}
+          {() => <Loaded query={query}>{(entries) => (book ? <List entries={entries} book={book} filters={filters} shown={shown} order={order} /> : null)}</Loaded>}
         </Loaded>
       </Section>
     </Page>

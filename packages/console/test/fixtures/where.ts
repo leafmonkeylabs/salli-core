@@ -5654,7 +5654,7 @@ export const SCORE_HISTORY: FiScoreHistory = {
  */
 export const NO_STRATEGY: ProblemDetails = {
   "type": "about:blank",
-  "title": "Not Found",
+  "title": "Not found",
   "status": 404,
   "detail": "No FIRE strategy found"
 };
@@ -6652,9 +6652,9 @@ export const TRIAL_BALANCE_REVERSED: TrialBalance = {
  */
 export const REVERSE_REFUSED: ProblemDetails = {
   "type": "about:blank",
-  "title": "Bad Request",
+  "title": "Salli didn't do this",
   "status": 400,
-  "detail": "Entry is already reversed"
+  "detail": "That entry is already reversed. An entry can be reversed only once."
 };
 
 export const DOLLARS_POSTED: Ref = {
@@ -6806,7 +6806,7 @@ export const FI_SCORE_SET: FiScore = {
       "label": "Emergency fund",
       "score": "100.00",
       "weight": "0.18",
-      "detail": "8.10 of 6 months covered"
+      "detail": "8.10 months of spending covered, against a target of 6"
     },
     {
       "key": "fi_progress",

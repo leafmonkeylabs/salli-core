@@ -28,7 +28,7 @@ import { useState } from 'react';
 import { useApi, useRead, useWrite } from '../../api';
 import { displayDate, displayMoment, displayRange } from '../../kit/dates';
 import { Button } from '../../kit/forms';
-import { Empty, Grid, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
+import { Blank, Empty, Grid, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
@@ -187,7 +187,7 @@ function Computation({ result, year }: { result: TaxComputation; year: TaxYearSt
           columns={[
             { key: 'line', header: t.line, label: t.line, render: (l) => l.label },
             { key: 'expr', header: t.expression, label: t.expression, render: (l) => <code className="mono expr">{l.expr}</code> },
-            { key: 'source', header: t.source, label: t.source, render: (l) => l.source ?? '—' },
+            { key: 'source', header: t.source, label: t.source, render: (l) => l.source ?? <Blank>{t.noSource}</Blank> },
             { key: 'amount', header: `${t.amount} (${result.currency})`, label: t.amount, align: 'end', render: (l) => <Money amount={l.amount} currency={result.currency} variant="table" /> },
             {
               key: 'explain',

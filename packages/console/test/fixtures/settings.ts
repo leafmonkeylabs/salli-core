@@ -90,18 +90,18 @@ export const PREVIEW: DigestPreview = {
     "id": "b1b467fafcbe7684ec3ac5ea258e79fb0aa1d7b25c926269d22d3ac902da41c8",
     "kind": "digest",
     "period": "2026-W41",
-    "subject": "Salli: what is waiting, week of 2026-10-05",
-    "text": "What is waiting for you in Salli, as of 2026-10-11:\n\n- 1 decision ready for review (since 2026-09-30)\n- 1 reminder due on 2026-10-05\n\nOpen Salli, or run `salli status`, to see them.\n\nYou asked for this digest every week. To change it or turn it off: salli notifications set\n",
+    "subject": "Salli: what is waiting, week of Oct 5, 2026",
+    "text": "What is waiting for you in Salli, as of Oct 11, 2026:\n\n- 1 decision ready for review (since Sep 30, 2026)\n- 1 reminder due on Oct 5, 2026\n\nOpen Salli, or run `salli status`, to see them.\n\nYou asked for this digest every week. To change it or turn it off: salli notifications set\n",
     "items": [
       {
         "kind": "decision_review_due",
-        "title": "1 decision ready for review (since 2026-09-30)",
+        "title": "1 decision ready for review (since Sep 30, 2026)",
         "count": 1,
         "date": "2026-09-30"
       },
       {
         "kind": "reminder_due",
-        "title": "1 reminder due on 2026-10-05",
+        "title": "1 reminder due on Oct 5, 2026",
         "count": 1,
         "date": "2026-10-05"
       }
@@ -133,7 +133,7 @@ export const DELIVERIES: DigestDeliveries = {
           "date": "2026-10-05"
         }
       ],
-      "hash": "sha256:8c00bb75feda80d1457b19590b4be97493472a11f75f06d790a03b40b7f9693e",
+      "hash": "sha256:64c73b7a55d65e526147ef047f58d3cb1ff3515ba060b433f1a2788e30c7efbf",
       "created_at": "2026-10-05T07:00:00+00:00",
       "last_attempt_at": "2026-10-05T07:00:00+00:00",
       "sent_at": "2026-10-05T07:00:00+00:00"
@@ -202,7 +202,7 @@ export const TOKEN_REFUSED: ProblemDetails = {
  */
 export const KEY_REFUSED: ProblemDetails = {
   "type": "about:blank",
-  "title": "Bad Request",
+  "title": "Salli didn't do this",
   "status": 400,
   "detail": {
     "error": "invalid_key",

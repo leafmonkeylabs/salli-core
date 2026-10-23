@@ -164,7 +164,7 @@ export const FI_SCORE: FiScore = {
       "label": "Emergency fund",
       "score": "100.00",
       "weight": "0.18",
-      "detail": "8.10 of 6 months covered"
+      "detail": "8.10 months of spending covered, against a target of 6"
     },
     {
       "key": "fi_progress",

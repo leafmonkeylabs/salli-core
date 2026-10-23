@@ -30,8 +30,8 @@ interface Layout {
   every: number;
 }
 
-const WIDE: Layout = { width: 640, height: 240, top: 16, bottom: 28, left: 8, right: 128, font: 12, every: 3 };
-const NARROW: Layout = { width: 320, height: 200, top: 12, bottom: 24, left: 4, right: 4, font: 11, every: 0 };
+const WIDE: Layout = { width: 640, height: 240, top: 16, bottom: 28, left: 8, right: 128, font: 13, every: 3 };
+const NARROW: Layout = { width: 320, height: 200, top: 12, bottom: 24, left: 4, right: 4, font: 13, every: 0 };
 
 function Plot({
   data,

@@ -166,7 +166,10 @@ def compute(
             "emergency_fund",
             "Emergency fund",
             ef_score,
-            f"{_q2(ef_months)} of {pack.emergency_fund_target_months} months covered",
+            (
+                f"{_q2(ef_months)} months of spending covered, "
+                f"against a target of {pack.emergency_fund_target_months}"
+            ),
         ),
         ("fi_progress", "Progress to FI", fi_score_c, f"{_q2(progress * 100)}% of your FI number"),
         ("debt", "Debt load", debt_score, f"Liabilities are {_q2(debt_ratio * 100)}% of assets"),

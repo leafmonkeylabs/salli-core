@@ -73,11 +73,8 @@ class SignInThrottled(Exception):
 
     def __init__(self, retry_after: int) -> None:
         self.retry_after = max(1, retry_after)
-        minutes = -(-self.retry_after // 60)
-        super().__init__(
-            "Too many failed sign-ins. Try again in "
-            + (f"{minutes} minutes." if minutes > 1 else "a minute.")
-        )
+        # No countdown in the words; `Retry-After` carries the seconds.
+        super().__init__("Too many failed sign-ins. Wait a few minutes, then try again.")
 
 
 class PasswordRejected(ValueError):

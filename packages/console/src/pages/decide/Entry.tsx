@@ -25,7 +25,7 @@ import { useApi, useRead, useWrite } from '../../api';
 import { displayDate, displayMonth, displayMoment } from '../../kit/dates';
 import { saveText, textOf } from '../../kit/download';
 import { Button, Confirm, TextAreaField } from '../../kit/forms';
-import { Empty, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
+import { Blank, Empty, Loaded, Page, Panel, Provenance, Row, Rows, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
@@ -45,10 +45,10 @@ const INVALIDATE = ['decisions.get', 'decisions.list', 'decisions.reviews.due', 
 /** A recorded figure as it was kept: an amount, months, a rate, a count, yes or no. */
 function FigureValue({ value, name, currency }: { value: unknown; name: string; currency: string }) {
   const locale = useLocale();
-  if (value === null || value === undefined) return <>—</>;
+  if (value === null || value === undefined) return <Blank>{labStrings.figure.none}</Blank>;
   if (typeof value === 'boolean') return <>{value ? e.yes : e.no}</>;
   if (typeof value === 'number') return <>{String(value)}</>;
-  if (typeof value !== 'string') return <>—</>;
+  if (typeof value !== 'string') return <Blank>{labStrings.figure.none}</Blank>;
   if (name.includes('rate')) return <>{rateText(value, locale)}</>;
   if (name.includes('months')) return <>{monthsOfSpending(value, locale)}</>;
   return <Money amount={value} currency={currency} variant="table" />;

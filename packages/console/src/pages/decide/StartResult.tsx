@@ -8,7 +8,7 @@
  */
 import type { DecisionStart, DecisionTemplate } from '@leafmonkeylabs/salli-sdk';
 import { displayDate } from '../../kit/dates';
-import { Panel, Row, Rows, Section } from '../../kit/layout';
+import { Blank, Panel, Row, Rows, Section } from '../../kit/layout';
 import { Money } from '../../kit/Money';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
@@ -23,7 +23,7 @@ const l = labStrings;
 const t = l.templates;
 
 function shown(value: unknown): string {
-  if (value === null || value === undefined) return '—';
+  if (value === null || value === undefined) return l.figure.none;
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return JSON.stringify(value);
@@ -39,7 +39,7 @@ function Cover({ data }: { data: DecisionStart }) {
       <Panel>
         <Rows>
           <Row label={t.coverTarget(monthsOfSpending(cover.target_months, locale), cover.basis === 'essential' ? t.essentialSpending : t.allSpending)}>
-            {cover.target ? <Money amount={cover.target} currency={data.currency} variant="table" withCode /> : '—'}
+            {cover.target ? <Money amount={cover.target} currency={data.currency} variant="table" withCode /> : <Blank>{l.figure.none}</Blank>}
           </Row>
           <Row label={t.coverNow}>{t.coverNowMonths(monthsOfSpending(cover.now, locale))}</Row>
         </Rows>
@@ -51,7 +51,7 @@ function Cover({ data }: { data: DecisionStart }) {
           columns={[
             { key: 'option', header: l.compare.optionColumn, label: l.compare.optionColumn, render: (r) => r.option },
             { key: 'month', header: t.coverReached, label: t.coverReached, align: 'end', render: (r) => monthText(r.month, locale) },
-            { key: 'months', header: t.coverMonths, label: t.coverMonths, align: 'end', render: (r) => (r.months === null ? '—' : String(r.months)) },
+            { key: 'months', header: t.coverMonths, label: t.coverMonths, align: 'end', render: (r) => (r.months === null ? <Blank>{l.figure.notReached}</Blank> : String(r.months)) },
           ]}
         />
       </Panel>
@@ -77,7 +77,7 @@ function Level({ data }: { data: DecisionStart }) {
           columns={[
             { key: 'option', header: l.compare.optionColumn, label: l.compare.optionColumn, render: (o) => o.option },
             { key: 'month', header: t.levelFrom, label: t.levelFrom, align: 'end', render: (o) => (o.month ? monthText(o.month, locale) : t.notLevel(to)) },
-            { key: 'months', header: t.levelMonths, label: t.levelMonths, align: 'end', render: (o) => (o.months === null ? '—' : String(o.months)) },
+            { key: 'months', header: t.levelMonths, label: t.levelMonths, align: 'end', render: (o) => (o.months === null ? <Blank>{l.figure.notReached}</Blank> : String(o.months)) },
             {
               key: 'then',
               header: `${t.levelThen} (${code})`,

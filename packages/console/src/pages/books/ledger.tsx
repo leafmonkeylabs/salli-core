@@ -124,7 +124,7 @@ export interface EntryLine {
 
 function side(postings: readonly Posting[], book: AccountBook): string {
   const [first, ...rest] = postings;
-  if (!first) return '—';
+  if (!first) return whereStrings.entries.noAccount;
   return rest.length ? whereStrings.entries.andMore(book.name(first.account_id), rest.length) : book.name(first.account_id);
 }
 
