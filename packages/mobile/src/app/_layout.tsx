@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiProvider } from '../api';
+import { PhoneProvider } from '../phone';
 import { SessionProvider, useSession } from '../session';
 import { useTheme } from '../theme';
 
@@ -18,7 +19,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
-        <ApiProvider>{fontsLoaded ? <Navigator /> : null}</ApiProvider>
+        <PhoneProvider>
+          <ApiProvider>{fontsLoaded ? <Navigator /> : null}</ApiProvider>
+        </PhoneProvider>
       </SessionProvider>
     </SafeAreaProvider>
   );
@@ -45,11 +48,11 @@ function Navigator() {
           <Stack.Screen name="account/[id]" />
           <Stack.Screen name="entry/[id]" />
           <Stack.Screen name="add" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="servers" options={{ presentation: 'modal' }} />
         </Stack.Protected>
-        <Stack.Protected guard={!signedIn}>
-          <Stack.Screen name="welcome" />
-          <Stack.Screen name="connect" />
-        </Stack.Protected>
+        {/* Signed out, the way in; signed in, the way to add another server. */}
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="connect" />
       </Stack>
     </>
   );

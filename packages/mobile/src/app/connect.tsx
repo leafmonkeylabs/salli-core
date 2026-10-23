@@ -37,8 +37,10 @@ export default function Connect() {
     setResult(undefined);
     const outcome = await signIn(server, found.signIn, found.meta.console_url ?? null);
     setSigningIn(false);
-    // Signed in: the navigator leaves for Home on its own.
-    if (!outcome.ok) setResult(outcome);
+    if (!outcome.ok) return setResult(outcome);
+    // Signed in, this server on screen: Home, with nothing to go back to.
+    if (router.canDismiss()) router.dismissAll();
+    router.replace('/home');
   };
 
   return (

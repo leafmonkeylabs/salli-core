@@ -10,11 +10,12 @@ import {
 } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, Row, SectionLabel } from '../../kit';
 import { displayDate, monthNameOf, monthOf, todayIso } from '../../lib/display';
+import { useSession } from '../../session';
 import { strings } from '../../strings';
 import { size, useTheme } from '../../theme';
 import { Header, Pull } from '../../shell';
@@ -31,6 +32,9 @@ export default function Home() {
   const fi = useRead('fi.score.get', fiScoreGet);
   const reads = [safe, sheet, spent, fi];
   const monthName = monthNameOf(today);
+  const { session } = useSession();
+  const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
+  const [dismissed, setDismissed] = useState<string | undefined>(undefined);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.work }}>
@@ -46,6 +50,12 @@ export default function Home() {
         contentContainerStyle={styles.page}
         refreshControl={<Pull read={() => Promise.all(reads.map((r) => r.refetch()))} />}
       >
+        {endedOn && dismissed !== endedOn ? (
+          <Card style={{ gap: 8 }}>
+            <Body alert>{strings.servers.ended(endedOn.replace(/^https?:\/\//, ''))}</Body>
+            <Button kind="tertiary" label={strings.servers.dismiss} onPress={() => setDismissed(endedOn)} />
+          </Card>
+        ) : null}
         <Card tile style={{ gap: 6 }}>
           <SectionLabel onTile>{t.safe}</SectionLabel>
           {safe.data ? (

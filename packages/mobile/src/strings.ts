@@ -15,6 +15,9 @@ export const strings = {
     noServer: 'No server yet? Run one with Docker in three steps',
     noServerUrl: 'https://salli.money/self-host/',
     footer: 'Salli is free and open source. Servers run for you are planned.',
+    addTitle: 'Add a server',
+    addBody: 'Its books open beside the ones you have, and it keeps a sign-in of its own.',
+    cancel: 'Cancel',
   },
 
   connect: {
@@ -28,7 +31,7 @@ export const strings = {
     https: 'HTTPS',
     local: 'This machine',
     signInNote: (host: string) =>
-      `You sign in on ${host}'s own page, with the email and password its owner gave you. This app never sees your password.`,
+      `You sign in on ${host}’s own page, with the email and password its owner gave you. This app never sees your password.`,
     signIn: (host: string) => `Sign in on ${host}`,
     sheetNote: 'Opens the server’s page in a secure browser sheet, then comes back here.',
     signingIn: 'Signing in…',
@@ -37,7 +40,7 @@ export const strings = {
 
   problem: {
     unreachableTitle: 'Couldn’t reach Salli',
-    unreachable: (origin: string) => `Couldn't reach Salli at ${origin}. Check that the server is running, then try again.`,
+    unreachable: (origin: string) => `Couldn’t reach Salli at ${origin}. Check that the server is running, then try again.`,
     'not-salli': { title: 'No Salli server there', body: (origin: string) => `${origin} answered, but not as a Salli server does. Check the address: it is the one the console opens at, without /console.` },
     version: { title: 'A Salli this app doesn’t speak', body: (origin: string) => `${origin} runs a version of Salli whose API this app doesn't know. Update the app, or the server.` },
     'no-app-sign-in': { title: 'No app sign-in on this server', body: (origin: string) => `${origin} runs a Salli with no sign-in for this app. Upgrade the server, or use the salli command.` },
@@ -190,6 +193,36 @@ export const strings = {
     as: (email: string) => `as ${email}`,
     signOut: (host: string) => `Sign out of ${host}`,
     signOutNote: 'Ends this sign-in on the server. Your books stay there.',
+    signOutNoteOthers: 'Ends this sign-in on the server. Your books stay there, and the other servers stay signed in.',
+    servers: (n: number) => (n === 1 ? 'Servers' : `Servers (${n})`),
     footer: 'Salli for iPhone and Android, free and open source. Your books stay on your server.',
+  },
+
+  servers: {
+    title: 'Servers',
+    onScreen: 'On screen',
+    signedIn: 'Signed in',
+    switchTo: (host: string) => `Switch to ${host}`,
+    add: 'Add a server',
+    addHelp: 'Sign in to another Salli server, a household member’s books say. Each one stays signed in on its own.',
+    close: 'Close',
+    ended: (host: string) => `Your sign-in to ${host} ended, so this phone no longer holds it. Add the server again to sign in.`,
+    dismiss: 'Dismiss',
+  },
+
+  phone: {
+    title: 'This phone',
+    how: { face: 'Face ID', fingerprint: 'Touch ID', biometric: 'your fingerprint or face', passcode: 'your passcode' },
+    lock: (how: string) => `Open with ${how}`,
+    lockHelp: 'Salli asks again when it opens, and after a minute away.',
+    noLock: 'Set a passcode on this phone first, in its Settings, to lock Salli.',
+    showAmounts: 'Show amounts in the app switcher',
+    showAmountsHelp: 'Off, the app switcher shows a cover instead of your figures.',
+    showAmountsOnHelp: 'On, the app switcher shows the screen as you left it, figures and all.',
+    locked: 'Salli is locked',
+    lockedBody: 'Unlock to see your books.',
+    unlock: (how: string) => `Unlock with ${how}`,
+    prompt: 'Unlock Salli',
+    cancel: 'Not now',
   },
 } as const;
