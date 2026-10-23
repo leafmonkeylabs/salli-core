@@ -1,5 +1,5 @@
 /**
- * "Think this through with your AI" (decision 18). The console holds no
+ * "Copy a prompt for your AI" (decision 18). The console holds no
  * chat: it copies a short prompt naming what is on screen, for the person's
  * own AI client connected to Salli over MCP. Nothing is sent anywhere.
  */
@@ -39,7 +39,7 @@ export function ThinkItThrough({ prompt }: { prompt: string }) {
       {copied === 'failed' ? (
         <div className="think-fallback">
           <p>{strings.ai.failed}</p>
-          <textarea readOnly value={prompt} rows={4} aria-label={strings.ai.button} />
+          <textarea readOnly value={prompt} rows={4} aria-label={strings.ai.prompt} />
         </div>
       ) : null}
     </div>

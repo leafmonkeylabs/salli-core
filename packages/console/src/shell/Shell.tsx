@@ -262,7 +262,6 @@ export function Shell() {
                 /
               </span>
               <span className="server" title={strings.shell.server(host, version)}>
-                <span className="server-mark" aria-hidden="true" />
                 <span className="mono">{host}</span>
                 {version ? <span className="chip chip-id">{version}</span> : null}
               </span>

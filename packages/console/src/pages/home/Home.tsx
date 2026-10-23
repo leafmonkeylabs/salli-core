@@ -68,10 +68,14 @@ function Figures({ today, now }: { today: string; now: Date }) {
           ) : null
         }
       >
-        <Loaded query={sheet}>{(data) => <Money amount={data.net_worth} currency={data.currency} variant="figure" />}</Loaded>
+        <Loaded query={sheet} what={s.loads.netWorth}>
+          {(data) => <Money amount={data.net_worth} currency={data.currency} variant="figure" />}
+        </Loaded>
       </KeyFigure>
       <KeyFigure label={s.safeToSpend} note={safe.data ? s.safeUntil(displayDate(safe.data.until, locale)) : null}>
-        <Loaded query={safe}>{(data) => <Money amount={data.amount} currency={data.currency} variant="figure" />}</Loaded>
+        <Loaded query={safe} what={s.loads.safeToSpend}>
+          {(data) => <Money amount={data.amount} currency={data.currency} variant="figure" />}
+        </Loaded>
       </KeyFigure>
       <KeyFigure
         label={s.thisMonth(displayMonth(period.month, locale, 'long'))}
@@ -87,7 +91,7 @@ function Figures({ today, now }: { today: string; now: Date }) {
           ) : null
         }
       >
-        <Loaded query={month}>
+        <Loaded query={month} what={s.loads.month}>
           {(data) => (
             <>
               <span className="sr-only">{s.netIncome} </span>
@@ -111,7 +115,9 @@ function Figures({ today, now }: { today: string; now: Date }) {
           ) : null
         }
       >
-        <Loaded query={fi}>{(data) => <span className="figure-number">{formatDecimal(data.overall_score, { locale })}</span>}</Loaded>
+        <Loaded query={fi} what={s.loads.fi}>
+          {(data) => <span className="figure-number">{formatDecimal(data.overall_score, { locale })}</span>}
+        </Loaded>
       </KeyFigure>
     </KeyFigures>
   );
@@ -153,7 +159,7 @@ function NetWorthOverTime() {
   const [picked, setPicked] = useState<number | null>(null);
   return (
     <Section label={s.netWorthOverTime} wide>
-      <Loaded query={query} lines={6}>
+      <Loaded query={query} lines={6} what={s.loads.netWorthOverTime}>
         {(data) => {
           const selected = picked ?? data.points.length - 1;
           return (
@@ -174,7 +180,7 @@ function SafeToSpend() {
   const query = useRead('insights.safeToSpend', insightsSafeToSpend);
   return (
     <Section label={s.safeLines}>
-      <Loaded query={query}>
+      <Loaded query={query} what={s.loads.safeToSpend}>
         {(safe) => (
           <Panel>
             <p className="section-help">{s.safeUntil(displayDate(safe.until, locale))}</p>
@@ -253,7 +259,7 @@ function Attention({ today }: { today: string }) {
   return (
     <Section label={s.attention}>
       <h3 className="subhead">{s.noticed}</h3>
-      <Loaded query={signals}>
+      <Loaded query={signals} what={s.loads.noticed}>
         {({ signals: list }) =>
           list.length ? (
             <ul className="waiting">
@@ -267,7 +273,7 @@ function Attention({ today }: { today: string }) {
         }
       </Loaded>
       <h3 className="subhead">{s.comingUp}</h3>
-      <Loaded query={reminders}>
+      <Loaded query={reminders} what={s.loads.comingUp}>
         {({ reminders: list }) => {
           const pending = list.filter((r: Reminder) => r.status === 'pending').sort((a, b) => a.due_date.localeCompare(b.due_date));
           if (!pending.length) return <Empty>{s.nothingDue}</Empty>;
@@ -295,7 +301,7 @@ function Attention({ today }: { today: string }) {
         }}
       </Loaded>
       <h3 className="subhead">{s.reviews}</h3>
-      <Loaded query={reviews}>
+      <Loaded query={reviews} what={s.loads.reviews}>
         {({ reviews: list }) =>
           list.length ? (
             <ul className="waiting">
@@ -332,7 +338,7 @@ function Spending({ now }: { now: Date }) {
   const query = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: period.from, to_date: period.to } });
   return (
     <Section label={s.spentIn(displayMonth(period.month, locale, 'long'))}>
-      <Loaded query={query}>
+      <Loaded query={query} what={s.loads.spending}>
         {(statement) => {
           const spending = statement.lines.filter((line) => line.type === 'expense').sort((a, b) => compareAmounts(b.amount, a.amount));
           if (!spending.length) return <Empty>{s.nothingSpent}</Empty>;
@@ -370,7 +376,7 @@ function FiParts() {
   const query = useRead('fi.score.get', fiScoreGet);
   return (
     <Section label={s.fiParts}>
-      <Loaded query={query}>
+      <Loaded query={query} what={s.loads.fi}>
         {(fi) => {
           const x = amountScale([...fi.components.map((c) => c.score), '100'], [0, 100]);
           return (
@@ -378,8 +384,11 @@ function FiParts() {
               {fi.components.length ? (
                 <div className="bar-rows">
                   {fi.components.map((c) => (
-                    <div key={c.key} className="bar-row" title={c.detail}>
-                      <span className="bar-row-label">{c.label}</span>
+                    <div key={c.key} className="bar-row">
+                      <span className="bar-row-label">
+                        {c.label}
+                        {c.detail ? <span className="bar-row-detail">{c.detail}</span> : null}
+                      </span>
                       <Bar length={x(c.score)} alt />
                       <span className="bar-row-figure">{formatDecimal(c.score, { locale })}</span>
                     </div>
@@ -395,6 +404,14 @@ function FiParts() {
                 <Provenance>
                   {fi.assumptions.status === 'placeholder' ? <span className="placeholder-tag">{s.placeholders}</span> : s.ownAssumptions}{' '}
                   {fi.assumptions.message}
+                  {fi.assumptions.status === 'placeholder' ? (
+                    <>
+                      {' '}
+                      <Link to="/fi" hash="assumptions">
+                        {s.setOwn}
+                      </Link>
+                    </>
+                  ) : null}
                 </Provenance>
               ) : null}
               {fi.as_of ? <Provenance>{s.fiScoreAsOf(displayDate(fi.as_of, locale))}</Provenance> : null}

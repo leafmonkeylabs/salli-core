@@ -216,9 +216,9 @@ describe('the journal', () => {
     });
     const { api } = await setup({ path: '/console/decide/journal' });
     const exporting = await screen.findByRole('region', { name: 'Export' });
-    await click(within(exporting).getByRole('button', { name: 'Download as JSON' }));
+    await click(within(exporting).getByRole('button', { name: 'Save as JSON' }));
     await waitFor(() => expect(saved).toHaveLength(1));
-    await click(within(exporting).getByRole('button', { name: 'Download as Markdown' }));
+    await click(within(exporting).getByRole('button', { name: 'Save as Markdown' }));
     await waitFor(() => expect(saved).toHaveLength(2));
     expect(saved.map((s) => s.type)).toEqual(['application/json', 'text/markdown']);
     expect(saved.map((s) => s.name)).toEqual([expect.stringMatching(/^salli-decisions-\d{4}-\d{2}-\d{2}\.json$/), expect.stringMatching(/\.md$/)]);

@@ -124,7 +124,7 @@ def test_codes_are_checked_and_normalized():
         ("Hotel", "EUR"),
         ("Market", "LKR"),
     ]
-    assert errors == ["Skipped 2 transaction(s) in 'EURO', which is not an ISO 4217 currency code"]
+    assert errors == ["Skipped 2 transactions in 'EURO', which is not an ISO 4217 currency code."]
 
 
 def test_a_reference_that_repeats_within_a_file_is_only_text():
@@ -256,5 +256,5 @@ async def test_a_file_that_yields_nothing_says_why():
     assert result.transactions == []
     assert result.errors == [
         "This XML file declares a DTD, which a bank statement never needs; refused",
-        "No transactions found in the file. Check the format is supported",
+        "No transactions found in the file. Check the format is supported.",
     ]

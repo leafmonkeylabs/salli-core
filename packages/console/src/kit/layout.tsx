@@ -130,11 +130,14 @@ export function Rows({ children }: { children: ReactNode }) {
   return <dl className="rows">{children}</dl>;
 }
 
-/** Shown while a section loads: its shape, without a shimmer. */
-export function Loading({ lines = 3 }: { lines?: number }) {
+/**
+ * Shown while a section loads: what is loading, in words ("Loading net
+ * worth…"), over its shape, without a shimmer.
+ */
+export function Loading({ lines = 3, what }: { lines?: number; what?: string | undefined }) {
   return (
     <div className="loading" role="status">
-      <span className="sr-only">{strings.loading}</span>
+      <p className="loading-what">{what ? strings.loadingWhat(what) : strings.loading}</p>
       {Array.from({ length: lines }, (_, i) => (
         <span key={i} className="loading-line" aria-hidden="true" />
       ))}
@@ -147,9 +150,25 @@ export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty">{children}</p>;
 }
 
+/** A word in place of a figure the server didn't give ("None", "Not sent"), in the muted colour. */
+export function Blank({ children }: { children: ReactNode }) {
+  return <span className="muted">{children}</span>;
+}
+
 /** A read's section: its shape while it loads, its problem with a retry, or its content. */
-export function Loaded<T>({ query, children, lines }: { query: UseQueryResult<T, Error>; children: (data: T) => ReactNode; lines?: number }) {
-  if (query.isPending) return <Loading {...(lines ? { lines } : {})} />;
+export function Loaded<T>({
+  query,
+  children,
+  lines,
+  what,
+}: {
+  query: UseQueryResult<T, Error>;
+  children: (data: T) => ReactNode;
+  lines?: number;
+  /** What is loading, in words: "net worth". */
+  what?: string;
+}) {
+  if (query.isPending) return <Loading {...(lines ? { lines } : {})} what={what} />;
   if (query.isError) return <ProblemView error={query.error} compact onRetry={() => void query.refetch()} />;
   return <>{children(query.data)}</>;
 }

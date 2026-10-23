@@ -40,10 +40,13 @@ async def test_unhandled_exception_returns_json_with_request_id(client, mock_ser
     body = r.json()
     assert (body["type"], body["title"], body["status"]) == (
         "about:blank",
-        "Internal Server Error",
+        "Salli hit an error it didn't expect",
         500,
     )
-    assert body["detail"] == "Internal server error"
+    assert body["detail"] == (
+        "Salli couldn't finish this request. Try again; if it happens again, "
+        "quote the request id when you report it."
+    )
     assert body["request_id"] == r.headers["x-request-id"]
 
 

@@ -3,7 +3,7 @@
  * the rest of Settings. Tokens only (tokens.css); square corners.
  */
 
-/* ── The review queue ───────────────────────────────────────────────────── */
+/* The review queue */
 
 .review-bar {
   display: flex;
@@ -86,7 +86,7 @@
   padding: 4px 0;
 }
 
-/* ── Rules ──────────────────────────────────────────────────────────────── */
+/* Rules */
 
 .rule {
   display: grid;
@@ -121,7 +121,7 @@
   margin-bottom: 4px;
 }
 
-/* ── Tax ────────────────────────────────────────────────────────────────── */
+/* Tax */
 
 .expr,
 .change-value,
@@ -171,7 +171,7 @@
   font-weight: 500;
 }
 
-/* ── Settings ───────────────────────────────────────────────────────────── */
+/* Settings */
 
 .secret {
   display: grid;

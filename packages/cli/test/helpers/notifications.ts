@@ -38,20 +38,20 @@ export const PREVIEW: DigestPreview = {
     id: DIGEST_ID,
     kind: 'digest',
     period: '2026-W42',
-    subject: 'Salli: what is waiting, week of 2026-10-12',
+    subject: 'Salli: what is waiting, week of Oct 12, 2026',
     text:
-      'What is waiting for you in Salli, as of 2026-10-12:\n\n' +
-      '- 1 decision ready for review (since 2026-10-05)\n' +
-      '- 1 reminder due on 2026-10-14\n' +
-      '- 1 filing deadline on 2026-10-20\n' +
-      '- Your cash forecast goes below zero on 2026-11-02\n\n' +
+      'What is waiting for you in Salli, as of Oct 12, 2026:\n\n' +
+      '- 1 decision ready for review (since Oct 5, 2026)\n' +
+      '- 1 reminder due on Oct 14, 2026\n' +
+      '- 1 filing deadline on Oct 20, 2026\n' +
+      '- Your cash forecast goes below zero on Nov 2, 2026\n\n' +
       'Open Salli to see them: https://money.example.org\n\n' +
       'You asked for this digest every week. To change it or turn it off: salli notifications set\n',
     items: [
-      { kind: 'decision_review_due', title: '1 decision ready for review (since 2026-10-05)', count: 1, date: '2026-10-05' },
-      { kind: 'reminder_due', title: '1 reminder due on 2026-10-14', count: 1, date: '2026-10-14' },
-      { kind: 'filing_deadline', title: '1 filing deadline on 2026-10-20', count: 1, date: '2026-10-20' },
-      { kind: 'cash_below_zero_ahead', title: 'Your cash forecast goes below zero on 2026-11-02', count: 1, date: '2026-11-02' },
+      { kind: 'decision_review_due', title: '1 decision ready for review (since Oct 5, 2026)', count: 1, date: '2026-10-05' },
+      { kind: 'reminder_due', title: '1 reminder due on Oct 14, 2026', count: 1, date: '2026-10-14' },
+      { kind: 'filing_deadline', title: '1 filing deadline on Oct 20, 2026', count: 1, date: '2026-10-20' },
+      { kind: 'cash_below_zero_ahead', title: 'Your cash forecast goes below zero on Nov 2, 2026', count: 1, date: '2026-11-02' },
     ],
     link: 'https://money.example.org',
   },

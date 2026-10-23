@@ -19,7 +19,7 @@ import { useState, type FormEvent } from 'react';
 import { useRead, useWrite } from '../../api';
 import { displayDate, displayMoment } from '../../kit/dates';
 import { Button, CheckboxField, Field, RadioField, SelectField } from '../../kit/forms';
-import { Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
+import { Blank, Empty, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
 import { fieldErrors, ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
@@ -201,7 +201,7 @@ function Log() {
                         .map((i) => `${t.itemCount(i.count, t.itemNames[i.kind] ?? i.kind)}${i.date ? ` (${displayDate(i.date, locale)})` : ''}`)
                         .join('; '),
                   },
-                  { key: 'sent', header: t.sentAt, label: t.sentAt, render: (d) => (d.sent_at ? displayMoment(d.sent_at, locale) : '—') },
+                  { key: 'sent', header: t.sentAt, label: t.sentAt, render: (d) => (d.sent_at ? displayMoment(d.sent_at, locale) : <Blank>{t.notSent}</Blank>) },
                   { key: 'attempts', header: t.attempts, label: t.attempts, align: 'end', render: (d) => d.attempts },
                 ]}
               />

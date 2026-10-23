@@ -204,7 +204,7 @@ describe('financial independence and goals', () => {
 
       PART            SCORE  WEIGHT  WHY
       Savings rate       90     30%  56% of income saved
-      Emergency fund     80     20%  5.8 months covered
+      Emergency fund     80     20%  5.80 months of spending covered, against a target of 6
       "
     `);
   });

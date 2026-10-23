@@ -582,7 +582,7 @@ export class MockSalli {
     if ((params = p('/v1/entries/{id}/reverse')) && method === 'POST') {
       const entry = this.data.entries.find((e) => e.id === params?.id);
       if (!entry) return problem(404, 'Not Found', 'Entry not found');
-      if (entry.reversed_by) return problem(400, 'Bad Request', 'Entry is already reversed');
+      if (entry.reversed_by) return problem(422, 'Invalid request', 'That entry is already reversed. An entry can be reversed only once.', '/problems/invalid');
       entry.reversed_by = uid(3000);
       return { status: 201, body: { id: uid(3000) } };
     }

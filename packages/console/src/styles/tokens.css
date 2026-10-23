@@ -34,6 +34,9 @@
   --c-page: light-dark(var(--paper), var(--night));
   --c-panel: light-dark(var(--bone), var(--deep-green));
   --c-input: light-dark(var(--bone), var(--night));
+  /* A field's edge needs 3:1 against what it sits on: stone is 3.0:1 on bone
+     and 3.4:1 on paper (hairline is 1.2:1); muted on dark is 6.3:1 or more. */
+  --c-field-border: light-dark(var(--stone), var(--muted-on-dark));
   --c-rule: light-dark(var(--hairline), rgb(242 236 223 / 0.16));
   --c-text: light-dark(var(--ink), var(--paper-on-dark));
   --c-muted: light-dark(var(--graphite), var(--muted-on-dark));
@@ -121,7 +124,7 @@
   --topbar-height: 56px;
   --side-width: 236px;
   --side-rail: 64px;
-  --target: 24px; /* WCAG 2.2's 2.5.8 */
+  --target: 24px; /* WCAG 2.2's 2.5.8; 44 px at phone width, below */
   --measure: 68ch;
 
   /* Motion: fades and short slides, 120–200 ms, easing out; none with
@@ -141,6 +144,9 @@
 
 @media (max-width: 720px) {
   :root {
+    /* Touch: every button and field 44 px, every other target at least 44. */
+    --button-height: 44px;
+    --target: 44px;
     --size-h1: 32px;
     --size-h2: 26px;
     --size-h3: 20px;

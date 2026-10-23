@@ -11,6 +11,7 @@ export const strings = {
   product: 'Salli',
   skipToContent: 'Skip to the page',
   loading: 'Loading…',
+  loadingWhat: (what: string) => `Loading ${what}…`,
   unavailable: 'Unavailable',
   notSet: 'Not set',
   dismiss: 'Dismiss',
@@ -67,6 +68,10 @@ export const strings = {
     close: 'Close',
   },
 
+  chips: {
+    wholeId: 'the whole id',
+  },
+
   update: {
     message: 'Salli was updated. Reload to continue.',
     reload: 'Reload',
@@ -108,7 +113,15 @@ export const strings = {
   },
 
   problem: {
-    title: 'Something went wrong',
+    title: "The console hit an error it didn't expect",
+    unexpected: (withRequest: boolean) => (withRequest ? 'Reload the page; if it happens again, quote the request below.' : 'Reload the page.'),
+    // An untyped problem's title by its status, in place of the HTTP reason phrase.
+    byStatus: {
+      400: "Salli didn't do this",
+      404: 'Not found',
+      409: 'Not possible right now',
+      422: "Salli couldn't use what was sent",
+    } as Record<number, string>,
     network: (origin: string) => `Couldn't reach Salli at ${origin}. Check that the server is running, then try again.`,
     requestId: (id: string) => `Request ${id}. Quote it if you report this.`,
     fields: 'What to change',
@@ -126,7 +139,8 @@ export const strings = {
   },
 
   ai: {
-    button: 'Think this through with your AI',
+    button: 'Copy a prompt for your AI',
+    prompt: 'The prompt for your AI',
     copied: 'Copied. Paste it into your AI client, connected to Salli over MCP.',
     failed: "Couldn't copy here. Select the text below and copy it.",
     help: 'Nothing is sent from the console: it copies a prompt for the AI you already use.',
@@ -161,7 +175,8 @@ export const strings = {
     savingsRate: 'Savings rate',
     savingsRateOf: (share: string) => `${share} of income`,
     fiBy: 'FI by',
-    placeholders: 'Placeholder assumptions: set your own with salli fi assumptions.',
+    placeholders: 'Placeholder assumptions.',
+    setOwn: 'Set your own on Independence',
     ownAssumptions: 'Your own assumptions.',
     fiScoreAsOf: (date: string) => `Computed by Salli as of ${date}.`,
     attention: 'Needs attention',
@@ -178,7 +193,7 @@ export const strings = {
     netWorthEmpty: 'No month has ended since your books began.',
     month: 'Month',
     asOf: (date: string) => `As of ${date}`,
-    thinkDecision: 'Think a decision through',
+    thinkDecision: 'Open the decision lab',
     safeLines: 'Safe to spend, line by line',
     safeTotal: 'Safe to spend',
     spentIn: (month: string) => `Spent in ${month}`,
@@ -191,6 +206,18 @@ export const strings = {
     review: 'Review',
     due: (date: string) => `Due ${date}`,
     pickMonth: 'Month shown',
+    // What each part says while it loads: "Loading net worth…".
+    loads: {
+      netWorth: 'net worth',
+      safeToSpend: 'safe to spend',
+      month: 'this month',
+      fi: 'the FI score',
+      netWorthOverTime: 'net worth by month',
+      noticed: 'what Salli noticed',
+      comingUp: 'what is coming up',
+      reviews: 'decisions to review',
+      spending: 'spending',
+    },
     severity: { high: 'High', medium: 'Medium', info: 'For information' } as Record<string, string>,
     prompt: (date: string) =>
       [

@@ -171,7 +171,7 @@ Never redraw it by eye. Use the files.
 | **Hairline** | `#DCD4C4` | Rules and borders, 1 px |
 | **Ink** | `#1C1B19` | Text and positive figures |
 | **Graphite** | `#57524A` | Secondary text |
-| **Stone** | `#8A8378` | Large labels and decoration only (3.4:1) |
+| **Stone** | `#8A8378` | Large labels, decoration and a field's border only (3.4:1 on paper, 3.0:1 on bone) |
 | **Ledger green** | `#173B33` | The brand colour: headers, primary actions, the mark |
 | **Deep green** | `#0F2924` | The terminal, dark panels |
 | **Sand** | `#D8CBAE` | Secondary actions, highlights |
@@ -202,14 +202,18 @@ brass, and 1% oxblood.
 | Pair | Ratio | Passes |
 |---|---|---|
 | Ink on paper | 15.5:1 | AAA |
-| Ledger green on paper | 11.1:1 | AAA |
+| Ledger green on paper, or paper on ledger green | 11.1:1 | AAA |
 | Oxblood on paper | 9.9:1 | AAA |
 | Graphite on paper | 7.0:1 | AA |
-| Paper on ledger green | 10.4:1 | AAA |
-| Sand on ledger green | 6.8:1 | AA |
-| Paper on night | 15.7:1 | AAA |
+| Paper on dark (`#F2ECDF`) on ledger green | 10.4:1 | AAA |
+| Sand on ledger green | 7.6:1 | AAA |
+| Paper on dark (`#F2ECDF`) on night | 15.7:1 | AAA |
 | Muted on night | 7.6:1 | AAA |
 | Clay on night | 8.8:1 | AAA |
+| Stone on bone (a field's border) | 3.0:1 | 3:1 for a boundary |
+| Muted on night (a field's border on dark) | 7.6:1 | 3:1 for a boundary |
+
+A ratio is the same whichever colour is in front, so a pair is listed once.
 
 ## Typography
 
@@ -284,7 +288,8 @@ values is `packages/console/src/styles/tokens.css`.
   - cards with a 1 px hairline border and square corners;
   - no drop shadows, except one faint shadow for overlays.
 - **Section labels:** a small outlined square, then a tracked capital label.
-- **Buttons:** 40 px tall, square corners, no gradients.
+- **Buttons:** 40 px tall, 44 px on touch (phone width, 720 px and below,
+  where fields are 44 px too); square corners, no gradients.
   - Primary: ledger green fill, paper text.
   - Secondary: sand fill, ink text.
   - Tertiary: text, underlined on hover.
@@ -303,9 +308,10 @@ values is `packages/console/src/styles/tokens.css`.
   - hairline gridlines;
   - label the figures on the chart, each the server's own figure.
   - No 3D. No pie chart with more than five slices. No animation into place.
-- **Forms:** labels above the inputs; inputs on bone with a hairline border; a
-  2 px focus ring in ledger green (sand on dark). Not brass: a focus
-  indicator needs 3:1, and brass is 2.4:1 on paper.
+- **Forms:** labels above the inputs; inputs on bone with a stone border
+  (muted on dark), not hairline: a field's edge needs 3:1, and hairline is
+  1.2:1 on bone. A 2 px focus ring in ledger green (sand on dark). Not
+  brass: a focus indicator needs 3:1, and brass is 2.4:1 on paper.
 - **Icons:** a 24 px grid, 1.5 px strokes, square caps and joins, geometric.
   Filled squares for bullets.
 - **Motion:** fades and short slides of 120–200 ms, easing out, and none when

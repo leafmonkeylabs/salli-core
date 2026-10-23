@@ -197,13 +197,13 @@ function valueText(value: JsonValue | undefined): string {
   const record = typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
   if (typeof record?.url === 'string') {
     // A source: what it is and where.
-    const title = typeof record.title === 'string' ? `${singleLine(record.title)} — ` : '';
+    const title = typeof record.title === 'string' ? `${singleLine(record.title)}, ` : '';
     return `${title}${singleLine(record.url)}`;
   }
   return truncate(singleLine(JSON.stringify(value)), 70);
 }
 
-/** "Budget Statement 2031 — https://…", for the source a change cites. */
+/** "Budget Statement 2031, https://…", for the source a change cites. */
 function sourceText(diff: TaxRuleDiff, id: string | null): string | undefined {
   if (!id) return undefined;
   const source = diff.sources[id];
@@ -211,7 +211,7 @@ function sourceText(diff: TaxRuleDiff, id: string | null): string | undefined {
   const title = typeof source.title === 'string' ? singleLine(source.title) : singleLine(id);
   const url = typeof source.url === 'string' ? singleLine(source.url) : undefined;
   const retrieved = typeof source.retrieved === 'string' ? `, retrieved ${singleLine(source.retrieved)}` : '';
-  return url ? `${title} — ${url}${retrieved}` : `${title}${retrieved}`;
+  return url ? `${title}, ${url}${retrieved}` : `${title}${retrieved}`;
 }
 
 function renderProblems(app: App, heading: string, problems: readonly TaxRuleProblem[], mark: string): void {

@@ -1,13 +1,14 @@
 """
-Salli's own sign-in and consent page — where you approve an AI client
-(Claude, ChatGPT, …) connecting to your Salli over MCP, the salli CLI signing
-in, or sign in to the console — and the device page, where you approve a
-sign-in with a code.
+Salli's own sign-in and consent page, and the device page.
+
+The consent page is where you approve an AI client (Claude, ChatGPT, and the
+like) connecting to your Salli over MCP, the salli CLI signing in, or a sign-in
+to the console. The device page is where you approve a sign-in with a code.
 
 The OAuth authorize step redirects here with a short-lived signed request
 token (`rt`). The page shows which client is asking, takes your Salli email and
 password, checks them against Salli's own accounts (throttled like any
-sign-in), and records your Allow or Deny — exactly what a web app's consent
+sign-in), and records your Allow or Deny: exactly what a web app's consent
 screen does through /mcp/oauth/consent-info and /mcp/oauth/consent, without
 needing a web app.
 
@@ -42,29 +43,31 @@ router = APIRouter(tags=["mcp-oauth"])
 # error; night, paper-on-dark and sand-on-dark in the dark. System fonts, so
 # the page makes no font request. The focus ring is ledger green, and
 # sand-on-dark at night, not the brand's brass: brass is 2.4:1 on paper, below
-# the 3:1 a focus indicator needs (console decision 11).
+# the 3:1 a focus indicator needs (console decision 11). A field's border is
+# stone (muted on dark), not hairline, so its edge is at least 3:1. Inputs and
+# buttons are 44 px, a touch target.
 _STYLE = (
     ":root{color-scheme:light dark;--paper:#F6F3EC;--bone:#ECE6D9;--hairline:#DCD4C4;"
-    "--ink:#1C1B19;--graphite:#57524A;--green:#173B33;--sand:#D8CBAE;--error:#6B2620;"
-    "--on-green:#F6F3EC;--focus:#173B33;--mark:#173B33}"
+    "--field:#8A8378;--ink:#1C1B19;--graphite:#57524A;--green:#173B33;--sand:#D8CBAE;"
+    "--error:#6B2620;--on-green:#F6F3EC;--focus:#173B33;--mark:#173B33}"
     "@media (prefers-color-scheme:dark){:root{--paper:#0E1513;--bone:#0F2924;"
-    "--hairline:#2B3A35;--ink:#F2ECDF;--graphite:#9AAAA2;--green:#CDBF9F;--sand:#0F2924;"
-    "--error:#E2A58F;--on-green:#0E1513;--focus:#CDBF9F;--mark:#CDBF9F}}"
+    "--hairline:#2B3A35;--field:#9AAAA2;--ink:#F2ECDF;--graphite:#9AAAA2;--green:#CDBF9F;"
+    "--sand:#0F2924;--error:#E2A58F;--on-green:#0E1513;--focus:#CDBF9F;--mark:#CDBF9F}}"
     "*{box-sizing:border-box}"
     "body{margin:0;background:var(--paper);color:var(--ink);"
     "font:16px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif}"
     "main{max-width:26rem;margin:0 auto;padding:4rem 1rem}"
-    ".brand{display:flex;align-items:center;gap:.6rem;margin:0 0 2rem;color:var(--graphite);"
-    "font-size:.8rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase}"
-    ".brand svg{width:28px;height:20px;fill:var(--mark)}"
+    ".brand{margin:0 0 2rem}"
+    ".brand svg{display:block;width:89px;height:26px}"
+    ".brand .m{fill:var(--mark)}.brand .w{fill:var(--ink)}"
     "h1{font-size:1.4rem;line-height:1.3;letter-spacing:-.01em;font-weight:600;margin:0 0 .6rem}"
     "p{margin:0 0 1rem}"
     "label{display:block;margin:1rem 0 .3rem;font-size:.875rem;font-weight:500;"
     "color:var(--graphite)}"
-    "input{width:100%;height:40px;padding:0 .7rem;font:inherit;color:var(--ink);"
-    "background:var(--bone);border:1px solid var(--hairline);border-radius:0}"
+    "input{width:100%;height:44px;padding:0 .7rem;font:inherit;color:var(--ink);"
+    "background:var(--bone);border:1px solid var(--field);border-radius:0}"
     ".row{display:flex;gap:.6rem;margin-top:1.4rem}"
-    "button{flex:1;height:40px;padding:0 1rem;font:inherit;font-weight:500;cursor:pointer;"
+    "button{flex:1;height:44px;padding:0 1rem;font:inherit;font-weight:500;cursor:pointer;"
     "border-radius:0;border:1px solid var(--green);background:var(--green);"
     "color:var(--on-green)}"
     "button[value=deny]{background:var(--sand);border-color:var(--hairline);color:var(--ink)}"
@@ -73,14 +76,60 @@ _STYLE = (
     "code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.9em}"
     ".err{color:var(--error);margin-top:1rem}"
     ".muted{color:var(--graphite);font-size:.875rem;margin-top:1.4rem}"
+    ".muted+.muted{margin-top:0}"
 )
 
-#: The mark (docs/brand/assets/salli-mark.svg), inline so the page loads
-#: nothing; coloured by the stylesheet for light and dark.
-_MARK = (
-    '<svg viewBox="0 0 200 140" aria-hidden="true" focusable="false">'
-    '<rect width="130" height="50"/><rect x="147.5" width="52.5" height="50"/>'
-    '<rect y="90" width="52.5" height="50"/><rect x="70" y="90" width="130" height="50"/>'
+#: The logo, outlined (docs/brand/assets/salli-logo.svg; the wordmark is never
+#: retyped), inline so the page loads nothing; the stylesheet colours it for
+#: light and dark: the mark ledger green (sand on dark), the wordmark ink
+#: (paper on dark).
+_LOGO = (
+    '<svg viewBox="0 0 472.214 137.829" role="img" aria-label="Salli">'
+    '<rect class=m x="28.71" y="28.71" width="74.66" height="28.71"/>'
+    '<rect class=m x="113.42" y="28.71" width="30.15" height="28.71"/>'
+    '<rect class=m x="28.71" y="80.40" width="30.15" height="28.71"/>'
+    '<rect class=m x="68.91" y="80.40" width="74.66" height="28.71"/>'
+    '<path class=w transform="translate(193.42 109.11)" d="'
+    "M30.72 1.92Q22.92 1.92 16.02 0.12Q9.12 -1.68 4.92 -4.08L5.28 -22.32H14.16L17.76 "
+    "-3.96L9.6 -5.52V-12.12Q12.84 -9.96 16.02 -8.46Q19.2 -6.96 22.68 -6.12Q26.16 -5.28 30.36 "
+    "-5.28Q36.12 -5.28 39.84 -6.9Q43.56 -8.52 45.36 -11.46Q47.16 -14.4 47.16 -18Q47.16 -21.48 "
+    "45.78 -23.88Q44.4 -26.28 41.46 -28.14Q38.52 -30 33.72 -31.8L29.52 -33.6Q22.68 -36.36 "
+    "17.4 -39.66Q12.12 -42.96 9.12 -47.58Q6.12 -52.2 6.12 -59.04Q6.12 -66.24 9.96 -71.28Q13.8 "
+    "-76.32 20.4 -78.96Q27 -81.6 35.4 -81.6Q42.72 -81.6 48.48 -79.92Q54.24 -78.24 57.72 "
+    "-75.96L57.24 -58.8H48.6L45 -76.56L53.28 -74.64V-68.04Q49.08 -71.16 45 -72.84Q40.92 "
+    "-74.52 35.64 -74.52Q31.08 -74.52 27.84 -73.02Q24.6 -71.52 22.8 -68.88Q21 -66.24 21 "
+    "-62.76Q21 -59.4 22.44 -57Q23.88 -54.6 26.82 -52.74Q29.76 -50.88 34.2 -49.08L38.64 "
+    "-47.28Q46.08 -44.28 51.36 -40.92Q56.64 -37.56 59.4 -33Q62.16 -28.44 62.16 -21.84Q62.16 "
+    "-14.52 58.26 -9.18Q54.36 -3.84 47.34 -0.96Q40.32 1.92 30.72 1.92ZM87.36 1.8Q80.4 1.8 "
+    "75.66 -2.28Q70.92 -6.36 70.92 -13.92Q70.92 -18.36 72.9 -21.9Q74.88 -25.44 79.56 "
+    "-28.2Q84.24 -30.96 92.16 -33Q95.52 -33.96 98.76 -34.8Q102 -35.64 105.24 -36.54Q108.48 "
+    "-37.44 111.72 -38.16V-33.12Q107.76 -31.92 103.74 -30.66Q99.72 -29.4 95.76 -28.2Q91.68 "
+    "-27 89.4 -25.26Q87.12 -23.52 86.22 -21.42Q85.32 -19.32 85.32 -16.8Q85.32 -12.6 87.9 "
+    "-10.26Q90.48 -7.92 94.8 -7.92Q97.2 -7.92 99.36 -8.82Q101.52 -9.72 103.92 -11.4Q106.32 "
+    "-13.08 109.56 -15.72L110.28 -9.12H105.48Q103.2 -6.12 100.8 -3.66Q98.4 -1.2 95.22 "
+    "0.3Q92.04 1.8 87.36 1.8ZM119.64 1.56Q113.76 1.56 110.4 -1.74Q107.04 -5.04 106.56 "
+    "-11.28L106.2 -11.52V-40.68Q106.2 -45.96 104.94 -48.96Q103.68 -51.96 101.1 -53.22Q98.52 "
+    "-54.48 94.56 -54.48Q91.68 -54.48 88.98 -54Q86.28 -53.52 83.4 -52.44L89.04 -57.6L87.72 "
+    "-47.52Q87.36 -42.72 85.2 -40.56Q83.04 -38.4 79.92 -38.4Q76.68 -38.4 74.94 -40.02Q73.2 "
+    "-41.64 72.6 -44.16Q73.92 -51.96 80.82 -56.46Q87.72 -60.96 98.88 -60.96Q106.08 -60.96 111 "
+    "-58.8Q115.92 -56.64 118.5 -51.96Q121.08 -47.28 121.08 -39.6V-12.96Q121.08 -10.08 122.16 "
+    "-8.76Q123.24 -7.44 125.28 -7.44Q126.6 -7.44 127.74 -7.92Q128.88 -8.4 129.84 -9.12L132 "
+    "-4.8Q130.08 -1.92 126.96 -0.18Q123.84 1.56 119.64 1.56ZM135.24 0V-6.36L148.32 "
+    "-7.56H154.56L167.88 -6.36V0ZM143.88 0Q143.88 -4.32 143.94 -8.64Q144 -12.96 144 "
+    "-17.28Q144 -21.6 144 -25.8V-75.84L134.64 -77.64V-83.04L155.52 -87.48L159.24 -86.88L159 "
+    "-71.04V-25.8Q159 -21.6 159.06 -17.28Q159.12 -12.96 159.12 -8.64Q159.12 -4.32 159.24 "
+    "0ZM174.48 0V-6.36L187.56 -7.56H193.8L207.12 -6.36V0ZM183.12 0Q183.12 -4.32 183.18 "
+    "-8.64Q183.24 -12.96 183.24 -17.28Q183.24 -21.6 183.24 -25.8V-75.84L173.88 "
+    "-77.64V-83.04L194.76 -87.48L198.48 -86.88L198.24 -71.04V-25.8Q198.24 -21.6 198.3 "
+    "-17.28Q198.36 -12.96 198.36 -8.64Q198.36 -4.32 198.48 0ZM214.2 0V-6.36L227.04 "
+    "-7.56H233.4L246.12 -6.36V0ZM222.6 0Q222.6 -3.6 222.66 -8.04Q222.72 -12.48 222.72 "
+    "-17.16Q222.72 -21.84 222.72 -25.8V-32.04Q222.72 -36.36 222.72 -39.96Q222.72 -43.56 222.6 "
+    "-47.28L213.48 -47.88V-53.64L234.12 -60.24L237.96 -59.64L237.84 -43.92V-25.8Q237.84 "
+    "-21.84 237.84 -17.16Q237.84 -12.48 237.9 -8.04Q237.96 -3.6 237.96 0ZM229.92 "
+    "-70.56Q226.08 -70.56 223.38 -73.14Q220.68 -75.72 220.68 -79.44Q220.68 -83.28 223.38 "
+    "-85.8Q226.08 -88.32 229.92 -88.32Q233.88 -88.32 236.52 -85.8Q239.16 -83.28 239.16 "
+    "-79.44Q239.16 -75.72 236.52 -73.14Q233.88 -70.56 229.92 -70.56Z"
+    '"/>'
     "</svg>"
 )
 
@@ -113,10 +162,21 @@ def _page(body: str, status_code: int = 200, title: str = "Connect to Salli") ->
         "<!doctype html><html lang=en-GB><head><meta charset=utf-8>"
         '<meta name=viewport content="width=device-width,initial-scale=1">'
         f"<title>{html.escape(title)}</title><style>{_STYLE}</style></head>"
-        f"<body><main><p class=brand>{_MARK}<span>Salli</span></p>{body}</main></body></html>",
+        f"<body><main><p class=brand>{_LOGO}</p>{body}</main></body></html>",
         status_code=status_code,
         headers=_HEADERS,
     )
+
+
+#: There is no email and no sign-up (decision D13): the owner resets passwords.
+_FORGOTTEN = (
+    "<p class=muted>Forgotten your password? "
+    "The person who runs this Salli server can reset it.</p>"
+)
+
+
+def _forgotten(dev: bool) -> str:
+    return "" if dev else _FORGOTTEN
 
 
 def _who(dev: bool, autofocus: bool = True) -> str:
@@ -185,7 +245,9 @@ def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
         f'<input type=hidden name=rt value="{e(rt)}">{_who(dev)}'
         + buttons
         + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
-        + "<p class=muted>Sign in with the account you use for Salli.</p></form>"
+        + "<p class=muted>Sign in with the account you use for Salli.</p>"
+        + _forgotten(dev)
+        + "</form>"
     )
 
 
@@ -274,7 +336,7 @@ async def consent_page_decision(
     return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
 
 
-# ── Device sign-in (RFC 8628) ───────────────────────────────────────────────
+# Device sign-in (RFC 8628).
 
 _DEVICE_TITLE = "Sign in a device"
 
@@ -296,7 +358,8 @@ def _device_form(user_code: str, dev: bool, error: str = "", client: str = "") -
         "<button name=decision value=deny formnovalidate>Deny</button></div>"
         + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
         + "<p class=muted>Only approve a code you asked for, on a device you are using.</p>"
-        "</form>"
+        + _forgotten(dev)
+        + "</form>"
     )
 
 

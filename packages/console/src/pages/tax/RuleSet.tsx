@@ -7,7 +7,7 @@ import { taxRuleSetsGet, type TaxRuleSetVersionSummary } from '@leafmonkeylabs/s
 import { Link, useParams } from '@tanstack/react-router';
 import { useRead } from '../../api';
 import { displayDate } from '../../kit/dates';
-import { Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
+import { Blank, Grid, Loaded, Page, Panel, Section } from '../../kit/layout';
 import { Table } from '../../kit/Table';
 import { useLocale } from '../../preferences';
 import { taxStrings } from '../../tax-strings';
@@ -49,7 +49,7 @@ export function RuleSet() {
                     },
                     { key: 'status', header: s.status, label: s.status, render: (v) => <StatusTag status={v.status} /> },
                     { key: 'author', header: s.author, label: s.author, render: (v) => authorOf(v) },
-                    { key: 'note', header: s.note, label: s.note, render: (v) => v.change_note ?? '—' },
+                    { key: 'note', header: s.note, label: s.note, render: (v) => v.change_note ?? <Blank>{s.noNote}</Blank> },
                     { key: 'created', header: s.created, label: s.created, render: (v) => displayDate(v.created_at, locale) },
                   ]}
                 />

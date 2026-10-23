@@ -37,7 +37,9 @@ async def test_the_page_names_the_client_safely(client, consent):
 
 
 async def test_an_expired_request_says_so(client, consent):
-    consent.get_consent_info.side_effect = ConsentError("This authorization request has expired.")
+    consent.get_consent_info.side_effect = ConsentError(
+        "This sign-in link has expired. Go back to the app and start again."
+    )
     r = await client.get(PAGE, params={"rt": "old"})
     assert r.status_code == 400
     assert "expired" in r.text
@@ -133,6 +135,22 @@ async def test_the_page_is_in_the_brand(client, consent):
     for old in ("#2E7D6B", "#fafaf7", "#B39A6B"):
         assert old.lower() not in style.lower()
     assert "@import" not in style and "url(" not in style  # no font request
+    # A field's edge is stone (muted on dark), at least 3:1; inputs and buttons 44 px.
+    assert "--field:#8A8378" in style and "--field:#9AAAA2" in style
+    assert "border:1px solid var(--field)" in style
+    assert "height:44px" in style and "height:40px" not in style
+
+
+async def test_the_logo_is_the_outlined_file_not_retyped(client, consent):
+    page = (await client.get(PAGE, params={"rt": "token"})).text
+    assert '<svg viewBox="0 0 472.214 137.829" role="img" aria-label="Salli">' in page
+    assert "<span>Salli</span>" not in page and "text-transform:uppercase" not in page
+    assert "SALLI" not in page
+
+
+async def test_the_page_says_who_resets_a_forgotten_password(client, consent):
+    page = (await client.get(PAGE, params={"rt": "token"})).text
+    assert "Forgotten your password? The person who runs this Salli server can reset it." in page
 
 
 async def test_the_console_reads_as_signing_in_to_salli_with_one_button(client, consent):

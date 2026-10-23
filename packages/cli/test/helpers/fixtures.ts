@@ -158,7 +158,7 @@ export const FI_SCORE = {
   currency: 'USD',
   components: [
     { key: 'savings_rate', label: 'Savings rate', score: '90', weight: '0.3', detail: '56% of income saved' },
-    { key: 'emergency_fund', label: 'Emergency fund', score: '80', weight: '0.2', detail: '5.8 months covered' },
+    { key: 'emergency_fund', label: 'Emergency fund', score: '80', weight: '0.2', detail: '5.80 months of spending covered, against a target of 6' },
   ],
   projected_fi_month: '2040-10',
   as_of: '2026-10-09',

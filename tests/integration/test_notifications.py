@@ -278,7 +278,7 @@ async def test_a_digest_from_real_books_names_nothing_and_counts_no_money(uow_fa
         "filing_deadline",
         "cash_below_zero_ahead",
     ]
-    assert sent.items[3].title == "Your cash forecast goes below zero on 2026-10-12"
+    assert sent.items[3].title == "Your cash forecast goes below zero on Oct 12, 2026"
     message = sent.subject + sent.text + str(sent.items)
     assert "Zq" not in message and "ZQ" not in message
     assert not re.search(r"\d[\d,.]*[.,]\d", message.replace("money.example.org", ""))

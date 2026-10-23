@@ -38,7 +38,8 @@ export const labStrings = {
   // What the figures rest on.
   basis: {
     label: 'What these figures rest on',
-    placeholders: 'Placeholders: set your own with salli fi assumptions set, or the template’s own answers.',
+    placeholders: 'Placeholders, until you set your own or a template asks for them.',
+    setOwn: 'Set your own on Independence',
     placeholder: {
       real_return: 'The real return (a placeholder)',
       safe_withdrawal_rate: 'The safe withdrawal rate (a placeholder)',
@@ -72,6 +73,7 @@ export const labStrings = {
     fiMonth: 'Financially independent',
     notWithin50: 'Not within 50 years',
     none: 'None',
+    notReached: 'Not reached',
     years: (n: number) => (n === 1 ? '1 year' : `${n} years`),
     months: (n: number) => (n === 1 ? '1 month' : `${n} months`),
     monthsLater: (n: number) => (n === 1 ? '1 month later' : `${n} months later`),
@@ -480,8 +482,8 @@ export const labStrings = {
     notesCount: (n: number) => (n === 1 ? '1 note' : `${n} notes`),
     export: 'Export',
     exportHelp: 'The whole journal, saved on this device: JSON holds every entry, note and review exactly as recorded, each with its hash; Markdown is for reading. Nothing is sent anywhere.',
-    exportJson: 'Download as JSON',
-    exportMarkdown: 'Download as Markdown',
+    exportJson: 'Save as JSON',
+    exportMarkdown: 'Save as Markdown',
     exporting: 'Preparing…',
     exported: (name: string) => `Saved ${name}.`,
   },
@@ -552,8 +554,8 @@ export const labStrings = {
     needNote: 'Write the note.',
     needReflection: 'Write a few words, in your own terms.',
     download: 'This entry',
-    downloadJson: 'Download as JSON',
-    downloadMarkdown: 'Download as Markdown',
+    downloadJson: 'Save as JSON',
+    downloadMarkdown: 'Save as Markdown',
     back: 'Back to the journal',
   },
 

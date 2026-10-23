@@ -84,9 +84,9 @@ describe('salli notifications', () => {
   it('previews the digest exactly as it would read, sending nothing', async () => {
     const result = await run(['notifications', 'preview']);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Salli: what is waiting, week of 2026-10-12');
-    expect(result.stdout).toContain('- 1 decision ready for review (since 2026-10-05)');
-    expect(result.stdout).toContain('- Your cash forecast goes below zero on 2026-11-02');
+    expect(result.stdout).toContain('Salli: what is waiting, week of Oct 12, 2026');
+    expect(result.stdout).toContain('- 1 decision ready for review (since Oct 5, 2026)');
+    expect(result.stdout).toContain('- Your cash forecast goes below zero on Nov 2, 2026');
     expect(result.stderr).toContain('This is the digest that would go if it went now.');
 
     const json = await run(['notifications', 'preview', '--json']);

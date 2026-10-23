@@ -144,7 +144,7 @@ async def test_the_preview_is_the_message_and_sends_nothing(client, notifier):
     assert digest["items"] == [
         {
             "kind": "cash_below_zero_ahead",
-            "title": "Your cash forecast goes below zero on 2026-11-02",
+            "title": "Your cash forecast goes below zero on Nov 2, 2026",
             "count": 1,
             "date": "2026-11-02",
         }

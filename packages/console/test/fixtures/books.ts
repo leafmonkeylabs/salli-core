@@ -25,7 +25,7 @@ export const UPLOADED: StatementUpload = {
   "total_rows": 5,
   "parsed": 5,
   "errors": [
-    "4 transaction(s) need an account: with no AI key set up, only your rules sorted this statement"
+    "4 transactions need an account: with no AI key set up, only your rules sorted this statement."
   ],
   "transactions": [
     {
@@ -794,11 +794,11 @@ export const STATEMENTS_REVIEWED: BankStatementList = {
  */
 export const UPLOAD_REFUSED: ProblemDetails = {
   "type": "about:blank",
-  "title": "Unprocessable Entity",
+  "title": "Salli couldn't use what was sent",
   "status": 422,
   "detail": [
     "Couldn't tell which columns hold the date and the amount in this CSV file",
-    "No transactions found in the file. Check the format is supported"
+    "No transactions found in the file. Check the format is supported."
   ]
 };
 
@@ -871,7 +871,7 @@ export const RULE_TEST: RuleTestResult = {
  */
 export const RULE_REFUSED: ProblemDetails = {
   "type": "about:blank",
-  "title": "Unprocessable Entity",
+  "title": "Salli couldn't use what was sent",
   "status": 422,
   "detail": "Not a valid pattern: missing ), unterminated subpattern at position 0"
 };

@@ -1,9 +1,10 @@
 /**
  * An error, plainly: what happened, then what to do (docs/brand/README.md,
  * "Voice"). Salli's errors are RFC 9457 problem details; the console shows
- * the problem's own title and detail as the server wrote them, each failed
- * field of a validation error on its own line, and the request id to quote.
- * Text from the server is rendered as text, never as HTML.
+ * a typed problem's own title, and for an untyped one (`about:blank`) its
+ * own words for the status, then the detail as the server wrote it, each
+ * failed field of a validation error on its own line, and the request id to
+ * quote. Text from the server is rendered as text, never as HTML.
  */
 import { describeDetail, SalliApiError, SalliNetworkError, type ValidationIssue } from '@leafmonkeylabs/salli-sdk';
 import { strings } from '../strings';
@@ -23,20 +24,24 @@ function field(loc: Array<string | number>): string {
 
 export function ProblemView({ error, onRetry, compact }: { error: unknown; onRetry?: () => void; compact?: boolean }) {
   let title: string = strings.problem.title;
-  let detail = '';
+  let detail: string;
   let fields: ValidationIssue[] = [];
   let requestId: string | undefined;
   if (error instanceof SalliApiError) {
     const problem = error.toProblem();
-    title = problem.title;
+    const typed = Boolean(problem.type) && problem.type !== 'about:blank';
+    title = typed ? problem.title : (strings.problem.byStatus[problem.status] ?? strings.problem.title);
     fields = issues(problem.detail);
     detail = fields.length ? '' : describeDetail(problem.detail);
     requestId = error.requestId ?? (typeof problem.request_id === 'string' ? problem.request_id : undefined);
+    if (!typed && !strings.problem.byStatus[problem.status] && !detail && !fields.length) detail = strings.problem.unexpected(Boolean(requestId));
   } else if (error instanceof SalliNetworkError) {
     title = strings.start.unreachableTitle;
     detail = strings.problem.network(error.url ? new URL(error.url).origin : window.location.origin);
   } else if (error instanceof Error) {
-    detail = error.message;
+    detail = error.message || strings.problem.unexpected(false);
+  } else {
+    detail = strings.problem.unexpected(false);
   }
   const Heading = compact ? 'p' : 'h2';
   return (

@@ -6,8 +6,9 @@
  * and financial independence with an assumption set. Every figure the
  * server's, shown exactly; every request's amounts decimal strings.
  */
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { IdChip } from '../src/kit/chips';
 import { MockApi } from './fixtures/api';
 import * as where from './fixtures/where';
 import { setup } from './harness';
@@ -129,6 +130,32 @@ describe('the books', () => {
     expect(within(list).queryByRole('complementary')).toBeNull();
   });
 
+  it('orders the entries from the toolbar, and says where the exports are', async () => {
+    await setup({ path: '/console/books/entries' });
+    const list = await screen.findByRole('region', { name: 'Entries' });
+    await within(list).findByText(/^Showing 1–15 of/);
+    const order = within(list).getByRole('group', { name: 'Order' });
+    const date = within(list).getByRole('columnheader', { name: 'Date' });
+    expect(within(order).getByRole('button', { name: 'Newest first' }).getAttribute('aria-pressed')).toBe('true');
+    expect(date.getAttribute('aria-sort')).toBe('descending');
+    await click(within(order).getByRole('button', { name: 'Oldest first' }));
+    expect(date.getAttribute('aria-sort')).toBe('ascending');
+    // Export goes to Your data, and says so on the page.
+    expect(within(list).getByRole('link', { name: 'Exports, in Your data' }).getAttribute('href')).toBe('/console/settings/data');
+    expect(within(list).getByText(/Beancount, hledger or JSON/)).toBeTruthy();
+  });
+
+  it('shows an id’s first eight characters, and the whole id on a press, not on hover', async () => {
+    const id = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+    render(<IdChip id={id} />);
+    const chip = screen.getByRole('button', { name: '7c9e6679, the whole id' });
+    expect(chip.getAttribute('title')).toBeNull();
+    expect(chip.getAttribute('aria-expanded')).toBe('false');
+    await click(chip);
+    expect(chip.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: `${id}, the whole id` })).toBe(chip);
+  });
+
   it('shows an entry in another currency with the rate it was posted at', async () => {
     await setup({ path: '/console/books/entries/e075' });
     expect(await screen.findByRole('heading', { level: 1, name: 'TO DOLLAR ACCOUNT' })).toBeTruthy();
@@ -243,7 +270,9 @@ describe('adding an entry and reversing it', () => {
     const standing = await screen.findByRole('region', { name: 'Standing' });
     await click(await within(standing).findByRole('button', { name: 'Reverse this entry' }));
     await click(within(screen.getByRole('alertdialog', { name: 'Reverse this entry?' })).getByRole('button', { name: 'Reverse it' }));
-    expect(await within(standing).findByText('Entry is already reversed')).toBeTruthy();
+    // An untyped problem gets the console's own title for its status, then the server's detail.
+    expect(await within(standing).findByText("Salli didn't do this")).toBeTruthy();
+    expect(within(standing).getByText(/already reversed/)).toBeTruthy();
   });
 });
 
@@ -273,7 +302,7 @@ describe('cash', () => {
     const spending = region('Spending by category');
     expect(within(spending).getByText('77.4%')).toBeTruthy();
     const recurring = region('Recurring payments');
-    expect(within(recurring).getByText('Bistro Novo').closest('tr')?.textContent).toContain('about');
+    expect(within(recurring).getByText('Bistro Novo').closest('tr')?.textContent).toContain('varies');
   });
 
   it('says so when there is no full month to average', async () => {

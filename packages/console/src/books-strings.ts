@@ -11,7 +11,7 @@
  */
 
 export const bookStrings = {
-  // ── Imports: upload a statement, see what was imported ────────────────
+  // Imports: upload a statement, see what was imported
   imports: {
     title: 'Imports',
     description:
@@ -81,9 +81,10 @@ export const bookStrings = {
     salliAccount: 'In Salli',
     notMapped: 'Not fed into Salli',
     bankBalance: 'Balance at the bank',
+    noBalance: 'Not given',
   },
 
-  // ── Review: the queue of proposed transactions ─────────────────────────
+  // Review: the queue of proposed transactions
   review: {
     title: 'Review',
     titleOf: (bank: string, period: string) => `Review: ${bank}${period}`,
@@ -94,6 +95,7 @@ export const bookStrings = {
     waitingHelp:
       'Each one as Salli read it, with the account a rule or the model proposed. Changing an account is kept at once; posting and discarding ask first.',
     nothing: 'Nothing in this statement waits for review.',
+    notChosen: 'Not chosen',
     select: (what: string, date: string) => `Select ${what}, ${date}`,
     selectClear: 'Select every one that is complete and not a possible duplicate',
     selectNone: 'Select none',
@@ -145,7 +147,7 @@ export const bookStrings = {
     back: 'All statements',
   },
 
-  // ── Rules: categorisation rules and suggestions ────────────────────────
+  // Rules: categorisation rules and suggestions
   rules: {
     title: 'Rules',
     description:

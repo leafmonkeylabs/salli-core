@@ -5,6 +5,8 @@ and the public server description.
 
 from __future__ import annotations
 
+import pytest
+
 from tests.unit.api.conftest import AUTH
 
 
@@ -52,8 +54,25 @@ async def test_errors_are_problem_details_that_keep_their_detail(client):
     assert r.status_code == 401
     assert r.headers["content-type"] == "application/problem+json"
     body = r.json()
-    assert (body["type"], body["status"], body["title"]) == ("about:blank", 401, "Unauthorized")
+    assert (body["type"], body["status"], body["title"]) == ("about:blank", 401, "Not signed in")
     assert body["detail"] == "Not authenticated"
+
+
+@pytest.mark.parametrize(
+    ("code", "title"),
+    [
+        (400, "Salli didn't do this"),
+        (404, "Not found"),
+        (409, "Not possible right now"),
+        (422, "Salli couldn't use what was sent"),
+        (418, "Salli didn't do this"),
+        (599, "Salli hit an error it didn't expect"),
+    ],
+)
+def test_a_plain_http_error_is_titled_in_salli_s_words_not_its_reason_phrase(code, title):
+    from salli.interfaces.api.main import _status_title  # pyright: ignore[reportPrivateUsage]
+
+    assert _status_title(code) == title
 
 
 async def test_validation_errors_keep_the_field_list(client):

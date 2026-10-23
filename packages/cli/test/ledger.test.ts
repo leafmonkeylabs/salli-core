@@ -179,7 +179,7 @@ describe('salli status', () => {
               "label": "Emergency fund",
               "score": "80",
               "weight": "0.2",
-              "detail": "5.8 months covered"
+              "detail": "5.80 months of spending covered, against a target of 6"
             }
           ],
           "projected_fi_month": "2040-10",

@@ -294,7 +294,8 @@ and the preview still works.
 **What a message holds.** Each kind of thing waiting (decisions ready for
 review, their own reminders, filing deadlines in the next 14 days, cash
 forecast below zero, and, if they ask, transactions to review), how many,
-the earliest date, and a link to `SALLI_PUBLIC_URL`. Never an amount, a
+the earliest date (as Salli writes dates on screen: "1 reminder due on
+Oct 14, 2026"), and a link to `SALLI_PUBLIC_URL`. Never an amount, a
 balance, a name (an account's, a payee's, a reminder's), a decision's
 question, a note or anything else from the ledger, and never the person's
 email. A message goes through your mail server or push service, so it says
@@ -470,8 +471,8 @@ uses port 8000. Set `SALLI_PORT=8001` (and `SALLI_PUBLIC_URL` to match) in
 **`salli` is unhealthy, or keeps restarting.** `docker compose logs salli`
 says why. `docker compose exec salli salli-server doctor` checks the rest.
 
-**"Too many failed sign-ins".** Wait for the time it gives, or have the owner
-reset the password.
+**"Too many failed sign-ins".** Wait a few minutes (the response's
+`Retry-After` gives the seconds), or have the owner reset the password.
 
 **The owner forgot their password.** Anyone who can run commands on the
 server can reset it: `docker compose exec salli salli-server members

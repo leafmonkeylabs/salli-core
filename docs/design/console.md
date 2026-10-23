@@ -543,7 +543,8 @@ WCAG 2.2 AA, checked at 360, 768 and 1280 px, light and dark.
 - **Motion:** fades and short slides of 120–200 ms, easing out, and none
   with `prefers-reduced-motion`.
 - **Targets** at least 24 by 24 px (WCAG 2.2's 2.5.8), 40 px buttons as the
-  brand sets.
+  brand sets; at phone width (720 px and below) 44 px, buttons and fields
+  included (As built (C5), "Changed after the audit").
 
 ### Themes and layout
 
@@ -1919,3 +1920,55 @@ compact rows) is left out as a display choice nobody asked for.
 **Against compose.** The run's selectors follow the shell (Sign out under
 who is signed in, the key figures, the pager's count); all fourteen pass
 against the image this change builds, the real step-up among them.
+
+**Changed after the audit (October 2026).** An audit of the console against
+the brand and WCAG 2.2 changed these; nothing is computed, and every page
+reads and writes through the same operations.
+- **Touch targets, the owner's decision.** At 720 px and below `--target` is
+  44 px and so is `--button-height`: every button and field, and the small
+  controls (a small button, the sheet's close, a filter chip's remove, the
+  segmented buttons, the pager's select, the crumbs, the menu's items, a
+  place's own places) are at least 44 px. Wider screens keep 40 px buttons
+  and the 24 px minimum.
+- **Field borders, the owner's decision.** Inputs, selects, text areas, the
+  search and the pager's select have a stone border (muted on dark),
+  `--c-field-border`: 3.0:1 on bone, where hairline was 1.2:1. The consent
+  and device pages do the same.
+- **Where you are** is a 2 px bar in the brand's colour as well as a well or
+  card: under the current place in a row of places and a pressed segmented
+  button, at the left of the side menu's place, at the top of the bottom
+  bar's.
+- **Nothing only on hover.** An FI part's detail is a second line under its
+  name; an id chip is a button that shows the whole id in place; "+1" beside
+  an account chip is a button that shows the other accounts beside it (in
+  place rather than a popover, which the table's own scroll would clip);
+  where the exports are is said on the Entries page.
+- **Entries' order** is a segmented control in the toolbar (Newest first,
+  Oldest first) at every width; the date column keeps `aria-sort`. The
+  header's button was hidden with the header on a phone yet focusable.
+- **Words for blanks.** A figure the server doesn't give reads None, No tags,
+  Not sent, No note, No source, Not reached, Base currency, No income and so
+  on, muted, instead of a dash.
+- **Problems.** A problem with no type of its own (`about:blank`) is titled
+  in the console's words by status (400 "Salli didn't do this", 404 "Not
+  found", 409 "Changed since you opened it", 422 "Salli couldn't use what
+  was sent"), never an HTTP reason phrase; any other is "The console hit an
+  error it didn't expect", with what to do.
+- **Loading** says so in visible words ("Loading net worth…" on Home), over
+  the section's shape; a link waits for its name rather than reading
+  "Loading…".
+- **Copy.** "Copy a prompt for your AI" (was "Think this through with your
+  AI"), "Open the decision lab" (was "Think a decision through"), "Save as
+  JSON" and "Save as Markdown" in the journal, as in Your data; "Exports, in
+  Your data"; a recurring payment's amount then "varies" (was "about"
+  before it); a critical reminder "Important". Placeholder assumptions link
+  to Independence's assumptions (`/fi#assumptions`) instead of naming the
+  command.
+- **Smaller things.** Filter chips wrap; the row of places wraps on a phone
+  instead of scrolling sideways; `100dvh` after each `100vh`; capitals at
+  12 px at least (statuses, table headers, the rail's count); the net worth
+  chart's text at 13; the server chip's square is gone; late overrides in
+  kit.css and lab.css folded into each rule's first declaration.
+
+The budget after it: shell and Home 140.9 kB gzip, all JavaScript 261.0 kB,
+CSS 9.4 kB.

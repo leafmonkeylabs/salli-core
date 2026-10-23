@@ -1033,8 +1033,8 @@ platform. So **a message says what is waiting, never what it is about**:
   decision's question or reasons, a note, a rule set's figure, anything from
   the ledger, the person's email.
 
-So "1 decision ready for review (since 2027-04-11)" and "Your cash forecast
-goes below zero on 2027-05-02", never the question they decided or the
+So "1 decision ready for review (since Apr 11, 2027)" and "Your cash forecast
+goes below zero on May 2, 2027", never the question they decided or the
 figure. The delivery log keeps the items (kinds, counts, dates) and the
 message's hash, not its text. Erasing the account deletes the preferences
 and the log in the same transaction (`delete_all`), and "export my data"
