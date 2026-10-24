@@ -216,13 +216,13 @@ export interface Line {
  * rule below. As the console's: the Total is shown only when each side is
  * one line in one currency, so it is that line's own amount, never a sum.
  */
-export function LinesTable({ lines, currency, changeLabel }: { lines: readonly Line[]; currency: string; changeLabel?: (account: string) => string }) {
+export function LinesTable({ lines, currency, changeLabel, total = true }: { lines: readonly Line[]; currency: string; changeLabel?: (account: string) => string; total?: boolean }) {
   const theme = useTheme();
   const debits = lines.filter((l) => l.side === 'debit');
   const credits = lines.filter((l) => l.side === 'credit');
   const [debit] = debits;
   const [credit] = credits;
-  const pair = debits.length === 1 && credits.length === 1 && debit && credit && debit.currency === credit.currency ? { debit, credit } : undefined;
+  const pair = total && debits.length === 1 && credits.length === 1 && debit && credit && debit.currency === credit.currency ? { debit, credit } : undefined;
   const head = [styles.linesHead, { color: theme.muted }];
   return (
     <View>
