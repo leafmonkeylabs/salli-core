@@ -6,21 +6,13 @@ import { useRead } from '../api';
 import { Body, Button, Card, LedgerRow, SectionLabel, Waiting } from '../kit';
 import { displayDate, displayDay, monthNameOf } from '../lib/display';
 import { Page } from '../shell';
+import { amountOf } from '../lib/entries';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
 const t = strings.entries;
 /** Entries shown at once; "Show more" adds as many again. */
 const PAGE = 50;
-
-/** An entry's one amount, where it has one: one debit and one credit line in one currency. Picked, never summed. */
-function amountOf(entry: JournalEntry): { amount: string; currency: string } | undefined {
-  const debits = entry.postings.filter((p) => p.direction > 0);
-  const credits = entry.postings.filter((p) => p.direction < 0);
-  const [debit] = debits;
-  const [credit] = credits;
-  return debits.length === 1 && credits.length === 1 && debit && credit && debit.currency === credit.currency ? { amount: debit.amount, currency: debit.currency } : undefined;
-}
 
 /**
  * Every entry in the books, newest first and by month, as the console's

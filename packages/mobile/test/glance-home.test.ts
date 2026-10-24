@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { JournalEntry } from '@leafmonkeylabs/salli-sdk';
+import { recentOf } from '../src/lib/entries';
 import { filled, lineChart } from '../src/lib/chart';
 import { sameDaysLastMonth, wholeDigits } from '../src/lib/display';
 
@@ -25,5 +27,26 @@ describe("Home's glance", () => {
     expect(line.points).toHaveLength(3);
     expect(line.points.every((p) => p.x >= 0 && p.x <= 100 && p.y >= 0 && p.y <= 40)).toBe(true);
     expect(line.points[1]?.y).toBeLessThan(line.points[0]?.y ?? 0);
+  });
+});
+
+describe('Add', () => {
+  it('offers the newest descriptions booked by hand, once each, without reversals', () => {
+    const entry = (id: string, date: string, description: string, source: 'manual' | 'statement' = 'manual', reversed_by: string | null = null) =>
+      ({ id, entry_date: date, description, source, external_ref: null, reversed_by, postings: [
+        { account_id: 'a', amount: '12.50', currency: 'EUR', direction: 1 },
+        { account_id: 'b', amount: '12.50', currency: 'EUR', direction: -1 },
+      ] }) as unknown as JournalEntry;
+    const recent = recentOf([
+      entry('1', '2026-10-01', 'Lunch'),
+      entry('2', '2026-10-03', 'Coffee'),
+      entry('3', '2026-10-04', 'lunch'),
+      entry('4', '2026-10-05', 'Rent', 'statement'),
+      entry('5', '2026-10-06', 'Gym', 'manual', 'x'),
+      entry('6', '2026-10-07', 'REVERSAL: Gym'),
+      entry('7', '2026-10-02', 'Bus'),
+    ]);
+    expect(recent.map((r) => r.description)).toEqual(['lunch', 'Coffee', 'Bus']);
+    expect(recent[0]?.amount).toBe('12.50');
   });
 });
