@@ -97,8 +97,11 @@ jobs:
           src/salli/interfaces/api/routers/mcp_oauth.py
       - name: Tests
         # Includes the contract tests: the OpenAPI document matches the app, and
-        # salli-core carries no billing vocabulary.
-        run: uv run pytest -q
+        # salli-core carries no billing vocabulary. In parallel, one worker a
+        # core (pytest-xdist): every database test makes a scratch database
+        # of its own (tests/integration/pg.py), and a parametrized test whose
+        # values are random names its ids, so every worker collects the same.
+        run: uv run pytest -q -n auto
 
   cli:
     # The TypeScript packages (packages/): the SDK, the `salli` command line
@@ -146,6 +149,12 @@ jobs:
     # screenshots, and CSP violations or requests to another origin as
     # failures. In Playwright's own image, where the screenshots were made.
     # (End to end against compose runs in image.yml.)
+    # Split across three runners (Playwright's --shard), each with its 4 workers.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: console (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
@@ -158,12 +167,12 @@ jobs:
         run: npm run build --workspace @leafmonkeylabs/salli-console
       - name: Accessibility, visual regression, CSP and requests
         working-directory: packages/console
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shard }}/3
       - name: Report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: console-playwright-report
+          name: console-playwright-report-${{ matrix.shard }}
           path: |
             packages/console/playwright-report
             packages/console/test-results

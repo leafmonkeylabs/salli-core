@@ -8,13 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies (requires uv)
 uv sync --group dev
 
-# Run all tests (integration and migration tests also need
+# Run all tests; `-n auto` runs them in parallel, one worker a core, as CI
+# does (integration and migration tests also need
 # SALLI_TEST_DATABASE_URL, a plain Postgres URL whose user may CREATE DATABASE;
 # they are skipped without it). A local one:
 #   docker run -d --name salli-core-test-pg -e POSTGRES_PASSWORD=postgres \
 #     -p 127.0.0.1:54998:5432 postgres:17-alpine
 #   export SALLI_TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:54998/postgres
-uv run pytest
+uv run pytest -n auto
 
 # Run a single test file / test
 uv run pytest tests/unit/domain/test_accounting.py
