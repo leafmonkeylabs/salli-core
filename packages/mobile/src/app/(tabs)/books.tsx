@@ -26,7 +26,7 @@ export default function Books() {
           <Icon name="plus" size={18} colour={theme.buttonText} />
           <Text style={[styles.actionText, { color: theme.buttonText }]}>{t.add}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/import')} style={[styles.action, { backgroundColor: theme.button2 }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/import')} style={[styles.action, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1 }]}>
           <Icon name="upload" size={18} colour={theme.button2Text} />
           <Text style={[styles.actionText, { color: theme.button2Text }]}>{strings.imports.importFile}</Text>
         </Pressable>

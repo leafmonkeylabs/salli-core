@@ -65,7 +65,7 @@ export function Button({ label, kind = 'primary', busy, ...rest }: { label: stri
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!rest.disabled || !!busy, busy: !!busy }}
-      style={({ pressed }) => [styles.button, { backgroundColor: fill, opacity: rest.disabled ? 0.45 : pressed ? 0.8 : 1 }]}
+      style={({ pressed }) => [styles.button, { backgroundColor: fill, borderColor: kind === 'secondary' ? theme.button2Border : 'transparent', opacity: rest.disabled ? 0.45 : pressed ? 0.8 : 1 }]}
       {...rest}
     >
       {busy ? <ActivityIndicator color={colour} /> : null}
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   heading: { fontFamily: font.medium, fontSize: size.heading, letterSpacing: -0.01 * size.heading, lineHeight: size.heading * 1.3 },
   body: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
   small: { fontFamily: font.regular, fontSize: size.small, lineHeight: size.small * 1.5 },
-  button: { minHeight: size.target, paddingHorizontal: 18, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 0 },
+  button: { minHeight: size.target, paddingHorizontal: 18, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 0, borderWidth: 1 },
   buttonText: { fontFamily: font.medium, fontSize: size.body },
   underline: { textDecorationLine: 'underline' },
   figureRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' },
