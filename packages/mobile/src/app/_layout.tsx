@@ -54,6 +54,8 @@ function Navigator() {
           <Stack.Screen name="review/[id]" />
           <Stack.Screen name="entries" />
           <Stack.Screen name="sign-ins" />
+          <Stack.Screen name="automations" />
+          <Stack.Screen name="automation/[id]" />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />

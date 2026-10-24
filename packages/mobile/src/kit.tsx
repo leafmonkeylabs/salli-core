@@ -371,6 +371,7 @@ const ICONS = {
   independence: 'M4 18l6-6 4 4 6-8M15 8h5v5',
   settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 5h4v4h-4zM8 15h4v4H8z',
   server: 'M4 4h16v7H4zM4 13h16v7H4zM8 7.5h2M8 16.5h2',
+  message: 'M4 5h16v11H10l-6 4zM8 9h8M8 12h5',
 } as const;
 
 export type IconName = keyof typeof ICONS | 'cash' | 'books';

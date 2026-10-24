@@ -269,6 +269,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!index.current || index.current.servers.includes(server)) return;
       const next = forgotten(index.current, server);
       index.current = next;
+      // Its automation rules go with it: they name its accounts.
+      await SecureStore.deleteItemAsync(storeKeyOf(server, 'automations'));
       if (listOf(next).length) await write(INDEX_KEY, next);
       else await SecureStore.deleteItemAsync(INDEX_KEY);
       setSession((now) => (now.status === 'loading' ? now : { ...now, known: listOf(next) }));

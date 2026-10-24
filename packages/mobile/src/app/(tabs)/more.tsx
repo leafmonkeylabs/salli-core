@@ -41,6 +41,7 @@ export default function More() {
         </Card>
       ) : null}
       <Card style={{ paddingVertical: 4 }}>
+        <Place icon="message" title={t.automationsPlace} body={t.automationsBody} onPress={() => router.push('/automations')} />
         <Place icon="server" title={t.serversPlace} body={t.serversBody(host)} onPress={() => router.push('/sign-ins')} last />
       </Card>
       <Body small muted>

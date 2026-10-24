@@ -234,6 +234,16 @@ alerts@bank.example") hands the text to an action of Salli's instead.
   same transaction, it is flagged as a possible duplicate of the draft.
 - Android, later: a notification listener (Play lets only the default SMS
   app read messages).
+- **Built so far:** More → Automations lists the rules of the server on
+  screen (kept in the keychain under that server, and forgotten with it) and
+  drafts a pasted message on a tap. The editor tries the pattern on a sample
+  as it is written. A template marks `{amount}`, `{payee}`, `{date}`, `{ref}`
+  and `{skip}`; Advanced takes a regular expression with named groups, the
+  date order and the decimal mark. Amounts are read as written and refused
+  when ambiguous ("1,245.50" with a comma mark), never guessed
+  (`src/lib/automations.ts`). Next: the Shortcuts action, which queues a
+  message on the phone for Salli to read when it next runs, and the list of
+  messages from a watched sender that no rule reads.
 
 ## Later
 
