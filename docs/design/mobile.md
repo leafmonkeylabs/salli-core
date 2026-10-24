@@ -5,9 +5,9 @@ app, M1, the app's first screens (finding a server, signing in, Home from
 the server's figures, signing out), M2, the four places (Cash, Books
 with an account and an entry, adding an entry, Decide's reviews), and
 servers and this phone (more than one server, Face ID, the app-switcher
-cover), and importing a statement and reviewing it are built
-([packages/mobile](../../packages/mobile/README.md)). Home when the server
-is out of reach, a statement shared from another app, and Android come next.
+cover), importing a statement and reviewing it, and Home when the server
+is out of reach are built ([packages/mobile](../../packages/mobile/README.md)).
+A statement shared from another app, and Android, come next.
 
 ## Why
 
@@ -150,6 +150,25 @@ seeded by `core_0022_mobile_client`:
   Nothing is booked until posted, and nothing twice.
 - **Not yet:** a statement shared to Salli from a bank's app (a share
   extension) and making a rule from a transaction (the console has both).
+
+## When the server is out of reach
+
+- **How the app knows:** from the reads it already makes, never a probe of
+  its own (`useReach` in `src/api.tsx`). A server is out of reach when its
+  latest read failed for want of an answer (`SalliNetworkError`, a timeout
+  among them) after its last answer; an answer that refuses is still an
+  answer. A read gives up after 12 seconds (an upload sets its own) and is
+  tried once more, and a stale read runs again when the app comes back to
+  the screen.
+- **Home** says "Can't reach money.example.org", with the time it last
+  answered when it did, keeps the figures it last sent marked "As of …,
+  not since", says "Not known" where nothing came back (never "Nothing
+  needs attention"), and turns off what writes (+ and Done) until it
+  answers. "Try again" and pulling down read everything on screen again.
+- **Every other place** shows why a read failed and "Try again", never a
+  "Loading…" that waits forever (`Waiting` in `src/kit.tsx`).
+- Nothing is kept on the phone between launches: the figures shown are the
+  ones read since the app opened, as everywhere else.
 
 ## Later
 

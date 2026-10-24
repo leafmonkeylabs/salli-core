@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, CardHead, Loading, Money, Title } from '../../kit';
+import { Body, Button, Card, CardHead, Money, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -108,7 +108,7 @@ export default function Entry() {
           ) : null}
         </>
       ) : (
-        <Loading what={strings.home.loading('the entry')} />
+        <Waiting query={entry} what="the entry" />
       )}
     </Page>
   );

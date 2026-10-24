@@ -2,7 +2,7 @@ import { formatAmount, insightsForecast } from '@leafmonkeylabs/salli-sdk';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useRead } from '../../api';
-import { AmountRow, Body, Card, CardHead, Loading } from '../../kit';
+import { AmountRow, Body, Card, CardHead, Waiting } from '../../kit';
 import { stepChart } from '../../lib/chart';
 import { displayDate } from '../../lib/display';
 import { Page } from '../../shell';
@@ -60,7 +60,7 @@ export default function Cash() {
             );
           })()
         ) : (
-          <Loading what={strings.home.loading('the forecast')} />
+          <Waiting query={forecast} what="the forecast" />
         )}
       </Card>
 

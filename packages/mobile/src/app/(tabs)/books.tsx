@@ -2,7 +2,7 @@ import { accountsList, ledgerTrialBalance, statementsList } from '@leafmonkeylab
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../../api';
-import { AmountRow, Body, Card, CardHead, Icon, Loading, Row } from '../../kit';
+import { AmountRow, Body, Card, CardHead, Icon, Row, Waiting } from '../../kit';
 import { displayRange } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -85,7 +85,7 @@ export default function Books() {
           </Card>
         )
       ) : (
-        <Loading what={strings.home.loading('your accounts')} />
+        <Waiting query={accounts.error ? accounts : trial} what="your accounts" />
       )}
     </Page>
   );
