@@ -4,6 +4,7 @@ import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib
 import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
+import { glanceOf, type GlanceReads } from '../src/lib/glance';
 import { forgotten, listOf, LOCK_AFTER_MS, lockDue, remembered, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
 const REDIRECT = 'money.salli.app:/oauth/callback';
@@ -286,5 +287,51 @@ describe('the account picker', () => {
     expect(groupsOf(accounts, { typeNames: {}, likely: ['income', 'expense'], others: 'x', words: 'SAL' }).flatMap((g) => g.rows.map((a) => a.name))).toEqual(['Salary']);
     expect(groupsOf(accounts, { typeNames: {}, likely: ['expense'], words: '6100' }).flatMap((g) => g.rows.map((a) => a.name))).toEqual(['Groceries']);
     expect(groupsOf(accounts, { typeNames: {}, likely: ['expense'], others: 'x', words: 'nothing like it' })).toEqual([]);
+  });
+});
+
+describe('the widgets\' snapshot', () => {
+  // Only the fields glanceOf reads; the rest of each response doesn't matter here.
+  const reads = (over: Partial<Record<keyof GlanceReads, unknown>> = {}): GlanceReads =>
+    ({
+      safe: { amount: '-1234.50', currency: 'EUR', until: '2026-10-25', next_income: { description: 'Salary' } },
+      reviews: { reviews: [{ id: 'd1', question: 'Move to the coast?' }] },
+      reminders: {
+        reminders: [
+          { id: 'r1', kind: 'Pay the plumber Ana', due_date: '2026-10-20', source_domain: null },
+          { id: 'r2', kind: 'Later', due_date: '2026-11-02', source_domain: null },
+          { id: 'r3', kind: 'Review', due_date: '2026-10-01', source_domain: 'decision' },
+        ],
+      },
+      statements: { statements: [{ status: 'pending' }, { status: 'pending' }, { status: 'posted' }] },
+      signals: { signals: [{ kind: 'low_balance_ahead', severity: 'high' }] },
+      ...over,
+    }) as unknown as GlanceReads;
+  const options = { host: 'money.example.org', showAmounts: false, at: 1, today: '2026-10-24' };
+
+  it('hides the amount unless amounts outside the app are allowed', () => {
+    const hidden = glanceOf(reads(), options);
+    expect(hidden.safe).toEqual({ label: 'Safe to spend', figure: 'Amount hidden', currency: '', spoken: 'Amount hidden', until: 'until Oct 25, 2026' });
+    expect(JSON.stringify(hidden)).not.toMatch(/1,?234/);
+    const shown = glanceOf(reads(), { ...options, showAmounts: true });
+    expect(shown.safe.figure).toBe('(1,234.50)');
+    expect(shown.safe.currency).toBe('EUR');
+    expect(shown.safe.spoken).toMatch(/^minus 1,234\.50/);
+  });
+
+  it('counts what is waiting, and carries nothing from the ledger', () => {
+    const glance = glanceOf(reads(), options);
+    expect(glance.waiting.lines).toEqual(['1 decision to review', '1 reminder due', '2 statements to review', 'Cash below zero ahead']);
+    expect(glance.waiting.more).toBe('and 2 more');
+    expect(JSON.stringify(glance)).not.toMatch(/plumber|coast|Salary/);
+  });
+
+  it('says when nothing is waiting, and when no income is expected', () => {
+    const glance = glanceOf(
+      reads({ safe: { amount: '0.00', currency: 'EUR', until: '2026-10-25', next_income: null }, reviews: { reviews: [] }, reminders: { reminders: [] }, statements: { statements: [] }, signals: { signals: [{ kind: 'low_balance_ahead', severity: 'medium' }] } }),
+      options,
+    );
+    expect(glance.waiting).toEqual({ label: 'Waiting', lines: ['Nothing waiting'], more: '' });
+    expect(glance.safe.until).toBe('No income expected');
   });
 });

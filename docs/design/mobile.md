@@ -180,7 +180,35 @@ seeded by `core_0022_mobile_client`:
 - **Every other place** shows why a read failed and "Try again", never a
   "Loading…" that waits forever (`Waiting` in `src/kit.tsx`).
 - Nothing is kept on the phone between launches: the figures shown are the
-  ones read since the app opened, as everywhere else.
+  ones read since the app opened, as everywhere else. The widgets' snapshot
+  (below) is the one exception, and it holds no figure unless asked.
+
+## Widgets
+
+Design 15's lock screen: two widgets, **Safe to spend** and **Waiting**, as
+paper tiles on the Home Screen (`systemSmall`) and as the system tints them on
+the lock screen (`accessoryRectangular`), where iOS draws no paper.
+
+- **What they show comes from the app.** After each read, the app writes a
+  small snapshot to the app group `group.money.salli.app` (`src/glance.tsx`,
+  worded by `glanceOf` in `src/lib/glance.ts` from the catalogue's `glance`
+  words) and asks WidgetKit to draw again. The widget asks no server and
+  holds no token; its only words of its own are the gallery's and "Open
+  Salli", for a widget placed before the app has written anything.
+- **Discretion.** Safe to spend says "Amount hidden" unless the person turned
+  on Show amounts outside the app; then the figure and its currency. Waiting
+  counts decisions to review, reminders due (today or before; a decision's
+  own reminder counts once, as the decision), statements to review and cash
+  below zero ahead (the `low_balance_ahead` signal at `high`), worded without
+  a name, a question, a date or an amount. Two lines show, then "and 2 more".
+- **Never stale.** A day after its newest read, each tile says "Open Salli to
+  see what is current" instead of figures that may be wrong. Signing out of
+  every server removes the snapshot. With several servers, it is the one on
+  screen's, and Waiting names its host.
+- **Built** with `@bacons/apple-targets`: the target is `targets/widget`
+  (SwiftUI, Geist from its own copy under the OFL), added to the Xcode
+  project at prebuild, its colours from `expo-target.config.js`. Android has
+  no widgets yet.
 
 ## Later
 
