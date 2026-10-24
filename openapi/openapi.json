@@ -5376,113 +5376,6 @@
         }
       }
     },
-    "/v1/fi/strategy": {
-      "get": {
-        "tags": [
-          "financial-independence"
-        ],
-        "summary": "Get Strategy",
-        "description": "Return the user's active FIRE strategy, or 404 if none exists yet.",
-        "operationId": "fi.strategy.get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FireStrategy"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/v1/fi/strategy/history": {
-      "get": {
-        "tags": [
-          "financial-independence"
-        ],
-        "summary": "Get Strategy History",
-        "description": "List all strategy versions (summary only).",
-        "operationId": "fi.strategy.history",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FireStrategyHistory"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/v1/fi/strategy/generate": {
-      "post": {
-        "tags": [
-          "financial-independence"
-        ],
-        "summary": "Generate Strategy",
-        "description": "Trigger AI FIRE strategy generation. Returns an SSE stream.\n\nStream events:\n  {\"type\": \"status\",  \"message\": \"...\"} — progress updates\n  {\"type\": \"done\",    \"strategy\": {...}} — final result\n  {\"type\": \"error\",   \"message\": \"...\"}  — failure\n\nPasses the deployment's usage meter like /agent/chat — checked before the\nstream opens, same as chat, rather than mid-stream.",
-        "operationId": "fi.strategy.generate",
-        "responses": {
-          "200": {
-            "description": "Server-sent events: `status` messages while it works, then `done` with the new strategy (a `FireStrategy`), or `error`.",
-            "content": {
-              "text/event-stream": {}
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/v1/fi/projections": {
       "get": {
         "tags": [
@@ -18334,6 +18227,15 @@
             "title": "Fi Score History",
             "description": "Each as in `fi.score.history`."
           },
+          "fire_strategies": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Fire Strategies",
+            "description": "The FIRE strategies an earlier Salli drafted with a model, newest\nfirst, as stored. Salli no longer makes them."
+          },
           "advisor_reports": {
             "items": {
               "additionalProperties": true,
@@ -20981,7 +20883,6 @@
             "type": "string",
             "enum": [
               "user",
-              "strategy",
               "placeholder"
             ],
             "title": "Origin"
@@ -21174,7 +21075,7 @@
         },
         "type": "object",
         "title": "FiAssumptionsUpdate",
-        "description": "Set the user's own planning assumptions. Only the fields sent change;\nan explicit null clears one (a placeholder, or the FIRE strategy's figure,\nstands in again). Set a real return or a nominal one, not both; a nominal\nreturn needs inflation."
+        "description": "Set the user's own planning assumptions. Only the fields sent change;\nan explicit null clears one (its placeholder stands in again). Set a real return or a nominal one, not both; a nominal\nreturn needs inflation."
       },
       "FiDate": {
         "properties": {
@@ -22206,302 +22107,6 @@
           "signals"
         ],
         "title": "FinanceSignals"
-      },
-      "FireStrategy": {
-        "properties": {
-          "version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "fire_style": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fire Style"
-          },
-          "swr": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Swr"
-          },
-          "real_return_conservative": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Real Return Conservative"
-          },
-          "real_return_base": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Real Return Base"
-          },
-          "real_return_growth": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Real Return Growth"
-          },
-          "target_monthly_expenses": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "description": "Decimal string in the currency's own precision; never a float.",
-                "examples": [
-                  "1234.50"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Monthly Expenses"
-          },
-          "target_age": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Age"
-          },
-          "buckets": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/FireStrategyBucket"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Buckets"
-          },
-          "ai_rationale": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ai Rationale"
-          },
-          "theories_applied": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Theories Applied"
-          },
-          "is_initial": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Initial"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "FireStrategy",
-        "description": "A version of the user's AI-generated FIRE strategy.\n\nRates are fractions (0.04 is 4%), and the returns are yearly and real\n(after inflation).\nEvery field is optional: a strategy stored by an earlier version can lack\nsome, and a deployment's entitlement policy may withhold parts of it and\nadd fields of its own."
-      },
-      "FireStrategyBucket": {
-        "properties": {
-          "key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Key"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "target_pct": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Pct"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "color": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Color"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "FireStrategyBucket",
-        "description": "One allocation bucket of a FIRE strategy."
-      },
-      "FireStrategyHistory": {
-        "properties": {
-          "history": {
-            "items": {
-              "$ref": "#/components/schemas/FireStrategySummary"
-            },
-            "type": "array",
-            "title": "History"
-          }
-        },
-        "type": "object",
-        "required": [
-          "history"
-        ],
-        "title": "FireStrategyHistory"
-      },
-      "FireStrategySummary": {
-        "properties": {
-          "version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "fire_style": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fire Style"
-          },
-          "theories_applied": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Theories Applied"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "FireStrategySummary",
-        "description": "A version in the strategy history. Optional throughout, as `FireStrategy` is."
       },
       "ForecastDay": {
         "properties": {
@@ -31465,17 +31070,6 @@
             "type": "string",
             "title": "Fi Assumptions"
           },
-          "fire_strategy": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fire Strategy"
-          },
           "rule_sets": {
             "items": {
               "$ref": "#/components/schemas/ScenarioRuleSet"
@@ -31484,12 +31078,12 @@
             "title": "Rule Sets"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
           "schema",
           "engine",
           "fi_assumptions",
-          "fire_strategy",
           "rule_sets"
         ],
         "title": "ScenarioVersions"

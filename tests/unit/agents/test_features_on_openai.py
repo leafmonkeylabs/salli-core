@@ -1,6 +1,6 @@
 """
 Every AI feature, run on a stand-in for OpenAI (httpx.MockTransport) through
-the ChatGPT plan route: statement sorting, quick add, the FIRE strategy, the
+the ChatGPT plan route: statement sorting, quick add, the
 advisor and its briefing, naming a conversation, and the chat agent with its
 tools. Each request it sends keeps to the plan route's contract.
 """
@@ -13,15 +13,12 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
-import pytest
-
 from salli.adapters.parsing.llm_classifier import classify_transactions
 from salli.application.services.agent_service import AgentService
 from salli.application.services.entry_parse_service import EntryParseService
 from salli.application.services.llm_credential_service import ResolvedCredentials
-from salli.domain.agents import advisor, fire_strategy
+from salli.domain.agents import advisor
 from salli.domain.agents.briefing_workflow import BriefingState, _narrate
-from salli.domain.llm import LLMUnreadableAnswer
 from salli.domain.parsing.models import RawRow
 from salli.domain.secrets import Secret
 from tests.openai_fakes import FakeOpenAI, text_reply, tool_reply
@@ -138,62 +135,7 @@ async def test_quick_add_runs_on_the_plan():
     assert "JSON Schema" in body["instructions"]
 
 
-# ── The FIRE strategy and the advisor ────────────────────────────────────────
-
-STRATEGY = {
-    "fire_style": "standard",
-    "swr": 0.04,
-    "real_return_conservative": 0.02,
-    "real_return_base": 0.04,
-    "real_return_growth": 0.06,
-    "target_monthly_expenses": None,
-    "target_age": 55,
-    "buckets": [
-        {
-            "key": "emergency_moat",
-            "name": "Emergency Moat",
-            "target_pct": 0.25,
-            "description": "Six months of costs.",
-            "color": "emerald",
-        },
-        {
-            "key": "growth",
-            "name": "Growth",
-            "target_pct": 0.75,
-            "description": "Index funds.",
-            "color": "blue",
-        },
-    ],
-    "ai_rationale": "Because.",
-    "theories_applied": ["Trinity Study"],
-}
-
-
-async def test_the_fire_strategy_runs_on_the_plans_best_model():
-    fake = FakeOpenAI(text_reply(json.dumps(STRATEGY)))
-
-    result = await fire_strategy.generate_strategy({"currency": "USD"}, llm=fake.client())
-
-    assert result.fire_style == "standard"
-    assert result.swr == pytest.approx(0.04)
-    _contract(fake)
-    body = fake.bodies[0]
-    assert body["model"] == "gpt-test-best"
-    assert body["instructions"].startswith("You are Salli's FIRE Strategy Architect")
-
-
-async def test_the_model_the_meter_was_told_is_the_model_that_runs():
-    fake = FakeOpenAI(text_reply(json.dumps(STRATEGY)))
-    await fire_strategy.generate_strategy({}, llm=fake.client(), model="gpt-chosen")
-    assert fake.bodies[0]["model"] == "gpt-chosen"
-
-
-async def test_a_strategy_outside_the_bounds_is_refused_not_repaired():
-    """`swr: 4` where 0.04 is meant would shrink the Freedom Number 100x."""
-    fake = FakeOpenAI(text_reply(json.dumps({**STRATEGY, "swr": 4})))
-    with pytest.raises(LLMUnreadableAnswer):
-        await fire_strategy.generate_strategy({}, llm=fake.client())
-
+# ── The advisor ────────────────────────────────────────
 
 ADVICE = {
     "summary": "On track.",

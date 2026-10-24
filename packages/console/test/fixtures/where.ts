@@ -12,7 +12,7 @@
  * tests/contract/test_console_fixtures.py fails while it differs from what
  * the server answers. Don't edit it by hand.
  */
-import type { AccountOverview, CashFlow, CashForecast, EntryProvenance, FiAssumptionsReport, FiProjections, FiScore, FiScoreHistory, FireStrategy, JournalEntry, ProblemDetails, Ref, ReminderList, Spending, TrialBalance } from '@leafmonkeylabs/salli-sdk';
+import type { AccountOverview, CashFlow, CashForecast, EntryProvenance, FiAssumptionsReport, FiProjections, FiScore, FiScoreHistory, JournalEntry, ProblemDetails, Ref, ReminderList, Spending, TrialBalance } from '@leafmonkeylabs/salli-sdk';
 
 export const TRIAL_BALANCE: TrialBalance = {
   "currency": "EUR",
@@ -5650,27 +5650,17 @@ export const SCORE_HISTORY: FiScoreHistory = {
 };
 
 /**
- * The household has no FIRE strategy.
- */
-export const NO_STRATEGY: ProblemDetails = {
-  "type": "about:blank",
-  "title": "Not found",
-  "status": 404,
-  "detail": "No FIRE strategy found"
-};
-
-/**
  * The answer to posting lunch from checking.
  */
 export const POSTED: Ref = {
-  "id": "0000239e-5a11-4000-8000-000000009118"
+  "id": "0000239d-5a11-4000-8000-000000009117"
 };
 
 /**
  * Lunch, as posted.
  */
 export const LUNCH: JournalEntry = {
-  "id": "0000239e-5a11-4000-8000-000000009118",
+  "id": "0000239d-5a11-4000-8000-000000009117",
   "entry_date": "2026-10-11",
   "description": "Lunch with a friend",
   "source": "manual",
@@ -5678,7 +5668,7 @@ export const LUNCH: JournalEntry = {
   "reversed_by": null,
   "postings": [
     {
-      "id": "0000239f-5a11-4000-8000-000000009119",
+      "id": "0000239e-5a11-4000-8000-000000009118",
       "tags": {},
       "account_id": "out",
       "direction": 1,
@@ -5687,7 +5677,7 @@ export const LUNCH: JournalEntry = {
       "fx_rate": "1"
     },
     {
-      "id": "000023a0-5a11-4000-8000-000000009120",
+      "id": "0000239f-5a11-4000-8000-000000009119",
       "tags": {},
       "account_id": "chk",
       "direction": -1,
@@ -5699,7 +5689,7 @@ export const LUNCH: JournalEntry = {
 };
 
 export const LUNCH_PROVENANCE: EntryProvenance = {
-  "entry_id": "0000239e-5a11-4000-8000-000000009118",
+  "entry_id": "0000239d-5a11-4000-8000-000000009117",
   "entry_date": "2026-10-11",
   "description": "Lunch with a friend",
   "source": "manual",
@@ -6098,7 +6088,7 @@ export const CHECKING_POSTED: AccountOverview = {
       "running_balance_native": "6543.15"
     },
     {
-      "entry_id": "0000239e-5a11-4000-8000-000000009118",
+      "entry_id": "0000239d-5a11-4000-8000-000000009117",
       "entry_date": "2026-10-11",
       "description": "Lunch with a friend",
       "source": "manual",
@@ -6138,22 +6128,22 @@ export const TRIAL_BALANCE_POSTED: TrialBalance = {
  * The answer to reversing lunch.
  */
 export const REVERSED: Ref = {
-  "id": "000023a6-5a11-4000-8000-000000009126"
+  "id": "000023a5-5a11-4000-8000-000000009125"
 };
 
 /**
  * Lunch, reversed.
  */
 export const LUNCH_REVERSED: JournalEntry = {
-  "id": "0000239e-5a11-4000-8000-000000009118",
+  "id": "0000239d-5a11-4000-8000-000000009117",
   "entry_date": "2026-10-11",
   "description": "Lunch with a friend",
   "source": "manual",
   "external_ref": null,
-  "reversed_by": "000023a6-5a11-4000-8000-000000009126",
+  "reversed_by": "000023a5-5a11-4000-8000-000000009125",
   "postings": [
     {
-      "id": "0000239f-5a11-4000-8000-000000009119",
+      "id": "0000239e-5a11-4000-8000-000000009118",
       "tags": {},
       "account_id": "out",
       "direction": 1,
@@ -6162,7 +6152,7 @@ export const LUNCH_REVERSED: JournalEntry = {
       "fx_rate": "1"
     },
     {
-      "id": "000023a0-5a11-4000-8000-000000009120",
+      "id": "0000239f-5a11-4000-8000-000000009119",
       "tags": {},
       "account_id": "chk",
       "direction": -1,
@@ -6174,7 +6164,7 @@ export const LUNCH_REVERSED: JournalEntry = {
 };
 
 export const REVERSAL: JournalEntry = {
-  "id": "000023a6-5a11-4000-8000-000000009126",
+  "id": "000023a5-5a11-4000-8000-000000009125",
   "entry_date": "2026-10-11",
   "description": "REVERSAL: Lunch with a friend",
   "source": "manual",
@@ -6182,7 +6172,7 @@ export const REVERSAL: JournalEntry = {
   "reversed_by": null,
   "postings": [
     {
-      "id": "000023a7-5a11-4000-8000-000000009127",
+      "id": "000023a6-5a11-4000-8000-000000009126",
       "tags": {},
       "account_id": "out",
       "direction": -1,
@@ -6191,7 +6181,7 @@ export const REVERSAL: JournalEntry = {
       "fx_rate": "1"
     },
     {
-      "id": "000023a8-5a11-4000-8000-000000009128",
+      "id": "000023a7-5a11-4000-8000-000000009127",
       "tags": {},
       "account_id": "chk",
       "direction": 1,
@@ -6203,7 +6193,7 @@ export const REVERSAL: JournalEntry = {
 };
 
 export const REVERSAL_PROVENANCE: EntryProvenance = {
-  "entry_id": "000023a6-5a11-4000-8000-000000009126",
+  "entry_id": "000023a5-5a11-4000-8000-000000009125",
   "entry_date": "2026-10-11",
   "description": "REVERSAL: Lunch with a friend",
   "source": "manual",
@@ -6602,7 +6592,7 @@ export const CHECKING_REVERSED: AccountOverview = {
       "running_balance_native": "6543.15"
     },
     {
-      "entry_id": "0000239e-5a11-4000-8000-000000009118",
+      "entry_id": "0000239d-5a11-4000-8000-000000009117",
       "entry_date": "2026-10-11",
       "description": "Lunch with a friend",
       "source": "manual",
@@ -6611,7 +6601,7 @@ export const CHECKING_REVERSED: AccountOverview = {
       "running_balance_native": "6530.65"
     },
     {
-      "entry_id": "000023a6-5a11-4000-8000-000000009126",
+      "entry_id": "000023a5-5a11-4000-8000-000000009125",
       "entry_date": "2026-10-11",
       "description": "REVERSAL: Lunch with a friend",
       "source": "manual",
@@ -6658,14 +6648,14 @@ export const REVERSE_REFUSED: ProblemDetails = {
 };
 
 export const DOLLARS_POSTED: Ref = {
-  "id": "000023b0-5a11-4000-8000-000000009136"
+  "id": "000023af-5a11-4000-8000-000000009135"
 };
 
 /**
  * 100.00 USD from checking, at the published rate for the day.
  */
 export const DOLLARS: JournalEntry = {
-  "id": "000023b0-5a11-4000-8000-000000009136",
+  "id": "000023af-5a11-4000-8000-000000009135",
   "entry_date": "2026-10-11",
   "description": "Dollars for the trip",
   "source": "manual",
@@ -6673,7 +6663,7 @@ export const DOLLARS: JournalEntry = {
   "reversed_by": null,
   "postings": [
     {
-      "id": "000023b1-5a11-4000-8000-000000009137",
+      "id": "000023b0-5a11-4000-8000-000000009136",
       "tags": {},
       "account_id": "usd",
       "direction": 1,
@@ -6682,7 +6672,7 @@ export const DOLLARS: JournalEntry = {
       "fx_rate": "0.86"
     },
     {
-      "id": "000023b2-5a11-4000-8000-000000009138",
+      "id": "000023b1-5a11-4000-8000-000000009137",
       "tags": {},
       "account_id": "chk",
       "direction": -1,
@@ -6857,7 +6847,7 @@ export const FI_SCORE_SET: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "a7d14d00a7e9da6ebcfc89dae37b3987e95b40375c8bc066173dc0b886432306"
+  "inputs_hash": "3847fe6cd9d1703c75b55dc6c1c78ec6d5dc5ff2acdbe8d3c389fb7329c2b9c3"
 };
 
 /**
@@ -7075,41 +7065,4 @@ export const ASSUMPTION_REFUSED: ProblemDetails = {
   "title": "Invalid request",
   "status": 422,
   "detail": "real_return must be a yearly fraction from -0.05 to 0.15 (0.03 for 3%), got 0.6"
-};
-
-/**
- * The strategy of a household that has one (the AI drafted its words;
- * every figure in it is the engine's or the person's).
- */
-export const STRATEGY: FireStrategy = {
-  "version": 2,
-  "created_at": "2026-09-01T00:00:00+00:00",
-  "fire_style": "standard",
-  "swr": 0.035,
-  "real_return_conservative": 0.02,
-  "real_return_base": 0.035,
-  "real_return_growth": 0.05,
-  "target_monthly_expenses": "2200",
-  "target_age": 55,
-  "buckets": [
-    {
-      "key": "moat",
-      "name": "Emergency moat",
-      "target_pct": 0.1,
-      "description": "Six months of spending in cash.",
-      "color": "emerald"
-    },
-    {
-      "key": "growth",
-      "name": "Growth",
-      "target_pct": 0.9,
-      "description": "Broad index funds, held for the long run.",
-      "color": "indigo"
-    }
-  ],
-  "ai_rationale": "Keep the moat full, then invest the rest of the surplus every month.",
-  "theories_applied": [
-    "The 4% rule, at 3.5%"
-  ],
-  "is_initial": false
 };

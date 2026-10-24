@@ -570,37 +570,6 @@ REAL_RETURN = {
         "note": "Halfway between the conservative and base scenarios.",
     }
 }
-#: A household's FIRE strategy, as the model wrote it (rates as JSON numbers).
-STRATEGY = {
-    "version": 2,
-    "created_at": "2026-09-01T00:00:00+00:00",
-    "fire_style": "standard",
-    "swr": 0.035,
-    "real_return_conservative": 0.02,
-    "real_return_base": 0.035,
-    "real_return_growth": 0.05,
-    "target_monthly_expenses": 2200.0,
-    "target_age": 55,
-    "buckets": [
-        {
-            "key": "moat",
-            "name": "Emergency moat",
-            "target_pct": 0.1,
-            "description": "Six months of spending in cash.",
-            "color": "emerald",
-        },
-        {
-            "key": "growth",
-            "name": "Growth",
-            "target_pct": 0.9,
-            "description": "Broad index funds, held for the long run.",
-            "color": "indigo",
-        },
-    ],
-    "ai_rationale": "Keep the moat full, then invest the rest of the surplus every month.",
-    "theories_applied": ["The 4% rule, at 3.5%"],
-    "is_initial": False,
-}
 
 
 def with_posting_ids(books: Books) -> None:
@@ -700,12 +669,6 @@ async def where_fixtures(home: list[Fixture]) -> list[Fixture]:
             "The score as Salli kept it on the household's date.",
             await get("/v1/fi/score/history"),
         ),
-        Fixture(
-            "NO_STRATEGY",
-            "ProblemDetails",
-            "The household has no FIRE strategy.",
-            await get("/v1/fi/strategy", ok=(404,)),
-        ),
     ]
 
     # The console's writes, after every read.
@@ -802,17 +765,7 @@ async def where_fixtures(home: list[Fixture]) -> list[Fixture]:
         ),
     ]
 
-    planner = await household()
-    planner.services.entitlements = FullAccess()
-    planner.services.fi._uow_factory().fire_strategies.strategy = STRATEGY
-    strategy = Fixture(
-        "STRATEGY",
-        "FireStrategy",
-        "The strategy of a household that has one (the AI drafted its words;\n"
-        "every figure in it is the engine's or the person's).",
-        await ask(planner, "GET", "/v1/fi/strategy"),
-    )
-    return [*reads, *after_post, *after_reverse, *others, strategy]
+    return [*reads, *after_post, *after_reverse, *others]
 
 
 async def markdown(books: Books, path: str) -> str:

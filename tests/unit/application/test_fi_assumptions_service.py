@@ -87,8 +87,8 @@ class _Strategies:
     def __init__(self, strategy: dict[str, Any] | None = None) -> None:
         self.strategy = strategy
 
-    async def get_latest(self, user_id):
-        return self.strategy
+    async def export(self, user_id):
+        return [self.strategy] if self.strategy else []
 
 
 class _Profiles:
@@ -275,37 +275,29 @@ async def test_nominal_figures_appear_only_with_the_users_inflation():
     ]
 
 
-async def test_a_strategy_s_real_returns_apply_unless_the_user_set_their_own():
+async def test_a_strategy_an_earlier_salli_stored_moves_no_figure():
+    """FI figures come from the user's own assumptions or the labelled
+    placeholders, never from a model's choice."""
     strategy = {
         "version": 2,
         "swr": 0.045,
         "real_return_conservative": 0.01,
         "real_return_base": 0.03,
         "real_return_growth": 0.05,
+        "target_monthly_expenses": 900,
     }
     svc, *_ = _service("USD", strategy=strategy)
     projections = await svc.get_projections(USER)
-    assert projections["assumptions"]["safe_withdrawal_rate"]["origin"] == "strategy"
-    assert projections["assumptions"]["real_return"]["origin"] == "strategy"
-    # A strategy chooses no share of the surplus: that stays a placeholder.
-    assert projections["assumptions"]["placeholders"] == ["surplus_invested"]
-    assert projections["swr"] == "0.045"
-    assert projections["real_returns"] == {"conservative": "0.01", "base": "0.03", "growth": "0.05"}
-
-    svc, *_ = _service("USD", strategy=strategy, fi_assumptions=_own(safe_withdrawal_rate="0.03"))
-    projections = await svc.get_projections(USER)
-    assert projections["assumptions"]["safe_withdrawal_rate"]["origin"] == "user"
-    assert projections["swr"] == "0.03"
-
-
-async def test_a_strategy_stored_with_nominal_returns_contributes_only_its_rate():
-    """Strategies once chose nominal returns; with no inflation to convert them
-    at, they are not used, and the placeholder says so."""
-    strategy = {"swr": 0.045, "return_conservative": 0.06, "return_base": 0.1}
-    svc, *_ = _service("USD", strategy=strategy)
-    projections = await svc.get_projections(USER)
-    assert projections["assumptions"]["placeholders"] == ["real_return", "surplus_invested"]
-    assert projections["swr"] == "0.045"
+    assert projections["assumptions"]["placeholders"] == [
+        "real_return",
+        "safe_withdrawal_rate",
+        "surplus_invested",
+    ]
+    assert projections["swr"] == "0.04"
+    without, *_ = _service("USD")
+    assert (await svc.compute_score(USER))["fi_number"] == (await without.compute_score(USER))[
+        "fi_number"
+    ]
 
 
 async def test_a_score_is_recorded_when_its_inputs_change_and_never_by_reading():
@@ -406,28 +398,3 @@ async def test_a_figure_that_cannot_be_used_is_refused_and_nothing_changes():
         with pytest.raises(ValueError, match=match):
             await svc.set_assumptions(USER, changes)
     assert profiles.row["fi_assumptions"] == before
-
-
-async def test_the_strategy_is_asked_to_build_on_the_users_assumptions(monkeypatch):
-    """Not the previous strategy's: those come separately, as the strategy."""
-    from salli.domain.agents import fire_strategy
-
-    seen: dict[str, Any] = {}
-
-    async def generate(context, *, llm, model=None):
-        seen.update(context)
-        raise RuntimeError("stop here")
-
-    monkeypatch.setattr(fire_strategy, "generate_strategy", generate)
-    svc, *_ = _service("GBP", strategy={"swr": 0.05}, tax_residency="GB")
-    stream = svc.generate_strategy(USER, api_key="k")
-    try:
-        async for _ in stream:
-            pass
-    except RuntimeError:
-        pass
-
-    assert seen["tax_residency"] == "GB"
-    assert seen["assumptions"]["status"] == "placeholder"
-    assert seen["assumptions"]["safe_withdrawal_rate"]["origin"] == "placeholder"
-    assert "region" not in seen["assumptions"]

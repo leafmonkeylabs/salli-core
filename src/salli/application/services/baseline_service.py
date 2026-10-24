@@ -41,7 +41,6 @@ from salli.domain.baseline.models import RuleSetRef
 from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import (
     OwnAssumptions,
-    StrategyFigures,
     assumptions_dict,
     rate_text,
 )
@@ -260,7 +259,6 @@ class BaselineService:
             debts = await uow.debts.list(user_id, active_only=True)
             subscriptions = await uow.recurring_subscriptions.list(user_id, active_only=True)
             fed = await statement_accounts(uow, user_id)
-            strategy = await uow.fire_strategies.get_latest(user_id)
             active_rules = await uow.tax_rule_sets.active_versions(user_id)
             residency: str | None = profile.get("tax_residency") or None
             rules = tax_rules(active_rules, residency, as_of)
@@ -307,7 +305,6 @@ class BaselineService:
                 subscriptions=subscriptions,
                 statement_accounts=fed,
                 own_assumptions=OwnAssumptions.from_stored(profile.get("fi_assumptions")),
-                strategy=StrategyFigures.from_stored(strategy),
                 rule_sets=covering_rule_sets(active_rules, residency, as_of),
                 tax=tax,
                 holdings=holdings,

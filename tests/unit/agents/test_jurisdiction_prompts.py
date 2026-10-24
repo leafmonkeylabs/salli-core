@@ -25,7 +25,6 @@ from salli.domain.agents.jurisdiction import (
     TaxRulesContext,
     UserContext,
     context_section,
-    investing_context,
     set_user_context,
     tax_specialist_section,
     user_context,
@@ -138,8 +137,6 @@ def test_a_user_with_no_active_rules_is_told_so_and_how_to_add_them():
 def test_no_section_uses_an_em_dash():
     for ctx in (WITH_RULES, BETWEEN_YEARS, NOBODY_KNOWS, NO_RULES):
         assert "—" not in tax_specialist_section(ctx)
-    for residency in ("LK", "DE", None):
-        assert "—" not in investing_context(residency)
 
 
 # ── The fixed prompts know no country ────────────────────────────────────────
@@ -159,7 +156,7 @@ def _prompt_constants() -> list[tuple[str, str]]:
 
 def test_no_fixed_prompt_assumes_a_country():
     constants = _prompt_constants()
-    assert len(constants) >= 7
+    assert len(constants) >= 6
     offenders = {name: _says(text, *COUNTRY_SPECIFIC, "2025/26") for name, text in constants}
     assert {name: words for name, words in offenders.items() if words} == {}
 
@@ -246,30 +243,6 @@ def test_salli_keeps_no_market_notes_for_any_country():
     assert not hasattr(jurisdiction, "market_notes")
 
 
-@pytest.mark.parametrize("residency", ["LK", "DE", "KE", "BR"])
-def test_every_residency_gets_the_same_neutral_guidance(residency):
-    """Where the user is (the country's ISO name), and that local products are
-    theirs to check: otherwise the same words for every country, naming none
-    of its products."""
-    from salli.domain.jurisdiction import country_phrase
-
-    place = f"{country_phrase(residency)} ({residency})"
-    text = investing_context(residency)
-    assert place in text
-    generic = text.replace(place, "<place>")
-    assert generic == investing_context("DE").replace("Germany (DE)", "<place>")
-    assert "no built-in notes" in generic
-    assert "by type rather than by product or provider name" in generic
-    assert "official sources" in generic
-    assert _says(generic, *COUNTRY_SPECIFIC) == []
-
-
-def test_an_unknown_residency_assumes_no_country():
-    neutral = investing_context(None)
-    assert "assume no country" in neutral
-    assert _says(neutral, *COUNTRY_SPECIFIC) == []
-
-
 def test_agents_with_web_search_research_local_markets_and_cite_them():
     from salli.domain.agents.buddy_agent import BUDDY_SYSTEM_PROMPT
     from salli.domain.agents.manager_agent import MANAGER_SYSTEM_PROMPT
@@ -277,21 +250,6 @@ def test_agents_with_web_search_research_local_markets_and_cite_them():
     for prompt in (MANAGER_SYSTEM_PROMPT, BUDDY_SYSTEM_PROMPT):
         assert "no built-in notes on any country's investment products" in prompt
         assert "research it with web_search, cite your sources" in prompt
-
-
-async def test_the_fire_strategy_is_asked_with_the_users_market():
-    from salli.domain.agents import fire_strategy
-    from salli.domain.llm import LLMUnreadableAnswer
-    from tests.fakes import FakeLLM
-
-    llm = FakeLLM("{}")  # no strategy: only the prompt matters here
-    for residency in ("LK", None):
-        with pytest.raises(LLMUnreadableAnswer):
-            await fire_strategy.generate_strategy({"tax_residency": residency}, llm=llm)
-
-    lk, unknown = (request["instructions"] for request in llm.requests)
-    assert "Sri Lanka (LK)" in lk and "no built-in notes" in lk
-    assert "assume no country" in unknown and "Sri Lanka" not in unknown
 
 
 # ── The agent service sets the context each turn ─────────────────────────────

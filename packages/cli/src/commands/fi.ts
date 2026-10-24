@@ -1,5 +1,5 @@
 /**
- * Financial independence (score, projections, strategy), goals and the
+ * Financial independence (score, projections, assumptions), goals and the
  * wealth advisor. What a purchase does is a scenario: `salli whatif`,
  * `salli compare`.
  */
@@ -20,8 +20,6 @@ import {
   fiScoreGet,
   fiScoreHistory,
   fiScoreRecompute,
-  fiStrategyGet,
-  fiStrategyHistory,
   fiSurplus,
   goalsAllocationsList,
   goalsAllocationsSet,
@@ -29,15 +27,11 @@ import {
   goalsDelete,
   goalsList,
   goalsUpdate,
-  rawJsonOf,
-  SalliApiError,
-  streamStrategyGeneration,
   type AdvisoryReport,
   type BriefingPrepared,
   type FiAssumptions,
   type FiAssumptionsUpdate,
   type FiScore,
-  type FireStrategy,
   type Goal,
   type SalliClient,
 } from '@leafmonkeylabs/salli-sdk';
@@ -125,43 +119,8 @@ function scoreView(app: App, s: FiScore): void {
   }
 }
 
-function strategyView(app: App, s: FireStrategy): void {
-  const out = app.out;
-  const has = (value: number | null | undefined): value is number => typeof value === 'number';
-  out.line(`${out.heading('FIRE strategy')} ${out.colors.dim(`v${str(s.version)}${s.fire_style ? ` · ${str(s.fire_style)}` : ''}`)}`);
-  out.line(
-    out.details([
-      ['Safe withdrawal', has(s.swr) ? out.percent(s.swr, 2) : undefined],
-      [
-        'Real returns',
-        has(s.real_return_conservative) && has(s.real_return_base) && has(s.real_return_growth)
-          ? `${out.percent(s.real_return_conservative, 1)} / ${out.percent(s.real_return_base, 1)} / ${out.percent(s.real_return_growth, 1)} (conservative / base / growth, after inflation)`
-          : undefined,
-      ],
-      // In the base currency, as the decimal string the API sends.
-      ['Target spending', s.target_monthly_expenses ? `${s.target_monthly_expenses} a month` : undefined],
-      ['Target age', str(s.target_age) || undefined],
-    ]),
-  );
-  const buckets = s.buckets ?? [];
-  if (buckets.length) {
-    out.line();
-    out.line(
-      out.table(buckets, [
-        { header: 'BUCKET', get: (b) => str(b.name) },
-        { header: 'SHARE', get: (b) => out.percent(b.target_pct, 0), align: 'right' },
-        { header: 'WHAT FOR', get: (b) => str(b.description), shrink: true },
-      ]),
-    );
-  }
-  if (s.ai_rationale) {
-    out.line();
-    out.line(out.colors.dim(singleLine(s.ai_rationale)));
-  }
-}
-
 function registerFi(program: Command, app: App): void {
-  const fi = program.command('fi').description('Financial independence: your score, projections, strategy and assumptions');
+  const fi = program.command('fi').description('Financial independence: your score, projections and assumptions');
 
   fi.command('score')
     .description('Your FI score and the figures behind it')
@@ -193,7 +152,7 @@ function registerFi(program: Command, app: App): void {
           const out = app.out;
           const a = r.applied;
           const rows = ASSUMPTION_NAMES.map((name) => ({ name, ...ASSUMPTIONS[name], applied: a[ASSUMPTIONS[name].key] }));
-          const from = (origin: string): string => (origin === 'user' ? 'you' : origin === 'strategy' ? 'your strategy' : 'placeholder');
+          const from = (origin: string): string => (origin === 'user' ? 'you' : 'placeholder');
           out.line(`${out.heading('FI assumptions')} ${out.colors.dim('real terms: after inflation, in today’s money')}`);
           out.line(
             out.table(rows, [
@@ -242,7 +201,7 @@ function registerFi(program: Command, app: App): void {
   assumptions
     .command('clear')
     .argument('<names...>', `Which: ${ASSUMPTION_NAMES.join(', ')}`)
-    .description('Clear your own figures: your strategy’s, or a placeholder, stands in again')
+    .description('Clear your own figures: a placeholder stands in again')
     .action(async (names) => {
       const keys = names.map((n) => ASSUMPTIONS[assumptionName(n)].key);
       const body: FiAssumptionsUpdate = Object.fromEntries(keys.map((k) => [k, null]));
@@ -356,69 +315,6 @@ function registerFi(program: Command, app: App): void {
           section('SPENDING', d.expense_by_category);
         },
       });
-    });
-
-  const strategy = fi.command('strategy').description('Your FIRE strategy (drafted by the AI, all figures from the engine)');
-
-  strategy
-    .command('show', { isDefault: true })
-    .description('Show your current strategy')
-    .action(async () => {
-      const api = await app.api();
-      let data: FireStrategy;
-      try {
-        data = await api.call(fiStrategyGet);
-      } catch (error) {
-        if (error instanceof SalliApiError && error.status === 404) {
-          throw new CliError('You have no FIRE strategy yet.', { exitCode: 4, kind: 'not-found', hint: 'Create one with `salli fi strategy generate`.' });
-        }
-        throw error;
-      }
-      app.out.emit(data, { human: (d) => strategyView(app, d) });
-    });
-
-  strategy
-    .command('history')
-    .description('Earlier versions of your strategy')
-    .action(async () => {
-      const api = await app.api();
-      const data = await api.call(fiStrategyHistory);
-      app.out.emit(data, {
-        records: (d) => d.history,
-        human: (d) => {
-          if (!d.history.length) return app.out.note('No strategies yet.');
-          app.out.line(
-            app.out.table(d.history, [
-              { header: 'VERSION', get: (h) => str(h.version), align: 'right' },
-              { header: 'STYLE', get: (h) => str(h.fire_style) },
-              { header: 'CREATED', get: (h) => displayDate(h.created_at, app.out.locale) },
-            ]),
-          );
-        },
-      });
-    });
-
-  strategy
-    .command('generate')
-    .description('Draft a new strategy with the AI (streams its progress)')
-    .action(async () => {
-      const api = await app.api();
-      const spinner = app.prompter.spinner();
-      spinner.start('Drafting your strategy');
-      let result: FireStrategy | undefined;
-      try {
-        for await (const event of streamStrategyGeneration(api, { signal: app.runtime.signal })) {
-          if (app.out.format === 'ndjson') app.out.line(rawJsonOf(event) ?? JSON.stringify(event));
-          if (event.type === 'status' && event.message) spinner.message(singleLine(event.message));
-          else if (event.type === 'error') throw new CliError(`The strategy could not be drafted: ${singleLine(event.message || 'unknown error')}`);
-          else if (event.type === 'done') result = event.strategy;
-        }
-      } finally {
-        spinner.stop();
-      }
-      if (app.out.format === 'ndjson') return;
-      if (!result) throw new CliError('The server finished without a strategy.');
-      app.out.emit(result, { human: (d) => strategyView(app, d) });
     });
 }
 

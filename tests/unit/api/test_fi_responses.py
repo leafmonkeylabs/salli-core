@@ -22,14 +22,19 @@ from tests.unit.api.conftest import AUTH
 
 pytestmark = pytest.mark.asyncio
 
+#: The user the test client signs in as (conftest's AUTH).
+_USER = "test-user-1"
+
 _ACCOUNTS = [
-    Account(id="salary", user_id="u1", code="4000", name="Salary", type="income", currency="KES"),
-    Account(id="savings", user_id="u1", code="1000", name="Savings", type="asset", currency="KES"),
+    Account(id="salary", user_id=_USER, code="4000", name="Salary", type="income", currency="KES"),
+    Account(id="savings", user_id=_USER, code="1000", name="Savings", type="asset", currency="KES"),
     Account(
-        id="funds", user_id="u1", code="1100", name="Unit Trusts", type="asset", currency="KES"
+        id="funds", user_id=_USER, code="1100", name="Unit Trusts", type="asset", currency="KES"
     ),
-    Account(id="card", user_id="u1", code="2000", name="Card", type="liability", currency="KES"),
-    Account(id="food", user_id="u1", code="5000", name="Groceries", type="expense", currency="KES"),
+    Account(id="card", user_id=_USER, code="2000", name="Card", type="liability", currency="KES"),
+    Account(
+        id="food", user_id=_USER, code="5000", name="Groceries", type="expense", currency="KES"
+    ),
 ]
 
 
@@ -37,7 +42,7 @@ def _entry(n: int, days_ago: int, debit: str, credit: str, amount: str) -> Store
     day = datetime.date.today() - datetime.timedelta(days=days_ago)
     return StoredJournalEntry(
         id=f"e{n}",
-        user_id="u1",
+        user_id=_USER,
         entry_date=day.isoformat(),
         description="",
         source="manual",
@@ -60,6 +65,8 @@ _ENTRIES = [
     _entry(2, 30, "savings", "salary", "300000.00"),
     _entry(3, 20, "food", "card", "45000.50"),
     _entry(4, 10, "funds", "savings", "200000.00"),
+    _entry(5, 45, "food", "savings", "150000.00"),
+    _entry(6, 75, "food", "savings", "150000.00"),
 ]
 
 
@@ -100,40 +107,6 @@ class _Scores:
         ]
 
 
-class _Strategies:
-    """A strategy as the model writes one: rates as floats, and a target whose
-    FI number divides exactly (1800000.0 / 0.04), which Decimal renders as
-    "4.500000E+7"."""
-
-    async def get_latest(self, user_id: str) -> dict[str, Any]:
-        return {
-            "version": 1,
-            "created_at": "2026-09-01T00:00:00+00:00",
-            "fire_style": "standard",
-            "swr": 0.04,
-            "real_return_conservative": 0.02,
-            "real_return_base": 0.04,
-            "real_return_growth": 0.06,
-            "target_monthly_expenses": 150000.0,
-            "target_age": 50,
-            "buckets": [
-                {
-                    "key": "moat",
-                    "name": "Emergency Moat",
-                    "target_pct": 1.0,
-                    "description": "Six months of spending.",
-                    "color": "emerald",
-                }
-            ],
-            "ai_rationale": "Build the moat first.",
-            "theories_applied": ["Trinity Study"],
-            "is_initial": True,
-        }
-
-    async def get_history(self, user_id: str) -> list[dict[str, Any]]:
-        return [{"version": 1, "created_at": "x", "fire_style": "standard", "theories_applied": []}]
-
-
 @pytest.fixture
 def fi(mock_services) -> FiService:
     uow = FakeUoW("KES")
@@ -141,19 +114,12 @@ def fi(mock_services) -> FiService:
     uow.ledger.entries = list(_ENTRIES)
     uow.goals = _Goals()  # type: ignore[assignment]
     uow.fi_scores = _Scores()  # type: ignore[assignment]
-    uow.fire_strategies = _Strategies()  # type: ignore[assignment]
     mock_services.fi = FiService(uow.factory())
     return mock_services.fi
 
 
 #: A KES amount as the API sends one: a plain decimal string with two decimals.
 _AMOUNT = re.compile(r"-?\d+\.\d{2}")
-
-
-async def test_the_service_raw_fi_number_is_an_exact_quotient_in_exponent_form(fi):
-    """Why the router normalises money: the service's own string is no Amount."""
-    score = await fi.compute_score("u1")
-    assert "E+" in score["fi_number"]
 
 
 @pytest.mark.parametrize(
@@ -166,8 +132,6 @@ async def test_the_service_raw_fi_number_is_an_exact_quotient_in_exponent_form(f
         ("get", "/v1/fi/surplus", None),
         ("get", "/v1/fi/goals", None),
         ("get", "/v1/fi/goals/house/allocations", None),
-        ("get", "/v1/fi/strategy", None),
-        ("get", "/v1/fi/strategy/history", None),
     ],
 )
 async def test_each_route_returns_what_the_service_computes(client, fi, method, path, body):
@@ -180,7 +144,7 @@ async def test_each_route_returns_what_the_service_computes(client, fi, method, 
 
 async def test_amounts_are_at_the_currency_precision(client, fi):
     score = (await client.get("/v1/fi/score", headers=AUTH)).json()
-    assert score["fi_number"] == "45000000.00"
+    assert _AMOUNT.fullmatch(score["fi_number"]) and score["fi_number"] != "0.00"
     assert score["currency"] == "KES"
 
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
@@ -189,19 +153,21 @@ async def test_amounts_are_at_the_currency_precision(client, fi):
 
 
 async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
-    """The stored strategy's rate and real returns, and no inflation: so no
-    nominal figure, and only the share of the surplus invested is a
-    placeholder (a strategy chooses none), until the user sets it."""
+    """The placeholders, and no inflation: so no nominal figure, until the
+    user sets their own."""
     score = (await client.get("/v1/fi/score", headers=AUTH)).json()
     projections = (await client.get("/v1/fi/projections", headers=AUTH)).json()
     for body in (score, projections):
         assumptions = body["assumptions"]
         assert assumptions["status"] == "placeholder"
-        assert assumptions["placeholders"] == ["surplus_invested"]
+        assert assumptions["placeholders"] == [
+            "real_return",
+            "safe_withdrawal_rate",
+            "surplus_invested",
+        ]
         assert assumptions["surplus_invested"]["value"] == "1"
         assert assumptions["inflation"] is None
-        assert assumptions["safe_withdrawal_rate"]["origin"] == "strategy"
-        assert assumptions["real_return"]["origin"] == "strategy"
+        assert assumptions["safe_withdrawal_rate"]["origin"] == "placeholder"
         assert assumptions["real_returns"] == {
             "conservative": "0.02",
             "base": "0.04",
@@ -212,7 +178,11 @@ async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
 
     r = await client.patch(
         "/v1/fi/assumptions",
-        json={"surplus_invested": {"value": "0.75", "source": "my standing orders"}},
+        json={
+            "surplus_invested": {"value": "0.75", "source": "my standing orders"},
+            "real_return": {"value": "0.03", "source": "https://example.org/returns"},
+            "safe_withdrawal_rate": {"value": "0.035"},
+        },
         headers=AUTH,
     )
     assert r.status_code == 200, r.text
@@ -248,7 +218,7 @@ async def test_the_share_of_the_surplus_invested_is_from_0_to_1(client, fi, valu
 
 async def test_the_assumptions_route_reports_what_applies_and_the_placeholders(client, fi):
     body = (await client.get("/v1/fi/assumptions", headers=AUTH)).json()
-    assert body["applied"]["safe_withdrawal_rate"]["origin"] == "strategy"
+    assert body["applied"]["safe_withdrawal_rate"]["origin"] == "placeholder"
     assert body["placeholder_values"]["safe_withdrawal_rate"]["value"] == "0.04"
     assert body["placeholder_values"]["real_return"]["source"].startswith("Placeholder:")
     assert body["placeholder_values"]["surplus_invested"] == {

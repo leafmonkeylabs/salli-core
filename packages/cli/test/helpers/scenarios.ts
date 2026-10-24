@@ -17,8 +17,8 @@ export const SCENARIO_RUN: ScenarioRun = {
   "as_of": "2026-10-11",
   "horizon_years": 20,
   "currency": "EUR",
-  "hash": "sha256:b579cc754b93d786584aefb0f8d86ab3adc56f278a585a48e8029f58d575c931",
-  "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
+  "hash": "sha256:70a6244a8c500cde282a5414d927153a6f3d9f90767933114592235f897bf1e4",
+  "baseline_fingerprint": "sha256:779f958c8e96f1c3a0cd30bd4bbe779d9c0962073300c9a7362a5e5f80af659f",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Laptop",
@@ -472,7 +472,6 @@ export const SCENARIO_RUN: ScenarioRun = {
     "schema": "salli.scenario/1",
     "engine": "4",
     "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-    "fire_strategy": null,
     "rule_sets": []
   },
   "data_as_of": "2026-10-09",
@@ -496,8 +495,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:311d95aee64cef15b25d0b51f60b1492848bc4ff1f404a27184712539ef2efe6",
-      "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
+      "hash": "sha256:152983a2f1046b79c0c275cfceea70641629dcb4548d729f7232a0f6d85f96e7",
+      "baseline_fingerprint": "sha256:779f958c8e96f1c3a0cd30bd4bbe779d9c0962073300c9a7362a5e5f80af659f",
       "scenario": {
         "schema": "salli.scenario/1",
         "label": "Pay cash",
@@ -890,7 +889,6 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "schema": "salli.scenario/1",
         "engine": "4",
         "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-        "fire_strategy": null,
         "rule_sets": []
       },
       "data_as_of": "2026-10-09",
@@ -904,8 +902,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
       "as_of": "2026-10-11",
       "horizon_years": 20,
       "currency": "EUR",
-      "hash": "sha256:8b3d6339ccebc2e9cead34156082728e3f987eceb73e1acf96697097ef22fa8d",
-      "baseline_fingerprint": "sha256:c7e08824614b11110f1f6acc50864b04c84bf1e33de95e0810c6fe51133c6d01",
+      "hash": "sha256:43502008482a46b8ab4074ecd4530a605bff55f5ac05e7c23f551d3cab923c64",
+      "baseline_fingerprint": "sha256:779f958c8e96f1c3a0cd30bd4bbe779d9c0962073300c9a7362a5e5f80af659f",
       "scenario": {
         "schema": "salli.scenario/1",
         "label": "Instalments",
@@ -1334,7 +1332,6 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
         "schema": "salli.scenario/1",
         "engine": "4",
         "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-        "fire_strategy": null,
         "rule_sets": []
       },
       "data_as_of": "2026-10-09",
@@ -1753,8 +1750,8 @@ export const TAXED_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:7af602cb123d50777e1cbb46b9943a18755a7226bd81cd898d5e962879b89ed3",
-  "baseline_fingerprint": "sha256:a578b5182f732beb18927582d6f4df47c1df7480735ca96dec7dadb9fe276335",
+  "hash": "sha256:9ce26a7031a8c01b154aff2c41081149324b86208d7571711eb1f0104d631ce4",
+  "baseline_fingerprint": "sha256:0cc1d9c27aa456cec9ebb0d2d8817632d43f54d017e82c0e621a821841390da5",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Raise",
@@ -2529,7 +2526,6 @@ export const TAXED_RUN: ScenarioRun = {
     "schema": "salli.scenario/1",
     "engine": "4",
     "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-    "fire_strategy": null,
     "rule_sets": [
       {
         "country": "XA",
@@ -2559,8 +2555,8 @@ export const HOLDING_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:b91f47f0f987664a9f6b7e1bca688b7869c5e078c9e26fc2364b410185405a1a",
-  "baseline_fingerprint": "sha256:c9f2ef980a5aa7cd4f129ff9d353ce96499c23130e4b5a5e6dd3b2f31e42e7da",
+  "hash": "sha256:4915fab3c5871f35db19a52338591c0f88b6d46c68f3b5cd86ef7c4a77801a7e",
+  "baseline_fingerprint": "sha256:f15cd36061f33f57bb9e2347936e415c6c2cd15fc46803924c6bc892f99b29a6",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Sell to top up",
@@ -3095,7 +3091,6 @@ export const HOLDING_RUN: ScenarioRun = {
     "schema": "salli.scenario/1",
     "engine": "4",
     "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-    "fire_strategy": null,
     "rule_sets": [
       {
         "country": "XA",
@@ -3127,8 +3122,8 @@ export const ASSET_RUN: ScenarioRun = {
   "as_of": "2031-06-30",
   "horizon_years": 20,
   "currency": "NZD",
-  "hash": "sha256:d9eb619cb59641d632163c9a41bca35893e61b057898d12055564502347ff8a9",
-  "baseline_fingerprint": "sha256:dd5b5b80055138c8d92dfbdaad3db236f35678a148df3c5afce1779edb5d9e41",
+  "hash": "sha256:935cac790593b67a116602c30b179fc9236eddfd755ad8bb5bf08c10bfaea012",
+  "baseline_fingerprint": "sha256:fa8f0d1cfb200c379d575581b4af9ca944e282bbf2819301c6a2186f979076fa",
   "scenario": {
     "schema": "salli.scenario/1",
     "label": "Buy",
@@ -3514,7 +3509,6 @@ export const ASSET_RUN: ScenarioRun = {
     "schema": "salli.scenario/1",
     "engine": "4",
     "fi_assumptions": "sha256:334b2d267bbb44f200b9a6d413e3e0c33e4c3813fbcf230a2cb4e2b793482aa0",
-    "fire_strategy": null,
     "rule_sets": []
   },
   "data_as_of": "2031-06-25",

@@ -35,8 +35,6 @@ export class WhereState {
   projections: FiProjections = clone(where.PROJECTIONS);
   /** The cash-flow answer (a test may give one with no full month). */
   cashFlow: CashFlow = clone(where.CASH_FLOW);
-  /** A household with a FIRE strategy answers it; this one has none. */
-  strategy: unknown = null;
 
   answer(request: Recorded): Answer | undefined {
     const { method, path, search } = request;
@@ -91,7 +89,6 @@ export class WhereState {
     if (method === 'GET' && path === '/v1/fi/assumptions') return { status: 200, body: this.assumptions };
     if (method === 'GET' && path === '/v1/fi/projections') return { status: 200, body: this.projections };
     if (method === 'GET' && path === '/v1/fi/score/history') return { status: 200, body: where.SCORE_HISTORY };
-    if (method === 'GET' && path === '/v1/fi/strategy') return this.strategy ? { status: 200, body: this.strategy } : { status: 404, body: where.NO_STRATEGY };
     if (method === 'PATCH' && path === '/v1/fi/assumptions') return this.assume(body());
     return undefined;
   }

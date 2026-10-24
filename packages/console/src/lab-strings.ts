@@ -213,7 +213,6 @@ export const labStrings = {
     placeholderTag: 'Placeholder',
     setBy: 'Set by',
     yours: 'Yours',
-    fromStrategy: 'From your FIRE strategy',
     names: {
       real_return: 'Real return a year',
       safe_withdrawal_rate: 'Safe withdrawal rate',

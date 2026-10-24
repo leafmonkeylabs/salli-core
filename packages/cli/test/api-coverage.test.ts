@@ -46,7 +46,6 @@ const EXEMPT: Record<string, string> = {
 const VIA_SDK_HELPER: Record<string, readonly string[]> = {
   streamAgentChat: ['agent.chat'],
   streamAgentResume: ['agent.resume'],
-  streamStrategyGeneration: ['fi.strategy.generate'],
   // Every client checks the server's API version through /v1/meta.
   createClient: ['meta.get'],
 };

@@ -98,7 +98,6 @@ class AdvisorService:
         profile = await self._gather_profile(user_id)
         residency = await self._tax_residency(user_id)
         rates = await self._research_rates(residency, score.get("currency"))
-        fire_strategy = await self._fi.get_strategy(user_id)
         fire_projections = await self._fi.get_projections(user_id)
         surplus = await self._fi.get_surplus_breakdown(user_id)
 
@@ -127,22 +126,6 @@ class AdvisorService:
                 "projected_fi_month": score.get("projected_fi_month"),
                 "components": score.get("components"),
             },
-            "fire_strategy": {
-                "fire_style": fire_strategy.get("fire_style"),
-                "swr": fire_strategy.get("swr"),
-                # Real (after-inflation) yearly returns the strategy chose.
-                "real_return_conservative": fire_strategy.get("real_return_conservative"),
-                "real_return_base": fire_strategy.get("real_return_base"),
-                "real_return_growth": fire_strategy.get("real_return_growth"),
-                "target_age": fire_strategy.get("target_age"),
-                "target_monthly_expenses": fire_strategy.get("target_monthly_expenses"),
-                "buckets": fire_strategy.get("buckets", []),
-                "theories_applied": fire_strategy.get("theories_applied", []),
-                "version": fire_strategy.get("version"),
-                "created_at": fire_strategy.get("created_at"),
-            }
-            if fire_strategy
-            else None,
             "fire_projections": {
                 # fi_number deliberately omitted — it is the same figure as
                 # fi_score.fi_number above. Sending it twice previously let the two
@@ -151,7 +134,7 @@ class AdvisorService:
                 # The month FI is reached in each scenario, and in how many months.
                 "fi_by": fire_projections.get("fi_by"),
                 # The REAL (after-inflation) returns the projections used: the
-                # user's, the strategy's, or placeholders (assumptions says which).
+                # user's or placeholders (assumptions says which).
                 "real_returns_used": fire_projections.get("real_returns"),
                 # The user's own inflation, or None: then everything is in
                 # today's money, and no inflation is assumed.

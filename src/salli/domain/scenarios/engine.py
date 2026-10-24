@@ -71,8 +71,7 @@ scenario / delta.
 
 **The FI number** under a scenario is built on the spending it leaves for
 good: the baseline's average, plus recurring costs with no end, less the
-spending a stop takes away. A FIRE strategy's target, when it names one,
-stays the target.
+spending a stop takes away.
 
 **Reproducible.** A result records the assumptions (placeholders flagged),
 the versions of the FI assumptions and the rule sets, the as-of date, and a
@@ -644,11 +643,7 @@ class _Translator:
                             "tax",
                         )
                     )
-        base = fi.spending(self.baseline)
-        target = self.baseline.strategy.target_monthly_expenses if self.baseline.strategy else None
-        scenario_spending = (
-            base if target is not None and target > 0 else max(base + spending, Decimal(0))
-        )
+        scenario_spending = max(fi.spending(self.baseline) + spending, Decimal(0))
         return Translation(
             timelines.Changes(
                 flows=tuple(flows),
@@ -1038,7 +1033,6 @@ class Versions:
     engine: str
     #: A content hash of the FI assumptions that applied.
     fi_assumptions: str
-    fire_strategy: int | None
     rule_sets: tuple[RuleSetRef, ...]
 
 
@@ -1370,7 +1364,6 @@ def versions(baseline: Baseline) -> Versions:
         schema=schema.SCHEMA_ID,
         engine=ENGINE_VERSION,
         fi_assumptions=canonical.digest(assumptions_dict(baseline.assumptions)),
-        fire_strategy=baseline.strategy.version if baseline.strategy else None,
         rule_sets=baseline.rule_sets,
     )
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from salli.domain.scenarios.schema import Scenario
 from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalOut
@@ -381,11 +381,14 @@ class ScenarioTaxOutcome(BaseModel):
 
 
 class ScenarioVersions(BaseModel):
+    # A decision recorded by an earlier version keeps the keys it was recorded
+    # with (`fire_strategy`, the FIRE strategy's version, until 2026-10).
+    model_config = ConfigDict(extra="allow")
+
     schema_: str = Field(alias="schema")
     engine: str
     #: A content hash of the FI assumptions that applied.
     fi_assumptions: str
-    fire_strategy: int | None
     #: The active tax rule sets covering the as-of date.
     rule_sets: list[ScenarioRuleSet]
 

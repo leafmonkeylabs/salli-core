@@ -67,7 +67,6 @@ function Navigator() {
           <Stack.Screen name="fi/index" />
           <Stack.Screen name="fi/assumptions" />
           <Stack.Screen name="fi/goals" />
-          <Stack.Screen name="fi/strategy" />
           <Stack.Screen name="fi/surplus" />
           <Stack.Screen name="attention" />
           <Stack.Screen name="filing" />

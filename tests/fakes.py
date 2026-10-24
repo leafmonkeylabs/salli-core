@@ -500,10 +500,7 @@ class FakeStrategies:
     def __init__(self, strategy: dict[str, Any] | None = None) -> None:
         self.strategy = strategy
 
-    async def get_latest(self, user_id: str) -> dict[str, Any] | None:
-        return self.strategy
-
-    async def get_history(self, user_id: str) -> list[dict[str, Any]]:
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
         return [self.strategy] if self.strategy else []
 
 
