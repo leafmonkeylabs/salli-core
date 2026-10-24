@@ -139,7 +139,8 @@ export default function Import() {
         title={picking ? t.pickAccount : undefined}
         accounts={accounts.data ?? []}
         chosen={account}
-        types={['asset', 'liability']}
+        likely={['asset', 'liability']}
+        others={false}
         onClose={() => setPicking(false)}
         onPick={(id) => {
           setAccount(id);

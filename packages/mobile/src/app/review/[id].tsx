@@ -1,5 +1,6 @@
 import {
   accountsList,
+  formatAmount,
   negateAmount,
   rulesList,
   statementsCategorize,
@@ -188,8 +189,19 @@ export default function Review() {
       ) : null}
 
       <Picker
-        title={picking ? (picking.credit_flag ? t.cameFrom : t.wentTo) : undefined}
+        title={picking ? t.accountFor(shown(picking)) : undefined}
+        {...(picking
+          ? {
+              subtitle: (picking.credit_flag ? t.movedIn : t.movedOut)(
+                displayDate(picking.date),
+                formatAmount(picking.amount, picking.currency),
+                names.get(moneySide(picking) ?? '') ?? strings.imports.statement,
+              ),
+            }
+          : {})}
         accounts={accounts.data ?? []}
+        // Money out mostly went on spending; money in mostly came from income.
+        likely={picking?.credit_flag ? ['income', 'expense'] : ['expense', 'income']}
         chosen={picking ? (otherSide(picking) ?? undefined) : undefined}
         except={picking ? moneySide(picking) : null}
         onClose={() => setPicking(undefined)}
