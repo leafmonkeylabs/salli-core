@@ -2,11 +2,11 @@ import { accountsList, statementsDraft, type Account, type DraftedTransactions }
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead, useReach } from '../api';
 import { Drafted, useAutomations } from '../automations';
 import { useUnread } from '../inbox';
-import { Body, Button, Card, CardHead, Row, Waiting } from '../kit';
+import { Body, Button, Card, CardHead, Icon, Row, Waiting } from '../kit';
 import { read, type Reading } from '../lib/automations';
 import { displayMoment, todayIso } from '../lib/display';
 import { Page } from '../shell';
@@ -21,13 +21,16 @@ const t = strings.automations;
  * messages over the same way, in the background.
  */
 export default function Automations() {
+  const theme = useTheme();
   const { rules } = useAutomations();
   const accounts = useRead('accounts.list', accountsList);
   const nameOf = (id: string) => accounts.data?.find((a) => a.id === id)?.name ?? '';
 
   return (
     <Page title={t.title} back={{ label: t.back, onPress: () => (router.canGoBack() ? router.back() : router.replace('/more')) }}>
-      <Body muted>{t.intro}</Body>
+      <Text accessibilityLabel={t.introSpoken} style={[styles.intro, { color: theme.muted }]}>
+        {t.intro}
+      </Text>
       <Card style={{ paddingVertical: 4 }}>
         <View style={{ paddingTop: 8 }}>
           <CardHead label={t.rules} />
@@ -52,13 +55,27 @@ export default function Automations() {
       </Card>
       <Unread />
       {accounts.data ? <TryMessage accounts={accounts.data} /> : <Waiting query={accounts} what="your accounts" />}
-      <Card style={{ gap: 8 }}>
-        <CardHead label={t.shortcutTitle} />
+      <HowTo />
+    </Page>
+  );
+}
+
+/** How to hand messages over from Shortcuts, folded until asked for. */
+function HowTo() {
+  const theme = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <Card style={{ gap: 8 }}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.howTo}>
+        <Body style={{ flex: 1 }}>{t.howTo}</Body>
+        <Icon name={open ? 'down' : 'chevron'} size={16} colour={theme.muted} />
+      </Pressable>
+      {open ? (
         <Body small muted>
           {t.shortcutHelp}
         </Body>
-      </Card>
-    </Page>
+      ) : null}
+    </Card>
   );
 }
 
@@ -73,10 +90,9 @@ function Unread() {
   if (!messages.length) return null;
   return (
     <Card style={{ gap: 12 }}>
-      <CardHead label={t.unreadTitle} />
-      <Body small muted>
-        {t.unreadHelp}
-      </Body>
+      <View accessible accessibilityLabel={`${t.unreadTitle}. ${t.unreadHelp}`}>
+        <CardHead label={t.unreadTitle} />
+      </View>
       {messages.map((message) => (
         <View key={message.id} style={[styles.unread, { borderTopColor: theme.rule }]}>
           <Body small muted>
@@ -127,11 +143,10 @@ function TryMessage({ accounts }: { accounts: readonly Account[] }) {
           multiline
           accessibilityLabel={t.tryLabel}
           accessibilityHint={t.tryHelp}
+          placeholder={t.tryPlaceholder}
+          placeholderTextColor={theme.muted}
           style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
         />
-        <Body small muted>
-          {t.tryHelp}
-        </Body>
       </View>
       {reading === undefined ? (
         <Button kind="secondary" label={t.read} disabled={!text.trim() || rules === undefined} onPress={() => setReading(read(rules ?? [], { text }, todayIso()))} />
@@ -171,6 +186,8 @@ function TryMessage({ accounts }: { accounts: readonly Account[] }) {
 }
 
 const styles = StyleSheet.create({
+  intro: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
+  howTo: { flexDirection: 'row', alignItems: 'center', minHeight: size.target },
   unread: { gap: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
   unreadActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   label: { fontFamily: font.medium, fontSize: size.small },
