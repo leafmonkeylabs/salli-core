@@ -231,7 +231,7 @@ class Signer:
     def id_token(self, **claims: Any) -> str:
         import time
 
-        from jose import jwt
+        import jwt
 
         now = int(time.time())
         body: dict[str, Any] = {

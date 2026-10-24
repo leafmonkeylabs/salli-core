@@ -1,0 +1,12 @@
+[
+  {
+    "advisory": "GHSA-86w9-cpqp-85rv",
+    "path": "node_modules/node-forge",
+    "reason": "node-forge has no fixed release. Reached only through @expo/cli (via @expo/code-signing-certificates), Expo's build and dev-server tooling, which never ships in the app; Expo SDK 58 has no release without it."
+  },
+  {
+    "advisory": "GHSA-mrhx-c7xc-m3w5",
+    "path": "node_modules/@expo/cli/node_modules/zod",
+    "reason": "zod 3, which @expo/cli requires (^3.25.76) and has no fixed 3.x release. Build-time only: the app's own zod, which the AI SDK uses at run time, is 4.6.7."
+  }
+]

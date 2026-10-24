@@ -65,8 +65,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
-from jose import JWTError, jwt
-from jose.exceptions import ExpiredSignatureError
+import jwt
 
 from salli.application.ports import McpConnectionRow, SignInGrantRow
 
@@ -362,11 +361,11 @@ class McpOAuthService:
             payload = jwt.decode(
                 art, self._signing_secret, algorithms=["HS256"], issuer=_ART_ISSUER
             )
-        except ExpiredSignatureError as exc:
+        except jwt.ExpiredSignatureError as exc:
             raise ConsentError(
                 "This sign-in link has expired. Go back to the app and start again."
             ) from exc
-        except JWTError as exc:
+        except jwt.PyJWTError as exc:
             # Logged apart from expiry: a signature or issuer mismatch means the
             # signing secret changed between mint and verify, not that time ran out.
             _log.warning("MCP consent: ART failed to decode (%s: %s)", type(exc).__name__, exc)

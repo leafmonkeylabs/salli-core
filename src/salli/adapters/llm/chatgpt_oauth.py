@@ -33,6 +33,7 @@ from typing import Any, cast
 from urllib.parse import urlencode
 
 import httpx
+import jwt
 
 _log = logging.getLogger(__name__)
 
@@ -80,6 +81,14 @@ _JWKS_TTL = 3600.0
 #: Clock skew allowed when checking an ID token's times: "only a small
 #: clock-skew tolerance".
 _LEEWAY = 30
+
+
+def _at_hash(access_token: str) -> bytes:
+    """OpenID Connect's `at_hash` for an RS256 ID token: the left half of the
+    access token's SHA-256, base64url without padding."""
+    digest = hashlib.sha256(access_token.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest[: len(digest) // 2]).rstrip(b"=")
+
 
 HttpFactory = Callable[[], httpx.AsyncClient]
 Sleep = Callable[[float], Awaitable[None]]
@@ -542,16 +551,9 @@ class ChatGPTOAuth:
         A valid ID token says who signed in. It does not, alone, allow plan
         use: that is the granted `chatgpt.tokens.use.direct` scope.
         """
-        from jose import jwt as jose_jwt  # pyright: ignore[reportMissingTypeStubs]
-        from jose.exceptions import (  # pyright: ignore[reportMissingTypeStubs]
-            ExpiredSignatureError,
-            JWTError,
-        )
-
-        jwt: Any = jose_jwt
         try:
             header: dict[str, Any] = jwt.get_unverified_header(id_token)
-        except JWTError:
+        except jwt.PyJWTError:
             raise SignInError("The ChatGPT sign-in could not be read.") from None
         if header.get("alg") != "RS256":
             raise SignInError("The ChatGPT sign-in was not signed the way OpenAI signs.")
@@ -559,22 +561,22 @@ class ChatGPTOAuth:
         try:
             claims: dict[str, Any] = jwt.decode(
                 id_token,
-                key,
+                jwt.PyJWK(key, algorithm="RS256"),
                 algorithms=["RS256"],
                 audience=client_id,
                 issuer=ISSUER,
-                access_token=access_token,
-                options={
-                    "leeway": _LEEWAY,
-                    "require_exp": True,
-                    "require_iat": True,
-                    "require_sub": True,
-                },
+                leeway=_LEEWAY,
+                options={"require": ["exp", "iat", "sub"]},
             )
-        except ExpiredSignatureError:
+        except jwt.ExpiredSignatureError:
             raise SignInError("This ChatGPT sign-in has expired. Please sign in again.") from None
-        except JWTError:
+        except jwt.PyJWTError:
             raise SignInError("The ChatGPT sign-in could not be verified.") from None
+        if "at_hash" in claims and not (
+            access_token is not None
+            and hmac.compare_digest(str(claims["at_hash"]).encode(), _at_hash(access_token))
+        ):
+            raise SignInError("The ChatGPT sign-in could not be verified.")
         if nonce is not None and not hmac.compare_digest(
             str(claims.get("nonce", "")).encode(), nonce.encode()
         ):
