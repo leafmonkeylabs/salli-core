@@ -8,7 +8,7 @@ Two halves:
 - An extension's meter and policy: the route tells the meter the right action
   and model, a refusal reaches the client exactly as the meter shaped it (and
   nothing downstream runs), and the policy shapes every surface — list items
-  and the streamed `done` event included — from one lookup per request.
+  included — from one lookup per request.
 """
 
 from __future__ import annotations
@@ -41,21 +41,8 @@ def _projections() -> dict[str, Any]:
     }
 
 
-def _strategy() -> dict[str, Any]:
-    return {
-        "buckets": [{"key": "equity", "target_pct": 60}],
-        "ai_rationale": "Save aggressively. Invest the surplus.",
-        "theories_applied": ["4% rule", "Coast FIRE"],
-    }
-
-
 def _report() -> dict[str, Any]:
     return {"id": "report-1", "recommendations": [{"id": "1", "title": "t", "priority": 1}]}
-
-
-async def _fake_stream():
-    yield 'data: {"type": "status", "message": "Working..."}\n\n'
-    yield f"data: {json.dumps({'type': 'done', 'strategy': _strategy()})}\n\n"
 
 
 async def _no_events():
@@ -69,9 +56,6 @@ def _events(text: str) -> list[dict[str, Any]]:
 
 def _stub_surfaces(svc: MagicMock) -> None:
     svc.fi.get_projections.return_value = _projections()
-    svc.fi.get_strategy.return_value = _strategy()
-    svc.fi.get_strategy_history.return_value = [_strategy(), _strategy()]
-    svc.fi.generate_strategy = MagicMock(side_effect=lambda *a, **kw: _fake_stream())
     svc.advisor.run_advisor.return_value = _report()
     svc.advisor.get_latest_report.return_value = _report()
     svc.advisor.list_reports.return_value = [_report(), _report()]
@@ -84,17 +68,11 @@ async def test_every_surface_is_returned_untouched(client, mock_services):
     _stub_surfaces(mock_services)
 
     assert (await client.get("/fi/projections", headers=AUTH)).json() == _projections()
-    assert (await client.get("/fi/strategy", headers=AUTH)).json() == _strategy()
-    assert (await client.get("/fi/strategy/history", headers=AUTH)).json() == {
-        "history": [_strategy(), _strategy()]
-    }
     assert (await client.post("/advisor/run", headers=AUTH)).json() == _report()
     assert (await client.get("/advisor/reports/latest", headers=AUTH)).json() == _report()
     assert (await client.get("/advisor/reports", headers=AUTH)).json() == {
         "reports": [_report(), _report()]
     }
-    events = _events((await client.post("/fi/strategy/generate", headers=AUTH)).text)
-    assert events[1] == {"type": "done", "strategy": _strategy()}
 
 
 # ── Metering ────────────────────────────────────────────────────────────────
@@ -118,7 +96,6 @@ def _metered_requests(svc: MagicMock):
         transactions=[],
     )
     svc.agent.stream_chat = MagicMock(side_effect=lambda **kw: _no_events())
-    svc.fi.generate_strategy = MagicMock(side_effect=lambda *a, **kw: _fake_stream())
     return [
         (
             AIAction.CHAT_MESSAGE,
@@ -127,12 +104,6 @@ def _metered_requests(svc: MagicMock):
                 "/agent/chat", json={"thread_id": "t1", "message": "hi"}, headers=AUTH
             ),
             lambda: svc.agent.stream_chat,
-        ),
-        (
-            AIAction.FIRE_STRATEGY,
-            DEFAULT_MODEL,
-            lambda c: c.post("/fi/strategy/generate", headers=AUTH),
-            lambda: svc.fi.generate_strategy,
         ),
         (
             AIAction.ENTRY_PARSE,
@@ -166,11 +137,10 @@ async def test_a_refusal_reaches_the_client_as_the_meter_shaped_it(client, mock_
 
 
 async def test_a_refusal_without_a_status_is_a_429(client, mock_services):
-    mock_services.fi.generate_strategy = MagicMock(side_effect=lambda *a, **kw: _fake_stream())
     mock_services.usage.charge.side_effect = UsageLimitReached(
-        AIAction.FIRE_STRATEGY, message="Slow down."
+        AIAction.ENTRY_PARSE, message="Slow down."
     )
-    r = await client.post("/fi/strategy/generate", headers=AUTH)
+    r = await client.post("/entries/parse", json={"text": "lunch 1500"}, headers=AUTH)
     assert r.status_code == 429
     assert r.json() == _refusal(429, {"error": "Slow down."})
 
@@ -249,8 +219,6 @@ class _CountingPolicy(EntitlementPolicy):
     ("method", "path", "surface", "pick"),
     [
         ("get", "/fi/projections", Surface.FI_PROJECTIONS, lambda j: [j]),
-        ("get", "/fi/strategy", Surface.FIRE_STRATEGY, lambda j: [j]),
-        ("get", "/fi/strategy/history", Surface.FIRE_STRATEGY, lambda j: j["history"]),
         ("post", "/advisor/run", Surface.ADVISOR_REPORT, lambda j: [j]),
         ("get", "/advisor/reports/latest", Surface.ADVISOR_REPORT, lambda j: [j]),
         ("get", "/advisor/reports", Surface.ADVISOR_REPORT, lambda j: j["reports"]),
@@ -271,23 +239,11 @@ async def test_the_policy_shapes_each_surface_once_per_request(
     assert policy.lookups == [("test-user-1", None)]
 
 
-async def test_only_the_streamed_done_event_is_shaped(client, mock_services):
-    _stub_surfaces(mock_services)
-    mock_services.entitlements = _CountingPolicy()
-
-    events = _events((await client.post("/fi/strategy/generate", headers=AUTH)).text)
-
-    assert events[0] == {"type": "status", "message": "Working..."}
-    assert events[1]["strategy"]["shaped_for"] == Surface.FIRE_STRATEGY.value
-
-
 async def test_nothing_is_looked_up_when_there_is_nothing_to_shape(client, mock_services):
-    mock_services.fi.get_strategy.return_value = None
     mock_services.advisor.get_latest_report.return_value = None
     policy = _CountingPolicy()
     mock_services.entitlements = policy
 
-    assert (await client.get("/fi/strategy", headers=AUTH)).status_code == 404
     assert (await client.get("/advisor/reports/latest", headers=AUTH)).json() == {}
     assert policy.lookups == []
 

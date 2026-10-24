@@ -552,7 +552,7 @@ export const AFFORD_IT_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:628f9c955e0f2a9f5331a1cae3725393db66a34c244ea69f48cb2c1499990943"
+      "scenario_hash": "sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40"
     },
     {
       "label": "Spread over 12 months",
@@ -583,7 +583,7 @@ export const AFFORD_IT_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:4770612fed62d76a37358b8c542d331015a5c20664e67045902869adf9184ef5"
+      "scenario_hash": "sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366"
     }
   ],
   "comparison": {
@@ -601,8 +601,8 @@ export const AFFORD_IT_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:628f9c955e0f2a9f5331a1cae3725393db66a34c244ea69f48cb2c1499990943",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Pay cash",
@@ -925,7 +925,6 @@ export const AFFORD_IT_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -939,8 +938,8 @@ export const AFFORD_IT_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:4770612fed62d76a37358b8c542d331015a5c20664e67045902869adf9184ef5",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Spread over 12 months",
@@ -1299,7 +1298,6 @@ export const AFFORD_IT_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -1730,7 +1728,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ],
         "label": "Pay cash",
-        "scenario_hash": "sha256:628f9c955e0f2a9f5331a1cae3725393db66a34c244ea69f48cb2c1499990943"
+        "scenario_hash": "sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40"
       },
       {
         "figures": {
@@ -1780,7 +1778,7 @@ export const AFFORD_IT_START: DecisionStart = {
           }
         ],
         "label": "Spread over 12 months",
-        "scenario_hash": "sha256:4770612fed62d76a37358b8c542d331015a5c20664e67045902869adf9184ef5"
+        "scenario_hash": "sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366"
       }
     ]
   },
@@ -1902,7 +1900,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "changes": [],
         "tax": null
       },
-      "scenario_hash": "sha256:07e724d4f063a147bf2e93b942cf54168a3957788e5fc252a345c0c8bd79b7c9"
+      "scenario_hash": "sha256:450685f043fac8d5d3f7bcf9959a9321af3885949988618771f27b13200a30d1"
     },
     {
       "label": "Set aside 200.00 a month",
@@ -1923,7 +1921,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:8f8109ad23343f75adaf8cec8ec0b8ec7baf71f53dee3166a03c70a8662d929c"
+      "scenario_hash": "sha256:ff38f4b71a7615e3594770cb1f74f58bf0f1744fbc322bca429f4b553e8ddd28"
     },
     {
       "label": "Set aside 500.00 a month",
@@ -1944,7 +1942,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:11cb8f9630d5a4c589b2da11c00209828255242efeac55ca48aa42d5cb153821"
+      "scenario_hash": "sha256:fedf7aa1a39687a837241699abe92b7d22c9c78daabd1882197a180e1eba8345"
     }
   ],
   "comparison": {
@@ -1963,8 +1961,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:07e724d4f063a147bf2e93b942cf54168a3957788e5fc252a345c0c8bd79b7c9",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:450685f043fac8d5d3f7bcf9959a9321af3885949988618771f27b13200a30d1",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "As things are",
@@ -2265,7 +2263,6 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -2279,8 +2276,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:8f8109ad23343f75adaf8cec8ec0b8ec7baf71f53dee3166a03c70a8662d929c",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:ff38f4b71a7615e3594770cb1f74f58bf0f1744fbc322bca429f4b553e8ddd28",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Set aside 200.00 a month",
@@ -2602,7 +2599,6 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -2616,8 +2612,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 5,
         "currency": "EUR",
-        "hash": "sha256:11cb8f9630d5a4c589b2da11c00209828255242efeac55ca48aa42d5cb153821",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:fedf7aa1a39687a837241699abe92b7d22c9c78daabd1882197a180e1eba8345",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Set aside 500.00 a month",
@@ -2939,7 +2935,6 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -3638,7 +3633,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "As things are",
-        "scenario_hash": "sha256:07e724d4f063a147bf2e93b942cf54168a3957788e5fc252a345c0c8bd79b7c9"
+        "scenario_hash": "sha256:450685f043fac8d5d3f7bcf9959a9321af3885949988618771f27b13200a30d1"
       },
       {
         "figures": {
@@ -3688,7 +3683,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "Set aside 200.00 a month",
-        "scenario_hash": "sha256:8f8109ad23343f75adaf8cec8ec0b8ec7baf71f53dee3166a03c70a8662d929c"
+        "scenario_hash": "sha256:ff38f4b71a7615e3594770cb1f74f58bf0f1744fbc322bca429f4b553e8ddd28"
       },
       {
         "figures": {
@@ -3738,7 +3733,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
           }
         ],
         "label": "Set aside 500.00 a month",
-        "scenario_hash": "sha256:11cb8f9630d5a4c589b2da11c00209828255242efeac55ca48aa42d5cb153821"
+        "scenario_hash": "sha256:fedf7aa1a39687a837241699abe92b7d22c9c78daabd1882197a180e1eba8345"
       }
     ]
   },
@@ -4318,7 +4313,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:e8927aa872d68c1912784ff736cc6de716e8be4d690c3b048a705930d10e43d1"
+      "scenario_hash": "sha256:558be28e9c84140e2178e6df954ccd25dd88f7e198f45d671edf411224f3274a"
     },
     {
       "label": "Buy, 4.2% over 300 months",
@@ -4375,7 +4370,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:46f15559e077c7416d286a19a8ff8707369ae70967ccd88393c0706e373b7582"
+      "scenario_hash": "sha256:6aa0e89707d58ed8e30133ff459ea2bc8f96ac26c001804199ee40b95cbce86d"
     },
     {
       "label": "Buy, Shorter",
@@ -4432,7 +4427,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         ],
         "tax": null
       },
-      "scenario_hash": "sha256:78a52865a4b2bfc5d6f2cdc29827c2ae98f196a1f4aed301841fb11a61381b7c"
+      "scenario_hash": "sha256:a9ece0d189bc65a1be201f543b0577326018ac3f8cbd32a56502b4c8dd0a4250"
     }
   ],
   "comparison": {
@@ -4451,8 +4446,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 20,
         "currency": "EUR",
-        "hash": "sha256:e8927aa872d68c1912784ff736cc6de716e8be4d690c3b048a705930d10e43d1",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:558be28e9c84140e2178e6df954ccd25dd88f7e198f45d671edf411224f3274a",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Keep renting",
@@ -4873,7 +4868,6 @@ export const RENT_OR_BUY_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -4887,8 +4881,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 20,
         "currency": "EUR",
-        "hash": "sha256:46f15559e077c7416d286a19a8ff8707369ae70967ccd88393c0706e373b7582",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:6aa0e89707d58ed8e30133ff459ea2bc8f96ac26c001804199ee40b95cbce86d",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Buy, 4.2% over 300 months",
@@ -5405,7 +5399,6 @@ export const RENT_OR_BUY_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -5422,8 +5415,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "as_of": "2026-10-11",
         "horizon_years": 20,
         "currency": "EUR",
-        "hash": "sha256:78a52865a4b2bfc5d6f2cdc29827c2ae98f196a1f4aed301841fb11a61381b7c",
-        "baseline_fingerprint": "sha256:fe55137cc10e6e8ba8755f3dd88b73cc841a15c22299f66902518cb3de71d4ab",
+        "hash": "sha256:a9ece0d189bc65a1be201f543b0577326018ac3f8cbd32a56502b4c8dd0a4250",
+        "baseline_fingerprint": "sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0",
         "scenario": {
           "schema": "salli.scenario/1",
           "label": "Buy, Shorter",
@@ -5940,7 +5933,6 @@ export const RENT_OR_BUY_START: DecisionStart = {
           "schema": "salli.scenario/1",
           "engine": "4",
           "fi_assumptions": "sha256:536c575a8620d3689284c70b65a7b89320dea5a1cd66bc71ea5a291d02c64f0e",
-          "fire_strategy": null,
           "rule_sets": []
         },
         "data_as_of": "2026-10-09",
@@ -7385,7 +7377,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
           }
         ],
         "label": "Keep renting",
-        "scenario_hash": "sha256:e8927aa872d68c1912784ff736cc6de716e8be4d690c3b048a705930d10e43d1"
+        "scenario_hash": "sha256:558be28e9c84140e2178e6df954ccd25dd88f7e198f45d671edf411224f3274a"
       },
       {
         "figures": {
@@ -7435,7 +7427,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
           }
         ],
         "label": "Buy, 4.2% over 300 months",
-        "scenario_hash": "sha256:46f15559e077c7416d286a19a8ff8707369ae70967ccd88393c0706e373b7582"
+        "scenario_hash": "sha256:6aa0e89707d58ed8e30133ff459ea2bc8f96ac26c001804199ee40b95cbce86d"
       },
       {
         "figures": {
@@ -7485,7 +7477,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
           }
         ],
         "label": "Buy, Shorter",
-        "scenario_hash": "sha256:78a52865a4b2bfc5d6f2cdc29827c2ae98f196a1f4aed301841fb11a61381b7c"
+        "scenario_hash": "sha256:a9ece0d189bc65a1be201f543b0577326018ac3f8cbd32a56502b4c8dd0a4250"
       }
     ]
   },

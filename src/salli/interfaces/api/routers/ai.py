@@ -90,7 +90,7 @@ class AiModels(BaseModel):
     models: list[AiModel]
     #: Sorting statement rows, quick add, naming a conversation.
     fast: str
-    #: The chat agent, the FIRE strategy, advice.
+    #: The chat agent and the briefing.
     best: str
     chosen: AiModelChoice
 

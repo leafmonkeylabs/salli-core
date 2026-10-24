@@ -61,11 +61,9 @@ export {
   parseAgentEvent,
   streamAgentChat,
   streamAgentResume,
-  streamStrategyGeneration,
   type AgentApprovalRequest,
   type AgentEvent,
   type AgentStreamOptions,
-  type StrategyEvent,
 } from './agent';
 export { exactValue, parseJsonExact, RAW_JSON, rawJsonOf, reindentJson, toJsonText, withRawJson } from './json';
 export * as oauth from './oauth';

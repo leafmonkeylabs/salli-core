@@ -13,8 +13,7 @@ Building the baseline from what the application gathered. Pure.
 - **Income and expenses** follow the one definition (`flows`).
 - **What keeps happening** is what the cash forecast projects: the rhythms
   in the ledger, and the declared subscriptions no rhythm shows.
-- **Assumptions** are the user's, then their FIRE strategy's, then labelled
-  placeholders (`fi.assumptions.resolve`); the active tax rule sets that
+- **Assumptions** are the user's, then labelled placeholders (`fi.assumptions.resolve`); the active tax rule sets that
   cover the as-of date are recorded with them.
 - **Tax** (`BaselineTax`): the active rules a scenario's tax is computed
   with, the postings on accounts whose tax role they declare (to the as-of
@@ -178,7 +177,6 @@ def fingerprint(inputs: BaselineInputs) -> str:
             ),
             "statement_accounts": inputs.statement_accounts,
             "own_assumptions": inputs.own_assumptions,
-            "strategy": inputs.strategy,
             "rule_sets": sorted(inputs.rule_sets, key=lambda r: (r.rule_set_id, r.version)),
             # Only when there are rules to compute tax with, so a baseline
             # without any fingerprints as it did before scenarios computed tax.
@@ -318,7 +316,7 @@ def build(inputs: BaselineInputs) -> Baseline:
         rates=rates,
         flows=flows,
         debts=tuple(debts),
-        assumptions=resolve(inputs.own_assumptions, inputs.strategy),
+        assumptions=resolve(inputs.own_assumptions),
         recurring=tuple(found),
         covered_by=tuple(covering),
         charges=tuple(charges),
@@ -326,7 +324,6 @@ def build(inputs: BaselineInputs) -> Baseline:
         first_flow=inputs.first_flow,
         cash_notes=tuple(dict.fromkeys(cash_notes)),
         latest_entry=max((e.entry_date for e in entries), default=None),
-        strategy=inputs.strategy,
         rule_sets=tuple(inputs.rule_sets),
         tax=_tax(inputs, entries, accounts, flows),
         fingerprint=fingerprint(inputs),

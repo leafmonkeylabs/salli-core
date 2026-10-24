@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from salli.domain.accounting.ledger import owned_and_owed
 from salli.domain.accounting.models import Account, AssetRole, StoredJournalEntry
-from salli.domain.fi.assumptions import FiAssumptions, OwnAssumptions, StrategyFigures
+from salli.domain.fi.assumptions import FiAssumptions, OwnAssumptions
 from salli.domain.portfolio.lots import Transaction
 from salli.domain.portfolio.valuation import Close
 from salli.domain.reports.forecast import DeclaredCharge
@@ -342,7 +342,6 @@ class BaselineInputs:
     #: Accounts a statement or a bank feed is imported into.
     statement_accounts: frozenset[str] = frozenset()
     own_assumptions: OwnAssumptions = field(default_factory=OwnAssumptions)
-    strategy: StrategyFigures | None = None
     #: The active tax rule sets whose year covers the as-of date.
     rule_sets: Sequence[RuleSetRef] = ()
     #: What a scenario's tax is computed from.
@@ -380,9 +379,6 @@ class Baseline:
     #: The date of the newest entry on or before the as-of date (within the
     #: two years read), or None: how fresh the picture is.
     latest_entry: str | None = None
-    #: The FIRE strategy's figures, when there is one (its version, and the
-    #: monthly spending it aims at, if it names one).
-    strategy: StrategyFigures | None = None
     #: The active tax rule sets whose year covers the as-of date.
     rule_sets: tuple[RuleSetRef, ...] = ()
     #: What a scenario's tax starts from (`BaselineTax`).

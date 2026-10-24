@@ -26,7 +26,7 @@ ProviderChoice = Literal["auto", "anthropic", "openai", "chatgpt"]
 PROVIDER_CHOICES: tuple[ProviderChoice, ...] = ("auto", "anthropic", "openai", "chatgpt")
 
 #: The kind of model a task needs. "fast": sorting statement rows, quick add,
-#: naming a conversation. "best": the chat agent, the FIRE strategy, advice.
+#: naming a conversation. "best": the chat agent, the briefing.
 Tier = Literal["fast", "best"]
 
 #: Who pays for a request's model: the user (their own API key, or their

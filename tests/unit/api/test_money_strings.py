@@ -1,9 +1,8 @@
 """
 Money never a float (docs/design/console.md, decision 12): a request's
 amounts and rates are decimal strings, and a JSON number is refused with a
-422 that says what to send; the API document says so, so the generated SDK
-refuses a number before it is sent; and the one amount a response sent as a
-number, a FIRE strategy's target spending, is a string too.
+422 that says what to send; and the API document says so, so the generated
+SDK refuses a number before it is sent.
 """
 
 from __future__ import annotations
@@ -18,7 +17,6 @@ from pydantic import BaseModel, ValidationError
 
 from salli.interfaces.api.routers.fi import (
     AllocationRequest,
-    FireStrategy,
     GoalRequest,
     GoalUpdateRequest,
 )
@@ -129,13 +127,3 @@ def test_no_request_body_in_the_api_document_takes_a_number():
     found = [hit for name in sorted(seen) for hit in numbers(schemas[name], name)]
     assert not found, found
     assert {"AllocationRequest", "GoalRequest", "IncomeItem", "OpeningBalanceItem"} <= seen
-
-
-@pytest.mark.parametrize(
-    ("stored", "shown"),
-    [(150000.0, "150000"), (1234.5, "1234.5"), ("99.10", "99.10"), (None, None)],
-)
-def test_a_strategy_s_target_spending_is_a_decimal_string(stored, shown):
-    strategy = FireStrategy.model_validate({"target_monthly_expenses": stored})
-    assert strategy.target_monthly_expenses == shown
-    assert json.loads(strategy.model_dump_json())["target_monthly_expenses"] == shown

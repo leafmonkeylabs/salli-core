@@ -369,7 +369,6 @@ describe('financial independence', () => {
     expect(within(assumptions).getAllByText('Placeholder')).toHaveLength(3);
     expect(within(region('What the score is made of')).getByText('Saving 49.07% of income')).toBeTruthy();
     expect(within(region('The score over time')).getByText('Oct 11, 2026')).toBeTruthy();
-    expect(within(region('FIRE strategy')).getByText(/You have no FIRE strategy/)).toBeTruthy();
   });
 
   it('sets your own real return with its source, and the placeholder flag goes', async () => {
@@ -397,17 +396,6 @@ describe('financial independence', () => {
     await click(within(form).getByRole('button', { name: 'Save it' }));
     await waitFor(() => expect(field.getAttribute('aria-invalid')).toBe('true'));
     expect(within(form).getAllByText(/real_return must be a yearly fraction from -0.05 to 0.15/).length).toBeGreaterThan(0);
-  });
-
-  it('shows a FIRE strategy, its words marked as the AI’s', async () => {
-    const api = new MockApi();
-    api.where.strategy = where.STRATEGY;
-    await setup({ api, path: '/console/fi' });
-    const strategy = await screen.findByRole('region', { name: 'FIRE strategy' });
-    expect(await within(strategy).findByText('Version 2, standard')).toBeTruthy();
-    expect(within(strategy).getByText('EUR 2,200.00')).toBeTruthy();
-    expect(within(strategy).getByText('In your AI’s words')).toBeTruthy();
-    expect(within(strategy).getByText('Emergency moat')).toBeTruthy();
   });
 });
 

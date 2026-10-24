@@ -234,8 +234,6 @@ function Assumptions({ data }: { data: BaselineData }) {
         </span>{' '}
         {b.placeholderTag}
       </span>
-    ) : x.origin === 'strategy' ? (
-      b.fromStrategy
     ) : (
       b.yours
     );

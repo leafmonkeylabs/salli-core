@@ -104,9 +104,7 @@ with the server under `salli-server`; **3** have no replacement yet (below).
 | `salli fi goals delete` | `salli goals delete` | goals.delete |
 | `salli fi goals allocate` | `salli goals allocate` | goals.allocations.set |
 | `salli fi goals allocations` | `salli goals allocations` | goals.allocations.list |
-| `salli fi strategy show` | `salli fi strategy show` | fi.strategy.get |
-| `salli fi strategy history` | `salli fi strategy history` | fi.strategy.history |
-| `salli fi strategy generate` | `salli fi strategy generate` | fi.strategy.generate |
+| `salli fi strategy show`, `history`, `generate` | removed: FI assumptions are yours or placeholders (CHANGELOG.md) | none |
 | `salli advisor run` | `salli advisor run` | advisor.run |
 | `salli advisor apply` | `salli advisor apply` | advisor.recommendations.apply |
 | `salli advisor dismiss` | `salli advisor dismiss` | advisor.recommendations.dismiss |

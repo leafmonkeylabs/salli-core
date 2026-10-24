@@ -1,7 +1,8 @@
 """
 FiService — runs the deterministic FI engine on the baseline (domain/baseline),
-records score snapshots when asked to, and manages goals. The LLM is only used
-in generate_strategy() to create the AI-generated FireStrategy.
+records score snapshots when asked to, and manages goals. No model is used:
+every figure is the engine's, on the user's own assumptions or labelled
+placeholders.
 
 Every figure starts from the baseline as of a day (today by this service's
 clock, which is injectable, or the `as_of` a caller gives): its monthly
@@ -25,7 +26,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
-from collections.abc import AsyncGenerator, Callable, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
@@ -50,17 +51,9 @@ from salli.domain.fi.assumptions import (
     rate_text,
     resolve,
 )
-from salli.domain.fi.assumptions import StrategyFigures as _StrategyFigures
 from salli.domain.fi.assumptions import scenarios_dict as _scenarios_dict
-from salli.domain.fi.models import (
-    AllocationBucket,
-    FinancialSnapshot,
-    FiPack,
-    FireStrategy,
-    FiScore,
-)
+from salli.domain.fi.models import FinancialSnapshot, FiPack, FiScore
 from salli.domain.fi.packs import registry
-from salli.domain.llm import LLMError
 from salli.domain.money import from_minor, to_minor
 
 __all__ = ["FiService", "assumptions_dict"]
@@ -117,10 +110,6 @@ def _own(profile: dict[str, Any] | None) -> OwnAssumptions:
     return OwnAssumptions.from_stored((profile or {}).get("fi_assumptions"))
 
 
-def _strategy_figures(strategy_data: dict[str, Any] | None) -> _StrategyFigures | None:
-    return _StrategyFigures.from_stored(strategy_data)
-
-
 def _own_dict(figure: OwnFigure | None) -> dict[str, Any] | None:
     if figure is None:
         return None
@@ -153,43 +142,12 @@ class FiService:
     def __init__(
         self,
         uow_factory: Callable[[], Any],
-        credentials: Any = None,
         baselines: BaselineService | None = None,
         today: Callable[[], datetime.date] = datetime.date.today,
     ) -> None:
         self._uow_factory = uow_factory
-        self._credentials = credentials
         self._today = today
         self._baselines = baselines or BaselineService(uow_factory, today=today)
-
-    async def llm_for(self, user_id: str, api_key: Any = None) -> Any:
-        """The model access to run on: the caller's already-resolved credential
-        (an LLMClient, or an Anthropic key as it always was), else this user's,
-        resolved now. LLMNotConfigured when there is nothing to run on.
-
-        The HTTP routes resolve once at the boundary and pass it down, so the hot
-        path does one lookup. The MCP server, the agent's own tools, and the CLI
-        have no such boundary, so they omit it and this resolves on their behalf
-        — which keeps every surface on the same credential rather than leaving
-        some of them on the platform's.
-        """
-        from salli.application.services.llm_credential_service import as_llm
-        from salli.domain.llm import LLMNotConfigured
-
-        if api_key is not None:
-            llm = as_llm(api_key)
-        elif self._credentials is None:
-            raise RuntimeError("No LLM credential source configured")
-        else:
-            llm = (await self._credentials.resolve(user_id)).llm
-        if llm is None:
-            raise LLMNotConfigured(
-                "This needs an AI model: add your own API key or connect your ChatGPT "
-                "plan in Settings."
-            )
-        return llm
-
-    # ── The baseline, and what FI reads of it ────────────────────────────────────
 
     async def _baseline(self, user_id: str, as_of: datetime.date | None) -> Baseline:
         return await self._baselines.build(user_id, as_of or self._today())
@@ -227,87 +185,28 @@ class FiService:
         baseline = await self._baseline(user_id, as_of)
         return snapshot_of(baseline, await self._goal_progress(user_id, baseline))
 
-    # ── Resolved strategy ──────────────────────────────────────────────────────
+    # ── Assumptions ──────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _resolve_strategy(
-        strategy_data: dict[str, Any] | None, applied: FiAssumptions
-    ) -> FireStrategy:
-        """
-        The single place raw strategy JSON becomes a typed, Decimal FireStrategy.
-
-        Its withdrawal rate and real returns are the ones that apply
-        (`applied`): the user's own where they set them, then the strategy's,
-        then the labelled placeholders. So callers always get a usable
-        strategy, never have to branch, and every figure on the page is
-        computed from one set of assumptions.
-        """
-        data = strategy_data or {}
-        return FireStrategy(
-            version=data.get("version", 1) if strategy_data is not None else 0,
-            fire_style=data.get("fire_style", "standard"),
-            swr=applied.safe_withdrawal_rate.value,
-            real_return_conservative=applied.real_returns.conservative,
-            real_return_base=applied.real_returns.base,
-            real_return_growth=applied.real_returns.growth,
-            target_monthly_expenses=(
-                Decimal(str(data["target_monthly_expenses"]))
-                if data.get("target_monthly_expenses")
-                else None
-            ),
-            target_age=data.get("target_age"),
-            buckets=[
-                AllocationBucket(
-                    key=b["key"],
-                    name=b["name"],
-                    target_pct=Decimal(str(b["target_pct"])),
-                    description=b["description"],
-                    color=b["color"],
-                )
-                for b in data.get("buckets", [])
-            ],
-            ai_rationale=data.get("ai_rationale", ""),
-            theories_applied=data.get("theories_applied", []),
-            created_at=data.get("created_at", ""),
-            is_initial=data.get("is_initial", True),
-        )
-
-    async def _plan(
-        self, user_id: str, *, with_strategy: bool = True
-    ) -> tuple[FireStrategy, FiAssumptions, FiPack]:
-        """The strategy, the assumptions that apply, and the FI pack: what
-        every score, projection and purchase costing is computed from.
-        `with_strategy=False` leaves the stored strategy out of the
-        assumptions (to generate a new one)."""
-        strategy_data = await self.get_strategy(user_id) if with_strategy else None
+    async def _applied(self, user_id: str) -> FiAssumptions:
+        """The assumptions that apply: the user's own, then the placeholders."""
         async with self._uow_factory() as uow:
             profile = await uow.user_profiles.get(user_id)
-        applied = resolve(_own(profile), _strategy_figures(strategy_data))
-        return self._resolve_strategy(strategy_data, applied), applied, registry.get_pack()
+        return resolve(_own(profile))
 
     async def _inputs(
         self, user_id: str, as_of: datetime.date | None
-    ) -> tuple[Baseline, FinancialSnapshot, FireStrategy, FiAssumptions, FiPack]:
+    ) -> tuple[Baseline, FinancialSnapshot, FiAssumptions, FiPack]:
         """Everything a figure is computed from, read once: the baseline, the
-        snapshot from it, the strategy and the assumptions (the baseline's own),
-        and the pack."""
+        snapshot from it, the assumptions (the baseline's own), and the pack."""
         baseline = await self._baseline(user_id, as_of)
         snapshot = snapshot_of(baseline, await self._goal_progress(user_id, baseline))
-        strategy_data = await self.get_strategy(user_id)
-        applied = baseline.assumptions
-        return (
-            baseline,
-            snapshot,
-            self._resolve_strategy(strategy_data, applied),
-            applied,
-            registry.get_pack(),
-        )
+        return baseline, snapshot, baseline.assumptions, registry.get_pack()
 
     async def assumptions(self, user_id: str) -> dict[str, Any]:
         """The planning assumptions behind the user's FI figures, what they
         set themselves (with sources), and the placeholders that stand in for
         what they have not."""
-        _, applied, _ = await self._plan(user_id)
+        applied = await self._applied(user_id)
         async with self._uow_factory() as uow:
             profile = await uow.user_profiles.get(user_id)
         own = _own(profile)
@@ -353,7 +252,6 @@ class FiService:
     @staticmethod
     def _inputs_hash(
         snapshot: FinancialSnapshot,
-        strategy: FireStrategy,
         applied: FiAssumptions,
         pack: FiPack,
         fi_month: str | None = None,
@@ -362,9 +260,8 @@ class FiService:
         Fingerprint of everything the score depends on, and everything it
         reports about its assumptions.
 
-        Includes the strategy and the assumptions, not just the ledger snapshot:
-        regenerating a strategy with a different SWR, or setting one's own
-        return, changes the figures, and setting a source or an inflation figure
+        Includes the assumptions, not just the ledger snapshot: setting one's
+        own return or withdrawal rate changes the figures, and setting a source or an inflation figure
         changes what the score says about them, so a score computed under the
         old ones is stale even when the ledger has not moved. And the month FI
         is reached, which the whole baseline (its debts' schedules among it)
@@ -372,7 +269,6 @@ class FiService:
         """
         payload = {
             "snapshot": asdict(snapshot),
-            "target_monthly_expenses": str(strategy.target_monthly_expenses),
             "assumptions": assumptions_dict(applied),
             "pack": pack.version,
             "fi_month": fi_month,
@@ -386,7 +282,7 @@ class FiService:
     ) -> dict[str, Any]:
         """The Freedom Score as of `as_of` (today when None). Reads only: the
         score history is written by `record_score` alone."""
-        baseline, snapshot, strategy, applied, pack = await self._inputs(user_id, as_of)
+        baseline, snapshot, applied, pack = await self._inputs(user_id, as_of)
         # When FI is reached: the baseline's monthly timeline, at the base
         # return, against the FI number the score computes from the same
         # withdrawal rate and target, so the card and the chart say one month.
@@ -394,13 +290,12 @@ class FiService:
         score = engine.compute(
             snapshot,
             pack,
-            swr=strategy.swr,
-            target_monthly_expenses=strategy.target_monthly_expenses,
+            swr=applied.safe_withdrawal_rate.value,
             projected_fi_months=outlook.months,
         )
         result = _score_to_dict(score, baseline.as_of)
         result["assumptions"] = assumptions_dict(applied)
-        result["inputs_hash"] = self._inputs_hash(snapshot, strategy, applied, pack, outlook.month)
+        result["inputs_hash"] = self._inputs_hash(snapshot, applied, pack, outlook.month)
         return result
 
     async def record_score(self, user_id: str) -> dict[str, Any]:
@@ -557,113 +452,6 @@ class FiService:
         async with self._uow_factory() as uow:
             await uow.goals.delete(user_id, goal_id)
 
-    # ── FIRE Strategy ────────────────────────────────────────────────────────────
-
-    async def get_strategy(self, user_id: str) -> dict[str, Any] | None:
-        async with self._uow_factory() as uow:
-            return await uow.fire_strategies.get_latest(user_id)
-
-    async def get_strategy_history(self, user_id: str) -> list[dict[str, Any]]:
-        async with self._uow_factory() as uow:
-            return await uow.fire_strategies.get_history(user_id)
-
-    async def generate_strategy(
-        self,
-        user_id: str,
-        email: str | None = None,
-        *,
-        api_key: Any = None,
-        model: str | None = None,
-    ) -> AsyncGenerator[str, None]:
-        """SSE generator: streams status events, then persists and yields the result."""
-        from salli.domain.agents import fire_strategy as fs_llm
-
-        yield _sse({"type": "status", "message": "Gathering your financial profile..."})
-
-        baseline = await self._baseline(user_id, None)
-        snapshot = snapshot_of(baseline, await self._goal_progress(user_id, baseline))
-        goals = await self.list_goals(user_id)
-        previous = await self.get_strategy(user_id)
-        surplus_data = await self._breakdown(user_id, baseline)
-
-        # Build raw account detail for LLM context (type, currency, name)
-        async with self._uow_factory() as uow:
-            accounts = await uow.ledger.get_accounts(user_id)
-            profile = await uow.user_profiles.get(user_id) or {}
-
-        account_summary = [
-            {"name": a.name, "type": a.type, "currency": a.currency} for a in accounts
-        ]
-
-        yield _sse({"type": "status", "message": "Applying FIRE theories to your data..."})
-
-        context: dict[str, Any] = {
-            "monthly_income": str(snapshot.monthly_income),
-            "monthly_expenses": str(snapshot.monthly_expenses),
-            "monthly_surplus": str(snapshot.monthly_income - snapshot.monthly_expenses),
-            "savings_rate": str(
-                (snapshot.monthly_income - snapshot.monthly_expenses) / snapshot.monthly_income
-                if snapshot.monthly_income > 0
-                else Decimal(0)
-            ),
-            "liquid_savings": str(snapshot.liquid_savings),
-            "investments": str(snapshot.investments),
-            "total_assets": str(snapshot.total_assets),
-            "total_liabilities": str(snapshot.total_liabilities),
-            "net_worth": str(snapshot.total_assets - snapshot.total_liabilities),
-            "currency": snapshot.currency,
-            # Where the user is taxed, or None: the strategy suggests what is
-            # available there, and assumes no country when it is not known.
-            "tax_residency": profile.get("tax_residency"),
-            # The user's own assumptions, or the labelled placeholders, with
-            # where each came from: not the previous strategy's, which follows.
-            "assumptions": assumptions_dict((await self._plan(user_id, with_strategy=False))[1]),
-            "income_by_source": {k: str(v) for k, v in surplus_data.income_by_source.items()},
-            "expense_by_category": {k: str(v) for k, v in surplus_data.expense_by_category.items()},
-            "accounts": account_summary,
-            "goals": goals,
-            "previous_strategy": previous,
-        }
-
-        yield _sse({"type": "status", "message": "Generating personalised FIRE configuration..."})
-
-        try:
-            result = await fs_llm.generate_strategy(
-                context,
-                llm=await self.llm_for(user_id, api_key),
-                # The model the usage meter was told about. Metering Opus and
-                # then running Sonnet would charge for an answer the user never got.
-                model=model,
-            )
-        except LLMError as exc:
-            # The stream is already open, so the failure is its last event: our
-            # own sentence, a code to branch on, and where to fix it (ChatGPT's
-            # usage settings, when a plan's limit was reached).
-            yield _sse({"type": "error", **exc.detail()})
-            return
-
-        yield _sse({"type": "status", "message": "Saving your FIRE strategy..."})
-
-        strategy_dict = {
-            "fire_style": result.fire_style,
-            "swr": result.swr,
-            "real_return_conservative": result.real_return_conservative,
-            "real_return_base": result.real_return_base,
-            "real_return_growth": result.real_return_growth,
-            "target_monthly_expenses": result.target_monthly_expenses,
-            "target_age": result.target_age,
-            "buckets": [b.model_dump() for b in result.buckets],
-            "ai_rationale": result.ai_rationale,
-            "theories_applied": result.theories_applied,
-            "is_initial": previous is None,
-        }
-
-        async with self._uow_factory() as uow:
-            version = await uow.fire_strategies.save(user_id, strategy_dict)
-
-        strategy_dict["version"] = version
-        yield _sse({"type": "done", "strategy": strategy_dict})
-
     # ── Projections ──────────────────────────────────────────────────────────────
 
     async def get_projections(
@@ -679,7 +467,7 @@ class FiService:
         among them, at that real return (cash earns nothing, debts follow
         their schedules), and the month FI is reached is read from the same
         timeline, so the chart and the month always agree."""
-        baseline, _, strategy, applied, _ = await self._inputs(user_id, as_of)
+        baseline, _, applied, _ = await self._inputs(user_id, as_of)
         rates = applied.real_returns.as_dict()
         inflation = applied.inflation.value if applied.inflation is not None else None
         currency = baseline.currency
@@ -728,7 +516,7 @@ class FiService:
             "terms": "real" if inflation is None else "real_and_nominal",
             "points": [point(year) for year in range(len(by_year["base"]))],
             "fi_number": str(fi_number),
-            "swr": rate_text(strategy.swr),
+            "swr": rate_text(applied.safe_withdrawal_rate.value),
             # The month FI is reached in each scenario, and how many months
             # from the as-of month that is.
             "fi_by": {key: _fi_by(baseline.as_of, m) for key, m in months.items()},
@@ -781,7 +569,3 @@ class FiService:
             "monthly_surplus": str(breakdown.monthly_surplus),
             "savings_rate": str(breakdown.savings_rate),
         }
-
-
-def _sse(data: dict[str, Any]) -> str:
-    return f"data: {json.dumps(data, default=str)}\n\n"

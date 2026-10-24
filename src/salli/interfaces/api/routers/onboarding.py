@@ -405,6 +405,9 @@ class DataExport(BaseModel):
     """Each as in `goals.list`: active goals."""
     fi_score_history: list[dict[str, Any]]
     """Each as in `fi.score.history`."""
+    fire_strategies: list[dict[str, Any]] = Field(default_factory=list)
+    """The FIRE strategies an earlier Salli drafted with a model, newest
+    first, as stored. Salli no longer makes them."""
     advisor_reports: list[dict[str, Any]]
     """The advisor's reports, as stored."""
     reminders_and_alerts: list[dict[str, Any]]

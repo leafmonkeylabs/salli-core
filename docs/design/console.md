@@ -1344,8 +1344,7 @@ current place on any page the bar doesn't name.
   confirmation; a decision's review reminder opens the decision in C3's
   journal.
 - **Financial independence** (`/fi`; `fi.score.get`, `fi.projections`,
-  `fi.assumptions`, `fi.assumptions.set`, `fi.score.history`,
-  `fi.strategy.get`): where you are (the FI number, invested now, the way
+  `fi.assumptions`, `fi.assumptions.set`, `fi.score.history`): where you are (the FI number, invested now, the way
   there, the FI month, the savings rate, the monthly figures, the emergency
   fund); the invested money projected at the three real returns, drawn
   against the FI number, with the month each reaches it (and each year in
@@ -1353,8 +1352,8 @@ current place on any page the bar doesn't name.
   assumptions, each with where it came from, every placeholder flagged,
   and setting your own (real return, inflation, withdrawal rate, share of
   surplus invested, nominal return) with its source and a note, or
-  clearing yours; the score over time; and the FIRE strategy when there is
-  one, its rationale marked as the AI's words.
+  clearing yours; and the score over time. (Its FIRE strategy section went
+  with the strategy generator, 2026-10.)
 
 **The kit grew; nothing forked.** `SubNav` (the lab's row of places now
 uses it); `fieldErrors` moved to the kit, by field and by whole path;

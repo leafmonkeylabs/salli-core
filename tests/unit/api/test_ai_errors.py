@@ -85,22 +85,3 @@ async def test_a_limit_reached_mid_chat_is_the_streams_error_event(client, mock_
     assert error["code"] == "chatgpt_usage_limit"
     assert error["link"] == "https://chatgpt.com/settings/usage"
     assert events[-1] == {"type": "done"}
-
-
-async def test_the_strategy_stream_ends_with_the_plans_limit():
-    """FiService turns a model error into the stream's last event."""
-    from salli.application.services.fi_service import FiService
-    from tests.fakes import FakeUoW
-
-    service = FiService(FakeUoW("USD").factory())
-
-    async def failing_llm_for(*_: object, **__: object):
-        raise chatgpt_usage_limit()
-
-    service.llm_for = failing_llm_for  # type: ignore[method-assign]
-
-    events = [json.loads(c.removeprefix("data: ")) async for c in service.generate_strategy("u1")]
-
-    assert events[-1]["type"] == "error"
-    assert events[-1]["error"] == "chatgpt_usage_limit"
-    assert events[-1]["link"] == "https://chatgpt.com/settings/usage"

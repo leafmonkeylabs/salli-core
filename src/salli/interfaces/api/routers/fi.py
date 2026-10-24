@@ -1,27 +1,22 @@
 """
-Financial Independence router — FI score, goals, AI FIRE strategy, projections, surplus.
+Financial Independence router — FI score, goals, assumptions, projections, surplus.
 """
 
 from __future__ import annotations
 
-import json
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import Iterable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from salli.application.ports import PayloadView, Surface
+from salli.application.ports import Surface
 from salli.domain.currency import quantize
-from salli.domain.usage import AIAction
 from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, DecimalIn, Ref
-from salli.interfaces.api.deps import AppServices, Credentials, CurrentEmail, CurrentUser
+from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/fi", tags=["financial-independence"])
-
-_SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
 # ── Money on the way out ──────────────────────────────────────────────────────
@@ -56,11 +51,11 @@ class FiAssumption(BaseModel):
 
     #: A yearly fraction, in a decimal string: "0.04" is 4%.
     value: str
-    #: "user" when the user (or their agent) set it, "strategy" when their FIRE
-    #: strategy chose it, "placeholder" when it is the neutral stand-in.
-    origin: Literal["user", "strategy", "placeholder"]
-    #: Where the figure comes from, in words: the source the user cited, the
-    #: strategy, or the placeholder's label.
+    #: "user" when the user (or their agent) set it, "placeholder" when it is
+    #: the neutral stand-in.
+    origin: Literal["user", "placeholder"]
+    #: Where the figure comes from, in words: the source the user cited, or
+    #: the placeholder's label.
     source: str
     #: The user's note on it, if any.
     note: str | None = None
@@ -85,7 +80,7 @@ class FiAssumptions(BaseModel):
     """
 
     #: "placeholder" while any figure used is one; "user" once every one was
-    #: set by the user, their agent or their FIRE strategy.
+    #: set by the user or their agent.
     status: Literal["placeholder", "user"]
     #: The placeholders in use: "real_return", "safe_withdrawal_rate",
     #: "surplus_invested".
@@ -164,7 +159,7 @@ class FiAssumptionsReport(BaseModel):
     own: FiOwnAssumptions
     placeholder_values: FiPlaceholderValues
     #: How far the conservative and growth scenarios sit below and above the
-    #: base real return (unless the user's FIRE strategy chose all three).
+    #: base real return.
     scenario_spread: str
 
 
@@ -184,8 +179,7 @@ class FiOwnAssumptionIn(BaseModel):
 
 class FiAssumptionsUpdate(BaseModel):
     """Set the user's own planning assumptions. Only the fields sent change;
-    an explicit null clears one (a placeholder, or the FIRE strategy's figure,
-    stands in again). Set a real return or a nominal one, not both; a nominal
+    an explicit null clears one (its placeholder stands in again). Set a real return or a nominal one, not both; a nominal
     return needs inflation."""
 
     real_return: FiOwnAssumptionIn | None = None
@@ -325,29 +319,6 @@ def _fi_score(score: dict[str, Any], currency: str) -> FiScore:
     return FiScore.model_validate({**shown, "currency": currency})
 
 
-async def _gate_strategy_stream(
-    upstream: AsyncGenerator[str, None], view: PayloadView
-) -> AsyncGenerator[str, None]:
-    """Pass status/error SSE events straight through; shape only the final
-    `done` event's `strategy` payload for the caller."""
-    async for chunk in upstream:
-        payload = chunk.removeprefix("data: ").rstrip("\n")
-        try:
-            event: dict[str, Any] = json.loads(payload)
-        except json.JSONDecodeError:
-            yield chunk
-            continue
-        if event.get("type") == "done" and "strategy" in event:
-            shaped = view.shape(Surface.FIRE_STRATEGY, event["strategy"])
-            if "target_monthly_expenses" in shaped:
-                # An amount, as a string, as GET /v1/fi/strategy says it.
-                shaped["target_monthly_expenses"] = FireStrategy.amount_as_text(
-                    shaped["target_monthly_expenses"]
-                )
-            event["strategy"] = shaped
-        yield f"data: {json.dumps(event, default=str)}\n\n"
-
-
 # A stored score can lack fields a fresh one has; leaving them out of the
 # response, rather than sending them as null, is how it has always read.
 @router.get("/score", response_model_exclude_unset=True)
@@ -458,150 +429,6 @@ async def update_goal(
 @router.delete("/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_goal(goal_id: str, user_id: CurrentUser, svc: AppServices) -> None:
     await svc.fi.delete_goal(user_id, goal_id)
-
-
-# ── FIRE Strategy ──────────────────────────────────────────────────────────────
-
-
-class FireStrategyBucket(BaseModel):
-    """One allocation bucket of a FIRE strategy."""
-
-    model_config = ConfigDict(extra="allow")
-
-    key: str | None = None
-    name: str | None = None
-    #: The share of savings it gets, a fraction (0.25 is 25%).
-    target_pct: float | None = None
-    description: str | None = None
-    #: A display colour name: emerald, blue, amber, …
-    color: str | None = None
-
-
-class FireStrategy(BaseModel):
-    """A version of the user's AI-generated FIRE strategy.
-
-    Rates are fractions (0.04 is 4%), and the returns are yearly and real
-    (after inflation).
-    Every field is optional: a strategy stored by an earlier version can lack
-    some, and a deployment's entitlement policy may withhold parts of it and
-    add fields of its own.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    version: int | None = None
-    created_at: str | None = None
-    #: lean | standard | fat | coast
-    fire_style: str | None = None
-    swr: float | None = None
-    real_return_conservative: float | None = None
-    real_return_base: float | None = None
-    real_return_growth: float | None = None
-    #: Monthly spending to plan retirement around, in the base currency, as a
-    #: decimal string like every amount; null means what the ledger shows.
-    target_monthly_expenses: Amount | None = None
-    target_age: int | None = None
-    buckets: list[FireStrategyBucket] | None = None
-    #: Markdown.
-    ai_rationale: str | None = None
-    theories_applied: list[str] | None = None
-    #: True for the first strategy, false for a regenerated one.
-    is_initial: bool | None = None
-
-    @field_validator("target_monthly_expenses", mode="before")
-    @classmethod
-    def amount_as_text(cls, value: object) -> object:
-        """The model writes the strategy, and it writes a JSON number: the
-        response says it as the decimal it was stored as, never a float."""
-        if isinstance(value, int | float) and not isinstance(value, bool):
-            return format(Decimal(str(value)).normalize(), "f")
-        return value
-
-
-class FireStrategySummary(BaseModel):
-    """A version in the strategy history. Optional throughout, as `FireStrategy` is."""
-
-    model_config = ConfigDict(extra="allow")
-
-    version: int | None = None
-    created_at: str | None = None
-    fire_style: str | None = None
-    theories_applied: list[str] | None = None
-
-
-class FireStrategyHistory(BaseModel):
-    #: Newest first.
-    history: list[FireStrategySummary]
-
-
-# Shaped surfaces: what the entitlement policy withholds stays out of the
-# response rather than coming back as null.
-@router.get("/strategy", response_model_exclude_unset=True)
-async def get_strategy(user_id: CurrentUser, email: CurrentEmail, svc: AppServices) -> FireStrategy:
-    """Return the user's active FIRE strategy, or 404 if none exists yet."""
-    strategy = await svc.fi.get_strategy(user_id)
-    if strategy is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No FIRE strategy found")
-    view = await svc.entitlements.for_user(user_id, email)
-    return FireStrategy.model_validate(view.shape(Surface.FIRE_STRATEGY, strategy))
-
-
-@router.get("/strategy/history", response_model_exclude_unset=True)
-async def get_strategy_history(
-    user_id: CurrentUser, email: CurrentEmail, svc: AppServices
-) -> FireStrategyHistory:
-    """List all strategy versions (summary only)."""
-    history = await svc.fi.get_strategy_history(user_id)
-    view = await svc.entitlements.for_user(user_id, email)
-    return FireStrategyHistory.model_validate(
-        {"history": [view.shape(Surface.FIRE_STRATEGY, h) for h in history]}
-    )
-
-
-@router.post(
-    "/strategy/generate",
-    # The handler builds its own streaming response; naming the plain class keeps
-    # FastAPI from also documenting an application/json body it never sends.
-    response_class=Response,
-    responses={
-        200: {
-            "content": {"text/event-stream": {}},
-            "description": "Server-sent events: `status` messages while it works, then "
-            "`done` with the new strategy (a `FireStrategy`), or `error`.",
-        }
-    },
-)
-async def generate_strategy(
-    user_id: CurrentUser, email: CurrentEmail, svc: AppServices, creds: Credentials
-):
-    """
-    Trigger AI FIRE strategy generation. Returns an SSE stream.
-
-    Stream events:
-      {"type": "status",  "message": "..."} — progress updates
-      {"type": "done",    "strategy": {...}} — final result
-      {"type": "error",   "message": "..."}  — failure
-
-    Passes the deployment's usage meter like /agent/chat — checked before the
-    stream opens, same as chat, rather than mid-stream.
-    """
-    # As in agent chat: the pinned Claude model, or the user's own OpenAI or
-    # ChatGPT model, and the meter is told the one that runs.
-    model_id = (
-        await svc.profile.get_preferred_model(user_id)
-        if creds.provider == "anthropic"
-        else creds.model_for("best")
-    )
-    await svc.usage.charge(user_id, AIAction.FIRE_STRATEGY, model_id=model_id, email=email)
-    view = await svc.entitlements.for_user(user_id, email)
-    strategy = svc.fi.generate_strategy(
-        user_id, email, api_key=creds.llm or creds.anthropic, model=model_id
-    )
-    return StreamingResponse(
-        _gate_strategy_stream(strategy, view),
-        media_type="text/event-stream",
-        headers=_SSE_HEADERS,
-    )
 
 
 # ── Projections & Surplus ──────────────────────────────────────────────────────

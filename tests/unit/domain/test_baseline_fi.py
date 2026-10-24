@@ -13,7 +13,7 @@ from decimal import Decimal
 from salli.domain.baseline import Baseline, BaselineDebt, fi, timelines
 from salli.domain.debt import engine as debt_engine
 from salli.domain.debt.models import Debt
-from salli.domain.fi.assumptions import Applied, StrategyFigures
+from salli.domain.fi.assumptions import Applied
 from salli.domain.reports.forecast import Flow
 from tests.baseline_ledger import Ledger
 
@@ -47,12 +47,6 @@ def test_the_fi_number_is_a_year_of_spending_over_the_withdrawal_rate():
     assert fi.spending(baseline) == Decimal("1500")
     assert fi.fi_number(baseline) == Decimal("450000")
     assert fi.fi_number(baseline, Decimal("2000")) == Decimal("600000")
-    # A FIRE strategy's target is what FI is built on, when it names one.
-    target = replace(
-        baseline,
-        strategy=StrategyFigures(Decimal("0.04"), target_monthly_expenses=Decimal("1000")),
-    )
-    assert fi.fi_number(target) == Decimal("300000")
     # No spending, no number (never "already FI").
     assert fi.fi_number(baseline, Decimal(0)) == 0
 

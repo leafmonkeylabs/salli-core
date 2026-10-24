@@ -3029,6 +3029,15 @@ export type DataExport = {
         [key: string]: unknown;
     }>;
     /**
+     * Fire Strategies
+     *
+     * The FIRE strategies an earlier Salli drafted with a model, newest
+     * first, as stored. Salli no longer makes them.
+     */
+    fire_strategies?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
      * Advisor Reports
      *
      * The advisor's reports, as stored.
@@ -4598,7 +4607,7 @@ export type FiAssumption = {
     /**
      * Origin
      */
-    origin: 'user' | 'strategy' | 'placeholder';
+    origin: 'user' | 'placeholder';
     /**
      * Source
      */
@@ -4660,8 +4669,7 @@ export type FiAssumptionsReport = {
  * FiAssumptionsUpdate
  *
  * Set the user's own planning assumptions. Only the fields sent change;
- * an explicit null clears one (a placeholder, or the FIRE strategy's figure,
- * stands in again). Set a real return or a nominal one, not both; a nominal
+ * an explicit null clears one (its placeholder stands in again). Set a real return or a nominal one, not both; a nominal
  * return needs inflation.
  */
 export type FiAssumptionsUpdate = {
@@ -5136,137 +5144,6 @@ export type FinanceSignals = {
      * Signals
      */
     signals: Array<FinanceSignal>;
-};
-
-/**
- * FireStrategy
- *
- * A version of the user's AI-generated FIRE strategy.
- *
- * Rates are fractions (0.04 is 4%), and the returns are yearly and real
- * (after inflation).
- * Every field is optional: a strategy stored by an earlier version can lack
- * some, and a deployment's entitlement policy may withhold parts of it and
- * add fields of its own.
- */
-export type FireStrategy = {
-    /**
-     * Version
-     */
-    version?: number | null;
-    /**
-     * Created At
-     */
-    created_at?: string | null;
-    /**
-     * Fire Style
-     */
-    fire_style?: string | null;
-    /**
-     * Swr
-     */
-    swr?: number | null;
-    /**
-     * Real Return Conservative
-     */
-    real_return_conservative?: number | null;
-    /**
-     * Real Return Base
-     */
-    real_return_base?: number | null;
-    /**
-     * Real Return Growth
-     */
-    real_return_growth?: number | null;
-    /**
-     * Target Monthly Expenses
-     */
-    target_monthly_expenses?: string | null;
-    /**
-     * Target Age
-     */
-    target_age?: number | null;
-    /**
-     * Buckets
-     */
-    buckets?: Array<FireStrategyBucket> | null;
-    /**
-     * Ai Rationale
-     */
-    ai_rationale?: string | null;
-    /**
-     * Theories Applied
-     */
-    theories_applied?: Array<string> | null;
-    /**
-     * Is Initial
-     */
-    is_initial?: boolean | null;
-    [key: string]: unknown;
-};
-
-/**
- * FireStrategyBucket
- *
- * One allocation bucket of a FIRE strategy.
- */
-export type FireStrategyBucket = {
-    /**
-     * Key
-     */
-    key?: string | null;
-    /**
-     * Name
-     */
-    name?: string | null;
-    /**
-     * Target Pct
-     */
-    target_pct?: number | null;
-    /**
-     * Description
-     */
-    description?: string | null;
-    /**
-     * Color
-     */
-    color?: string | null;
-    [key: string]: unknown;
-};
-
-/**
- * FireStrategyHistory
- */
-export type FireStrategyHistory = {
-    /**
-     * History
-     */
-    history: Array<FireStrategySummary>;
-};
-
-/**
- * FireStrategySummary
- *
- * A version in the strategy history. Optional throughout, as `FireStrategy` is.
- */
-export type FireStrategySummary = {
-    /**
-     * Version
-     */
-    version?: number | null;
-    /**
-     * Created At
-     */
-    created_at?: string | null;
-    /**
-     * Fire Style
-     */
-    fire_style?: string | null;
-    /**
-     * Theories Applied
-     */
-    theories_applied?: Array<string> | null;
-    [key: string]: unknown;
 };
 
 /**
@@ -10191,13 +10068,10 @@ export type ScenarioVersions = {
      */
     fi_assumptions: string;
     /**
-     * Fire Strategy
-     */
-    fire_strategy: number | null;
-    /**
      * Rule Sets
      */
     rule_sets: Array<ScenarioRuleSet>;
+    [key: string]: unknown;
 };
 
 /**
@@ -15898,79 +15772,6 @@ export type GoalsUpdateResponses = {
 };
 
 export type GoalsUpdateResponse = GoalsUpdateResponses[keyof GoalsUpdateResponses];
-
-export type FiStrategyGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/fi/strategy';
-};
-
-export type FiStrategyGetErrors = {
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type FiStrategyGetError = FiStrategyGetErrors[keyof FiStrategyGetErrors];
-
-export type FiStrategyGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: FireStrategy;
-};
-
-export type FiStrategyGetResponse = FiStrategyGetResponses[keyof FiStrategyGetResponses];
-
-export type FiStrategyHistoryData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/fi/strategy/history';
-};
-
-export type FiStrategyHistoryErrors = {
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type FiStrategyHistoryError = FiStrategyHistoryErrors[keyof FiStrategyHistoryErrors];
-
-export type FiStrategyHistoryResponses = {
-    /**
-     * Successful Response
-     */
-    200: FireStrategyHistory;
-};
-
-export type FiStrategyHistoryResponse = FiStrategyHistoryResponses[keyof FiStrategyHistoryResponses];
-
-export type FiStrategyGenerateData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/fi/strategy/generate';
-};
-
-export type FiStrategyGenerateErrors = {
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type FiStrategyGenerateError = FiStrategyGenerateErrors[keyof FiStrategyGenerateErrors];
-
-export type FiStrategyGenerateResponses = {
-    /**
-     * Server-sent events: `status` messages while it works, then `done` with the new strategy (a `FireStrategy`), or `error`.
-     */
-    200: unknown;
-};
 
 export type FiProjectionsData = {
     body?: never;

@@ -104,37 +104,25 @@ def compute(
     pack: FiPack,
     *,
     swr: Decimal,
-    target_monthly_expenses: Decimal | None = None,
     projected_fi_months: int | None = None,
 ) -> FiScore:
     """
     Score a snapshot.
 
-    `swr` is the withdrawal rate that applies to the user;
-    `target_monthly_expenses` comes from their FIRE strategy when it names
-    one. They are parameters, never pack lookups, so the FI number here is
-    the one the baseline's timeline measures FI against
-    (domain/baseline/fi.py, given the same values). `projected_fi_months` is
+    `swr` is the withdrawal rate that applies to the user. It is a
+    parameter, never a pack lookup, so the FI number here is the one the
+    baseline's timeline measures FI against (domain/baseline/fi.py, given
+    the same rate). `projected_fi_months` is
     that timeline's answer: months from the as-of month to the month FI is
     reached, or None.
-
-    Note `target_monthly_expenses` moves the FI *target* only. Contributions stay
-    at the actual surplus, because aspiring to spend less in retirement does not
-    by itself free up cash to invest today.
     """
     income = snapshot.monthly_income
     expenses = snapshot.monthly_expenses
     surplus = income - expenses
     savings_rate = (surplus / income) if income > 0 else Decimal(0)
 
-    swr_eff = swr
-    target_expenses = (
-        target_monthly_expenses
-        if (target_monthly_expenses is not None and target_monthly_expenses > 0)
-        else expenses
-    )
-    annual_expenses = target_expenses * 12
-    fi_number = (annual_expenses / swr_eff) if annual_expenses > 0 and swr_eff > 0 else Decimal(0)
+    annual_expenses = expenses * 12
+    fi_number = (annual_expenses / swr) if annual_expenses > 0 and swr > 0 else Decimal(0)
 
     net_worth = snapshot.total_assets - snapshot.total_liabilities
     asset_base = fi_asset_base(snapshot)
@@ -207,7 +195,7 @@ def compute(
         monthly_expenses=expenses,
         monthly_surplus=surplus,
         savings_rate=savings_rate,
-        swr=swr_eff,
+        swr=swr,
         annual_expenses=annual_expenses,
         fi_number=fi_number,
         net_worth=net_worth,

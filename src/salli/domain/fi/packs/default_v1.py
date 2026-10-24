@@ -2,8 +2,7 @@
 Default FIRE pack — the method behind the FI score: how its parts are weighed.
 
 It holds no planning assumption. The safe withdrawal rate and the returns the
-score and projections use are the user's own, their FIRE strategy's, or
-labelled placeholders (domain/fi/assumptions.py), passed to the engine
+score and projections use are the user's own or labelled placeholders (domain/fi/assumptions.py), passed to the engine
 explicitly.
 
 Must be reviewed by a financial planner before being presented as advice in

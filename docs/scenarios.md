@@ -315,8 +315,7 @@ years, whatever horizon you choose.
 safe withdrawal rate. Under a scenario it is built on the spending the
 scenario leaves for good: a recurring cost with no end adds to it, a
 cancelled subscription takes from it, and a one-off, a loan, an income
-change or a change in tax leaves it as it is. A FIRE strategy that names its own target
-spending keeps that target.
+change or a change in tax leaves it as it is.
 
 **Break-evens on one scenario.** For each recurring cost in a scenario whose
 cash goes below zero in the next twelve months, the most it could be, each
@@ -332,8 +331,7 @@ without it.
   carried forward, and `asset_growth` when an asset has no growth of its
   own);
 - the versions behind it: the document's schema, the engine, a content hash
-  of the FI assumptions, your FIRE strategy's version, and the active tax
-  rule sets that cover the as-of date;
+  of the FI assumptions, and the active tax rule sets that cover the as-of date;
 - the as-of date, and how fresh your ledger is (`data_as_of`; `is_stale`
   when its newest entry is more than 45 days old);
 - `hash`: a content hash of the scenario (its as-of date filled in), of
@@ -372,7 +370,7 @@ option without a label is named after its file, or "Option n".
   weighed against another, and no option is called better.
 - **Sensitivity.** The options' net worth at the horizon and FI month under
   the conservative and growth real returns as well as the base one: the base
-  less and plus two points, or your FIRE strategy's own three. Cash earns
+  less and plus two points. Cash earns
   nothing, so only the long-run figures move. If an option's lead holds at
   all three, it doesn't rest on the return; if it flips, the return you
   expect decides it.

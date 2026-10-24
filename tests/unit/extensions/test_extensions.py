@@ -251,5 +251,4 @@ def test_action_values_are_stable():
         "entry_parse",
         "advisor_run",
         "statement_upload",
-        "fire_strategy",
     }
