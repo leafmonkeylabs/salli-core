@@ -403,4 +403,20 @@ export const strings = {
     prompt: 'Unlock Salli',
     cancel: 'Not now',
   },
+
+  /** The widgets' words: the app writes them with the figures, so the widget holds none of its own. */
+  glance: {
+    safe: 'Safe to spend',
+    hidden: 'Amount hidden',
+    until: (date: string) => `until ${date}`,
+    noIncome: 'No income expected',
+    waiting: 'Waiting',
+    nothingWaiting: 'Nothing waiting',
+    decisions: (n: number) => (n === 1 ? '1 decision to review' : `${n} decisions to review`),
+    reminders: (n: number) => (n === 1 ? '1 reminder due' : `${n} reminders due`),
+    statements: (n: number) => (n === 1 ? '1 statement to review' : `${n} statements to review`),
+    cashBelowZero: 'Cash below zero ahead',
+    more: (n: number) => `and ${n} more`,
+    open: 'Open Salli to see what is current',
+  },
 } as const;

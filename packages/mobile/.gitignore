@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Colour sets the widget target's config writes at prebuild (targets/widget/expo-target.config.js)
+/targets/*/Assets.xcassets

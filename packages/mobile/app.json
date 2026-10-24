@@ -10,6 +10,9 @@
     "ios": {
       "bundleIdentifier": "money.salli.app",
       "supportsTablet": false,
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.money.salli.app"]
+      },
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
@@ -34,6 +37,7 @@
         }
       ],
       "expo-web-browser",
+      "@bacons/apple-targets",
       "expo-secure-store",
       "expo-font",
       [

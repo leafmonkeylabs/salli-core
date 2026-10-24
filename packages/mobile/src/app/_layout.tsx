@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiProvider } from '../api';
+import { Glance } from '../glance';
 import { PhoneProvider } from '../phone';
 import { SessionProvider, useSession } from '../session';
 import { useTheme } from '../theme';
@@ -58,6 +59,7 @@ function Navigator() {
         <Stack.Screen name="welcome" />
         <Stack.Screen name="connect" />
       </Stack>
+      <Glance />
     </>
   );
 }
