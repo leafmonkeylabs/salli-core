@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountParts, displayDate, monthNameOf, monthOf, todayIso } from '../src/lib/display';
+import { amountParts, displayDate, displayDay, displayRange, monthNameOf, monthOf, todayIso } from '../src/lib/display';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
 import { stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
@@ -195,5 +195,13 @@ describe('the servers on this phone', () => {
     expect(lockDue(true, LOCK_AFTER_MS)).toBe(true);
     expect(lockDue(true, LOCK_AFTER_MS - 1)).toBe(false);
     expect(lockDue(false, LOCK_AFTER_MS * 10)).toBe(false);
+  });
+});
+
+describe('periods', () => {
+  it('says a day under its year, and a period with its year once', () => {
+    expect(displayDay('2026-10-01')).toBe('Oct 1');
+    expect(displayRange('2026-10-01', '2026-10-10')).toBe('Oct 1 to Oct 10, 2026');
+    expect(displayRange('2025-12-20', '2026-01-05')).toBe('Dec 20, 2025 to Jan 5, 2026');
   });
 });

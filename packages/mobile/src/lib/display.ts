@@ -35,6 +35,19 @@ export function displayDate(iso: string): string {
   return name ? `${name} ${day.replace(/^0/, '')}, ${year}` : iso;
 }
 
+/** A day in a list under a year already said: "Oct 1". */
+export function displayDay(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  const name = match ? MONTHS[match[2] ?? ''] : undefined;
+  return match && name ? `${name} ${(match[3] ?? '').replace(/^0/, '')}` : iso;
+}
+
+/** A period, its year said once when both ends share it: "Oct 1 to Oct 10, 2026". */
+export function displayRange(from: string, to: string): string {
+  if (from.slice(0, 4) === to.slice(0, 4) && /^\d{4}-\d{2}-\d{2}/.test(from)) return `${displayDay(from)} to ${displayDate(to)}`;
+  return `${displayDate(from)} to ${displayDate(to)}`;
+}
+
 const MONTH_NAMES: Record<string, string> = {
   '01': 'January', '02': 'February', '03': 'March', '04': 'April', '05': 'May', '06': 'June',
   '07': 'July', '08': 'August', '09': 'September', '10': 'October', '11': 'November', '12': 'December',

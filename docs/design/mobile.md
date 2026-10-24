@@ -5,8 +5,9 @@ app, M1, the app's first screens (finding a server, signing in, Home from
 the server's figures, signing out), M2, the four places (Cash, Books
 with an account and an entry, adding an entry, Decide's reviews), and
 servers and this phone (more than one server, Face ID, the app-switcher
-cover) are built ([packages/mobile](../../packages/mobile/README.md)).
-Reviewing an import and Android come next.
+cover), and importing a statement and reviewing it are built
+([packages/mobile](../../packages/mobile/README.md)). Home when the server
+is out of reach, a statement shared from another app, and Android come next.
 
 ## Why
 
@@ -130,6 +131,25 @@ seeded by `core_0022_mobile_client`:
   whenever the app isn't active, unless the person turns on showing amounts.
   Nothing is locked or covered while signed out.
 - These settings stay on the phone (`salli.phone`), and no server sees them.
+
+## Importing a statement
+
+- **From the phone's files:** Books' "Import a file" chooses a statement
+  (expo-document-picker) and the account it is for, and uploads it as it
+  is (`statements.upload`); the server reads it, as it does for the console
+  and `salli import`. The phone's fetch sends a file part only as
+  expo-file-system's `File`, so the app builds that one form itself.
+- **The review queue** in Books lists the statements waiting; Home's "review
+  waiting" signal opens Books. A statement's review shows each transaction
+  as Salli read it, in date order, with where the money came from or went:
+  a rule's or the model's proposal (and how sure the model was), or a
+  "Choose an account" that is kept at once (`statements.categorize`). A
+  likely duplicate is said, to leave out or book anyway. "Post the N
+  ready" posts what is complete after a confirmation (`statements.post`);
+  "Discard all" and leaving one out ask first (`statements.discard`).
+  Nothing is booked until posted, and nothing twice.
+- **Not yet:** a statement shared to Salli from a bank's app (a share
+  extension) and making a rule from a transaction (the console has both).
 
 ## Later
 
