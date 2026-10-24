@@ -94,7 +94,8 @@ CONSOLE_CLIENT_ID = "salli-console"
 CONSOLE_CALLBACK_PATH = "/console/callback"
 #: The phone app's client: first party, seeded by core_0022. A native app's
 #: private-use URI scheme (RFC 8252, section 7.1), the reverse of salli.money,
-#: is its one redirect, stored and matched exactly.
+#: is its one redirect, stored and matched exactly. It signs in to the API as
+#: the person, and to MCP for the AI the person set up in the app.
 MOBILE_CLIENT_ID = "salli-mobile"
 MOBILE_REDIRECT_URI = "money.salli.app:/oauth/callback"
 #: How often a grant's `last_used_at` is written, at most.
@@ -324,8 +325,10 @@ class McpOAuthService:
                     "set SALLI_PUBLIC_URL to an https:// address (docs/self-host.md)."
                 )
         if client_id == MOBILE_CLIENT_ID:
-            if audience != API:
-                raise OAuthError("The app signs in to the API only (resource {base}/v1).")
+            # The API, as the person; or MCP, for the AI the person set up in
+            # the app on their own key: a sign-in of its own, an AI connection
+            # like any other (under the MCP switch, listed and ended with the
+            # rest), whose every change the person confirms in the app.
             # The same test as the console's: a password crosses a network
             # only encrypted, and a simulator reaches this machine at localhost.
             if not self._console_secure:

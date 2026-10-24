@@ -1562,6 +1562,23 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
 
     @mcp.prompt()
+    def talk_with_me(question: str = "") -> str:
+        """A conversation about the person's money in an AI client of their
+        own (the Salli app's AI among them): answered from Salli's tools, kept
+        short, with every change shown before it is made."""
+        start = f"My first question: {question} " if question else ""
+        return (
+            "Talk with me about my money, with Salli's tools. "
+            + start
+            + "Read only what my question needs (get_safe_to_spend, get_signals, "
+            "list_due_reviews, get_cash_forecast and the like), and answer in a few short "
+            "sentences or a short list, quoting Salli's figures with their currencies and dates. "
+            "Before any tool that changes my books or my reminders, say in one sentence what "
+            "it will change; I approve each change myself. When I ask about a decision, think "
+            "it through as the think_through_decision prompt does. " + GUARDRAILS
+        )
+
+    @mcp.prompt()
     def can_i_afford(amount: str, when: str = "", what: str = "") -> str:
         """Whether a purchase fits, from the afford-it template: paying cash,
         spreading it, or waiting and saving, run and compared by Salli on the

@@ -195,10 +195,12 @@ def _who(dev: bool, autofocus: bool = True) -> str:
     )
 
 
-def _asking(client: str, audience: str, scope: str) -> str:
+def _asking(client: str, audience: str, scope: str, client_id: str = "") -> str:
     """What the client wants, in words: an AI client acting on your data over
     MCP, or one of your own Salli clients (the CLI) signing in as you."""
     e = html.escape
+    if client_id == MOBILE_CLIENT_ID and audience == "mcp":
+        return "It reads your books and asks you in the app before any change."
     if audience == "api":
         return f"{e(client)} is asking to sign in to your Salli account as you."
     return (
@@ -209,9 +211,17 @@ def _asking(client: str, audience: str, scope: str) -> str:
 
 
 def _is_salli(info: dict[str, Any]) -> bool:
-    """Salli's console or its app: signing in to Salli itself, not letting
-    another application in."""
-    return info.get("client_id") in (CONSOLE_CLIENT_ID, MOBILE_CLIENT_ID)
+    """Salli's console or its app signing in to Salli itself, not letting
+    another application in. The app's AI asking for MCP is an AI connection,
+    asked for by name like any other."""
+    return info.get("client_id") in (CONSOLE_CLIENT_ID, MOBILE_CLIENT_ID) and (
+        info.get("audience", "mcp") == "api"
+    )
+
+
+def _is_apps_ai(info: dict[str, Any]) -> bool:
+    """The AI the person set up in the Salli app, asking for MCP."""
+    return info.get("client_id") == MOBILE_CLIENT_ID and info.get("audience", "mcp") == "mcp"
 
 
 def _title(info: dict[str, Any]) -> str:
@@ -220,6 +230,8 @@ def _title(info: dict[str, Any]) -> str:
     if _is_salli(info):
         return "Sign in to Salli"
     client = str(info.get("client_name") or "An application")
+    if _is_apps_ai(info):
+        return "Connect the AI in the Salli app?"
     if info.get("audience", "mcp") == "api":
         return f"Sign in to {client}?"
     return f"Connect {client} to your Salli?"
@@ -236,7 +248,10 @@ def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
     elif _is_salli(info):
         intro = ""
     else:
-        intro = f"<p>{_asking(info['client_name'], audience, info.get('scope') or '')}</p>"
+        asking = _asking(
+            info["client_name"], audience, info.get("scope") or "", str(info.get("client_id") or "")
+        )
+        intro = f"<p>{asking}</p>"
     if info.get("reauthenticate") or _is_salli(info):
         label = "Continue" if info.get("reauthenticate") else "Sign in"
         buttons = f"<div class=row><button name=decision value=allow>{label}</button></div>"
@@ -251,7 +266,11 @@ def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
         f'<input type=hidden name=rt value="{e(rt)}">{_who(dev)}'
         + buttons
         + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
-        + "<p class=muted>Sign in with the account you use for Salli.</p>"
+        + (
+            "<p class=muted>You can disconnect it any time.</p>"
+            if _is_apps_ai(info) and not info.get("reauthenticate")
+            else "<p class=muted>Sign in with the account you use for Salli.</p>"
+        )
         + _forgotten(dev)
         + "</form>"
     )
