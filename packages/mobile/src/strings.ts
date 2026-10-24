@@ -213,6 +213,15 @@ export const strings = {
     submit: 'Record the review',
     recordedReview: 'Review recorded.',
     lab: 'Templates and scenarios are in the console.',
+    write: 'Write your review',
+    cancel: 'Cancel',
+    think: 'Think a decision through',
+    thinkNote: 'Nothing is sent from the app: it hands a prompt to the AI app you choose. Templates and scenarios are on the console.',
+    // No figure in it: the AI app builds and runs the options with Salli.
+    thinkPrompt: (server: string) =>
+      `I keep my books in Salli, at ${server}. If you can’t reach it yet, connect Salli as an MCP server at ${server}/mcp and sign in on its page.\n\n` +
+      'Help me think a money decision through, with Salli’s think_through_decision prompt: ask me what I am deciding and what matters to me, build the options with Salli and run them there, check them against my principles, and leave the choice to me. ' +
+      'Take every figure from Salli rather than working any out yourself, and record nothing unless I say so.',
   },
 
   later: {

@@ -5,7 +5,7 @@
  * its own buttons.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { size, useTheme } from './theme';
 
@@ -25,7 +25,8 @@ export function Sheet({ visible, onClose, label, children }: { visible: boolean;
   const reduceMotion = useReduceMotion();
   return (
     <Modal visible={visible} transparent animationType={reduceMotion ? 'fade' : 'slide'} onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.frame}>
+      {/* It rises with the keyboard, so a field in it stays in view. */}
+      <KeyboardAvoidingView style={styles.frame} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onPress={onClose} style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }]} />
         <View
           accessibilityViewIsModal
@@ -34,7 +35,7 @@ export function Sheet({ visible, onClose, label, children }: { visible: boolean;
         >
           {children}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
