@@ -1,8 +1,9 @@
-// The snapshot the app writes (src/lib/glance.ts, version 1), and the
+// The snapshot the app writes (src/lib/glance.ts, version 2), and the
 // timeline that shows it: as written, then from a day after its newest read,
 // a request to open the app instead of figures that may be wrong.
 import CoreText
 import Foundation
+import SwiftUI
 import WidgetKit
 
 let appGroup = "group.money.salli.app"
@@ -20,17 +21,60 @@ struct Glance: Decodable {
     let lines: [String]
     let more: String
   }
+  struct Forecast: Decodable {
+    let label: String
+    let low: String
+    let spoken: String
+    let points: [Double]
+    let lowIndex: Int
+  }
+  struct Spent: Decodable {
+    let label: String
+    let figure: String
+    let then: String
+    let spoken: String
+  }
+  struct NetWorth: Decodable {
+    let label: String
+    let figure: String
+    let spoken: String
+    let points: [Double]
+  }
+  struct Payday: Decodable {
+    let days: Int
+    let unit: String
+    let share: Double
+    let spoken: String
+  }
+  struct Palette: Decodable {
+    let paper: String
+    let ink: String
+    let muted: String
+    let rule: String
+    let accent: String
+    let tile: String
+    let tileText: String
+  }
+  struct Colors: Decodable {
+    let light: Palette
+    let dark: Palette
+  }
   let v: Int
   let at: Double
   let host: String
   let safe: Safe
   let waiting: Waiting
+  let forecast: Forecast?
+  let spent: Spent?
+  let netWorth: NetWorth?
+  let payday: Payday?
+  let colors: Colors
   let open: String
 
   static func read() -> Glance? {
     guard let text = UserDefaults(suiteName: appGroup)?.string(forKey: "glance"),
           let glance = try? JSONDecoder().decode(Glance.self, from: Data(text.utf8)),
-          glance.v == 1
+          glance.v == 2
     else { return nil }
     return glance
   }
@@ -79,4 +123,46 @@ enum Fonts {
       }
     }
   }()
+}
+
+/** The app's theme for a widget: the snapshot's colours on the side the phone shows, else the brand's. */
+struct Look {
+  let paper: Color
+  let ink: Color
+  let muted: Color
+  let rule: Color
+  let accent: Color
+  let tile: Color
+  let tileText: Color
+
+  init(_ glance: Glance?, _ scheme: ColorScheme) {
+    guard let colors = glance?.colors else {
+      paper = Color("paper"); ink = Color("ink"); muted = Color("muted"); rule = Color("rule")
+      accent = Color("mark"); tile = Color("mark"); tileText = Color("paper")
+      return
+    }
+    let p = scheme == .dark ? colors.dark : colors.light
+    paper = Color(css: p.paper); ink = Color(css: p.ink); muted = Color(css: p.muted); rule = Color(css: p.rule)
+    accent = Color(css: p.accent); tile = Color(css: p.tile); tileText = Color(css: p.tileText)
+  }
+}
+
+extension Color {
+  /** A colour as the app's theme writes it: #RRGGBB or rgba(r, g, b, a). */
+  init(css: String) {
+    let text = css.trimmingCharacters(in: .whitespaces)
+    if text.hasPrefix("#"), text.count == 7, let n = UInt32(text.dropFirst(), radix: 16) {
+      self.init(red: Double((n >> 16) & 0xFF) / 255, green: Double((n >> 8) & 0xFF) / 255, blue: Double(n & 0xFF) / 255)
+      return
+    }
+    if text.hasPrefix("rgba(") || text.hasPrefix("rgb(") {
+      let inside = text.drop(while: { $0 != "(" }).dropFirst().prefix(while: { $0 != ")" })
+      let parts = inside.split(separator: ",").map { Double($0.trimmingCharacters(in: .whitespaces)) ?? 0 }
+      if parts.count >= 3 {
+        self.init(.sRGB, red: parts[0] / 255, green: parts[1] / 255, blue: parts[2] / 255, opacity: parts.count > 3 ? parts[3] : 1)
+        return
+      }
+    }
+    self.init(white: 0.5)
+  }
 }

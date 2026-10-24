@@ -11,6 +11,10 @@ struct SalliWidgets: WidgetBundle {
   var body: some Widget {
     SafeWidget()
     WaitingWidget()
+    ForecastWidget()
+    SpentWidget()
+    NetWorthWidget()
+    PaydayWidget()
   }
 }
 
@@ -41,9 +45,11 @@ private let openSalli = "Open Salli"
 struct SafeView: View {
   let entry: GlanceEntry
   @Environment(\.widgetFamily) private var family
+  @Environment(\.colorScheme) private var scheme
 
   var body: some View {
     let glance = entry.glance
+    let look = Look(glance, scheme)
     Group {
       if family == .accessoryRectangular {
         VStack(alignment: .leading, spacing: 0) {
@@ -58,26 +64,26 @@ struct SafeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       } else {
         VStack(alignment: .leading, spacing: 4) {
-          Mark().frame(width: 20, height: 14).accessibilityHidden(true)
+          Mark(colour: look.accent).frame(width: 20, height: 14).accessibilityHidden(true)
           Spacer(minLength: 0)
           if let glance, !entry.old {
-            Text(glance.safe.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(Color("muted"))
+            Text(glance.safe.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
             Text(figure(glance))
               .font(.custom("Geist-Medium", size: 22))
-              .foregroundStyle(Color("ink"))
+              .foregroundStyle(look.ink)
               .minimumScaleFactor(0.6)
               .lineLimit(1)
               .accessibilityLabel(glance.safe.spoken)
-            Text(glance.safe.until).font(.custom("Geist-Regular", size: 13)).foregroundStyle(Color("muted"))
+            Text(glance.safe.until).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
           } else {
-            Text(glance?.safe.label ?? openSalli).font(.custom("Geist-Regular", size: 13)).foregroundStyle(Color("muted"))
-            if let glance { Text(glance.open).font(.custom("Geist-Medium", size: 15)).foregroundStyle(Color("ink")) }
+            Text(glance?.safe.label ?? openSalli).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
+            if let glance { Text(glance.open).font(.custom("Geist-Medium", size: 15)).foregroundStyle(look.ink) }
           }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
       }
     }
-    .containerBackground(for: .widget) { Color("paper") }
+    .containerBackground(for: .widget) { look.paper }
   }
 
   private func figure(_ glance: Glance) -> String {
@@ -88,9 +94,11 @@ struct SafeView: View {
 struct WaitingView: View {
   let entry: GlanceEntry
   @Environment(\.widgetFamily) private var family
+  @Environment(\.colorScheme) private var scheme
 
   var body: some View {
     let glance = entry.glance
+    let look = Look(glance, scheme)
     // Two lines fit, and then how many more.
     let lines = glance.map { Array($0.waiting.lines.prefix(2)) } ?? []
     Group {
@@ -109,28 +117,28 @@ struct WaitingView: View {
         VStack(alignment: .leading, spacing: 0) {
           Text(glance?.waiting.label ?? openSalli)
             .font(.custom("Geist-Regular", size: 13))
-            .foregroundStyle(Color("muted"))
+            .foregroundStyle(look.muted)
             .padding(.bottom, 8)
           if let glance, !entry.old {
             ForEach(lines, id: \.self) { line in
-              Rectangle().fill(Color("rule")).frame(height: 1)
+              Rectangle().fill(look.rule).frame(height: 1)
               Text(line)
                 .font(.custom("Geist-Regular", size: 14))
-                .foregroundStyle(Color("ink"))
+                .foregroundStyle(look.ink)
                 .lineLimit(2)
                 .padding(.vertical, 6)
             }
             if !glance.waiting.more.isEmpty {
-              Text(glance.waiting.more).font(.custom("Geist-Regular", size: 13)).foregroundStyle(Color("muted"))
+              Text(glance.waiting.more).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
             }
           } else if let glance {
-            Text(glance.open).font(.custom("Geist-Medium", size: 15)).foregroundStyle(Color("ink"))
+            Text(glance.open).font(.custom("Geist-Medium", size: 15)).foregroundStyle(look.ink)
           }
           Spacer(minLength: 0)
           if let glance {
             Text(glance.host)
               .font(.custom("GeistMono-Regular", size: 11))
-              .foregroundStyle(Color("muted"))
+              .foregroundStyle(look.muted)
               .lineLimit(1)
               .truncationMode(.middle)
           }
@@ -138,12 +146,13 @@ struct WaitingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
       }
     }
-    .containerBackground(for: .widget) { Color("paper") }
+    .containerBackground(for: .widget) { look.paper }
   }
 }
 
 /** The brand's mark: the logo's four bars (docs/brand/assets), in ledger green. */
 struct Mark: View {
+  var colour: Color = Color("mark")
   var body: some View {
     GeometryReader { box in
       // The bars as the logo draws them, in its 114.86 × 80.4 box.
@@ -153,7 +162,7 @@ struct Mark: View {
       ZStack(alignment: .topLeading) {
         ForEach(0..<bars.count, id: \.self) { i in
           Rectangle()
-            .fill(Color("mark"))
+            .fill(colour)
             .frame(width: bars[i].2 * sx, height: 28.71 * sy)
             .offset(x: bars[i].0 * sx, y: bars[i].1 * sy)
         }
