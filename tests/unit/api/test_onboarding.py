@@ -47,6 +47,7 @@ def _profile_row() -> dict[str, Any]:
         "tax_residency": None,
         "tax_ids": [],
         "time_zone": "Europe/Lisbon",
+        "lock_date": "2025-12-31",
     }
 
 

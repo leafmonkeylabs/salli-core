@@ -43,7 +43,8 @@ def booked_transactions(
     for entry in entries:
         if entry.reversed_by or entry.source == "system" or len(entry.postings) != 2:
             continue
-        if entry.description.startswith("REVERSAL:"):
+        # Reversals made before core_0025 are "manual", told by their description.
+        if entry.source == "reversal" or entry.description.startswith("REVERSAL:"):
             continue
         first, second = entry.postings
         money = [p for p in entry.postings if kinds.get(p.account_id) in _MONEY_TYPES]

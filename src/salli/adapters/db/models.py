@@ -118,7 +118,7 @@ class JournalEntryORM(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "source IN ('manual','statement','sms','system')",
+            "source IN ('manual','statement','sms','system','reversal')",
             name="ck_journal_entries_source",
         ),
         Index("ix_journal_entries_user_date", "user_id", "entry_date"),
@@ -868,6 +868,9 @@ class UserProfileORM(Base):
     # while they have not said. Their digest goes at their local hour, so
     # turning it on needs one (domain/notifications/schedule.py).
     time_zone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The books are closed up to and including this day: no entry is added on
+    # or before it (core_0025's trigger). NULL while none are closed.
+    lock_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now

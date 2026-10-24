@@ -1386,7 +1386,16 @@ class SQLUserProfileRepository(UserProfileRepository):
             "tax_ids": list(row.tax_ids or []),
             "fi_assumptions": dict(row.fi_assumptions or {}),
             "time_zone": row.time_zone,
+            "lock_date": row.lock_date.isoformat() if row.lock_date else None,
         }
+
+    async def set_lock_date(self, user_id: str, lock_date: str | None) -> None:
+        result = await self._s.execute(select(UserProfileORM).where(UserProfileORM.id == user_id))
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise ProfileMissing(user_id)
+        row.lock_date = date.fromisoformat(lock_date) if lock_date else None
+        await self._s.flush()
 
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
         """Replace the user's own FI assumptions with `stored` (as

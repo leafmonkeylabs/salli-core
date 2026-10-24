@@ -157,7 +157,7 @@ async def household() -> Books:
     uow = h.uow()
     today = lambda: h.AS_OF  # noqa: E731
     baselines = BaselineService(uow.factory(), fx=h.fx(), today=today)
-    ledger = LedgerService(uow.factory(), fx=h.fx())
+    ledger = LedgerService(uow.factory(), fx=h.fx(), today=today)
     fi = FiService(uow.factory(), baselines=baselines, today=today)
     scenarios = ScenarioService(uow.factory(), baselines=baselines)
     principles = PrincipleService(uow.factory(), scenarios)
@@ -696,7 +696,8 @@ async def where_fixtures(home: list[Fixture]) -> list[Fixture]:
             await get("/v1/ledger/trial-balance"),
         ),
     ]
-    reversed_ = await send("POST", f"/v1/entries/{lunch}/reverse", ok=(201,))
+    reason = {"reason": "Paid twice"}
+    reversed_ = await send("POST", f"/v1/entries/{lunch}/reverse", reason, (201,))
     reversal = reversed_["id"]
     after_reverse = [
         Fixture("REVERSED", "Ref", "The answer to reversing lunch.", reversed_),
@@ -726,7 +727,7 @@ async def where_fixtures(home: list[Fixture]) -> list[Fixture]:
             "REVERSE_REFUSED",
             "ProblemDetails",
             "Reversing lunch a second time.",
-            await send("POST", f"/v1/entries/{lunch}/reverse", ok=(400,)),
+            await send("POST", f"/v1/entries/{lunch}/reverse", reason, (400,)),
         ),
     ]
     dollars = await send("POST", "/v1/entries/", DOLLARS, (201,))

@@ -9,7 +9,7 @@ export function amountOf(entry: JournalEntry): { amount: string; currency: strin
   return debits.length === 1 && credits.length === 1 && debit && credit && debit.currency === credit.currency ? { amount: debit.amount, currency: debit.currency } : undefined;
 }
 
-/** How a reversal's description starts, as the app writes it (strings.entry.reversalOf). */
+/** How a reversal's description started before reversals had their own source. */
 const REVERSAL = /^REVERSAL: /;
 
 /**

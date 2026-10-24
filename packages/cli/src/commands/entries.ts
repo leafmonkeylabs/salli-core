@@ -63,7 +63,7 @@ Examples:
   $ salli entries list --month 2026-10
   $ salli entries search bakery --from 2026-01-01
   $ salli entries add --desc "Lunch" --debit groceries:12.50 --credit cash:12.50
-  $ salli entries reverse 3fa85f64
+  $ salli entries reverse 3fa85f64 --reason "Booked twice"
   $ salli add "lunch 12.50 cash"          (let the AI draft it)`,
     );
 
@@ -286,7 +286,8 @@ Examples:
   entries
     .command('reverse')
     .argument('<id>', 'Entry id (or the start of one)')
-    .description('Cancel an entry by posting its reverse (entries are never edited)')
+    .description('Cancel an entry by posting its reverse, dated today (entries are never edited)')
+    .requiredOption('--reason <text>', 'Why, in a few words; the reversal’s description keeps it')
     .option('-y, --yes', 'Do not ask for confirmation')
     .action(async (query, opts) => {
       const api = await app.api();
@@ -303,7 +304,7 @@ Examples:
         app.out.note('Nothing changed.');
         return;
       }
-      const reversal = await api.call(entriesReverse, { path: { entry_id: entry.id } });
+      const reversal = await api.call(entriesReverse, { path: { entry_id: entry.id }, body: { reason: opts.reason } });
       if (app.out.machine) app.out.emit(reversal, { human: () => undefined });
       else app.out.success(`Reversed “${singleLine(entry.description)}” with entry ${reversal.id.slice(0, 8)}.`);
     });

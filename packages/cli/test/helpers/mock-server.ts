@@ -601,6 +601,7 @@ export class MockSalli {
       const entry = this.data.entries.find((e) => e.id === params?.id);
       if (!entry) return problem(404, 'Not Found', 'Entry not found');
       if (entry.reversed_by) return problem(422, 'Invalid request', 'That entry is already reversed. An entry can be reversed only once.', '/problems/invalid');
+      if (!(req.json as { reason?: string } | undefined)?.reason) return problem(422, 'Request validation failed', 'reason: Field required', '/problems/validation');
       entry.reversed_by = uid(3000);
       return { status: 201, body: { id: uid(3000) } };
     }
@@ -611,6 +612,7 @@ export class MockSalli {
 
     // ledger, tags, reports
     if (method === 'GET' && path === '/v1/ledger/trial-balance') return { status: 200, body: TRIAL_BALANCE };
+    if (method === 'PUT' && path === '/v1/ledger/lock-date') return { status: 200, body: req.json };
     if (method === 'GET' && path === '/v1/ledger/income-statement') {
       const from = req.query.get('from_date');
       const to = req.query.get('to_date');

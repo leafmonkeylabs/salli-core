@@ -42,6 +42,7 @@ from salli.application.services.tax_rule_service import (
 from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.services.user_profile_service import BaseCurrencyLockedError
 from salli.config import database_url, get_settings
+from salli.domain.accounting.models import BooksLocked
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
 from salli.domain.decisions.templates import TemplateError, UnknownTemplate
@@ -519,6 +520,12 @@ def create_app() -> FastAPI:
         return problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "fetch-refused", "Not fetched", str(exc)
         )
+
+    # An entry dated in the user's closed books (domain/accounting/models.py).
+    # Before ValueError's catch-all, whose kind it is.
+    @app.exception_handler(BooksLocked)
+    async def books_locked_handler(request: Request, exc: BooksLocked) -> JSONResponse:
+        return problem(status.HTTP_409_CONFLICT, "books-locked", "The books are closed", str(exc))
 
     # Asked to change the base currency once amounts are stored in it.
     @app.exception_handler(BaseCurrencyLockedError)
