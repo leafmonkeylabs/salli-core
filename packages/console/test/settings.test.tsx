@@ -106,3 +106,60 @@ describe('this device', () => {
     expect(api.requests.length).toBe(before);
   });
 });
+
+describe('two-step sign-in', () => {
+  const URI = 'otpauth://totp/Salli%3Aana%40example.org?secret=JBSWY3DPEHPK3PXP&issuer=Salli';
+  const CODES = ['k7m2p-x9qrt', 'a2b3c-d4e5f'];
+
+  it('turns it on: the link once, a code from the app, then the recovery codes once', async () => {
+    const api = new MockApi();
+    api.overrides.push((r) => {
+      if (r.method === 'POST' && r.path === '/v1/auth/totp') return { status: 201, body: { secret: 'JBSWY3DPEHPK3PXP', uri: URI } };
+      if (r.method === 'POST' && r.path === '/v1/auth/totp/confirm') {
+        api.me = { ...api.me, totp_enabled: true };
+        return { status: 200, body: { recovery_codes: CODES } };
+      }
+      return undefined;
+    });
+    await setup({ api, path: '/console/settings' });
+    const panel = await screen.findByRole('region', { name: 'Two-step sign-in' });
+    expect(await within(panel).findByText(/Off\. Your password alone signs you in\./)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole('button', { name: 'Turn on two-step sign-in' }));
+    });
+    const link = (await within(panel).findByRole('textbox', { name: 'For your authenticator app' })) as HTMLInputElement;
+    expect(link.value).toBe(URI);
+    expect(within(panel).getByText('JBSWY3DPEHPK3PXP')).toBeTruthy();
+
+    // No code: said, and nothing sent.
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole('button', { name: 'Turn it on' }));
+    });
+    expect(api.to('/v1/auth/totp/confirm', 'POST')).toHaveLength(0);
+    fireEvent.change(within(panel).getByRole('textbox', { name: /The code your app shows now/ }), { target: { value: ' 123456 ' } });
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole('button', { name: 'Turn it on' }));
+    });
+    await waitFor(() => expect(api.to('/v1/auth/totp/confirm', 'POST')).toHaveLength(1));
+    expect(JSON.parse(api.to('/v1/auth/totp/confirm', 'POST')[0]?.body ?? '{}')).toEqual({ code: '123456' });
+    const codes = (await within(panel).findByRole('textbox', { name: /Recovery codes/ })) as HTMLInputElement;
+    expect(codes.value).toBe(CODES.join(' '));
+    expect(within(panel).queryByText('JBSWY3DPEHPK3PXP')).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(within(panel).getByRole('button', { name: 'I have copied it' }));
+    });
+    expect(await within(panel).findByText(/On\. Every sign-in with your password also asks for a code\./)).toBeTruthy();
+    expect(document.body.innerHTML).not.toContain(CODES[0]);
+  });
+
+  it('when on, says how to turn it off, and never asks for the password', async () => {
+    const api = new MockApi();
+    api.me = { ...api.me, totp_enabled: true };
+    await setup({ api, path: '/console/settings' });
+    const panel = await screen.findByRole('region', { name: 'Two-step sign-in' });
+    expect(await within(panel).findByText(/salli totp disable/)).toBeTruthy();
+    expect(within(panel).queryByRole('button')).toBeNull();
+    expect(document.querySelector('input[type=password]')).toBeNull();
+  });
+});

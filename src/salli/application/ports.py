@@ -1818,7 +1818,9 @@ class LoginRepository(ABC):
 
     @abstractmethod
     async def get(self, user_id: str) -> dict[str, Any] | None:
-        """{user_id, email, is_owner, password_hash, password_changed_at, created_at}."""
+        """{user_id, email, is_owner, password_hash, password_changed_at,
+        created_at, totp_secret, totp_key_version, totp_enabled_at,
+        totp_recovery_codes_left}."""
         ...
 
     @abstractmethod
@@ -1887,6 +1889,32 @@ class LoginRepository(ABC):
     @abstractmethod
     async def prune_failures(self, before: datetime) -> None:
         """Forget failures too old to count."""
+        ...
+
+    @abstractmethod
+    async def set_totp(self, user_id: str, sealed: str | None, key_version: int | None) -> None:
+        """Start two-step sign-in afresh with a new sealed secret, not yet
+        enabled; None for both turns it off. Either way, forgets the last
+        step used and the recovery codes."""
+        ...
+
+    @abstractmethod
+    async def enable_totp(
+        self, user_id: str, recovery_hashes: list[str], *, step: int, at: datetime
+    ) -> bool:
+        """Turn on the secret set, with these recovery codes, `step` being
+        the code just proved. False if there is no secret, or it is on."""
+        ...
+
+    @abstractmethod
+    async def use_totp_step(self, user_id: str, step: int) -> bool:
+        """Record a code from time step `step` as used. False if a code from
+        it, or a later one, already was."""
+        ...
+
+    @abstractmethod
+    async def use_recovery_code(self, user_id: str, code_hash: str) -> bool:
+        """Use up a recovery code. False if it is not one of theirs (any more)."""
         ...
 
 

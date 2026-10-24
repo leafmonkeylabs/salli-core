@@ -2,20 +2,28 @@
  * Settings, as C1 builds them: the profile (what the API lets a person
  * change: name, base currency while it can change, tax residency, time
  * zone), every sign-in with a way to end each (`GET`/`DELETE
- * /v1/auth/sign-ins`), what this device shows, and the panels extensions
+ * /v1/auth/sign-ins`), turning on two-step sign-in (`/v1/auth/totp`, behind
+ * the step-up; its secret and recovery codes shown once, with `<Secret>`,
+ * and turned off only with `salli totp disable`, which takes the password
+ * the console never asks for), what this device shows, and the panels extensions
  * add. Each write confirms or reports in Salli's words. The rest of
  * Settings (C4: tokens, AI connections, digests, your data) are pages of
  * their own, under Settings' own places (nav.tsx).
  */
 import {
+  authMe,
   authSignInsList,
   authSignInsRevoke,
+  authTotpBegin,
+  authTotpConfirm,
   notificationsPreferencesUpdate,
   profileGet,
   profileUpdate,
   type Profile,
   type ProfileIdentityRequest,
   type SignIn,
+  type TotpEnabled,
+  type TotpEnrolment,
 } from '@leafmonkeylabs/salli-sdk';
 import { useState, type FormEvent } from 'react';
 import { Form } from 'react-aria-components';
@@ -26,8 +34,10 @@ import { Button, Confirm, TextField } from '../../kit/forms';
 import { Empty, Loading, Page, Panel, Section } from '../../kit/layout';
 import { visibleAmount } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
+import { Secret } from '../../kit/Secret';
 import { Table } from '../../kit/Table';
 import { isLocale, usePreferences, type Theme } from '../../preferences';
+import { settingsStrings } from '../../settings-strings';
 import { strings } from '../../strings';
 import { SettingsNav } from './nav';
 
@@ -250,6 +260,90 @@ function SignInsSection() {
   );
 }
 
+const t = settingsStrings.twoStep;
+
+function TwoStepSection() {
+  const me = useRead('auth.me', authMe);
+  const [code, setCode] = useState('');
+  const [missing, setMissing] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  // The secret and the recovery codes live only in these writes' answers,
+  // which no cache keeps once the page is left.
+  const begin = useWrite<Record<string, never>, TotpEnrolment>('auth.totp.begin', (api) => api.call(authTotpBegin), {
+    secret: 'answer',
+    onSuccess: () => setLinkCopied(false),
+  });
+  const confirm = useWrite<{ code: string }, TotpEnabled>('auth.totp.confirm', (api, input) => api.call(authTotpConfirm, { body: input }), {
+    secret: 'answer',
+    invalidate: ['auth.me'],
+    onSuccess: () => {
+      begin.reset();
+      setCode('');
+    },
+  });
+  const submit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    setMissing(!code.trim());
+    if (code.trim()) confirm.mutate({ code: code.trim() });
+  };
+  const failed = [begin, confirm].find((w) => w.isError && !w.stepUpPending);
+  return (
+    <Section label={t.title}>
+      <Panel>
+        <p className="section-help">{t.help}</p>
+        {me.isPending ? <Loading lines={1} /> : null}
+        {me.isError ? <ProblemView error={me.error} compact onRetry={() => void me.refetch()} /> : null}
+        {confirm.data ? (
+          <div className="stack-tight">
+            <p role="status" className="quiet-success">
+              <span aria-hidden="true">✓</span> {t.done}
+            </p>
+            <Secret label={t.recovery} value={confirm.data.recovery_codes.join(' ')} words={settingsStrings.secret} onDone={() => confirm.reset()} />
+          </div>
+        ) : begin.data ? (
+          <form className="form" onSubmit={submit} noValidate>
+            {linkCopied ? null : <Secret label={t.link} value={begin.data.uri} words={settingsStrings.secret} onDone={() => setLinkCopied(true)} />}
+            <p className="field-help">
+              {t.typeIn} <code className="mono">{begin.data.secret}</code>
+            </p>
+            <TextField
+              label={t.code}
+              value={code}
+              onChange={setCode}
+              isRequired
+              isInvalid={missing}
+              errorMessage={t.codeMissing}
+              inputProps={{ autoComplete: 'one-time-code', inputMode: 'numeric', spellCheck: false }}
+            />
+            <div className="form-actions">
+              <Button type="submit" isPending={confirm.isPending}>
+                {confirm.isPending ? t.confirming : t.confirm}
+              </Button>
+            </div>
+          </form>
+        ) : me.data ? (
+          <>
+            <p>{me.data.totp_enabled ? t.on : t.off}</p>
+            {me.data.totp_enabled ? (
+              <p className="provenance">{t.turnOff}</p>
+            ) : (
+              <div className="form-actions">
+                <Button variant="secondary" isPending={begin.isPending} onPress={() => begin.mutate({})}>
+                  {begin.isPending ? t.starting : t.turnOn}
+                </Button>
+                <p role="status" className="quiet-success">
+                  {begin.stepUpPending ? strings.signIn.redirecting : null}
+                </p>
+              </div>
+            )}
+          </>
+        ) : null}
+        {failed ? <ProblemView error={failed.error} compact /> : null}
+      </Panel>
+    </Section>
+  );
+}
+
 function DeviceSection() {
   const { theme, setTheme, locale, setLocale } = usePreferences();
   const [draft, setDraft] = useState(locale ?? '');
@@ -320,6 +414,7 @@ export function Settings() {
       <div className="stack">
         <ProfileSection />
         <SignInsSection />
+        <TwoStepSection />
         <DeviceSection />
         {settingsPanels.map((panel) => (
           <Section key={panel.id} label={panel.title}>

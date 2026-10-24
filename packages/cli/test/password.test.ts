@@ -146,3 +146,59 @@ describe('salli sign-ins', () => {
     expect(result.stderr).toContain('Signed out this sign-in.');
   });
 });
+
+describe('salli totp', () => {
+  const SECRET = 'JBSWY3DPEHPK3PXP';
+  const URI = `otpauth://totp/Salli%3Aada%40example.org?secret=${SECRET}&issuer=Salli`;
+  const CODES = ['k7m2p-x9qrt', 'a2b3c-d4e5f'];
+
+  it('says whether it is on', async () => {
+    mock.on('GET', '/v1/auth/me', () => ({ status: 200, body: { user_id: 'u', email: null, method: 'oauth', permissions: [], totp_enabled: true } }));
+    const result = await run(['totp', 'status']);
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.stderr).toContain('Two-step sign-in is on.');
+  });
+
+  it('turns it on: the secret, a code from it, then the recovery codes once', async () => {
+    mock.on('POST', '/v1/auth/totp', () => ({ status: 201, body: { secret: SECRET, uri: URI } }));
+    mock.on('POST', '/v1/auth/totp/confirm', () => ({ status: 200, body: { recovery_codes: CODES } }));
+    const prompter = new ScriptedPrompter(['123456']);
+    const result = await run(['totp', 'enable'], { prompter });
+    expect(result.code, result.stderr).toBe(0);
+    expect(prompter.asked).toEqual(['The code your app shows now']);
+    expect(mock.requestsTo('POST', '/v1/auth/totp/confirm')[0]?.json).toEqual({ code: '123456' });
+    expect(result.stdout.split('\n')).toEqual([URI, SECRET, ...CODES, '']);
+    expect(result.stderr).toContain('This is the only time they are shown.');
+  });
+
+  it('without a terminal, prints the secret and confirms with a command of its own', async () => {
+    mock.on('POST', '/v1/auth/totp', () => ({ status: 201, body: { secret: SECRET, uri: URI } }));
+    mock.on('POST', '/v1/auth/totp/confirm', () => ({ status: 200, body: { recovery_codes: CODES } }));
+    const begun = await run(['totp', 'enable'], { prompter: new ScriptedPrompter([], false) });
+    expect(begun.code, begun.stderr).toBe(0);
+    expect(begun.stderr).toContain('salli totp confirm <code>');
+    const confirmed = await run(['totp', 'confirm', ' 654321 ', '--json']);
+    expect(confirmed.code, confirmed.stderr).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/auth/totp/confirm')[0]?.json).toEqual({ code: '654321' });
+    expect(JSON.parse(confirmed.stdout)).toEqual({ recovery_codes: CODES });
+  });
+
+  it('turns it off with the password and a code', async () => {
+    mock.on('DELETE', '/v1/auth/totp', () => ({ status: 204 }));
+    const result = await run(['totp', 'disable', '--password-stdin', '--code', 'k7m2p-x9qrt'], { stdin: 'my long password\n' });
+    expect(result.code, result.stderr).toBe(0);
+    expect(mock.requestsTo('DELETE', '/v1/auth/totp')[0]?.json).toEqual({ password: 'my long password', code: 'k7m2p-x9qrt' });
+    expect(result.stderr).toContain('Two-step sign-in is off.');
+  });
+
+  it('passes a code with a password change', async () => {
+    mock.on('POST', '/v1/auth/password', () => ({ status: 200, body: { sessions_ended: 0 } }));
+    const result = await run(['password', '--password-stdin', '--code', '123456'], { stdin: 'old password\nnew password, long\n' });
+    expect(result.code, result.stderr).toBe(0);
+    expect(mock.requestsTo('POST', '/v1/auth/password')[0]?.json).toEqual({
+      current_password: 'old password',
+      new_password: 'new password, long',
+      code: '123456',
+    });
+  });
+});

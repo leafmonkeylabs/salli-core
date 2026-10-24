@@ -1704,11 +1704,29 @@ class LoginORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+    # Two-step sign-in (core_0028): the authenticator app's secret, sealed
+    # with the key ring (adapters/crypto/keyring.py) and the version that
+    # sealed it. Set but not enabled while the person is still proving a
+    # code; enabled from `totp_enabled_at`. `totp_last_step` is the time step
+    # of the last code used, so none is used twice; the recovery codes are
+    # SHA-256 hashes, each removed when used.
+    totp_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    totp_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    totp_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    totp_recovery_codes: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
 
     __table_args__ = (
         Index("uq_logins_email", "email", unique=True),
         Index("uq_logins_owner", "is_owner", unique=True, postgresql_where=text("is_owner")),
         CheckConstraint("email = lower(email)", name="ck_logins_email_lower"),
+        CheckConstraint(
+            "(totp_secret IS NULL) = (totp_key_version IS NULL)"
+            " AND (totp_enabled_at IS NULL OR totp_secret IS NOT NULL)",
+            name="ck_logins_totp",
+        ),
     )
 
 

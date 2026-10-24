@@ -727,6 +727,10 @@ export type AuthIdentity = {
      * Permissions
      */
     permissions: Array<'tax:activate'>;
+    /**
+     * Totp Enabled
+     */
+    totp_enabled?: boolean;
 };
 
 /**
@@ -2142,6 +2146,10 @@ export type ChangePasswordRequest = {
      * New Password
      */
     new_password: string;
+    /**
+     * Code
+     */
+    code?: string | null;
 };
 
 /**
@@ -10509,6 +10517,10 @@ export type SignInRequest = {
      * Password
      */
     password: string;
+    /**
+     * Code
+     */
+    code?: string | null;
 };
 
 /**
@@ -12800,6 +12812,57 @@ export type TokenGrant = {
 };
 
 /**
+ * TotpConfirmRequest
+ */
+export type TotpConfirmRequest = {
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
+ * TotpDisableRequest
+ */
+export type TotpDisableRequest = {
+    /**
+     * Password
+     */
+    password: string;
+    /**
+     * Code
+     */
+    code?: string | null;
+};
+
+/**
+ * TotpEnabled
+ */
+export type TotpEnabled = {
+    /**
+     * Recovery Codes
+     */
+    recovery_codes: Array<string>;
+};
+
+/**
+ * TotpEnrolment
+ *
+ * A new authenticator secret, returned this once. Add it to the app
+ * (`uri`, or `secret` typed in), then confirm a code from it.
+ */
+export type TotpEnrolment = {
+    /**
+     * Secret
+     */
+    secret: string;
+    /**
+     * Uri
+     */
+    uri: string;
+};
+
+/**
  * TradeDelta
  *
  * A figure where two options differ: this option's, the other's, and
@@ -13045,7 +13108,7 @@ export type AuthSessionsCreateData = {
 
 export type AuthSessionsCreateErrors = {
     /**
-     * The email and password didn't match (which, is not said)
+     * The email and password didn't match (which, is not said), or two-step sign-in is on and the code is missing or wrong
      */
     401: Problem;
     /**
@@ -13195,6 +13258,121 @@ export type AuthPasswordChangeResponses = {
 };
 
 export type AuthPasswordChangeResponse = AuthPasswordChangeResponses[keyof AuthPasswordChangeResponses];
+
+export type AuthTotpDisableData = {
+    body: TotpDisableRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/totp';
+};
+
+export type AuthTotpDisableErrors = {
+    /**
+     * This sign-in may not; `/problems/step-up-required` when signing in again on Salli's page first would let it
+     */
+    403: Problem;
+    /**
+     * Two-step sign-in is not in the state this needs
+     */
+    409: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * Too many failed attempts; `Retry-After` says when to try again
+     */
+    429: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthTotpDisableError = AuthTotpDisableErrors[keyof AuthTotpDisableErrors];
+
+export type AuthTotpDisableResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type AuthTotpDisableResponse = AuthTotpDisableResponses[keyof AuthTotpDisableResponses];
+
+export type AuthTotpBeginData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/totp';
+};
+
+export type AuthTotpBeginErrors = {
+    /**
+     * This sign-in may not; `/problems/step-up-required` when signing in again on Salli's page first would let it
+     */
+    403: Problem;
+    /**
+     * Two-step sign-in is not in the state this needs
+     */
+    409: Problem;
+    /**
+     * This server has no encryption key to keep the secret with
+     */
+    503: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthTotpBeginError = AuthTotpBeginErrors[keyof AuthTotpBeginErrors];
+
+export type AuthTotpBeginResponses = {
+    /**
+     * Successful Response
+     */
+    201: TotpEnrolment;
+};
+
+export type AuthTotpBeginResponse = AuthTotpBeginResponses[keyof AuthTotpBeginResponses];
+
+export type AuthTotpConfirmData = {
+    body: TotpConfirmRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/auth/totp/confirm';
+};
+
+export type AuthTotpConfirmErrors = {
+    /**
+     * This sign-in may not; `/problems/step-up-required` when signing in again on Salli's page first would let it
+     */
+    403: Problem;
+    /**
+     * Two-step sign-in is not in the state this needs
+     */
+    409: Problem;
+    /**
+     * Wrong code
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type AuthTotpConfirmError = AuthTotpConfirmErrors[keyof AuthTotpConfirmErrors];
+
+export type AuthTotpConfirmResponses = {
+    /**
+     * Successful Response
+     */
+    200: TotpEnabled;
+};
+
+export type AuthTotpConfirmResponse = AuthTotpConfirmResponses[keyof AuthTotpConfirmResponses];
 
 export type AccountsListData = {
     body?: never;

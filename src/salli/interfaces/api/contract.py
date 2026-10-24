@@ -46,6 +46,9 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/auth/sign-ins"): "auth.signIns.list",
     ("DELETE", "/auth/sign-ins/{sign_in_id}"): "auth.signIns.revoke",
     ("POST", "/auth/password"): "auth.password.change",
+    ("POST", "/auth/totp"): "auth.totp.begin",
+    ("POST", "/auth/totp/confirm"): "auth.totp.confirm",
+    ("DELETE", "/auth/totp"): "auth.totp.disable",
     # accounts
     ("GET", "/accounts/"): "accounts.list",
     ("POST", "/accounts/"): "accounts.create",

@@ -1,12 +1,22 @@
 /**
- * salli password | sign-ins list | sign-ins revoke: your password, and every
- * way you are signed in with it: sessions (an app's, or a script's that
+ * salli password | sign-ins list | sign-ins revoke | totp: your password,
+ * every way you are signed in with it: sessions (an app's, or a script's that
  * signed in with POST /v1/auth/sessions), the CLI on each machine and the
  * console in each browser tab (OAuth sign-ins through Salli's sign-in page,
- * which takes the same password). AI connections are under `salli mcp`.
+ * which takes the same password), and two-step sign-in, a code from an
+ * authenticator app after the password. AI connections are under `salli mcp`.
  */
 import type { Command } from '@commander-js/extra-typings';
-import { authPasswordChange, authSignInsList, authSignInsRevoke, type SignIn } from '@leafmonkeylabs/salli-sdk';
+import {
+  authMe,
+  authPasswordChange,
+  authSignInsList,
+  authSignInsRevoke,
+  authTotpBegin,
+  authTotpConfirm,
+  authTotpDisable,
+  type SignIn,
+} from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { UsageError } from '../errors';
 import type { InputStream } from '../runtime';
@@ -28,6 +38,7 @@ export function registerPassword(program: Command, app: App): void {
     .command('password')
     .description('Change your password (your other sessions are signed out)')
     .option('--password-stdin', 'Read the current password, then the new one, from stdin, one per line')
+    .option('--code <code>', 'With two-step sign-in on: the authenticator app\'s code, or a recovery code')
     .addHelpText(
       'after',
       `
@@ -57,7 +68,9 @@ Examples:
       }
       if (!current || !next) throw new UsageError('Give the current password and the new one.');
       const api = await app.api();
-      const changed = await api.call(authPasswordChange, { body: { current_password: current, new_password: next } });
+      const changed = await api.call(authPasswordChange, {
+        body: { current_password: current, new_password: next, ...(opts.code ? { code: opts.code } : {}) },
+      });
       const ended = changed.sessions_ended;
       app.out.done(changed, `Password changed.${ended ? ` ${ended} other session${ended === 1 ? '' : 's'} signed out.` : ''}`);
     });
@@ -117,6 +130,101 @@ Examples:
       await api.call(authSignInsRevoke, { path: { sign_in_id: signIn.id } });
       app.out.done({ id: signIn.id, revoked: true }, `Signed out ${what}.`);
     });
+}
+
+/** salli totp: two-step sign-in, a code from an authenticator app after the password. */
+export function registerTotp(program: Command, app: App): void {
+  const totp = program
+    .command('totp')
+    .description('Two-step sign-in: a code from an authenticator app after your password')
+    .addHelpText(
+      'after',
+      `
+Once it is on, every sign-in with your password (the sign-in page, salli
+login, the console, the app) also asks for the six-digit code your
+authenticator app shows, or one of ten recovery codes, each good once.
+Lost both? The server's owner can turn it off:
+salli-server members reset-password <email> --clear-totp.
+
+Examples:
+  $ salli totp status
+  $ salli totp enable
+  $ salli totp disable`,
+    );
+
+  totp
+    .command('status')
+    .description('Whether two-step sign-in is on')
+    .action(async () => {
+      const api = await app.api();
+      const me = await api.call(authMe);
+      app.out.done({ totp_enabled: me.totp_enabled ?? false }, me.totp_enabled ? 'Two-step sign-in is on.' : 'Two-step sign-in is off.');
+    });
+
+  totp
+    .command('enable')
+    .description('Turn it on: add the secret to your authenticator app, then enter a code')
+    .action(async () => {
+      const api = await app.api();
+      const begun = await api.call(authTotpBegin);
+      if (app.out.machine) {
+        app.out.emit(begun, { human: () => undefined });
+        return;
+      }
+      app.out.info('Add this to your authenticator app (open the link, or type the secret in):');
+      app.out.line(begun.uri);
+      app.out.line(begun.secret);
+      if (!app.prompter.interactive) {
+        app.out.note('Then: salli totp confirm <code>');
+        return;
+      }
+      const code = await app.prompter.text({ message: 'The code your app shows now' });
+      await confirm(app, code);
+    });
+
+  totp
+    .command('confirm')
+    .argument('<code>', 'The code your authenticator app shows now')
+    .description('Finish turning it on, with a code from the new secret')
+    .action(async (code) => confirm(app, code));
+
+  totp
+    .command('disable')
+    .description('Turn it off (your password and a code)')
+    .option('--password-stdin', 'Read your password from stdin')
+    .option('--code <code>', 'The authenticator app\'s code, or a recovery code')
+    .action(async (opts) => {
+      let password: string;
+      if (opts.passwordStdin) {
+        [password] = await twoLines(app.runtime.stdin);
+      } else {
+        if (!app.prompter.interactive) {
+          throw new UsageError('There is no terminal to ask for your password.', 'Pipe it in with --password-stdin.');
+        }
+        password = await app.prompter.password({ message: 'Password' });
+      }
+      let code = opts.code;
+      if (!code && app.prompter.interactive && !opts.passwordStdin) {
+        code = await app.prompter.text({ message: 'Authenticator code, or a recovery code' });
+      }
+      if (!password) throw new UsageError('Give your password.');
+      const api = await app.api();
+      await api.call(authTotpDisable, { body: { password, ...(code ? { code } : {}) } });
+      app.out.done({ totp_enabled: false }, 'Two-step sign-in is off. Your recovery codes no longer work.');
+    });
+}
+
+async function confirm(app: App, code: string): Promise<void> {
+  const api = await app.api();
+  const enabled = await api.call(authTotpConfirm, { body: { code: code.trim() } });
+  if (app.out.machine) {
+    app.out.emit(enabled, { human: () => undefined });
+    return;
+  }
+  app.out.success('Two-step sign-in is on. Every sign-in with your password now asks for a code.');
+  app.out.info('Recovery codes, each good once in place of a code. Keep them somewhere safe:');
+  for (const recovery of enabled.recovery_codes) app.out.line(recovery);
+  app.out.warn('This is the only time they are shown.');
 }
 
 /** How each kind of sign-in reads. */

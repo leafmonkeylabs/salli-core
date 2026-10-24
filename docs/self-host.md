@@ -87,6 +87,7 @@ There is no sign-up. The owner adds everyone else, from the server:
 | See who can sign in | `docker compose exec salli salli-server members list` |
 | Set a forgotten password | `docker compose exec salli salli-server members reset-password partner@example.com` |
 | …and sign them out everywhere | add `--sign-out-everywhere` |
+| …and turn off their two-step sign-in (a lost authenticator app and recovery codes) | add `--clear-totp` |
 
 Each member has their own ledger and signs in with `salli login`. Salli sends
 no email, so a forgotten password is reset by the owner, never by a link.
@@ -478,6 +479,14 @@ says why. `docker compose exec salli salli-server doctor` checks the rest.
 **The owner forgot their password.** Anyone who can run commands on the
 server can reset it: `docker compose exec salli salli-server members
 reset-password you@example.com`.
+
+**Someone lost their authenticator app and their recovery codes.** With
+two-step sign-in on (`salli totp enable`), a password alone no longer signs
+them in. Reset their password with `--clear-totp`, which turns two-step
+sign-in off; they can turn it on again with a new app. The app's secret is
+sealed with `BYOK_ENCRYPTION_KEYS`, so two-step sign-in can't be turned on
+without one, and losing that key locks out everyone who has it on until the
+owner clears it.
 
 **Postgres won't start, or Salli can't sign in to it ("password
 authentication failed").** The `secrets` volume was deleted but the `postgres`
