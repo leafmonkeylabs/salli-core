@@ -311,14 +311,18 @@ function Attention({ unreachable }: { unreachable: boolean }) {
   );
 }
 
-/** One thing that needs attention, on one line: what, when, and its action or where it opens. */
+/**
+ * One thing that needs attention, on one line: what, when, and its action or
+ * where it opens. One that opens nothing shows its whole title when tapped.
+ */
 function Line({ title, detail, spoken, late, onPress, action, last }: { title: string; detail?: string; spoken?: string; late?: boolean; onPress?: () => void; action?: ReactNode; last?: boolean }) {
   const theme = useTheme();
+  const [whole, setWhole] = useState(false);
   const style = [styles.line, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
   const content = (
     <>
       <View style={[styles.marker, { backgroundColor: late ? theme.negative : theme.muted, borderRadius: theme.marker === 'dot' ? 3 : 0 }]} />
-      <Text style={[styles.lineTitle, { color: theme.text }]} numberOfLines={1}>
+      <Text style={[styles.lineTitle, { color: theme.text }]} numberOfLines={whole ? undefined : 1}>
         {title}
       </Text>
       {detail ? <Text style={[styles.lineDetail, { color: late ? theme.negative : theme.muted }]}>{detail}</Text> : null}
@@ -332,9 +336,9 @@ function Line({ title, detail, spoken, late, onPress, action, last }: { title: s
       {content}
     </Pressable>
   ) : (
-    <View accessible={!action} accessibilityLabel={label} style={style}>
+    <Pressable accessibilityLabel={label} accessibilityHint={whole ? undefined : strings.home.showWhole} onPress={() => setWhole((w) => !w)} style={style}>
       {content}
-    </View>
+    </Pressable>
   );
 }
 

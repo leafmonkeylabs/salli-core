@@ -90,6 +90,7 @@ export const strings = {
     nothingNeedsAttention: 'Nothing needs attention.',
     reviewDue: (date: string) => `Review due ${date}`,
     overdue: 'Overdue',
+    showWhole: 'Shows the whole title',
     overdueSpoken: (date: string) => `Overdue: due ${date}`,
     due: (date: string) => `Due ${date}`,
     decision: 'Decision to review',
