@@ -534,6 +534,22 @@ export class MockSalli {
       const list = this.data.entries.filter((e) => (!from || e.entry_date >= from) && (!to || e.entry_date <= to));
       return { status: 200, body: list };
     }
+    if (method === 'GET' && path === '/v1/entries/search') {
+      const text = (req.query.get('text') ?? '').toLowerCase();
+      const found = this.data.entries.filter((e) => e.description.toLowerCase().includes(text)).reverse();
+      // eslint-disable-next-line no-restricted-syntax -- not money: a page size
+      const limit = Number(req.query.get('limit') ?? 50);
+      return {
+        status: 200,
+        body: {
+          entries: found.slice(0, limit),
+          matches: found.length,
+          totals: [{ account_type: 'expense', currency: 'USD', net: '412.35' }],
+          amounts_in: 'USD',
+          next_cursor: found.length > limit ? 'next-page' : null,
+        },
+      };
+    }
     if (method === 'POST' && path === '/v1/entries/') {
       const input = req.json as { postings?: Array<{ currency?: string; fx_rate?: string }> };
       const foreign = input.postings?.find((x) => x.currency && x.currency !== 'USD' && !x.fx_rate);

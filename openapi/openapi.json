@@ -938,6 +938,197 @@
         }
       }
     },
+    "/v1/entries/search": {
+      "get": {
+        "tags": [
+          "entries"
+        ],
+        "summary": "Search Entries",
+        "description": "Entries by text, account, dates and amount (in the base currency),\nnewest first, with totals over every match.",
+        "operationId": "entries.search",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "In the description, any case",
+              "title": "Text"
+            },
+            "description": "In the description, any case"
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only entries with a posting on it",
+              "title": "Account Id"
+            },
+            "description": "Only entries with a posting on it"
+          },
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Date"
+            }
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Date"
+            }
+          },
+          {
+            "name": "min_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?\\d+(\\.\\d+)?$",
+                  "examples": [
+                    "1234.50"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A posting at least this",
+              "title": "Min Amount"
+            },
+            "description": "A posting at least this"
+          },
+          {
+            "name": "max_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^-?\\d+(\\.\\d+)?$",
+                  "examples": [
+                    "1234.50"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A posting at most this",
+              "title": "Max Amount"
+            },
+            "description": "A posting at most this"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the page before",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` from the page before"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntrySearch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/entries/{entry_id}": {
       "get": {
         "tags": [
@@ -20270,6 +20461,97 @@
           "possible_subscriptions"
         ],
         "title": "EntryProvenance"
+      },
+      "EntrySearch": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/JournalEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/EntryTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "amounts_in": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Amounts In",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries",
+          "matches",
+          "totals",
+          "amounts_in",
+          "next_cursor"
+        ],
+        "title": "EntrySearch"
+      },
+      "EntryTotal": {
+        "properties": {
+          "account_type": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "income",
+              "expense"
+            ],
+            "title": "Account Type"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "net": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Net",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_type",
+          "currency",
+          "net"
+        ],
+        "title": "EntryTotal"
       },
       "ExchangeRate": {
         "properties": {

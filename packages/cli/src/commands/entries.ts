@@ -1,5 +1,5 @@
 /**
- * salli entries list | show | add | reverse | tag
+ * salli entries list | search | show | add | reverse | tag
  *
  * Posted entries are never edited: a mistake is corrected by reversing the
  * entry (a new entry that cancels it) and posting the right one.
@@ -12,6 +12,7 @@ import {
   entriesPostingsSetTags,
   entriesProvenance,
   entriesReverse,
+  entriesSearch,
   type AddEntryRequest,
   type JournalEntry,
   type Posting,
@@ -60,6 +61,7 @@ side gives. Amounts are exact decimals; the server checks that they balance.
 
 Examples:
   $ salli entries list --month 2026-10
+  $ salli entries search bakery --from 2026-01-01
   $ salli entries add --desc "Lunch" --debit groceries:12.50 --credit cash:12.50
   $ salli entries reverse 3fa85f64
   $ salli add "lunch 12.50 cash"          (let the AI draft it)`,
@@ -126,6 +128,59 @@ Examples:
             ]),
           );
           if (shown.length < list.length) app.out.note(`Showing the latest ${shown.length} of ${list.length}; use --limit or --month for more.`);
+        },
+      });
+    });
+
+  entries
+    .command('search')
+    .argument('[text]', 'Text in the description, any case')
+    .description('Find entries, newest first, with the server’s totals over every match')
+    .option('--account <account>', 'Only entries touching this account (totals: its postings)')
+    .option('--from <date>', 'From this date (YYYY-MM-DD)')
+    .option('--to <date>', 'Up to this date')
+    .option('--min <amount>', 'A posting of at least this, in your base currency')
+    .option('--max <amount>', 'A posting of at most this, in your base currency')
+    .option('--limit <n>', 'At most this many a page (1 to 200, default 50)', limitArg)
+    .option('--cursor <cursor>', 'The next page, from the last one')
+    .action(async (text, opts) => {
+      const now = app.runtime.now();
+      const api = await app.api();
+      const book = await AccountBook.load(api);
+      const query = {
+        ...(text ? { text } : {}),
+        ...(opts.account ? { account_id: book.resolve(opts.account).id } : {}),
+        ...(opts.from ? { from_date: parseDate(opts.from, now, '--from') } : {}),
+        ...(opts.to ? { to_date: parseDate(opts.to, now, '--to') } : {}),
+        ...(opts.min ? { min_amount: amountArg(opts.min, '--min') } : {}),
+        ...(opts.max ? { max_amount: amountArg(opts.max, '--max') } : {}),
+        ...(opts.limit ? { limit: opts.limit } : {}),
+        ...(opts.cursor ? { cursor: opts.cursor } : {}),
+      };
+      const found = await api.call(entriesSearch, { query });
+      app.out.emit(found, {
+        records: (d) => d.entries,
+        human: () => {
+          const out = app.out;
+          const c = out.colors;
+          if (found.entries.length === 0) {
+            out.note('No entries match.');
+            return;
+          }
+          out.line(
+            out.table(found.entries, [
+              { header: 'DATE', get: (e) => displayDate(e.entry_date, out.locale) },
+              { header: 'DESCRIPTION', get: (e) => e.description + (e.reversed_by ? '  (reversed)' : ''), shrink: true },
+              { header: 'AMOUNT', get: (e) => describeEntry(app, e, book).amount, align: 'right' },
+              { header: 'DEBIT', get: (e) => describeEntry(app, e, book).debit, shrink: true },
+              { header: 'CREDIT', get: (e) => describeEntry(app, e, book).credit, shrink: true },
+              { header: 'ID', get: (e) => e.id.slice(0, 8), style: (t) => c.dim(t) },
+            ]),
+          );
+          out.line();
+          out.line(`${found.matches} in all. Net of their postings (debits less credits):`);
+          for (const t of found.totals) out.line(`  ${t.account_type.padEnd(10)} ${out.money(t.net, t.currency)}`);
+          if (found.next_cursor) out.note(`More: --cursor ${found.next_cursor}`);
         },
       });
     });

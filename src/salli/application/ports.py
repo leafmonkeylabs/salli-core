@@ -64,6 +64,32 @@ class LedgerRepository(ABC):
         `Posting.base_signed` sums them. Summed by the store, not loaded."""
         raise NotImplementedError
 
+    async def search_entries(
+        self,
+        user_id: str,
+        *,
+        text: str | None = None,
+        account_id: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        min_base_minor: int | None = None,
+        max_base_minor: int | None = None,
+        after: tuple[str, str] | None = None,
+        limit: int = 50,
+    ) -> tuple[list[Any], int, list[tuple[str, str, Decimal]]]:
+        """The entries whose description contains `text` (any case), dated in
+        the range, with a posting (on `account_id`, when given) whose
+        base-currency amount, in its minor units, is within the bounds:
+        newest first, at most `limit` after the (entry date, id) `after`.
+        With them, how many match in all, and over every match the net
+        (debits less credits) of the postings counted (on `account_id`, when
+        given) as (account type, currency, amount), summed by the store."""
+        raise NotImplementedError
+
+    async def manual_entry_by_ref(self, user_id: str, external_ref: str) -> Any | None:
+        """The user's manual entry with this `external_ref`, or None."""
+        raise NotImplementedError
+
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
         """The date of the user's first entry with a posting to an income or
         an expense account (on or before `to_date`, when given), or None:

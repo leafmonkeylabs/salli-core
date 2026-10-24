@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
-from sqlalchemy import Select, delete, func, or_, select, text, update
+from sqlalchemy import Select, delete, func, or_, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -428,6 +428,86 @@ class SQLLedgerRepository(LedgerRepository):
             scaled = Decimal(total).scaleb(-exponent(currency, strict=False))
             balances[account_id] = balances.get(account_id, Decimal(0)) + scaled
         return balances
+
+    async def search_entries(
+        self,
+        user_id: str,
+        *,
+        text: str | None = None,
+        account_id: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        min_base_minor: int | None = None,
+        max_base_minor: int | None = None,
+        after: tuple[str, str] | None = None,
+        limit: int = 50,
+    ) -> tuple[list[StoredJournalEntry], int, list[tuple[str, str, Decimal]]]:
+        matched = select(JournalEntryORM.id).where(JournalEntryORM.user_id == user_id)
+        if text:
+            escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            matched = matched.where(JournalEntryORM.description.ilike(f"%{escaped}%", escape="\\"))
+        if from_date:
+            matched = matched.where(JournalEntryORM.entry_date >= from_date)
+        if to_date:
+            matched = matched.where(JournalEntryORM.entry_date <= to_date)
+        if account_id or min_base_minor is not None or max_base_minor is not None:
+            posting = select(PostingORM.id).where(PostingORM.entry_id == JournalEntryORM.id)
+            if account_id:
+                posting = posting.where(PostingORM.account_id == account_id)
+            if min_base_minor is not None:
+                posting = posting.where(PostingORM.base_amount_minor >= min_base_minor)
+            if max_base_minor is not None:
+                posting = posting.where(PostingORM.base_amount_minor <= max_base_minor)
+            matched = matched.where(posting.exists())
+        ids = matched.subquery()
+
+        page = (
+            select(JournalEntryORM)
+            .where(JournalEntryORM.id.in_(select(ids.c.id)))
+            .options(selectinload(JournalEntryORM.postings))
+            .order_by(JournalEntryORM.entry_date.desc(), JournalEntryORM.id.desc())
+            .limit(limit)
+        )
+        if after:
+            page = page.where(tuple_(JournalEntryORM.entry_date, JournalEntryORM.id) < after)
+        entries = [_entry_from_orm(row) for row in (await self._session.execute(page)).scalars()]
+
+        count = (await self._session.execute(select(func.count()).select_from(ids))).scalar_one()
+        sums = (
+            select(
+                AccountORM.type,
+                PostingORM.currency,
+                func.sum(PostingORM.direction * PostingORM.amount_minor),
+            )
+            .join(AccountORM, AccountORM.id == PostingORM.account_id)
+            .where(PostingORM.entry_id.in_(select(ids.c.id)))
+            .group_by(AccountORM.type, PostingORM.currency)
+            .order_by(AccountORM.type, PostingORM.currency)
+        )
+        if account_id:
+            sums = sums.where(PostingORM.account_id == account_id)
+        totals = [
+            (type_, currency, Decimal(net).scaleb(-exponent(currency, strict=False)))
+            for type_, currency, net in (await self._session.execute(sums)).all()
+        ]
+        return entries, count, totals
+
+    async def manual_entry_by_ref(
+        self, user_id: str, external_ref: str
+    ) -> StoredJournalEntry | None:
+        result = await self._session.execute(
+            select(JournalEntryORM)
+            .where(
+                JournalEntryORM.user_id == user_id,
+                JournalEntryORM.source == "manual",
+                JournalEntryORM.external_ref == external_ref,
+            )
+            .options(selectinload(JournalEntryORM.postings))
+            .order_by(JournalEntryORM.created_at)
+            .limit(1)
+        )
+        row = result.scalars().first()
+        return _entry_from_orm(row) if row else None
 
     async def first_flow_date(self, user_id: str, to_date: str | None = None) -> str | None:
         # A reversed entry and its reversal net to nothing: neither says when

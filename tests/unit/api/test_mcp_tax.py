@@ -94,15 +94,20 @@ async def test_suggested_accounts_are_shown_then_applied_and_audited(services):
         "applied": False,
         "accounts": [],
     }
-    await _call(services, "suggested_tax_accounts", {"rule_set_id": "rs1"})
+    await _call(services, "suggested_tax_accounts", {"rule_set_id": "rs1", "apply": True})
     actor = services.tax_rules.suggested_accounts.await_args.args[0]
     assert (actor.kind, actor.name) == ("agent", "Claude")
-    assert services.tax_rules.suggested_accounts.await_args.kwargs["apply"] is False
+    # The read tool can't create: there is no apply to pass it.
+    assert "apply" not in services.tax_rules.suggested_accounts.await_args.kwargs
     services.audit.log.assert_not_awaited()
 
-    await _call(services, "suggested_tax_accounts", {"rule_set_id": "rs1", "apply": True})
+    await _call(services, "apply_suggested_tax_accounts", {"rule_set_id": "rs1"})
     assert services.tax_rules.suggested_accounts.await_args.kwargs["apply"] is True
-    assert services.audit.log.await_args.args[1] == "suggested_tax_accounts"
+    assert services.audit.log.await_args.args[1] == "apply_suggested_tax_accounts"
+
+    tools = {t.name: t.annotations for t in await _server(services).list_tools()}
+    assert tools["suggested_tax_accounts"].readOnlyHint is True
+    assert tools["apply_suggested_tax_accounts"].readOnlyHint is False
 
 
 async def test_a_refused_suggestion_is_explained(services):
