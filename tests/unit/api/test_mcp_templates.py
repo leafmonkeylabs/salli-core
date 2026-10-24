@@ -238,3 +238,14 @@ async def test_can_i_afford_runs_the_afford_it_template_within_the_guardrails(se
     assert 'price "2400", what "a laptop", date 2026-11-02' in text
     assert "Don't assume a rate or an amount: ask." in text
     _guarded(text)
+
+
+async def test_talk_with_me_answers_from_salli_shows_each_change_and_keeps_the_guardrails(
+    services,
+):
+    text = await _prompt(services, "talk_with_me", {"question": "Where do I stand today?"})
+    assert "My first question: Where do I stand today?" in text
+    assert "say in one sentence what it will change; I approve each change myself" in text
+    assert text.endswith(mcp_server.GUARDRAILS)
+    _guarded(text)
+    assert "My first question" not in await _prompt(services, "talk_with_me", {})
