@@ -1,5 +1,6 @@
 import {
   accountsList,
+  entriesList,
   entriesCreate,
   entriesParse,
   formatAmount,
@@ -16,6 +17,7 @@ import { useApi, useRead } from '../api';
 import { Body, Button, Card, CardHead, Icon, LinesTable } from '../kit';
 import { Picker } from '../picker';
 import { displayDate, todayIso } from '../lib/display';
+import { recentOf } from '../lib/entries';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
@@ -29,6 +31,8 @@ export default function Add() {
   const queryClient = useQueryClient();
   const accounts = useRead('accounts.list', accountsList);
   const trial = useRead('ledger.trialBalance', ledgerTrialBalance);
+  const entries = useRead('entries.list', entriesList);
+  const recent = recentOf(entries.data ?? []);
   const currency = trial.data?.currency ?? 'EUR';
 
   const [said, setSaid] = useState('');
@@ -97,9 +101,11 @@ export default function Add() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
-        <Field label={t.say} help={draft.isPending ? t.drafting : t.sayHelp}>
+        <View style={{ gap: 10 }}>
           <TextInput
-            value={said}
+            accessibilityLabel={t.say}
+            accessibilityHint={t.sayHelp}
+            value={draft.isPending ? t.drafting : said}
             onChangeText={setSaid}
             onSubmitEditing={() => said.trim() && draft.mutate(said.trim())}
             placeholder={t.sayPlaceholder}
@@ -107,9 +113,29 @@ export default function Add() {
             returnKeyType="go"
             autoCapitalize="none"
             editable={!draft.isPending}
-            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, styles.say, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: draft.isPending ? theme.muted : theme.text }]}
           />
-        </Field>
+          {recent.length && !drafted && !byHand ? (
+            <View style={styles.chips}>
+              {recent.map((r) => {
+                const text = r.amount ? `${r.description} ${r.amount}` : r.description;
+                return (
+                  <Pressable
+                    key={r.description}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.again(text)}
+                    onPress={() => setSaid(text)}
+                    style={[styles.chip, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 999) }]}
+                  >
+                    <Text style={[styles.chipText, { color: theme.muted }]} numberOfLines={1}>
+                      {text}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
         {draft.error ? <Body alert>{noModel ? t.noModel : draft.error.message}</Body> : null}
 
         {byHand ? (
@@ -122,9 +148,12 @@ export default function Add() {
                 style={[styles.input, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
               />
             </Field>
-            <Field label={t.amount} help={amount && !exact ? t.notAnAmount : t.amountHelp(currency)}>
+            <Field label={t.amount} {...(amount && !exact ? { help: t.notAnAmount } : {})}>
               <TextInput
                 value={amount}
+                placeholder={t.amountPlaceholder(currency)}
+                placeholderTextColor={theme.muted}
+                accessibilityHint={t.amountHelp(currency)}
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
                 style={[styles.input, styles.amountInput, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
@@ -142,12 +171,12 @@ export default function Add() {
           // The design's draft: the entry as it would be booked, each account changeable in place.
           <Card style={{ gap: 8, backgroundColor: theme.input }}>
             <CardHead label={t.draftLabel} end={displayDate(date)} />
-            <Text style={[styles.draftTitle, { color: theme.text }]}>{description}</Text>
-            {exact && debit && credit ? (
-              <Body small muted>
-                {t.plain(formatAmount(exact, currency), name(credit), name(debit))}
-              </Body>
-            ) : null}
+            <Text
+              accessibilityLabel={exact && debit && credit ? `${description}. ${t.plain(formatAmount(exact, currency), name(credit), name(debit))} ${t.byModel}` : description}
+              style={[styles.draftTitle, { color: theme.text }]}
+            >
+              {description}
+            </Text>
             <View style={{ marginTop: 6 }}>
               <LinesTable
                 currency={currency}
@@ -157,13 +186,6 @@ export default function Add() {
                   { key: 'credit', account: name(credit), side: 'credit', amount: exact ?? amount, currency, onChange: () => setPicking('credit') },
                 ]}
               />
-            </View>
-            {/* The check mark only once both sides are chosen: until then nothing balances. */}
-            <View style={styles.checked}>
-              {ready ? <Icon name="check" size={16} colour={theme.muted} /> : null}
-              <Body small muted style={{ flex: 1 }}>
-                {ready ? `${t.balances} ${t.byModel}` : t.byModel}
-              </Body>
             </View>
           </Card>
         ) : null}
@@ -231,6 +253,10 @@ function AccountField({ label, value, onPress }: { label: string; value: string;
 }
 
 const styles = StyleSheet.create({
+  say: { minHeight: 52, fontSize: 17 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, minHeight: 40, justifyContent: 'center', maxWidth: '100%' },
+  chipText: { fontFamily: font.regular, fontSize: size.small },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   headerButton: { minHeight: size.target, minWidth: 72, justifyContent: 'center', paddingHorizontal: 8 },
   headerTitle: { fontFamily: font.medium, fontSize: 17 },
