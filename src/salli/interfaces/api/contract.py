@@ -155,14 +155,6 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/advisor/run"): "advisor.run",
     ("GET", "/advisor/reports"): "advisor.reports.list",
     ("GET", "/advisor/reports/latest"): "advisor.reports.latest",
-    (
-        "POST",
-        "/advisor/reports/{report_id}/recommendations/{rec_id}/apply",
-    ): "advisor.recommendations.apply",
-    (
-        "POST",
-        "/advisor/reports/{report_id}/recommendations/{rec_id}/dismiss",
-    ): "advisor.recommendations.dismiss",
     ("GET", "/advisor/daily-briefing"): "advisor.dailyBriefing.get",
     ("PUT", "/advisor/daily-briefing"): "advisor.dailyBriefing.set",
     ("POST", "/advisor/briefing/prepare"): "advisor.briefing.prepare",

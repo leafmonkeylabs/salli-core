@@ -1869,6 +1869,7 @@ def _report_to_dict(r: AdvisoryReportORM) -> dict[str, Any]:
         "fi_score_id": r.fi_score_id,
         "summary": r.summary,
         "recommendations": r.recommendations or [],
+        "briefing": r.briefing,
         "created_at": r.created_at.isoformat(),
     }
 
@@ -1887,6 +1888,7 @@ class SQLAdvisoryRepository(AdvisoryRepository):
                 fi_score_id=report.get("fi_score_id"),
                 summary=report.get("summary", ""),
                 recommendations=report.get("recommendations", []),
+                briefing=report.get("briefing"),
             )
         )
         await self._s.flush()
@@ -1928,19 +1930,19 @@ class SQLAdvisoryRepository(AdvisoryRepository):
         )
         return [_report_to_dict(r) for r in rows]
 
-    async def update_recommendations(
-        self, user_id: str, report_id: str, recommendations: list
-    ) -> None:
-        r = (
-            await self._s.execute(
-                select(AdvisoryReportORM).where(
-                    AdvisoryReportORM.id == report_id, AdvisoryReportORM.user_id == user_id
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        rows = (
+            (
+                await self._s.execute(
+                    select(AdvisoryReportORM)
+                    .where(AdvisoryReportORM.user_id == user_id)
+                    .order_by(AdvisoryReportORM.created_at.desc())
                 )
             )
-        ).scalar_one_or_none()
-        if r:
-            r.recommendations = recommendations
-            await self._s.flush()
+            .scalars()
+            .all()
+        )
+        return [_report_to_dict(r) for r in rows]
 
     async def ran_today(self, user_id: str, day: str) -> bool:
         rows = (

@@ -243,13 +243,16 @@ def test_salli_keeps_no_market_notes_for_any_country():
     assert not hasattr(jurisdiction, "market_notes")
 
 
-def test_agents_with_web_search_research_local_markets_and_cite_them():
+def test_the_chat_agents_cite_what_they_search_and_research_no_products():
     from salli.domain.agents.buddy_agent import BUDDY_SYSTEM_PROMPT
     from salli.domain.agents.manager_agent import MANAGER_SYSTEM_PROMPT
 
     for prompt in (MANAGER_SYSTEM_PROMPT, BUDDY_SYSTEM_PROMPT):
-        assert "no built-in notes on any country's investment products" in prompt
-        assert "research it with web_search, cite your sources" in prompt
+        assert "cite your sources" in prompt
+        assert "never research, name or compare investment products" in prompt
+        assert "a licensed professional can help" in prompt
+        assert "investment products and rates" not in prompt
+        assert "You advise" not in prompt and "advisor" not in prompt
 
 
 # ── The agent service sets the context each turn ─────────────────────────────

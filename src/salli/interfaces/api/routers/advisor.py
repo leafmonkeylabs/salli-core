@@ -1,13 +1,15 @@
 """
-Wealth Advisor router — run the advisor, browse reports, and act on
-recommendations, plus the daily cron endpoint.
+The monthly briefing: Salli's own figures and signals, narrated by the AI
+with every figure filled in by Salli (domain/agents/briefing.py). Run one,
+browse them, or prepare one for review before it is stored; plus the daily
+cron endpoint. A briefing describes and never advises.
 """
 
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, status
 from pydantic import BaseModel, ConfigDict
 
 from salli.application.ports import Surface
@@ -27,7 +29,7 @@ class DailyBriefingSetting(BaseModel):
 
 @router.get("/daily-briefing")
 async def get_daily_briefing(user_id: CurrentUser, svc: AppServices) -> DailyBriefingSetting:
-    """Whether the scheduled daily advisor run is on for this user."""
+    """Whether the scheduled daily briefing is on for this user."""
     return DailyBriefingSetting(enabled=await svc.advisor.get_daily_briefing_enabled(user_id))
 
 
@@ -46,43 +48,49 @@ async def set_daily_briefing(
 # ── Reports ────────────────────────────────────────────────────────────────────
 
 
-class AdvisoryActionParams(BaseModel):
-    """What applying a recommendation sets up: a reminder's label and due date."""
+Topic = Literal["cash", "spending", "saving", "debt", "independence", "goals", "assumptions"]
+
+
+class BriefingNote(BaseModel):
+    """One topic, in the AI's words with Salli's figures in them."""
+
+    topic: Topic
+    text: str
+
+
+class BriefingFigure(BaseModel):
+    """A figure of Salli's the briefing could name, as a person reads it."""
+
+    label: str
+    #: Formatted for reading ("1,234.50 EUR", "49.1%", "May 2042"): never parse it.
+    value: str
+
+
+class BriefingSignal(BaseModel):
+    """One of Salli's signals, in its own words (`insights.signals`)."""
 
     model_config = ConfigDict(extra="allow")
 
-    label: str | None = None
-    #: Days from when it is applied.
-    due_in_days: int | None = None
-
-
-class AdvisoryRecommendation(BaseModel):
-    """A recommendation in an advisory report, and what became of it."""
-
-    model_config = ConfigDict(extra="allow")
-
-    id: str | None = None
+    kind: str | None = None
+    severity: str | None = None
     title: str | None = None
-    rationale: str | None = None
-    #: emergency_fund | debt | savings | investing | spending | tax | goal |
-    #: bucket_allocation, as the model chose.
-    category: str | None = None
-    #: 1 high … 3 low.
-    priority: int | None = None
-    #: The FIRE strategy bucket it is about, if any.
-    bucket_key: str | None = None
-    #: What applying it does: "reminder" creates one; "none" only marks it applied.
-    action_type: str | None = None
-    action_params: AdvisoryActionParams | None = None
-    status: Literal["pending", "applied", "dismissed"] | None = None
+    detail: str | None = None
+
+
+class BriefingAssumptions(BaseModel):
+    """Whether the independence figures rest on placeholders."""
+
+    status: Literal["placeholder", "user"] | None = None
+    placeholders: list[str] = []
 
 
 class AdvisoryReport(BaseModel):
-    """A Wealth Advisor run: a summary, and recommendations to act on.
+    """A monthly briefing: a summary and notes in the AI's words, every figure
+    in them Salli's own, and the figures, signals and assumptions it was
+    written from. It describes; it never advises.
 
-    A report just run carries `fire_tier_assessment`; a stored one carries
-    `user_id` and `created_at`. A deployment's entitlement policy may withhold
-    parts of it and add fields of its own, so every field is optional.
+    A deployment's entitlement policy may withhold parts of it and add fields
+    of its own, so every field is optional.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -91,21 +99,18 @@ class AdvisoryReport(BaseModel):
     user_id: str | None = None
     #: What started the run: "manual", "scheduled", or whatever the CLI was given.
     trigger: str | None = None
-    fi_score_id: str | None = None
     summary: str | None = None
-    fire_tier_assessment: str | None = None
-    recommendations: list[AdvisoryRecommendation] | None = None
+    notes: list[BriefingNote] | None = None
+    #: By slot name.
+    figures: dict[str, BriefingFigure] | None = None
+    signals: list[BriefingSignal] | None = None
+    assumptions: BriefingAssumptions | None = None
     created_at: str | None = None
 
 
 class AdvisoryReportList(BaseModel):
-    #: Newest first.
+    #: Newest first. Briefings only: the advisor's earlier reports are in the export.
     reports: list[AdvisoryReport]
-
-
-class RecommendationStatus(BaseModel):
-    id: str
-    status: Literal["applied", "dismissed"]
 
 
 # Shaped surfaces: what the entitlement policy withholds stays out of the
@@ -114,7 +119,7 @@ class RecommendationStatus(BaseModel):
 async def run_advisor(
     user_id: CurrentUser, email: CurrentEmail, svc: AppServices
 ) -> AdvisoryReport:
-    """Run the Wealth Advisor now (passes the deployment's usage meter first)."""
+    """Write a briefing now (passes the deployment's usage meter first)."""
     report = await svc.advisor.run_advisor(user_id, email, trigger="manual")
     view = await svc.entitlements.for_user(user_id, email)
     return AdvisoryReport.model_validate(view.shape(Surface.ADVISOR_REPORT, report))
@@ -143,28 +148,6 @@ async def latest_report(
     return AdvisoryReport.model_validate(view.shape(Surface.ADVISOR_REPORT, report))
 
 
-@router.post("/reports/{report_id}/recommendations/{rec_id}/apply")
-async def apply_recommendation(
-    report_id: str, rec_id: str, user_id: CurrentUser, svc: AppServices
-) -> RecommendationStatus:
-    try:
-        result = await svc.advisor.apply_recommendation(user_id, report_id, rec_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    return RecommendationStatus.model_validate(result)
-
-
-@router.post("/reports/{report_id}/recommendations/{rec_id}/dismiss")
-async def dismiss_recommendation(
-    report_id: str, rec_id: str, user_id: CurrentUser, svc: AppServices
-) -> RecommendationStatus:
-    try:
-        result = await svc.advisor.dismiss_recommendation(user_id, report_id, rec_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    return RecommendationStatus.model_validate(result)
-
-
 # ── Monthly briefing workflow (human-review gate before persisting) ────────────
 
 
@@ -177,31 +160,14 @@ class BriefingResumeRequest(BaseModel):
     decision: str  # "approve" | "edit" | "reject"
 
 
-class BriefingAction(BaseModel):
-    """What applying the recommendation would set up."""
-
-    type: Literal["none", "reminder"]
-    label: str
-    #: For a reminder, days from when it is applied.
-    due_in_days: int | None
-
-
-class BriefingRecommendation(BaseModel):
-    """A recommendation in a draft briefing, before it is stored with an id and a status."""
-
-    title: str
-    rationale: str
-    category: str
-    #: 1 high … 3 low.
-    priority: int
-    bucket_key: str | None
-    action: BriefingAction
-
-
 class BriefingDraft(BaseModel):
+    """A briefing before it is stored, as `AdvisoryReport` shows one."""
+
     summary: str
-    fire_tier_assessment: str
-    recommendations: list[BriefingRecommendation]
+    notes: list[BriefingNote]
+    figures: dict[str, BriefingFigure]
+    signals: list[BriefingSignal]
+    assumptions: BriefingAssumptions
 
 
 class BriefingPrepared(BaseModel):
@@ -262,7 +228,7 @@ class ScheduledAdvisorRuns(BaseModel):
 
 
 async def _run_due(svc, due: list[dict[str, Any]]) -> None:
-    """Background: run the advisor for each due user; skip anyone the usage
+    """Background: write a briefing for each due user; skip anyone the usage
     meter refuses."""
     for sub in due:
         try:
@@ -275,7 +241,7 @@ async def _run_due(svc, due: list[dict[str, Any]]) -> None:
 
 @router.post("/cron/run-due", status_code=status.HTTP_202_ACCEPTED, dependencies=[CronSecret])
 async def cron_run_due(svc: AppServices, background: BackgroundTasks) -> ScheduledAdvisorRuns:
-    """Trigger the daily advisor for every opted-in user who is due. Auth: X-Cron-Secret header."""
+    """Write the daily briefing for every opted-in user who is due. Auth: X-Cron-Secret header."""
     due = await svc.advisor.due_users()
     # Runs after the response is sent, for the users counted in it.
     background.add_task(_run_due, svc, due)

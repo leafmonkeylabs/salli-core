@@ -239,7 +239,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "spending, net worth over time, recurring payments, a cash forecast, "
             "budgets, debt payoff plans, portfolio, subscriptions, insurance coverage, "
             "tax position, transactions waiting for review, categorisation rules, "
-            "saved documents/memories, and the Wealth Advisor. Numbers returned by "
+            "saved documents/memories, and the monthly briefing. Numbers returned by "
             "read tools are authoritative and already computed by Salli: quote them, "
             "never recompute, estimate or adjust them. Tools that write "
             "(create_account, update_account, create_reminder, post_journal_entry, "
@@ -501,19 +501,20 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         return await insurance_svc.get_report(user_id, today)
 
     @mcp.tool()
-    async def get_latest_advisor_report() -> dict[str, Any]:
-        """Return the user's most recent Wealth Advisor report (summary, FIRE tier
-        assessment, prioritised recommendations) without generating a new one."""
+    async def get_latest_briefing() -> dict[str, Any]:
+        """Return the user's most recent monthly briefing without writing a new
+        one: a summary and notes describing Salli's own figures and signals
+        (every figure filled in by Salli), and the figures it was written from.
+        It describes and never advises."""
         user_id = _current_user_id()
         report = await advisor_svc.get_latest_report(user_id)
-        return report or {"error": "No advisor report found yet."}
+        return report or {"error": "No briefing yet."}
 
     @mcp.tool()
-    async def run_wealth_advisor() -> dict[str, Any]:
-        """Generate a fresh Wealth Advisor report now — a structured, strategy-linked
-        mentoring pass over the user's FI score, FIRE strategy, and goals. It is a
-        fresh model run, so prefer get_latest_advisor_report unless the user
-        explicitly asks for a fresh analysis."""
+    async def run_briefing() -> dict[str, Any]:
+        """Write and store a fresh monthly briefing now: Salli's figures and
+        signals, narrated, never advice. It is a fresh model run, so prefer
+        get_latest_briefing unless the user asks for a new one."""
         from salli.domain.llm import LLMError
         from salli.domain.usage import UsageLimitReached
 
@@ -1500,7 +1501,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     @mcp.prompt()
     def review_my_month(month: str = "") -> str:
         """A short review of the month: what came in and went out, what
-        changed, what needs attention, and a few actions."""
+        changed, and what needs attention."""
         when = f"for {month}" if month else "for this month"
         return (
             f"Review my finances {when} with Salli's tools: start with get_signals, "
@@ -1509,8 +1510,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "numbers exactly; never compute or estimate amounts yourself. Tell me, "
             "briefly: how this month compares with my usual months, anything that "
             "needs attention (a forecast low point before payday, a new or more "
-            "expensive recurring charge, a category well above usual), and at most "
-            "three concrete things I could do. Keep it short and plain."
+            "expensive recurring charge, a category well above usual). Describe; "
+            "don't tell me what to do. Keep it short and plain."
         )
 
     @mcp.prompt()
@@ -1679,8 +1680,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_portfolio_summary,
         get_subscription_report,
         get_coverage_report,
-        get_latest_advisor_report,
-        run_wealth_advisor,
+        get_latest_briefing,
+        run_briefing,
         save_document,
         read_document,
         update_document,

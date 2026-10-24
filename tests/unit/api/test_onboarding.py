@@ -313,7 +313,7 @@ def _portability_service(exporters=()) -> DataPortabilityService:
     fi.get_score_history.return_value = [
         {"score": 61.5, "net_worth": "1234.50", "created_at": "2026-01-02T00:00:00+00:00"}
     ]
-    advisor.list_reports.return_value = []
+    advisor.export_reports.return_value = []
     reminders.list_reminders.return_value = []
     documents.list_documents.return_value = []
     return DataPortabilityService(

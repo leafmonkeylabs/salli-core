@@ -1,6 +1,6 @@
 /**
  * Financial independence (score, projections, assumptions), goals and the
- * wealth advisor. What a purchase does is a scenario: `salli whatif`,
+ * monthly briefing. What a purchase does is a scenario: `salli whatif`,
  * `salli compare`.
  */
 import { Option, type Command } from '@commander-js/extra-typings';
@@ -9,8 +9,6 @@ import {
   advisorBriefingResume,
   advisorDailyBriefingGet,
   advisorDailyBriefingSet,
-  advisorRecommendationsApply,
-  advisorRecommendationsDismiss,
   advisorReportsLatest,
   advisorReportsList,
   advisorRun,
@@ -36,7 +34,7 @@ import {
   type SalliClient,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
-import { CliError, NotFoundError, UsageError } from '../errors';
+import { CliError, UsageError } from '../errors';
 import { singleLine } from '../output/text';
 import { displayDate, displayMonth, parseDate } from '../util/dates';
 import { resolveById } from '../util/resolve';
@@ -468,104 +466,84 @@ function registerGoals(program: Command, app: App): void {
 
 // ── Advisor ──────────────────────────────────────────────────────────────────
 
+/** A briefing's summary and notes, then Salli's signals, as it was written. */
+function notesView(app: App, b: { summary?: string | null; notes?: { topic: string; text: string }[] | null; signals?: { title?: string | null }[] | null }): void {
+  const out = app.out;
+  if (b.summary) out.line(singleLine(b.summary));
+  for (const note of b.notes ?? []) out.line(`${out.colors.dim(note.topic.padEnd(12))} ${singleLine(note.text)}`);
+  const signals = (b.signals ?? []).filter((s) => s.title);
+  if (signals.length) {
+    out.line();
+    out.line(out.heading('Signals'));
+    for (const s of signals) out.line(`- ${singleLine(str(s.title))}`);
+  }
+  out.note('The AI’s words; every figure in them is Salli’s. Not advice.');
+}
+
 function reportView(app: App, report: AdvisoryReport): void {
   const out = app.out;
-  out.line(`${out.heading('Advisor report')} ${out.colors.dim(`${displayDate(report.created_at, out.locale)} · ${str(report.id).slice(0, 8)}`)}`);
-  if (report.summary) out.line(singleLine(report.summary));
-  if (report.fire_tier_assessment) out.line(out.colors.dim(singleLine(report.fire_tier_assessment)));
-  const recs = report.recommendations ?? [];
-  if (recs.length) {
-    out.line();
-    out.line(
-      out.table(recs, [
-        { header: 'ID', get: (r) => str(r.id).slice(0, 8), style: (t) => out.colors.dim(t) },
-        { header: 'RECOMMENDATION', get: (r) => str(r.title), shrink: true },
-        { header: 'AREA', get: (r) => str(r.category) },
-        { header: 'STATUS', get: (r) => str(r.status) },
-      ]),
-    );
-  }
+  out.line(`${out.heading('Briefing')} ${out.colors.dim(`${displayDate(report.created_at, out.locale)} · ${str(report.id).slice(0, 8)}`)}`);
+  notesView(app, report);
 }
 
 function registerAdvisor(program: Command, app: App): void {
-  const advisor = program.command('advisor').description('The wealth advisor: a review of your finances, with recommendations');
+  const advisor = program.command('advisor').description('The monthly briefing: your figures and signals, described by the AI (not advice)');
 
   advisor
     .command('run')
-    .description('Run the advisor now (an AI call)')
+    .description('Write a briefing now (an AI call)')
     .action(async () => {
       const api = await app.api();
       const spinner = app.prompter.spinner();
-      spinner.start('Reviewing your finances');
+      spinner.start('Writing your briefing');
       let report: AdvisoryReport;
       try {
         report = await api.call(advisorRun, { timeoutMs: 5 * 60_000 });
       } finally {
         spinner.stop();
       }
-      app.out.emit(report, { records: (r) => r.recommendations ?? [], human: (r) => reportView(app, r) });
+      app.out.emit(report, { records: (r) => r.notes ?? [], human: (r) => reportView(app, r) });
     });
 
   advisor
     .command('latest')
-    .description('Show the most recent report')
+    .description('Show the most recent briefing')
     .action(async () => {
       const api = await app.api();
       const report = await api.call(advisorReportsLatest);
       // An empty object means there is none yet.
       if (!report.id) {
-        throw new CliError('No advisor report yet.', { exitCode: 4, kind: 'not-found', hint: 'Run one with `salli advisor run`.' });
+        throw new CliError('No briefing yet.', { exitCode: 4, kind: 'not-found', hint: 'Write one with `salli advisor run`.' });
       }
-      app.out.emit(report, { records: (r) => r.recommendations ?? [], human: (r) => reportView(app, r) });
+      app.out.emit(report, { records: (r) => r.notes ?? [], human: (r) => reportView(app, r) });
     });
 
   advisor
     .command('reports')
-    .description('List past reports')
+    .description('List past briefings')
     .action(async () => {
       const api = await app.api();
       const data = await api.call(advisorReportsList);
       app.out.emit(data, {
         records: (d) => d.reports,
         human: (d) => {
-          if (!d.reports.length) return app.out.note('No reports yet. Run one with `salli advisor run`.');
+          if (!d.reports.length) return app.out.note('No briefings yet. Write one with `salli advisor run`.');
           app.out.line(
             app.out.table(d.reports, [
               { header: 'ID', get: (r) => str(r.id).slice(0, 8), style: (t) => app.out.colors.dim(t) },
               { header: 'DATE', get: (r) => displayDate(r.created_at, app.out.locale) },
               { header: 'TRIGGER', get: (r) => str(r.trigger) },
-              { header: 'RECOMMENDATIONS', get: (r) => r.recommendations?.length ?? 0, align: 'right' },
+              { header: 'SUMMARY', get: (r) => singleLine(str(r.summary)), shrink: true },
             ]),
           );
         },
       });
     });
 
-  for (const [name, fn, verb] of [
-    ['apply', advisorRecommendationsApply, 'Applied'],
-    ['dismiss', advisorRecommendationsDismiss, 'Dismissed'],
-  ] as const) {
-    advisor
-      .command(name)
-      .argument('<recommendation>', 'Recommendation id (or its start), from `salli advisor latest`')
-      .option('--report <id>', 'The report it is in (default: the latest)')
-      .description(`${verb === 'Applied' ? 'Apply' : 'Dismiss'} a recommendation`)
-      .action(async (recQuery, opts) => {
-        const api = await app.api();
-        const { reports } = await api.call(advisorReportsList);
-        const report = opts.report ? resolveById(reports, opts.report, 'report') : reports[0];
-        if (!report?.id) throw new CliError('No advisor report yet.', { exitCode: 4, kind: 'not-found' });
-        const rec = resolveById(report.recommendations ?? [], recQuery, 'recommendation');
-        if (!rec.id) throw new NotFoundError(`No recommendation with id "${recQuery}".`);
-        const result = await api.call(fn, { path: { report_id: report.id, rec_id: rec.id } });
-        app.out.done(result, `${verb} “${str(rec.title)}”.`);
-      });
-  }
-
   advisor
     .command('daily-briefing')
-    .description('Show, or switch on or off, the daily advisor run')
-    .option('--on', 'Run the advisor for you every day')
+    .description('Show, or switch on or off, the daily briefing')
+    .option('--on', 'Write a briefing for you every day')
     .option('--off', 'Stop the daily run')
     .action(async (opts) => {
       if (opts.on && opts.off) throw new UsageError('Pass --on or --off, not both.');
@@ -577,7 +555,7 @@ function registerAdvisor(program: Command, app: App): void {
 
   advisor
     .command('briefing')
-    .description('The monthly briefing: the AI drafts it, you approve it before it is saved as a report')
+    .description('The monthly briefing: the AI drafts it, you approve it before it is saved')
     .addOption(new Option('--decision <decision>', 'Decide without being asked (for scripts)').choices(['approve', 'reject']))
     .option('--thread <id>', 'Decide on a draft prepared earlier, without drafting again (needs --decision)')
     .action(async (opts) => {
@@ -598,7 +576,7 @@ function registerAdvisor(program: Command, app: App): void {
         // on later; a person is shown it and asked.
         if (!opts.decision && (app.out.machine || !app.prompter.interactive)) {
           app.out.emit(prepared, {
-            records: (p) => p.briefing.recommendations,
+            records: (p) => p.briefing.notes,
             human: (p) => {
               briefingView(app, p);
               app.out.note(`Save it with: salli advisor briefing --thread ${p.thread_id} --decision approve`);
@@ -612,7 +590,7 @@ function registerAdvisor(program: Command, app: App): void {
       const decision =
         opts.decision ??
         (await app.prompter.select({
-          message: 'Save this briefing as an advisor report?',
+          message: 'Save this briefing?',
           options: [
             { value: 'approve', label: 'Save it' },
             { value: 'reject', label: 'Discard it' },
@@ -624,27 +602,14 @@ function registerAdvisor(program: Command, app: App): void {
       }
       app.out.done(
         result,
-        result.report.id ? `Saved as advisor report ${str(result.report.id).slice(0, 8)}: see it with salli advisor latest.` : 'Discarded the briefing.',
+        result.report.id ? `Saved briefing ${str(result.report.id).slice(0, 8)}: see it with salli advisor latest.` : 'Discarded the briefing.',
       );
     });
 }
 
 function briefingView(app: App, prepared: BriefingPrepared): void {
-  const out = app.out;
-  const { briefing } = prepared;
-  out.line(out.heading('Monthly briefing'));
-  if (briefing.summary) out.line(singleLine(briefing.summary));
-  if (briefing.fire_tier_assessment) out.line(out.colors.dim(singleLine(briefing.fire_tier_assessment)));
-  if (briefing.recommendations.length) {
-    out.line();
-    out.line(
-      out.table(briefing.recommendations, [
-        { header: 'PRIORITY', get: (r) => r.priority, align: 'right' },
-        { header: 'RECOMMENDATION', get: (r) => str(r.title), shrink: true },
-        { header: 'AREA', get: (r) => str(r.category) },
-      ]),
-    );
-  }
+  app.out.line(app.out.heading('Monthly briefing'));
+  notesView(app, prepared.briefing);
 }
 
 export function registerPlanningAhead(program: Command, app: App): void {

@@ -206,8 +206,8 @@ def make_manager_tools(
       - get_portfolio_summary (allocation, rebalancing drift, ROI)
       - get_subscription_report (missed-charge/price-change alerts for recurring subscriptions)
       - get_coverage_report (insurance coverage gap, missing types, expiring-soon policies)
-      - get_latest_advisor_report (most recent Wealth Advisor report, no new LLM call)
-      - run_wealth_advisor (generate a fresh Wealth Advisor report now; a fresh model run)
+      - get_latest_briefing (the most recent monthly briefing, no new model call)
+      - run_briefing (write a fresh monthly briefing now; a fresh model run)
       - get_freedom_snapshot (FI score, Freedom number, progress, the month FI is reached)
       - can_i_afford (a purchase built as scenarios, cash against instalments,
         run and compared by Salli on the user's baseline)
@@ -653,33 +653,31 @@ def make_manager_tools(
         today = datetime.date.today().isoformat()
         return await insurance_svc.get_report(user_id, today)
 
-    # ── Wealth Advisor tools ──────────────────────────────────────────────────
+    # ── The monthly briefing ──────────────────────────────────────────────────
 
     @tool
-    async def get_latest_advisor_report() -> dict[str, Any]:
+    async def get_latest_briefing() -> dict[str, Any]:
         """
-        Return the user's most recent Wealth Advisor report (summary, FIRE tier
-        assessment, prioritised recommendations) without generating a new one.
-        Use this before run_wealth_advisor — most questions about "what has the
-        advisor told me" are answered by the existing report, not a fresh run.
+        Return the user's most recent monthly briefing without writing a new
+        one: a summary and notes describing Salli's own figures and signals,
+        and the figures it was written from. It describes and never advises.
+        Use this before run_briefing.
         """
         if advisor_svc is None:
-            return {"error": "Advisor service unavailable"}
+            return {"error": "The briefing is unavailable"}
         user_id = _current_user.get()
         report = await advisor_svc.get_latest_report(user_id)
-        return report or {"error": "No advisor report found yet. Run the advisor first."}
+        return report or {"error": "No briefing yet."}
 
     @tool
-    async def run_wealth_advisor() -> dict[str, Any]:
+    async def run_briefing() -> dict[str, Any]:
         """
-        Generate a fresh Wealth Advisor report now — a structured, strategy-linked
-        mentoring pass over the user's FI score, FIRE strategy, and goals. It is
-        a fresh model run, so prefer get_latest_advisor_report unless the user
-        explicitly asks for a fresh analysis or their situation has clearly
-        changed since the last report.
+        Write and store a fresh monthly briefing now: Salli's figures and
+        signals, narrated, never advice. It is a fresh model run, so prefer
+        get_latest_briefing unless the user asks for a new one.
         """
         if advisor_svc is None:
-            return {"error": "Advisor service unavailable"}
+            return {"error": "The briefing is unavailable"}
         user_id = _current_user.get()
         from salli.domain.llm import LLMError
         from salli.domain.usage import UsageLimitReached
@@ -857,8 +855,8 @@ def make_manager_tools(
         get_portfolio_summary,
         get_subscription_report,
         get_coverage_report,
-        get_latest_advisor_report,
-        run_wealth_advisor,
+        get_latest_briefing,
+        run_briefing,
         get_accounts,
         create_account,
         create_reminder,

@@ -37,7 +37,7 @@ import { VERSION } from './version';
 
 export function buildProgram(app: App, output: OutputConfiguration): Command {
   const program = new Command('salli')
-    .description('Salli from the terminal: your ledger, budgets, plans and AI advisor, on your own server.')
+    .description('Salli from the terminal: your ledger, budgets, plans and monthly briefing, on your own server.')
     .version(VERSION, '-V, --version', 'Print the version')
     .helpOption('-h, --help', 'Show help')
     .helpCommand('help [command]', 'Show help for a command')

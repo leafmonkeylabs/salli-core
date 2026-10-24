@@ -26,7 +26,8 @@ Once connected, your AI can:
   once you agree;
 - sort imported transactions, then book what you approve;
 - create rules, so the next statement sorts itself;
-- run the Wealth Advisor and read budgets, debts, portfolio and insurance;
+- write the monthly briefing (Salli's figures and signals, described, never advice)
+  and read budgets, debts, portfolio and insurance;
 - read your tax, computed by Salli from the tax rules you activated, and explain
   each line from its expression and the source the rules cite;
 - research your country's tax rules from official sources, write them as a Salli

@@ -197,6 +197,7 @@ Two distinct things in `domain/agents/`:
 
 - **`tax_agent.py`** — conversational agent (`create_agent`) with read-only tools backed by the engine. Uses `AsyncPostgresSaver` checkpointer for per-thread persistence.
 - **`return_workflow.py`** — deterministic `StateGraph` for return preparation: compute → build_draft (the active rule set's `forms`, filled in from the result) → review (human `interrupt()`; edit computes again) → finalize. Served by `/v1/tax/returns/prepare|resume`. The same interrupt gate would guard filing on the user's behalf, should an authority ever offer a channel for it.
+- **`briefing.py`** and **`briefing_workflow.py`** — the monthly briefing (`/v1/advisor/*`, `AdvisorService`): gather (Salli's figures, `figures_of`; its signals; the FI assumptions' status) → narrate → review (`interrupt()`) → store. It describes and never advises. The model writes slots (`{spending}`), never a number; `check` refuses a draft with a digit, an unknown slot, an advice, judging or urging word, or a kind of product (asked once more, then `LLMUnreadableAnswer`), and `fill` puts Salli's figures in. Never let it recommend, rank or research rates.
 
 Every prompt ends with a section about the user (`jurisdiction.py`: date, base currency, tax residency, active rules) and knows no country. The agents carry no notes on any country's markets: the ones with web search research local products and rates when they need them, citing sources. No model chooses an FI assumption: they are the user's (with a source) or labelled placeholders.
 
