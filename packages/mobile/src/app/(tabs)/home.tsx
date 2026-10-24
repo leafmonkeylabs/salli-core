@@ -1,5 +1,6 @@
 import {
   accountsList,
+  compareAmounts,
   decisionsReviewsDue,
   fiScoreGet,
   insightsForecast,
@@ -19,8 +20,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent }
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, SectionLabel } from '../../kit';
-import { lineChart } from '../../lib/chart';
-import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, todayIso, wholeDigits } from '../../lib/display';
+import { filled, lineChart } from '../../lib/chart';
+import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, sameDaysLastMonth, todayIso, wholeDigits } from '../../lib/display';
 import { useSession } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -35,6 +36,10 @@ export default function Home() {
   const safe = useRead('insights.safeToSpend', insightsSafeToSpend);
   const sheet = useRead('reports.balanceSheet', reportsBalanceSheet);
   const spent = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: month.from, to_date: month.to } });
+  const before = sameDaysLastMonth(today);
+  const spentBefore = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: before.from, to_date: before.to } });
+  const thenName = monthNameOf(before.from);
+  const more = spent.data && spentBefore.data ? compareAmounts(spent.data.total_expenses, spentBefore.data.total_expenses) > 0 : false;
   const fi = useRead('fi.score.get', fiScoreGet);
   const forecast = useRead('insights.forecast', insightsForecast);
   const history = useRead('insights.netWorth', insightsNetWorth, { query: { months: 12 } });
@@ -126,11 +131,25 @@ export default function Home() {
           </Tile>
           <Tile
             label={t.spentShort(monthName.slice(0, 3))}
-            spoken={spent.data ? `${t.spentIn(monthName)}: ${amountParts(spent.data.total_expenses, spent.data.currency).spoken}` : undefined}
+            spoken={
+              spent.data && spentBefore.data
+                ? t.spentSpoken(monthName, amountParts(spent.data.total_expenses, spent.data.currency).spoken, thenName, amountParts(spentBefore.data.total_expenses, spentBefore.data.currency).spoken, more)
+                : spent.data
+                  ? `${t.spentIn(monthName)}: ${amountParts(spent.data.total_expenses, spent.data.currency).spoken}`
+                  : undefined
+            }
             figure={spent.data ? wholeDigits(spent.data.total_expenses, spent.data.currency) : undefined}
             missing={missing}
-          />
-          <Tile label={t.fiScore} spoken={fi.data ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : undefined} figure={fi.data ? fi.data.overall_score.replace(/\.\d+$/, '') : undefined} missing={missing} />
+          >
+            {spent.data && spentBefore.data ? (
+              <Text style={[styles.tileNote, { color: theme.muted }]} numberOfLines={1}>
+                {more ? '↑' : '↓'} {t.spentThen(thenName.slice(0, 3), wholeDigits(spentBefore.data.total_expenses, spentBefore.data.currency))}
+              </Text>
+            ) : null}
+          </Tile>
+          <Tile label={t.fiScore} spoken={fi.data ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : undefined} figure={undefined} missing={missing}>
+            {fi.data ? <Ring share={filled(fi.data.overall_score)} text={fi.data.overall_score.replace(/\.\d+$/, '')} /> : null}
+          </Tile>
         </View>
 
         <Attention unreachable={reach.unreachable} />
@@ -148,7 +167,7 @@ function Tile({ label, figure, spoken, missing, children }: { label: string; fig
         <Text style={[styles.tileLabel, { color: theme.muted }]} numberOfLines={1}>
           {label}
         </Text>
-        {figure !== undefined ? (
+        {figure === undefined && children ? null : figure !== undefined ? (
           <Text style={[styles.tileFigure, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
             {figure}
           </Text>
@@ -178,6 +197,23 @@ function Spark({ amounts, colour, height, low, label }: { amounts: readonly stri
           {dot ? <Circle cx={dot.x} cy={dot.y} r={3.5} fill={colour} /> : null}
         </Svg>
       ) : null}
+    </View>
+  );
+}
+
+/** How far a score fills its ring, the score inside it. */
+function Ring({ share, text }: { share: number; text: string }) {
+  const theme = useTheme();
+  const box = 56;
+  const r = 24;
+  const round = 2 * Math.PI * r;
+  return (
+    <View style={{ width: box, height: box, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={box} height={box} style={StyleSheet.absoluteFill}>
+        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.rule} strokeWidth={5} fill="none" />
+        <Circle cx={box / 2} cy={box / 2} r={r} stroke={theme.chart} strokeWidth={5} fill="none" strokeDasharray={`${share * round} ${round}`} transform={`rotate(-90 ${box / 2} ${box / 2})`} />
+      </Svg>
+      <Text style={[styles.tileFigure, { color: theme.text, fontSize: 16 }]}>{text}</Text>
     </View>
   );
 }
@@ -310,6 +346,7 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', gap: 8 },
   tile: { flex: 1, padding: 12 },
   tileLabel: { fontFamily: font.regular, fontSize: 13 },
+  tileNote: { fontFamily: font.regular, fontSize: 13, fontVariant: ['tabular-nums'] },
   tileFigure: { fontFamily: font.medium, fontSize: 18, fontVariant: ['tabular-nums'] },
   line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 6 },
   marker: { width: 6, height: 6 },

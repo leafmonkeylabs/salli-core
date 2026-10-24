@@ -127,3 +127,8 @@ export function lineChart(amounts: readonly string[], width: number, height: num
   return { path, points };
 }
 
+
+/** How much of a ring a score fills, from 0 to 1. */
+export function filled(score: string, of = 100): number {
+  return Math.min(1, Math.max(0, pixels(score) / of));
+}

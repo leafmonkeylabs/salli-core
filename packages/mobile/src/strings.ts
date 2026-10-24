@@ -80,6 +80,9 @@ export const strings = {
     netWorth: 'Net worth',
     spentIn: (month: string) => `Spent in ${month}`,
     spentShort: (month: string) => `Spent · ${month}`,
+    spentThen: (month: string, amount: string) => `${month} ${amount}`,
+    spentSpoken: (month: string, amount: string, then: string, thenAmount: string, more: boolean) =>
+      `Spent in ${month} so far: ${amount}. By this day in ${then}: ${thenAmount}, ${more ? 'less' : 'more or the same'}.`,
     netWorthSpoken: (amount: string) => `Net worth: ${amount}, with the last 12 months`,
     fiScore: 'FI score',
     fiSpoken: (score: string, grade: string) => `FI score ${score}, ${grade}`,
