@@ -93,9 +93,7 @@ export default function Welcome() {
             returnKeyType="go"
             style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
-          <Body small muted>
-            {wrong ? t.notAnAddress : t.help}
-          </Body>
+          {wrong ? <Body alert>{t.notAnAddress}</Body> : null}
           <View style={{ marginTop: 8 }}>
             <Button label={t.check} onPress={check} />
           </View>
@@ -125,9 +123,6 @@ export default function Welcome() {
               <Body style={{ flex: 1 }}>{t.noServer}</Body>
               <Icon name="external" size={16} colour={theme.muted} />
             </Pressable>
-            <Body small muted>
-              {t.footer}
-            </Body>
           </>
         )}
       </ScrollView>

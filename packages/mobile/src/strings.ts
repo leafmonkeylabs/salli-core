@@ -6,7 +6,7 @@
 export const strings = {
   welcome: {
     title: 'Your books, on your phone.',
-    body: 'Connect to the Salli server you run. Your books stay there; this app shows them and adds to them.',
+    body: 'Connect to your Salli server.',
     label: 'Server address',
     placeholder: 'money.example.org',
     help: 'The address you open the console at. The app adds https:// itself.',
@@ -14,7 +14,6 @@ export const strings = {
     notAnAddress: 'That isn’t a server address. Type it as you would in a browser: money.example.org.',
     noServer: 'No server yet? Run one with Docker in three steps',
     noServerUrl: 'https://salli.money/self-host/',
-    footer: 'Salli is free and open source. Servers run for you are planned.',
     scan: 'Scan a code from the console',
     scanHelp: 'Needs a code to scan on the server’s side first.',
     planned: 'Planned',
