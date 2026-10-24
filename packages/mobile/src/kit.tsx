@@ -132,6 +132,32 @@ export function Row({ title, detail, onPress, action, last }: { title: string; d
   );
 }
 
+/**
+ * A ledger's row on one line, as the console's tables: a date, a name, the
+ * amount at the end. What the line leaves out (the account, where it came
+ * from) goes in `label`, which VoiceOver reads for the whole row.
+ */
+export function LedgerRow({ lead, title, amount, currency, label, onPress, last }: { lead?: string; title: string; amount: string; currency: string; label?: string; onPress?: () => void; last?: boolean }) {
+  const theme = useTheme();
+  const style = [styles.ledgerRow, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
+  const content = (
+    <>
+      {lead ? <Text style={[styles.ledgerLead, { color: theme.muted }]}>{lead}</Text> : null}
+      <Body style={styles.ledgerTitle}>{title}</Body>
+      <Money amount={amount} currency={currency} />
+    </>
+  );
+  return onPress ? (
+    <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={onPress} style={style}>
+      {content}
+    </Pressable>
+  ) : (
+    <View accessible accessibilityLabel={label} style={style}>
+      {content}
+    </View>
+  );
+}
+
 /** A row with a figure at its end: a label, a line under it, the amount. */
 export function AmountRow({ title, detail, amount, currency, onPress, last }: { title: string; detail?: string; amount: string; currency: string; onPress?: () => void; last?: boolean }) {
   const theme = useTheme();
@@ -324,6 +350,9 @@ export function Icon({ name, size: px = 24, colour }: { name: IconName; size?: n
 }
 
 const styles = StyleSheet.create({
+  ledgerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingVertical: 6 },
+  ledgerLead: { width: 56, fontFamily: font.regular, fontSize: size.body },
+  ledgerTitle: { flex: 1, minWidth: 0 },
   linesRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 8 },
   linesHeadRow: { minHeight: 28 },
   linesHead: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
