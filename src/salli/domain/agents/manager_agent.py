@@ -49,8 +49,8 @@ Direct access to:
 - **get_portfolio_summary**: investment allocation, rebalancing drift, total gain/ROI
 - **get_subscription_report**: missed-charge/price-change alerts for recurring subscriptions
 - **get_coverage_report**: insurance coverage gap, missing types, expiring-soon policies
-- **get_latest_advisor_report**: most recent Wealth Advisor report, no new LLM call
-- **run_wealth_advisor**: generate a fresh Wealth Advisor report now (a fresh model run; prefer the latest report unless the user asks for a fresh analysis)
+- **get_latest_briefing**: the most recent monthly briefing (Salli's figures and signals, described), no new model call
+- **run_briefing**: write a fresh monthly briefing now (a fresh model run; prefer the latest unless the user asks for a new one)
 - **get_accounts**: the user's real chart of accounts (id, code, name, type, currency)
 - **Write tools**: create_account, create_reminder, post_journal_entry (each requires approval)
 

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Changed
+
+- **The advisor is a monthly briefing.** It describes Salli's own figures and
+  signals and gives no advice: no recommendation, priority, product or rate
+  research. The model writes sentences with slots (`{spending}`) and Salli
+  fills in every figure; a draft that writes a digit, advises, judges or
+  names a kind of product is refused and asked for once more.
+  - API (still v1): `AdvisoryReport` and `BriefingDraft` now carry `summary`,
+    `notes`, `figures`, `signals` and `assumptions`, in place of
+    `fire_tier_assessment` and `recommendations`.
+    `POST /v1/advisor/reports/{report_id}/recommendations/{rec_id}/apply` and
+    `/dismiss` are gone. The reads list briefings only; the advisor's earlier
+    reports, with their recommendations, stay in the export.
+  - MCP and the agent: `get_latest_advisor_report` and `run_wealth_advisor`
+    are now `get_latest_briefing` and `run_briefing`.
+  - CLI: `salli advisor apply` and `dismiss` are gone; `run`, `latest`,
+    `reports` and `briefing` show the briefing.
+  - Migration `core_0024_briefings` adds `advisory_reports.briefing`.
+
 ### Removed
 
 - **The FIRE strategy generator.** A model no longer drafts a FIRE strategy:

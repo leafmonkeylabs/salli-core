@@ -5579,7 +5579,7 @@
           "advisor"
         ],
         "summary": "Get Daily Briefing",
-        "description": "Whether the scheduled daily advisor run is on for this user.",
+        "description": "Whether the scheduled daily briefing is on for this user.",
         "operationId": "advisor.dailyBriefing.get",
         "responses": {
           "200": {
@@ -5664,7 +5664,7 @@
           "advisor"
         ],
         "summary": "Run Advisor",
-        "description": "Run the Wealth Advisor now (passes the deployment's usage meter first).",
+        "description": "Write a briefing now (passes the deployment's usage meter first).",
         "operationId": "advisor.run",
         "responses": {
           "200": {
@@ -5766,138 +5766,6 @@
             "HTTPBearer": []
           }
         ]
-      }
-    },
-    "/v1/advisor/reports/{report_id}/recommendations/{rec_id}/apply": {
-      "post": {
-        "tags": [
-          "advisor"
-        ],
-        "summary": "Apply Recommendation",
-        "operationId": "advisor.recommendations.apply",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "report_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Report Id"
-            }
-          },
-          {
-            "name": "rec_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Rec Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecommendationStatus"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request failed validation; `detail` lists each field",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/advisor/reports/{report_id}/recommendations/{rec_id}/dismiss": {
-      "post": {
-        "tags": [
-          "advisor"
-        ],
-        "summary": "Dismiss Recommendation",
-        "operationId": "advisor.recommendations.dismiss",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "report_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Report Id"
-            }
-          },
-          {
-            "name": "rec_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Rec Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecommendationStatus"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request failed validation; `detail` lists each field",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "An error, as RFC 9457 problem details",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/v1/advisor/briefing/prepare": {
@@ -6020,7 +5888,7 @@
           "advisor"
         ],
         "summary": "Cron Run Due",
-        "description": "Trigger the daily advisor for every opted-in user who is due. Auth: X-Cron-Secret header.",
+        "description": "Write the daily briefing for every opted-in user who is due. Auth: X-Cron-Secret header.",
         "operationId": "advisor.cron.runDue",
         "parameters": [
           {
@@ -13514,147 +13382,6 @@
         ],
         "title": "AddEntryRequest"
       },
-      "AdvisoryActionParams": {
-        "properties": {
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
-          "due_in_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due In Days"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "AdvisoryActionParams",
-        "description": "What applying a recommendation sets up: a reminder's label and due date."
-      },
-      "AdvisoryRecommendation": {
-        "properties": {
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "rationale": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rationale"
-          },
-          "category": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category"
-          },
-          "priority": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Priority"
-          },
-          "bucket_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bucket Key"
-          },
-          "action_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Action Type"
-          },
-          "action_params": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AdvisoryActionParams"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "status": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "pending",
-                  "applied",
-                  "dismissed"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "AdvisoryRecommendation",
-        "description": "A recommendation in an advisory report, and what became of it."
-      },
       "AdvisoryReport": {
         "properties": {
           "id": {
@@ -13690,17 +13417,6 @@
             ],
             "title": "Trigger"
           },
-          "fi_score_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fi Score Id"
-          },
           "summary": {
             "anyOf": [
               {
@@ -13712,22 +13428,11 @@
             ],
             "title": "Summary"
           },
-          "fire_tier_assessment": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fire Tier Assessment"
-          },
-          "recommendations": {
+          "notes": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/AdvisoryRecommendation"
+                  "$ref": "#/components/schemas/BriefingNote"
                 },
                 "type": "array"
               },
@@ -13735,7 +13440,45 @@
                 "type": "null"
               }
             ],
-            "title": "Recommendations"
+            "title": "Notes"
+          },
+          "figures": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/BriefingFigure"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Figures"
+          },
+          "signals": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BriefingSignal"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signals"
+          },
+          "assumptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BriefingAssumptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "anyOf": [
@@ -13752,7 +13495,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "AdvisoryReport",
-        "description": "A Wealth Advisor run: a summary, and recommendations to act on.\n\nA report just run carries `fire_tier_assessment`; a stored one carries\n`user_id` and `created_at`. A deployment's entitlement policy may withhold\nparts of it and add fields of its own, so every field is optional."
+        "description": "A monthly briefing: a summary and notes in the AI's words, every figure\nin them Salli's own, and the figures, signals and assumptions it was\nwritten from. It describes; it never advises.\n\nA deployment's entitlement policy may withhold parts of it and add fields\nof its own, so every field is optional."
       },
       "AdvisoryReportList": {
         "properties": {
@@ -16015,40 +15758,35 @@
         "title": "BaselineTotals",
         "description": "In the base currency, at the as-of rates."
       },
-      "BriefingAction": {
+      "BriefingAssumptions": {
         "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "none",
-              "reminder"
-            ],
-            "title": "Type"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "due_in_days": {
+          "status": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "enum": [
+                  "placeholder",
+                  "user"
+                ]
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Due In Days"
+            "title": "Status"
+          },
+          "placeholders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Placeholders",
+            "default": []
           }
         },
         "type": "object",
-        "required": [
-          "type",
-          "label",
-          "due_in_days"
-        ],
-        "title": "BriefingAction",
-        "description": "What applying the recommendation would set up."
+        "title": "BriefingAssumptions",
+        "description": "Whether the independence figures rest on placeholders."
       },
       "BriefingDraft": {
         "properties": {
@@ -16056,25 +15794,88 @@
             "type": "string",
             "title": "Summary"
           },
-          "fire_tier_assessment": {
-            "type": "string",
-            "title": "Fire Tier Assessment"
-          },
-          "recommendations": {
+          "notes": {
             "items": {
-              "$ref": "#/components/schemas/BriefingRecommendation"
+              "$ref": "#/components/schemas/BriefingNote"
             },
             "type": "array",
-            "title": "Recommendations"
+            "title": "Notes"
+          },
+          "figures": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BriefingFigure"
+            },
+            "type": "object",
+            "title": "Figures"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/BriefingSignal"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/BriefingAssumptions"
           }
         },
         "type": "object",
         "required": [
           "summary",
-          "fire_tier_assessment",
-          "recommendations"
+          "notes",
+          "figures",
+          "signals",
+          "assumptions"
         ],
-        "title": "BriefingDraft"
+        "title": "BriefingDraft",
+        "description": "A briefing before it is stored, as `AdvisoryReport` shows one."
+      },
+      "BriefingFigure": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "BriefingFigure",
+        "description": "A figure of Salli's the briefing could name, as a person reads it."
+      },
+      "BriefingNote": {
+        "properties": {
+          "topic": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "spending",
+              "saving",
+              "debt",
+              "independence",
+              "goals",
+              "assumptions"
+            ],
+            "title": "Topic"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic",
+          "text"
+        ],
+        "title": "BriefingNote",
+        "description": "One topic, in the AI's words with Salli's figures in them."
       },
       "BriefingPrepareRequest": {
         "properties": {
@@ -16116,51 +15917,6 @@
         "title": "BriefingPrepared",
         "description": "A draft briefing, held for review under `thread_id`."
       },
-      "BriefingRecommendation": {
-        "properties": {
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "rationale": {
-            "type": "string",
-            "title": "Rationale"
-          },
-          "category": {
-            "type": "string",
-            "title": "Category"
-          },
-          "priority": {
-            "type": "integer",
-            "title": "Priority"
-          },
-          "bucket_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bucket Key"
-          },
-          "action": {
-            "$ref": "#/components/schemas/BriefingAction"
-          }
-        },
-        "type": "object",
-        "required": [
-          "title",
-          "rationale",
-          "category",
-          "priority",
-          "bucket_key",
-          "action"
-        ],
-        "title": "BriefingRecommendation",
-        "description": "A recommendation in a draft briefing, before it is stored with an id and a status."
-      },
       "BriefingResumeRequest": {
         "properties": {
           "thread_id": {
@@ -16196,6 +15952,58 @@
         ],
         "title": "BriefingResumed",
         "description": "The outcome of a review."
+      },
+      "BriefingSignal": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "BriefingSignal",
+        "description": "One of Salli's signals, in its own words (`insights.signals`)."
       },
       "Budget": {
         "properties": {
@@ -18243,7 +18051,7 @@
             },
             "type": "array",
             "title": "Advisor Reports",
-            "description": "The advisor's reports, as stored."
+            "description": "Every report as stored: monthly briefings, and the advisor's earlier\nreports with their recommendations."
           },
           "reminders_and_alerts": {
             "items": {
@@ -28122,28 +27930,6 @@
         ],
         "title": "RebalancingAlert",
         "description": "An asset class whose share has drifted from its target by the threshold or more."
-      },
-      "RecommendationStatus": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "applied",
-              "dismissed"
-            ],
-            "title": "Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "status"
-        ],
-        "title": "RecommendationStatus"
       },
       "RecordedPrice": {
         "properties": {

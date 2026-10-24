@@ -94,7 +94,7 @@ export const settingsStrings = {
     disconnected: (name: string) => `Revoked: ${name}.`,
     keys: 'Model keys',
     keysHelp:
-      'Your own key for Anthropic or OpenAI, for Salli’s own features (reading statements, the advisor). Salli checks it with the provider, keeps it sealed, and never shows it again: only its last four characters.',
+      'Your own key for Anthropic or OpenAI, for Salli’s own features (reading statements, the monthly briefing). Salli checks it with the provider, keeps it sealed, and never shows it again: only its last four characters.',
     keysUnavailable:
       'This server can’t keep keys: it has no encryption key (BYOK_ENCRYPTION_KEYS), and Salli never stores a key in the clear.',
     using: (provider: string, source: string) => `Salli’s features use ${provider}, ${source}.`,

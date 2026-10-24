@@ -1,30 +1,31 @@
 """
-AdvisorService — orchestrates the daily/on-command Wealth Advisor.
+AdvisorService: the monthly briefing (domain/agents/briefing.py).
 
-Flow: usage meter → gather (deterministic FI score + goals + profile memories +
-current rates) → advise (structured LLM) → persist an advisory report. Acting on a
-recommendation (create a reminder) happens later, on the user's approval.
+Flow: usage meter → gather (Salli's own figures, signals and what the planning
+assumptions rest on; deterministic) → narrate (the model writes sentences with
+slots; Salli fills in its figures) → store the briefing. It describes and
+never advises: no recommendation, priority, product or rate research. Reports
+the advisor stored before keep their place in the export, and the reads show
+briefings only.
 """
 
 from __future__ import annotations
 
 import datetime
-import uuid
 from typing import Any
 
-from salli.domain.agents import advisor as advisor_llm
-from salli.domain.jurisdiction import country_phrase
+from salli.domain.agents import briefing as briefing_llm
 from salli.domain.usage import AIAction
 
 
 class AdvisorService:
     def __init__(
-        self, uow_factory, fi_service, usage_meter, doc_service=None, credentials=None
+        self, uow_factory, fi_service, usage_meter, insights=None, credentials=None
     ) -> None:
         self._uow_factory = uow_factory
         self._fi = fi_service
         self._usage = usage_meter
-        self._doc = doc_service
+        self._insights = insights
         self._credentials = credentials
 
     async def llm_for(self, user_id: str, api_key: Any = None) -> Any:
@@ -64,226 +65,87 @@ class AdvisorService:
         *,
         api_key: Any = None,
     ) -> dict[str, Any]:
+        """Gather, narrate and store a briefing now."""
         context = await self.gather_context(user_id, email)
         llm = await self.llm_for(user_id, api_key)
-        advice = await advisor_llm.generate_advice(context, llm=llm)
-        report = await self.persist_report(user_id, trigger, advice)
+        draft = await briefing_llm.narrate(context, llm=llm)
+        report = await self.persist_report(user_id, trigger, draft, context)
         # The run writes (its report), so it also records the score it
-        # advised on in the score history: gathering only reads.
+        # described in the score history: gathering only reads.
         await self._fi.record_score(user_id)
         return report
 
     async def gather_context(self, user_id: str, email: str | None = None) -> dict[str, Any]:
-        """Metered, deterministic gather step — reused by both run_advisor and
-        the briefing workflow's gather node. Never calls the LLM, and never
-        writes: the FI score it reads is computed, not stored.
+        """Metered, deterministic gather step, reused by run_advisor and the
+        briefing workflow's gather node: Salli's figures (`briefing.figures_of`),
+        its signals in its own words, and whether the FI figures rest on
+        placeholders. Never calls the model, and never writes.
 
         May raise UsageLimitReached (the API returns the meter's response); cron
         and the briefing workflow both catch it and skip/surface gracefully
         rather than propagate.
         """
-        # No model_id: `advisor.generate_advice` runs on the default model, and
-        # telling the meter otherwise would let it price one model while another
-        # runs. Deliberately not the user's chosen model either — this path is
-        # also the scheduled 6am cron, and a background job silently running on
-        # the most expensive model is not something anyone opted into.
+        # No model_id: the briefing runs on the default model, and telling the
+        # meter otherwise would let it price one model while another runs.
+        # Deliberately not the user's chosen model either: this path is also
+        # the scheduled run, and a background job silently running on the most
+        # expensive model is not something anyone opted into.
         await self._usage.charge(user_id, AIAction.ADVISOR_RUN, email=email)
 
-        from salli.domain.agents.tools import set_current_user
-
-        set_current_user(user_id)
-
         score = await self._fi.compute_score(user_id)
+        projections = await self._fi.get_projections(user_id)
         goals = await self._fi.list_goals(user_id)
-        profile = await self._gather_profile(user_id)
-        residency = await self._tax_residency(user_id)
-        rates = await self._research_rates(residency, score.get("currency"))
-        fire_projections = await self._fi.get_projections(user_id)
-        surplus = await self._fi.get_surplus_breakdown(user_id)
-
-        context = {
-            "currency": score["currency"],
-            # Where the user is taxed (ISO 3166-1), or None: advice tailored
-            # to a country only when it is known.
-            "tax_residency": residency,
-            "fi_score": {
-                "overall": score.get("overall_score"),
-                "grade": score.get("grade"),
-                "savings_rate": score.get("savings_rate"),
-                "monthly_income": score.get("monthly_income"),
-                "monthly_expenses": score.get("monthly_expenses"),
-                "monthly_surplus": score.get("monthly_surplus"),
-                "emergency_fund_months": score.get("emergency_fund_months"),
-                "fi_number": score.get("fi_number"),
-                "swr_used": score.get("swr"),
-                "net_worth": score.get("net_worth"),
-                # The base progress is actually measured against (investable assets
-                # net of debt) — net_worth alone would overstate FI readiness.
-                "fi_asset_base": score.get("fi_asset_base"),
-                "progress_to_fi": score.get("progress_to_fi"),
-                "debt_to_asset": score.get("debt_to_asset"),
-                # The month FI is reached at the current pace ("YYYY-MM").
-                "projected_fi_month": score.get("projected_fi_month"),
-                "components": score.get("components"),
+        assumptions = projections.get("assumptions") or score.get("assumptions") or {}
+        return {
+            "figures": briefing_llm.figures_of(score, projections, goals),
+            "signals": await self._signals(user_id),
+            "assumptions": {
+                "status": assumptions.get("status"),
+                "placeholders": list(assumptions.get("placeholders") or []),
             },
-            "fire_projections": {
-                # fi_number deliberately omitted — it is the same figure as
-                # fi_score.fi_number above. Sending it twice previously let the two
-                # paths disagree and asked the model to reason about two targets.
-                "current_portfolio": fire_projections.get("current_portfolio"),
-                # The month FI is reached in each scenario, and in how many months.
-                "fi_by": fire_projections.get("fi_by"),
-                # The REAL (after-inflation) returns the projections used: the
-                # user's or placeholders (assumptions says which).
-                "real_returns_used": fire_projections.get("real_returns"),
-                # The user's own inflation, or None: then everything is in
-                # today's money, and no inflation is assumed.
-                "inflation": fire_projections.get("inflation"),
-                # Which planning assumptions applied, where each came from, and
-                # whether any is a placeholder.
-                "assumptions": fire_projections.get("assumptions"),
-            },
-            "surplus_breakdown": {
-                "income_by_source": surplus.get("income_by_source", {}),
-                "expense_by_category": surplus.get("expense_by_category", {}),
-                "monthly_surplus": surplus.get("monthly_surplus"),
-                "savings_rate": surplus.get("savings_rate"),
-            },
-            "goals": goals,
-            "profile": profile,  # primary_goal, motivation, risk_appetite, target year/amount
-            "current_rates_research": rates,
         }
-        return context
 
-    async def persist_report(self, user_id: str, trigger: str, advice: Any) -> dict[str, Any]:
-        """Persist structured LLM advice (an Advice model, or anything exposing the
-        same summary/fire_tier_assessment/recommendations shape) as an advisory
-        report. Shared by run_advisor and the briefing workflow's finalize node."""
-        recommendations = [
-            {
-                "id": str(uuid.uuid4()),
-                "title": r.title,
-                "rationale": r.rationale,
-                "category": r.category,
-                "priority": r.priority,
-                "bucket_key": r.bucket_key,
-                "action_type": r.action.type,
-                "action_params": {
-                    "label": r.action.label,
-                    "due_in_days": r.action.due_in_days,
-                },
-                "status": "pending",
-            }
-            for r in advice.recommendations
+    async def _signals(self, user_id: str) -> list[dict[str, Any]]:
+        """Salli's signals, in its own words: what kind, how pressing, and
+        its title and detail. Never its references."""
+        if self._insights is None:
+            return []
+        found = await self._insights.signals(user_id)
+        return [
+            {k: s.get(k) for k in ("kind", "severity", "title", "detail")}
+            for s in found.get("signals", [])
         ]
 
-        report = {
-            "trigger": trigger,
-            "fi_score_id": None,
-            "summary": advice.summary,
-            "fire_tier_assessment": advice.fire_tier_assessment,
-            "recommendations": recommendations,
-        }
+    async def persist_report(
+        self, user_id: str, trigger: str, draft: Any, context: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Store a briefing: the model's draft with Salli's figures filled in,
+        and the figures, signals and assumptions it was written from. Shared by
+        run_advisor and the briefing workflow's finalize node. Answers it as the
+        reads show it."""
+        report = {"trigger": trigger, **briefing_llm.view(draft, context)}
         async with self._uow_factory() as uow:
             report_id = await uow.advisories.save(user_id, report)
-        report["id"] = report_id
-        return report
-
-    async def _gather_profile(self, user_id: str) -> dict[str, Any]:
-        if not self._doc:
-            return {}
-        keys = (
-            "primary_goal",
-            "motivation",
-            "risk_appetite",
-            "goal_target_amount",
-            "goal_target_year",
-        )
-        out: dict[str, Any] = {}
-        for k in keys:
-            mem = await self._doc.get_memory(user_id, k)
-            if mem and mem.get("content"):
-                out[k] = mem["content"]
-        return out
-
-    async def _tax_residency(self, user_id: str) -> str | None:
-        async with self._uow_factory() as uow:
-            profile = await uow.user_profiles.get(user_id)
-        residency = (profile or {}).get("tax_residency")
-        return residency if isinstance(residency, str) and residency else None
-
-    async def _research_rates(self, residency: str | None, currency: str | None) -> str:
-        """Best-effort: current deposit and treasury bill rates where the user
-        is, by their tax residency, or else for savers in their base currency."""
-        if residency:
-            where = f"in {country_phrase(residency)}"
-        elif currency:
-            where = f"for {currency} savings"
-        else:
-            return ""
-        try:
-            from langchain_community.tools.tavily_search import TavilySearchResults
-
-            tool = TavilySearchResults(max_results=3)
-            results = await tool.ainvoke(
-                f"current fixed deposit and treasury bill interest rates {where}"
-            )
-            if isinstance(results, list):
-                return " | ".join(
-                    r.get("content", "")[:300] for r in results if isinstance(r, dict)
-                )[:1200]
-            return str(results)[:1200]
-        except Exception:
-            return ""
+        return _shown({**report, "id": report_id})
 
     # ── Reports ─────────────────────────────────────────────────────────────────
 
     async def list_reports(self, user_id: str) -> list[dict[str, Any]]:
+        """Briefings, newest first. The advisor's earlier reports are only in
+        the export."""
         async with self._uow_factory() as uow:
-            return await uow.advisories.list(user_id)
+            reports = await uow.advisories.list(user_id)
+        return [_shown(r) for r in reports if r.get("briefing") is not None]
 
     async def get_latest_report(self, user_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:
-            return await uow.advisories.get_latest(user_id)
+            report = await uow.advisories.get_latest(user_id)
+        return _shown(report) if report and report.get("briefing") is not None else None
 
-    # ── Act on a recommendation (user approval) ──────────────────────────────────
-
-    async def apply_recommendation(
-        self, user_id: str, report_id: str, rec_id: str
-    ) -> dict[str, Any]:
+    async def export_reports(self, user_id: str) -> list[dict[str, Any]]:
+        """Every report as stored, the advisor's earlier ones included."""
         async with self._uow_factory() as uow:
-            report = await uow.advisories.get(user_id, report_id)
-            if not report:
-                raise ValueError("Report not found")
-            recs = report["recommendations"]
-            rec = next((r for r in recs if r["id"] == rec_id), None)
-            if not rec:
-                raise ValueError("Recommendation not found")
-
-            if rec.get("action_type") == "reminder":
-                params = rec.get("action_params") or {}
-                due_days = params.get("due_in_days") or 14
-                due = (datetime.date.today() + datetime.timedelta(days=int(due_days))).isoformat()
-                label = params.get("label") or rec["title"]
-                await uow.reminders.create_reminder(user_id, str(uuid.uuid4()), label, due)
-
-            rec["status"] = "applied"
-            await uow.advisories.update_recommendations(user_id, report_id, recs)
-        return {"id": rec_id, "status": "applied"}
-
-    async def dismiss_recommendation(
-        self, user_id: str, report_id: str, rec_id: str
-    ) -> dict[str, Any]:
-        async with self._uow_factory() as uow:
-            report = await uow.advisories.get(user_id, report_id)
-            if not report:
-                raise ValueError("Report not found")
-            recs = report["recommendations"]
-            for r in recs:
-                if r["id"] == rec_id:
-                    r["status"] = "dismissed"
-            await uow.advisories.update_recommendations(user_id, report_id, recs)
-        return {"id": rec_id, "status": "dismissed"}
+            return list(await uow.advisories.export(user_id))
 
     # ── Scheduling helper ────────────────────────────────────────────────────────
 
@@ -312,3 +174,11 @@ class AdvisorService:
         toggle routed through it could be switched on but never off."""
         async with self._uow_factory() as uow:
             await uow.user_profiles.set_flag(user_id, "daily_briefing_enabled", enabled)
+
+
+def _shown(report: dict[str, Any]) -> dict[str, Any]:
+    """A stored briefing as the API shows it: its stored parts at the top."""
+    body = report.get("briefing") or {}
+    return {
+        k: report[k] for k in ("id", "user_id", "trigger", "summary", "created_at") if k in report
+    } | {k: body.get(k) for k in ("notes", "figures", "signals", "assumptions")}

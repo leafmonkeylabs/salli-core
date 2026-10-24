@@ -39,9 +39,9 @@ one fails, say what is missing rather than estimating.
    figures, not forecasts), and offer to set the user's own with sources
    (`salli fi assumptions`, in the `salli-cli` skill).
 
-5. **One next step.** Optionally run the advisor (an AI step) and present its
-   top recommendation:
+5. **The briefing.** Optionally write the monthly briefing (an AI step) and
+   read out its summary. It describes; it gives no advice, and neither do you:
 
        salli advisor run --json
 
-Keep it short: what changed, what needs attention, one suggestion.
+Keep it short: what changed and what Salli's signals point at.

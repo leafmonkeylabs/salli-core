@@ -1105,7 +1105,10 @@ class FireStrategyORM(Base):
 
 
 class AdvisoryReportORM(Base):
-    """A Wealth Advisor run: summary + structured, actionable recommendations."""
+    """A monthly briefing: its summary, and `briefing` (its notes, the figures,
+    signals and assumptions it was written from). Reports the advisor stored
+    before have `recommendations` instead and no `briefing`; kept for the
+    export."""
 
     __tablename__ = "advisory_reports"
 
@@ -1119,6 +1122,9 @@ class AdvisoryReportORM(Base):
     # list of {id,title,rationale,category,action_type(none|reminder|journal_entry),
     #          action_params,status(pending|applied|dismissed)}
     recommendations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # {notes: [{topic, text}], figures: {slot: {label, value}}, signals: [...],
+    #  assumptions: {status, placeholders}}; null for the advisor's earlier reports.
+    briefing: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

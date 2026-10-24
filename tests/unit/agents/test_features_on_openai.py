@@ -1,7 +1,7 @@
 """
 Every AI feature, run on a stand-in for OpenAI (httpx.MockTransport) through
 the ChatGPT plan route: statement sorting, quick add, the
-advisor and its briefing, naming a conversation, and the chat agent with its
+monthly briefing, naming a conversation, and the chat agent with its
 tools. Each request it sends keeps to the plan route's contract.
 """
 
@@ -17,7 +17,7 @@ from salli.adapters.parsing.llm_classifier import classify_transactions
 from salli.application.services.agent_service import AgentService
 from salli.application.services.entry_parse_service import EntryParseService
 from salli.application.services.llm_credential_service import ResolvedCredentials
-from salli.domain.agents import advisor
+from salli.domain.agents import briefing
 from salli.domain.agents.briefing_workflow import BriefingState, _narrate
 from salli.domain.parsing.models import RawRow
 from salli.domain.secrets import Secret
@@ -135,36 +135,24 @@ async def test_quick_add_runs_on_the_plan():
     assert "JSON Schema" in body["instructions"]
 
 
-# ── The advisor ────────────────────────────────────────
+# ── The briefing ────────────────────────────────────────
 
-ADVICE = {
-    "summary": "On track.",
-    "fire_tier_assessment": "Standard FIRE.",
-    "recommendations": [
-        {
-            "title": "Fund the moat",
-            "rationale": "It is short.",
-            "category": "emergency_fund",
-            "priority": 1,
-            "bucket_key": "emergency_moat",
-            "action": {"type": "reminder", "label": "Move money", "due_in_days": 7},
-        }
-    ],
-}
+FIGURES = {"spending": {"label": "Spending a month", "value": "1,200.00 USD"}}
+DRAFT = {"summary": "You spent {spending} a month.", "notes": []}
 
 
-async def test_the_advisor_runs_on_the_plan():
-    fake = FakeOpenAI(text_reply(json.dumps(ADVICE)))
+async def test_the_briefing_runs_on_the_plan():
+    fake = FakeOpenAI(text_reply(json.dumps(DRAFT)))
 
-    advice = await advisor.generate_advice({"currency": "USD"}, llm=fake.client())
+    draft = await briefing.narrate({"figures": FIGURES}, llm=fake.client())
 
-    assert advice.recommendations[0].title == "Fund the moat"
+    assert draft.summary == "You spent {spending} a month."
     _contract(fake)
-    assert fake.bodies[0]["instructions"].startswith("You are Salli's Financial Independence")
+    assert fake.bodies[0]["instructions"].startswith("You write a person's monthly money briefing")
 
 
 async def test_the_briefing_narrates_on_the_users_own_model():
-    fake = FakeOpenAI(text_reply(json.dumps(ADVICE)))
+    fake = FakeOpenAI(text_reply(json.dumps(DRAFT)))
     asked: list[str] = []
 
     class AdvisorSvc:
@@ -172,9 +160,9 @@ async def test_the_briefing_narrates_on_the_users_own_model():
             asked.append(user_id)
             return fake.client()
 
-    result = await _narrate(BriefingState(user_id="u1", context={"currency": "USD"}), AdvisorSvc())
+    result = await _narrate(BriefingState(user_id="u1", context={"figures": FIGURES}), AdvisorSvc())
 
-    assert result["advice"].summary == "On track."
+    assert result["draft"].summary == "You spent {spending} a month."
     assert asked == ["u1"]
     _contract(fake)
 
@@ -279,7 +267,7 @@ async def test_a_briefing_at_the_plans_limit_says_where_to_change_it():
     assert "chatgpt.com/settings/usage" in result["error"]
 
 
-async def test_the_agents_advisor_tool_reports_the_plans_limit_to_the_model():
+async def test_the_agents_briefing_tool_reports_the_plans_limit_to_the_model():
     from salli.domain.agents.tools import make_manager_tools, set_current_user
     from salli.domain.llm import chatgpt_usage_limit
 
@@ -290,7 +278,7 @@ async def test_the_agents_advisor_tool_reports_the_plans_limit_to_the_model():
     tools = {t.name: t for t in make_manager_tools(None, None, None, advisor_svc=AdvisorSvc())}
     set_current_user("u1")
 
-    result = await tools["run_wealth_advisor"].ainvoke({})
+    result = await tools["run_briefing"].ainvoke({})
 
     assert "ChatGPT settings" in result["error"]
 

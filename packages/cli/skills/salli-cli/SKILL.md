@@ -246,7 +246,7 @@ Other ids can be shortened to any unique prefix.
 | `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `strategy`, `assumptions` (`set`, `clear`); `goals list`, `goals allocate` |
 | `reports` | `balance-sheet`, `net-worth`, `goal-progress`, `export` |
 | `reminders` | `list`, `add`, `seed` (filing deadlines from the active tax rules), `sync-alerts` |
-| `advisor` | `run`, `latest`, `reports`, `apply`, `dismiss` |
+| `advisor` | `run`, `latest`, `reports`, `briefing`, `daily-briefing` |
 | `notifications` | the user's digest: `show`, `set` (`--on --time-zone <zone>`, `--off`, `--weekly`/`--monthly`, `--day`, `--hour`, `--items`), `preview` (the message that would go now; sends nothing), `log`. It says what is waiting, never what it is about. Turning it on or off is the user's choice: ask first |
 | `profile` | the user's fact-find (`get`, `set`); `export` for all their data |
 | `ui` | the console's address (`ui --no-open`), for the user to open in their own browser; signing in there, and activating tax rules there, is theirs |

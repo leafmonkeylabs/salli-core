@@ -1086,9 +1086,10 @@ class AdvisoryRepository(ABC):
     async def list(self, user_id: str, limit: int = 30) -> list[dict[str, Any]]: ...
 
     @abstractmethod
-    async def update_recommendations(
-        self, user_id: str, report_id: str, recommendations: list[Any]
-    ) -> None: ...
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Every report as stored, newest first: briefings, and the advisor's
+        earlier reports with their recommendations."""
+        ...
 
     @abstractmethod
     async def ran_today(self, user_id: str, day: str) -> bool: ...

@@ -60,7 +60,7 @@ class OnboardingRequest(BaseModel):
     income_sources: list[
         str
     ] = []  # ["employment","freelance","rental","interest","foreign","dividends"]
-    # Goals & motivation (powers the Wealth Advisor)
+    # Goals & motivation
     primary_goal: str = ""  # financial_independence | retirement | home | emergency_fund | debt_free | wealth_growth
     #: An optional total target, in the base currency.
     goal_target_amount: AmountIn = Decimal(0)
@@ -409,7 +409,8 @@ class DataExport(BaseModel):
     """The FIRE strategies an earlier Salli drafted with a model, newest
     first, as stored. Salli no longer makes them."""
     advisor_reports: list[dict[str, Any]]
-    """The advisor's reports, as stored."""
+    """Every report as stored: monthly briefings, and the advisor's earlier
+    reports with their recommendations."""
     reminders_and_alerts: list[dict[str, Any]]
     """Each as in `reminders.list`."""
     documents: list[dict[str, Any]]

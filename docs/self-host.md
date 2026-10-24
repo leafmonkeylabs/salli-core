@@ -267,7 +267,7 @@ Pass `--profile tls` to every `docker compose up`, or set
 
 ## Scheduled jobs
 
-Three jobs run for every user who wants them: the daily advisor report,
+Three jobs run for every user who wants them: the daily briefing,
 syncing connected banks, and the digests (below). Run them from the host's
 crontab:
 

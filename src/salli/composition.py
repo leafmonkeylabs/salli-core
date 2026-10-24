@@ -209,11 +209,12 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         fx_service=fx,
         default_currency=settings.salli_default_currency,
     )
+    insights = InsightsService(uow_factory, baselines=baseline)
     advisor = AdvisorService(
         uow_factory,
         fi,
         extensions.usage_meter,
-        doc_service=documents,
+        insights=insights,
         credentials=llm_credentials,
     )
     agent = AgentService(
@@ -248,7 +249,6 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
     entry_parse = EntryParseService(ledger, credentials=llm_credentials, rules=rules)
 
     reminders = ReminderService(uow_factory, budget, subscription, insurance)
-    insights = InsightsService(uow_factory, baselines=baseline)
     notifications = NotificationService(
         uow_factory,
         reminders,

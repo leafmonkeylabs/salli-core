@@ -166,10 +166,10 @@ describe('the monthly briefing', () => {
     error: '',
     briefing: {
       summary: 'A steady month.',
-      fire_tier_assessment: 'Lean FI is 9 years away.',
-      recommendations: [
-        { title: 'Top up the emergency fund', rationale: 'Five months covered', category: 'savings', priority: 1, bucket_key: null, action: { type: 'none', label: '', due_in_days: null } },
-      ],
+      notes: [{ topic: 'cash', text: 'Your cash covers 5.0 months of spending.' }],
+      figures: { cash_cover: { label: 'Months of spending your cash covers', value: '5.0 months' } },
+      signals: [],
+      assumptions: { status: 'placeholder', placeholders: ['real_return'] },
     },
   };
   beforeEach(() => {
@@ -184,8 +184,8 @@ describe('the monthly briefing', () => {
     const prompter = new ScriptedPrompter(['approve']);
     const result = await run(['advisor', 'briefing'], { prompter });
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Top up the emergency fund');
-    expect(result.stderr).toContain('Saved as advisor report report-1');
+    expect(result.stdout).toContain('Your cash covers 5.0 months of spending.');
+    expect(result.stderr).toContain('Saved briefing report-1');
     expect(sent('POST', '/v1/advisor/briefing/resume')).toEqual({ thread_id: 'thread-1', decision: 'approve' });
   });
 

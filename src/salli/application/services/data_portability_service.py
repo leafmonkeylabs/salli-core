@@ -146,7 +146,7 @@ class DataPortabilityService:
             "goals": await self._fi.list_goals(user_id),
             "fi_score_history": await self._fi.get_score_history(user_id),
             "fire_strategies": await self._fire_strategies(user_id),
-            "advisor_reports": await self._advisor.list_reports(user_id),
+            "advisor_reports": await self._advisor.export_reports(user_id),
             "reminders_and_alerts": await self._reminders.list_reminders(user_id),
             "documents": await self._documents.list_documents(user_id),
             "statements": await self._statements(user_id),
