@@ -299,6 +299,38 @@ export function LinesTable({ lines, currency, changeLabel, total = true }: { lin
   );
 }
 
+/**
+ * A switch as the design draws it: square, ledger green with a paper knob
+ * when on (sand and night on night), outlined with a stone knob when off. The
+ * whole row is its target, and it is a switch to VoiceOver.
+ */
+export function Toggle({ label, help, value, disabled, onChange }: { label: string; help?: string; value: boolean; disabled?: boolean; onChange: (on: boolean) => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      {...(help ? { accessibilityHint: help } : {})}
+      accessibilityState={{ checked: value, disabled: !!disabled }}
+      disabled={disabled}
+      onPress={() => onChange(!value)}
+      style={[styles.toggleRow, disabled ? { opacity: 0.45 } : null]}
+    >
+      <View style={{ flex: 1, gap: 2 }}>
+        <Body>{label}</Body>
+        {help ? (
+          <Body small muted>
+            {help}
+          </Body>
+        ) : null}
+      </View>
+      <View style={[styles.track, value ? { backgroundColor: theme.button, justifyContent: 'flex-end' } : { backgroundColor: theme.card, borderColor: theme.muted, borderWidth: 1.5 }]}>
+        <View style={value ? [styles.knobOn, { backgroundColor: theme.buttonText }] : [styles.knobOff, { backgroundColor: theme.muted }]} />
+      </View>
+    </Pressable>
+  );
+}
+
 /** A problem: what happened, then what to do. */
 export function Problem({ title, body, children }: { title: string; body: string; children?: ReactNode }) {
   return (
@@ -323,6 +355,11 @@ const ICONS = {
   external: 'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
   upload: 'M12 16V5M7 10l5-5 5 5M5 20h14',
   check: 'M5 12.5l4.5 4.5L19 7.5',
+  tax: 'M6 3h9l3 3v15H6zM9 16l6-6M9 10h1.5M13.5 16H15',
+  attention: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4',
+  independence: 'M4 18l6-6 4 4 6-8M15 8h5v5',
+  settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 5h4v4h-4zM8 15h4v4H8z',
+  server: 'M4 4h16v7H4zM4 13h16v7H4zM8 7.5h2M8 16.5h2',
 } as const;
 
 export type IconName = keyof typeof ICONS | 'cash' | 'books';
@@ -350,6 +387,10 @@ export function Icon({ name, size: px = 24, colour }: { name: IconName; size?: n
 }
 
 const styles = StyleSheet.create({
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
+  track: { width: 48, height: 28, padding: 3, flexDirection: 'row', alignItems: 'center' },
+  knobOn: { width: 22, height: 22 },
+  knobOff: { width: 19, height: 19 },
   ledgerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingVertical: 6 },
   ledgerLead: { width: 56, fontFamily: font.regular, fontSize: size.body },
   ledgerTitle: { flex: 1, minWidth: 0 },

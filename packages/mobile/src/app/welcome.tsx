@@ -55,6 +55,19 @@ export default function Welcome() {
             </Body>
           </View>
         ) : null}
+        {/* Signed out of every server: the ones remembered are a tap from signing in again. */}
+        {session.status === 'signed-out' && session.known.length ? (
+          <View style={{ gap: 8 }}>
+            {session.known.map((known) => (
+              <Button
+                key={known.server}
+                kind="secondary"
+                label={strings.servers.signInTo(known.server.replace(/^https?:\/\//, ''))}
+                onPress={() => router.push({ pathname: '/connect', params: { server: known.server } })}
+              />
+            ))}
+          </View>
+        ) : null}
         <View style={{ gap: 10 }}>
           <Title>{adding ? t.addTitle : t.title}</Title>
           <Body muted>{adding ? t.addBody : t.body}</Body>

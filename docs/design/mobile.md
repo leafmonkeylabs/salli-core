@@ -125,8 +125,11 @@ seeded by `core_0022_mobile_client`:
   them and the one on screen. Home's server name opens the list; adding one
   goes through the same check and sign-in page. Reads are cached by server,
   so switching shows nothing of the other. Signing out ends the one on
-  screen and shows the next; a sign-in the server ends is dropped from the
-  phone and said once on Home. The one sign-in an earlier version kept is
+  screen and shows the next; a sign-in the server ends is said once on
+  Home. A server signed out of stays listed with only its address and who
+  you are on it (your email and its currency, from `auth.me` and the
+  profile; never a figure, never a token), to sign in to again in one tap,
+  until you choose Forget it. The one sign-in an earlier version kept is
   moved into the index on launch.
 - **Face ID, or the phone's unlock.** Off until the person turns it on in
   More, which asks to unlock first. On, the app asks when it opens and after
@@ -135,6 +138,11 @@ seeded by `core_0022_mobile_client`:
   whenever the app isn't active, unless the person turns on showing amounts.
   Nothing is locked or covered while signed out.
 - These settings stay on the phone (`salli.phone`), and no server sees them.
+- **More** lists the console's places (Tax, Attention, Independence,
+  Settings: each opens the console's page until the app has it) and then
+  **Servers and sign-in**: the servers, this phone's lock and discretion,
+  and this sign-in with when it started (`auth.signIns.list`). Its
+  switches are the kit's square `Toggle`, as the design draws them.
 
 ## Importing a statement
 

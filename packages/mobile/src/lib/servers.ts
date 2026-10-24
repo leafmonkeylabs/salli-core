@@ -3,10 +3,21 @@
  * session keeps, as pure functions of it.
  */
 
-/** Which servers this phone is signed in to, and the one on screen. */
+/** Who you are on a server, kept beside its sign-in: no token and no figure. */
+export interface KnownServer {
+  email?: string;
+  currency?: string;
+}
+
+/**
+ * The servers on this phone: those signed in to, the one on screen ('' with
+ * none), and every server it remembers, signed in or not, so one whose
+ * sign-in ended stays listed to sign in again.
+ */
 export interface ServerIndex {
   current: string;
   servers: readonly string[];
+  known?: Readonly<Record<string, KnownServer>>;
 }
 
 /**
@@ -22,15 +33,41 @@ export function storeKeyOf(server: string): string {
 /** The index with `server` signed in to and on screen; signing in again keeps its place. */
 export function withServer(index: ServerIndex | undefined, server: string): ServerIndex {
   const servers = index?.servers ?? [];
-  return { current: server, servers: servers.includes(server) ? servers : [...servers, server] };
+  return {
+    current: server,
+    servers: servers.includes(server) ? servers : [...servers, server],
+    known: { ...(index?.known ?? {}), [server]: index?.known?.[server] ?? {} },
+  };
 }
 
-/** The index without `server`: the one on screen moves to the first left, or there is none. */
-export function withoutServer(index: ServerIndex, server: string): ServerIndex | undefined {
+/** The index with `server` signed out of: still remembered, the one on screen moved to the first left ('' with none). */
+export function withoutServer(index: ServerIndex, server: string): ServerIndex {
   const servers = index.servers.filter((s) => s !== server);
-  const first = servers[0];
-  if (first === undefined) return undefined;
-  return { current: index.current === server ? first : index.current, servers };
+  return { current: index.current === server ? (servers[0] ?? '') : index.current, servers, known: { ...(index.known ?? {}), [server]: index.known?.[server] ?? {} } };
+}
+
+/** The index with `server` forgotten: neither signed in to nor remembered. */
+export function forgotten(index: ServerIndex, server: string): ServerIndex {
+  const known = { ...(index.known ?? {}) };
+  delete known[server];
+  const servers = index.servers.filter((s) => s !== server);
+  return { current: index.current === server ? (servers[0] ?? '') : index.current, servers, known };
+}
+
+/** The index with who you are on `server`, as it said. */
+export function remembered(index: ServerIndex, server: string, who: KnownServer): ServerIndex {
+  return { ...index, known: { ...(index.known ?? {}), [server]: { ...(index.known?.[server] ?? {}), ...who } } };
+}
+
+/** Every remembered server, those signed in to first in their order, then the rest. */
+export function listOf(index: ServerIndex | undefined): { server: string; signedIn: boolean; email?: string; currency?: string }[] {
+  if (!index) return [];
+  const known = index.known ?? {};
+  const signedOut = Object.keys(known).filter((s) => !index.servers.includes(s));
+  return [...index.servers.map((server) => ({ server, signedIn: true })), ...signedOut.map((server) => ({ server, signedIn: false }))].map((row) => ({
+    ...row,
+    ...(known[row.server] ?? {}),
+  }));
 }
 
 /** How long the app may be away before it asks to be unlocked again. */

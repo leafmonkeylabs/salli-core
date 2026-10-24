@@ -3,7 +3,7 @@ import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, d
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
 import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
-import { LOCK_AFTER_MS, lockDue, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
+import { forgotten, listOf, LOCK_AFTER_MS, lockDue, remembered, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
 const REDIRECT = 'money.salli.app:/oauth/callback';
 
@@ -180,15 +180,25 @@ describe('the servers on this phone', () => {
   it('adds a server and puts it on screen; signing in again keeps its place', () => {
     const one = withServer(undefined, 'https://a.example');
     const two = withServer(one, 'https://b.example');
-    expect(two).toEqual({ current: 'https://b.example', servers: ['https://a.example', 'https://b.example'] });
-    expect(withServer(two, 'https://a.example')).toEqual({ current: 'https://a.example', servers: ['https://a.example', 'https://b.example'] });
+    expect(two.current).toBe('https://b.example');
+    expect(two.servers).toEqual(['https://a.example', 'https://b.example']);
+    expect(withServer(two, 'https://a.example').servers).toEqual(['https://a.example', 'https://b.example']);
   });
 
-  it('moves to the first left when the one on screen goes, and to none after the last', () => {
-    const index = { current: 'https://b.example', servers: ['https://a.example', 'https://b.example'] };
-    expect(withoutServer(index, 'https://b.example')).toEqual({ current: 'https://a.example', servers: ['https://a.example'] });
-    expect(withoutServer(index, 'https://a.example')).toEqual({ current: 'https://b.example', servers: ['https://b.example'] });
-    expect(withoutServer({ current: 'https://a.example', servers: ['https://a.example'] }, 'https://a.example')).toBeUndefined();
+  it('keeps a server signed out of listed, and forgets it only when asked', () => {
+    const index = remembered(withServer(withServer(undefined, 'https://a.example'), 'https://b.example'), 'https://b.example', { email: 'you@example.org', currency: 'EUR' });
+    const out = withoutServer(index, 'https://b.example');
+    expect(out.current).toBe('https://a.example');
+    expect(out.servers).toEqual(['https://a.example']);
+    expect(listOf(out)).toEqual([
+      { server: 'https://a.example', signedIn: true },
+      { server: 'https://b.example', signedIn: false, email: 'you@example.org', currency: 'EUR' },
+    ]);
+    const none = withoutServer(out, 'https://a.example');
+    expect(none.current).toBe('');
+    expect(listOf(forgotten(none, 'https://b.example')).map((r) => r.server)).toEqual(['https://a.example']);
+    // Signing in again brings it back with what was remembered.
+    expect(listOf(withServer(out, 'https://b.example'))[1]).toEqual({ server: 'https://b.example', signedIn: true, email: 'you@example.org', currency: 'EUR' });
   });
 
   it('asks to be unlocked only when the lock is on and the app was away a minute', () => {
