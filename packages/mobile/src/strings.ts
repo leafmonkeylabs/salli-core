@@ -123,7 +123,13 @@ export const strings = {
 
   books: {
     title: 'Books',
-    add: 'Add an entry',
+    add: 'Add',
+    addLabel: 'Add an entry',
+    importShort: 'Import',
+    queue: (n: number, files: number) => `to review, in ${files === 1 ? '1 file' : `${files} files`}`,
+    queueSpoken: (n: number, files: number) => `${n} ${n === 1 ? 'transaction' : 'transactions'} to review, in ${files === 1 ? '1 file' : `${files} files`}`,
+    spending: (month: string) => `Spending · ${month}`,
+    other: (n: number) => (n === 1 ? 'Other' : `Other · ${n}`),
     accounts: 'Accounts',
     types: { asset: 'What you own', liability: 'What you owe', income: 'Income', expense: 'Spending', equity: 'Equity' } as Record<string, string>,
     noAccounts: 'No accounts yet.',

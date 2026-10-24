@@ -3,6 +3,7 @@ import {
   accountsOverview,
   formatAmount,
   insightsForecast,
+  insightsSpending,
   isNegativeAmount,
   negateAmount,
   reportsBalanceSheet,
@@ -12,11 +13,13 @@ import {
   type BalanceSheet,
   type BankStatement,
 } from '@leafmonkeylabs/salli-sdk';
+import { useQueries } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRead } from '../../api';
-import { Body, Card, CardHead, Icon, LedgerRow, Row, Waiting, offsetOf } from '../../kit';
-import { displayRange } from '../../lib/display';
+import { useApi, useRead } from '../../api';
+import { Body, Card, CardHead, Icon, LedgerRow, Money, Row, Waiting, offsetOf } from '../../kit';
+import { displayRange, monthNameOf, todayIso } from '../../lib/display';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -32,34 +35,29 @@ export default function Books() {
   const forecast = useRead('insights.forecast', insightsForecast);
   const statements = useRead('statements.list', statementsList, { query: { limit: 200 } });
   const waiting = (statements.data?.statements ?? []).filter((s) => s.status === 'pending');
-  const names = new Map((accounts.data ?? []).map((a) => [a.id, a.name]));
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
 
   return (
     <Page underAI title={t.title} onRefresh={() => Promise.all([accounts.refetch(), sheet.refetch(), forecast.refetch(), statements.refetch()])}>
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/add')} style={[styles.action, { backgroundColor: theme.button, borderRadius: theme.control }, offsetOf(theme)]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.addLabel} onPress={() => router.push('/add')} style={[styles.action, { backgroundColor: theme.button, borderRadius: theme.control }, offsetOf(theme)]}>
           <Icon name="plus" size={18} colour={theme.buttonText} />
           <Text style={[styles.actionText, { color: theme.buttonText }]}>{t.add}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={strings.imports.importFile}
           onPress={() => router.push('/import')}
           style={[styles.action, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1, borderRadius: theme.control }, offsetOf(theme)]}
         >
           <Icon name="upload" size={18} colour={theme.button2Text} />
-          <Text style={[styles.actionText, { color: theme.button2Text }]}>{strings.imports.importFile}</Text>
+          <Text style={[styles.actionText, { color: theme.button2Text }]}>{t.importShort}</Text>
         </Pressable>
       </View>
 
-      {waiting.length ? (
-        <Card style={{ paddingVertical: 12 }}>
-          <CardHead label={strings.imports.queue} />
-          {waiting.map((statement, i) => (
-            <QueueRow key={statement.id} statement={statement} account={statement.account_id ? names.get(statement.account_id) : undefined} last={i === waiting.length - 1} />
-          ))}
-        </Card>
-      ) : null}
+      {waiting.length ? <Queue waiting={waiting} names={new Map((accounts.data ?? []).map((a) => [a.id, a.name]))} /> : null}
+
+      <Spending />
 
       <View style={[styles.places, { backgroundColor: theme.card, borderColor: theme.rule, borderRadius: theme.radius, overflow: 'hidden' }]}>
         <Pressable
@@ -94,19 +92,95 @@ export default function Books() {
   );
 }
 
-/** A statement in the review queue, with how many of its transactions wait. */
-function QueueRow({ statement, account, last }: { statement: BankStatement; account: string | undefined; last: boolean }) {
-  const pending = useRead('statements.pending', statementsPending, { path: { statement_id: statement.id } });
-  const title = [statement.bank, account].filter(Boolean).join(' · ') || strings.imports.statement;
-  const period = statement.period_start && statement.period_end ? displayRange(statement.period_start, statement.period_end) : '';
-  const count = pending.data ? strings.imports.toReview(pending.data.transactions.length) : strings.imports.waiting;
+/**
+ * The review queue on one row: how many transactions wait, in how many files.
+ * It opens the one file's review; with several, it shows them, each opening its own.
+ */
+function Queue({ waiting, names }: { waiting: readonly BankStatement[]; names: ReadonlyMap<string, string> }) {
+  const theme = useTheme();
+  const [shown, setShown] = useState(false);
+  const api = useApi();
+  const pending = useQueries({
+    queries: waiting.map((statement) => ({
+      queryKey: [api.server, 'statements.pending', { path: { statement_id: statement.id } }],
+      queryFn: ({ signal }: { signal: AbortSignal }) => api.call(statementsPending, { path: { statement_id: statement.id }, signal }),
+    })),
+  });
+  const count = pending.every((p) => p.data) ? pending.reduce((n, p) => n + (p.data?.transactions.length ?? 0), 0) : undefined;
+  const [only] = waiting;
+  const open = () => (only && waiting.length === 1 ? router.push({ pathname: '/review/[id]', params: { id: only.id } }) : setShown((s) => !s));
   return (
-    <Row
-      title={title}
-      detail={[period, count].filter(Boolean).join(' · ')}
-      onPress={() => router.push({ pathname: '/review/[id]', params: { id: statement.id } })}
-      last={last}
-    />
+    <View style={[{ backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: theme.cardBorderWidth < 1 ? StyleSheet.hairlineWidth : theme.cardBorderWidth, borderRadius: theme.radius }, offsetOf(theme)]}>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={count === undefined ? strings.imports.queue : t.queueSpoken(count, waiting.length)}
+        {...(waiting.length > 1 ? { accessibilityState: { expanded: shown } } : {})}
+        onPress={open}
+        style={styles.queue}
+      >
+        <View style={[styles.badge, { backgroundColor: theme.text, borderRadius: Math.min(theme.control, 10) }]}>
+          <Text style={[styles.badgeText, { color: theme.card }]}>{count ?? '–'}</Text>
+        </View>
+        <Body style={{ flex: 1 }}>{t.queue(count ?? 0, waiting.length)}</Body>
+        <Icon name={waiting.length > 1 && shown ? 'down' : 'chevron'} size={16} colour={theme.muted} />
+      </Pressable>
+      {shown ? (
+        <View style={{ paddingHorizontal: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.rule }}>
+          {waiting.map((statement, i) => (
+            <Row
+              key={statement.id}
+              title={[statement.bank, statement.account_id ? names.get(statement.account_id) : undefined].filter(Boolean).join(' · ') || strings.imports.statement}
+              detail={[statement.period_start && statement.period_end ? displayRange(statement.period_start, statement.period_end) : '', pending[i]?.data ? strings.imports.toReview(pending[i]?.data?.transactions.length ?? 0) : ''].filter(Boolean).join(' · ')}
+              onPress={() => router.push({ pathname: '/review/[id]', params: { id: statement.id } })}
+              last={i === waiting.length - 1}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Spending this month: one bar split by category, the largest four named with their amounts, the rest as Other. */
+function Spending() {
+  const theme = useTheme();
+  const spending = useRead('insights.spending', insightsSpending, { query: { months: 1, by: 'category' } });
+  const lines = spending.data?.lines ?? [];
+  if (!spending.data || !lines.length) return null;
+  const shown = lines.slice(0, 4);
+  const rest = lines.slice(4);
+  // Shades of the chart's colour, largest first; Other in the rule's.
+  const shades = [1, 0.7, 0.45, 0.25];
+  const share = (s: string | null | undefined): number => {
+    // eslint-disable-next-line no-restricted-syntax -- not money: a share the server computed, for a bar's width
+    return Math.max(0, Number(s ?? 0));
+  };
+  const restShare = rest.reduce((n, l) => n + share(l.share), 0);
+  return (
+    <Card style={{ gap: 10 }}>
+      <CardHead label={t.spending(monthNameOf(todayIso()))} end={spending.data.currency} />
+      <View style={[styles.stack, { borderRadius: Math.min(theme.radius, 6) }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {shown.map((line, i) => (
+          <View key={line.key} style={{ flex: share(line.share), backgroundColor: theme.chart, opacity: shades[i] }} />
+        ))}
+        {restShare ? <View style={{ flex: restShare, backgroundColor: theme.rule }} /> : null}
+      </View>
+      {shown.map((line, i) => (
+        <View key={line.key} style={styles.legend}>
+          <View style={[styles.swatch, { backgroundColor: theme.chart, opacity: shades[i], borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
+          <Body style={{ flex: 1 }}>{line.key}</Body>
+          <Money amount={line.total} currency={spending.data.currency} />
+        </View>
+      ))}
+      {rest.length ? (
+        <View style={styles.legend}>
+          <View style={[styles.swatch, { backgroundColor: theme.rule, borderRadius: theme.marker === 'dot' ? 5 : 0 }]} />
+          <Body muted style={{ flex: 1 }}>
+            {t.other(rest.length)}
+          </Body>
+        </View>
+      ) : null}
+    </Card>
   );
 }
 
@@ -174,4 +248,10 @@ const styles = StyleSheet.create({
   places: { flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth },
   place: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
   group: { fontFamily: font.medium, marginTop: 8 },
+  queue: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 60 },
+  badge: { minWidth: 32, height: 32, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontFamily: font.semibold, fontSize: size.body, fontVariant: ['tabular-nums'] },
+  stack: { flexDirection: 'row', height: 14, overflow: 'hidden' },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 32 },
+  swatch: { width: 10, height: 10 },
 });
