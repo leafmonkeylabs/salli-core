@@ -1,13 +1,14 @@
 import { accountsList, statementsDraft, type Account, type DraftedTransactions } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead, useReach } from '../api';
 import { Drafted, useAutomations } from '../automations';
+import { useUnread } from '../inbox';
 import { Body, Button, Card, CardHead, Row, Waiting } from '../kit';
 import { read, type Reading } from '../lib/automations';
-import { todayIso } from '../lib/display';
+import { displayMoment, todayIso } from '../lib/display';
 import { Page } from '../shell';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -49,8 +50,46 @@ export default function Automations() {
           <Button kind="secondary" icon="plus" label={t.add} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: 'new' } })} />
         </View>
       </Card>
+      <Unread />
       {accounts.data ? <TryMessage accounts={accounts.data} /> : <Waiting query={accounts} what="your accounts" />}
+      <Card style={{ gap: 8 }}>
+        <CardHead label={t.shortcutTitle} />
+        <Body small muted>
+          {t.shortcutHelp}
+        </Body>
+      </Card>
     </Page>
+  );
+}
+
+/** Messages from a watched sender that no rule reads: kept here, on the phone, until one does. */
+function Unread() {
+  const theme = useTheme();
+  const { messages, discard, readAgain } = useUnread();
+  // A rule written or changed since may read them now.
+  useEffect(() => {
+    void readAgain();
+  }, [readAgain]);
+  if (!messages.length) return null;
+  return (
+    <Card style={{ gap: 12 }}>
+      <CardHead label={t.unreadTitle} />
+      <Body small muted>
+        {t.unreadHelp}
+      </Body>
+      {messages.map((message) => (
+        <View key={message.id} style={[styles.unread, { borderTopColor: theme.rule }]}>
+          <Body small muted>
+            {t.unreadFrom(message.sender, displayMoment(new Date(message.at)))}
+          </Body>
+          <Body>{message.text}</Body>
+          <View style={styles.unreadActions}>
+            <Button kind="secondary" label={t.makeRule} onPress={() => router.push({ pathname: '/automation/[id]', params: { id: 'new', sample: message.text } })} />
+            <Button kind="tertiary" label={t.discard} onPress={() => void discard(message.id)} />
+          </View>
+        </View>
+      ))}
+    </Card>
   );
 }
 
@@ -132,6 +171,8 @@ function TryMessage({ accounts }: { accounts: readonly Account[] }) {
 }
 
 const styles = StyleSheet.create({
+  unread: { gap: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  unreadActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   label: { fontFamily: font.medium, fontSize: size.small },
   input: { minHeight: 96, borderWidth: 1, borderRadius: 0, padding: 12, fontFamily: font.regular, fontSize: size.body, textAlignVertical: 'top' },
 });
