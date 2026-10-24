@@ -163,7 +163,13 @@ async def test_status_without_a_connection(world):
     assert await service.presence(USER) is None
 
 
-@pytest.mark.parametrize(("keys", "enabled"), [("", True), (KEYS, False)])
+@pytest.mark.parametrize(
+    ("keys", "enabled"),
+    [("", True), (KEYS, False)],
+    # Named, not shown: the key is random, and parallel workers must collect
+    # the same test ids.
+    ids=["no-key-dev-auth", "key-no-real-auth"],
+)
 async def test_unavailable_without_an_encryption_key_or_real_auth(keys, enabled):
     repo = FakeConnections()
     service = ChatGPTConnectionService(

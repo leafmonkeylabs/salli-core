@@ -123,6 +123,9 @@ def test_configured_ring_is_available():
         "1:not-base64!!",  # undecodable
         "1:" + base64.b64encode(os.urandom(8)).decode(),  # wrong key length
     ],
+    # Named, not shown: two keys are random, and parallel workers must
+    # collect the same test ids.
+    ids=["no-version", "non-numeric-version", "undecodable", "wrong-key-length"],
 )
 def test_malformed_config_raises_rather_than_silently_emptying_the_ring(spec: str):
     """A typo must not degrade to 'BYOK unavailable' — that symptom would surface
