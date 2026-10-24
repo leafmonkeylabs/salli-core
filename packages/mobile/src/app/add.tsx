@@ -181,7 +181,11 @@ export default function Add() {
 
       <Picker
         title={picking === 'debit' ? t.pickDebit : picking === 'credit' ? t.pickCredit : undefined}
+        {...(description.trim() ? { subtitle: exact ? `${description.trim()} · ${formatAmount(exact, currency)}` : description.trim() } : {})}
         accounts={accounts.data ?? []}
+        // Into: where money went (spending, mostly); out of: what it came from.
+        likely={picking === 'debit' ? ['expense', 'asset'] : ['asset', 'liability']}
+        except={picking === 'debit' ? (credit ?? null) : (debit ?? null)}
         chosen={picking === 'debit' ? debit : credit}
         onClose={() => setPicking(undefined)}
         onPick={(id) => {

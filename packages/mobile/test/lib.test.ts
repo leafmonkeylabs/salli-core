@@ -3,6 +3,7 @@ import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, d
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
 import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
+import { groupsOf } from '../src/lib/accounts';
 import { forgotten, listOf, LOCK_AFTER_MS, lockDue, remembered, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
 const REDIRECT = 'money.salli.app:/oauth/callback';
@@ -258,5 +259,32 @@ describe('chart labels', () => {
       12,
     );
     expect(labels.map((l) => l.key)).toEqual(['low', 'end']);
+  });
+});
+
+describe('the account picker', () => {
+  const account = (id: string, name: string, type: 'asset' | 'liability' | 'equity' | 'income' | 'expense', code = id, is_active = true) => ({ id, name, code, type, is_active });
+  const accounts = [
+    account('1', 'Salary', 'income'),
+    account('2', 'Groceries', 'expense', '6100'),
+    account('3', 'Savings', 'asset'),
+    account('4', 'Checking', 'asset'),
+    account('5', 'Opening Equity', 'equity'),
+    account('6', 'Old card', 'liability', '2100', false),
+  ];
+
+  it('puts the likely kinds first, folds the rest, and never offers equity or what is closed', () => {
+    const groups = groupsOf(accounts, { typeNames: {}, likely: ['income', 'expense'], others: 'Your other accounts', except: '3' });
+    expect(groups.map((g) => [g.key, g.rows.map((a) => a.name)])).toEqual([
+      ['income', ['Salary']],
+      ['expense', ['Groceries']],
+      ['others', ['Checking']],
+    ]);
+  });
+
+  it('narrows by words in the name or the code', () => {
+    expect(groupsOf(accounts, { typeNames: {}, likely: ['income', 'expense'], others: 'x', words: 'SAL' }).flatMap((g) => g.rows.map((a) => a.name))).toEqual(['Salary']);
+    expect(groupsOf(accounts, { typeNames: {}, likely: ['expense'], words: '6100' }).flatMap((g) => g.rows.map((a) => a.name))).toEqual(['Groceries']);
+    expect(groupsOf(accounts, { typeNames: {}, likely: ['expense'], others: 'x', words: 'nothing like it' })).toEqual([]);
   });
 });
