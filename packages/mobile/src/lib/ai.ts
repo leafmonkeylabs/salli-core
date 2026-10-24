@@ -57,16 +57,13 @@ export function modelsOf(answer: unknown): Model[] {
 }
 
 /**
- * Salli's tools that only read, by name. Every other tool changes something
- * (an entry, a reminder, a rule, a decision, a document) and waits for the
- * person's approval: a tool core adds later is asked about until it is
- * listed here, never run unasked.
+ * Salli's tools that only read: those the server's tool list marks
+ * read-only (MCP's `readOnlyHint`). Every other tool changes something (an
+ * entry, a reminder, a rule, a decision, a document) and waits for the
+ * person's approval, as does one the server says nothing about.
  */
-export function onlyReads(tool: string): boolean {
-  return (
-    /^(get|list|read|explain|check|compare|suggest|diff|evaluate|validate)_/.test(tool) ||
-    ['run_scenario', 'start_decision', 'suggested_tax_accounts'].includes(tool)
-  );
+export function readsOf(tools: readonly { name: string; annotations?: { readOnlyHint?: boolean } }[]): ReadonlySet<string> {
+  return new Set(tools.filter((t) => t.annotations?.readOnlyHint === true).map((t) => t.name));
 }
 
 /** A conversation's title: its first question, cut at a word to one line. */
@@ -111,6 +108,8 @@ type Part = { type: string; text?: string; toolName?: string; approvalId?: strin
 const partsOf = (message: ModelMessage): Part[] => (typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : (message.content as Part[]));
 
 export function blocksOf(messages: readonly ModelMessage[]): Block[] {
+  // A read is a tool call that ran unasked: one no approval was asked for.
+  const asked = new Set(messages.flatMap((m) => partsOf(m).filter((p) => p.type === 'tool-approval-request').map((p) => p.toolCallId)));
   const blocks: Block[] = [];
   for (const message of messages) {
     if (message.role === 'user') {
@@ -125,7 +124,7 @@ export function blocksOf(messages: readonly ModelMessage[]): Block[] {
     if (block !== last) blocks.push(block);
     for (const part of partsOf(message)) {
       if (part.type === 'text' && part.text) block.text = block.text ? `${block.text}\n\n${part.text}` : part.text;
-      else if (part.type === 'tool-call' && part.toolName && onlyReads(part.toolName)) block.reads += 1;
+      else if (part.type === 'tool-call' && !asked.has(part.toolCallId)) block.reads += 1;
     }
   }
   return blocks;

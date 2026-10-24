@@ -2,7 +2,30 @@
 
 ## Unreleased
 
+### Added
+
+- **Your AI starts from where you stand, and can find what you booked.**
+  MCP `get_overview` is one small read of Salli's figures: net worth, cash,
+  free until payday and its low point, signals, the FI month and progress,
+  reminders due within 30 days, and how fresh the ledger is (`data_as_of`,
+  `is_stale`). MCP `search_entries` finds entries by text, account, dates
+  and amount, a page at a time (`next_cursor`), with the server's totals
+  over every match, so "what did I spend at the bakery?" needs no sum by
+  the model. The same search is `GET /v1/entries/search` and
+  `salli entries search`.
+- **Every MCP tool says whether it only reads** (MCP tool annotations:
+  `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). The
+  Salli app now runs unasked only the tools the server marks read-only, and
+  asks about every other, in place of guessing from their names.
+- **A retried entry books once.** MCP `post_journal_entry` takes an optional
+  `client_ref`; sent again, it returns the entry first booked with it
+  (`already_posted`) and books nothing.
+
 ### Changed
+
+- **MCP: `suggested_tax_accounts` only reads** (breaking for MCP clients):
+  its `apply` is gone, and `apply_suggested_tax_accounts` creates the
+  missing accounts.
 
 - **The advisor is a monthly briefing.** It describes Salli's own figures and
   signals and gives no advice: no recommendation, priority, product or rate
