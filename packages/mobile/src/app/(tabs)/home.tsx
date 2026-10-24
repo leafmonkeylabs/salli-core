@@ -220,6 +220,7 @@ function Ring({ share, text }: { share: number; text: string }) {
 
 /** What needs attention: Salli's signals, reminders due, decisions due for review. */
 function Attention({ unreachable }: { unreachable: boolean }) {
+  const theme = useTheme();
   const api = useApi();
   const queryClient = useQueryClient();
   const signals = useRead('insights.signals', insightsSignals);
@@ -291,8 +292,12 @@ function Attention({ unreachable }: { unreachable: boolean }) {
 
   return (
     <Card style={{ paddingVertical: 4 }}>
-      <View style={{ paddingTop: 12, paddingBottom: 4 }}>
+      <View style={styles.attentionHead}>
         <SectionLabel>{t.attention}</SectionLabel>
+        <Pressable accessibilityRole="link" onPress={() => router.push('/attention')} style={styles.seeAll}>
+          <Text style={[styles.seeAllText, { color: theme.muted }]}>{strings.attention.seeAll}</Text>
+          <Icon name="chevron" size={14} colour={theme.muted} />
+        </Pressable>
       </View>
       {loading && !(unreachable && unknown) ? (
         <Loading what={t.loading('what needs attention')} />
@@ -352,6 +357,9 @@ const styles = StyleSheet.create({
   tileLabel: { fontFamily: font.regular, fontSize: 13 },
   tileNote: { fontFamily: font.regular, fontSize: 13, fontVariant: ['tabular-nums'] },
   tileFigure: { fontFamily: font.medium, fontSize: 18, fontVariant: ['tabular-nums'] },
+  attentionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 },
+  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: size.target },
+  seeAllText: { fontFamily: font.regular, fontSize: size.small },
   line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 6 },
   marker: { width: 6, height: 6 },
   lineTitle: { flex: 1, fontFamily: font.regular, fontSize: size.body },
