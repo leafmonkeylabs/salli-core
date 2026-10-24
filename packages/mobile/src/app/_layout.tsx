@@ -64,6 +64,7 @@ function Navigator() {
           <Stack.Screen name="ai" />
           <Stack.Screen name="agent" />
           <Stack.Screen name="appearance" />
+          <Stack.Screen name="first-run" options={{ gestureEnabled: false }} />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />
