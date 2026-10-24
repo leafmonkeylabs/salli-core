@@ -57,7 +57,7 @@ export function Body({ children, muted, small, style, alert }: { children: React
 
 type ButtonKind = 'primary' | 'secondary' | 'tertiary';
 
-export function Button({ label, kind = 'primary', busy, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean } & Omit<PressableProps, 'children'>) {
+export function Button({ label, kind = 'primary', busy, icon, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean; icon?: IconName } & Omit<PressableProps, 'children'>) {
   const theme = useTheme();
   // A secondary button that can't be used is drawn outlined and empty, as the design draws Done away from the server.
   const unavailable = kind === 'secondary' && !!rest.disabled && !busy;
@@ -72,6 +72,7 @@ export function Button({ label, kind = 'primary', busy, ...rest }: { label: stri
     >
       {busy ? <ActivityIndicator color={colour} /> : null}
       <Text style={[styles.buttonText, { color: colour }, kind === 'tertiary' ? styles.underline : null]}>{label}</Text>
+      {icon ? <Icon name={icon} size={18} colour={colour} /> : null}
     </Pressable>
   );
 }
@@ -332,13 +333,22 @@ export function Toggle({ label, help, value, disabled, onChange }: { label: stri
 }
 
 /** A problem: what happened, then what to do. */
-export function Problem({ title, body, children }: { title: string; body: string; children?: ReactNode }) {
+export function Problem({ title, body, mono, children }: { title: string; body: string; mono?: string; children?: ReactNode }) {
+  // The address the app tried, set in mono wherever the body names it.
+  const parts = mono ? body.split(mono) : [body];
   return (
     <Card style={{ gap: 10 }}>
       <Text accessibilityRole="header" style={[styles.heading, { color: useTheme().text }]}>
         {title}
       </Text>
-      <Body>{body}</Body>
+      <Body>
+        {parts.map((part, i) => (
+          <Text key={i}>
+            {part}
+            {i < parts.length - 1 ? <Text style={styles.monoInline}>{mono}</Text> : null}
+          </Text>
+        ))}
+      </Body>
       {children}
     </Card>
   );
@@ -387,6 +397,7 @@ export function Icon({ name, size: px = 24, colour }: { name: IconName; size?: n
 }
 
 const styles = StyleSheet.create({
+  monoInline: { fontFamily: font.mono, fontSize: size.small },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
   track: { width: 48, height: 28, padding: 3, flexDirection: 'row', alignItems: 'center' },
   knobOn: { width: 22, height: 22 },

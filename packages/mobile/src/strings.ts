@@ -28,7 +28,9 @@ export const strings = {
     api: 'API',
     apiOk: 'v1, which this app speaks',
     connection: 'Connection',
-    https: 'HTTPS',
+    https: 'HTTPS, a trusted certificate',
+    digests: 'Digests on this phone',
+    planned: 'Planned',
     local: 'This machine',
     signInNote: (host: string) =>
       `You sign in on ${host}’s own page, with the email and password its owner gave you. This app never sees your password.`,
@@ -42,7 +44,7 @@ export const strings = {
     unreachableTitle: 'Couldn’t reach Salli',
     unreachable: (origin: string) => `Couldn’t reach Salli at ${origin}. Check that the server is running, then try again.`,
     'not-salli': { title: 'No Salli server there', body: (origin: string) => `${origin} answered, but not as a Salli server does. Check the address: it is the one the console opens at, without /console.` },
-    version: { title: 'A Salli this app doesn’t speak', body: (origin: string) => `${origin} runs a version of Salli whose API this app doesn't know. Update the app, or the server.` },
+    version: { title: 'A Salli this app doesn’t speak', body: (origin: string) => `${origin} runs a version of Salli whose API this app doesn’t know. Update the app, or the server.` },
     'no-app-sign-in': { title: 'No app sign-in on this server', body: (origin: string) => `${origin} runs a Salli with no sign-in for this app. Upgrade the server, or use the salli command.` },
     insecure: {
       title: 'This server needs HTTPS',
@@ -56,6 +58,8 @@ export const strings = {
     signedOutTitle: 'Signed out',
     signedOut: 'This sign-in has ended: it was signed out from elsewhere, or its refresh token was used twice, which Salli treats as a sign it was copied.',
     signInAgain: 'Sign in again',
+    howToUpgrade: 'How to upgrade',
+    upgradeUrl: 'https://salli.money/self-host/',
   },
 
   nav: { home: 'Home', cash: 'Cash', decide: 'Decide', books: 'Books', more: 'More' },
