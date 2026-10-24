@@ -202,7 +202,11 @@ complete and not a possible duplicate (`--allow-possible-duplicates` adds those)
 and leaves the rest pending for `salli statements pending`, `statements
 categorize`, `statements post` and `statements discard`. `--replaces` imports a
 statement again on purpose. Bank connections (`salli banks`) queue new
-transactions the same way.
+transactions the same way, and so does `salli statements draft`, what an
+automation on your phone does with a bank's text message: one transaction on an
+account, waiting for review in that account's drafts batch, never posted until
+you approve it (`--in` for money in, `--ref` for the bank's reference, so the
+same message drafted twice is one transaction).
 
 Rules book imported transactions before any AI is asked: `--if` takes a
 condition (`description contains uber`, `amount between 10 50`, `direction

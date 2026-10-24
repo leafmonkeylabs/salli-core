@@ -954,6 +954,16 @@ export class MockSalli {
       if (account) for (const t of txns) t.account_id = account;
       return { status: 202, body: { ...clone(STATEMENT_UPLOAD), transactions: clone(txns) } };
     }
+    if (method === 'POST' && path === '/v1/statements/drafts') {
+      this.data.bodies.push({ method, path, body: req.json });
+      const { transactions } = req.json as { transactions: Array<{ bank_ref?: string }> };
+      // The reference "seen" was drafted before: left out, as the server does.
+      const fresh = transactions.filter((t) => t.bank_ref !== 'seen');
+      return {
+        status: 201,
+        body: { statement_id: fresh.length ? uid(802) : '', drafted: fresh.length, duplicates_dropped: transactions.length - fresh.length, errors: [], transactions: [] },
+      };
+    }
     if (method === 'GET' && path === '/v1/statements/') {
       return {
         status: 200,

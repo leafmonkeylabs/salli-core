@@ -4170,6 +4170,85 @@ export type DiscardedStatementTransactions = {
 };
 
 /**
+ * DraftRequest
+ */
+export type DraftRequest = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Transactions
+     */
+    transactions: Array<DraftTransaction>;
+};
+
+/**
+ * DraftTransaction
+ *
+ * One transaction as the person's automation read it: what a bank's
+ * message says, never the message itself.
+ */
+export type DraftTransaction = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    amount: string;
+    /**
+     * Credit Flag
+     */
+    credit_flag: boolean;
+    /**
+     * Bank Ref
+     */
+    bank_ref?: string;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+};
+
+/**
+ * DraftedTransactions
+ */
+export type DraftedTransactions = {
+    /**
+     * Statement Id
+     */
+    statement_id: string;
+    /**
+     * Drafted
+     */
+    drafted: number;
+    /**
+     * Duplicates Dropped
+     */
+    duplicates_dropped: number;
+    /**
+     * Errors
+     */
+    errors: Array<string>;
+    /**
+     * Transactions
+     */
+    transactions: Array<StatementTransaction>;
+};
+
+/**
  * DueReview
  */
 export type DueReview = {
@@ -15177,6 +15256,35 @@ export type StatementsUploadResponses = {
 };
 
 export type StatementsUploadResponse = StatementsUploadResponses[keyof StatementsUploadResponses];
+
+export type StatementsDraftData = {
+    body: DraftRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/statements/drafts';
+};
+
+export type StatementsDraftErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type StatementsDraftError = StatementsDraftErrors[keyof StatementsDraftErrors];
+
+export type StatementsDraftResponses = {
+    /**
+     * Successful Response
+     */
+    201: DraftedTransactions;
+};
+
+export type StatementsDraftResponse = StatementsDraftResponses[keyof StatementsDraftResponses];
 
 export type StatementsListData = {
     body?: never;

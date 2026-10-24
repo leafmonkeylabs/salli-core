@@ -589,9 +589,8 @@ class SQLStatementRepository(StatementRepository):
         transactions: list[Any],
         storage_key: str = "",
         account_id: str | None = None,
+        kind: str = "import",
     ) -> None:
-        import uuid as _uuid
-
         # The label fits its column, whoever made it: a bank feed's
         # "institution · account name" can run past it.
         width = StatementORM.__table__.c.bank.type.length or 100
@@ -601,6 +600,7 @@ class SQLStatementRepository(StatementRepository):
             storage_key=storage_key,
             bank=(bank or "")[:width],
             account_id=account_id,
+            kind=kind,
             period_start=period_start,
             period_end=period_end,
             # Nothing to review (empty, or every row an exact duplicate): done.
@@ -611,6 +611,49 @@ class SQLStatementRepository(StatementRepository):
             ),
         )
         self._session.add(orm)
+        self._add(statement_id, account_id, transactions)
+
+    async def open_drafts(self, user_id: str, account_id: str) -> str | None:
+        waiting = (
+            select(ParsedTransactionORM.id)
+            .where(ParsedTransactionORM.statement_id == StatementORM.id, *_PENDING)
+            .exists()
+        )
+        return await self._session.scalar(
+            select(StatementORM.id)
+            .where(
+                StatementORM.user_id == user_id,
+                StatementORM.account_id == account_id,
+                StatementORM.kind == "drafts",
+                waiting,
+            )
+            .order_by(StatementORM.created_at.desc())
+            .limit(1)
+            .with_for_update(of=StatementORM)
+        )
+
+    async def add_rows(
+        self,
+        user_id: str,
+        statement_id: str,
+        transactions: list[Any],
+        *,
+        period_start: str,
+        period_end: str,
+    ) -> None:
+        statement = await self._session.get(StatementORM, statement_id)
+        if statement is None or statement.user_id != user_id:
+            raise ValueError(f"Statement {statement_id} not found")
+        # ISO dates compare as text.
+        statement.period_start = min(filter(None, (statement.period_start, period_start)))
+        statement.period_end = max(filter(None, (statement.period_end, period_end)))
+        self._add(statement_id, statement.account_id, transactions)
+        await self._session.flush()
+        await self._settle(statement_id)
+
+    def _add(self, statement_id: str, account_id: str | None, transactions: list[Any]) -> None:
+        """Rows for a statement, each given its new id."""
+        import uuid as _uuid
 
         for txn in transactions:
             raw = txn.raw

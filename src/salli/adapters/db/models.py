@@ -227,6 +227,11 @@ class StatementORM(Base):
     account_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("accounts.id"), nullable=True
     )
+    # "import" (a file or a feed) or "drafts": transactions the person's own
+    # automation drafted, collected per account while any waits for review.
+    kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="import", server_default="import"
+    )
     period_start: Mapped[str | None] = mapped_column(String(10), nullable=True)
     period_end: Mapped[str | None] = mapped_column(String(10), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")

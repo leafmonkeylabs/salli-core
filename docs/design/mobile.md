@@ -210,6 +210,31 @@ the lock screen (`accessoryRectangular`), where iOS draws no paper.
   project at prebuild, its colours from `expo-target.config.js`. Android has
   no widgets yet.
 
+## Automations (planned)
+
+A bank's text message or email becomes a transaction waiting for review,
+without anyone typing it. iOS lets no app read messages or mail; a Shortcuts
+automation ("when I get a message from EXAMPLEBANK", "when I get an email from
+alerts@bank.example") hands the text to an action of Salli's instead.
+
+- **The app's actions** (App Intents): draft an entry from text, import a
+  statement (a PDF or CSV attachment), add an expense, and safe to spend
+  (read only, amount hidden unless amounts outside the app are on).
+- **Matching rules stay on the phone:** a sender and a pattern that picks out
+  the amount as written, the date, the payee and the bank's reference, and
+  the account it is on. A message no rule matches is dropped at once and
+  never leaves the phone: one-time codes and personal texts stay there. One
+  from a watched sender that fits no pattern is read by the in-app agent's
+  model, when one is set up, and waits for the person otherwise.
+- **Drafts wait in core's review queue** (`POST /v1/statements/drafts`,
+  `salli statements draft`): one batch per account while any of it waits,
+  sorted by the person's rules and checked for duplicates as an import is.
+  Only what the rule picked out is sent, never the message. The same
+  message handled twice books once; when the month's statement brings the
+  same transaction, it is flagged as a possible duplicate of the draft.
+- Android, later: a notification listener (Play lets only the default SMS
+  app read messages).
+
 ## Later
 
 Managed servers need no closed code in the app: one is another server, found

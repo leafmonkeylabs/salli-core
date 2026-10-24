@@ -1,5 +1,5 @@
 /**
- * salli import <file>, and salli statements list | pending | post | discard | categorize
+ * salli import <file>, and salli statements list | pending | post | discard | categorize | draft
  *
  * A statement is read on the server (CSV, OFX/QFX, QIF, camt.053, MT940,
  * PDF or Excel). Each transaction gets the other side from a rule or the
@@ -10,8 +10,10 @@
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
+  compareAmounts,
   statementsCategorize,
   statementsDiscard,
+  statementsDraft,
   statementsList,
   statementsPending,
   statementsPost,
@@ -26,10 +28,10 @@ import {
 import type { App } from '../app';
 import { NotFoundError, UsageError } from '../errors';
 import { plural, singleLine } from '../output/text';
-import { displayDate, displayRange } from '../util/dates';
+import { displayDate, displayRange, parseDate } from '../util/dates';
 import { readUpload } from '../util/files';
 import { resolveById } from '../util/resolve';
-import { AccountBook, confirmAction, currencyArg, limitArg } from './shared';
+import { AccountBook, amountArg, confirmAction, currencyArg, limitArg } from './shared';
 
 type Transaction = StatementTransaction;
 
@@ -415,6 +417,52 @@ Examples:
       }
       const result = await api.call(statementsDiscard, { path: { statement_id: statement.id }, body: chosen ? { ids: chosen } : {} });
       app.out.done({ statement_id: statement.id, ...result }, `Discarded ${plural(result.discarded, 'transaction')}.`);
+    });
+
+  statements
+    .command('draft')
+    .argument('<amount>', 'How much, as written (always positive: --in for money in)')
+    .argument('<description>', 'Who was paid, or who paid')
+    .description('Draft a transaction for review, as an automation does from a bank’s message: it is posted only once approved')
+    .requiredOption('--account <account>', 'The bank or card account it is on (code, name or id)')
+    .option('--in', 'Money came in (default: money went out)')
+    .option('--date <date>', 'When (YYYY-MM-DD, today, yesterday)', 'today')
+    .option('--ref <reference>', 'The bank’s reference for it: the same reference drafted twice is one transaction')
+    .option('--currency <code>', 'Its currency, when not the account’s', currencyArg)
+    .option('--source <name>', 'What drafted it, the name of a new batch', 'Salli CLI')
+    .action(async (amountText, description, opts) => {
+      const amount = amountArg(amountText);
+      if (compareAmounts(amount, '0') <= 0) throw new UsageError('The amount is always more than zero: pass --in for money that came in.');
+      const api = await app.api();
+      const book = await AccountBook.load(api);
+      const account = book.resolve(opts.account);
+      const result = await api.call(statementsDraft, {
+        body: {
+          account_id: account.id,
+          source: opts.source,
+          transactions: [
+            {
+              date: parseDate(opts.date, app.runtime.now(), '--date'),
+              description,
+              amount,
+              credit_flag: Boolean(opts.in),
+              ...(opts.ref ? { bank_ref: opts.ref } : {}),
+              ...(opts.currency ? { currency: opts.currency } : {}),
+            },
+          ],
+        },
+      });
+      app.out.emit(result, {
+        human: (d) => {
+          if (d.drafted === 0) {
+            app.out.note('Drafted before: left out.');
+            return;
+          }
+          app.out.success(`Drafted ${plural(d.drafted, 'transaction')} for review into ${book.label(account.id)} (statement ${d.statement_id.slice(0, 8)}).`);
+          for (const error of d.errors) app.out.warn(error);
+          app.out.note('Review it with `salli statements pending`.');
+        },
+      });
     });
 
   statements
