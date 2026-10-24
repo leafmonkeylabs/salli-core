@@ -81,6 +81,15 @@ export const strings = {
     decision: 'A decision is ready for review',
     done: 'Done',
     markDone: (what: string) => `Mark done: ${what}`,
+    statementWaiting: (name: string, period: string) => (period ? `${name}, ${period}` : name),
+    statementsWaiting: (n: number) => `${n} statements waiting`,
+    think: 'Think this through with your AI',
+    thinkNote: 'Nothing is sent from the app: it hands a prompt to the AI app you choose.',
+    // No figure in it: the AI app reads them from Salli, through the person's own connection.
+    thinkPrompt: (server: string) =>
+      `I keep my books in Salli, at ${server}. If you can’t reach it yet, connect Salli as an MCP server at ${server}/mcp and sign in on its page.\n\n` +
+      'Look at where I stand today, what is safe to spend and what needs my attention, and help me think it through. ' +
+      'Take every figure from Salli rather than working any out yourself, and lay my options out without ranking them.',
     loading: (what: string) => `Loading ${what}…`,
   },
 

@@ -59,13 +59,15 @@ type ButtonKind = 'primary' | 'secondary' | 'tertiary';
 
 export function Button({ label, kind = 'primary', busy, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean } & Omit<PressableProps, 'children'>) {
   const theme = useTheme();
-  const fill = kind === 'primary' ? theme.button : kind === 'secondary' ? theme.button2 : 'transparent';
-  const colour = kind === 'primary' ? theme.buttonText : kind === 'secondary' ? theme.button2Text : theme.text;
+  // A secondary button that can't be used is drawn outlined and empty, as the design draws Done away from the server.
+  const unavailable = kind === 'secondary' && !!rest.disabled && !busy;
+  const fill = unavailable ? 'transparent' : kind === 'primary' ? theme.button : kind === 'secondary' ? theme.button2 : 'transparent';
+  const colour = unavailable ? theme.muted : kind === 'primary' ? theme.buttonText : kind === 'secondary' ? theme.button2Text : theme.text;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!rest.disabled || !!busy, busy: !!busy }}
-      style={({ pressed }) => [styles.button, { backgroundColor: fill, borderColor: kind === 'secondary' ? theme.button2Border : 'transparent', opacity: rest.disabled ? 0.45 : pressed ? 0.8 : 1 }]}
+      style={({ pressed }) => [styles.button, { backgroundColor: fill, borderColor: unavailable ? theme.fieldBorder : kind === 'secondary' ? theme.button2Border : 'transparent', opacity: unavailable ? 1 : rest.disabled ? 0.45 : pressed ? 0.8 : 1 }]}
       {...rest}
     >
       {busy ? <ActivityIndicator color={colour} /> : null}
