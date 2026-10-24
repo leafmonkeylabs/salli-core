@@ -4,6 +4,7 @@ import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib
 import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
+import { blocksOfMarkdown, spansOf } from '../src/lib/markdown';
 import { blocksOf, changeOf, keepNewest, modelsOf, onlyReads, pendingOf, providerOf, titleOf } from '../src/lib/ai';
 import { amountOf, dateOf, read, readWith, type AutomationRule } from '../src/lib/automations';
 import { keepUnread, queueOf, sortInbox, type QueuedMessage } from '../src/lib/inbox';
@@ -518,5 +519,60 @@ describe('a conversation with your AI', () => {
     expect(pendingOf(asked)).toEqual([{ approvalId: 'a1', tool: 'create_reminder', input: { kind: 'Send the lease', due_date: '2026-10-12' } }]);
     const met = [...asked, { role: 'tool', content: [{ type: 'tool-approval-response', approvalId: 'a1', approved: true }] }] as unknown as Parameters<typeof pendingOf>[0];
     expect(pendingOf(met)).toEqual([]);
+  });
+});
+
+describe('an answer’s Markdown', () => {
+  it('reads bold, italic and code within a line, and leaves the rest as text', () => {
+    expect(spansOf('**Cash:** 18,567.52 EUR')).toEqual([{ text: 'Cash:', bold: true }, { text: ' 18,567.52 EUR' }]);
+    expect(spansOf('a *real* return, `get_signals` and __all__')).toEqual([
+      { text: 'a ' },
+      { text: 'real', italic: true },
+      { text: ' return, ' },
+      { text: 'get_signals', code: true },
+      { text: ' and ' },
+      { text: 'all', bold: true },
+    ]);
+    // Snake case and lone stars are words, not emphasis.
+    expect(spansOf('get_safe_to_spend at 5 * 3')).toEqual([{ text: 'get_safe_to_spend at 5 * 3' }]);
+    expect(spansOf('[a link](https://example.org)')).toEqual([{ text: '[a link](https://example.org)' }]);
+  });
+
+  it('reads paragraphs, headings and lists, a wrapped item carrying on', () => {
+    const answer = [
+      "You're in a strong position today:",
+      '',
+      '## Where you stand',
+      '- **Cash:** 18,567.52 EUR',
+      '- **Safe to spend:** 18,503.37 EUR until',
+      '  25 October 2026.',
+      '',
+      '1. Review the decision',
+      '2) Send the lease',
+      '---',
+      'Where would you like to start?',
+      'Line two.',
+    ].join('\n');
+    expect(blocksOfMarkdown(answer)).toEqual([
+      { kind: 'paragraph', lines: [[{ text: "You're in a strong position today:" }]] },
+      { kind: 'heading', spans: [{ text: 'Where you stand' }] },
+      {
+        kind: 'list',
+        ordered: false,
+        items: [
+          { marker: '•', spans: [{ text: 'Cash:', bold: true }, { text: ' 18,567.52 EUR' }] },
+          { marker: '•', spans: [{ text: 'Safe to spend:', bold: true }, { text: ' 18,503.37 EUR until' }, { text: ' ' }, { text: '25 October 2026.' }] },
+        ],
+      },
+      {
+        kind: 'list',
+        ordered: true,
+        items: [
+          { marker: '1.', spans: [{ text: 'Review the decision' }] },
+          { marker: '2.', spans: [{ text: 'Send the lease' }] },
+        ],
+      },
+      { kind: 'paragraph', lines: [[{ text: 'Where would you like to start?' }], [{ text: 'Line two.' }]] },
+    ]);
   });
 });
