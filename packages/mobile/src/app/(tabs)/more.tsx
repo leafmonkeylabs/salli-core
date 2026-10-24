@@ -4,7 +4,7 @@ import { cardOf, Icon, type IconName } from '../../kit';
 import { useYourAI } from '../../ai/store';
 import { useAppearance } from '../../appearance';
 import { providerOf } from '../../lib/ai';
-import { useSession } from '../../session';
+import { useSession, labelIn } from '../../session';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -25,7 +25,7 @@ export default function More() {
   const ai = useYourAI();
   const { appearance } = useAppearance();
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
-  const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
+  const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
 
   const status = !ai.enabled ? strings.ai.off : (ai.model ?? strings.ai.notSet);
   return (

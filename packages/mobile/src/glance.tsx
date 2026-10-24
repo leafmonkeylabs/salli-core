@@ -11,7 +11,7 @@ import { useAppearance } from './appearance';
 import { isNight } from './lib/appearance';
 import { monthOf, sameDaysLastMonth, todayIso } from './lib/display';
 import { glanceOf, type Palette } from './lib/glance';
-import { useSession } from './session';
+import { useSession, labelIn } from './session';
 import { themeOf, type Theme } from './theme';
 
 /** A theme as a widget draws it: its bars' opaque colour for the ground. */
@@ -32,7 +32,7 @@ export function Glance() {
     storage.remove(KEY);
     ExtensionStorage.reloadWidget();
   }, [signedIn]);
-  return signedIn ? <Writer key={session.server} host={session.server.replace(/^https?:\/\//, '')} /> : null;
+  return signedIn ? <Writer key={session.server} host={labelIn(session, session.server)} /> : null;
 }
 
 function Writer({ host }: { host: string }) {
