@@ -5,14 +5,14 @@
  * live in the keychain (iOS) or the keystore (Android), one item a server,
  * never anywhere else; the index of servers beside them holds no secret.
  */
-import { createClient, oauth, SalliApiError, type SalliClient } from '@leafmonkeylabs/salli-sdk';
+import { authMe, createClient, oauth, profileGet, SalliApiError, type SalliClient } from '@leafmonkeylabs/salli-sdk';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from './lib/pkce';
 import { checkServer, type AppSignIn, type ServerCheck } from './lib/server';
-import { storeKeyOf, withoutServer, withServer, type ServerIndex } from './lib/servers';
+import { forgotten, listOf, remembered, storeKeyOf, withoutServer, withServer, type ServerIndex } from './lib/servers';
 
 const INDEX_KEY = 'salli.servers';
 /** The one sign-in an earlier version kept: moved into the index on launch. */
@@ -30,9 +30,17 @@ interface Stored {
 
 export type SignInResult = { ok: true } | { ok: false; reason: 'denied' } | { ok: false; reason: 'failed'; detail: string };
 
+/** A server this phone remembers: signed in to or not, and who you are on it. */
+export interface Known {
+  server: string;
+  signedIn: boolean;
+  email?: string;
+  currency?: string;
+}
+
 export type Session =
   | { status: 'loading' }
-  | { status: 'signed-out'; ended: boolean }
+  | { status: 'signed-out'; ended: boolean; endedOn?: string; known: readonly Known[] }
   | {
       status: 'signed-in';
       server: string;
@@ -42,6 +50,8 @@ export type Session =
       servers: readonly string[];
       /** A server whose sign-in ended, if one did since the last change: said once on Home. */
       endedOn?: string;
+      /** Every server remembered, signed in to or not. */
+      known: readonly Known[];
     };
 
 interface SessionApi {
@@ -54,6 +64,8 @@ interface SessionApi {
   signOut(): Promise<void>;
   /** `server` ended its sign-in (a 401 the token provider couldn't refresh past). */
   ended(server: string): void;
+  /** Forgets a server signed out of: nothing of it stays on the phone. */
+  forgetServer(server: string): Promise<void>;
 }
 
 const SessionContext = createContext<SessionApi | null>(null);
@@ -128,7 +140,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const index = useRef<ServerIndex | undefined>(undefined);
   const current = useRef<Stored | undefined>(undefined);
 
-  const open = useCallback((next: Stored, endedOn?: string) => {
+  const open = useCallback((next: Stored, endedOn?: string): SalliClient => {
     current.current = next;
     const client = clientFor(next, (tokens) => {
       // A refresh rotates the refresh token: keep the new one, or the next
@@ -145,26 +157,46 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       consoleUrl: next.consoleUrl,
       servers: index.current?.servers ?? [next.server],
       ...(endedOn ? { endedOn } : {}),
+      known: listOf(index.current),
     });
+    return client;
+  }, []);
+
+  /**
+   * Who you are on a server, kept beside its sign-in for the servers list:
+   * your email and its currency, nothing else. Read once a sign-in opens;
+   * a failed read leaves what was kept.
+   */
+  // Through the session's own client: a second one would drop a rotated refresh token.
+  const identify = useCallback(async (server: string, client: SalliClient) => {
+    const [me, profile] = await Promise.all([client.call(authMe).catch(() => undefined), client.call(profileGet).catch(() => undefined)]);
+    const known = index.current;
+    if (!known || !(me || profile)) return;
+    const next = remembered(known, server, { ...(me?.email ? { email: me.email } : {}), ...(profile?.base_currency ? { currency: profile.base_currency } : {}) });
+    index.current = next;
+    await write(INDEX_KEY, next);
+    setSession((now) => (now.status === 'signed-in' ? { ...now, known: listOf(next) } : now));
   }, []);
 
   /** Puts `next` (the index's current server) on screen, or signs out when there is none. */
   const show = useCallback(
     async (next: ServerIndex | undefined, endedOn?: string): Promise<void> => {
       index.current = next;
-      if (!next) {
+      if (!next || !next.servers.length) {
         current.current = undefined;
-        await SecureStore.deleteItemAsync(INDEX_KEY);
-        setSession({ status: 'signed-out', ended: endedOn !== undefined });
+        // Servers signed out of stay listed, to sign in to again; with none, nothing is kept.
+        if (next && listOf(next).length) await write(INDEX_KEY, next);
+        else await SecureStore.deleteItemAsync(INDEX_KEY);
+        setSession({ status: 'signed-out', ended: endedOn !== undefined, ...(endedOn ? { endedOn } : {}), known: listOf(next) });
         return;
       }
       await write(INDEX_KEY, next);
       const stored = await loadSignIn(next.current);
       // An index naming a sign-in the keychain no longer has: drop it and go on.
       if (!stored) return show(withoutServer(next, next.current), endedOn);
-      open(stored, endedOn);
+      void identify(stored.server, open(stored, endedOn));
     },
-    [open],
+    [open, identify],
   );
 
   useEffect(() => {
@@ -222,7 +254,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [show],
   );
 
-  /** Forgets `server` on this phone, and shows the next one left. */
+  /** Signs this phone out of `server`: its tokens go, its address and who you are on it stay listed. */
   const forget = useCallback(
     async (server: string, endedOn?: string) => {
       if (!index.current?.servers.includes(server)) return;
@@ -230,6 +262,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await show(withoutServer(index.current, server), endedOn);
     },
     [show],
+  );
+
+  const forgetServer = useCallback(
+    async (server: string) => {
+      if (!index.current || index.current.servers.includes(server)) return;
+      const next = forgotten(index.current, server);
+      index.current = next;
+      if (listOf(next).length) await write(INDEX_KEY, next);
+      else await SecureStore.deleteItemAsync(INDEX_KEY);
+      setSession((now) => (now.status === 'loading' ? now : { ...now, known: listOf(next) }));
+    },
+    [],
   );
 
   const signOut = useCallback(async () => {
@@ -251,7 +295,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const ended = useCallback((server: string) => void forget(server, server), [forget]);
 
-  const value = useMemo(() => ({ session, signIn, switchTo, signOut, ended }), [session, signIn, switchTo, signOut, ended]);
+  const value = useMemo(() => ({ session, signIn, switchTo, signOut, ended, forgetServer }), [session, signIn, switchTo, signOut, ended, forgetServer]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

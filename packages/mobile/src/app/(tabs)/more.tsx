@@ -1,110 +1,78 @@
-import { authMe } from '@leafmonkeylabs/salli-sdk';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { useRead } from '../../api';
-import { Body, Button, Card, Icon, SectionLabel } from '../../kit';
-import { usePhone } from '../../phone';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Body, Card, Icon, type IconName } from '../../kit';
 import { useSession } from '../../session';
-import { Header } from '../../shell';
+import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 
 const t = strings.more;
 
+/** The console's places the app doesn't have yet: each opens the console's own page. */
+const PLACES: readonly { key: keyof typeof t.places; icon: IconName; path: string }[] = [
+  { key: 'tax', icon: 'tax', path: '/tax' },
+  { key: 'attention', icon: 'attention', path: '/attention' },
+  { key: 'fi', icon: 'independence', path: '/fi' },
+  { key: 'settings', icon: 'settings', path: '/settings' },
+];
+
+/** More (design 14): the places beyond the bar, then Servers and sign-in. */
 export default function More() {
-  const theme = useTheme();
-  const { session, signOut } = useSession();
-  const me = useRead('auth.me', authMe);
-  const phone = usePhone();
-  // The server being signed out of: once it goes, the next one's button is ready.
-  const [leaving, setLeaving] = useState<string | undefined>(undefined);
-  const server = session.status === 'signed-in' ? session.server : '';
-  const count = session.status === 'signed-in' ? session.servers.length : 1;
-  const how = strings.phone.how[phone.unlockWith ?? 'passcode'];
-  const host = server.replace(/^https?:\/\//, '');
+  const { session } = useSession();
+  const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
+  const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.work }}>
-      <Header title={t.title} />
-      <ScrollView contentContainerStyle={styles.page}>
-        <Card style={{ gap: 10 }}>
-          <SectionLabel>{t.server}</SectionLabel>
-          <Text style={[styles.host, { color: theme.text }]}>{server}</Text>
-          {me.data?.email ? (
-            <Body small muted>
-              {t.as(me.data.email)}
-            </Body>
-          ) : null}
-          <View style={{ marginTop: 6, gap: 6 }}>
-            <Button
-              kind="secondary"
-              label={t.signOut(host)}
-              busy={leaving === server}
-              disabled={leaving === server}
-              onPress={() => {
-                setLeaving(server);
-                void signOut();
-              }}
+    <Page title={t.title}>
+      {consoleUrl ? (
+        <Card style={{ paddingVertical: 4 }}>
+          {PLACES.map((place, i) => (
+            <Place
+              key={place.key}
+              icon={place.icon}
+              title={t.places[place.key].title}
+              body={t.places[place.key].body}
+              label={t.inConsole(t.places[place.key].title)}
+              external
+              onPress={() => void Linking.openURL(`${consoleUrl}${place.path}`)}
+              last={i === PLACES.length - 1}
             />
-            <Body small muted>
-              {count > 1 ? t.signOutNoteOthers : t.signOutNote}
-            </Body>
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/servers')} style={[styles.row, { borderTopColor: theme.rule }]}>
-            <Body>{t.servers(count)}</Body>
-            <Icon name="chevron" size={18} colour={theme.muted} />
-          </Pressable>
+          ))}
         </Card>
-        <Card style={{ gap: 10 }}>
-          <SectionLabel>{strings.phone.title}</SectionLabel>
-          <Setting
-            label={strings.phone.lock(how)}
-            help={phone.unlockWith ? strings.phone.lockHelp : strings.phone.noLock}
-            value={phone.settings.lock}
-            disabled={!phone.unlockWith}
-            onChange={(on) => void phone.setLock(on)}
-          />
-          <Setting
-            label={strings.phone.showAmounts}
-            help={phone.settings.showAmounts ? strings.phone.showAmountsOnHelp : strings.phone.showAmountsHelp}
-            value={phone.settings.showAmounts}
-            onChange={phone.setShowAmounts}
-          />
-        </Card>
-        <Body small muted>
-          {t.footer}
-        </Body>
-      </ScrollView>
-    </View>
+      ) : null}
+      <Card style={{ paddingVertical: 4 }}>
+        <Place icon="server" title={t.serversPlace} body={t.serversBody(host)} onPress={() => router.push('/sign-ins')} last />
+      </Card>
+      <Body small muted>
+        {t.footer}
+      </Body>
+    </Page>
   );
 }
 
-function Setting({ label, help, value, disabled, onChange }: { label: string; help: string; value: boolean; disabled?: boolean; onChange: (on: boolean) => void }) {
+function Place({ icon, title, body, label, external, onPress, last }: { icon: IconName; title: string; body: string; label?: string; external?: boolean; onPress: () => void; last?: boolean }) {
   const theme = useTheme();
   return (
-    <View style={{ gap: 4 }}>
-      <View style={styles.setting}>
-        <Body style={{ flex: 1 }}>{label}</Body>
-        <Switch
-          accessibilityLabel={label}
-          accessibilityHint={help}
-          value={value}
-          disabled={!!disabled}
-          onValueChange={onChange}
-          trackColor={{ false: theme.rule, true: theme.button }}
-        />
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={label ?? title}
+      accessibilityHint={body}
+      onPress={onPress}
+      style={[styles.place, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }]}
+    >
+      <Icon name={icon} size={22} colour={theme.text} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Body style={styles.title}>{title}</Body>
+        <Body small muted>
+          {body}
+        </Body>
       </View>
-      <Body small muted>
-        {help}
-      </Body>
-    </View>
+      <Icon name={external ? 'external' : 'chevron'} size={16} colour={theme.muted} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: StyleSheet.hairlineWidth, marginTop: 6 },
-  setting: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  page: { padding: size.gutter, gap: size.gap },
-  host: { fontFamily: font.mono, fontSize: size.body },
+  place: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 64, paddingVertical: 12 },
+  title: { fontFamily: font.medium, fontSize: size.body },
 });

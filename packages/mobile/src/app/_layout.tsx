@@ -52,6 +52,7 @@ function Navigator() {
           <Stack.Screen name="import" options={{ presentation: 'modal' }} />
           <Stack.Screen name="review/[id]" />
           <Stack.Screen name="entries" />
+          <Stack.Screen name="sign-ins" />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />
