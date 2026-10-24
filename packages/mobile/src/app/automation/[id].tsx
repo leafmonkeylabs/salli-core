@@ -193,7 +193,7 @@ function Field({ label, help, value, onChange, placeholder, multiline, mono }: {
         style={[
           styles.input,
           multiline ? styles.multiline : null,
-          { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, fontFamily: mono ? font.mono : font.regular },
+          { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text, fontFamily: mono ? font.mono : font.regular },
         ]}
       />
       {help ? (

@@ -151,7 +151,7 @@ export default function Agent() {
 
         {blocks.map((block, i) =>
           block.kind === 'you' ? (
-            <View key={i} style={[styles.you, { backgroundColor: theme.work }]}>
+            <View key={i} style={[styles.you, { backgroundColor: theme.work, borderRadius: theme.radius }]}>
               <Body>{block.text}</Body>
             </View>
           ) : (
@@ -161,7 +161,7 @@ export default function Agent() {
         {live ? <Answer reads={live.reads} text={live.text} /> : null}
 
         {pending.length && !busy ? (
-          <View style={[styles.card, { borderColor: theme.text }]}>
+          <View style={[styles.card, { borderColor: theme.text, borderRadius: theme.radius }]}>
             <Text style={[styles.cardHead, { color: theme.muted }]}>{t.changes(pending.length).toUpperCase()}</Text>
             <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.rule }}>
               {pending.map((p, i) => (
@@ -192,10 +192,10 @@ export default function Agent() {
           placeholder={pending.length ? t.approveFirst : t.placeholder}
           placeholderTextColor={theme.muted}
           accessibilityLabel={t.placeholder}
-          style={[styles.input, { backgroundColor: theme.work, borderColor: pending.length ? theme.rule : theme.fieldBorder, color: theme.text }]}
+          style={[styles.input, { backgroundColor: theme.work, borderRadius: Math.min(theme.control, 24), borderColor: pending.length ? theme.rule : theme.fieldBorder, color: theme.text }]}
         />
         {busy ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={t.stop} onPress={() => abort.current?.abort()} style={[styles.send, { borderColor: theme.fieldBorder, borderWidth: 1 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.stop} onPress={() => abort.current?.abort()} style={[styles.send, { borderRadius: Math.min(theme.control, 24), borderColor: theme.fieldBorder, borderWidth: 1 }]}>
             <View style={{ width: 12, height: 12, backgroundColor: theme.text }} />
           </Pressable>
         ) : (
@@ -205,7 +205,7 @@ export default function Agent() {
             accessibilityState={{ disabled: !draft.trim() || !ai.ready || pending.length > 0 }}
             disabled={!draft.trim() || !ai.ready || pending.length > 0}
             onPress={() => send(draft)}
-            style={[styles.send, { backgroundColor: draft.trim() && ai.ready && !pending.length ? theme.button : theme.chrome, borderColor: theme.fieldBorder, borderWidth: draft.trim() ? 0 : 1 }]}
+            style={[styles.send, { borderRadius: Math.min(theme.control, 24), backgroundColor: draft.trim() && ai.ready && !pending.length ? theme.button : theme.chrome, borderColor: theme.fieldBorder, borderWidth: draft.trim() ? 0 : 1 }]}
           >
             <Icon name="up" size={20} colour={draft.trim() && ai.ready && !pending.length ? theme.buttonText : theme.muted} />
           </Pressable>

@@ -48,7 +48,7 @@ export default function Welcome() {
           <Logo height={40} />
         </View>
         {ended ? (
-          <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card }]} accessibilityRole="alert">
+          <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]} accessibilityRole="alert">
             <Body style={{ fontFamily: font.medium }}>{strings.problem.signedOutTitle}</Body>
             <Body small muted>
               {strings.problem.signedOut}
@@ -91,7 +91,7 @@ export default function Welcome() {
             autoCorrect={false}
             spellCheck={false}
             returnKeyType="go"
-            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
           <Body small muted>
             {wrong ? t.notAnAddress : t.help}

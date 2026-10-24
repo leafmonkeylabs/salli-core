@@ -1,13 +1,11 @@
 import 'react-native-url-polyfill/auto';
-import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from '@expo-google-fonts/geist';
-import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono';
-import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { YourAIProvider } from '../ai/store';
+import { AppearanceProvider } from '../appearance';
 import { ApiProvider } from '../api';
 import { Glance } from '../glance';
 import { Inbox } from '../inbox';
@@ -18,16 +16,19 @@ import { useTheme } from '../theme';
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ Geist_400Regular, Geist_500Medium, Geist_600SemiBold, GeistMono_400Regular });
   return (
     <SafeAreaProvider>
-      <SessionProvider>
-        <PhoneProvider>
-          <ApiProvider>
-            <YourAIProvider>{fontsLoaded ? <Navigator /> : null}</YourAIProvider>
-          </ApiProvider>
-        </PhoneProvider>
-      </SessionProvider>
+      <AppearanceProvider>
+        <SessionProvider>
+          <PhoneProvider>
+            <ApiProvider>
+              <YourAIProvider>
+                <Navigator />
+              </YourAIProvider>
+            </ApiProvider>
+          </PhoneProvider>
+        </SessionProvider>
+      </AppearanceProvider>
     </SafeAreaProvider>
   );
 }
@@ -62,6 +63,7 @@ function Navigator() {
           <Stack.Screen name="automation/[id]" />
           <Stack.Screen name="ai" />
           <Stack.Screen name="agent" />
+          <Stack.Screen name="appearance" />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />

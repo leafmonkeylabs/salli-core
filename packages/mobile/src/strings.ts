@@ -226,6 +226,16 @@ export const strings = {
     open: 'Open the console',
   },
 
+  appearance: {
+    title: 'Appearance',
+    theme: 'Theme',
+    mode: 'Mode',
+    modes: { auto: 'Auto', light: 'Light', dark: 'Dark' },
+    auto: 'Auto follows your phone.',
+    icon: 'The app icon changes with it.',
+    typeLater: 'Its type shows the next time Salli opens.',
+    names: { ledger: 'Ledger', ledgerRounded: 'Ledger Rounded', bold: 'Bold', sticker: 'Sticker', aurora: 'Aurora' },
+  },
   more: {
     title: 'More',
     server: 'Signed in to',

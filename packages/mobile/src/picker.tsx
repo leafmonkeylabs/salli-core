@@ -80,7 +80,7 @@ export function Picker({
             autoCorrect={false}
             clearButtonMode="while-editing"
             returnKeyType="search"
-            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
           <View accessibilityRole="radiogroup">
             {groups.length ? (

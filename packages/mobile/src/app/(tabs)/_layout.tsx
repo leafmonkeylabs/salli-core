@@ -3,7 +3,7 @@ import { router, Tabs, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useYourAI } from '../../ai/store';
-import { Icon, type IconName } from '../../kit';
+import { Icon, offsetOf, type IconName } from '../../kit';
 import { strings } from '../../strings';
 import { font, useTheme } from '../../theme';
 
@@ -49,7 +49,7 @@ function AIButton() {
       accessibilityRole="button"
       accessibilityLabel={ai.ready ? strings.ai.open : strings.ai.openSetUp}
       onPress={() => (ai.ready ? router.push({ pathname: '/agent', params: { from: tab } }) : router.push('/ai'))}
-      style={({ pressed }) => [styles.ai, { bottom: insets.bottom + BAR + 16, backgroundColor: theme.button, shadowColor: theme.shadow, opacity: pressed ? 0.85 : 1 }]}
+      style={({ pressed }) => [styles.ai, { bottom: insets.bottom + BAR + 16, borderRadius: theme.control ? Math.min(theme.control, 28) : 0, backgroundColor: theme.button, shadowColor: theme.shadow, opacity: pressed ? 0.85 : 1 }, offsetOf(theme)]}
     >
       <Icon name="message" size={26} colour={theme.buttonText} />
     </Pressable>
@@ -58,7 +58,7 @@ function AIButton() {
 
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-/** The current place in ink at weight 500 with a 2 px bar above it: not colour alone. */
+/** The current place in ink (the theme's own colour) at weight 500 with a 2 px bar above it: not colour alone. */
 function Bar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -68,7 +68,7 @@ function Bar({ state, emitter, navigateToTab }: BottomTabBarProps) {
         const place = PLACES.find((p) => p.name === route.name);
         if (!place) return null;
         const current = state.index === index;
-        const colour = current ? theme.text : theme.muted;
+        const colour = current ? theme.current : theme.muted;
         return (
           <Pressable
             key={route.key}
@@ -79,9 +79,9 @@ function Bar({ state, emitter, navigateToTab }: BottomTabBarProps) {
               const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
               if (!current && !event.defaultPrevented) navigateToTab(route.key);
             }}
-            style={[styles.place, { borderTopColor: current ? theme.text : 'transparent' }]}
+            style={[styles.place, { borderTopColor: current ? theme.current : 'transparent' }]}
           >
-            <Icon name={place.icon} colour={colour} />
+            <Icon name={place.icon} colour={colour} {...(current && theme.currentFill ? { fill: theme.currentFill } : {})} />
             <Text style={[styles.label, { color: colour, fontFamily: current ? font.medium : font.regular }]}>{place.label}</Text>
           </Pressable>
         );

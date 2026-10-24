@@ -65,7 +65,7 @@ export default function Entry() {
             <Title>{data.description}</Title>
             <View style={styles.chips}>
               {[displayDate(data.entry_date), data.id.slice(0, 8), t.sourceChip[data.source] ?? data.source].map((fact, i) => (
-                <Text key={fact} style={[styles.chip, i === 1 ? styles.mono : null, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card }]}>
+                <Text key={fact} style={[styles.chip, i === 1 ? styles.mono : null, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
                   {fact}
                 </Text>
               ))}
@@ -140,7 +140,7 @@ export default function Entry() {
             {t.confirmTitle(data.description)}
           </Text>
           <Body>{t.confirmBody(displayDate(data.entry_date))}</Body>
-          <View style={[styles.reversal, { borderColor: theme.rule, backgroundColor: theme.card }]}>
+          <View style={[styles.reversal, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]}>
             <Text style={[styles.reversalTitle, { color: theme.text }]}>{t.reversalOf(data.description)}</Text>
             <LinesTable
               total={false}

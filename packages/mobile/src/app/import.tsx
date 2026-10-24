@@ -85,7 +85,7 @@ export default function Import() {
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]}>
         <Field label={t.file} help={tooLarge ? t.tooLarge : t.fileHelp}>
           {file ? (
-            <View style={[styles.file, { borderColor: theme.fieldBorder, backgroundColor: theme.input }]}>
+            <View style={[styles.file, { borderColor: theme.fieldBorder, backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12) }]}>
               <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={2}>
                 {file.name}
               </Text>
@@ -99,7 +99,7 @@ export default function Import() {
             accessibilityRole="button"
             accessibilityLabel={`${t.account}: ${name}`}
             onPress={() => setPicking(true)}
-            style={[styles.choose, { backgroundColor: theme.input, borderColor: theme.fieldBorder }]}
+            style={[styles.choose, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder }]}
           >
             <Body>{name}</Body>
             <Icon name="down" size={16} colour={theme.muted} />

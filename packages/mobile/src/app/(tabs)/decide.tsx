@@ -110,7 +110,7 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
             autoFocus
             accessibilityLabel={t.reflection}
             accessibilityHint={t.reflectionHelp}
-            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
           <Body small muted>
             {t.reflectionHelp}

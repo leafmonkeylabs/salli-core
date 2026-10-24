@@ -15,7 +15,7 @@ import {
 import { router } from 'expo-router';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../../api';
-import { Body, Card, CardHead, Icon, LedgerRow, Row, Waiting } from '../../kit';
+import { Body, Card, CardHead, Icon, LedgerRow, Row, Waiting, offsetOf } from '../../kit';
 import { displayRange } from '../../lib/display';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
@@ -38,14 +38,14 @@ export default function Books() {
   return (
     <Page underAI title={t.title} onRefresh={() => Promise.all([accounts.refetch(), sheet.refetch(), forecast.refetch(), statements.refetch()])}>
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/add')} style={[styles.action, { backgroundColor: theme.button }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/add')} style={[styles.action, { backgroundColor: theme.button, borderRadius: theme.control }, offsetOf(theme)]}>
           <Icon name="plus" size={18} colour={theme.buttonText} />
           <Text style={[styles.actionText, { color: theme.buttonText }]}>{t.add}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/import')}
-          style={[styles.action, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1 }]}
+          style={[styles.action, { backgroundColor: theme.button2, borderColor: theme.button2Border, borderWidth: 1, borderRadius: theme.control }, offsetOf(theme)]}
         >
           <Icon name="upload" size={18} colour={theme.button2Text} />
           <Text style={[styles.actionText, { color: theme.button2Text }]}>{strings.imports.importFile}</Text>
@@ -61,7 +61,7 @@ export default function Books() {
         </Card>
       ) : null}
 
-      <View style={[styles.places, { backgroundColor: theme.card, borderColor: theme.rule }]}>
+      <View style={[styles.places, { backgroundColor: theme.card, borderColor: theme.rule, borderRadius: theme.radius, overflow: 'hidden' }]}>
         <Pressable
           accessibilityRole="link"
           onPress={() => router.push('/entries')}
