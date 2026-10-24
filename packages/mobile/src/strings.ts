@@ -472,8 +472,6 @@ export const strings = {
     lockHelp: 'Salli asks again when it opens, and after a minute away.',
     noLock: 'Set a passcode on this phone first, in its Settings, to lock Salli.',
     lockHelpShort: 'Or the phone’s own unlock, after 1 minute away',
-    showAmounts: 'Show amounts outside the app',
-    showAmountsHelp: 'In widgets and the app switcher',
     digest: 'Digest on this phone',
     digestHelp: 'Needs a push notifier on your server',
     planned: 'Planned',

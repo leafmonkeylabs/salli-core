@@ -1,7 +1,6 @@
 // The figure widgets (design 35): the cash forecast, this month's spending,
 // net worth, and the days to the next income. Like the others, they show
-// only what the snapshot carries: figures (hidden unless the person allows
-// amounts outside the app), never a name from the books.
+// only what the snapshot carries: figures, never a name from the books.
 import SwiftUI
 import WidgetKit
 

@@ -1,8 +1,8 @@
 /**
  * This phone (docs/design/mobile.md, "Discretion"): whether Salli opens with
- * Face ID or the phone's own unlock, and whether its figures may show in the
- * app switcher. Kept on the phone, never sent to a server; nothing is locked
- * or covered while signed out, when there is nothing of the person's to see.
+ * Face ID or the phone's own unlock. Kept on the phone, never sent to a
+ * server; nothing is locked or covered while signed out, when there is
+ * nothing of the person's to see.
  */
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
@@ -20,11 +20,9 @@ const KEY = 'salli.phone';
 export interface PhoneSettings {
   /** Open with Face ID, Touch ID or the passcode. */
   lock: boolean;
-  /** Let the app switcher show the screen rather than a cover. */
-  showAmounts: boolean;
 }
 
-const DEFAULTS: PhoneSettings = { lock: false, showAmounts: false };
+const DEFAULTS: PhoneSettings = { lock: false };
 
 /** What this phone unlocks with, as the person knows it; undefined when no passcode is set. */
 export type UnlockWith = 'face' | 'fingerprint' | 'biometric' | 'passcode';
@@ -34,7 +32,6 @@ interface PhoneApi {
   unlockWith: UnlockWith | undefined;
   /** Turning the lock on asks to unlock first, so no one locks themselves out. */
   setLock(on: boolean): Promise<void>;
-  setShowAmounts(on: boolean): void;
 }
 
 const PhoneContext = createContext<PhoneApi | null>(null);
@@ -137,11 +134,11 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     },
     [settings, store],
   );
-  const setShowAmounts = useCallback((on: boolean) => settings && store({ ...settings, showAmounts: on }), [settings, store]);
 
-  const value = useMemo(() => ({ settings: settings ?? DEFAULTS, unlockWith, setLock, setShowAmounts }), [settings, unlockWith, setLock, setShowAmounts]);
+  const value = useMemo(() => ({ settings: settings ?? DEFAULTS, unlockWith, setLock }), [settings, unlockWith, setLock]);
   // Until the settings are read, cover what the person may have asked to hide.
-  const cover = signedIn && (!settings || (away && !settings.showAmounts));
+  // A phone of one's own shows its figures; the app switcher is covered only while Salli locks.
+  const cover = signedIn && (!settings || (away && settings.lock));
   const hidden = showLock || cover;
   const how = t.how[unlockWith ?? 'passcode'];
 

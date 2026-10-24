@@ -1,7 +1,7 @@
 /**
  * Keeps the widgets' snapshot (src/lib/glance.ts) in step with the reads: the
  * same reads as Home, so it asks the server nothing more. Signed out, the
- * snapshot goes, and the widget asks to open the app.
+ * snapshot goes, and the widget asks to open the app. Figures show: the phone is the person's own.
  */
 import { ExtensionStorage } from '@bacons/apple-targets';
 import { decisionsReviewsDue, insightsForecast, insightsNetWorth, insightsSafeToSpend, insightsSignals, ledgerIncomeStatement, remindersList, statementsList } from '@leafmonkeylabs/salli-sdk';
@@ -11,7 +11,6 @@ import { useAppearance } from './appearance';
 import { isNight } from './lib/appearance';
 import { monthOf, sameDaysLastMonth, todayIso } from './lib/display';
 import { glanceOf, type Palette } from './lib/glance';
-import { usePhone } from './phone';
 import { useSession } from './session';
 import { themeOf, type Theme } from './theme';
 
@@ -37,7 +36,6 @@ export function Glance() {
 }
 
 function Writer({ host }: { host: string }) {
-  const { settings } = usePhone();
   const safe = useRead('insights.safeToSpend', insightsSafeToSpend);
   const reviews = useRead('decisions.reviews.due', decisionsReviewsDue);
   const reminders = useRead('reminders.list', remindersList, { query: { status: 'pending' } });
@@ -73,7 +71,7 @@ function Writer({ host }: { host: string }) {
             },
             {
               host,
-              showAmounts: settings.showAmounts,
+              showAmounts: true,
               at,
               today,
               colors: {

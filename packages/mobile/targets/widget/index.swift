@@ -24,7 +24,7 @@ struct SafeWidget: Widget {
       SafeView(entry: entry)
     }
     .configurationDisplayName("Safe to spend")
-    .description("Until your next income. The amount shows only if you allow amounts outside the app.")
+    .description("What you can spend until your next income.")
     .supportedFamilies([.systemSmall, .accessoryRectangular])
   }
 }
