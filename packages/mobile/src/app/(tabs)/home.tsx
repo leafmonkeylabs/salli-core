@@ -22,7 +22,7 @@ import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, SectionLabel } from '../../kit';
 import { filled, lineChart } from '../../lib/chart';
 import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, sameDaysLastMonth, todayIso, wholeDigits } from '../../lib/display';
-import { useSession } from '../../session';
+import { useSession, labelIn } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 import { Glow, Header, Pull, UNDER_AI } from '../../shell';
@@ -50,7 +50,7 @@ export default function Home() {
   const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
   const [dismissed, setDismissed] = useState<string | undefined>(undefined);
   const reach = useReach();
-  const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
+  const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
   const api = useApi();
   const queryClient = useQueryClient();
   // Everything on screen from this server, Needs attention's reads too.
@@ -91,7 +91,7 @@ export default function Home() {
         ) : null}
         {endedOn && dismissed !== endedOn ? (
           <Card style={{ gap: 8 }}>
-            <Body alert>{strings.servers.ended(endedOn.replace(/^https?:\/\//, ''))}</Body>
+            <Body alert>{strings.servers.ended(labelIn(session, endedOn))}</Body>
             <Button kind="tertiary" label={strings.servers.dismiss} onPress={() => setDismissed(endedOn)} />
           </Card>
         ) : null}

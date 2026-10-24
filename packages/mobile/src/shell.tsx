@@ -8,7 +8,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { Body, Button, Card, Icon, Title } from './kit';
-import { useSession } from './session';
+import { useSession, labelIn } from './session';
 import { strings } from './strings';
 import { font, size, useTheme } from './theme';
 
@@ -17,12 +17,13 @@ export function Header({ title, server, unreachable, back, action }: { title?: s
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { session } = useSession();
-  const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
+  const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
+  const named = session.status === 'signed-in' && session.known.some((k) => k.server === session.server && k.name);
   const lead = back ? (
     <BackLink label={back.label} onPress={back.onPress} />
   ) : server ? (
     <Pressable accessibilityRole="button" accessibilityLabel={unreachable ? strings.reach.switchServer(host) : strings.home.switchServer(host)} onPress={() => router.push('/servers')} style={styles.server}>
-      <Text style={[styles.host, { color: theme.text }]} numberOfLines={1}>
+      <Text style={[styles.host, named ? styles.name : null, { color: theme.text }]} numberOfLines={1}>
         {host}
       </Text>
       <Icon name="down" size={14} colour={theme.muted} />
@@ -154,6 +155,7 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: size.target },
   server: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, flexShrink: 1 },
   host: { fontFamily: font.mono, fontSize: size.small },
+  name: { fontFamily: font.medium, fontSize: size.body },
   titleBox: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 8, paddingBottom: 8 },
   page: { padding: size.gutter, gap: size.gap },
   back: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingRight: 12 },

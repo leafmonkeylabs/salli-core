@@ -7,6 +7,8 @@
 export interface KnownServer {
   email?: string;
   currency?: string;
+  /** What the person calls it ("Home", "Mum's books"), shown in its address's place. */
+  name?: string;
 }
 
 /**
@@ -61,7 +63,7 @@ export function remembered(index: ServerIndex, server: string, who: KnownServer)
 }
 
 /** Every remembered server, those signed in to first in their order, then the rest. */
-export function listOf(index: ServerIndex | undefined): { server: string; signedIn: boolean; email?: string; currency?: string }[] {
+export function listOf(index: ServerIndex | undefined): { server: string; signedIn: boolean; email?: string; currency?: string; name?: string }[] {
   if (!index) return [];
   const known = index.known ?? {};
   const signedOut = Object.keys(known).filter((s) => !index.servers.includes(s));
@@ -69,6 +71,18 @@ export function listOf(index: ServerIndex | undefined): { server: string; signed
     ...row,
     ...(known[row.server] ?? {}),
   }));
+}
+
+/** The index with `server` named; an empty name goes back to its address. */
+export function named(index: ServerIndex, server: string, name: string): ServerIndex {
+  const { name: _old, ...rest } = index.known?.[server] ?? {};
+  const trimmed = name.trim();
+  return { ...index, known: { ...(index.known ?? {}), [server]: trimmed ? { ...rest, name: trimmed } : rest } };
+}
+
+/** How a server is shown: its name, or its address without the scheme. */
+export function labelOf(server: string, name?: string): string {
+  return name?.trim() || server.replace(/^https?:\/\//, '');
 }
 
 /** How long the app may be away before it asks to be unlocked again. */

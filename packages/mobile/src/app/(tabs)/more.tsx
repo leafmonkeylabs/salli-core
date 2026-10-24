@@ -4,7 +4,7 @@ import { cardOf, Icon, type IconName } from '../../kit';
 import { useYourAI } from '../../ai/store';
 import { useAppearance } from '../../appearance';
 import { providerOf } from '../../lib/ai';
-import { useSession } from '../../session';
+import { useSession, labelIn } from '../../session';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -24,13 +24,13 @@ export default function More() {
   const ai = useYourAI();
   const { appearance } = useAppearance();
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
-  const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
+  const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
 
   const status = !ai.enabled ? strings.ai.off : (ai.model ?? strings.ai.notSet);
   return (
     <Page title={t.title}>
       <View style={styles.grid}>
-        <Tile icon="ai" title={strings.ai.title} status={status} hint={ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : undefined} onPress={() => router.push('/ai')} />
+        <Tile icon="spark" title={strings.ai.title} status={status} hint={ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : undefined} onPress={() => router.push('/ai')} />
         <Tile icon="message" title={t.automationsPlace} hint={t.automationsBody} onPress={() => router.push('/automations')} />
         <Tile icon="appearance" title={strings.appearance.title} status={strings.appearance.names[appearance.theme]} onPress={() => router.push('/appearance')} />
         <Tile icon="server" title={t.serversShort} status={host} hint={t.serversBody(host)} onPress={() => router.push('/sign-ins')} />
