@@ -3,6 +3,7 @@ import { amountParts, displayDate, monthNameOf, monthOf, todayIso } from '../src
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
 import { stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
+import { LOCK_AFTER_MS, lockDue, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
 const REDIRECT = 'money.salli.app:/oauth/callback';
 
@@ -164,5 +165,35 @@ describe('the forecast chart', () => {
       0,
     );
     expect(chart.zero).toBeCloseTo(50);
+  });
+});
+
+describe('the servers on this phone', () => {
+  it('gives each server a keychain key of its own, in the characters a key takes', () => {
+    const a = storeKeyOf('https://money.example.org');
+    const b = storeKeyOf('http://localhost:8000');
+    expect(a).toBe('salli.sign-in.https-3a-2f-2fmoney.example.org');
+    expect(b).toMatch(/^[A-Za-z0-9._-]+$/);
+    expect(storeKeyOf('https://a-b.example')).not.toBe(storeKeyOf('https://a-2db.example'));
+  });
+
+  it('adds a server and puts it on screen; signing in again keeps its place', () => {
+    const one = withServer(undefined, 'https://a.example');
+    const two = withServer(one, 'https://b.example');
+    expect(two).toEqual({ current: 'https://b.example', servers: ['https://a.example', 'https://b.example'] });
+    expect(withServer(two, 'https://a.example')).toEqual({ current: 'https://a.example', servers: ['https://a.example', 'https://b.example'] });
+  });
+
+  it('moves to the first left when the one on screen goes, and to none after the last', () => {
+    const index = { current: 'https://b.example', servers: ['https://a.example', 'https://b.example'] };
+    expect(withoutServer(index, 'https://b.example')).toEqual({ current: 'https://a.example', servers: ['https://a.example'] });
+    expect(withoutServer(index, 'https://a.example')).toEqual({ current: 'https://b.example', servers: ['https://b.example'] });
+    expect(withoutServer({ current: 'https://a.example', servers: ['https://a.example'] }, 'https://a.example')).toBeUndefined();
+  });
+
+  it('asks to be unlocked only when the lock is on and the app was away a minute', () => {
+    expect(lockDue(true, LOCK_AFTER_MS)).toBe(true);
+    expect(lockDue(true, LOCK_AFTER_MS - 1)).toBe(false);
+    expect(lockDue(false, LOCK_AFTER_MS * 10)).toBe(false);
   });
 });

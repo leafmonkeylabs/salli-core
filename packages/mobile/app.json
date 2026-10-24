@@ -37,6 +37,12 @@
       "expo-secure-store",
       "expo-font",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Salli opens with Face ID, so only you see your books."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/icon.png",

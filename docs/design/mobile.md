@@ -2,10 +2,11 @@
 
 Status: **in development (October 2026).** M0, the server's sign-in for the
 app, M1, the app's first screens (finding a server, signing in, Home from
-the server's figures, signing out), and M2, the four places (Cash, Books
-with an account and an entry, adding an entry, Decide's reviews), are built
-([packages/mobile](../../packages/mobile/README.md)). Servers and this
-phone (Face ID, the app-switcher cover, more than one server) come next.
+the server's figures, signing out), M2, the four places (Cash, Books
+with an account and an entry, adding an entry, Decide's reviews), and
+servers and this phone (more than one server, Face ID, the app-switcher
+cover) are built ([packages/mobile](../../packages/mobile/README.md)).
+Reviewing an import and Android come next.
 
 ## Why
 
@@ -110,6 +111,25 @@ seeded by `core_0022_mobile_client`:
 - **Decide:** the reviews due, each with what the chosen option projected
   against what happened, and a reflection to record. Templates and
   scenarios stay in the console.
+
+## Servers and this phone
+
+- **More than one server.** Each sign-in is its own keychain item
+  (`salli.sign-in.` and the server's address, escaped to the characters a
+  key takes); an index beside them (`salli.servers`, no secret in it) lists
+  them and the one on screen. Home's server name opens the list; adding one
+  goes through the same check and sign-in page. Reads are cached by server,
+  so switching shows nothing of the other. Signing out ends the one on
+  screen and shows the next; a sign-in the server ends is dropped from the
+  phone and said once on Home. The one sign-in an earlier version kept is
+  moved into the index on launch.
+- **Face ID, or the phone's unlock.** Off until the person turns it on in
+  More, which asks to unlock first. On, the app asks when it opens and after
+  a minute in the background. A phone with no passcode can't turn it on.
+- **The app switcher shows a cover,** the wordmark on the bar's colour,
+  whenever the app isn't active, unless the person turns on showing amounts.
+  Nothing is locked or covered while signed out.
+- These settings stay on the phone (`salli.phone`), and no server sees them.
 
 ## Later
 

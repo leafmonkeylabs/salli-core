@@ -13,24 +13,40 @@ const t = strings.welcome;
 export default function Welcome() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { session } = useSession();
+  const { session, switchTo } = useSession();
   const [typed, setTyped] = useState('');
   const [wrong, setWrong] = useState(false);
   const ended = session.status === 'signed-out' && session.ended;
+  // Signed in, this is adding another server.
+  const adding = session.status === 'signed-in';
 
   const check = () => {
     const server = serverUrlOf(typed);
     if (!server) return setWrong(true);
     setWrong(false);
+    // Already signed in to it: show it, rather than start a second sign-in.
+    if (adding && session.servers.includes(server)) {
+      void switchTo(server).then(() => {
+        if (router.canDismiss()) router.dismissAll();
+        router.replace('/home');
+      });
+      return;
+    }
     router.push({ pathname: '/connect', params: { server } });
   };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.chrome }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={[styles.page, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
-        <View style={{ marginLeft: -8 }}>
-          <Logo height={40} />
-        </View>
+      <ScrollView contentContainerStyle={[styles.page, { paddingTop: insets.top + (adding ? 4 : 32), paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+        {adding ? (
+          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.cancel}>
+            <Body>{t.cancel}</Body>
+          </Pressable>
+        ) : (
+          <View style={{ marginLeft: -8 }}>
+            <Logo height={40} />
+          </View>
+        )}
         {ended ? (
           <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card }]} accessibilityRole="alert">
             <Body style={{ fontFamily: font.medium }}>{strings.problem.signedOutTitle}</Body>
@@ -40,8 +56,8 @@ export default function Welcome() {
           </View>
         ) : null}
         <View style={{ gap: 10 }}>
-          <Title>{t.title}</Title>
-          <Body muted>{t.body}</Body>
+          <Title>{adding ? t.addTitle : t.title}</Title>
+          <Body muted>{adding ? t.addBody : t.body}</Body>
         </View>
 
         <View style={{ gap: 8 }}>
@@ -73,17 +89,22 @@ export default function Welcome() {
         </View>
 
         <View style={{ flex: 1 }} />
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(t.noServerUrl)}
-          style={[styles.link, { borderColor: theme.rule }]}
-        >
-          <Body style={{ flex: 1 }}>{t.noServer}</Body>
-          <Icon name="external" size={16} colour={theme.muted} />
-        </Pressable>
-        <Body small muted>
-          {t.footer}
-        </Body>
+        {/* Adding a server, the person has one: no need to say how to run one. */}
+        {adding ? null : (
+          <>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => void Linking.openURL(t.noServerUrl)}
+              style={[styles.link, { borderColor: theme.rule }]}
+            >
+              <Body style={{ flex: 1 }}>{t.noServer}</Body>
+              <Icon name="external" size={16} colour={theme.muted} />
+            </Pressable>
+            <Body small muted>
+              {t.footer}
+            </Body>
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -91,6 +112,7 @@ export default function Welcome() {
 
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: 28 },
+  cancel: { minHeight: size.target, justifyContent: 'center', alignSelf: 'flex-start', paddingRight: 12 },
   notice: { borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 4 },
   fieldLabel: { fontFamily: font.medium, fontSize: size.small },
   input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.mono, fontSize: size.body },

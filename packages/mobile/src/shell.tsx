@@ -2,6 +2,7 @@
  * The frame around a place: the bar at the top (which server, and adding an
  * entry), and a place still to come, which says where it is meanwhile.
  */
+import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,11 +20,12 @@ export function Header({ title, server, back, action }: { title?: string; server
   const lead = back ? (
     <BackLink label={back.label} onPress={back.onPress} />
   ) : server ? (
-    <View accessible accessibilityLabel={strings.home.switchServer(host)} style={styles.server}>
+    <Pressable accessibilityRole="button" accessibilityLabel={strings.home.switchServer(host)} onPress={() => router.push('/servers')} style={styles.server}>
       <Text style={[styles.host, { color: theme.text }]} numberOfLines={1}>
         {host}
       </Text>
-    </View>
+      <Icon name="down" size={14} colour={theme.muted} />
+    </Pressable>
   ) : null;
   return (
     <View style={[styles.header, { paddingTop: insets.top, backgroundColor: theme.chrome, borderBottomColor: theme.rule }]}>
@@ -119,7 +121,7 @@ export function BackLink({ label, onPress }: { label: string; onPress: () => voi
 const styles = StyleSheet.create({
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: size.target },
-  server: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 8 },
+  server: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, flexShrink: 1 },
   host: { fontFamily: font.mono, fontSize: size.small },
   titleBox: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 8, paddingBottom: 8 },
   page: { padding: size.gutter, gap: size.gap },

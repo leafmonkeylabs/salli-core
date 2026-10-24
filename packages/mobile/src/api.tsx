@@ -18,13 +18,14 @@ export function useApi(): SalliClient {
   return session.client;
 }
 
-/** The query client: no retries of an answer, one of a dropped connection; a 401 ends the sign-in. */
+/** The query client: no retries of an answer, one of a dropped connection; a 401 ends its server's sign-in. */
 export function ApiProvider({ children }: { children: ReactNode }) {
   const { ended } = useSession();
   const queryClient = useMemo(
     () =>
       new QueryClient({
-        queryCache: new QueryCache({ onError: (error) => (isSignedOutError(error) ? ended() : undefined) }),
+        // Every key starts with its server: a 401 ends that server's sign-in, not the one on screen.
+        queryCache: new QueryCache({ onError: (error, query) => (isSignedOutError(error) ? ended(String(query.queryKey[0])) : undefined) }),
         defaultOptions: {
           queries: {
             staleTime: 30_000,
