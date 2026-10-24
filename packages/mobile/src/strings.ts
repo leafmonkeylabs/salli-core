@@ -260,7 +260,6 @@ export const strings = {
     signOutNote: 'Ends this sign-in on the server. Your books stay there.',
     signOutNoteOthers: 'Ends this sign-in on the server. Your books stay there, and the other servers stay signed in.',
     servers: (n: number) => (n === 1 ? 'Servers' : `Servers (${n})`),
-    footer: 'Salli for iPhone and Android, free and open source. Your books stay on your server.',
     places: {
       tax: { title: 'Tax', body: 'Your tax, line by line, and the rules that compute it. Activating a version stays on the console.' },
       attention: { title: 'Attention', body: 'What Salli has noticed, and your reminders by due date.' },
@@ -269,6 +268,7 @@ export const strings = {
     },
     inConsole: (title: string) => `${title}, in the console`,
     serversPlace: 'Servers and sign-in',
+    serversShort: 'Servers',
     serversBody: (host: string) => `${host} and any other server, and how this phone opens Salli.`,
     automationsPlace: 'Automations',
     automationsBody: 'Bank messages to drafts',
