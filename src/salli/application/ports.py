@@ -627,6 +627,28 @@ class StoragePort(ABC):
     @abstractmethod
     async def download(self, key: str) -> bytes: ...
 
+    @abstractmethod
+    async def delete_user(self, user_id: str) -> int:
+        """Delete every file uploaded for this user; how many there were."""
+        ...
+
+
+class ConversationStore(ABC):
+    """A person's conversations with Salli's AI, where the agents keep them
+    (LangGraph's checkpointer): read for their export, deleted with them."""
+
+    @abstractmethod
+    async def export(self, user_id: str) -> list[dict[str, Any]]:
+        """Each conversation, newest first: its thread id, when it last
+        changed and its messages in order (role, text, the tools called)."""
+        ...
+
+    @abstractmethod
+    async def delete_all(self, user_id: str) -> int:
+        """Delete every thread of the user's, review workflows' included;
+        how many there were."""
+        ...
+
 
 @dataclass(frozen=True)
 class FxQuote:

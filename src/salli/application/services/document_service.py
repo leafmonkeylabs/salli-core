@@ -77,10 +77,8 @@ class DocumentService:
     async def delete_document(self, user_id: str, doc_id: str) -> None:
         async with self._uow_factory() as uow:
             uow: UnitOfWork
-            doc = await uow.agent_documents.get(user_id, doc_id)
-            if doc and doc.get("storage_key"):
-                # Note: StoragePort has no delete method — files are retained
-                pass
+            # The file, if any, stays until the account is erased: StoragePort
+            # deletes a user's files all at once, not one by one.
             await uow.agent_documents.delete(user_id, doc_id)
 
     async def save_memory(

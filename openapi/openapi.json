@@ -18411,6 +18411,14 @@
             "title": "Decision Journal",
             "description": "The decision journal as `decisions.export` gives it: every entry,\nnote and review exactly as recorded, with its hash."
           },
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedConversation"
+            },
+            "type": "array",
+            "title": "Conversations",
+            "description": "Every conversation with Salli's AI, newest first: the person's and\nthe assistant's messages in order. Empty where the server keeps none\n(no Postgres checkpointer). A briefing or return awaiting review is\nworking state made from the data above, not a conversation."
+          },
           "notification_preferences": {
             "anyOf": [
               {
@@ -20886,6 +20894,32 @@
         ],
         "title": "ExportedAccount"
       },
+      "ExportedConversation": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "updated_at",
+          "messages"
+        ],
+        "title": "ExportedConversation"
+      },
       "ExportedJournalEntry": {
         "properties": {
           "id": {
@@ -20952,6 +20986,35 @@
           "postings"
         ],
         "title": "ExportedJournalEntry"
+      },
+      "ExportedMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tools"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "ExportedMessage"
       },
       "ExportedPosting": {
         "properties": {

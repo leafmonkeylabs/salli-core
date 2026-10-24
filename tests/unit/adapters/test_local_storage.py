@@ -72,3 +72,27 @@ async def test_a_path_outside_the_root_is_not_read(tmp_path):
     for key in (str(secret), "../secret.txt", "u1/../../secret.txt", ""):
         with pytest.raises(ValueError):
             await storage.download(key)
+
+
+async def test_erasing_a_user_deletes_their_folder_and_no_one_elses(tmp_path):
+    storage = LocalStorageAdapter(tmp_path / "storage")
+    await storage.upload("u1", "stmt-1/october.csv", b"x")
+    await storage.upload("u1", "agent-uploads/d1/receipt.pdf", b"y")
+    kept = await storage.upload("u2", "stmt-2/october.csv", b"z")
+
+    assert await storage.delete_user("u1") == 2
+
+    assert not (tmp_path / "storage" / "u1").exists()
+    assert await storage.download(kept) == b"z"
+    assert await storage.delete_user("u1") == 0
+
+
+async def test_erasing_never_reaches_outside_a_users_folder(tmp_path):
+    storage = LocalStorageAdapter(tmp_path / "storage")
+    await storage.upload("u1", "a.csv", b"x")
+
+    for user_id in ("", ".", "..", "u1/.."):
+        with pytest.raises(ValueError):
+            await storage.delete_user(user_id)
+
+    assert (tmp_path / "storage" / "u1" / "a.csv").exists()

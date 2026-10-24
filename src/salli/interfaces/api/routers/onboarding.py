@@ -379,6 +379,23 @@ class ExportedJournalEntry(BaseModel):
     postings: list[ExportedPosting]
 
 
+class ExportedMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str
+    #: The tools the assistant called, by name: never what they were given
+    #: or what they returned.
+    tools: list[str] = Field(default_factory=list)
+
+
+class ExportedConversation(BaseModel):
+    #: The id the conversation was started with.
+    thread_id: str
+    #: When it last changed (ISO 8601).
+    updated_at: str
+    #: In the order they were said.
+    messages: list[ExportedMessage]
+
+
 class DataExport(BaseModel):
     """Everything Salli has stored about the user, as one document.
 
@@ -439,6 +456,11 @@ class DataExport(BaseModel):
     decision_journal: dict[str, Any] = Field(default_factory=dict)
     """The decision journal as `decisions.export` gives it: every entry,
     note and review exactly as recorded, with its hash."""
+    conversations: list[ExportedConversation] = Field(default_factory=list)
+    """Every conversation with Salli's AI, newest first: the person's and
+    the assistant's messages in order. Empty where the server keeps none
+    (no Postgres checkpointer). A briefing or return awaiting review is
+    working state made from the data above, not a conversation."""
     notification_preferences: dict[str, Any] | None = None
     """The digest's preferences as stored (null while never set); the time
     zone is in `profile`."""
@@ -464,7 +486,10 @@ class DeleteAccountRequest(BaseModel):
 
 class AccountDeletion(BaseModel):
     deleted: bool
-    #: Rows deleted, by table (an extension's tables included).
+    #: Rows deleted, by table (an extension's tables included), then
+    #: `stored_files` and `conversations` deleted. `stored_files_failed` or
+    #: `conversations_failed` (1) says some were left, for the operator to
+    #: remove.
     counts: dict[str, int]
 
 
