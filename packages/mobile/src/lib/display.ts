@@ -56,6 +56,12 @@ export function displayDay(iso: string): string {
   return match && name ? `${name} ${(match[3] ?? '').replace(/^0/, '')}` : iso;
 }
 
+/** A month as YYYY-MM (or a date in it), read: "Mar 2041". */
+export function displayMonth(iso: string): string {
+  const name = MONTHS[iso.slice(5, 7)];
+  return name ? `${name} ${iso.slice(0, 4)}` : iso;
+}
+
 /** A period, its year said once when both ends share it: "Oct 1 to Oct 10, 2026". */
 export function displayRange(from: string, to: string): string {
   if (from.slice(0, 4) === to.slice(0, 4) && /^\d{4}-\d{2}-\d{2}/.test(from)) return `${displayDay(from)} to ${displayDate(to)}`;

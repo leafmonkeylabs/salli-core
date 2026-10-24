@@ -159,3 +159,32 @@ export function heights(amounts: readonly string[], count = 32, keep?: number): 
   const span = high - low || 1;
   return picked.map((i) => ((values[i] ?? low) - low) / span);
 }
+
+/**
+ * A projection on one scale: the base line, the band from the low to the high
+ * scenario, and where a target sits. Missing years are left out.
+ */
+export function bandChart(
+  points: readonly { low?: string | null; base?: string | null; high?: string | null }[],
+  target: string,
+  width: number,
+  height: number,
+  pad = 6,
+): { base: string; band: string; target: number } {
+  const all = points.flatMap((p) => [p.low, p.base, p.high].filter((v): v is string => !!v).map(pixels)).concat(pixels(target));
+  const top = Math.max(...all);
+  const bottom = Math.min(0, ...all);
+  const span = top - bottom || 1;
+  const x = (i: number): number => pad + (points.length > 1 ? (i / (points.length - 1)) * (width - 2 * pad) : 0);
+  const y = (v: string): number => pad + ((top - pixels(v)) / span) * (height - 2 * pad);
+  const line = (key: 'low' | 'base' | 'high') =>
+    points.flatMap((p, i) => (p[key] ? [`${x(i).toFixed(1)} ${y(p[key] ?? '0').toFixed(1)}`] : []));
+  const base = line('base');
+  const high = line('high');
+  const low = line('low').reverse();
+  return {
+    base: base.length ? `M${base.join(' L')}` : '',
+    band: high.length && low.length ? `M${[...high, ...low].join(' L')} Z` : '',
+    target: y(target),
+  };
+}

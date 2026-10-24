@@ -14,7 +14,6 @@ const t = strings.more;
 /** The console's places the app doesn't have yet: each opens the console's own page. */
 const PLACES: readonly { key: keyof typeof t.places; icon: IconName; path: string }[] = [
   { key: 'tax', icon: 'tax', path: '/tax' },
-  { key: 'fi', icon: 'independence', path: '/fi' },
   { key: 'settings', icon: 'settings', path: '/settings' },
 ];
 
@@ -34,6 +33,7 @@ export default function More() {
         <Tile icon="message" title={t.automationsPlace} hint={t.automationsBody} onPress={() => router.push('/automations')} />
         <Tile icon="appearance" title={strings.appearance.title} status={strings.appearance.names[appearance.theme]} onPress={() => router.push('/appearance')} />
         <Tile icon="server" title={t.serversShort} status={host} hint={t.serversBody(host)} onPress={() => router.push('/sign-ins')} />
+        <Tile icon="independence" title={strings.fi.title} onPress={() => router.push('/fi')} />
         <Tile icon="attention" title={strings.attention.title} onPress={() => router.push('/attention')} />
         {consoleUrl
           ? PLACES.map((place) => (
