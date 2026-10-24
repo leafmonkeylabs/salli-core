@@ -199,6 +199,78 @@ export function Waiting({ query, what }: { query: { error: Error | null; isRefet
   );
 }
 
+export interface Line {
+  key: string;
+  /** The account's name. */
+  account: string;
+  side: 'debit' | 'credit';
+  amount: string;
+  currency: string;
+  /** Changes the account, where the lines are still a draft. */
+  onChange?: () => void;
+}
+
+/**
+ * An entry's lines as a ledger draws them: one head row (currency, debit,
+ * credit), each line on its side, and a Total under a rule with a double
+ * rule below. As the console's: the Total is shown only when each side is
+ * one line in one currency, so it is that line's own amount, never a sum.
+ */
+export function LinesTable({ lines, currency, changeLabel }: { lines: readonly Line[]; currency: string; changeLabel?: (account: string) => string }) {
+  const theme = useTheme();
+  const debits = lines.filter((l) => l.side === 'debit');
+  const credits = lines.filter((l) => l.side === 'credit');
+  const [debit] = debits;
+  const [credit] = credits;
+  const pair = debits.length === 1 && credits.length === 1 && debit && credit && debit.currency === credit.currency ? { debit, credit } : undefined;
+  const head = [styles.linesHead, { color: theme.muted }];
+  return (
+    <View>
+      <View style={[styles.linesRow, styles.linesHeadRow]}>
+        <Text style={[head, styles.linesAccount]}>{currency}</Text>
+        <Text style={[head, styles.linesFigure]}>{strings.entry.debit.toUpperCase()}</Text>
+        <Text style={[head, styles.linesFigure]}>{strings.entry.credit.toUpperCase()}</Text>
+      </View>
+      {lines.map((line) => {
+        const figure = <Money amount={line.amount} currency={line.currency} style={styles.linesRight} />;
+        const name = line.onChange ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={changeLabel ? changeLabel(line.account) : line.account}
+            onPress={line.onChange}
+            style={styles.linesChange}
+          >
+            <Body>{line.account}</Body>
+            <Icon name="down" size={14} colour={theme.muted} />
+          </Pressable>
+        ) : (
+          <Body>{line.account}</Body>
+        );
+        return (
+          <View key={line.key} style={[styles.linesRow, { borderTopColor: theme.rule, borderTopWidth: StyleSheet.hairlineWidth }]}>
+            <View style={styles.linesAccount}>{name}</View>
+            <View style={styles.linesFigure}>{line.side === 'debit' ? figure : null}</View>
+            <View style={styles.linesFigure}>{line.side === 'credit' ? figure : null}</View>
+          </View>
+        );
+      })}
+      {pair ? (
+        <View accessible style={[styles.linesRow, styles.linesTotal, { borderTopColor: theme.text, borderBottomColor: theme.text }]}>
+          <Text style={[styles.linesTotalText, styles.linesAccount, { color: theme.text }]}>{strings.entry.total}</Text>
+          <View style={styles.linesFigure}>
+            <Money amount={pair.debit.amount} currency={pair.debit.currency} style={{ ...styles.linesRight, fontFamily: font.semibold }} />
+          </View>
+          <View style={styles.linesFigure}>
+            <Money amount={pair.credit.amount} currency={pair.credit.currency} style={{ ...styles.linesRight, fontFamily: font.semibold }} />
+          </View>
+        </View>
+      ) : null}
+      {/* The double rule's second line. */}
+      {pair ? <View style={[styles.linesDouble, { backgroundColor: theme.text }]} /> : null}
+    </View>
+  );
+}
+
 /** A problem: what happened, then what to do. */
 export function Problem({ title, body, children }: { title: string; body: string; children?: ReactNode }) {
   return (
@@ -222,6 +294,7 @@ const ICONS = {
   back: 'M15 5l-7 7 7 7',
   external: 'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
   upload: 'M12 16V5M7 10l5-5 5 5M5 20h14',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
 } as const;
 
 export type IconName = keyof typeof ICONS | 'cash' | 'books';
@@ -249,6 +322,17 @@ export function Icon({ name, size: px = 24, colour }: { name: IconName; size?: n
 }
 
 const styles = StyleSheet.create({
+  linesRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 8 },
+  linesHeadRow: { minHeight: 28 },
+  linesHead: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
+  linesAccount: { flex: 1, minWidth: 0 },
+  linesFigure: { width: 84, alignItems: 'flex-end', textAlign: 'right' },
+  linesRight: { textAlign: 'right' },
+  linesChange: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+  // A ledger's total: a rule above, a double rule below (React Native draws no double border: a second line under it).
+  linesTotal: { borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 4 },
+  linesDouble: { height: 1, marginTop: 2 },
+  linesTotalText: { fontFamily: font.semibold, fontSize: size.body },
   card: { padding: 16, borderRadius: 0 },
   label: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 20 },
   square: { width: 8, height: 8, borderWidth: 1.5 },

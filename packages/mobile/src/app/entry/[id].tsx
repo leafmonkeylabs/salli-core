@@ -3,11 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, CardHead, Money, Title, Waiting } from '../../kit';
+import { Body, Button, Card, CardHead, LinesTable, Title, Waiting } from '../../kit';
 import { displayDate, displayRange } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
-import { font, size, useTheme } from '../../theme';
+import { font, useTheme } from '../../theme';
 
 const t = strings.entry;
 
@@ -50,28 +50,16 @@ export default function Entry() {
           </View>
 
           <Card style={{ paddingVertical: 12 }}>
-            <CardHead label={t.lines} end={data.postings[0]?.currency} />
-            <View style={[styles.line, styles.head, { borderBottomColor: theme.rule }]}>
-              <Text style={[styles.headText, styles.account, { color: theme.muted }]} />
-              <Text style={[styles.headText, styles.amount, { color: theme.muted }]}>{t.debit.toUpperCase()}</Text>
-              <Text style={[styles.headText, styles.amount, { color: theme.muted }]}>{t.credit.toUpperCase()}</Text>
-            </View>
-            {data.postings.map((posting) => {
-              const debit = posting.direction > 0;
-              const name = names.get(posting.account_id) ?? posting.account_id.slice(0, 8);
-              return (
-                <View
-                  key={posting.id}
-                  accessible
-                  accessibilityLabel={`${name}, ${debit ? t.debit : t.credit}`}
-                  style={[styles.line, { borderBottomColor: theme.rule }]}
-                >
-                  <Body style={styles.account}>{name}</Body>
-                  <View style={styles.amount}>{debit ? <Money amount={posting.amount} currency={posting.currency} style={styles.right} /> : null}</View>
-                  <View style={styles.amount}>{debit ? null : <Money amount={posting.amount} currency={posting.currency} style={styles.right} />}</View>
-                </View>
-              );
-            })}
+            <LinesTable
+              currency={data.postings[0]?.currency ?? ''}
+              lines={data.postings.map((posting) => ({
+                key: posting.id,
+                account: names.get(posting.account_id) ?? posting.account_id.slice(0, 8),
+                side: posting.direction > 0 ? 'debit' : 'credit',
+                amount: posting.amount,
+                currency: posting.currency,
+              }))}
+            />
           </Card>
 
           <Card style={{ gap: 6 }}>
@@ -129,10 +117,4 @@ export default function Entry() {
 
 const styles = StyleSheet.create({
   meta: { fontFamily: font.mono, fontSize: 13 },
-  line: { flexDirection: 'row', alignItems: 'center', minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth, gap: 8 },
-  head: { minHeight: 32 },
-  headText: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12, textAlign: 'right' },
-  account: { flex: 1 },
-  amount: { width: 88, alignItems: 'flex-end' },
-  right: { textAlign: 'right' },
 });

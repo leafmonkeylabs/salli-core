@@ -106,9 +106,13 @@ seeded by `core_0022_mobile_client`:
   lines, where it came from, and reversing it after a confirmation (an
   entry is never edited).
 - **Adding an entry:** said in a line and drafted by the server's model
-  (`entries.parse`; without a model, a 503, the fields are filled by hand),
-  then checked and booked. The draft is shown in plain words before
-  booking; the app adds nothing to it.
+  (`entries.parse`), shown as the entry it would book: its description,
+  a plain sentence, the debit and credit lines with each account
+  changeable in place, and a Total. "Enter it exactly instead" opens the
+  hand-filled form, as does a server with no model (a 503). The app adds
+  nothing to a draft. Entry draws its lines with the same table
+  (`LinesTable`); as in the console, a Total shows only when each side is
+  one line in one currency, so it is that line's amount, never a sum.
 - **Decide:** the reviews due, each with what the chosen option projected
   against what happened, and a reflection to record. Templates and
   scenarios stay in the console.
