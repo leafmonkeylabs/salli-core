@@ -610,7 +610,14 @@ class FakeAuditLog:
     def __init__(self) -> None:
         self.rows: list[tuple[str, str, dict[str, Any], str]] = []
 
-    async def log(self, user_id: str, action: str, params: dict[str, Any], decision: str) -> str:
+    async def log(
+        self,
+        user_id: str,
+        action: str,
+        params: dict[str, Any],
+        decision: str,
+        client_id: str | None = None,
+    ) -> str:
         self.rows.append((user_id, action, params, decision))
         return str(len(self.rows))
 

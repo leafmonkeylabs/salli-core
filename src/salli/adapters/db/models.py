@@ -122,6 +122,15 @@ class JournalEntryORM(Base):
             name="ck_journal_entries_source",
         ),
         Index("ix_journal_entries_user_date", "user_id", "entry_date"),
+        # A client_ref books once, even sent twice at the same time
+        # (LedgerService.add_entry_once, CLIENT_REF_PREFIX).
+        Index(
+            "uq_journal_entries_client_ref",
+            "user_id",
+            "external_ref",
+            unique=True,
+            postgresql_where=text("source = 'manual' AND external_ref LIKE 'client-ref:%'"),
+        ),
     )
 
 
@@ -1451,8 +1460,10 @@ class InsuranceTargetORM(Base):
 
 
 class AuditLogORM(Base):
-    """Immutable record of every agent-initiated write action and its human
-    decision (approved/denied) — never updated or deleted once written."""
+    """Every write an agent made or asked to make: Scrooge's with the person's
+    decision (approved/denied), an MCP client's with its outcome (succeeded,
+    refused, failed) and the client. Append-only: core_0027's trigger refuses
+    an UPDATE or DELETE, except erasing the user's own account."""
 
     __tablename__ = "audit_logs"
 
@@ -1461,6 +1472,8 @@ class AuditLogORM(Base):
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     decision: Mapped[str] = mapped_column(String(20), nullable=False)
+    #: The OAuth client of the MCP connection that asked, if one did.
+    client_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

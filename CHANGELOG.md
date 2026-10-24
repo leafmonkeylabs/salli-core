@@ -37,8 +37,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   Salli app now runs unasked only the tools the server marks read-only, and
   asks about every other, in place of guessing from their names.
 - **A retried entry books once.** MCP `post_journal_entry` takes an optional
-  `client_ref`; sent again, it returns the entry first booked with it
-  (`already_posted`) and books nothing.
+  `client_ref` (up to 180 characters); sent again, even at the same time, it
+  returns the entry first booked with it (`already_posted`) and books
+  nothing. It is kept as the entry's `external_ref` after `client-ref:`,
+  which a unique index covers (migration `core_0028_mcp_scopes_audit`).
 
 - **A briefing says an AI wrote it.** `AdvisoryReport` and `BriefingDraft`
   carry `written_by` (`"ai"`) and a `notice` ("Written by an AI from Salli's
@@ -102,6 +104,27 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 ### Breaking
 
 #### Changed
+
+- **AI connections read unless you allow changes** (breaking for MCP clients
+  that wrote without asking). A connection gets `mcp:read`, and
+  `mcp:write` only when the person ticks **Allow changes** on the consent or
+  device page (unticked to begin with); the Salli app's own AI always gets
+  it, as the app asks before each change. A tool that isn't read-only, on a
+  connection without `mcp:write`, answers an error (`isError`) telling the
+  person to reconnect and allow changes, and does nothing. The scope a client
+  asks for is no longer what it gets, and grants from before this only read:
+  reconnect to allow changes.
+  - API (still v1): `POST /mcp/oauth/consent` takes `allow_changes` (false
+    by default).
+  - The audit log is an audit trail: every MCP write, refused or not, records
+    the person, the connection's client (`client_id`, new on
+    `GET /v1/agent/audit-log`), the tool, its arguments and the outcome
+    (`decision`: `succeeded`, `refused` or `failed`, no longer `approved`),
+    in the transaction that makes the change, so a change whose row can't be
+    written isn't made. A database trigger keeps the log append-only, except
+    erasing an account.
+  - Migration `core_0028_mcp_scopes_audit` adds `audit_logs.client_id`, the
+    trigger, and the unique index for `client_ref`.
 
 - **MCP: `suggested_tax_accounts` only reads** (breaking for MCP clients):
   its `apply` is gone, and `apply_suggested_tax_accounts` creates the

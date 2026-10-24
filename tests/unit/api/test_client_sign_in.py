@@ -214,7 +214,10 @@ async def test_the_consent_page_passes_on_that_it_checked_the_password(client, c
         "/mcp/oauth/consent-page",
         data={"rt": "t", "decision": "allow", "email": "a@b.test", "password": "pw"},
     )
-    assert cli_consent.complete_consent.await_args.kwargs == {"password_checked": True}
+    assert cli_consent.complete_consent.await_args.kwargs == {
+        "password_checked": True,
+        "allow_changes": False,
+    }
 
 
 async def test_the_json_consent_route_never_counts_as_a_password_check(client, cli_consent):
@@ -224,7 +227,10 @@ async def test_the_json_consent_route_never_counts_as_a_password_check(client, c
         headers=AUTH,
     )
     assert r.status_code == 200, r.text
-    assert cli_consent.complete_consent.await_args.kwargs == {"password_checked": False}
+    assert cli_consent.complete_consent.await_args.kwargs == {
+        "password_checked": False,
+        "allow_changes": False,
+    }
 
 
 async def test_the_device_page_signs_a_device_in(client, mock_services):
@@ -248,7 +254,10 @@ async def test_the_device_page_signs_a_device_in(client, mock_services):
         },
     )
     assert r.status_code == 200 and "Signed in" in r.text
-    mock_services.mcp_oauth.decide_device.assert_awaited_once_with("BCDF-GHJK", "test-user-1", True)
+    mock_services.mcp_oauth.decide_device.assert_awaited_once_with(
+        "BCDF-GHJK", "test-user-1", True, allow_changes=False
+    )
+    assert "allow_changes" not in page.text  # the CLI isn't an AI client
     mock_services.mcp_oauth.set_mcp_enabled.assert_not_called()
 
 

@@ -9,6 +9,7 @@ from typing import Any
 
 from salli.application.fx import rate_to_base
 from salli.application.ownership import require_own_accounts
+from salli.application.ports import EntryRefTaken
 from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.accounting.models import (
     ASSET_ROLES,
@@ -43,6 +44,14 @@ def _cursor_position(cursor: str) -> tuple[str, str]:
     if not entry_date or not entry_id:
         raise ValueError("That cursor is not one a search gave: start again without it")
     return entry_date, entry_id
+
+
+#: A client_ref is kept as its entry's external_ref after this prefix, so it
+#: never meets a reference a person typed or a receipt's id: core_0027's
+#: unique index covers only these.
+CLIENT_REF_PREFIX = "client-ref:"
+#: The longest client_ref: with the prefix, within external_ref's 200.
+CLIENT_REF_MAX = 180
 
 
 class UnknownTaxRoleError(ValueError):
@@ -254,15 +263,25 @@ class LedgerService:
         client_ref: str,
     ) -> tuple[str, bool]:
         """A manual entry booked once for the caller's `client_ref` (kept as
-        its external_ref): the entry already booked with it, and False, when
-        it is sent again; else the new entry's id, and True."""
+        its external_ref, after CLIENT_REF_PREFIX): the entry already booked
+        with it, and False, when it is sent again, even at the same time;
+        else the new entry's id, and True."""
+        ref = CLIENT_REF_PREFIX + client_ref
         async with self._uow_factory() as uow:
-            booked = await uow.ledger.manual_entry_by_ref(user_id, client_ref)
+            booked = await uow.ledger.manual_entry_by_ref(user_id, ref)
         if booked is not None:
             return booked.id, False
-        entry_id = await self.add_entry(
-            user_id, entry_date, description, "manual", postings_data, external_ref=client_ref
-        )
+        try:
+            entry_id = await self.add_entry(
+                user_id, entry_date, description, "manual", postings_data, external_ref=ref
+            )
+        except EntryRefTaken:
+            # A retry running alongside booked it first.
+            async with self._uow_factory() as uow:
+                booked = await uow.ledger.manual_entry_by_ref(user_id, ref)
+            if booked is None:
+                raise
+            return booked.id, False
         return entry_id, True
 
     async def search_entries(

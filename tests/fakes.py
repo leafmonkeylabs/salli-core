@@ -856,6 +856,32 @@ class FakeReminders:
             del self.rows[reminder_id]
 
 
+class FakeAuditLog:
+    """The audit log in memory: rows are added, never changed."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+
+    async def log(
+        self,
+        user_id: str,
+        action: str,
+        params: dict[str, Any],
+        decision: str,
+        client_id: str | None = None,
+    ) -> str:
+        self.rows.append(
+            {
+                "user_id": user_id,
+                "action": action,
+                "params": params,
+                "decision": decision,
+                "client_id": client_id,
+            }
+        )
+        return str(len(self.rows))
+
+
 class FakeUoW:
     """A unit of work over one in-memory ledger and what a user declares
     beside it: enough for FI, insights, the forecast, debts and the baseline."""
@@ -879,6 +905,7 @@ class FakeUoW:
         self.holding_transactions = FakeHoldingTransactions()
         self.holdings = FakeHoldings(self.holding_transactions)
         self.holding_prices = FakeHoldingPrices()
+        self.audit_log = FakeAuditLog()
 
     async def __aenter__(self) -> FakeUoW:
         return self

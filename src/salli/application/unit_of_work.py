@@ -1,13 +1,21 @@
 """
 Unit of work — wraps a single DB transaction.
 Both the CLI and the API use this to ensure all writes in a use-case commit together.
+
+An MCP client's write is audited in the transaction that makes it: while one
+runs, `pending_audit` holds its record, and the first unit of work that
+commits a change writes the record before committing, so the change and its
+audit row are kept together or not at all (mcp_server.py).
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from contextvars import ContextVar
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from salli.adapters.db.decisions import SQLDecisionRepository, SQLPrincipleRepository
@@ -84,6 +92,22 @@ from salli.application.ports import (
 
 if TYPE_CHECKING:
     from salli.extensions import UserDataPurger
+
+
+@dataclass
+class AuditRecord:
+    """A write an MCP client asked for: who, through which client, which
+    tool, with what. `recorded` once its row is written."""
+
+    user_id: str
+    client_id: str | None
+    action: str
+    params: dict[str, Any]
+    recorded: bool = False
+
+
+#: The MCP write in progress in this context, if any.
+pending_audit: ContextVar[AuditRecord | None] = ContextVar("pending_audit", default=None)
 
 
 class UnitOfWork:
@@ -171,12 +195,39 @@ class UnitOfWork:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         assert self._session is not None
-        if exc_type is None:
-            await self._session.commit()
-        else:
-            await self._session.rollback()
-        await self._session.close()
+        try:
+            if exc_type is None:
+                await self._audit_pending()
+                await self._session.commit()
+            else:
+                await self._session.rollback()
+        finally:
+            # A failed audit row leaves the transaction uncommitted: closing
+            # rolls it back.
+            await self._session.close()
 
     async def commit(self) -> None:
         assert self._session is not None
+        await self._audit_pending()
         await self._session.commit()
+
+    async def _audit_pending(self) -> None:
+        """Writes the pending MCP write's audit row, as succeeded, in this
+        transaction if it changes anything; if the row can't be written,
+        neither is the change."""
+        pending = pending_audit.get()
+        if pending is None or pending.recorded:
+            return
+        assert self._session is not None
+        await self._session.flush()
+        changed = await self._session.execute(text("select txid_current_if_assigned()"))
+        if changed.scalar() is None:
+            return
+        await self.audit_log.log(
+            pending.user_id,
+            pending.action,
+            pending.params,
+            "succeeded",
+            client_id=pending.client_id,
+        )
+        pending.recorded = True

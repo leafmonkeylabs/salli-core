@@ -386,9 +386,12 @@ class AuditLogEntry(BaseModel):
     action: str
     #: What the write was called with.
     params: dict[str, Any]
-    #: The user's answer, "approved" or "denied". An MCP client's writes are
-    #: recorded as approved.
+    #: The agent's: the user's answer, "approved" or "denied". An MCP
+    #: client's: what happened, "succeeded", "refused" (the connection may
+    #: only read) or "failed".
     decision: str
+    #: The MCP connection's client, when an MCP client asked.
+    client_id: str | None = None
     created_at: str
 
 
@@ -399,7 +402,8 @@ class AuditLog(BaseModel):
 
 @router.get("/audit-log")
 async def get_audit_log(user_id: CurrentUser, svc: AppServices, limit: int = 100) -> AuditLog:
-    """Every agent-initiated write decision (approved or denied)."""
+    """Every write an agent or an MCP client made or asked to make, and what
+    came of it. The log is append-only."""
     entries = await svc.agent.get_audit_log(user_id=user_id, limit=limit)
     return AuditLog.model_validate({"entries": entries})
 

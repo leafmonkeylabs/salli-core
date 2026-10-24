@@ -3771,7 +3771,7 @@
           "agent"
         ],
         "summary": "Get Audit Log",
-        "description": "Every agent-initiated write decision (approved or denied).",
+        "description": "Every write an agent or an MCP client made or asked to make, and what\ncame of it. The log is append-only.",
         "operationId": "agent.auditLog",
         "security": [
           {
@@ -14635,6 +14635,17 @@
             "type": "string",
             "title": "Decision"
           },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -18004,6 +18015,11 @@
           "approve": {
             "type": "boolean",
             "title": "Approve"
+          },
+          "allow_changes": {
+            "type": "boolean",
+            "title": "Allow Changes",
+            "default": false
           }
         },
         "type": "object",

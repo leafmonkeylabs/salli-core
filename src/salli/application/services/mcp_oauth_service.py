@@ -2,10 +2,14 @@
 McpOAuthService — Salli's OAuth 2.1 authorization server. It issues tokens
 scoped to one user's account for two kinds of client:
 
-- AI clients (Claude, ChatGPT, …) using the MCP server mounted at /mcp —
-  reading and writing, exactly as Scrooge (the in-app agent) already can.
+- AI clients (Claude, ChatGPT, …) using the MCP server mounted at /mcp.
   These tokens are for the MCP resource and stop working the moment the user
-  switches MCP off.
+  switches MCP off. They read (`mcp:read`); they change anything only with
+  `mcp:write`, which the person ticks on the consent page ("Allow changes",
+  unticked to begin with). The Salli app's own AI always holds it: the app
+  asks the person before every change. The scope a client asks for is not
+  what it gets: a grant records only what Salli granted, and a grant from
+  before the scopes (no `mcp:write`) only reads.
 - Salli's own clients, the `salli` CLI first, using the REST API under /v1.
   These tokens are for the API resource (RFC 8707 `resource={base}/v1`), and
   the MCP switch has nothing to do with them.
@@ -83,6 +87,12 @@ _LOOPBACK_HOSTS = ("127.0.0.1", "[::1]", "localhost")
 MCP = "mcp"
 API = "api"
 
+#: An MCP connection's scopes. Reading needs no scope (grants from before
+#: there were scopes still read); every tool that changes anything needs
+#: `mcp:write` (mcp_server.py checks it in one place).
+MCP_READ = "mcp:read"
+MCP_WRITE = "mcp:write"
+
 #: The `salli` CLI's client: first party, seeded by core_0011, never
 #: registered. Advertised in /v1/meta so the CLI signs in as it.
 CLI_CLIENT_ID = "salli-cli"
@@ -146,6 +156,11 @@ def _b64url(data: bytes) -> str:
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def may_change(scope: str) -> bool:
+    """Whether a connection with this scope may change the person's data."""
+    return MCP_WRITE in scope.split()
 
 
 def _verify_pkce(code_verifier: str, code_challenge: str) -> bool:
@@ -396,6 +411,7 @@ class McpOAuthService:
         *,
         password_checked: bool,
         authenticated_at: datetime | None = None,
+        allow_changes: bool = False,
     ) -> str:
         """Returns the final redirect_uri (with ?code=... or ?error=...) to
         send the user's browser to.
@@ -409,7 +425,8 @@ class McpOAuthService:
         doesn't have. A client this server doesn't know is refused likewise.
         `authenticated_at` is when that password was checked (now, unless
         said otherwise): the sign-in records it, and the console's step-up
-        reads it."""
+        reads it. `allow_changes` is the person ticking "Allow changes": an
+        MCP connection gets `mcp:write` only with it (or as the Salli app)."""
         payload = self._decode_art(art)
         redirect_uri = payload["redirect_uri"]
         state = payload.get("state")
@@ -440,12 +457,29 @@ class McpOAuthService:
                 user_id=user_id,
                 redirect_uri=redirect_uri,
                 code_challenge=payload["code_challenge"],
-                scope=payload.get("scope") or "",
+                scope=self._granted(
+                    payload["client_id"],
+                    payload.get("scope") or "",
+                    payload.get("resource"),
+                    allow_changes,
+                ),
                 resource=payload.get("resource"),
                 expires_at=now + timedelta(seconds=self._auth_code_ttl),
                 authenticated_at=authenticated_at or now,
             )
         return _append_query(redirect_uri, {"code": code, **({"state": state} if state else {})})
+
+    def _granted(
+        self, client_id: str, scope: str, resource: str | None, allow_changes: bool
+    ) -> str:
+        """The scope an approval grants. An MCP connection reads, and changes
+        only if the person allowed it, whatever it asked for; the Salli app's
+        AI may change, since the app asks the person before each change."""
+        if self.audience(resource) != MCP:
+            return scope
+        if allow_changes or client_id == MOBILE_CLIENT_ID:
+            return f"{MCP_READ} {MCP_WRITE}"
+        return MCP_READ
 
     def _check_console_consent(self, client_id: str) -> None:
         try:
@@ -798,7 +832,9 @@ class McpOAuthService:
             "audience": self._token_audience(record),
         }
 
-    async def decide_device(self, user_code: str, user_id: str, approve: bool) -> None:
+    async def decide_device(
+        self, user_code: str, user_id: str, approve: bool, *, allow_changes: bool = False
+    ) -> None:
         async with self._uow_factory() as uow:
             record = await uow.oauth_tokens.get_device_code_by_user_code(
                 self.normalize_user_code(user_code)
@@ -812,6 +848,9 @@ class McpOAuthService:
                 status="approved" if approve else "denied",
                 user_id=user_id if approve else None,
                 authenticated_at=self._clock() if approve else None,
+                scope=self._granted(
+                    record["client_id"], record["scope"], record["resource"], allow_changes
+                ),
             )
 
     async def exchange_device_code(self, device_code: str, client_id: str) -> dict[str, Any]:

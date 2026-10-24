@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -19,6 +19,16 @@ from httpx import ASGITransport, AsyncClient
 from salli.application.defaults import FullAccess
 from salli.domain.accounting.models import Direction
 from salli.domain.ai_models import DEFAULT_MODEL
+
+
+@pytest.fixture(autouse=True)
+def mcp_connection_may_change():
+    """MCP tools called here run on a connection allowed to change the
+    person's data (mcp:write); test_mcp_scopes.py says what happens without."""
+    from salli.interfaces.api import mcp_server
+
+    with patch.object(mcp_server, "_current_scopes", return_value=["mcp:read", "mcp:write"]):
+        yield
 
 
 @pytest.fixture

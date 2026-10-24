@@ -36,9 +36,17 @@ async def test_the_mcp_tool_returns_the_meter_message():
     services = MagicMock()
     services.advisor = AsyncMock()
     services.advisor.run_advisor.side_effect = REFUSAL
+    audit = AsyncMock()
+    unit = MagicMock()
+    unit.__aenter__ = AsyncMock(return_value=MagicMock(audit_log=audit))
+    services.ledger._uow_factory = MagicMock(return_value=unit)
     server = mcp_server.build_mcp_server(services, "https://api.test")
 
-    with patch.object(mcp_server, "_current_user_id", return_value="u1"):
+    with (
+        patch.object(mcp_server, "_current_user_id", return_value="u1"),
+        patch.object(mcp_server, "_current_scopes", return_value=["mcp:write"]),
+    ):
         _, structured = await server.call_tool("run_briefing", {})
 
     assert structured == {"error": "The meter's own words."}
+    assert audit.log.await_args.args[3] == "failed"

@@ -3,11 +3,13 @@ store filters, pages and sums, so an agent never adds anything up."""
 
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
 
+from salli.application.ports import EntryRefTaken
 from salli.application.services.ledger_service import LedgerService
 from salli.domain.accounting.models import Direction
 from tests.integration.pg import requires_postgres
@@ -105,4 +107,26 @@ async def test_a_client_ref_books_an_entry_once(books):
         "matches"
     ] == 1
     stored = await books.ledger.get_entry("ana", entry_id)
-    assert stored is not None and stored.external_ref == "r-1"
+    assert stored is not None and stored.external_ref == "client-ref:r-1"
+
+
+async def test_retries_sent_at_once_book_one_entry(books):
+    postings = _postings(books.food, books.cash, "8.40")
+    booked = await asyncio.gather(
+        *(
+            books.ledger.add_entry_once("ana", "2026-10-24", "Bakery", postings, "r-2")
+            for _ in range(4)
+        )
+    )
+    assert len({entry_id for entry_id, _ in booked}) == 1
+    assert sorted(posted for _, posted in booked) == [False, False, False, True]
+    # The database is what holds it: a second entry with the ref is refused.
+    with pytest.raises(EntryRefTaken):
+        await books.ledger.add_entry(
+            "ana", "2026-10-24", "Bakery", "manual", postings, external_ref="client-ref:r-2"
+        )
+    # A reference a person typed may repeat, as before.
+    for _ in range(2):
+        await books.ledger.add_entry(
+            "ana", "2026-10-24", "Bakery", "manual", postings, external_ref="receipt-7"
+        )

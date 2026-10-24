@@ -171,20 +171,21 @@ async def test_an_agent_sets_an_assumption_with_its_source_and_it_is_audited(ser
     services.audit.log.assert_awaited_once()
     assert services.audit.log.await_args.args[1] == "set_fi_assumption"
 
-    # Null clears it; a refusal is the service's reason, and nothing is audited.
+    # Null clears it; a refusal is the service's reason, audited as failed.
     await _call(services, "set_fi_assumption", {"name": "inflation", "value": None})
     assert services.fi.set_assumptions.await_args.args[1] == {"inflation": None}
     services.fi.set_assumptions.side_effect = ValueError("inflation must be a yearly fraction")
     services.audit.log.reset_mock()
     refused = await _call(services, "set_fi_assumption", {"name": "inflation", "value": "3"})
     assert refused == {"error": "inflation must be a yearly fraction"}
-    services.audit.log.assert_not_awaited()
+    services.audit.log.assert_awaited_once()
+    assert services.audit.log.await_args.args[3] == "failed"
 
 
 async def test_an_agent_sets_the_share_of_the_surplus_invested_within_its_bounds(services):
     """Through the real service: a share from 0 to 1, with its source; out
-    of range is refused with how to write it, nothing changes and nothing is
-    audited."""
+    of range is refused with how to write it, nothing changes, and it is
+    audited as failed."""
     from salli.application.services.fi_service import FiService
     from tests.fakes import FakeUoW
 
@@ -214,7 +215,7 @@ async def test_an_agent_sets_the_share_of_the_surplus_invested_within_its_bounds
         )
         assert "a share from 0 to 1 (0.8 for 80%)" in refused["error"], value
     assert uow.user_profiles.rows["u1"]["fi_assumptions"]["surplus_invested"]["value"] == "0.8"
-    services.audit.log.assert_not_awaited()
+    assert [c.args[3] for c in services.audit.log.await_args_list] == ["failed"] * 3
 
     # Cleared, the placeholder stands in again.
     cleared = await _call(

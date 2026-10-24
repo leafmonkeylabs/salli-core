@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import Request
@@ -120,7 +120,7 @@ async def test_the_mcp_tool_refuses_it(ledgers):
     server = mcp_server.build_mcp_server(services, "https://api.test")
     with (
         patch.object(mcp_server, "_current_user_id", return_value="bob"),
-        patch.object(mcp_server, "_log_audit", AsyncMock()) as audit,
+        patch.object(mcp_server, "_current_scopes", return_value=["mcp:write"]),
     ):
         _, result = await server.call_tool(
             "post_journal_entry",
@@ -133,5 +133,7 @@ async def test_the_mcp_tool_refuses_it(ledgers):
             },
         )
     assert result == {"error": f"Could not post entry: Account not found: {ledgers.alice_cash}"}
-    audit.assert_not_awaited()  # nothing happened, so nothing is logged as done
     await _nothing_posted(ledgers.ledger)
+    async with ledgers.ledger._uow_factory() as uow:
+        [row] = await uow.audit_log.list("bob")
+    assert (row["action"], row["decision"]) == ("post_journal_entry", "failed")

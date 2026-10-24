@@ -53,7 +53,9 @@ async def test_an_expired_request_says_so(client, consent):
 async def test_deny_needs_no_sign_in_and_redirects(client, consent):
     r = await client.post(PAGE, data={"rt": "t", "decision": "deny"})
     assert r.status_code == 303
-    consent.complete_consent.assert_awaited_once_with("t", "", False, password_checked=False)
+    consent.complete_consent.assert_awaited_once_with(
+        "t", "", False, password_checked=False, allow_changes=False
+    )
     consent.set_mcp_enabled.assert_not_awaited()
 
 
@@ -93,7 +95,9 @@ async def test_allow_signs_in_enables_mcp_and_redirects_to_the_client(
         "a@b.c", "pw", address="127.0.0.1", code=None
     )
     consent.set_mcp_enabled.assert_awaited_once_with("owner", True)
-    consent.complete_consent.assert_awaited_once_with("t", "owner", True, password_checked=True)
+    consent.complete_consent.assert_awaited_once_with(
+        "t", "owner", True, password_checked=True, allow_changes=False
+    )
 
 
 async def test_an_authenticator_code_goes_with_the_password(client, consent, mock_services):
@@ -197,6 +201,45 @@ async def test_the_console_reads_as_signing_in_to_salli_with_one_button(client, 
     assert "<title>Sign in to Salli</title>" in r.text and "<h1>Sign in to Salli</h1>" in r.text
     assert r.text.count("<button") == 1 and ">Sign in</button>" in r.text
     assert "is asking" not in r.text
+
+
+_ALLOW = "<input type=checkbox id=allow_changes name=allow_changes value=yes>"
+_SIGNED_IN = {"rt": "t", "decision": "allow", "email": "a@b.c", "password": "pw"}
+
+
+async def test_an_ai_client_reads_unless_the_person_ticks_allow_changes(client, consent):
+    r = await client.get(PAGE, params={"rt": "token"})
+    assert "is asking to read your Salli data." in r.text
+    assert _ALLOW in r.text and "checked" not in r.text
+    assert "<label for=allow_changes>Allow changes" in r.text
+
+    await client.post(PAGE, data=_SIGNED_IN)
+    assert consent.complete_consent.await_args.kwargs["allow_changes"] is False
+    await client.post(PAGE, data={**_SIGNED_IN, "allow_changes": "yes"})
+    assert consent.complete_consent.await_args.kwargs["allow_changes"] is True
+
+
+@pytest.mark.parametrize(
+    ("client_id", "audience"),
+    [("salli-mobile", "mcp"), ("salli-mobile", "api"), ("salli-console", "api")],
+)
+async def test_salli_s_own_sign_ins_are_not_asked_about_changes(
+    client, consent, client_id, audience
+):
+    """The app's AI asks the person in the app before each change: its grant
+    may change, and the page has no tick box for it, nor for a sign-in."""
+    consent.get_consent_info.return_value = {
+        "client_id": client_id,
+        "client_name": "Salli",
+        "first_party": True,
+        "scope": "",
+        "audience": audience,
+        "reauthenticate": False,
+    }
+    r = await client.get(PAGE, params={"rt": "token"})
+    assert "allow_changes" not in r.text
+    await client.post(PAGE, data={**_SIGNED_IN, "allow_changes": "yes"})
+    assert consent.complete_consent.await_args.kwargs["allow_changes"] is False
 
 
 async def test_a_client_asking_for_the_password_again_says_so(client, consent):

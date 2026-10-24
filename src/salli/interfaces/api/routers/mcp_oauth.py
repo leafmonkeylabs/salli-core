@@ -200,6 +200,9 @@ async def consent_info(rt: str, user_id: CurrentUser, svc: AppServices) -> Conse
 class ConsentDecisionRequest(BaseModel):
     rt: str
     approve: bool
+    #: Whether the person allowed an AI client to change their data
+    #: (`mcp:write`). Without it an MCP connection only reads. Ask, unticked.
+    allow_changes: bool = False
 
 
 class ConsentDecision(BaseModel):
@@ -219,7 +222,11 @@ async def consent(
     turned into a first-party sign-in that holds more than it does."""
     try:
         redirect_url = await svc.mcp_oauth.complete_consent(
-            body.rt, user_id, body.approve, password_checked=False
+            body.rt,
+            user_id,
+            body.approve,
+            password_checked=False,
+            allow_changes=body.allow_changes,
         )
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc

@@ -764,7 +764,7 @@ class TaxRuleService:
                         "codes": created,
                         "by": actor.name or actor.kind,
                     },
-                    "approved",
+                    "succeeded",
                 )
         return {
             "rule_set_id": rule_set_id,
