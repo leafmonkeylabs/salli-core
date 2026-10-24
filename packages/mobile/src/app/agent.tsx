@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { answers, modelFor, runTurn, type Approval } from '../ai/agent';
 import { useYourAI, type Conversation } from '../ai/store';
 import { Body, Button, Icon } from '../kit';
+import { Markdown } from '../markdown';
 import { blocksOf, changeOf, pendingOf, titleOf } from '../lib/ai';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -202,7 +203,7 @@ function Answer({ reads, text }: { reads: number; text: string }) {
           </Body>
         </View>
       ) : null}
-      {text ? <Text style={[styles.answer, { color: theme.text }]}>{text}</Text> : null}
+      {text ? <Markdown text={text} /> : null}
     </View>
   );
 }
@@ -213,7 +214,6 @@ const styles = StyleSheet.create({
   page: { padding: size.gutter, gap: 14 },
   title: { fontFamily: font.semibold, fontSize: 28, letterSpacing: -0.7 },
   you: { alignSelf: 'flex-end', maxWidth: '82%', paddingHorizontal: 14, paddingVertical: 12 },
-  answer: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.55 },
   card: { borderWidth: 1, padding: 14, gap: 12 },
   cardHead: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
   change: { paddingVertical: 10 },
