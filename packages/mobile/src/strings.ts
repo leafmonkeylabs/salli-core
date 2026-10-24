@@ -152,18 +152,7 @@ export const strings = {
     debit: 'Debit',
     credit: 'Credit',
     total: 'Total',
-    cameFrom: 'Where it came from',
-    sources: {
-      manual: 'Posted by you or your agent.',
-      statement: 'Posted from a bank statement.',
-      sms: 'Posted from a bank’s text message.',
-      system: 'Posted by Salli.',
-    } as Record<string, string>,
-    statementOf: (bank: string | null, period: string) =>
-      bank && period ? `${bank}, ${period}.` : bank ? `${bank}.` : period ? `The statement for ${period}.` : '',
-    asTheBankWrote: (line: string) => `As the bank wrote it: ${line}`,
     sourceChip: { manual: 'By hand', statement: 'From a statement', sms: 'From a text', system: 'By Salli' } as Record<string, string>,
-    reversedBy: 'Reversed: the opposite entry books it back.',
     reverse: 'Reverse this entry',
     reverseHelp: 'A posted entry is never edited. Reversing books the opposite entry on the same date and marks this one reversed.',
     confirmTitle: (what: string) => `Reverse ${what}?`,
