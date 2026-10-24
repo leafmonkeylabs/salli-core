@@ -6,21 +6,20 @@ import {
   ledgerTrialBalance,
   normalizeAmountInput,
   SalliApiError,
-  type Account,
 } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
 import { Body, Button, Card, CardHead, Icon } from '../kit';
+import { Picker } from '../picker';
 import { displayDate, todayIso } from '../lib/display';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
 const t = strings.add;
-const TYPES = ['expense', 'asset', 'liability', 'income', 'equity'] as const;
 type Side = 'debit' | 'credit';
 
 export default function Add() {
@@ -139,7 +138,7 @@ export default function Add() {
       </ScrollView>
 
       <Picker
-        side={picking}
+        title={picking === 'debit' ? t.pickDebit : picking === 'credit' ? t.pickCredit : undefined}
         accounts={accounts.data ?? []}
         chosen={picking === 'debit' ? debit : credit}
         onClose={() => setPicking(undefined)}
@@ -185,55 +184,6 @@ function AccountField({ label, value, onPress }: { label: string; value: string;
   );
 }
 
-/** The accounts, by type, to choose one: a sheet over the draft. */
-function Picker({ side, accounts, chosen, onPick, onClose }: { side: Side | undefined; accounts: readonly Account[]; chosen: string | undefined; onPick: (id: string) => void; onClose: () => void }) {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <Modal visible={!!side} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: theme.chrome }}>
-        <View style={[styles.header, { borderBottomColor: theme.rule }]}>
-          <View style={styles.headerButton} />
-          <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.text }]}>
-            {side === 'debit' ? t.pickDebit : t.pickCredit}
-          </Text>
-          <Pressable accessibilityRole="button" onPress={onClose} style={styles.headerButton}>
-            <Body>{t.close}</Body>
-          </Pressable>
-        </View>
-        <ScrollView contentContainerStyle={{ padding: size.gutter, paddingBottom: insets.bottom + 24 }} accessibilityRole="radiogroup">
-          {TYPES.map((type) => {
-            const rows = accounts.filter((a) => a.type === type && a.is_active);
-            if (!rows.length) return null;
-            return (
-              <View key={type} style={{ marginBottom: 16 }}>
-                <Body small muted>
-                  {strings.books.types[type] ?? type}
-                </Body>
-                {rows.map((account) => {
-                  const on = account.id === chosen;
-                  return (
-                    <Pressable
-                      key={account.id}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: on }}
-                      onPress={() => onPick(account.id)}
-                      style={[styles.option, { borderBottomColor: theme.rule }]}
-                    >
-                      <View style={[styles.radio, { borderColor: on ? theme.text : theme.muted }]}>{on ? <View style={[styles.dot, { backgroundColor: theme.text }]} /> : null}</View>
-                      <Body style={on ? { fontFamily: font.medium } : undefined}>{account.name}</Body>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            );
-          })}
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   headerButton: { minHeight: size.target, minWidth: 72, justifyContent: 'center', paddingHorizontal: 8 },
@@ -243,7 +193,4 @@ const styles = StyleSheet.create({
   input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
   amountInput: { fontVariant: ['tabular-nums'] },
   choose: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth },
-  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4 },
 });

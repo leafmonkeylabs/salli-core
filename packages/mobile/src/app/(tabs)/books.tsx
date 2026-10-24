@@ -1,8 +1,9 @@
-import { accountsList, ledgerTrialBalance } from '@leafmonkeylabs/salli-sdk';
+import { accountsList, ledgerTrialBalance, statementsList } from '@leafmonkeylabs/salli-sdk';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../../api';
-import { AmountRow, Body, Card, CardHead, Icon, Loading } from '../../kit';
+import { AmountRow, Body, Card, CardHead, Icon, Loading, Row } from '../../kit';
+import { displayRange } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -14,18 +15,43 @@ export default function Books() {
   const theme = useTheme();
   const accounts = useRead('accounts.list', accountsList);
   const trial = useRead('ledger.trialBalance', ledgerTrialBalance);
+  const statements = useRead('statements.list', statementsList, { query: { limit: 200 } });
+  const waiting = (statements.data?.statements ?? []).filter((s) => s.status === 'pending');
+  const names = new Map((accounts.data ?? []).map((a) => [a.id, a.name]));
 
   return (
-    <Page
-      title={t.title}
-      action={
-        <Pressable accessibilityRole="button" onPress={() => router.push('/add')} style={styles.add}>
-          <Icon name="plus" size={20} colour={theme.text} />
-          <Text style={[styles.addText, { color: theme.text }]}>{t.add}</Text>
+    <Page title={t.title} onRefresh={() => Promise.all([accounts.refetch(), trial.refetch(), statements.refetch()])}>
+      <View style={styles.actions}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/add')} style={[styles.action, { backgroundColor: theme.button }]}>
+          <Icon name="plus" size={18} colour={theme.buttonText} />
+          <Text style={[styles.actionText, { color: theme.buttonText }]}>{t.add}</Text>
         </Pressable>
-      }
-      onRefresh={() => Promise.all([accounts.refetch(), trial.refetch()])}
-    >
+        <Pressable accessibilityRole="button" onPress={() => router.push('/import')} style={[styles.action, { backgroundColor: theme.button2 }]}>
+          <Icon name="upload" size={18} colour={theme.button2Text} />
+          <Text style={[styles.actionText, { color: theme.button2Text }]}>{strings.imports.importFile}</Text>
+        </Pressable>
+      </View>
+
+      {waiting.length ? (
+        <Card style={{ paddingVertical: 12 }}>
+          <CardHead label={strings.imports.queue} />
+          {waiting.map((statement, i) => {
+            const account = statement.account_id ? names.get(statement.account_id) : undefined;
+            const title = [statement.bank, account].filter(Boolean).join(' · ') || strings.imports.statement;
+            const period = statement.period_start && statement.period_end ? displayRange(statement.period_start, statement.period_end) : '';
+            return (
+              <Row
+                key={statement.id}
+                title={title}
+                detail={[period, strings.imports.waiting].filter(Boolean).join(' · ')}
+                onPress={() => router.push({ pathname: '/review/[id]', params: { id: statement.id } })}
+                last={i === waiting.length - 1}
+              />
+            );
+          })}
+        </Card>
+      ) : null}
+
       {accounts.data && trial.data ? (
         accounts.data.length ? (
           <>
@@ -66,6 +92,7 @@ export default function Books() {
 }
 
 const styles = StyleSheet.create({
-  add: { minHeight: size.target, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8 },
-  addText: { fontFamily: font.medium, fontSize: size.body },
+  actions: { flexDirection: 'row', gap: 8 },
+  action: { flex: 1, minHeight: size.target, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
+  actionText: { fontFamily: font.medium, fontSize: size.body },
 });

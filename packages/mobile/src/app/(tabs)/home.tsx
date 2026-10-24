@@ -127,7 +127,13 @@ function Attention() {
   }
   for (const signal of signals.data?.signals ?? []) {
     if (signal.kind === 'decision_review_due') continue; // listed above, from the journal
-    rows.push({ key: `signal-${signal.kind}-${signal.date ?? ''}`, title: signal.title, ...(signal.date ? { detail: displayDate(signal.date) } : {}) });
+    rows.push({
+      key: `signal-${signal.kind}-${signal.date ?? ''}`,
+      title: signal.title,
+      ...(signal.date ? { detail: displayDate(signal.date) } : {}),
+      // What waits for review is in Books' review queue.
+      ...(signal.kind === 'review_waiting' ? { onPress: () => router.push('/books') } : {}),
+    });
   }
   for (const reminder of reminders.data?.reminders ?? []) {
     if (reminder.source_domain === 'decision') continue; // the review above
