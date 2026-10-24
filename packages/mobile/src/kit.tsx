@@ -135,14 +135,14 @@ export function Row({ title, detail, onPress, action, last }: { title: string; d
  * amount at the end. What the line leaves out (the account, where it came
  * from) goes in `label`, which VoiceOver reads for the whole row.
  */
-export function LedgerRow({ lead, title, amount, currency, label, onPress, last }: { lead?: string; title: string; amount: string; currency: string; label?: string; onPress?: () => void; last?: boolean }) {
+export function LedgerRow({ lead, title, amount, currency, note, label, onPress, last }: { lead?: string; title: string; amount?: string; currency: string; note?: string; label?: string; onPress?: () => void; last?: boolean }) {
   const theme = useTheme();
   const style = [styles.ledgerRow, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
   const content = (
     <>
       {lead ? <Text style={[styles.ledgerLead, { color: theme.muted }]}>{lead}</Text> : null}
       <Body style={styles.ledgerTitle}>{title}</Body>
-      <Money amount={amount} currency={currency} />
+      {amount !== undefined ? <Money amount={amount} currency={currency} /> : note ? <Body small muted>{note}</Body> : null}
     </>
   );
   return onPress ? (

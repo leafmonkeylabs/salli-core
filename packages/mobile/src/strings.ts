@@ -116,6 +116,10 @@ export const strings = {
     balancesNote:
       'Balances as the trial balance keeps them, in your base currency at the rates their entries recorded: debits as they are, credits (what you owe, income, equity) in brackets.',
     entries: 'Entries',
+    rules: 'Rules',
+    rulesLabel: 'Rules, in the console',
+    roles: { cash: 'Cash', other: 'Investments and other' } as Record<string, string>,
+    owesLabel: (name: string, amount: string) => `${name}, owes ${amount}`,
     noEntries: 'No entries in this account yet.',
     runningBalance: 'Balance after',
     balance: 'Balance',
@@ -237,7 +241,21 @@ export const strings = {
     queue: 'The review queue',
     waiting: 'Waiting for review',
     nothingWaiting: 'Nothing waits for review.',
+    toReview: (n: number) => (n === 1 ? '1 to review' : `${n} to review`),
     statement: 'Statement',
+  },
+
+  entries: {
+    title: 'Entries',
+    back: 'Books',
+    search: 'Find an entry',
+    searchHelp: 'Words in its description.',
+    none: 'No entries yet.',
+    noMatch: (words: string) => `No entry has “${words}” in its description.`,
+    showMore: (n: number) => `Show ${n} more`,
+    shown: (n: number, of: number) => (n === of ? (of === 1 ? '1 entry' : `${of} entries`) : `${n} of ${of} entries`),
+    reversed: 'Reversed',
+    lines: (n: number) => `${n} lines`,
   },
 
   review: {

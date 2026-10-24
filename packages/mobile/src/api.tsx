@@ -47,9 +47,10 @@ export function ApiProvider({ children }: { children: ReactNode }) {
 }
 
 /** Reads an operation: `useRead('reports.balanceSheet', reportsBalanceSheet)`. */
-export function useRead<F extends Operation>(name: string, fn: F, options?: CallOptions<F>): UseQueryResult<DataOf<F>, Error> {
+export function useRead<F extends Operation>(name: string, fn: F, options?: CallOptions<F>, read?: { enabled?: boolean }): UseQueryResult<DataOf<F>, Error> {
   const api = useApi();
   return useQuery({
+    enabled: read?.enabled ?? true,
     queryKey: [api.server, name, options ?? null],
     queryFn: ({ signal }) => (api.call as (f: F, o: unknown) => Promise<DataOf<F>>)(fn, { ...(options ?? {}), signal }),
   });
