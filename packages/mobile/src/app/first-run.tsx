@@ -14,7 +14,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
 import { Body, Button, Card, SectionLabel } from '../kit';
-import { balancesOf, DRAWDOWNS, EXPERIENCE, goalsOf, HORIZONS, incomesOf, STABILITY, type Line } from '../lib/firstrun';
+import { balancesOf, DRAWDOWNS, EXPERIENCE, goalsOf, HORIZONS, incomesOf, ROLES, rolesGiven, STABILITY, type Line } from '../lib/firstrun';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
@@ -24,7 +24,9 @@ type Step = 'you' | 'own' | 'income' | 'goals' | 'risk';
 /**
  * First run (designs 37 to 41): shown once after signing in to a server whose
  * onboarding isn't done. You, then (only on books with nothing in them yet,
- * since they book entries) what you own and owe and what comes in, then goals
+ * since they book entries) what you own (each with its kind: cash,
+ * investment or other) and owe, and where income comes from (named only:
+ * nothing is booked until you are paid), then goals
  * and four risk questions. Every step after You can be skipped.
  */
 export default function FirstRun() {
@@ -107,7 +109,7 @@ export default function FirstRun() {
     }
   };
 
-  const ready = step !== 'you' || name.trim().length > 0;
+  const ready = step === 'you' ? name.trim().length > 0 : step !== 'own' || rolesGiven(own);
   const last = at + 1 >= steps.length;
   const cta = step === 'own' ? t.bookOpening : last ? t.finish : t.next;
 
@@ -151,11 +153,14 @@ export default function FirstRun() {
           </>
         ) : step === 'own' ? (
           <>
-            <Lines label={t.own} lines={own} onChange={setOwn} placeholder={t.ownPlaceholder} />
+            <Lines label={t.own} lines={own} onChange={setOwn} placeholder={t.ownPlaceholder} roles />
             <Lines label={t.owe} lines={owe} onChange={setOwe} placeholder={t.owePlaceholder} />
           </>
         ) : step === 'income' ? (
-          <Lines label={t.monthly} lines={incomes} onChange={setIncomes} placeholder={t.incomePlaceholder} />
+          <>
+            <Lines label={t.paidBy} lines={incomes} onChange={setIncomes} placeholder={t.incomePlaceholder} names />
+            <Body muted>{t.incomeNote}</Body>
+          </>
         ) : step === 'goals' ? (
           <Goals goals={goals} onChange={setGoals} />
         ) : (
@@ -196,32 +201,42 @@ function Field({ label, value, onChange, placeholder, caps, hint }: { label: str
   );
 }
 
-/** A list of named amounts, one more row each time the last is filled. */
-function Lines({ label, lines, onChange, placeholder }: { label: string; lines: Line[]; onChange: (l: Line[]) => void; placeholder: string }) {
+/**
+ * A list of named amounts, one more row each time the last is filled; with
+ * `roles`, each named one asks what kind it is; with `names`, names alone.
+ */
+function Lines({ label, lines, onChange, placeholder, roles, names }: { label: string; lines: Line[]; onChange: (l: Line[]) => void; placeholder: string; roles?: boolean; names?: boolean }) {
   const theme = useTheme();
   const set = (i: number, patch: Partial<Line>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   return (
     <Card style={{ gap: 10 }}>
       <SectionLabel>{label}</SectionLabel>
       {lines.map((line, i) => (
-        <View key={i} style={styles.lineRow}>
-          <TextInput
-            value={line.name}
-            onChangeText={(name) => set(i, { name })}
-            placeholder={i === 0 ? placeholder : t.another}
-            placeholderTextColor={theme.muted}
-            accessibilityLabel={`${label} ${i + 1}: ${t.what}`}
-            style={[styles.input, { flex: 1, backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
-          />
-          <TextInput
-            value={line.amount}
-            onChangeText={(amount) => set(i, { amount })}
-            placeholder="0.00"
-            placeholderTextColor={theme.muted}
-            keyboardType="decimal-pad"
-            accessibilityLabel={`${label} ${i + 1}: ${t.amount}`}
-            style={[styles.input, styles.amount, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
-          />
+        <View key={i} style={{ gap: 8 }}>
+          <View style={styles.lineRow}>
+            <TextInput
+              value={line.name}
+              onChangeText={(name) => set(i, { name })}
+              placeholder={i === 0 ? placeholder : t.another}
+              placeholderTextColor={theme.muted}
+              accessibilityLabel={`${label} ${i + 1}: ${t.what}`}
+              style={[styles.input, { flex: 1, backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+            />
+            {names ? null : (
+              <TextInput
+                value={line.amount}
+                onChangeText={(amount) => set(i, { amount })}
+                placeholder="0.00"
+                placeholderTextColor={theme.muted}
+                keyboardType="decimal-pad"
+                accessibilityLabel={`${label} ${i + 1}: ${t.amount}`}
+                style={[styles.input, styles.amount, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+              />
+            )}
+          </View>
+          {roles && line.name.trim() ? (
+            <Choice label={t.kindOf(line.name.trim())} options={ROLES.map((r) => ({ id: r, text: t.roles[r] ?? r }))} chosen={line.role} onPick={(role) => set(i, { role })} />
+          ) : null}
         </View>
       ))}
       <Button kind="tertiary" label={t.addOne} onPress={() => onChange([...lines, { name: '', amount: '' }])} />

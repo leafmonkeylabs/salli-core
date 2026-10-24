@@ -782,7 +782,8 @@ export const onboardingBalanceSheet = <ThrowOnError extends boolean = false>(opt
 /**
  * Declare Income
  *
- * Post one representative monthly entry per declared income source.
+ * Open an income account per source, and the account it is paid into.
+ * Nothing is posted: income enters the books when it is paid.
  */
 export const onboardingIncome = <ThrowOnError extends boolean = false>(options: Options<OnboardingIncomeData, ThrowOnError>): RequestResult<OnboardingIncomeResponses, OnboardingIncomeErrors, ThrowOnError> => (options.client ?? client).post<OnboardingIncomeResponses, OnboardingIncomeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

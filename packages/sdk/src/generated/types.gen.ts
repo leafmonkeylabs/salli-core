@@ -5974,6 +5974,16 @@ export type HoldingUpdateRequest = {
 };
 
 /**
+ * IncomeAccounts
+ */
+export type IncomeAccounts = {
+    /**
+     * Income Accounts
+     */
+    income_accounts: Array<string>;
+};
+
+/**
  * IncomeChange
  *
  * Your monthly income changes by an amount from a day: a raise
@@ -6022,6 +6032,9 @@ export type IncomeDeclarationRequest = {
 
 /**
  * IncomeItem
+ *
+ * A source of income, opened as an income account so the first real pay
+ * is booked to it. Nothing is posted: an amount sent is not booked.
  */
 export type IncomeItem = {
     /**
@@ -6032,20 +6045,6 @@ export type IncomeItem = {
      * Name
      */
     name: string;
-    /**
-     * Amount
-     *
-     * Decimal string, read exactly; a JSON number is refused.
-     */
-    amount: string;
-    /**
-     * Currency
-     */
-    currency?: string | null;
-    /**
-     * Fx Rate
-     */
-    fx_rate?: string | null;
     /**
      * Deposit Account Code
      */
@@ -7241,6 +7240,10 @@ export type OpeningBalanceItem = {
      * Type
      */
     type: string;
+    /**
+     * Asset Role
+     */
+    asset_role?: 'cash' | 'investment' | 'other' | null;
     /**
      * Amount
      *
@@ -14955,7 +14958,7 @@ export type OnboardingIncomeResponses = {
     /**
      * Successful Response
      */
-    200: DeclaredEntries;
+    200: IncomeAccounts;
 };
 
 export type OnboardingIncomeResponse = OnboardingIncomeResponses[keyof OnboardingIncomeResponses];

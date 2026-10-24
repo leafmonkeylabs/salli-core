@@ -21,7 +21,6 @@ from salli.interfaces.api.routers.fi import (
     GoalUpdateRequest,
 )
 from salli.interfaces.api.routers.onboarding import (
-    IncomeItem,
     OnboardingGoalItem,
     OnboardingRequest,
     OpeningBalanceItem,
@@ -36,8 +35,6 @@ FIELDS: list[tuple[type[BaseModel], str, dict[str, Any]]] = [
     (AllocationRequest, "allocated_amount", {"account_id": "a1"}),
     (GoalRequest, "target_amount", {"name": "Roof"}),
     (GoalUpdateRequest, "target_amount", {}),
-    (IncomeItem, "amount", {"code": "4000", "name": "Salary"}),
-    (IncomeItem, "fx_rate", {"code": "4000", "name": "Salary", "amount": "10"}),
     (OpeningBalanceItem, "amount", {"code": "1000", "name": "Bank", "type": "asset"}),
     (
         OpeningBalanceItem,
@@ -126,4 +123,4 @@ def test_no_request_body_in_the_api_document_takes_a_number():
 
     found = [hit for name in sorted(seen) for hit in numbers(schemas[name], name)]
     assert not found, found
-    assert {"AllocationRequest", "GoalRequest", "IncomeItem", "OpeningBalanceItem"} <= seen
+    assert {"AllocationRequest", "GoalRequest", "OpeningBalanceItem"} <= seen
