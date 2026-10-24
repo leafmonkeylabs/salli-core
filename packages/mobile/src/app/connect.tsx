@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Body, Button, Icon, Problem, SectionLabel } from '../kit';
 import { isThisMachine, type ServerCheck } from '../lib/server';
@@ -66,6 +66,8 @@ export default function Connect() {
             <Fact name={t.version} value={found.meta.server_version} mono />
             <Fact name={t.api} value={`✓ ${t.apiOk}`} />
             <Fact name={t.connection} value={`✓ ${isThisMachine(server) && !server.startsWith('https:') ? t.local : t.https}`} />
+            {/* Needs the server to say whether it has a push notifier: planned. */}
+            <Fact name={t.digests} value={t.planned} muted />
           </View>
           <Body muted>{t.signInNote(host)}</Body>
           {result && !result.ok ? (
@@ -76,31 +78,38 @@ export default function Connect() {
           ) : null}
           <View style={{ flex: 1 }} />
           <View style={{ gap: 10 }}>
-            <Button label={signingIn ? t.signingIn : t.signIn(host)} busy={signingIn} disabled={signingIn} onPress={() => void start()} />
+            <Button label={signingIn ? t.signingIn : t.signIn(host)} busy={signingIn} disabled={signingIn} {...(signingIn ? {} : { icon: 'external' as const })} onPress={() => void start()} />
             <Body small muted style={{ textAlign: 'center' }}>
               {t.sheetNote}
             </Body>
           </View>
         </>
       ) : found.problem === 'unreachable' ? (
-        <Problem title={p.unreachableTitle} body={p.unreachable(server)}>
+        <Problem title={p.unreachableTitle} body={p.unreachable(server)} mono={server}>
           <Retry onRetry={check} />
         </Problem>
       ) : (
-        <Problem title={p[found.problem].title} body={p[found.problem].body(server)}>
-          <Retry onRetry={check} />
+        <Problem title={p[found.problem].title} body={p[found.problem].body(server)} mono={server}>
+          {found.problem === 'no-app-sign-in' ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              <Button kind="secondary" label={p.howToUpgrade} icon="external" onPress={() => void Linking.openURL(p.upgradeUrl)} />
+              <Button label={t.back} kind="tertiary" onPress={() => router.back()} />
+            </View>
+          ) : (
+            <Retry onRetry={check} />
+          )}
         </Problem>
       )}
     </ScrollView>
   );
 }
 
-function Fact({ name, value, mono }: { name: string; value: string; mono?: boolean }) {
+function Fact({ name, value, mono, muted }: { name: string; value: string; mono?: boolean; muted?: boolean }) {
   const theme = useTheme();
   return (
     <View style={[styles.fact, { borderBottomColor: theme.rule }]}>
       <Body muted>{name}</Body>
-      <Text style={[mono ? styles.mono : styles.value, { color: theme.text }]}>{value}</Text>
+      <Text style={[mono ? styles.mono : styles.value, { color: muted ? theme.muted : theme.text }]}>{value}</Text>
     </View>
   );
 }
