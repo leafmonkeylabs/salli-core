@@ -2,7 +2,7 @@ import { accountsOverview } from '@leafmonkeylabs/salli-sdk';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 import { useRead } from '../../api';
-import { AmountRow, Body, Card, CardHead, Loading, Money, Title } from '../../kit';
+import { AmountRow, Body, Card, CardHead, Money, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -54,7 +54,7 @@ export default function Account() {
           </Card>
         </>
       ) : (
-        <Loading what={strings.home.loading('the account')} />
+        <Waiting query={overview} what="the account" />
       )}
     </Page>
   );

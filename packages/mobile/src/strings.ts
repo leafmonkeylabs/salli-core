@@ -268,6 +268,20 @@ export const strings = {
     kept: (what: string) => `Kept: ${what} goes to the account you chose.`,
   },
 
+  reach: {
+    cantReach: (host: string) => `Can’t reach ${host}.`,
+    sentAt: (when: string) => ` These are the figures it sent at ${when}. Nothing can be booked until it answers.`,
+    nothingYet: ' Nothing can be read or booked until it answers.',
+    tryAgain: 'Try again',
+    asOfThen: (when: string) => `As of ${when}, not since`,
+    notKnown: 'Not known until the server answers.',
+    unknown: 'Not known',
+    cantRead: (what: string) => `Couldn’t read ${what}: the server didn’t answer.`,
+    failed: (what: string, why: string) => `Couldn’t read ${what}: ${why}`,
+    needsServer: (what: string) => `${what}: needs your server`,
+    switchServer: (host: string) => `Server: ${host}, out of reach. Switch server`,
+  },
+
   servers: {
     title: 'Servers',
     onScreen: 'On screen',

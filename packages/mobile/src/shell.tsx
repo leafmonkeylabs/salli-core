@@ -12,7 +12,7 @@ import { strings } from './strings';
 import { font, size, useTheme } from './theme';
 
 /** The top bar: a way back, or on Home the server you are on; one action; a place's title. */
-export function Header({ title, server, back, action }: { title?: string; server?: boolean; back?: { label: string; onPress: () => void }; action?: ReactNode }) {
+export function Header({ title, server, unreachable, back, action }: { title?: string; server?: boolean; unreachable?: boolean; back?: { label: string; onPress: () => void }; action?: ReactNode }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { session } = useSession();
@@ -20,7 +20,7 @@ export function Header({ title, server, back, action }: { title?: string; server
   const lead = back ? (
     <BackLink label={back.label} onPress={back.onPress} />
   ) : server ? (
-    <Pressable accessibilityRole="button" accessibilityLabel={strings.home.switchServer(host)} onPress={() => router.push('/servers')} style={styles.server}>
+    <Pressable accessibilityRole="button" accessibilityLabel={unreachable ? strings.reach.switchServer(host) : strings.home.switchServer(host)} onPress={() => router.push('/servers')} style={styles.server}>
       <Text style={[styles.host, { color: theme.text }]} numberOfLines={1}>
         {host}
       </Text>

@@ -35,6 +35,20 @@ export function displayDate(iso: string): string {
   return name ? `${name} ${day.replace(/^0/, '')}, ${year}` : iso;
 }
 
+/** When something happened, from the phone's clock: "09:41 today", or "Oct 23, 2026, 14:05". */
+export function displayMoment(at: Date, now: Date = new Date()): string {
+  return isoDayOf(at) === isoDayOf(now) ? `${timeOf(at)} today` : displayDateTime(at);
+}
+
+/** A moment with its date, always: "Oct 24, 2026, 07:01". */
+export function displayDateTime(at: Date): string {
+  return `${displayDate(isoDayOf(at))}, ${timeOf(at)}`;
+}
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+const timeOf = (d: Date): string => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const isoDayOf = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
 /** A day in a list under a year already said: "Oct 1". */
 export function displayDay(iso: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountParts, displayDate, displayDay, displayRange, monthNameOf, monthOf, todayIso } from '../src/lib/display';
+import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, todayIso } from '../src/lib/display';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
 import { stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
@@ -203,5 +203,14 @@ describe('periods', () => {
     expect(displayDay('2026-10-01')).toBe('Oct 1');
     expect(displayRange('2026-10-01', '2026-10-10')).toBe('Oct 1 to Oct 10, 2026');
     expect(displayRange('2025-12-20', '2026-01-05')).toBe('Dec 20, 2025 to Jan 5, 2026');
+  });
+});
+
+describe('moments', () => {
+  it('says a time today as a time, and another day with its date', () => {
+    const now = new Date(2026, 9, 24, 12, 0);
+    expect(displayMoment(new Date(2026, 9, 24, 9, 41), now)).toBe('09:41 today');
+    expect(displayMoment(new Date(2026, 9, 23, 14, 5), now)).toBe('Oct 23, 2026, 14:05');
+    expect(displayDateTime(new Date(2026, 9, 24, 7, 1))).toBe('Oct 24, 2026, 07:01');
   });
 });

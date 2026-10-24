@@ -19,6 +19,7 @@ const INDEX_KEY = 'salli.servers';
 const LEGACY_KEY = 'salli.sign-in';
 const KEYCHAIN = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
 const USER_AGENT = 'Salli app';
+const READ_TIMEOUT_MS = 12_000;
 
 interface Stored {
   server: string;
@@ -117,7 +118,9 @@ function clientFor(stored: Stored, onTokens: (tokens: oauth.StoredTokens) => voi
     resource: stored.signIn.resource,
     save: onTokens,
   });
-  return createClient({ server: stored.server, auth: tokens, userAgent: USER_AGENT });
+  // A phone away from its server should say so in seconds, not half a minute:
+  // a read gives up after READ_TIMEOUT_MS (an upload sets its own).
+  return createClient({ server: stored.server, auth: tokens, userAgent: USER_AGENT, timeoutMs: READ_TIMEOUT_MS });
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {

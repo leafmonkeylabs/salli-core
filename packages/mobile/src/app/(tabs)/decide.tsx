@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, CardHead, Loading, Money } from '../../kit';
+import { Body, Button, Card, CardHead, Money, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -35,7 +35,7 @@ export default function Decide() {
           </Card>
         )
       ) : (
-        <Loading what={strings.home.loading('decisions')} />
+        <Waiting query={due} what="decisions" />
       )}
       <Body small muted>
         {t.lab}

@@ -12,12 +12,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useApi, useRead } from '../../api';
+import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, Row, SectionLabel } from '../../kit';
-import { displayDate, monthNameOf, monthOf, todayIso } from '../../lib/display';
+import { displayDate, displayDateTime, displayMoment, monthNameOf, monthOf, todayIso } from '../../lib/display';
 import { useSession } from '../../session';
 import { strings } from '../../strings';
-import { size, useTheme } from '../../theme';
+import { font, size, useTheme } from '../../theme';
 import { Header, Pull } from '../../shell';
 
 const t = strings.home;
@@ -35,21 +35,45 @@ export default function Home() {
   const { session } = useSession();
   const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
   const [dismissed, setDismissed] = useState<string | undefined>(undefined);
+  const reach = useReach();
+  const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
+  const api = useApi();
+  const queryClient = useQueryClient();
+  // Everything on screen from this server, Needs attention's reads too.
+  const readAgain = () => queryClient.refetchQueries({ queryKey: [api.server], type: 'active' });
+  // Out of reach and never answered: a figure isn't loading, it isn't known.
+  const missing = reach.unreachable ? <Body small muted>{strings.reach.unknown}</Body> : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.work }}>
       <Header
         server
+        unreachable={reach.unreachable}
         action={
-          <Pressable accessibilityRole="button" accessibilityLabel={t.add} onPress={() => router.push('/add')} style={styles.plus}>
-            <Icon name="plus" colour={theme.text} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={reach.unreachable ? strings.reach.needsServer(t.add) : t.add}
+            accessibilityState={{ disabled: reach.unreachable }}
+            disabled={reach.unreachable}
+            onPress={() => router.push('/add')}
+            style={styles.plus}
+          >
+            <Icon name="plus" colour={reach.unreachable ? theme.muted : theme.text} />
           </Pressable>
         }
       />
-      <ScrollView
-        contentContainerStyle={styles.page}
-        refreshControl={<Pull read={() => Promise.all(reads.map((r) => r.refetch()))} />}
-      >
+      <ScrollView contentContainerStyle={styles.page} refreshControl={<Pull read={readAgain} />}>
+        {reach.unreachable ? (
+          <View accessibilityRole="alert" style={[styles.reach, { backgroundColor: theme.card, borderColor: theme.text }]}>
+            <Body>
+              <Text style={{ fontFamily: font.medium }}>{strings.reach.cantReach(host)}</Text>
+              {reach.lastAnswer ? strings.reach.sentAt(displayMoment(reach.lastAnswer)) : strings.reach.nothingYet}
+            </Body>
+            <View style={{ alignSelf: 'flex-start' }}>
+              <Button label={strings.reach.tryAgain} busy={reads.some((r) => r.isRefetching)} onPress={() => void readAgain()} />
+            </View>
+          </View>
+        ) : null}
         {endedOn && dismissed !== endedOn ? (
           <Card style={{ gap: 8 }}>
             <Body alert>{strings.servers.ended(endedOn.replace(/^https?:\/\//, ''))}</Body>
@@ -64,17 +88,21 @@ export default function Home() {
               <Text style={[styles.tileLine, { color: theme.tileText }]}>
                 {safe.data.next_income ? t.safeUntil(displayDate(safe.data.until), safe.data.next_income.description) : t.safeNoIncome}
               </Text>
-              <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{t.asOf(displayDate(today))}</Text>
+              <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>
+                {reach.unreachable && reach.lastAnswer
+                  ? strings.reach.asOfThen(displayDateTime(reach.lastAnswer))
+                  : t.asOf(displayDate(today))}
+              </Text>
             </>
           ) : (
-            <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{t.loading('safe to spend')}</Text>
+            <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{reach.unreachable ? strings.reach.notKnown : t.loading('safe to spend')}</Text>
           )}
         </Card>
 
         <Card style={styles.figures}>
-          <Figure label={t.netWorth}>{sheet.data ? <Money amount={sheet.data.net_worth} currency={sheet.data.currency} figure="key" /> : null}</Figure>
+          <Figure label={t.netWorth}>{sheet.data ? <Money amount={sheet.data.net_worth} currency={sheet.data.currency} figure="key" /> : missing}</Figure>
           <Figure label={t.spentIn(monthName)}>
-            {spent.data ? <Money amount={spent.data.total_expenses} currency={spent.data.currency} figure="key" /> : null}
+            {spent.data ? <Money amount={spent.data.total_expenses} currency={spent.data.currency} figure="key" /> : missing}
           </Figure>
           {fi.data ? (
             <View style={styles.fiRow}>
@@ -91,7 +119,7 @@ export default function Home() {
           ) : null}
         </Card>
 
-        <Attention />
+        <Attention unreachable={reach.unreachable} />
       </ScrollView>
     </View>
   );
@@ -109,7 +137,7 @@ function Figure({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** What needs attention: Salli's signals, reminders due, decisions due for review. */
-function Attention() {
+function Attention({ unreachable }: { unreachable: boolean }) {
   const api = useApi();
   const queryClient = useQueryClient();
   const signals = useRead('insights.signals', insightsSignals);
@@ -146,22 +174,29 @@ function Attention() {
         <Button
           label={t.done}
           kind="secondary"
-          accessibilityLabel={t.markDone(reminder.kind)}
+          accessibilityLabel={unreachable ? strings.reach.needsServer(t.markDone(reminder.kind)) : t.markDone(reminder.kind)}
           busy={done.isPending && done.variables === reminder.id}
+          disabled={unreachable}
           onPress={() => done.mutate(reminder.id)}
         />
       ),
     });
   }
   const loading = signals.isPending || reminders.isPending || reviews.isPending;
+  // Nothing can be said to need nothing when a read never came back.
+  const unknown = !signals.data || !reminders.data || !reviews.data;
 
   return (
     <Card style={{ paddingVertical: 4 }}>
       <View style={{ paddingTop: 12, paddingBottom: 4 }}>
         <SectionLabel>{t.attention}</SectionLabel>
       </View>
-      {loading ? (
+      {loading && !(unreachable && unknown) ? (
         <Loading what={t.loading('what needs attention')} />
+      ) : unknown && rows.length === 0 ? (
+        <Body muted style={{ paddingVertical: 12 }}>
+          {strings.reach.notKnown}
+        </Body>
       ) : rows.length === 0 ? (
         <Body muted style={{ paddingVertical: 12 }}>
           {t.nothingNeedsAttention}
@@ -182,4 +217,5 @@ const styles = StyleSheet.create({
   figure: { flexBasis: '50%', flexGrow: 1, padding: 14, gap: 4, minWidth: 150 },
   fiRow: { flexBasis: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 14 },
   score: { fontFamily: 'Geist_500Medium', fontSize: size.keyFigure, fontVariant: ['tabular-nums'] },
+  reach: { borderWidth: 1, padding: 14, gap: 10 },
 });

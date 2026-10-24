@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, Icon, Loading, Money } from '../../kit';
+import { Body, Button, Card, Icon, Money, Waiting } from '../../kit';
 import { displayDate, displayDay, displayRange } from '../../lib/display';
 import { Picker } from '../../picker';
 import { Header } from '../../shell';
@@ -174,7 +174,7 @@ export default function Review() {
             </Card>
           )
         ) : (
-          <Loading what={strings.home.loading('the import')} />
+          <Waiting query={pending} what="the import" />
         )}
       </ScrollView>
 

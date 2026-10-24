@@ -3,11 +3,13 @@
  * square corners, hairline cards, 48 px to touch, the outlined-square label,
  * figures exactly as the server sent them.
  */
+import { SalliNetworkError } from '@leafmonkeylabs/salli-sdk';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type PressableProps, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Path, Rect, SvgXml } from 'react-native-svg';
 import { LOGO_DARK, LOGO_LIGHT } from './brand/logo';
 import { amountParts } from './lib/display';
+import { strings } from './strings';
 import { font, size, useTheme } from './theme';
 
 export function Logo({ height = 36 }: { height?: number }) {
@@ -178,6 +180,22 @@ export function Loading({ what }: { what: string }) {
     <Body small muted style={{ paddingVertical: 8 }}>
       {what}
     </Body>
+  );
+}
+
+/**
+ * A read on its way: "Loading…" while it is, and once it has failed, why,
+ * with a way to ask again. A failed read never waits forever.
+ */
+export function Waiting({ query, what }: { query: { error: Error | null; isRefetching: boolean; refetch: () => unknown }; what: string }) {
+  if (!query.error) return <Loading what={strings.home.loading(what)} />;
+  return (
+    <View style={{ gap: 8, paddingVertical: 8 }}>
+      <Body alert>{query.error instanceof SalliNetworkError ? strings.reach.cantRead(what) : strings.reach.failed(what, query.error.message)}</Body>
+      <View style={{ alignSelf: 'flex-start' }}>
+        <Button kind="secondary" label={strings.reach.tryAgain} busy={query.isRefetching} disabled={query.isRefetching} onPress={() => void query.refetch()} />
+      </View>
+    </View>
   );
 }
 
