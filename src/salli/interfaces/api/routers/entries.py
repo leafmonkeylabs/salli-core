@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from salli.domain.accounting.models import BooksLocked, Source, StoredJournalEntry
 from salli.domain.accounting.models import Posting as DomainPosting
-from salli.domain.accounting.models import Source, StoredJournalEntry
 from salli.domain.currency import quantize
 from salli.domain.usage import AIAction
 from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalString, Ref
@@ -300,10 +300,22 @@ async def get_entry_provenance(
     return EntryProvenance.model_validate(provenance)
 
 
+class ReverseEntryRequest(BaseModel):
+    #: Why the entry is reversed, in a few words; the reversal's description
+    #: keeps it ("Reversal of <description>: <reason>").
+    reason: Annotated[str, Field(min_length=1, max_length=200)]
+
+
 @router.post("/{entry_id}/reverse", status_code=201)
-async def reverse_entry(entry_id: str, user_id: CurrentUser, svc: AppServices) -> Ref:
+async def reverse_entry(
+    entry_id: str, body: ReverseEntryRequest, user_id: CurrentUser, svc: AppServices
+) -> Ref:
+    """Cancel an entry with its opposite, dated today (409 when today's books
+    are closed)."""
     try:
-        reversing_id = await svc.ledger.reverse_entry(user_id=user_id, entry_id=entry_id)
+        reversing_id = await svc.ledger.reverse_entry(user_id, entry_id, body.reason)
+    except BooksLocked:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return Ref(id=reversing_id)

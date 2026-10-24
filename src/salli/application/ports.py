@@ -961,6 +961,11 @@ class UserProfileRepository(ABC):
         no profile."""
         raise NotImplementedError
 
+    async def set_lock_date(self, user_id: str, lock_date: str | None) -> None:
+        """Close the books up to and including `lock_date` (YYYY-MM-DD), or
+        open them (None). `ProfileMissing` if there is no profile."""
+        raise NotImplementedError
+
 
 class LlmCredentialRepository(ABC):
     """Per-user provider API keys (BYOK), stored encrypted.

@@ -159,7 +159,8 @@ macOS, `%APPDATA%\salli` on Windows; `SALLI_CONFIG_DIR` moves it).
 | See where you stand | `salli status` |
 | Record a transaction, in your words | `salli add "lunch 12.50 cash"` |
 | Record one exactly | `salli entries add --desc Lunch --debit groceries:12.50 --credit cash:12.50` |
-| Correct one | `salli entries reverse <id>`, then add the right one |
+| Correct one | `salli entries reverse <id> --reason "Booked twice"`, then add the right one |
+| Close a filed year | `salli ledger lock 2025-12-31` (`salli ledger unlock` opens it) |
 | Import a bank statement | `salli import september.ofx --account checking` |
 | Fetch from your bank instead | `salli banks connect`, `salli banks map …`, `salli banks sync` |
 | Book the same payee the same way | `salli rules add Uber --if "description contains uber" --account transport` |

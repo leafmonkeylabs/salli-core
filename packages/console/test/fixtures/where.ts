@@ -6166,8 +6166,8 @@ export const LUNCH_REVERSED: JournalEntry = {
 export const REVERSAL: JournalEntry = {
   "id": "000023a5-5a11-4000-8000-000000009125",
   "entry_date": "2026-10-11",
-  "description": "REVERSAL: Lunch with a friend",
-  "source": "manual",
+  "description": "Reversal of Lunch with a friend: Paid twice",
+  "source": "reversal",
   "external_ref": null,
   "reversed_by": null,
   "postings": [
@@ -6195,8 +6195,8 @@ export const REVERSAL: JournalEntry = {
 export const REVERSAL_PROVENANCE: EntryProvenance = {
   "entry_id": "000023a5-5a11-4000-8000-000000009125",
   "entry_date": "2026-10-11",
-  "description": "REVERSAL: Lunch with a friend",
-  "source": "manual",
+  "description": "Reversal of Lunch with a friend: Paid twice",
+  "source": "reversal",
   "external_ref": null,
   "statement": null,
   "receipt": null,
@@ -6603,8 +6603,8 @@ export const CHECKING_REVERSED: AccountOverview = {
     {
       "entry_id": "000023a5-5a11-4000-8000-000000009125",
       "entry_date": "2026-10-11",
-      "description": "REVERSAL: Lunch with a friend",
-      "source": "manual",
+      "description": "Reversal of Lunch with a friend: Paid twice",
+      "source": "reversal",
       "external_ref": null,
       "running_balance": "6543.15",
       "running_balance_native": "6543.15"

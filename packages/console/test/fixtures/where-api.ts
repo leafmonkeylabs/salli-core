@@ -116,9 +116,7 @@ export class WhereState {
     if (found.reversed_by) return { status: 400, body: where.REVERSE_REFUSED };
     if (id !== where.LUNCH.id) return { status: 404, body: { ...NOT_FOUND, detail: 'Only lunch can be reversed here' } };
     found.reversed_by = where.LUNCH_REVERSED.reversed_by;
-    const reversal = clone(where.REVERSAL);
-    reversal.description = `REVERSAL: ${found.description}`;
-    this.entries.push(reversal);
+    this.entries.push(clone(where.REVERSAL));
     this.trial = clone(where.TRIAL_BALANCE_REVERSED);
     this.replaceOverview(where.CHECKING_REVERSED);
     return { status: 201, body: where.REVERSED };

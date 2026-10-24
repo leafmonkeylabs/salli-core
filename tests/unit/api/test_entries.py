@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from salli.domain.accounting.models import Direction, Posting, StoredJournalEntry
+from salli.domain.accounting.models import BooksLocked, Direction, Posting, StoredJournalEntry
 from tests.unit.api.conftest import AUTH, make_entry
 
 
@@ -114,9 +114,24 @@ async def test_an_entry_reads_back_with_amounts_in_their_own_currency(client, mo
 
 async def test_reversing_returns_the_reversal(client, mock_services):
     mock_services.ledger.reverse_entry.return_value = "e2"
-    r = await client.post("/v1/entries/e1/reverse", headers=AUTH)
+    r = await client.post("/v1/entries/e1/reverse", json={"reason": "Booked twice"}, headers=AUTH)
     assert r.status_code == 201
     assert r.json() == {"id": "e2"}
+    mock_services.ledger.reverse_entry.assert_awaited_once_with("test-user-1", "e1", "Booked twice")
+
+
+async def test_reversing_needs_a_reason(client, mock_services):
+    r = await client.post("/v1/entries/e1/reverse", json={}, headers=AUTH)
+    assert r.status_code == 422
+    mock_services.ledger.reverse_entry.assert_not_awaited()
+
+
+async def test_closed_books_are_a_conflict(client, mock_services):
+    mock_services.ledger.reverse_entry.side_effect = BooksLocked("2025-06-30", "2025-12-31")
+    r = await client.post("/v1/entries/e1/reverse", json={"reason": "Wrong"}, headers=AUTH)
+    assert r.status_code == 409
+    assert r.json()["type"] == "/problems/books-locked"
+    assert "closed up to and including 2025-12-31" in r.json()["detail"]
 
 
 async def test_provenance_of_a_statement_entry(client, mock_services):

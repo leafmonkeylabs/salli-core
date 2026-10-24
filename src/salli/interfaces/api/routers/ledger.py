@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
+from salli.application.permissions import is_recent
 from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.currency import quantize
 from salli.interfaces.api.contract import Amount, CurrencyCode
-from salli.interfaces.api.deps import AppServices, CurrentUser
+from salli.interfaces.api.deps import AppServices, CurrentPrincipal, CurrentUser, StepUpRequired
 
 router = APIRouter(prefix="/ledger", tags=["ledger"])
 
@@ -127,3 +129,33 @@ async def income_statement(
         net_income=str(quantize(income - expenses, currency)),
         lines=lines,
     )
+
+
+class LockDate(BaseModel):
+    #: The books are closed up to and including this day: nothing is posted
+    #: or reversed on or before it. Null: none are closed.
+    lock_date: dt.date | None
+
+
+@router.put("/lock-date")
+async def set_lock_date(
+    body: LockDate, principal: CurrentPrincipal, user_id: CurrentUser, svc: AppServices
+) -> LockDate:
+    """Close the books up to and including a day before today, or open them
+    (null). Moving the day earlier opens what was closed, so only the person's
+    own sign-in may, with a recent password where their client asks for one."""
+    current = await svc.ledger.lock_date(user_id)
+    wanted = body.lock_date.isoformat() if body.lock_date else None
+    if current is not None and (wanted is None or wanted < current):
+        if principal.actor().kind != "user":
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="Only your own sign-in to Salli can open closed books; other "
+                "applications cannot.",
+            )
+        if principal.fresh_within and not is_recent(principal.sign_in_age, principal.fresh_within):
+            raise StepUpRequired(
+                "Opening closed books", int(principal.fresh_within.total_seconds())
+            )
+    await svc.ledger.set_lock_date(user_id, wanted)
+    return LockDate(lock_date=body.lock_date)

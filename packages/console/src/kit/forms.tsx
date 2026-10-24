@@ -328,6 +328,8 @@ export interface ConfirmProps {
   cancelLabel: string;
   onConfirm: () => void;
   isPending?: boolean;
+  /** Until what the write needs is filled in (a reason, say). */
+  isDisabled?: boolean;
 }
 
 /**
@@ -336,7 +338,7 @@ export interface ConfirmProps {
  * and gives focus back, with no script injecting styles (React Aria's
  * modal does, on iOS, which the CSP refuses).
  */
-export function Confirm({ isOpen, onOpenChange, title, children, confirmLabel, cancelLabel, onConfirm, isPending }: ConfirmProps) {
+export function Confirm({ isOpen, onOpenChange, title, children, confirmLabel, cancelLabel, onConfirm, isPending, isDisabled }: ConfirmProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -357,7 +359,7 @@ export function Confirm({ isOpen, onOpenChange, title, children, confirmLabel, c
             <Button variant="secondary" autoFocus onPress={() => onOpenChange(false)}>
               {cancelLabel}
             </Button>
-            <Button variant="primary" onPress={onConfirm} isPending={isPending ?? false}>
+            <Button variant="primary" onPress={onConfirm} isPending={isPending ?? false} isDisabled={isDisabled ?? false}>
               {confirmLabel}
             </Button>
           </div>

@@ -1,16 +1,16 @@
 /**
- * salli ledger trial-balance | income-statement, and salli tags list
+ * salli ledger trial-balance | income-statement | lock | unlock, and salli tags list
  */
 import { Option, type Command } from '@commander-js/extra-typings';
-import { compareAmounts, ledgerIncomeStatement, ledgerTrialBalance, tagsList } from '@leafmonkeylabs/salli-sdk';
+import { compareAmounts, ledgerIncomeStatement, ledgerLockDateSet, ledgerTrialBalance, tagsList } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
 import { UsageError } from '../errors';
 import { displayWidth, padEnd, padStart, singleLine } from '../output/text';
-import { displayRange, isoDate, monthPeriod, parseDate } from '../util/dates';
+import { displayDate, displayRange, isoDate, monthPeriod, parseDate } from '../util/dates';
 import { AccountBook } from './shared';
 
 export function registerLedger(program: Command, app: App): void {
-  const ledger = program.command('ledger').description('Ledger reports: trial balance and income statement');
+  const ledger = program.command('ledger').description('Ledger reports, and closing the books up to a day');
 
   ledger
     .command('trial-balance')
@@ -113,6 +113,25 @@ export function registerLedger(program: Command, app: App): void {
           out.line(text.join('\n'));
         },
       });
+    });
+
+  ledger
+    .command('lock')
+    .argument('<date>', 'The last day to close (YYYY-MM-DD), before today')
+    .description('Close the books up to and including a day: nothing is posted or reversed on or before it')
+    .action(async (date) => {
+      const api = await app.api();
+      const lock = await api.call(ledgerLockDateSet, { body: { lock_date: parseDate(date, app.runtime.now(), '<date>') } });
+      app.out.emit(lock, { human: () => app.out.success(`The books are closed up to and including ${displayDate(lock.lock_date, app.out.locale)}.`) });
+    });
+
+  ledger
+    .command('unlock')
+    .description('Open every closed day again (your own sign-in only)')
+    .action(async () => {
+      const api = await app.api();
+      const lock = await api.call(ledgerLockDateSet, { body: { lock_date: null } });
+      app.out.emit(lock, { human: () => app.out.success('The books are open: no day is closed.') });
     });
 
   program

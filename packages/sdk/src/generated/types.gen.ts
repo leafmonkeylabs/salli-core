@@ -81,7 +81,7 @@ export type AccountActivity = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
     /**
      * External Ref
      */
@@ -4344,7 +4344,7 @@ export type EntryProvenance = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
     /**
      * External Ref
      */
@@ -4549,7 +4549,7 @@ export type ExportedJournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
     /**
      * External Ref
      */
@@ -6339,7 +6339,7 @@ export type JournalEntry = {
     /**
      * Source
      */
-    source: 'manual' | 'statement' | 'sms' | 'system';
+    source: 'manual' | 'statement' | 'sms' | 'system' | 'reversal';
     /**
      * External Ref
      */
@@ -6520,6 +6520,16 @@ export type LoanChange = {
      * Label
      */
     label: string;
+};
+
+/**
+ * LockDate
+ */
+export type LockDate = {
+    /**
+     * Lock Date
+     */
+    lock_date: string | null;
 };
 
 /**
@@ -8269,6 +8279,10 @@ export type Profile = {
      * Time Zone
      */
     time_zone?: string | null;
+    /**
+     * Lock Date
+     */
+    lock_date?: string | null;
 };
 
 /**
@@ -8809,6 +8823,16 @@ export type ResumeRequest = {
      * Persona
      */
     persona?: 'scrooge' | 'buddy';
+};
+
+/**
+ * ReverseEntryRequest
+ */
+export type ReverseEntryRequest = {
+    /**
+     * Reason
+     */
+    reason: string;
 };
 
 /**
@@ -13587,7 +13611,7 @@ export type EntriesProvenanceResponses = {
 export type EntriesProvenanceResponse = EntriesProvenanceResponses[keyof EntriesProvenanceResponses];
 
 export type EntriesReverseData = {
-    body?: never;
+    body: ReverseEntryRequest;
     path: {
         /**
          * Entry Id
@@ -13729,6 +13753,35 @@ export type LedgerIncomeStatementResponses = {
 };
 
 export type LedgerIncomeStatementResponse = LedgerIncomeStatementResponses[keyof LedgerIncomeStatementResponses];
+
+export type LedgerLockDateSetData = {
+    body: LockDate;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/lock-date';
+};
+
+export type LedgerLockDateSetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerLockDateSetError = LedgerLockDateSetErrors[keyof LedgerLockDateSetErrors];
+
+export type LedgerLockDateSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LockDate;
+};
+
+export type LedgerLockDateSetResponse = LedgerLockDateSetResponses[keyof LedgerLockDateSetResponses];
 
 export type TagsListData = {
     body?: never;
