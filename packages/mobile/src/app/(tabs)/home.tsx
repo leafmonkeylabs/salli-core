@@ -2,6 +2,8 @@ import {
   accountsList,
   decisionsReviewsDue,
   fiScoreGet,
+  insightsForecast,
+  insightsNetWorth,
   insightsSafeToSpend,
   insightsSignals,
   ledgerIncomeStatement,
@@ -13,10 +15,12 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { useApi, useRead, useReach } from '../../api';
-import { Body, Button, Card, Icon, Loading, Money, Row, SectionLabel } from '../../kit';
-import { displayDate, displayDateTime, displayMoment, displayRange, monthNameOf, monthOf, todayIso } from '../../lib/display';
+import { Body, Button, Card, Icon, Loading, Money, SectionLabel } from '../../kit';
+import { filled, lineChart, shares } from '../../lib/chart';
+import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, previousMonthOf, todayIso, wholeDigits } from '../../lib/display';
 import { useSession } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -31,9 +35,14 @@ export default function Home() {
   const safe = useRead('insights.safeToSpend', insightsSafeToSpend);
   const sheet = useRead('reports.balanceSheet', reportsBalanceSheet);
   const spent = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: month.from, to_date: month.to } });
+  const lastMonth = previousMonthOf(today);
+  const spentBefore = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: lastMonth.from, to_date: lastMonth.to } });
   const fi = useRead('fi.score.get', fiScoreGet);
+  const forecast = useRead('insights.forecast', insightsForecast);
+  const history = useRead('insights.netWorth', insightsNetWorth, { query: { months: 12 } });
   const reads = [safe, sheet, spent, fi];
   const monthName = monthNameOf(today);
+  const lastName = monthNameOf(lastMonth.from);
   const { session } = useSession();
   const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
   const [dismissed, setDismissed] = useState<string | undefined>(undefined);
@@ -88,41 +97,51 @@ export default function Home() {
           {safe.data ? (
             <>
               <Money amount={safe.data.amount} currency={safe.data.currency} figure="hero" onTile />
-              <Text style={[styles.tileLine, { color: theme.tileText }]}>
-                {safe.data.next_income ? t.safeUntil(displayDate(safe.data.until), safe.data.next_income.description) : t.safeNoIncome}
+              <Text
+                accessibilityLabel={safe.data.next_income ? t.safeUntilSpoken(displayDate(safe.data.until), safe.data.next_income.description) : t.safeNoIncome}
+                style={[styles.tileLine, { color: theme.tileMuted }]}
+              >
+                {safe.data.next_income ? t.safeUntil(displayDay(safe.data.until), safe.data.next_income.description) : t.safeNoIncome}
               </Text>
-              <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>
-                {reach.unreachable && reach.lastAnswer
-                  ? strings.reach.asOfThen(displayDateTime(reach.lastAnswer))
-                  : t.asOf(displayDate(today))}
-              </Text>
+              {/* As of a time only when the figures are old: the server is out of reach. */}
+              {reach.unreachable && reach.lastAnswer ? (
+                <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{strings.reach.asOfThen(displayDateTime(reach.lastAnswer))}</Text>
+              ) : null}
+              {forecast.data && forecast.data.daily.length > 1 ? (
+                <Spark
+                  amounts={forecast.data.daily.map((d) => d.balance)}
+                  low={forecast.data.daily.findIndex((d) => d.date === forecast.data?.lowest_date)}
+                  colour={theme.tileMuted}
+                  height={44}
+                  label={t.lowSpoken(`${forecast.data.lowest} ${forecast.data.currency}`, displayDate(forecast.data.lowest_date))}
+                />
+              ) : null}
             </>
           ) : (
             <Text style={[styles.tileSmall, { color: theme.tileMuted }]}>{reach.unreachable ? strings.reach.notKnown : t.loading('safe to spend')}</Text>
           )}
         </Card>
 
-        <Card style={styles.figures}>
-          <Figure label={t.netWorth} divider>
-            {sheet.data ? <Money amount={sheet.data.net_worth} currency={sheet.data.currency} figure="key" /> : missing}
-          </Figure>
-          <Figure label={t.spentIn(monthName)}>
-            {spent.data ? <Money amount={spent.data.total_expenses} currency={spent.data.currency} figure="key" /> : missing}
-          </Figure>
-          {fi.data ? (
-            <View style={[styles.fiRow, { borderTopColor: theme.rule }]}>
-              <View style={{ flex: 1 }}>
-                <Body small muted>
-                  {t.fiScore(fi.data.grade)}
-                </Body>
-                <Body small muted>
-                  {fi.data.assumptions?.status === 'placeholder' ? t.placeholders : t.ownAssumptions}
-                </Body>
-              </View>
-              <Text style={[styles.score, { color: theme.text }]}>{fi.data.overall_score}</Text>
-            </View>
-          ) : null}
-        </Card>
+        <View style={styles.tiles}>
+          <Tile label={t.netWorth} spoken={sheet.data ? t.netWorthSpoken(amountParts(sheet.data.net_worth, sheet.data.currency).spoken) : undefined} figure={sheet.data ? wholeDigits(sheet.data.net_worth, sheet.data.currency) : undefined} missing={missing}>
+            {history.data && history.data.points.length > 1 ? <Spark amounts={history.data.points.map((p) => p.net_worth)} colour={theme.chart} height={24} /> : null}
+          </Tile>
+          <Tile
+            label={t.spentShort(monthName.slice(0, 3))}
+            spoken={
+              spent.data && spentBefore.data
+                ? t.spentAgainst(monthName, amountParts(spent.data.total_expenses, spent.data.currency).spoken, lastName, amountParts(spentBefore.data.total_expenses, spentBefore.data.currency).spoken)
+                : undefined
+            }
+            figure={spent.data ? wholeDigits(spent.data.total_expenses, spent.data.currency) : undefined}
+            missing={missing}
+          >
+            {spent.data && spentBefore.data ? <Bars amounts={[spent.data.total_expenses, spentBefore.data.total_expenses]} /> : null}
+          </Tile>
+          <Tile label={t.fiScore} spoken={fi.data ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : undefined} figure={fi.data ? fi.data.overall_score.replace(/\.\d+$/, '') : undefined} missing={missing}>
+            {fi.data ? <Ring share={filled(fi.data.overall_score)} /> : null}
+          </Tile>
+        </View>
 
         <Attention unreachable={reach.unreachable} />
       </ScrollView>
@@ -130,15 +149,75 @@ export default function Home() {
   );
 }
 
-function Figure({ label, divider, children }: { label: string; divider?: boolean; children: ReactNode }) {
+/** A key figure at a glance: its label, the figure in whole units, a small chart under it; read out in full. */
+function Tile({ label, figure, spoken, missing, children }: { label: string; figure: string | undefined; spoken: string | undefined; missing: ReactNode; children?: ReactNode }) {
   const theme = useTheme();
   return (
-    <View style={[styles.figure, divider ? { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: theme.rule } : null]}>
-      <Body small muted>
-        {label}
-      </Body>
-      {children ?? <Loading what="…" />}
+    <Card style={styles.tile}>
+      <View accessible accessibilityLabel={spoken ?? label} style={{ gap: 6 }}>
+        <Text style={[styles.tileLabel, { color: theme.muted }]} numberOfLines={1}>
+          {label}
+        </Text>
+        {figure !== undefined ? (
+          <Text style={[styles.tileFigure, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+            {figure}
+          </Text>
+        ) : (
+          (missing ?? <Loading what="…" />)
+        )}
+        {children}
+      </View>
+    </Card>
+  );
+}
+
+/** A small line of amounts, oldest first, filling the width it is given; the low point marked when given. */
+function Spark({ amounts, colour, height, low, label }: { amounts: readonly string[]; colour: string; height: number; low?: number; label?: string }) {
+  const [width, setWidth] = useState(0);
+  const chart = width ? lineChart(amounts, width, height) : undefined;
+  const dot = chart && low !== undefined && low >= 0 ? chart.points[low] : undefined;
+  return (
+    <View
+      onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}
+      style={{ height }}
+      {...(label ? { accessible: true, accessibilityLabel: label } : { accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' as const })}
+    >
+      {chart ? (
+        <Svg width={width} height={height}>
+          <Path d={chart.path} stroke={colour} strokeWidth={1.5} fill="none" />
+          {dot ? <Circle cx={dot.x} cy={dot.y} r={3.5} fill={colour} /> : null}
+        </Svg>
+      ) : null}
     </View>
+  );
+}
+
+/** This month's amount against last month's, as two bars. */
+function Bars({ amounts }: { amounts: readonly [string, string] }) {
+  const theme = useTheme();
+  const [now, before] = shares(amounts);
+  return (
+    <View style={{ gap: 4 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={[styles.bar, { backgroundColor: theme.rule }]}>
+        <View style={[styles.bar, { width: `${(now ?? 0) * 100}%`, backgroundColor: theme.chart }]} />
+      </View>
+      <View style={[styles.bar, { backgroundColor: theme.rule }]}>
+        <View style={[styles.bar, { width: `${(before ?? 0) * 100}%`, backgroundColor: theme.muted }]} />
+      </View>
+    </View>
+  );
+}
+
+/** How far a score fills its ring. */
+function Ring({ share }: { share: number }) {
+  const theme = useTheme();
+  const r = 11;
+  const round = 2 * Math.PI * r;
+  return (
+    <Svg width={28} height={28} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Circle cx={14} cy={14} r={r} stroke={theme.rule} strokeWidth={4} fill="none" />
+      <Circle cx={14} cy={14} r={r} stroke={theme.chart} strokeWidth={4} fill="none" strokeDasharray={`${share * round} ${round}`} transform="rotate(-90 14 14)" />
+    </Svg>
   );
 }
 
@@ -163,9 +242,9 @@ function Attention({ unreachable }: { unreachable: boolean }) {
   });
   const today = todayIso();
 
-  const rows: { key: string; title: string; detail?: string; onPress?: () => void; action?: ReactNode }[] = [];
+  const rows: { key: string; title: string; detail?: string; spoken?: string; late?: boolean; onPress?: () => void; action?: ReactNode }[] = [];
   for (const review of reviews.data?.reviews ?? []) {
-    rows.push({ key: `review-${review.id}`, title: t.decision, detail: `${review.question} ${t.reviewDue(displayDate(review.review_on))}`, ...open(() => router.push('/decide')) });
+    rows.push({ key: `review-${review.id}`, title: t.decision, detail: displayDay(review.review_on), spoken: `${t.decision}: ${review.question} ${t.reviewDue(displayDate(review.review_on))}`, ...open(() => router.push('/decide')) });
   }
   for (const signal of signals.data?.signals ?? []) {
     if (signal.kind === 'decision_review_due') continue; // listed above, from the journal
@@ -176,7 +255,7 @@ function Attention({ unreachable }: { unreachable: boolean }) {
         : waiting.length > 1
           ? t.statementsWaiting(waiting.length)
           : signal.date
-            ? displayDate(signal.date)
+            ? displayDay(signal.date)
             : undefined;
       rows.push({
         key: `signal-${signal.kind}`,
@@ -186,7 +265,7 @@ function Attention({ unreachable }: { unreachable: boolean }) {
       });
       continue;
     }
-    rows.push({ key: `signal-${signal.kind}-${signal.date ?? ''}`, title: signal.title, ...(signal.date ? { detail: displayDate(signal.date) } : {}) });
+    rows.push({ key: `signal-${signal.kind}-${signal.date ?? ''}`, title: signal.title, ...(signal.date ? { detail: displayDay(signal.date) } : {}) });
   }
   for (const reminder of reminders.data?.reminders ?? []) {
     if (reminder.source_domain === 'decision') continue; // the review above
@@ -194,7 +273,9 @@ function Attention({ unreachable }: { unreachable: boolean }) {
     rows.push({
       key: `reminder-${reminder.id}`,
       title: reminder.kind,
-      detail: late ? t.overdue(displayDate(reminder.due_date)) : t.due(displayDate(reminder.due_date)),
+      detail: late ? t.overdue : displayDay(reminder.due_date),
+      spoken: `${reminder.kind}, ${late ? t.overdueSpoken(displayDate(reminder.due_date)) : t.due(displayDate(reminder.due_date))}`,
+      late,
       action: (
         <Button
           label={t.done}
@@ -227,20 +308,52 @@ function Attention({ unreachable }: { unreachable: boolean }) {
           {t.nothingNeedsAttention}
         </Body>
       ) : (
-        rows.map(({ key, ...row }, i) => <Row key={key} {...row} last={i === rows.length - 1} />)
+        rows.map(({ key, ...row }, i) => <Line key={key} {...row} last={i === rows.length - 1} />)
       )}
     </Card>
+  );
+}
+
+/** One thing that needs attention, on one line: what, when, and its action or where it opens. */
+function Line({ title, detail, spoken, late, onPress, action, last }: { title: string; detail?: string; spoken?: string; late?: boolean; onPress?: () => void; action?: ReactNode; last?: boolean }) {
+  const theme = useTheme();
+  const style = [styles.line, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
+  const content = (
+    <>
+      <View style={[styles.marker, { backgroundColor: late ? theme.negative : theme.muted, borderRadius: theme.marker === 'dot' ? 3 : 0 }]} />
+      <Text style={[styles.lineTitle, { color: theme.text }]} numberOfLines={1}>
+        {title}
+      </Text>
+      {detail ? <Text style={[styles.lineDetail, { color: late ? theme.negative : theme.muted }]}>{detail}</Text> : null}
+      {action}
+      {onPress ? <Icon name="chevron" size={16} colour={theme.muted} /> : null}
+    </>
+  );
+  const label = spoken ?? [title, detail].filter(Boolean).join(', ');
+  return onPress ? (
+    <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={onPress} style={style}>
+      {content}
+    </Pressable>
+  ) : (
+    <View accessible={!action} accessibilityLabel={label} style={style}>
+      {content}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   page: { padding: size.gutter, gap: size.gap },
   plus: { width: size.target, height: size.target, alignItems: 'center', justifyContent: 'center' },
-  tileLine: { fontFamily: 'Geist_400Regular', fontSize: 15, lineHeight: 21 },
-  tileSmall: { fontFamily: 'Geist_400Regular', fontSize: size.small },
-  figures: { padding: 0, flexDirection: 'row', flexWrap: 'wrap' },
-  figure: { flexBasis: '50%', flexGrow: 1, padding: 14, gap: 4, minWidth: 150 },
-  fiRow: { flexBasis: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth },
-  score: { fontFamily: 'Geist_500Medium', fontSize: size.keyFigure, fontVariant: ['tabular-nums'] },
+  tileLine: { fontFamily: font.regular, fontSize: 15, lineHeight: 21 },
+  tileSmall: { fontFamily: font.regular, fontSize: size.small },
+  tiles: { flexDirection: 'row', gap: 8 },
+  tile: { flex: 1, padding: 12 },
+  tileLabel: { fontFamily: font.regular, fontSize: 13 },
+  tileFigure: { fontFamily: font.medium, fontSize: 18, fontVariant: ['tabular-nums'] },
+  bar: { height: 6 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 6 },
+  marker: { width: 6, height: 6 },
+  lineTitle: { flex: 1, fontFamily: font.regular, fontSize: size.body },
+  lineDetail: { fontFamily: font.regular, fontSize: size.small, fontVariant: ['tabular-nums'] },
   reach: { borderWidth: 1, padding: 14, gap: 10 },
 });

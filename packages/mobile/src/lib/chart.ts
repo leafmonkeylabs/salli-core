@@ -111,3 +111,30 @@ export function placeLabels(wanted: readonly WantedLabel[], width: number, heigh
   }
   return placed.map(({ box: _box, ...label }) => label);
 }
+
+/** A line through `amounts`, oldest first, in a `width` × `height` box: a sparkline's path. */
+export function lineChart(amounts: readonly string[], width: number, height: number, pad = 4): { path: string; points: { x: number; y: number }[] } {
+  const values = amounts.map(pixels);
+  if (!values.length) return { path: '', points: [] };
+  const high = Math.max(...values);
+  const low = Math.min(...values);
+  const span = high - low || 1;
+  const points = values.map((v, i) => ({
+    x: pad + (values.length > 1 ? (i / (values.length - 1)) * (width - 2 * pad) : (width - 2 * pad) / 2),
+    y: pad + ((high - v) / span) * (height - 2 * pad),
+  }));
+  const path = points.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  return { path, points };
+}
+
+/** How long each bar is beside the longest, from 0 to 1: bars that compare amounts. */
+export function shares(amounts: readonly string[]): number[] {
+  const values = amounts.map((a) => Math.abs(pixels(a)));
+  const most = Math.max(0, ...values);
+  return values.map((v) => (most ? v / most : 0));
+}
+
+/** How much of a ring a score fills, from 0 to 1. */
+export function filled(score: string, of = 100): number {
+  return Math.min(1, Math.max(0, pixels(score) / of));
+}

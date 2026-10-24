@@ -78,6 +78,24 @@ export function monthOf(today: string): { from: string; to: string } {
 }
 
 /** Today's date where the phone is, as ISO 8601. */
+/** The calendar month before the one `today` falls in. */
+export function previousMonthOf(today: string): { from: string; to: string } {
+  // eslint-disable-next-line no-restricted-syntax -- not money: a date's year and month
+  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+  const year = m === 1 ? y - 1 : y;
+  const month = m === 1 ? 12 : m - 1;
+  const mm = String(month).padStart(2, '0');
+  const last = new Date(year, month, 0).getDate();
+  return { from: `${year}-${mm}-01`, to: `${year}-${mm}-${String(last).padStart(2, '0')}` };
+}
+
+/** An amount in whole units, as a glance shows it: the server's digits up to the decimal point. */
+export function wholeDigits(amount: string, currency: string): string {
+  const parts = amountParts(amount, currency);
+  const whole = parts.digits.replace(/\.\d+$/, '');
+  return parts.negative ? `(${whole})` : whole;
+}
+
 export function todayIso(now: Date = new Date()): string {
   const pad = (n: number): string => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
