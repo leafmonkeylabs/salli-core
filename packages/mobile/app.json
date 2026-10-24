@@ -38,6 +38,7 @@
       ],
       "expo-web-browser",
       "@bacons/apple-targets",
+      "expo-background-task",
       "expo-secure-store",
       "expo-font",
       [

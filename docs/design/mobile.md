@@ -241,9 +241,21 @@ alerts@bank.example") hands the text to an action of Salli's instead.
   and `{skip}`; Advanced takes a regular expression with named groups, the
   date order and the decimal mark. Amounts are read as written and refused
   when ambiguous ("1,245.50" with a comma mark), never guessed
-  (`src/lib/automations.ts`). Next: the Shortcuts action, which queues a
-  message on the phone for Salli to read when it next runs, and the list of
-  messages from a watched sender that no rule reads.
+  (`src/lib/automations.ts`).
+- **The Shortcuts action** "Draft from a bank's message" (`targets/intents`,
+  an App Intents extension) only adds the message and its sender to a queue
+  in the app group and returns; it sends nothing and reads no rule. Salli
+  reads the queue with the rules of the server on screen when it opens, when
+  it comes back to the screen, and when iOS gives it background time
+  (`src/inbox.tsx`, `expo-background-task`). Every run goes through the
+  signed-in session's own client: a background run with no app running
+  waits, rather than refresh the sign-in a second way (a refresh token used
+  twice ends the sign-in). Drafts go by account; one that can't be sent
+  stays queued. A message no rule watches is dropped at once.
+- **Not read:** a message from a watched sender that no pattern fits waits
+  on the Automations page, in the keychain under its server (50 at most),
+  to make a rule from or let go; each run reads them again, so a new rule
+  picks them up.
 
 ## Later
 

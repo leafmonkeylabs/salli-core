@@ -5,6 +5,7 @@ import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
 import { amountOf, dateOf, read, readWith, type AutomationRule } from '../src/lib/automations';
+import { keepUnread, queueOf, sortInbox, type QueuedMessage } from '../src/lib/inbox';
 import { glanceOf, type GlanceReads } from '../src/lib/glance';
 import { forgotten, listOf, LOCK_AFTER_MS, lockDue, remembered, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
@@ -400,5 +401,51 @@ describe('automation rules', () => {
     expect(read([rule], { text: message, sender: '+15550100' }, today)).toEqual({ kind: 'ignored' });
     // Pasted by hand: every rule is tried.
     expect(read([rule], { text: message }, today)).toMatchObject({ kind: 'draft' });
+  });
+});
+
+describe('the automations inbox', () => {
+  const rule: AutomationRule = {
+    id: 'r1',
+    name: 'Card spend',
+    senders: ['EXAMPLEBANK'],
+    pattern: 'debited EUR {amount} at {payee}',
+    kind: 'template',
+    direction: 'out',
+    accountId: 'checking',
+    dateOrder: 'DMY',
+    decimalMark: '.',
+  };
+  const message = (id: string, text: string, sender = 'EXAMPLEBANK', at = '2026-10-23T12:00:00Z'): QueuedMessage => ({ id, text, sender, at });
+
+  it('drafts by account on the day each arrived, keeps the unread, drops the unwatched', () => {
+    const sorted = sortInbox(
+      [rule],
+      [
+        message('m1', 'Your card was debited EUR 8.40 at CORNER BAKERY.'),
+        message('m2', 'Your one-time code is 4471.'),
+        message('m3', 'Lunch at noon?', '+15550100'),
+        message('m4', 'Your card was debited EUR 2.75 at CITY TRANSIT.', 'examplebank', '2026-10-24T12:00:00Z'),
+      ],
+    );
+    expect([...sorted.drafts.keys()]).toEqual(['checking']);
+    expect(sorted.drafts.get('checking')).toEqual({
+      ids: ['m1', 'm4'],
+      drafts: [
+        { date: '2026-10-23', description: 'CORNER BAKERY', amount: '8.40', credit_flag: false },
+        { date: '2026-10-24', description: 'CITY TRANSIT', amount: '2.75', credit_flag: false },
+      ],
+    });
+    expect(sorted.unread.map((m) => m.id)).toEqual(['m2']);
+    expect(sorted.ignored).toEqual(['m3']);
+  });
+
+  it('reads the queue leniently and keeps the newest unread once each', () => {
+    expect(queueOf('not json')).toEqual([]);
+    expect(queueOf('{"id":"x"}')).toEqual([]);
+    expect(queueOf(JSON.stringify([{ id: 'a', text: 't', at: '2026-10-24T08:00:00Z' }, { id: 1 }]))).toEqual([{ id: 'a', text: 't', at: '2026-10-24T08:00:00Z', sender: '' }]);
+    const old = message('a', 'x', 'EXAMPLEBANK', '2026-10-01T00:00:00Z');
+    const fresh = message('b', 'y', 'EXAMPLEBANK', '2026-10-20T00:00:00Z');
+    expect(keepUnread([old], [fresh, old], 1)).toEqual([fresh]);
   });
 });

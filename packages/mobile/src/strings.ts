@@ -318,6 +318,14 @@ export const strings = {
     removeTitle: 'Delete this rule?',
     removeBody: 'Messages it read stay drafted. New ones from its senders aren’t read until another rule does.',
     needs: { name: 'Name the rule.', account: 'Choose the account it is on.' },
+    // Messages a Shortcuts automation handed over that no rule reads
+    unreadTitle: 'Not read',
+    unreadHelp: 'From a sender a rule watches, but no rule’s pattern fits. They stay on this phone until a rule reads them or you let them go.',
+    unreadFrom: (sender: string, when: string) => (sender ? `${sender} · ${when}` : when),
+    discard: 'Let it go',
+    shortcutTitle: 'From Shortcuts',
+    shortcutHelp:
+      'In the Shortcuts app, make an automation for when you get a message or an email from your bank, with Salli’s action “Draft from a bank’s message”. Salli reads what it hands over the next time it runs.',
   },
 
   imports: {

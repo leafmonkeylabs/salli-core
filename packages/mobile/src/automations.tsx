@@ -24,6 +24,16 @@ export interface Automations {
   remove(id: string): Promise<void>;
 }
 
+/** A server's rules, as kept on this phone: none when there are none, or they don't read. */
+export async function loadRules(server: string): Promise<AutomationRule[]> {
+  const text = await SecureStore.getItemAsync(storeKeyOf(server, 'automations'));
+  try {
+    return text ? (JSON.parse(text) as AutomationRule[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function useAutomations(): Automations {
   const { session } = useSession();
   const server = session.status === 'signed-in' ? session.server : '';
@@ -33,13 +43,8 @@ export function useAutomations(): Automations {
     setRules(undefined);
     if (!server) return;
     let live = true;
-    void SecureStore.getItemAsync(storeKeyOf(server, 'automations')).then((text) => {
-      if (!live) return;
-      try {
-        setRules(text ? (JSON.parse(text) as AutomationRule[]) : []);
-      } catch {
-        setRules([]);
-      }
+    void loadRules(server).then((stored) => {
+      if (live) setRules(stored);
     });
     return () => {
       live = false;
