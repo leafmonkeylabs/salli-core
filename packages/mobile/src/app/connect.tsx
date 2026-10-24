@@ -66,10 +66,8 @@ export default function Connect() {
             <Fact name={t.version} value={found.meta.server_version} mono />
             <Fact name={t.api} value={`✓ ${t.apiOk}`} />
             <Fact name={t.connection} value={`✓ ${isThisMachine(server) && !server.startsWith('https:') ? t.local : t.https}`} />
-            {/* Needs the server to say whether it has a push notifier: planned. */}
-            <Fact name={t.digests} value={t.planned} muted />
           </View>
-          <Body muted>{t.signInNote(host)}</Body>
+          <Body muted>{t.signInNote}</Body>
           {result && !result.ok ? (
             <Problem
               title={result.reason === 'denied' ? p.deniedTitle : p.failedTitle}
@@ -78,10 +76,14 @@ export default function Connect() {
           ) : null}
           <View style={{ flex: 1 }} />
           <View style={{ gap: 10 }}>
-            <Button label={signingIn ? t.signingIn : t.signIn(host)} busy={signingIn} disabled={signingIn} {...(signingIn ? {} : { icon: 'external' as const })} onPress={() => void start()} />
-            <Body small muted style={{ textAlign: 'center' }}>
-              {t.sheetNote}
-            </Body>
+            <Button
+              label={signingIn ? t.signingIn : t.signIn(host)}
+              accessibilityHint={t.sheetNote}
+              busy={signingIn}
+              disabled={signingIn}
+              {...(signingIn ? {} : { icon: 'external' as const })}
+              onPress={() => void start()}
+            />
           </View>
         </>
       ) : found.problem === 'unreachable' ? (
