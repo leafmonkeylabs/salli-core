@@ -4,6 +4,7 @@ import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib
 import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
+import { amountOf, dateOf, read, readWith, type AutomationRule } from '../src/lib/automations';
 import { glanceOf, type GlanceReads } from '../src/lib/glance';
 import { forgotten, listOf, LOCK_AFTER_MS, lockDue, remembered, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
@@ -333,5 +334,71 @@ describe('the widgets\' snapshot', () => {
     );
     expect(glance.waiting).toEqual({ label: 'Waiting', lines: ['Nothing waiting'], more: '' });
     expect(glance.safe.until).toBe('No income expected');
+  });
+});
+
+describe('automation rules', () => {
+  const card: AutomationRule = {
+    id: 'r1',
+    name: 'Card spend',
+    senders: ['EXAMPLEBANK'],
+    pattern: 'Your card ending 4821 was debited {currency} {amount} at {payee} on {date}. Ref {ref}.',
+    kind: 'template',
+    direction: 'out',
+    accountId: 'checking',
+    dateOrder: 'DMY',
+    decimalMark: '.',
+  };
+  // {currency} isn't a part: a template's unknown braces are words to match.
+  const rule = { ...card, pattern: 'debited EUR {amount} at {payee} on {date}. Ref {ref}' };
+  const message = 'Your card ending 4821 was debited EUR 1,245.50 at CORNER BAKERY on 05/10/26. Ref 662718. Not you? Call us.';
+
+  it('reads a draft out of a message, the amount as written', () => {
+    expect(readWith(rule, message, '2026-10-24')).toEqual({
+      date: '2026-10-05',
+      description: 'CORNER BAKERY',
+      amount: '1245.50',
+      credit_flag: false,
+      bank_ref: '662718',
+    });
+  });
+
+  it('runs a part at the end to the sentence, and takes the day it arrived without a date', () => {
+    const credit = { ...rule, direction: 'in' as const, pattern: 'credited with {amount} from {payee}' };
+    expect(readWith(credit, 'Your account was credited with 2,400.00 from NORTHWIND PAYROLL. Balance follows.', '2026-10-24')).toEqual({
+      date: '2026-10-24',
+      description: 'NORTHWIND PAYROLL',
+      amount: '2400.00',
+      credit_flag: true,
+    });
+  });
+
+  it('reads amounts grouped every way, and dates in the rule’s order or by name', () => {
+    expect(amountOf('1,23,455.00', '.')).toBe('123455.00');
+    expect(amountOf('1.245,50', ',')).toBe('1245.50');
+    expect(amountOf('8 400', '.')).toBe('8400');
+    expect(amountOf('1,245.50', ',')).toBeUndefined();
+    expect(dateOf('05/10/26', 'DMY')).toBe('2026-10-05');
+    expect(dateOf('10/05/26', 'MDY')).toBe('2026-10-05');
+    expect(dateOf('2026-10-05', 'DMY')).toBe('2026-10-05');
+    expect(dateOf('5-Oct-2026', 'MDY')).toBe('2026-10-05');
+    expect(dateOf('Oct 5, 2026', 'DMY')).toBe('2026-10-05');
+    expect(dateOf('31/02/26', 'DMY')).toBeUndefined();
+  });
+
+  it('takes a regular expression with named groups, under Advanced', () => {
+    const regex = { ...rule, kind: 'regex' as const, pattern: 'EUR (?<amount>[\\d,.]+) at (?<payee>.+?) on' };
+    expect(readWith(regex, message, '2026-10-24')).toMatchObject({ amount: '1245.50', description: 'CORNER BAKERY', date: '2026-10-24' });
+    expect(readWith({ ...regex, pattern: 'EUR ([\\d' }, message, '2026-10-24')).toBe('This regular expression doesn’t read.');
+    expect(readWith({ ...regex, pattern: 'at (?<payee>.+?) on' }, message, '2026-10-24')).toBe('Name a group amount: (?<amount>…).');
+  });
+
+  it('tries only the rules watching the sender, and ignores everyone else', () => {
+    const today = '2026-10-24';
+    expect(read([rule], { text: message, sender: 'examplebank' }, today)).toMatchObject({ kind: 'draft', rule: { id: 'r1' } });
+    expect(read([rule], { text: 'Your code is 4471', sender: 'EXAMPLEBANK' }, today)).toEqual({ kind: 'unread', rules: [rule] });
+    expect(read([rule], { text: message, sender: '+15550100' }, today)).toEqual({ kind: 'ignored' });
+    // Pasted by hand: every rule is tried.
+    expect(read([rule], { text: message }, today)).toMatchObject({ kind: 'draft' });
   });
 });
