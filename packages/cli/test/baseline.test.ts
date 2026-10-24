@@ -40,6 +40,7 @@ describe('salli baseline', () => {
       2000 Credit Card   liability  -USD 8,400.00    -8,400.00
 
       Cash               USD 9,397.60
+      Savings            USD 0.00
       Investments        USD 30,000.00
       Other assets       USD 250,000.00
       Debts              USD 8,400.00

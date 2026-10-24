@@ -140,7 +140,11 @@ export function registerStatus(program: Command, app: App): void {
 
           if (fi) {
             const progress = out.percent(fi.progress_to_fi);
-            lines.push(`${label(c.bold('FI score'))}${singleLine(fi.overall_score)} (${singleLine(fi.grade)}) · ${progress} of the way to financial independence`);
+            lines.push(
+              fi.status === 'not_enough_data'
+                ? `${label(c.bold('FI score'))}${c.dim('Needs two months of data')}`
+                : `${label(c.bold('FI score'))}${singleLine(fi.overall_score)} (${singleLine(fi.grade)}) · ${progress} of the way to financial independence`,
+            );
             lines.push(`${label('Savings rate', 2)}${out.percent(fi.savings_rate)} of income`);
             if (fi.projected_fi_month) {
               // A date resting on a placeholder return or withdrawal rate says so.

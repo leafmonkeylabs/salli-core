@@ -4,6 +4,11 @@
  * digits themselves: no arithmetic, so nothing is rounded.
  */
 
+/** Whether a score is worth showing: the server says when fewer than two full months of income and spending are behind it. */
+export function scoreShown(score: { status?: string | null }): boolean {
+  return score.status !== 'not_enough_data';
+}
+
 /** "0.035" → "3.5"; "1" → "100". */
 export function percentOf(fraction: string): string {
   const negative = fraction.startsWith('-');

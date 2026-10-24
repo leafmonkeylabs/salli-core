@@ -441,7 +441,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     @mcp.tool(annotations=READS)
     async def get_accounts() -> dict[str, Any]:
         """List all accounts in the user's chart of accounts. An asset account
-        has an asset_role: cash, investment or other (a home, a car); planning
+        has an asset_role: cash, savings, investment or other (a home, a car); planning
         reads it, never the account's name."""
         user_id = _current_user_id()
         accounts = await ledger_svc.list_accounts(user_id)
@@ -774,14 +774,15 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         name: str,
         account_type: str,
         currency: str = "",
-        asset_role: Literal["cash", "investment", "other"] | None = None,
+        asset_role: Literal["cash", "savings", "investment", "other"] | None = None,
     ) -> dict[str, Any]:
         """Create a new account in the chart of accounts. account_type is one of:
         asset, liability, equity, income, expense. currency is the ISO 4217 code
         the account is held in; leave it empty for the user's base currency.
         asset_role, for an asset account only: cash (the default: a bank
-        account, savings, a wallet), investment (a brokerage, a pension fund)
-        or other (a home, a car)."""
+        account, a wallet), savings (cash kept, not spent: a savings account,
+        an emergency fund, a term deposit), investment (a brokerage, a pension
+        fund) or other (a home, a car)."""
         user_id = _current_user_id()
         currency = currency or await ledger_svc.base_currency(user_id)
         params = {
@@ -805,13 +806,15 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         account_id: str,
         code: str | None = None,
         name: str | None = None,
-        asset_role: Literal["cash", "investment", "other"] | None = None,
+        asset_role: Literal["cash", "savings", "investment", "other"] | None = None,
     ) -> dict[str, Any]:
         """Change an account's code, name or asset role; what you leave out
-        stays as it is. asset_role, for an asset account only: cash,
+        stays as it is. asset_role, for an asset account only: cash, savings,
         investment or other (a home, a car). Planning reads the role, never the
         name: mark a brokerage or a pension fund as an investment so its growth
-        is projected, and a home as other so it isn't counted as cash. Writes
+        is projected, a savings account or an emergency fund as savings so it
+        isn't counted as free to spend, and a home as other so it isn't
+        counted as cash. Writes
         immediately: show the user the change and get their go-ahead first."""
         user_id = _current_user_id()
         account = await ledger_svc.get_account(user_id, account_id)
@@ -1309,7 +1312,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         from. It says the definitions it used: the full months income and
         expenses are averaged over (months_observed), the published exchange
         rates balances are valued at and their source (rates), each account's
-        role (cash, investment, other_asset, liability), debts counted once
+        role (cash, savings, investment, other_asset, liability), debts counted once
         (source: account or declared), the assumptions and which are
         placeholders. Two timelines: cash month-ends for the next twelve
         months with the lowest point (cash; the day-by-day series is in the

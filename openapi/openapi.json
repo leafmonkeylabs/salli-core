@@ -13228,6 +13228,7 @@
                 "type": "string",
                 "enum": [
                   "cash",
+                  "savings",
                   "investment",
                   "other"
                 ]
@@ -13575,6 +13576,7 @@
                 "type": "string",
                 "enum": [
                   "cash",
+                  "savings",
                   "investment",
                   "other"
                 ]
@@ -15247,6 +15249,7 @@
             "type": "string",
             "enum": [
               "cash",
+              "savings",
               "investment",
               "other_asset",
               "liability"
@@ -15953,6 +15956,15 @@
               "1234.50"
             ]
           },
+          "savings": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Savings",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
           "liquid": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
@@ -16029,6 +16041,7 @@
         "type": "object",
         "required": [
           "cash",
+          "savings",
           "liquid",
           "investments",
           "other_assets",
@@ -22018,6 +22031,32 @@
             ],
             "title": "As Of"
           },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "not_enough_data"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "months_observed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Months Observed"
+          },
           "components": {
             "items": {
               "$ref": "#/components/schemas/FiScoreComponent"
@@ -26124,6 +26163,7 @@
                 "type": "string",
                 "enum": [
                   "cash",
+                  "savings",
                   "investment",
                   "other"
                 ]
@@ -36193,6 +36233,7 @@
                 "type": "string",
                 "enum": [
                   "cash",
+                  "savings",
                   "investment",
                   "other"
                 ]

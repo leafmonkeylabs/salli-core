@@ -139,6 +139,15 @@ async def test_an_asset_role_is_sent_and_read_back(client, mock_services):
     assert r.status_code == 200
     assert mock_services.ledger.update_account.await_args.kwargs["asset_role"] == "other"
 
+    # Savings: cash kept, not spent.
+    r = await client.patch(
+        "/accounts/acc-1",
+        json={"code": "1000", "name": "Rainy day", "type": "asset", "asset_role": "savings"},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    assert mock_services.ledger.update_account.await_args.kwargs["asset_role"] == "savings"
+
     # Omitted on an update: the service keeps the role the account has.
     r = await client.patch(
         "/accounts/acc-1", json={"code": "1000", "name": "Wallet", "type": "asset"}, headers=AUTH
@@ -149,7 +158,7 @@ async def test_an_asset_role_is_sent_and_read_back(client, mock_services):
     assert (await client.get("/accounts/", headers=AUTH)).json()[0]["asset_role"] == "cash"
 
 
-async def test_an_asset_role_is_one_of_three(client, mock_services):
+async def test_an_asset_role_is_one_of_four(client, mock_services):
     r = await client.post(
         "/accounts/",
         json={"code": "1300", "name": "Brokerage", "type": "asset", "asset_role": "stocks"},

@@ -230,7 +230,7 @@ Other ids can be shortened to any unique prefix.
 | Command | For |
 |---|---|
 | `status` | net worth, this month, FI score and what is due, on one screen |
-| `accounts` | chart of accounts: `list --balances`, `add`, `show <account>` (balance and history); `--asset-role cash\|investment\|other` says what an asset account holds |
+| `accounts` | chart of accounts: `list --balances`, `add`, `show <account>` (balance and history); `--asset-role cash\|savings\|investment\|other` says what an asset account holds |
 | `add "<text>"` | an entry drafted by the AI from a sentence; `--dry-run` only shows the draft |
 | `entries` | journal entries: `list`, `search [text]` (with Salli's totals over every match: quote them, never sum), `add`, `show <id>`, `reverse <id>`, `tag` |
 | `import <file>`, `statements` | bank statements: import, then `statements pending`, `post`, `discard`, `categorize` |

@@ -39,6 +39,28 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   commit SHAs; Dependabot updates Python, npm, actions and base images
   weekly; CodeQL scans the Python and TypeScript; and CI runs pip-audit and
   npm audit (reporting only, until the current findings are fixed).
+- **Savings: cash you keep, not spend.** An asset account's role may be
+  `savings` (a savings account, an emergency fund, a term deposit). It counts
+  as cash in net worth, FI's asset base, liquid savings and emergency-fund
+  months, and never in the daily cash forecast, free until payday or the
+  low-balance signals: an emergency fund no longer shows as money to spend.
+  The plan counts a regular move into savings as staying in its cash, so FI
+  doesn't move when an account becomes savings.
+  - API (still v1): `asset_role` takes `savings` on accounts, opening
+    balances and MCP's `create_account` and `update_account`; the baseline's
+    balance `role` may be `savings`, and its `totals` add `savings`.
+  - CLI: `--asset-role savings`, `salli profile balance-sheet`'s `:savings`,
+    and a Savings line in `salli baseline`. The app's first run offers
+    Savings between Cash to spend and Investments.
+  - Migration `core_0026_savings_role` allows the role.
+
+- **No FI score on too little data.** `GET /v1/fi/score` adds `status`
+  (`ok`, or `not_enough_data` under two full months of income and spending)
+  and `months_observed`. The app's Home, the console's Home and the CLI say
+  "Needs two months of data" in place of the score and grade.
+
+- **Day one on the phone.** With nothing in the books, Home's Needs attention
+  shows one row, Import a statement, in place of "Nothing needs attention".
 
 ### Breaking
 

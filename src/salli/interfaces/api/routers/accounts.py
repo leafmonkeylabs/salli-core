@@ -35,10 +35,10 @@ TaxRoleIn = Annotated[
 TaxRoleStr = TaxRoleIn
 
 # What an asset account holds (domain/accounting/models.AssetRole): planning
-# reads it, never the account's name. "cash" counts as money to spend or fall
-# back on, "investment" grows at the real return, "other" (a home, a car)
-# counts in net worth only.
-AssetRoleStr = Literal["cash", "investment", "other"]
+# reads it, never the account's name. "cash" counts as money to spend,
+# "savings" as cash you keep (never free to spend), "investment" grows at the
+# real return, "other" (a home, a car) counts in net worth only.
+AssetRoleStr = Literal["cash", "savings", "investment", "other"]
 
 
 class AddAccountRequest(BaseModel):
@@ -76,7 +76,7 @@ class Account(BaseModel):
     parent_id: str | None
     is_active: bool
     tax_role: TaxRoleStr | None = None
-    #: An asset account's role: cash, investment or other. Null for any
+    #: An asset account's role: cash, savings, investment or other. Null for any
     #: other type of account.
     asset_role: AssetRoleStr | None = None
 

@@ -45,7 +45,7 @@ export type Account = {
     /**
      * Asset Role
      */
-    asset_role?: 'cash' | 'investment' | 'other' | null;
+    asset_role?: 'cash' | 'savings' | 'investment' | 'other' | null;
 };
 
 /**
@@ -231,7 +231,7 @@ export type AddAccountRequest = {
     /**
      * Asset Role
      */
-    asset_role?: 'cash' | 'investment' | 'other' | null;
+    asset_role?: 'cash' | 'savings' | 'investment' | 'other' | null;
 };
 
 /**
@@ -1172,7 +1172,7 @@ export type BaselineBalance = {
     /**
      * Role
      */
-    role: 'cash' | 'investment' | 'other_asset' | 'liability';
+    role: 'cash' | 'savings' | 'investment' | 'other_asset' | 'liability';
     /**
      * Currency
      *
@@ -1570,6 +1570,12 @@ export type BaselineTotals = {
      * Decimal string in the currency's own precision; never a float.
      */
     cash: string;
+    /**
+     * Savings
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    savings: string;
     /**
      * Liquid
      *
@@ -5053,6 +5059,14 @@ export type FiScore = {
      */
     as_of?: string | null;
     /**
+     * Status
+     */
+    status?: 'ok' | 'not_enough_data' | null;
+    /**
+     * Months Observed
+     */
+    months_observed?: number | null;
+    /**
      * Components
      */
     components: Array<FiScoreComponent>;
@@ -7319,7 +7333,7 @@ export type OpeningBalanceItem = {
     /**
      * Asset Role
      */
-    asset_role?: 'cash' | 'investment' | 'other' | null;
+    asset_role?: 'cash' | 'savings' | 'investment' | 'other' | null;
     /**
      * Amount
      *
@@ -12842,7 +12856,7 @@ export type UpdateAccountRequest = {
     /**
      * Asset Role
      */
-    asset_role?: 'cash' | 'investment' | 'other' | null;
+    asset_role?: 'cash' | 'savings' | 'investment' | 'other' | null;
 };
 
 /**

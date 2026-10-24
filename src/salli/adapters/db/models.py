@@ -64,7 +64,7 @@ class AccountORM(Base):
     # than inferred from `name`. The user's own tax rule sets declare which
     # roles exist, so the database checks only the shape of the code.
     tax_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    # What an asset account holds: cash, investment or other
+    # What an asset account holds: cash, savings, investment or other
     # (`domain.accounting.models.AssetRole`). Every asset account has one;
     # no other account does.
     asset_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -86,7 +86,7 @@ class AccountORM(Base):
         # expression is NULL, and `NULL IN (...)` is.
         CheckConstraint(
             "(type = 'asset' AND asset_role IS NOT NULL"
-            " AND asset_role IN ('cash','investment','other'))"
+            " AND asset_role IN ('cash','savings','investment','other'))"
             " OR (type <> 'asset' AND asset_role IS NULL)",
             name="ck_accounts_asset_role",
         ),

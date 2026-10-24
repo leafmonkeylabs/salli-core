@@ -266,6 +266,11 @@ class FiScore(BaseModel):
     projected_fi_month: str | None = None
     #: The day the score is as of (ISO 8601).
     as_of: str | None = None
+    #: "not_enough_data" while fewer than two full months of income and
+    #: spending are observed: the score and grade are then not worth showing.
+    status: Literal["ok", "not_enough_data"] | None = None
+    #: The full calendar months of income and spending observed (at most 12).
+    months_observed: int | None = None
     components: list[FiScoreComponent]
     #: The assumptions it was computed with, and where each came from.
     assumptions: FiAssumptions | None = None

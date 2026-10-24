@@ -75,7 +75,7 @@ figures` (or `GET /v1/principles/figures`) lists them.
 | `account_lowest` | amount in the account's currency, nominal | The lowest the principle's own account gets over the same months. Needs the principle's `account`. |
 | `any_account_below_zero` | true or false | Whether any cash account goes below zero over the same months. |
 | `monthly_spending` | amount, real | The spending emergency months are counted in: essential spending when your spending carries need tags, all of it otherwise. |
-| `emergency_months` | months | The months of that spending your cash covers at its lowest. |
+| `emergency_months` | months | The months of that spending your cash and savings cover at its lowest. |
 | `emergency_months_in_12_months` | months | The same at the end of the twelfth month. |
 | `net_worth_1y`, `_5y`, `_10y`, `_20y` | amount, real | Net worth at the end of the month 1, 5, 10 or 20 years on. |
 | `cash_1y` … `cash_20y` | amount, real | Cash, likewise. |
