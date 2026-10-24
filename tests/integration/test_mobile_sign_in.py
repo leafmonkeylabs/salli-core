@@ -6,7 +6,9 @@ browser sheet drives it.
 - `salli-mobile`, seeded by core_0022, signs in with the authorization code
   and PKCE on Salli's own page, which reads "Sign in to Salli", to its one
   redirect, `money.salli.app:/oauth/callback`, matched exactly;
-- it signs in to the API only, never by device code;
+- it signs in to the API as the person, and to MCP for the AI the person
+  set up in the app: a page that asks to connect it, by name, and an AI
+  connection like any other; never by device code;
 - it holds `tax:activate` only within five minutes of the password, as the
   console does, and its sign-in has no absolute end;
 - `GET /v1/auth/sign-ins` lists it as `mobile`, and `/v1/meta` names it.
@@ -68,10 +70,10 @@ async def _authorize(salli, redirect=MOBILE_REDIRECT_URI, **params):
     return await salli.get("/mcp/oauth/authorize", params=query)
 
 
-async def _sign_in(salli) -> dict:
+async def _sign_in(salli, resource: str = API) -> dict:
     """The app's browser sheet: authorize, the sign-in page, the code."""
     verifier, _ = _pkce()
-    to_page = await _authorize(salli)
+    to_page = await _authorize(salli, resource=resource)
     assert to_page.status_code == 302, to_page.text
     rt = parse_qs(urlparse(to_page.headers["location"]).query)["rt"][0]
     decided = await salli.post(
@@ -132,9 +134,39 @@ async def test_nothing_but_the_app_s_exact_redirect_matches(salli, redirect):
     assert "redirect_uri" in refused.json()["detail"]
 
 
-async def test_the_app_signs_in_to_the_api_only_and_never_by_device(salli):
-    mcp = await _authorize(salli, resource=f"{BASE}/mcp")
-    assert mcp.status_code == 400 and "API only" in mcp.json()["detail"]
+async def test_the_app_s_ai_connects_over_mcp_as_an_ai_connection(salli):
+    mcp = f"{BASE}/mcp"
+    to_page = await _authorize(salli, resource=mcp)
+    page = await salli.get(to_page.headers["location"].removeprefix(BASE))
+    assert page.status_code == 200
+    # Not "Sign in to Salli": an AI asking to act for you, allowed or denied.
+    assert "<h1>Connect the AI in the Salli app?</h1>" in page.text
+    assert "It reads your books and asks you in the app before any change." in page.text
+    assert "You can disconnect it any time." in page.text
+    assert "name=decision value=deny" in page.text
+
+    tokens = await _sign_in(salli, resource=mcp)
+    services = salli.services
+    record = await services.mcp_oauth.verify_access_token(tokens["access_token"], audience="mcp")
+    assert record is not None and record["client_id"] == MOBILE_CLIENT_ID
+    # For MCP only: the API refuses it.
+    assert (await _me(salli, tokens["access_token"])).status_code == 401
+    # Listed and ended with the other AI connections, not with the sign-ins.
+    person = await _sign_in(salli)
+    listed = (
+        await salli.get("/v1/mcp/connections/", headers=_bearer(person["access_token"]))
+    ).json()["connections"]
+    assert [c["client_name"] for c in listed] == ["Salli app"]
+    signed_in = (
+        await salli.get("/v1/auth/sign-ins", headers=_bearer(person["access_token"]))
+    ).json()
+    assert [r["kind"] for r in signed_in] == ["mobile"]
+    # Under the MCP switch, as every AI connection is.
+    await services.mcp_oauth.set_mcp_enabled(record["user_id"], False)
+    assert await services.mcp_oauth.verify_access_token(tokens["access_token"]) is None
+
+
+async def test_the_app_never_signs_in_by_device(salli):
     device = await salli.post(
         "/mcp/oauth/device_authorization", data={"client_id": MOBILE_CLIENT_ID, "resource": API}
     )

@@ -64,7 +64,10 @@ seeded by `core_0022_mobile_client`:
   form RFC 8252 (section 7.1) gives native apps. A loopback redirect, as the
   CLI uses, isn't available on a phone, and a self-registered client
   (RFC 7591) may use only `http` and `https` redirects and is never first party.
-- **The API only,** never MCP, and never by device code.
+- **The API as the person, and MCP for the AI** the person sets up in the app
+  (More → Your AI): a second sign-in on a page that asks to connect it by name
+  (design 19), then an AI connection like any other: listed and ended with
+  the others, and under the MCP switch. Never by device code.
 - **HTTPS, or localhost:** the console's rule. A password crosses a network
   only encrypted; a simulator reaches the developer's server at localhost.
 - **No absolute end:** a sign-in on a phone lasts while its refresh token

@@ -769,13 +769,14 @@ async def test_nothing_but_the_app_s_exact_redirect_matches(world, requested):
         )
 
 
-async def test_the_app_signs_in_to_the_api_only_and_never_by_device(world):
+async def test_the_app_signs_in_to_the_api_or_mcp_and_never_by_device(world):
     service, clients, *_ = world
     _app(clients)
     _, challenge = _pkce()
-    with pytest.raises(OAuthError, match="API only"):
-        await service.build_consent_redirect(
-            APP, APP_CALLBACK, challenge, "S256", "", f"{BASE}/mcp", None
+    # MCP, for the AI the person set up in the app, as well as the API.
+    for resource in (f"{BASE}/v1", f"{BASE}/mcp"):
+        assert await service.build_consent_redirect(
+            APP, APP_CALLBACK, challenge, "S256", "", resource, None
         )
     with pytest.raises(OAuthError, match="authorization code grant only"):
         await service.start_device_authorization(APP, "", f"{BASE}/v1")
