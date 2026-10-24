@@ -64,7 +64,7 @@ export const labStrings = {
     lowestCash: 'Lowest cash, the next 12 months',
     lowestOn: 'Lowest on',
     cashBy: (date: string) => `Cash on ${date}`,
-    safeToSpend: 'Safe to spend',
+    safeToSpend: 'Free until payday',
     emergencyMonths: 'Months of spending cash covers at its lowest',
     netWorthIn: (years: string) => `Net worth in ${years}`,
     interest: 'Interest on debts',
@@ -86,7 +86,7 @@ export const labStrings = {
     trade: {
       'cash.lowest': 'lowest cash',
       'cash.at_end': 'cash in a year',
-      'cash.safe_to_spend': 'safe to spend',
+      'cash.safe_to_spend': 'free until payday',
       'resilience.lowest': 'months of spending covered at the low',
       'debts.total_interest': 'interest',
       'debts.debt_free': 'debt-free',

@@ -107,8 +107,16 @@ the rent, the subscriptions your ledger shows, and those you declared but it
 hasn't shown yet), then the rest of an average month spread evenly over its
 days, and the share of the month's surplus you invest leaving cash on its
 last day. So each month ends where the monthly plan says, and the lowest
-point counts what you invested. `salli insights forecast` and safe-to-spend
-show the scheduled flows alone.
+point counts what you invested. `salli insights forecast` shows the
+scheduled flows alone.
+
+**Free until payday** (`salli insights safe-to-spend`) is the lowest your
+cash gets before money next comes in, from the scheduled flows and a usual
+day's everyday spending: your average month's spending less what is
+scheduled to a spending account (a move to investments or a debt isn't
+spending), day by day. Then less a cushion, a tenth of a usual month's
+spending, and the cash you set aside for goals. It is an estimate from your
+past spending, never below zero, and the answer lists each part.
 
 **Monthly, to a horizon of up to 50 years,** at each calendar month's end, in
 today's money:

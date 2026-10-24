@@ -653,8 +653,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "delta": "-2400.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -1011,8 +1011,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "delta": "0.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -1635,7 +1635,7 @@ export const AFFORD_IT_START: DecisionStart = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -1684,7 +1684,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "figures": {
           "lowest_cash": "11598.91",
           "cash_in_12_months": "13401.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "6.11",
@@ -1734,7 +1734,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "figures": {
           "lowest_cash": "13821.01",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.28",
@@ -1991,8 +1991,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "0.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -2327,8 +2327,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "2400.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -2663,8 +2663,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "6000.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -3540,7 +3540,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -3589,7 +3589,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "figures": {
           "lowest_cash": "13998.91",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.37",
@@ -3639,7 +3639,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "figures": {
           "lowest_cash": "14013.25",
           "cash_in_12_months": "18201.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.38",
@@ -3689,7 +3689,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "figures": {
           "lowest_cash": "14013.25",
           "cash_in_12_months": "21801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.38",
@@ -4526,8 +4526,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "0.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -5023,8 +5023,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "-79000.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -5557,8 +5557,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "-79000.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -7284,7 +7284,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -7333,7 +7333,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "figures": {
           "lowest_cash": "13998.91",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.37",
@@ -7383,7 +7383,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "figures": {
           "lowest_cash": "-65044.55",
           "cash_in_12_months": "-63198.53",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": true,
           "monthly_spending": "1898.32",
           "emergency_months": "-34.26",
@@ -7433,7 +7433,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "figures": {
           "lowest_cash": "-65192.83",
           "cash_in_12_months": "-63198.53",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": true,
           "monthly_spending": "1898.32",
           "emergency_months": "-34.34",

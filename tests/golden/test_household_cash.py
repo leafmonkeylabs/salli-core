@@ -99,8 +99,16 @@ async def test_safe_to_spend():
         "currency": "EUR",
     }
     assert safe["until"] == "2026-10-25"  # was 2026-10-15
-    # Was 5,851.47: the cash accounts above, less 74.45 out on the 18th.
-    assert safe["amount"] == "15727.02"
+    # Was 15,727.02, scheduled only: the cash accounts, less 74.45 out on the
+    # 18th, less 14 days of the everyday spending beyond what is scheduled
+    # (rent and the rest are; 206.96 isn't), less a tenth of a usual month's
+    # spending (2,037.12) as a cushion.
+    assert safe["amount"] == "15316.35"
+    assert (safe["everyday_spending"], safe["cushion"], safe["held_for_goals"]) == (
+        "206.96",
+        "203.71",
+        "0.00",
+    )
     assert safe["cash_today"] == "15801.47"  # was 5,851.47
     # Was []: the window now reaches the 18th. The card payment, a transfer
     # within cash, isn't committed money.

@@ -111,7 +111,7 @@ export function registerStatus(program: Command, app: App): void {
           }
           if (safeToSpend) {
             const room = Number.isFinite(out.width) ? out.width - 16 : Number.POSITIVE_INFINITY;
-            lines.push(`${label(c.bold('Safe to spend'))}${truncate(safeToSpendLine(out, safeToSpend), room)}`);
+            lines.push(`${label(c.bold('Free to spend'))}${truncate(safeToSpendLine(out, safeToSpend), room)}`);
           }
           lines.push('');
 

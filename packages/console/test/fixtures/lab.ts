@@ -7904,8 +7904,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "delta": "-2400.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -8262,8 +8262,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "delta": "0.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -8633,8 +8633,8 @@ export const AFFORD_IT_START: DecisionStart = {
             "delta": "0.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -9593,7 +9593,7 @@ export const AFFORD_IT_START: DecisionStart = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -9651,7 +9651,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "figures": {
           "lowest_cash": "11598.91",
           "cash_in_12_months": "13401.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "6.11",
@@ -9710,7 +9710,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "figures": {
           "lowest_cash": "13821.01",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.28",
@@ -9769,7 +9769,7 @@ export const AFFORD_IT_START: DecisionStart = {
         "figures": {
           "lowest_cash": "14013.25",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.38",
@@ -10259,8 +10259,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "0.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -10756,8 +10756,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "-79000.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -11290,8 +11290,8 @@ export const RENT_OR_BUY_START: DecisionStart = {
             "delta": "-79000.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -13025,7 +13025,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -13083,7 +13083,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "figures": {
           "lowest_cash": "13998.91",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.37",
@@ -13142,7 +13142,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "figures": {
           "lowest_cash": "-65044.55",
           "cash_in_12_months": "-63198.53",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": true,
           "monthly_spending": "1898.32",
           "emergency_months": "-34.26",
@@ -13201,7 +13201,7 @@ export const RENT_OR_BUY_START: DecisionStart = {
         "figures": {
           "lowest_cash": "-65192.83",
           "cash_in_12_months": "-63198.53",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": true,
           "monthly_spending": "1898.32",
           "emergency_months": "-34.34",
@@ -13592,8 +13592,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "0.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -13928,8 +13928,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "2400.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -14264,8 +14264,8 @@ export const EMERGENCY_FUND_START: DecisionStart = {
             "delta": "6000.00"
           },
           "safe_to_spend": {
-            "baseline": "15727.02",
-            "scenario": "15727.02",
+            "baseline": "15316.35",
+            "scenario": "15316.35",
             "delta": "0.00"
           },
           "safe_until": "2026-10-25",
@@ -15149,7 +15149,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -15207,7 +15207,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "figures": {
           "lowest_cash": "13998.91",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.37",
@@ -15266,7 +15266,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "figures": {
           "lowest_cash": "14013.25",
           "cash_in_12_months": "18201.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.38",
@@ -15325,7 +15325,7 @@ export const EMERGENCY_FUND_START: DecisionStart = {
         "figures": {
           "lowest_cash": "14013.25",
           "cash_in_12_months": "21801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.38",
@@ -15541,8 +15541,8 @@ export const SCENARIO_RUN: ScenarioRun = {
       "delta": "-2400.00"
     },
     "safe_to_spend": {
-      "baseline": "15727.02",
-      "scenario": "15727.02",
+      "baseline": "15316.35",
+      "scenario": "15316.35",
       "delta": "0.00"
     },
     "safe_until": "2026-10-25",
@@ -18694,8 +18694,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "-2400.00"
         },
         "safe_to_spend": {
-          "baseline": "15727.02",
-          "scenario": "15727.02",
+          "baseline": "15316.35",
+          "scenario": "15316.35",
           "delta": "0.00"
         },
         "safe_until": "2026-10-25",
@@ -21855,8 +21855,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "0.00"
         },
         "safe_to_spend": {
-          "baseline": "15727.02",
-          "scenario": "15727.02",
+          "baseline": "15316.35",
+          "scenario": "15316.35",
           "delta": "0.00"
         },
         "safe_until": "2026-10-25",
@@ -25618,7 +25618,7 @@ export const BASELINE_CHECK: PrinciplesCheck = {
     "figures": {
       "lowest_cash": "13998.91",
       "cash_in_12_months": "15801.47",
-      "safe_to_spend": "15727.02",
+      "safe_to_spend": "15316.35",
       "any_account_below_zero": false,
       "monthly_spending": "1898.32",
       "emergency_months": "7.37",
@@ -25709,7 +25709,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
     "figures": {
       "lowest_cash": "13998.91",
       "cash_in_12_months": "15801.47",
-      "safe_to_spend": "15727.02",
+      "safe_to_spend": "15316.35",
       "any_account_below_zero": false,
       "monthly_spending": "1898.32",
       "emergency_months": "7.37",
@@ -25767,7 +25767,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
       "figures": {
         "lowest_cash": "11598.91",
         "cash_in_12_months": "13401.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "6.11",
@@ -25826,7 +25826,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
       "figures": {
         "lowest_cash": "13821.01",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.28",
@@ -25901,7 +25901,7 @@ export const DECISIONS: DecisionList = {
       "as_of": "2026-10-11",
       "review_on": "2027-04-30",
       "recorded_at": "2026-10-11T10:00:00+00:00",
-      "hash": "sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27",
+      "hash": "sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9",
       "notes": 1,
       "reviews": 0,
       "last_reviewed_at": null,
@@ -25915,7 +25915,7 @@ export const DECISIONS: DecisionList = {
       "as_of": "2026-08-11",
       "review_on": "2026-09-30",
       "recorded_at": "2026-08-11T09:00:00+00:00",
-      "hash": "sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88",
+      "hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
       "notes": 0,
       "reviews": 0,
       "last_reviewed_at": null,
@@ -25929,7 +25929,7 @@ export const DECISIONS: DecisionList = {
  */
 export const DECISION: Decision = {
   "id": "00002339-5a11-4000-8000-000000009017",
-  "hash": "sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27",
+  "hash": "sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9",
   "verified": true,
   "status": "awaiting_review",
   "entry": {
@@ -26016,7 +26016,7 @@ export const DECISION: Decision = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -26091,7 +26091,7 @@ export const DECISION: Decision = {
         "figures": {
           "lowest_cash": "11598.91",
           "cash_in_12_months": "13401.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "6.11",
@@ -26357,7 +26357,7 @@ export const DECISION: Decision = {
         "figures": {
           "lowest_cash": "13821.01",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.28",
@@ -26621,7 +26621,7 @@ export const DECISION: Decision = {
         "figures": {
           "lowest_cash": "14013.25",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.38",
@@ -26869,13 +26869,13 @@ export const DECISION: Decision = {
         "schema": "salli.decision-note/1",
         "id": "0000233c-5a11-4000-8000-000000009020",
         "decision_id": "00002339-5a11-4000-8000-000000009017",
-        "entry_hash": "sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27",
+        "entry_hash": "sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9",
         "at": "2026-10-11T10:00:00+00:00",
         "text": "The shop held the price until November.",
         "author": "user",
         "agent": null
       },
-      "hash": "sha256:de896ff6a02463edccbef7477fccbf9e96eb13647a3c900162066a576515c08e",
+      "hash": "sha256:13d3f77dc1830369686a30ce439d13b0fe7a416a113dabcaa62c11a62e221b14",
       "verified": true
     }
   ],
@@ -26887,7 +26887,7 @@ export const DECISION: Decision = {
  */
 export const DECISION_DUE: Decision = {
   "id": "0000232e-5a11-4000-8000-000000009006",
-  "hash": "sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88",
+  "hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
   "verified": true,
   "status": "review_due",
   "entry": {
@@ -26957,7 +26957,7 @@ export const DECISION_DUE: Decision = {
       "figures": {
         "lowest_cash": "9512.79",
         "cash_in_12_months": "11316.20",
-        "safe_to_spend": "11236.35",
+        "safe_to_spend": "10826.46",
         "any_account_below_zero": false,
         "monthly_spending": "1897.48",
         "emergency_months": "5.01",
@@ -27005,7 +27005,7 @@ export const DECISION_DUE: Decision = {
         "figures": {
           "lowest_cash": "9512.79",
           "cash_in_12_months": "11316.20",
-          "safe_to_spend": "11236.35",
+          "safe_to_spend": "10826.46",
           "any_account_below_zero": false,
           "monthly_spending": "1897.48",
           "emergency_months": "5.01",
@@ -27262,7 +27262,7 @@ export const JOURNAL: DecisionJournal = {
           "figures": {
             "lowest_cash": "9512.79",
             "cash_in_12_months": "11316.20",
-            "safe_to_spend": "11236.35",
+            "safe_to_spend": "10826.46",
             "any_account_below_zero": false,
             "monthly_spending": "1897.48",
             "emergency_months": "5.01",
@@ -27310,7 +27310,7 @@ export const JOURNAL: DecisionJournal = {
             "figures": {
               "lowest_cash": "9512.79",
               "cash_in_12_months": "11316.20",
-              "safe_to_spend": "11236.35",
+              "safe_to_spend": "10826.46",
               "any_account_below_zero": false,
               "monthly_spending": "1897.48",
               "emergency_months": "5.01",
@@ -27490,7 +27490,7 @@ export const JOURNAL: DecisionJournal = {
         "agent_summary": null,
         "review_on": "2026-09-30"
       },
-      "hash": "sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88",
+      "hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
       "notes": [],
       "reviews": []
     },
@@ -27579,7 +27579,7 @@ export const JOURNAL: DecisionJournal = {
           "figures": {
             "lowest_cash": "13998.91",
             "cash_in_12_months": "15801.47",
-            "safe_to_spend": "15727.02",
+            "safe_to_spend": "15316.35",
             "any_account_below_zero": false,
             "monthly_spending": "1898.32",
             "emergency_months": "7.37",
@@ -27654,7 +27654,7 @@ export const JOURNAL: DecisionJournal = {
             "figures": {
               "lowest_cash": "11598.91",
               "cash_in_12_months": "13401.47",
-              "safe_to_spend": "15727.02",
+              "safe_to_spend": "15316.35",
               "any_account_below_zero": false,
               "monthly_spending": "1898.32",
               "emergency_months": "6.11",
@@ -27920,7 +27920,7 @@ export const JOURNAL: DecisionJournal = {
             "figures": {
               "lowest_cash": "13821.01",
               "cash_in_12_months": "15801.47",
-              "safe_to_spend": "15727.02",
+              "safe_to_spend": "15316.35",
               "any_account_below_zero": false,
               "monthly_spending": "1898.32",
               "emergency_months": "7.28",
@@ -28184,7 +28184,7 @@ export const JOURNAL: DecisionJournal = {
             "figures": {
               "lowest_cash": "14013.25",
               "cash_in_12_months": "15801.47",
-              "safe_to_spend": "15727.02",
+              "safe_to_spend": "15316.35",
               "any_account_below_zero": false,
               "monthly_spending": "1898.32",
               "emergency_months": "7.38",
@@ -28426,20 +28426,20 @@ export const JOURNAL: DecisionJournal = {
         "agent_summary": null,
         "review_on": "2027-04-30"
       },
-      "hash": "sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27",
+      "hash": "sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9",
       "notes": [
         {
           "note": {
             "schema": "salli.decision-note/1",
             "id": "0000233c-5a11-4000-8000-000000009020",
             "decision_id": "00002339-5a11-4000-8000-000000009017",
-            "entry_hash": "sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27",
+            "entry_hash": "sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9",
             "at": "2026-10-11T10:00:00+00:00",
             "text": "The shop held the price until November.",
             "author": "user",
             "agent": null
           },
-          "hash": "sha256:de896ff6a02463edccbef7477fccbf9e96eb13647a3c900162066a576515c08e",
+          "hash": "sha256:13d3f77dc1830369686a30ce439d13b0fe7a416a113dabcaa62c11a62e221b14",
           "verified": true
         }
       ],
@@ -28448,14 +28448,14 @@ export const JOURNAL: DecisionJournal = {
   ]
 };
 
-export const JOURNAL_MARKDOWN: string = "# Decision journal\n\nExported 2026-10-11T10:00:00+00:00. Every figure is Salli's, as recorded; the JSON export holds each document exactly, and its hash shows it is unchanged. Each hash is the SHA-256 of the document's canonical JSON: keys sorted, no whitespace, ASCII only (non-ASCII as \\u escapes), numbers as decimal strings. Recompute it over `entry` (or `note`, `review`) and compare.\n\n## Change anything?\n\nRecorded 2026-08-11, as of 2026-08-11, in EUR. Chosen: **Keep as is**. Review on 2026-09-30.\n\n**Reasons, in the person's words**\n\n> It works.\n\n### The options\n\n| Figure | Baseline | Keep as is |\n|---|---|---|\n| Lowest cash, next 12 months | 9512.79 | 9512.79 |\n| Emergency months at the low | 5.01 | 5.01 |\n| Net worth in 1 year (today's money) | 360096.23 | 360096.23 |\n| Net worth in 5 years (today's money) | 479060.97 | 479060.97 |\n| Net worth in 10 years (today's money) | 657438.80 | 657438.80 |\n| Interest on debts | 2111.31 | 2111.31 |\n| Months to debt-free | 77 | 77 |\n| Months to FI | 190 | 190 |\n\n- **Keep as is**: 0 changes; scenario hash `sha256:1cdacb1cd200e4a4eace58ffbadead1a7d421d0ad415ba16d80c5f21386aba01`\n\nAssumptions that were placeholders: real_return, safe_withdrawal_rate, surplus_invested, inflation. Engine 4; baseline `sha256:d130b20b563c5901c59a9f3ffcea46173b07f2c987ff07aff8403ec6f5d397d1`; the ledger's newest entry was from 2026-08-09.\n\nEntry hash `sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88`\n\n## Laptop: pay cash, spread it or wait?\n\nRecorded 2026-10-11, as of 2026-10-11, in EUR. Chosen: **Pay cash**. Review on 2027-04-30.\n\n**Reasons, in the person's words**\n\n> The old one is failing, and I would rather not owe anything.\n\n### The options\n\n| Figure | Baseline | Pay cash | Spread over 12 months | Wait 6 months |\n|---|---|---|---|---|\n| Lowest cash, next 12 months | 13998.91 | 11598.91 | 13821.01 | 14013.25 |\n| Emergency months at the low | 7.37 | 6.11 | 7.28 | 7.38 |\n| Net worth in 1 year (today's money) | 366266.13 | 363866.13 | 363738.21 | 363797.24 |\n| Net worth in 5 years (today's money) | 485551.81 | 483151.81 | 482585.47 | 482655.31 |\n| Net worth in 10 years (today's money) | 664379.50 | 661979.50 | 660757.60 | 660842.88 |\n| Interest on debts | 2009.25 | 2009.25 | 2099.93 | 2009.25 |\n| Months to debt-free | 77 | 77 | 77 | 77 |\n| Months to FI | 187 | 188 | 189 | 189 |\n\n- **Pay cash**: 1 change; scenario hash `sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40`\n- **Spread over 12 months**: 2 changes; scenario hash `sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366`\n- **Wait 6 months**: 2 changes; scenario hash `sha256:5950f0f41133e008aef15774df1805a170d9c01718755f05b8ee514d5c88afc9`\n\n### Principles\n\n| Principle | Baseline | Pay cash | Spread over 12 months | Wait 6 months |\n|---|---|---|---|---|\n| Six months of essentials in cash (`emergency_months >= 6`) | keeps | keeps | keeps | keeps |\n| Checking above 5,000 (`account_lowest >= 5000`) | keeps | breaks | keeps | keeps |\n\nAssumptions that were placeholders: real_return, safe_withdrawal_rate, surplus_invested, inflation. Engine 4; baseline `sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0`; the ledger's newest entry was from 2026-10-09.\n\n### Notes\n\n- 2026-10-11 (the person): The shop held the price until November.\n\nEntry hash `sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27`\n";
+export const JOURNAL_MARKDOWN: string = "# Decision journal\n\nExported 2026-10-11T10:00:00+00:00. Every figure is Salli's, as recorded; the JSON export holds each document exactly, and its hash shows it is unchanged. Each hash is the SHA-256 of the document's canonical JSON: keys sorted, no whitespace, ASCII only (non-ASCII as \\u escapes), numbers as decimal strings. Recompute it over `entry` (or `note`, `review`) and compare.\n\n## Change anything?\n\nRecorded 2026-08-11, as of 2026-08-11, in EUR. Chosen: **Keep as is**. Review on 2026-09-30.\n\n**Reasons, in the person's words**\n\n> It works.\n\n### The options\n\n| Figure | Baseline | Keep as is |\n|---|---|---|\n| Lowest cash, next 12 months | 9512.79 | 9512.79 |\n| Emergency months at the low | 5.01 | 5.01 |\n| Net worth in 1 year (today's money) | 360096.23 | 360096.23 |\n| Net worth in 5 years (today's money) | 479060.97 | 479060.97 |\n| Net worth in 10 years (today's money) | 657438.80 | 657438.80 |\n| Interest on debts | 2111.31 | 2111.31 |\n| Months to debt-free | 77 | 77 |\n| Months to FI | 190 | 190 |\n\n- **Keep as is**: 0 changes; scenario hash `sha256:1cdacb1cd200e4a4eace58ffbadead1a7d421d0ad415ba16d80c5f21386aba01`\n\nAssumptions that were placeholders: real_return, safe_withdrawal_rate, surplus_invested, inflation. Engine 4; baseline `sha256:d130b20b563c5901c59a9f3ffcea46173b07f2c987ff07aff8403ec6f5d397d1`; the ledger's newest entry was from 2026-08-09.\n\nEntry hash `sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7`\n\n## Laptop: pay cash, spread it or wait?\n\nRecorded 2026-10-11, as of 2026-10-11, in EUR. Chosen: **Pay cash**. Review on 2027-04-30.\n\n**Reasons, in the person's words**\n\n> The old one is failing, and I would rather not owe anything.\n\n### The options\n\n| Figure | Baseline | Pay cash | Spread over 12 months | Wait 6 months |\n|---|---|---|---|---|\n| Lowest cash, next 12 months | 13998.91 | 11598.91 | 13821.01 | 14013.25 |\n| Emergency months at the low | 7.37 | 6.11 | 7.28 | 7.38 |\n| Net worth in 1 year (today's money) | 366266.13 | 363866.13 | 363738.21 | 363797.24 |\n| Net worth in 5 years (today's money) | 485551.81 | 483151.81 | 482585.47 | 482655.31 |\n| Net worth in 10 years (today's money) | 664379.50 | 661979.50 | 660757.60 | 660842.88 |\n| Interest on debts | 2009.25 | 2009.25 | 2099.93 | 2009.25 |\n| Months to debt-free | 77 | 77 | 77 | 77 |\n| Months to FI | 187 | 188 | 189 | 189 |\n\n- **Pay cash**: 1 change; scenario hash `sha256:c51686f1c65c277fe38f7f721cc2fec8eb68813cb4f7831e26730541f9707f40`\n- **Spread over 12 months**: 2 changes; scenario hash `sha256:44c00c745130e3ff2ffa078f2f95e8c1b5dd2446ebe6b218ec24e05c76448366`\n- **Wait 6 months**: 2 changes; scenario hash `sha256:5950f0f41133e008aef15774df1805a170d9c01718755f05b8ee514d5c88afc9`\n\n### Principles\n\n| Principle | Baseline | Pay cash | Spread over 12 months | Wait 6 months |\n|---|---|---|---|---|\n| Six months of essentials in cash (`emergency_months >= 6`) | keeps | keeps | keeps | keeps |\n| Checking above 5,000 (`account_lowest >= 5000`) | keeps | breaks | keeps | keeps |\n\nAssumptions that were placeholders: real_return, safe_withdrawal_rate, surplus_invested, inflation. Engine 4; baseline `sha256:da45ad36b9e3ff9925e7f74d1c804b3074a9fb8e757e59c04854a3f7a23115b0`; the ledger's newest entry was from 2026-10-09.\n\n### Notes\n\n- 2026-10-11 (the person): The shop held the price until November.\n\nEntry hash `sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9`\n";
 
 /**
  * The answer to recording the laptop.
  */
 export const RECORDED: Decision = {
   "id": "00002339-5a11-4000-8000-000000009017",
-  "hash": "sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27",
+  "hash": "sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9",
   "verified": true,
   "status": "awaiting_review",
   "entry": {
@@ -28542,7 +28542,7 @@ export const RECORDED: Decision = {
       "figures": {
         "lowest_cash": "13998.91",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.37",
@@ -28617,7 +28617,7 @@ export const RECORDED: Decision = {
         "figures": {
           "lowest_cash": "11598.91",
           "cash_in_12_months": "13401.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "6.11",
@@ -28883,7 +28883,7 @@ export const RECORDED: Decision = {
         "figures": {
           "lowest_cash": "13821.01",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.28",
@@ -29147,7 +29147,7 @@ export const RECORDED: Decision = {
         "figures": {
           "lowest_cash": "14013.25",
           "cash_in_12_months": "15801.47",
-          "safe_to_spend": "15727.02",
+          "safe_to_spend": "15316.35",
           "any_account_below_zero": false,
           "monthly_spending": "1898.32",
           "emergency_months": "7.38",
@@ -29401,13 +29401,13 @@ export const NOTE: DecisionNote = {
     "schema": "salli.decision-note/1",
     "id": "0000233c-5a11-4000-8000-000000009020",
     "decision_id": "00002339-5a11-4000-8000-000000009017",
-    "entry_hash": "sha256:d407f01ab63ccae75e93039749164bb64b8a6becd7b8fe405dd66375d0a75d27",
+    "entry_hash": "sha256:9ed896d9de7eb52ed26a2d00549244efa53480750816756ec12380177fa399b9",
     "at": "2026-10-11T10:00:00+00:00",
     "text": "The shop held the price until November.",
     "author": "user",
     "agent": null
   },
-  "hash": "sha256:de896ff6a02463edccbef7477fccbf9e96eb13647a3c900162066a576515c08e",
+  "hash": "sha256:13d3f77dc1830369686a30ce439d13b0fe7a416a113dabcaa62c11a62e221b14",
   "verified": true
 };
 
@@ -29499,7 +29499,7 @@ export const REVIEWED: DecisionReview = {
     "schema": "salli.decision-review/1",
     "id": "0000235d-5a11-4000-8000-000000009053",
     "decision_id": "0000232e-5a11-4000-8000-000000009006",
-    "entry_hash": "sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88",
+    "entry_hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
     "at": "2026-10-11T10:00:00+00:00",
     "as_of": "2026-10-11",
     "reflection": "Nothing needed changing, and nothing did.",
@@ -29554,7 +29554,7 @@ export const REVIEWED: DecisionReview = {
       ]
     }
   },
-  "hash": "sha256:0e37678b25a897bbb9fa402597708d2a822d6669698f68cb39e2938454c82952",
+  "hash": "sha256:a286711ae683fd5458c10bcf008cc99ef56a5771d2692308abdbfa0800955814",
   "verified": true
 };
 
@@ -29563,7 +29563,7 @@ export const REVIEWED: DecisionReview = {
  */
 export const DECISION_REVIEWED: Decision = {
   "id": "0000232e-5a11-4000-8000-000000009006",
-  "hash": "sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88",
+  "hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
   "verified": true,
   "status": "reviewed",
   "entry": {
@@ -29633,7 +29633,7 @@ export const DECISION_REVIEWED: Decision = {
       "figures": {
         "lowest_cash": "9512.79",
         "cash_in_12_months": "11316.20",
-        "safe_to_spend": "11236.35",
+        "safe_to_spend": "10826.46",
         "any_account_below_zero": false,
         "monthly_spending": "1897.48",
         "emergency_months": "5.01",
@@ -29681,7 +29681,7 @@ export const DECISION_REVIEWED: Decision = {
         "figures": {
           "lowest_cash": "9512.79",
           "cash_in_12_months": "11316.20",
-          "safe_to_spend": "11236.35",
+          "safe_to_spend": "10826.46",
           "any_account_below_zero": false,
           "monthly_spending": "1897.48",
           "emergency_months": "5.01",
@@ -29868,7 +29868,7 @@ export const DECISION_REVIEWED: Decision = {
         "schema": "salli.decision-review/1",
         "id": "0000235d-5a11-4000-8000-000000009053",
         "decision_id": "0000232e-5a11-4000-8000-000000009006",
-        "entry_hash": "sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88",
+        "entry_hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
         "at": "2026-10-11T10:00:00+00:00",
         "as_of": "2026-10-11",
         "reflection": "Nothing needed changing, and nothing did.",
@@ -29923,7 +29923,7 @@ export const DECISION_REVIEWED: Decision = {
           ]
         }
       },
-      "hash": "sha256:0e37678b25a897bbb9fa402597708d2a822d6669698f68cb39e2938454c82952",
+      "hash": "sha256:a286711ae683fd5458c10bcf008cc99ef56a5771d2692308abdbfa0800955814",
       "verified": true
     }
   ]

@@ -281,13 +281,12 @@ class InsightsService:
     async def safe_to_spend(
         self, user_id: str, changes: Sequence[forecasting.Flow] = ()
     ) -> dict[str, Any]:
-        """How much could go out today without the cash forecast dropping below
-        zero before money next comes in: the lowest the total gets from today
-        until the day before the next income the ledger expects (or over 30
-        days, when it expects none), never below zero (`timelines.
-        safe_to_spend`, which scenarios read too). Money moved between two
-        cash accounts (paying the card from checking) is neither income nor
-        committed: it never leaves cash."""
+        """Free to spend until payday (`timelines.safe_to_spend`, which
+        scenarios read too): the lowest the cash gets before money next comes
+        in, after what is scheduled and a usual day's everyday spending, less
+        a cushion and the cash set aside for goals; never below zero. Money
+        moved between two cash accounts (paying the card from checking) is
+        neither income nor committed: it never leaves cash."""
         baseline = await self._baselines.build(user_id, self._today())
         safe = timelines.safe_to_spend(baseline, changes)
         income, before, until = safe.next_income, safe.committed, safe.until
@@ -301,6 +300,11 @@ class InsightsService:
             "currency": base,
             "amount": money(safe.amount),
             "cash_today": money(safe.cash_today),
+            "low_point": money(safe.low_point),
+            "low_point_date": safe.low_point_date,
+            "everyday_spending": money(safe.everyday),
+            "cushion": money(safe.cushion),
+            "held_for_goals": money(safe.held_for_goals),
             "until": until,
             "next_income": None
             if income is None

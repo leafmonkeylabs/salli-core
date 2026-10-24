@@ -21,6 +21,15 @@
     `reports` and `briefing` show the briefing.
   - Migration `core_0024_briefings` adds `advisory_reports.briefing`.
 
+- **Safe to spend is "free until payday".** It used to be your cash less
+  scheduled bills only. Now it also takes off a usual day's everyday spending
+  until payday, a cushion (a tenth of a usual month's spending) and the cash
+  set aside for goals. `GET /v1/insights/safe-to-spend` adds `low_point`,
+  `low_point_date`, `everyday_spending`, `cushion` and `held_for_goals`;
+  `amount` (breaking: same field, new meaning) is the low point less the
+  cushion and goals' cash. Scenarios and principle checks read the same
+  figure.
+
 ### Removed
 
 - **The FIRE strategy generator.** A model no longer drafts a FIRE strategy:
