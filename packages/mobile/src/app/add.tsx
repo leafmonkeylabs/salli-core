@@ -107,7 +107,7 @@ export default function Add() {
             returnKeyType="go"
             autoCapitalize="none"
             editable={!draft.isPending}
-            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
         </Field>
         {draft.error ? <Body alert>{noModel ? t.noModel : draft.error.message}</Body> : null}

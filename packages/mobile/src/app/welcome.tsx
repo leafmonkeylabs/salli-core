@@ -91,7 +91,7 @@ export default function Welcome() {
             autoCorrect={false}
             spellCheck={false}
             returnKeyType="go"
-            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text }]}
+            style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
           <Body small muted>
             {wrong ? t.notAnAddress : t.help}

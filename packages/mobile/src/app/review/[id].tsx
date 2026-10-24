@@ -138,7 +138,7 @@ export default function Review() {
           {facts.length ? (
             <View style={styles.facts}>
               {facts.map((fact) => (
-                <Text key={fact} style={[styles.fact, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card }]}>
+                <Text key={fact} style={[styles.fact, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
                   {fact}
                 </Text>
               ))}

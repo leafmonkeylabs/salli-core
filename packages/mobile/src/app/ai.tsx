@@ -172,7 +172,7 @@ function KeySheet({ visible, onClose }: { visible: boolean; onClose: () => void 
           autoCorrect={false}
           autoFocus
           accessibilityLabel={t.key}
-          style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text }]}
+          style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
         />
         <Body small muted>
           {t.keyHelp}

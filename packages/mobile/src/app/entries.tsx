@@ -64,7 +64,7 @@ export default function Entries() {
           autoCapitalize="none"
           autoCorrect={false}
           clearButtonMode="while-editing"
-          style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text }]}
+          style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
         />
         {entries.data ? (
           <Body small muted>
