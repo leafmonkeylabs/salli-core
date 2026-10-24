@@ -112,6 +112,16 @@ describe('Home', () => {
     await waitFor(() => expect(within(figure('Net worth')).getByText('344,026.47')).toBeTruthy());
   });
 
+  it('shows no FI score until two months of data are behind it', async () => {
+    const api = new MockApi();
+    api.overrides.push((r) => (r.path === '/v1/fi/score' ? { status: 200, body: { ...home.FI_SCORE, status: 'not_enough_data', months_observed: 1 } } : undefined));
+    await setup({ api });
+    const fiFigure = figure('Financial independence');
+    expect(await within(fiFigure).findByText('Needs two months of data')).toBeTruthy();
+    expect(within(fiFigure).queryByText('60.08')).toBeNull();
+    expect(within(fiFigure).queryByText('FI score · Strong')).toBeNull();
+  });
+
   it('says plainly when there is nothing yet', async () => {
     const api = new MockApi();
     api.reads['/v1/insights/signals'] = { signals: [] };

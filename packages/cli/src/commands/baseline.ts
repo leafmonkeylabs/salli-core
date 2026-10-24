@@ -15,6 +15,7 @@ import { countArg } from './shared';
 
 const ROLES: Record<Baseline['balances'][number]['role'], string> = {
   cash: 'cash',
+  savings: 'savings',
   investment: 'investment',
   other_asset: 'other asset',
   liability: 'liability',
@@ -114,6 +115,7 @@ Examples:
           out.line(
             out.details([
               ['Cash', out.money(t.cash, cur)],
+              ['Savings', out.money(t.savings, cur)],
               ['Investments', out.money(t.investments, cur)],
               ['Other assets', out.money(t.other_assets, cur)],
               ['Debts', out.money(t.debts, cur)],

@@ -299,7 +299,7 @@ string in your currency's precision. A month's change is in months
 | **Cash, the next twelve months** | The lowest your cash gets and the day; each cash account at its lowest, and which go below zero; cash at the end of the twelfth month; safe-to-spend until your next income (the baseline's window, so the two compare). |
 | **Monthly, in today's money** | Net worth, cash, investments and debts at 1, 5, 10 and 20 years and at the horizon; other assets as net worth counts them (`other_assets`: an asset a scenario buys at its value less its selling costs) and their value before selling costs (`other_assets_value`) beside them. |
 | **Debts** | Each debt's payoff month and interest, and a new loan's; the interest on all of them; the month you are debt-free. |
-| **Resilience** | The months of spending your cash covers at its low point and at the end of the year: over essential spending when your spending carries need tags, over all of it otherwise. |
+| **Resilience** | The months of spending your cash and savings cover at its low point and at the end of the year: over essential spending when your spending carries need tags, over all of it otherwise. |
 | **FI** | The FI number, the month you reach it, and the months gained (positive) or lost. |
 | **Tax** | For changes tagged with a tax role, each tax year's role totals and the change in tax, from your active rules ([Tax](#tax)). |
 

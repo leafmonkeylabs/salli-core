@@ -47,6 +47,7 @@ add up to on the as-of day. Its role says what it is:
 | Role | Which accounts | Counts as |
 |---|---|---|
 | Cash | Asset accounts whose role is cash (the default) | Money to spend or fall back on, and your emergency fund |
+| Savings | Asset accounts you mark as savings: a savings account, an emergency fund, a term deposit | Cash you keep: counted as cash in net worth, FI, your emergency fund and the monthly timeline, never in the daily cash timeline or free until payday |
 | Investment | Asset accounts you mark as investments | Invested: it grows at your real return |
 | Other asset | Asset accounts you mark as other: a home, a car | Owned, but neither cash nor investable |
 | Liability | Liability accounts | Owed |

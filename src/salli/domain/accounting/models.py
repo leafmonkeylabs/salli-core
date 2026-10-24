@@ -60,21 +60,24 @@ _TAX_ROLE_SHAPE = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
 
 # What an asset account holds, declared rather than guessed from its name:
 #
-# - "cash": money to spend or fall back on (a current account, savings, a
-#   wallet). The default: it is what most asset accounts are.
+# - "cash": money to spend (a current account, a wallet). The default: it is
+#   what most asset accounts are.
+# - "savings": cash you keep, not spend (a savings account, an emergency fund,
+#   a term deposit). It counts as cash everywhere but the daily cash forecast
+#   and what is free to spend (domain/baseline).
 # - "investment": money invested for growth (a brokerage, a pension fund).
 #   Planning grows it at the real return (domain/baseline).
 # - "other": something owned that is neither (a home, a car, a loan made to
 #   a friend). It counts in net worth, never as cash or as investable.
 #
-# Three values rather than an `investment` flag, because the baseline needs to
-# tell all three apart: a flag would leave a home counted as cash, and so in
+# Roles rather than an `investment` flag, because the baseline needs to
+# tell them apart: a flag would leave a home counted as cash, and so in
 # the emergency fund. Only asset accounts have one; a liability is a
 # liability, and income, expense and equity accounts hold no balance of their
 # own to plan with. The name matters no more than it does for `tax_role`:
 # an earlier pattern on names matched "fd" inside "Refund".
-AssetRole = Literal["cash", "investment", "other"]
-ASSET_ROLES: tuple[AssetRole, ...] = ("cash", "investment", "other")
+AssetRole = Literal["cash", "savings", "investment", "other"]
+ASSET_ROLES: tuple[AssetRole, ...] = ("cash", "savings", "investment", "other")
 
 
 def _currency_code(value: object) -> str:

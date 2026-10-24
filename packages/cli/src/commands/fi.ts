@@ -90,7 +90,11 @@ function assumptionsNote(app: App, assumptions: FiAssumptions | null | undefined
 function scoreView(app: App, s: FiScore): void {
   const out = app.out;
   const cur = s.currency;
-  out.line(`${out.heading(`FI score ${s.overall_score}`)} ${out.colors.dim(`(grade ${singleLine(s.grade)})`)}`);
+  out.line(
+    s.status === 'not_enough_data'
+      ? `${out.heading('FI score')} ${out.colors.dim('Needs two months of data')}`
+      : `${out.heading(`FI score ${s.overall_score}`)} ${out.colors.dim(`(grade ${singleLine(s.grade)})`)}`,
+  );
   out.line(
     out.details([
       ['Monthly income', out.money(s.monthly_income, cur)],

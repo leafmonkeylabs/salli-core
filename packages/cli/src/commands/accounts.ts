@@ -21,7 +21,7 @@ import { AccountBook, currencyArg } from './shared';
 
 const TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as const;
 /** What an asset account holds: planning reads this, never the account's name. */
-const ASSET_ROLES = ['cash', 'investment', 'other'] as const;
+const ASSET_ROLES = ['cash', 'savings', 'investment', 'other'] as const;
 type AccountType = (typeof TYPES)[number];
 type AssetRole = (typeof ASSET_ROLES)[number];
 
@@ -54,8 +54,9 @@ Examples:
   $ salli accounts add 1300 Brokerage asset --currency USD --asset-role investment
   $ salli accounts update 1500 --asset-role other
 
-An asset account's role says what it holds: cash (the default), investment
-(a brokerage, a pension fund) or other (a home, a car). Planning reads it.`,
+An asset account's role says what it holds: cash (the default), savings
+(cash you keep, never free to spend), investment (a brokerage, a pension
+fund) or other (a home, a car). Planning reads it.`,
     );
 
   accounts

@@ -71,8 +71,9 @@ class BaselineBalance(BaseModel):
     account_id: str
     code: str
     name: str
-    #: cash, investment or other_asset (the account's asset role), or liability.
-    role: Literal["cash", "investment", "other_asset", "liability"]
+    #: cash, savings, investment or other_asset (the account's asset role), or
+    #: liability.
+    role: Literal["cash", "savings", "investment", "other_asset", "liability"]
     #: The account's own currency.
     currency: CurrencyCode
     #: Signed (what is owed is negative), in the account's currency; null
@@ -80,7 +81,8 @@ class BaselineBalance(BaseModel):
     amount: Amount | None
     #: The same in the base currency at the as-of rate; null without one.
     value: Amount | None
-    #: Counted as cash: in the daily cash timeline and the monthly timeline's cash.
+    #: Counted as cash to spend: in the daily cash timeline and the monthly
+    #: timeline's cash. Never a savings account.
     in_cash: bool
     #: The declared debt this liability account holds, if any.
     debt_id: str | None
@@ -91,7 +93,10 @@ class BaselineTotals(BaseModel):
 
     #: The cash accounts together, signed (a card's balance counts against them).
     cash: Amount
-    #: What the cash-role accounts own: the emergency fund's money.
+    #: What the savings accounts hold: in the monthly timeline's cash beside
+    #: `cash`, never in the daily cash timeline.
+    savings: Amount
+    #: What the cash and savings accounts own: the emergency fund's money.
     liquid: Amount
     investments: Amount
     other_assets: Amount

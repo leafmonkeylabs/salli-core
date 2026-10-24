@@ -41,7 +41,7 @@ export const whereStrings = {
       income: 'Income',
       expense: 'Spending',
     } as Record<string, string>,
-    roles: { cash: 'Cash', investment: 'Investments', other: 'Other (a home, a car)' } as Record<string, string>,
+    roles: { cash: 'Cash', savings: 'Savings', investment: 'Investments', other: 'Other (a home, a car)' } as Record<string, string>,
     account: 'Account',
     holds: 'Holds',
     currency: 'Currency',

@@ -23,10 +23,11 @@ from salli.domain.taxrules.schema import RuleSet
 
 #: What a balance is, to the baseline: an asset account's own role, or a
 #: liability.
-Role = Literal["cash", "investment", "other_asset", "liability"]
+Role = Literal["cash", "savings", "investment", "other_asset", "liability"]
 
 ROLE_OF: dict[AssetRole, Role] = {
     "cash": "cash",
+    "savings": "savings",
     "investment": "investment",
     "other": "other_asset",
 }
@@ -64,8 +65,9 @@ class Balance:
     #: The same in the base currency, at the as-of rate; None without one.
     value: Decimal | None
     is_active: bool
-    #: Counted as cash: in the daily cash timeline and the monthly
-    #: timeline's cash (`forecast.cash_accounts`).
+    #: Counted as cash to spend: in the daily cash timeline and the monthly
+    #: timeline's cash (`forecast.cash_accounts`). Never a savings account,
+    #: which the monthly timeline's cash counts beside it (`Baseline.savings`).
     in_cash: bool
     #: The declared debt this liability account holds, if any.
     debt_id: str | None = None
@@ -423,9 +425,16 @@ class Baseline:
         )
 
     @property
+    def savings(self) -> Decimal:
+        """What the savings accounts hold: cash kept, not spent. The monthly
+        timeline's cash and the emergency months count it; the daily cash
+        timeline, and so what is free to spend, never does."""
+        return self._sum("savings")
+
+    @property
     def liquid(self) -> Decimal:
-        """What the cash-role accounts own: the emergency fund's money."""
-        return sum((b.owned for b in self.balances if b.role == "cash"), Decimal(0))
+        """What the cash and savings accounts own: the emergency fund's money."""
+        return sum((b.owned for b in self.balances if b.role in ("cash", "savings")), Decimal(0))
 
     @property
     def investments(self) -> Decimal:

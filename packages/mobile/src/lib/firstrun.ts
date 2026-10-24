@@ -12,9 +12,9 @@ export interface Line {
   role?: AssetRole;
 }
 
-/** Cash is what you spend from; investments grow; other (a home, a car) is neither. */
-export type AssetRole = 'cash' | 'investment' | 'other';
-export const ROLES: readonly AssetRole[] = ['cash', 'investment', 'other'];
+/** Cash is what you spend from; savings you keep, never free to spend; investments grow; other (a home, a car) is none of these. */
+export type AssetRole = 'cash' | 'savings' | 'investment' | 'other';
+export const ROLES: readonly AssetRole[] = ['cash', 'savings', 'investment', 'other'];
 
 /** A typed amount as a decimal string, or undefined when it isn't one (or is nothing). */
 export function amountOf(typed: string): string | undefined {

@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { uid } from './helpers/fixtures';
+import { FI_SCORE, uid } from './helpers/fixtures';
 import { MockSalli } from './helpers/mock-server';
 import { runCli, tempConfigDir, type RunOptions } from './helpers/run';
 
@@ -207,6 +207,13 @@ describe('financial independence and goals', () => {
       Emergency fund     80     20%  5.80 months of spending covered, against a target of 6
       "
     `);
+  });
+
+  it('shows no score or grade until two months of data are behind it', async () => {
+    mock.on('GET', '/v1/fi/score', () => ({ status: 200, body: { ...FI_SCORE, status: 'not_enough_data', months_observed: 1 } }));
+    const shown = (await run(['fi', 'score'])).stdout;
+    expect(shown.split('\n')[0]).toBe('FI score Needs two months of data');
+    expect(shown).not.toContain('grade');
   });
 
   it('lists goals with their funding', async () => {

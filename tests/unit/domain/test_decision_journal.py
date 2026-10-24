@@ -222,6 +222,7 @@ def test_a_table_cell_cant_break_the_table():
 def _actual(**kw: Any) -> Baseline:
     values = {
         "cash": D("11234.50"),
+        "savings": D("0"),
         "investments": D("39000.00"),
         "other_assets": D("0"),
         "debts_owed": D("16900.00"),
