@@ -36,7 +36,7 @@ export default function Books() {
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
 
   return (
-    <Page title={t.title} onRefresh={() => Promise.all([accounts.refetch(), sheet.refetch(), forecast.refetch(), statements.refetch()])}>
+    <Page underAI title={t.title} onRefresh={() => Promise.all([accounts.refetch(), sheet.refetch(), forecast.refetch(), statements.refetch()])}>
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={() => router.push('/add')} style={[styles.action, { backgroundColor: theme.button }]}>
           <Icon name="plus" size={18} colour={theme.buttonText} />

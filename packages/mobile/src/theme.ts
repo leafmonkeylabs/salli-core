@@ -54,6 +54,8 @@ export interface Theme {
   focus: string;
   /** Behind a sheet. */
   scrim: string;
+  /** Under what floats over the page: the AI button. */
+  shadow: string;
 }
 
 export const light: Theme = {
@@ -78,6 +80,7 @@ export const light: Theme = {
   chart: brand.ledgerGreen,
   focus: brand.ledgerGreen,
   scrim: 'rgba(14, 21, 19, 0.4)',
+  shadow: brand.night,
 };
 
 export const night: Theme = {
@@ -103,6 +106,7 @@ export const night: Theme = {
   chart: brand.sandOnDark,
   focus: brand.sandOnDark,
   scrim: 'rgba(14, 21, 19, 0.6)',
+  shadow: '#000000',
 };
 
 export function useTheme(): Theme {

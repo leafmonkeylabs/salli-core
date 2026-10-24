@@ -286,9 +286,12 @@ the app: core holds no key and runs no model for it.
   the chosen provider; the settings page says so in one line.
 - **Conversations:** the last 20 per server, in a file of the app's own,
   never sent; deleted from Your AI, or with the server when it is forgotten.
-- **Where it opens:** its own page, from "Think this through with your AI" on
-  Home and Decide once it is set up (until then those still hand a prompt to
-  another app), and from More → Your AI.
+- **Where it opens:** a square button floating above the bar on Home, Cash,
+  Decide and Books (design 22), which opens the AI's page with three
+  starters for that tab; before an AI is set up it opens More → Your AI.
+  Each of those tabs leaves room below its last card so the button never
+  covers it. Kept conversations open from More → Your AI. The page has no
+  heading on screen; Back names the tab it came from.
 
 ## Later
 

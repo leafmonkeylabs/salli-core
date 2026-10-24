@@ -25,7 +25,7 @@ export default function Cash() {
   const chartHeight = 180;
 
   return (
-    <Page title={t.title} onRefresh={() => forecast.refetch()}>
+    <Page underAI title={t.title} onRefresh={() => forecast.refetch()}>
       <Card style={{ gap: 10 }}>
         <CardHead label={data ? t.forecast(String(data.daily.length - 1)) : t.forecast('60')} />
         {data ? (

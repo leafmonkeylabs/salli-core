@@ -23,7 +23,9 @@ export default function Agent() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const ai = useYourAI();
-  const params = useLocalSearchParams<{ id?: string; ask?: string }>();
+  const params = useLocalSearchParams<{ id?: string; ask?: string; from?: string }>();
+  // The tab it was opened from: its starters, and where Back goes.
+  const from = params.from && strings.ai.tabs[params.from] ? params.from : undefined;
   const kept = params.id ? ai.conversations.find((c) => c.id === params.id) : undefined;
   const [conversation, setConversation] = useState<Conversation | undefined>(kept);
   const [draft, setDraft] = useState('');
@@ -97,7 +99,9 @@ export default function Agent() {
     send(params.ask);
   }, [ai.ready, params.ask]);
 
-  const back = () => (router.canGoBack() ? router.back() : router.replace('/home'));
+  const back = () => (router.canGoBack() ? router.back() : router.replace(from ? `/${from}` : '/home'));
+  const backLabel = from ? (strings.ai.tabs[from] ?? t.home) : params.id ? t.title : t.home;
+  const starters = !messages.length && !busy && ai.ready ? (strings.ai.starters[from ?? 'home'] ?? []) : [];
   const blocks = blocksOf(messages);
 
   return (
@@ -105,7 +109,7 @@ export default function Agent() {
       <View style={[styles.header, { paddingTop: insets.top, borderBottomColor: theme.rule }]}>
         <Pressable accessibilityRole="button" onPress={back} style={styles.back}>
           <Icon name="back" size={24} colour={theme.text} />
-          <Body>{t.home}</Body>
+          <Body>{backLabel}</Body>
         </Pressable>
         {ai.model ? (
           <Body small muted style={{ marginLeft: 'auto', paddingRight: 8 }}>
@@ -114,10 +118,30 @@ export default function Agent() {
         ) : null}
       </View>
 
-      <ScrollView ref={scroll} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })} contentContainerStyle={styles.page}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+      <ScrollView
+        ref={scroll}
+        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
+        contentContainerStyle={[styles.page, starters.length ? styles.empty : null]}
+      >
+        {/* No heading on screen (design 20): the page is named for VoiceOver only. */}
+        <Text accessibilityRole="header" style={styles.unseen}>
           {t.title}
         </Text>
+        {starters.length ? (
+          <View accessibilityLabel={t.startWith} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.rule }}>
+            {starters.map((starter) => (
+              <Pressable
+                key={starter}
+                accessibilityRole="button"
+                onPress={() => send(starter)}
+                style={[styles.starter, { borderBottomColor: theme.rule }]}
+              >
+                <Body style={{ flex: 1 }}>{starter}</Body>
+                <Icon name="chevron" size={16} colour={theme.muted} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         {!ai.ready && ai.loaded ? (
           <View style={{ gap: 12 }}>
             <Body muted>{t.notReady}</Body>
@@ -212,7 +236,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: size.target, paddingRight: 12 },
   page: { padding: size.gutter, gap: 14 },
-  title: { fontFamily: font.semibold, fontSize: 28, letterSpacing: -0.7 },
+  unseen: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  empty: { flexGrow: 1, justifyContent: 'flex-end' },
+  starter: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth },
   you: { alignSelf: 'flex-end', maxWidth: '82%', paddingHorizontal: 14, paddingVertical: 12 },
   card: { borderWidth: 1, padding: 14, gap: 12 },
   cardHead: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
