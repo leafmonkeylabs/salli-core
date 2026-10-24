@@ -43,7 +43,16 @@ export default function Review() {
   const insets = useSafeAreaInsets();
   const api = useApi();
   const queryClient = useQueryClient();
-  const { id = '', read } = useLocalSearchParams<{ id: string; read?: string }>();
+  const { id = '', read, notes: notesParam } = useLocalSearchParams<{ id: string; read?: string; notes?: string }>();
+  // What the server noted while reading the file, handed on by the import.
+  const notes: string[] = (() => {
+    try {
+      const parsed: unknown = notesParam ? JSON.parse(notesParam) : [];
+      return Array.isArray(parsed) ? parsed.filter((n): n is string => typeof n === 'string') : [];
+    } catch {
+      return [];
+    }
+  })();
   const pending = useRead('statements.pending', statementsPending, { path: { statement_id: id } });
   const statements = useRead('statements.list', statementsList, { query: { limit: 200 } });
   const accounts = useRead('accounts.list', accountsList);
@@ -138,9 +147,15 @@ export default function Review() {
           </Body>
         </View>
 
-        {said ? (
-          <Card>
-            <Body alert>{`✓ ${said}`}</Body>
+        {said || notes.length ? (
+          // What was done, and what the server noted while reading the file, in one box.
+          <Card style={{ gap: 6 }}>
+            {said ? <Body alert>{`✓ ${said}`}</Body> : null}
+            {notes.map((note) => (
+              <Body key={note} small={!!said} muted={!!said}>
+                {note}
+              </Body>
+            ))}
           </Card>
         ) : null}
         {failed ? (
@@ -149,9 +164,11 @@ export default function Review() {
           </Card>
         ) : null}
 
+
         {pending.data ? (
           transactions.length ? (
             <Card style={{ paddingVertical: 4 }}>
+              <Text style={[styles.currency, { color: theme.muted }]}>{transactions[0]?.currency}</Text>
               {transactions.map((txn, i) => (
                 <Row
                   key={txn.id}
@@ -285,9 +302,9 @@ function Row({
             accessibilityLabel={`${t.chooseAccount}: ${shown(txn)}, ${txn.credit_flag ? t.cameFrom : t.wentTo}`}
             disabled={busy}
             onPress={onChoose}
-            style={[styles.chooseButton, { borderColor: theme.text }]}
+            style={[styles.chooseButton, { borderColor: theme.chart }]}
           >
-            <Text style={[styles.chooseText, { color: theme.text }]}>{t.chooseAccount}</Text>
+            <Text style={[styles.chooseText, { color: theme.chart }]}>{t.chooseAccount}</Text>
           </Pressable>
         )}
       </View>
@@ -310,6 +327,7 @@ const styles = StyleSheet.create({
   chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: StyleSheet.hairlineWidth },
   chooseButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1 },
   chooseText: { fontFamily: font.medium, fontSize: size.small },
+  currency: { alignSelf: 'flex-end', paddingTop: 10, paddingBottom: 2, fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingTop: 10, gap: 8 },
   status: { fontFamily: font.regular, fontSize: size.small },
 });
