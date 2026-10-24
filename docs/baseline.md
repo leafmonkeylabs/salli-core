@@ -3,8 +3,9 @@
 The baseline is one model of your money as of a day. Salli builds it from your
 ledger and what you have declared, and every figure that looks ahead starts
 from it: your FI score and projections, the cash forecast, safe-to-spend, the
-debt plan and the decision lab's [scenarios](scenarios.md). So they never
-disagree about what you earn, spend, own or owe.
+debt plan and the decision lab's [scenarios](scenarios.md), and so does every
+[net worth](#net-worth). So they never disagree about what you earn, spend,
+own or owe.
 
 See it with `salli baseline`, `GET /v1/baseline`, or the MCP tool
 `get_baseline`. Each shows the definitions below as data: the months it
@@ -86,6 +87,17 @@ A debt with terms (a rate and a minimum payment) is counted once:
   says. The debt adds its rate and minimum payment.
 - **Not linked**, it owes its declared principal, which the ledger doesn't
   hold.
+
+## Net worth
+
+Net worth is everything owned less everything owed as the baseline counts
+them: each account at the published rate for the day, judged on its own sign
+(an overdrawn account is owed), and each debt once. Every net worth Salli
+gives is this one: `salli status`, the balance sheet (`salli reports
+balance-sheet`, today), FI, the MCP overview, and net worth over time
+(`salli insights net-worth`), each of whose points is the baseline's as of
+that month's end (this month's, today) at that day's rates, with `notes`
+saying what a day without a rate left out.
 
 A liability without a debt's terms is a balance only. A debt's first payment
 falls in the month after the as-of month, and its schedule runs on calendar

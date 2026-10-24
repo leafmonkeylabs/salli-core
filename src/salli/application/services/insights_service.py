@@ -1,18 +1,20 @@
 """
 InsightsService — the numbers a finance dashboard is built on, from the ledger
 (domain/reports/insights.py): cash flow and savings rate by month, spending by
-category, net worth over time, and the recurring payments the user may not be
-tracking as subscriptions yet.
+category, and the recurring payments the user may not be tracking as
+subscriptions yet.
 
 The cash forecast, safe-to-spend and the signals start from the baseline
 (domain/baseline): the same cash accounts, the same rhythms and the same
 exchange rates (the published ones for today) as every other figure. Cash
 flow's averages are the baseline's income and expenses, under its one
-definition.
+definition, and net worth over time is the baseline's as of each month's
+end.
 """
 
 from __future__ import annotations
 
+import calendar
 import datetime as dt
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -146,27 +148,27 @@ class InsightsService:
         }
 
     async def net_worth(self, user_id: str, months: int = 24) -> dict[str, Any]:
-        """Book value at each month's end. What came before the window is
-        summed by the database (each account's balance at its start), and
-        only the window's entries are read."""
-        window = insights.last_months(self._today(), months)
-        start = f"{window[0]}-01"
-        async with self._uow_factory() as uow:
-            accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
-            opening = await uow.ledger.balances_before(user_id, start)
-            entries = await uow.ledger.get_entries(user_id, from_date=start)
-            base = await uow.user_profiles.base_currency(user_id)
-        points = insights.net_worth_series(entries, accounts, window, opening)
+        """The baseline's net worth at each month's end, and this month's as
+        of today (`BaselineService.worth`): each account at the published
+        rate for that day, the debts the ledger doesn't hold at their
+        declared principal. A point's `notes` say what it left out (an
+        account in a currency with no rate for the day)."""
+        today = self._today()
+        window = insights.last_months(today, months)
+        days = [*(_month_end(m) for m in window[:-1]), today]
+        points = await self._baselines.worth(user_id, days)
+        base = points[-1].currency
         return {
             "currency": base,
             "points": [
                 {
-                    "month": p.month,
-                    "assets": _money(p.assets, base),
-                    "liabilities": _money(p.liabilities, base),
+                    "month": month,
+                    "assets": _money(p.total_assets, base),
+                    "liabilities": _money(p.total_liabilities, base),
                     "net_worth": _money(p.net_worth, base),
+                    "notes": list(p.notes),
                 }
-                for p in points
+                for month, p in zip(window, points, strict=True)
             ],
         }
 
@@ -411,6 +413,11 @@ class InsightsService:
     async def _pending(self, user_id: str) -> list[Any]:
         async with self._uow_factory() as uow:
             return await uow.statements.get_all_pending(user_id)
+
+
+def _month_end(month: str) -> dt.date:
+    year, number = int(month[:4]), int(month[5:7])
+    return dt.date(year, number, calendar.monthrange(year, number)[1])
 
 
 def _iso(value: object) -> str:

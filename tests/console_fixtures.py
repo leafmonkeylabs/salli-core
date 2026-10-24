@@ -165,7 +165,7 @@ async def household() -> Books:
     services = SimpleNamespace(
         ledger=ledger,
         fi=fi,
-        reports=ReportService(ledger, fi),
+        reports=ReportService(ledger, fi, baselines),
         reminders=ReminderService(uow.factory()),
         insights=InsightsService(uow.factory(), today=today, baselines=baselines),
         baseline=baselines,

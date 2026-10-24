@@ -1254,8 +1254,8 @@ export class MockSalli {
           body: {
             currency: 'USD',
             points: [
-              { month: '2026-09', assets: '13000.00', liabilities: '1500.00', net_worth: '11500.00' },
-              { month: '2026-10', assets: '15234.50', liabilities: '1200.00', net_worth: '14034.50' },
+              { month: '2026-09', assets: '13000.00', liabilities: '1500.00', net_worth: '11500.00', notes: [] },
+              { month: '2026-10', assets: '15234.50', liabilities: '1200.00', net_worth: '14034.50', notes: [] },
             ],
           } satisfies NetWorthByMonth,
         };

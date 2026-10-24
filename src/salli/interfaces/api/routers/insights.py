@@ -91,10 +91,15 @@ class Spending(BaseModel):
 
 class MonthEndNetWorth(BaseModel):
     month: Month
-    #: Book values at the month's end.
+    #: The baseline's at the month's end (this month: today): each account at
+    #: the published rate for that day, judged on its own sign, and the debts
+    #: the ledger doesn't hold at their declared principal.
     assets: Amount
     liabilities: Amount
     net_worth: Amount
+    #: What this point left out, and why (an account in a currency with no
+    #: published rate for the day).
+    notes: list[str]
 
 
 class NetWorthByMonth(BaseModel):

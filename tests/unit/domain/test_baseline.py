@@ -7,6 +7,7 @@ cash by the share the user invests.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from dataclasses import replace
 from decimal import Decimal
@@ -15,7 +16,7 @@ import pytest
 
 from salli.domain.baseline import timelines
 from salli.domain.baseline.flows import observed_months
-from tests.baseline_ledger import Ledger
+from tests.baseline_ledger import USER, Ledger
 
 AS_OF = dt.date(2027, 3, 18)
 
@@ -165,6 +166,53 @@ def test_a_linked_debt_is_counted_once_and_an_unlinked_one_as_declared():
     # Card 400 owed, the mortgage account 300,000, and the car declared 12,000.
     assert baseline.total_liabilities == Decimal(312400)
     assert baseline.net_worth == baseline.total_assets - Decimal(312400)
+
+
+def test_net_worth_as_of_each_day_is_the_baselines_as_of_that_day():
+    books = _household()
+    books.account("old", "asset", is_active=False)  # closed, and still owned
+    books.book("2026-11-30", "old", "equity", "250", description="Opening balance")
+    books.book("2027-01-20", "food", "bank", "9000", description="OVERDRAWN")  # owed, not owned
+    books.debt("car", "12000", "0.069", "300")  # the ledger doesn't hold it
+    books.debt("mortgage-terms", "310000", "0.024", "1500", account_id="mortgage")
+    days = [dt.date(2026, 12, 31), dt.date(2027, 1, 31), dt.date(2027, 2, 28), AS_OF]
+    for day, rate in zip(days[:-1], ("0.91", "0.90", "0.89"), strict=True):
+        books.rate("USD", rate, day.isoformat())
+
+    worth = asyncio.run(books.service(AS_OF).worth(USER, days))
+
+    for point, day in zip(worth, days, strict=True):
+        baseline = books.baseline(day)
+        assert (point.as_of, point.total_assets, point.total_liabilities, point.net_worth) == (
+            day,
+            baseline.total_assets,
+            baseline.total_liabilities,
+            baseline.net_worth,
+        )
+    # The dollars at each day's own rate, never the 0.90 they were bought at.
+    assert [next(b.value for b in p.balances if b.account_id == "dollars") for p in worth] == [
+        Decimal("910.00"),
+        Decimal("900.00"),
+        Decimal("890.00"),
+        Decimal("880.00"),
+    ]
+    # The car loan counted once a point, at its declared principal.
+    declared = [[d.balance for d in p.debts if d.source == "declared"] for p in worth]
+    assert declared == [[Decimal(12000)]] * 4
+
+
+def test_net_worth_on_a_day_without_a_rate_leaves_the_currency_out_and_says_so():
+    books = _household()
+    january, february = dt.date(2027, 1, 31), dt.date(2027, 2, 28)
+    books.rate("USD", "0.90", january.isoformat())
+
+    jan, feb = asyncio.run(books.service(AS_OF).worth(USER, [january, february]))
+
+    assert jan.notes == ()
+    assert feb.notes == (
+        "Dollars: no published USD rate for 2027-02-28, so it is left out of the totals in CHF",
+    )
+    assert feb.net_worth == books.baseline(february).net_worth
 
 
 def test_an_investment_is_never_cash_whatever_paid_from_it():

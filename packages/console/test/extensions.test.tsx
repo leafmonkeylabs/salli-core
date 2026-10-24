@@ -38,7 +38,7 @@ describe('a console extension', () => {
     api.extensions = ['example'];
     await setup({ api, extensions: [example], path: '/console/example' });
     expect(await screen.findByRole('heading', { level: 1, name: 'Example' })).toBeTruthy();
-    expect(await screen.findByText('EUR 344,026.47')).toBeTruthy();
+    expect(await screen.findByText('EUR 335,901.47')).toBeTruthy();
     expect(within(places()).getByRole('link', { name: 'Example' })).toBeTruthy();
     await act(async () => {
       within(places()).getByRole('link', { name: 'Settings' }).click();

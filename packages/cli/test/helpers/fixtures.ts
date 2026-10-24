@@ -93,6 +93,7 @@ export const BALANCE_SHEET = {
   total_liabilities: '1200.00',
   total_equity: '0.00',
   net_worth: '14034.50',
+  notes: [],
 } satisfies BalanceSheet;
 
 export const INCOME_STATEMENT = (from: string, to: string): IncomeStatement => ({

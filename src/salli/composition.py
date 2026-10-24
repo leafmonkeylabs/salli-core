@@ -258,7 +258,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         notifier_name=extensions.notifier_from,
         public_url=settings.salli_public_url,
     )
-    reports = ReportService(ledger, fi)
+    reports = ReportService(ledger, fi, baseline)
     public_url = settings.salli_public_url.rstrip("/")
     mcp_oauth = McpOAuthService(
         uow_factory,

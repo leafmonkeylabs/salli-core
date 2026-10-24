@@ -29,7 +29,7 @@ export const BALANCE_SHEET: BalanceSheet = {
       "account_id": "usd",
       "code": "1200",
       "name": "Dollar account",
-      "balance": "2275.00"
+      "balance": "2150.00"
     },
     {
       "account_id": "brk",
@@ -62,6 +62,12 @@ export const BALANCE_SHEET: BalanceSheet = {
       "code": "2100",
       "name": "Car loan",
       "balance": "9900.00"
+    },
+    {
+      "account_id": null,
+      "code": "",
+      "name": "Student loan",
+      "balance": "8000.00"
     }
   ],
   "equity": [
@@ -72,10 +78,11 @@ export const BALANCE_SHEET: BalanceSheet = {
       "balance": "334000.00"
     }
   ],
-  "total_assets": "354618.15",
-  "total_liabilities": "10591.68",
+  "total_assets": "354493.15",
+  "total_liabilities": "18591.68",
   "total_equity": "334000.00",
-  "net_worth": "344026.47"
+  "net_worth": "335901.47",
+  "notes": []
 };
 
 /**
@@ -387,74 +394,108 @@ export const NET_WORTH: NetWorthByMonth = {
     {
       "month": "2025-11",
       "assets": "0.00",
-      "liabilities": "0.00",
-      "net_worth": "0.00"
+      "liabilities": "8000.00",
+      "net_worth": "-8000.00",
+      "notes": [
+        "Dollar account: no published USD rate for 2025-11-30, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2025-12",
       "assets": "0.00",
-      "liabilities": "0.00",
-      "net_worth": "0.00"
+      "liabilities": "8000.00",
+      "net_worth": "-8000.00",
+      "notes": [
+        "Dollar account: no published USD rate for 2025-12-31, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-01",
       "assets": "0.00",
-      "liabilities": "0.00",
-      "net_worth": "0.00"
+      "liabilities": "8000.00",
+      "net_worth": "-8000.00",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-01-31, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-02",
       "assets": "0.00",
-      "liabilities": "0.00",
-      "net_worth": "0.00"
+      "liabilities": "8000.00",
+      "net_worth": "-8000.00",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-02-28, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-03",
-      "assets": "346000.00",
-      "liabilities": "12000.00",
-      "net_worth": "334000.00"
+      "assets": "344200.00",
+      "liabilities": "20000.00",
+      "net_worth": "324200.00",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-03-31, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-04",
-      "assets": "348150.00",
-      "liabilities": "12170.99",
-      "net_worth": "335979.01"
+      "assets": "346350.00",
+      "liabilities": "20170.99",
+      "net_worth": "326179.01",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-04-30, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-05",
-      "assets": "349829.01",
-      "liabilities": "11901.89",
-      "net_worth": "337927.12"
+      "assets": "348029.01",
+      "liabilities": "19901.89",
+      "net_worth": "328127.12",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-05-31, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-06",
-      "assets": "351477.12",
-      "liabilities": "11579.69",
-      "net_worth": "339897.43"
+      "assets": "349677.12",
+      "liabilities": "19579.69",
+      "net_worth": "330097.43",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-06-30, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-07",
-      "assets": "353147.43",
-      "liabilities": "11307.99",
-      "net_worth": "341839.44"
+      "assets": "350872.43",
+      "liabilities": "19307.99",
+      "net_worth": "331564.44",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-07-31, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-08",
-      "assets": "354789.44",
-      "liabilities": "10971.29",
-      "net_worth": "343818.15"
+      "assets": "352514.44",
+      "liabilities": "18971.29",
+      "net_worth": "333543.15",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-08-31, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-09",
-      "assets": "356468.15",
-      "liabilities": "10690.69",
-      "net_worth": "345777.46"
+      "assets": "354193.15",
+      "liabilities": "18690.69",
+      "net_worth": "335502.46",
+      "notes": [
+        "Dollar account: no published USD rate for 2026-09-30, so it is left out of the totals in EUR"
+      ]
     },
     {
       "month": "2026-10",
-      "assets": "354618.15",
-      "liabilities": "10591.68",
-      "net_worth": "344026.47"
+      "assets": "354493.15",
+      "liabilities": "18591.68",
+      "net_worth": "335901.47",
+      "notes": []
     }
   ]
 };

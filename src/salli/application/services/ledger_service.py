@@ -429,16 +429,6 @@ class LedgerService:
             entries = await uow.ledger.get_entries(user_id, from_date, to_date)
         return ledger_ops.income_for_period(entries, income_account_ids, expense_account_ids)
 
-    async def get_net_worth(
-        self,
-        user_id: str,
-        asset_account_ids: set[str],
-        liability_account_ids: set[str],
-    ) -> Decimal:
-        async with self._uow_factory() as uow:
-            entries = await uow.ledger.get_entries(user_id)
-        return ledger_ops.net_worth(entries, asset_account_ids, liability_account_ids)
-
     async def update_account(
         self,
         user_id: str,

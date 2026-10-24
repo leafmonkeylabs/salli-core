@@ -26,7 +26,7 @@ export const whereStrings = {
     assets: 'Assets',
     liabilities: 'Liabilities',
     netWorth: 'Net worth',
-    standingHelp: 'Assets and what you owe, valued in your base currency at the rates their entries recorded.',
+    standingHelp: 'Assets and what you owe, valued in your base currency at today’s published rates, with any debt your books don’t hold at what you declared.',
     types: {
       asset: 'Assets',
       liability: 'Liabilities',

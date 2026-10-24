@@ -43,7 +43,7 @@ for (const theme of THEMES) {
     test.describe(`${width} px, ${theme}`, () => {
       test('Home', async ({ page }) => {
         const seen = await open(page, width, theme);
-        await expect(page.getByRole('group', { name: 'Net worth', exact: true }).locator('.money-figure')).toContainText('344,026.47');
+        await expect(page.getByRole('group', { name: 'Net worth', exact: true }).locator('.money-figure')).toContainText('335,901.47');
         await settled(page);
         await axe(page);
         await expect(page).toHaveScreenshot(`home-${width}-${theme}.png`, { fullPage: true });

@@ -34,8 +34,10 @@ from salli.domain.baseline import (
     Rate,
     TaxInputs,
     TaxRules,
+    Worth,
     build,
     timelines,
+    worth_by_day,
 )
 from salli.domain.baseline.models import RuleSetRef
 from salli.domain.currency import quantize
@@ -281,15 +283,8 @@ class BaselineService:
                 else []
             )
 
-        rates: dict[str, Rate] = {}
         currencies = {a.currency for a in money} | {h.currency for h in holdings}
-        for currency in sorted(currencies - {base}):
-            quote = await published_rate(self._fx, currency, base, day)
-            rates[currency] = (
-                Rate(currency, None, None, None)
-                if quote is None
-                else Rate(currency, quote.rate, quote.source, quote.as_of)
-            )
+        rates = await self._rates(currencies - {base}, base, day)
 
         tax = TaxInputs(
             residency=residency,
@@ -316,6 +311,45 @@ class BaselineService:
                 holdings=holdings,
             )
         )
+
+    async def worth(self, user_id: str, days: Sequence[dt.date]) -> list[Worth]:
+        """What is owned and owed as of each of `days` (ascending), as the
+        baseline as of that day counts it (`build.worth`): the ledger summed
+        once to the first day and its entries read from there to the last,
+        and each currency's published rate for each day asked for once."""
+        first, last = days[0], days[-1]
+        async with self._uow_factory() as uow:
+            base = await uow.user_profiles.base_currency(user_id)
+            accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+            money = [a for a in accounts if a.type in ("asset", "liability")]
+            opening = await uow.ledger.posting_totals(
+                user_id, [a.id for a in money], to_date=first.isoformat()
+            )
+            entries = await uow.ledger.get_entries(
+                user_id,
+                from_date=(first + dt.timedelta(days=1)).isoformat(),
+                to_date=last.isoformat(),
+            )
+            debts = declared_debts(await uow.debts.list(user_id, active_only=True), base)
+        foreign = {a.currency for a in money} - {base}
+        rates = {
+            day: await self._rates(foreign, base, day)
+            for day in dict.fromkeys(d.isoformat() for d in days)
+        }
+        return worth_by_day(days, base, accounts, opening, entries, rates, debts)
+
+    async def _rates(self, currencies: Iterable[str], base: str, day: str) -> dict[str, Rate]:
+        """Each currency's published rate into `base` for `day`, or a Rate of
+        None when no source has one."""
+        rates: dict[str, Rate] = {}
+        for currency in sorted(currencies):
+            quote = await published_rate(self._fx, currency, base, day)
+            rates[currency] = (
+                Rate(currency, None, None, None)
+                if quote is None
+                else Rate(currency, quote.rate, quote.source, quote.as_of)
+            )
+        return rates
 
     async def _tax_rates(
         self,

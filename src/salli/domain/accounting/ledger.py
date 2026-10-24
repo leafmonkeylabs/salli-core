@@ -98,19 +98,6 @@ def income_for_period(
     return income - expenses
 
 
-def net_worth(
-    entries: list[StoredJournalEntry],
-    asset_account_ids: set[str],
-    liability_account_ids: set[str],
-) -> Decimal:
-    """Assets − Liabilities."""
-    balances = trial_balance(entries)
-    assets = sum((balances.get(aid, Decimal(0)) for aid in asset_account_ids), Decimal(0))
-    liabilities = sum((balances.get(lid, Decimal(0)) for lid in liability_account_ids), Decimal(0))
-    # Assets have debit-normal balances (+), liabilities have credit-normal (-).
-    return assets + liabilities  # liabilities are negative, so addition subtracts them
-
-
 def account_running_balance(
     entries: list[StoredJournalEntry], account_id: str
 ) -> list[tuple[StoredJournalEntry, Decimal]]:

@@ -823,7 +823,8 @@ export type AverageCashFlow = {
 /**
  * BalanceSheet
  *
- * Every asset, liability and equity account, valued in the base currency.
+ * What is owned and owed today, as the baseline counts it (and so every
+ * net worth Salli gives), and the equity accounts as the books keep them.
  */
 export type BalanceSheet = {
     /**
@@ -868,6 +869,10 @@ export type BalanceSheet = {
      * Decimal string in the currency's own precision; never a float.
      */
     net_worth: string;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
 };
 
 /**
@@ -877,7 +882,7 @@ export type BalanceSheetLine = {
     /**
      * Account Id
      */
-    account_id: string;
+    account_id: string | null;
     /**
      * Code
      */
@@ -6841,6 +6846,10 @@ export type MonthEndNetWorth = {
      * Decimal string in the currency's own precision; never a float.
      */
     net_worth: string;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
 };
 
 /**

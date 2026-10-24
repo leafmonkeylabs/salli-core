@@ -14909,6 +14909,13 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -14920,15 +14927,23 @@
           "total_assets",
           "total_liabilities",
           "total_equity",
-          "net_worth"
+          "net_worth",
+          "notes"
         ],
         "title": "BalanceSheet",
-        "description": "Every asset, liability and equity account, valued in the base currency."
+        "description": "What is owned and owed today, as the baseline counts it (and so every\nnet worth Salli gives), and the equity accounts as the books keep them."
       },
       "BalanceSheetLine": {
         "properties": {
           "account_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Account Id"
           },
           "code": {
@@ -25507,6 +25522,13 @@
             "examples": [
               "1234.50"
             ]
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
           }
         },
         "type": "object",
@@ -25514,7 +25536,8 @@
           "month",
           "assets",
           "liabilities",
-          "net_worth"
+          "net_worth",
+          "notes"
         ],
         "title": "MonthEndNetWorth"
       },
