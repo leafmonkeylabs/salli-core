@@ -311,7 +311,8 @@ describe('the widgets\' snapshot', () => {
       signals: { signals: [{ kind: 'low_balance_ahead', severity: 'high' }] },
       ...over,
     }) as unknown as GlanceReads;
-  const options = { host: 'money.example.org', showAmounts: false, at: 1, today: '2026-10-24' };
+  const palette = { paper: '#F6F3EC', ink: '#1C1B19', muted: '#57524A', rule: '#DCD4C4', accent: '#173B33', tile: '#173B33', tileText: '#F2ECDF' };
+  const options = { host: 'money.example.org', showAmounts: false, at: 1, today: '2026-10-24', colors: { light: palette, dark: palette } };
 
   it('hides the amount unless amounts outside the app are allowed', () => {
     const hidden = glanceOf(reads(), options);
@@ -337,6 +338,37 @@ describe('the widgets\' snapshot', () => {
     );
     expect(glance.waiting).toEqual({ label: 'Waiting', lines: ['Nothing waiting'], more: '' });
     expect(glance.safe.until).toBe('No income expected');
+  });
+
+  it('adds the forecast, spending, net worth and days to income, hiding every amount unless allowed', () => {
+    const more = reads({
+      forecast: { currency: 'EUR', lowest: '16312.40', lowest_date: '2026-11-19', flows: [
+        { date: '2026-10-25', description: 'Acme Salary', amount: '4000.00', currency: 'EUR' },
+        { date: '2026-11-01', description: 'Rent', amount: '-1450.00', currency: 'EUR' },
+      ], daily: [
+        { date: '2026-10-24', balance: '18503.37' },
+        { date: '2026-11-19', balance: '16312.40' },
+        { date: '2026-12-23', balance: '21944.54' },
+      ] },
+      spent: { currency: 'EUR', total_expenses: '1795.94' },
+      spentBefore: { currency: 'EUR', total_expenses: '1806.10' },
+      history: { currency: 'EUR', points: [{ net_worth: '30000.00' }, { net_worth: '33567.52' }] },
+    });
+    const hidden = glanceOf(more, options);
+    expect(hidden.v).toBe(2);
+    expect(hidden.forecast).toMatchObject({ low: 'low · Nov 19', points: [0.389, 0, 1].map((x) => expect.closeTo(x, 3)), lowIndex: 1 });
+    expect(hidden.spent).toMatchObject({ label: 'Spent · Oct', figure: 'Amount hidden', then: '' });
+    expect(hidden.netWorth?.figure).toBe('Amount hidden');
+    expect(JSON.stringify(hidden)).not.toMatch(/16,?312|1,?795|33,?567|1,?806/);
+    expect(hidden.payday).toMatchObject({ days: 1, unit: 'day', spoken: '1 day until income' });
+    const shown = glanceOf(more, { ...options, showAmounts: true });
+    expect(shown.forecast?.low).toBe('low 16,312 · Nov 19');
+    expect(shown.spent).toMatchObject({ figure: '1,795', then: '↓ Sep 1,806' });
+    expect(shown.netWorth?.figure).toBe('33,567');
+    expect(shown.comingUp?.rows).toEqual([
+      { day: 'Oct 25', title: 'Acme Salary', amount: '+4,000.00', in: true },
+      { day: 'Nov 1', title: 'Rent', amount: '−1,450.00', in: false },
+    ]);
   });
 });
 

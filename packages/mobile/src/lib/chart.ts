@@ -139,3 +139,23 @@ export function shares(amounts: readonly string[]): number[] {
   const most = Math.max(0, ...values);
   return values.map((v) => (most ? v / most : 0));
 }
+
+/**
+ * Amounts as heights from 0 (the lowest) to 1 (the highest), at most `count`
+ * of them, evenly picked and keeping the lowest: a widget's line.
+ */
+export function heights(amounts: readonly string[], count = 32, keep?: number): number[] {
+  const values = amounts.map(pixels);
+  if (!values.length) return [];
+  const picked: number[] = [];
+  const step = values.length <= count ? 1 : (values.length - 1) / (count - 1);
+  for (let i = 0; i < Math.min(count, values.length); i++) {
+    const at = Math.round(i * step);
+    // The kept point (the low) replaces the nearest pick, so the line still reaches it.
+    picked.push(keep !== undefined && Math.abs(at - keep) < step / 2 ? keep : at);
+  }
+  const high = Math.max(...values);
+  const low = Math.min(...values);
+  const span = high - low || 1;
+  return picked.map((i) => ((values[i] ?? low) - low) / span);
+}

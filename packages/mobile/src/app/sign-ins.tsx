@@ -59,7 +59,6 @@ export default function SignIns() {
         </View>
         <Toggle label={p.lock(how)} help={phone.unlockWith ? p.lockHelpShort : p.noLock} value={phone.settings.lock} disabled={!phone.unlockWith} onChange={(on) => void phone.setLock(on)} />
         <View style={[styles.rule, { backgroundColor: theme.rule }]} />
-        <Toggle label={p.showAmounts} help={p.showAmountsHelp} value={phone.settings.showAmounts} onChange={phone.setShowAmounts} />
         <View style={[styles.rule, { backgroundColor: theme.rule }]} />
         <View style={styles.planned}>
           <View style={{ flex: 1, gap: 2 }}>
