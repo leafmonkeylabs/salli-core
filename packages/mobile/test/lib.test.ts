@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, todayIso } from '../src/lib/display';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib/pkce';
-import { stepChart } from '../src/lib/chart';
+import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { LOCK_AFTER_MS, lockDue, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
@@ -212,5 +212,41 @@ describe('moments', () => {
     expect(displayMoment(new Date(2026, 9, 24, 9, 41), now)).toBe('09:41 today');
     expect(displayMoment(new Date(2026, 9, 23, 14, 5), now)).toBe('Oct 23, 2026, 14:05');
     expect(displayDateTime(new Date(2026, 9, 24, 7, 1))).toBe('Oct 24, 2026, 07:01');
+  });
+});
+
+describe('chart labels', () => {
+  it('finds the highest day by its digits, and every point', () => {
+    const days = [
+      { date: '2026-10-01', balance: '100.00' },
+      { date: '2026-10-02', balance: '250.10' },
+      { date: '2026-10-03', balance: '250.09' },
+    ];
+    const chart = stepChart(days, days[0]!, 200, 100);
+    expect(chart.highIndex).toBe(1);
+    expect(chart.lowIndex).toBe(0);
+    expect(chart.points).toHaveLength(3);
+  });
+
+  it('hangs a label at an edge inward, and keeps it inside the chart', () => {
+    const [atStart] = placeLabels([{ key: 'low', x: 2, y: 96, text: 'Lowest, Oct 24: 18,505.77', below: true }], 300, 100, 12);
+    expect(atStart?.anchor).toBe('start');
+    expect(atStart?.y).toBeLessThanOrEqual(98);
+    const [atEnd] = placeLabels([{ key: 'end', x: 298, y: 40, text: '21,946.94' }], 300, 100, 12);
+    expect(atEnd?.anchor).toBe('end');
+  });
+
+  it('leaves out a label that would overlap one placed before it', () => {
+    const labels = placeLabels(
+      [
+        { key: 'low', x: 150, y: 50, text: 'Lowest, Oct 18: 15,727.02' },
+        { key: 'start', x: 152, y: 52, text: '15,801.47' },
+        { key: 'end', x: 290, y: 10, text: '19,626.59' },
+      ],
+      300,
+      100,
+      12,
+    );
+    expect(labels.map((l) => l.key)).toEqual(['low', 'end']);
   });
 });

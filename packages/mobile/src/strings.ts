@@ -90,6 +90,13 @@ export const strings = {
     forecastCaption: (start: string, end: string, today: string, low: string, on: string, last: string) =>
       `Cash in all your cash accounts each day from ${start} to ${end}, in your base currency, from what keeps happening: ${today} today, lowest ${low} on ${on}, ${last} at the end.`,
     lowest: (on: string) => `Lowest, ${on}`,
+    lowestLabel: (on: string, amount: string) => `Lowest, ${on}: ${amount}`,
+    lowestDay: 'Lowest',
+    flowLabel: (date: string, name: string, amount: string, more: string) => [date, name, amount, more].filter(Boolean).join(', '),
+    dayByDay: 'Show the figures day by day',
+    dayByDayTitle: 'The figures day by day',
+    dayByDayHelp: 'Cash at the end of each day, as the forecast has it.',
+    close: 'Close',
     chartLabel: (today: string, low: string, on: string, last: string) => `Cash forecast: ${today} today, lowest ${low} on ${on}, ${last} at the end.`,
     comingUp: 'Coming up',
     comingUpHelp: 'What Salli expects in and out of your cash accounts, from what keeps happening and what you declared.',
