@@ -81,16 +81,33 @@ export default function AutomationRuleEditor() {
       <Card style={{ gap: 14 }}>
         <Field label={t.name} value={rule.name} onChange={(name) => set({ name })} placeholder={t.namePlaceholder} />
         <Field label={t.senders} help={t.sendersHelp} value={senders} onChange={setSenders} placeholder="EXAMPLEBANK" mono />
-        <Field label={t.sample} help={t.sampleHelp} value={sample} onChange={setSample} multiline />
+        <Field label={t.sample} help={t.sampleHelp} value={sample} onChange={setSample} placeholder={t.samplePlaceholder} multiline />
         <View style={{ gap: 6 }}>
           <Field
             label={t.pattern}
             help={rule.kind === 'regex' ? t.regexHelp : t.patternHelp}
+            shown={rule.kind === 'regex'}
             value={rule.pattern}
             onChange={(pattern) => set({ pattern })}
             multiline
             mono
           />
+          {rule.kind === 'template' ? (
+            // The parts a pattern can read, each added where the pattern ends.
+            <View style={styles.tokens}>
+              {TOKENS.map((token) => (
+                <Pressable
+                  key={token}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.insert(token)}
+                  onPress={() => set({ pattern: `${rule.pattern}${rule.pattern && !rule.pattern.endsWith(' ') ? ' ' : ''}${token}` })}
+                  style={[styles.token, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 999) }]}
+                >
+                  <Text style={[styles.tokenText, { color: theme.text }]}>{token}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           {rule.kind === 'template' && sample.trim() && !rule.pattern.trim() ? (
             <Button kind="secondary" label={t.useSample} onPress={() => set({ pattern: sample.trim() })} />
           ) : null}
@@ -175,7 +192,8 @@ export default function AutomationRuleEditor() {
   );
 }
 
-function Field({ label, help, value, onChange, placeholder, multiline, mono }: { label: string; help?: string; value: string; onChange: (text: string) => void; placeholder?: string; multiline?: boolean; mono?: boolean }) {
+/** A field; its help is VoiceOver's, and on screen too only where it is `shown`. */
+function Field({ label, help, shown, value, onChange, placeholder, multiline, mono }: { label: string; help?: string; shown?: boolean; value: string; onChange: (text: string) => void; placeholder?: string; multiline?: boolean; mono?: boolean }) {
   const theme = useTheme();
   return (
     <View style={{ gap: 6 }}>
@@ -196,7 +214,7 @@ function Field({ label, help, value, onChange, placeholder, multiline, mono }: {
           { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text, fontFamily: mono ? font.mono : font.regular },
         ]}
       />
-      {help ? (
+      {help && shown ? (
         <Body small muted>
           {help}
         </Body>
@@ -231,7 +249,13 @@ function Choice<V extends string>({ label, options, value, onChange }: { label: 
   );
 }
 
+/** What a template pattern can mark, as the help says. */
+const TOKENS = ['{amount}', '{payee}', '{date}', '{ref}', '{skip}'] as const;
+
 const styles = StyleSheet.create({
+  tokens: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  token: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, minHeight: 36, justifyContent: 'center' },
+  tokenText: { fontFamily: font.mono, fontSize: 13 },
   label: { fontFamily: font.medium, fontSize: size.small },
   input: { minHeight: size.target, borderWidth: 1, borderRadius: 0, paddingHorizontal: 14, fontSize: size.body },
   multiline: { minHeight: 96, paddingVertical: 12, textAlignVertical: 'top' },
