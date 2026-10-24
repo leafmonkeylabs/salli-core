@@ -61,6 +61,9 @@ export function Pull({ read }: { read: () => Promise<unknown> }) {
   );
 }
 
+/** Room below a tab's last card, so the AI button floating over it never covers it. */
+export const UNDER_AI = 56 + 16 + 8;
+
 /** A place: its header, then its cards, pulled down to read again. */
 export function Page({
   title,
@@ -68,8 +71,11 @@ export function Page({
   action,
   children,
   onRefresh,
+  underAI,
 }: {
   title?: string;
+  /** A tab the AI button floats over: room is left below its last card. */
+  underAI?: boolean;
   back?: { label: string; onPress: () => void };
   action?: ReactNode;
   children: ReactNode;
@@ -80,7 +86,7 @@ export function Page({
     <View style={{ flex: 1, backgroundColor: theme.work }}>
       <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={action} />
       <ScrollView
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, underAI ? { paddingBottom: UNDER_AI } : null]}
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh ? <Pull read={onRefresh} /> : undefined}
       >

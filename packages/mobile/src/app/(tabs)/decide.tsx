@@ -1,13 +1,10 @@
 import { decisionsReview, decisionsReviewsDue, type DueReview } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, CardHead, Money, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
-import { router } from 'expo-router';
-import { useYourAI } from '../../ai/store';
-import { useSession } from '../../session';
 import { Page } from '../../shell';
 import { Sheet } from '../../sheet';
 import { strings } from '../../strings';
@@ -16,15 +13,13 @@ import { font, size, useTheme } from '../../theme';
 const t = strings.decide;
 
 export default function Decide() {
-  const { session } = useSession();
-  const ai = useYourAI();
   const due = useRead('decisions.reviews.due', decisionsReviewsDue);
   // A review recorded here leaves the due list when it is read again; it stays
   // on the page, said as recorded, until the person leaves.
   const [recorded, setRecorded] = useState<readonly DueReview[]>([]);
   const shown = due.data ? [...due.data.reviews.filter((r) => !recorded.some((d) => d.id === r.id)), ...recorded] : [];
   return (
-    <Page title={t.title} onRefresh={() => due.refetch()}>
+    <Page underAI title={t.title} onRefresh={() => due.refetch()}>
       {due.data ? (
         shown.length ? (
           shown.map((review) => (
@@ -43,22 +38,6 @@ export default function Decide() {
       ) : (
         <Waiting query={due} what="decisions" />
       )}
-      <View style={{ gap: 6 }}>
-        <Button
-          kind="secondary"
-          label={t.think}
-          onPress={() =>
-            ai.ready
-              ? router.push({ pathname: '/agent', params: { ask: strings.ai.fromDecide } })
-              : void Share.share({ message: t.thinkPrompt(session.status === 'signed-in' ? session.server : '') })
-          }
-        />
-        {ai.ready ? null : (
-          <Body small muted>
-            {t.thinkNote}
-          </Body>
-        )}
-      </View>
     </Page>
   );
 }

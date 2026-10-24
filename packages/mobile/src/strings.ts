@@ -90,13 +90,6 @@ export const strings = {
     markDone: (what: string) => `Mark done: ${what}`,
     statementWaiting: (name: string, period: string) => (period ? `${name}, ${period}` : name),
     statementsWaiting: (n: number) => `${n} statements waiting`,
-    think: 'Think this through with your AI',
-    thinkNote: 'Nothing is sent from the app: it hands a prompt to the AI app you choose.',
-    // No figure in it: the AI app reads them from Salli, through the person's own connection.
-    thinkPrompt: (server: string) =>
-      `I keep my books in Salli, at ${server}. If you can’t reach it yet, connect Salli as an MCP server at ${server}/mcp and sign in on its page.\n\n` +
-      'Look at where I stand today, what is safe to spend and what needs my attention, and help me think it through. ' +
-      'Take every figure from Salli rather than working any out yourself, and lay my options out without ranking them.',
     loading: (what: string) => `Loading ${what}…`,
   },
 
@@ -226,13 +219,6 @@ export const strings = {
     lab: 'Templates and scenarios are in the console.',
     write: 'Write your review',
     cancel: 'Cancel',
-    think: 'Think a decision through',
-    thinkNote: 'Nothing is sent from the app: it hands a prompt to the AI app you choose. Templates and scenarios are on the console.',
-    // No figure in it: the AI app builds and runs the options with Salli.
-    thinkPrompt: (server: string) =>
-      `I keep my books in Salli, at ${server}. If you can’t reach it yet, connect Salli as an MCP server at ${server}/mcp and sign in on its page.\n\n` +
-      'Help me think a money decision through, with Salli’s think_through_decision prompt: ask me what I am deciding and what matters to me, build the options with Salli and run them there, check them against my principles, and leave the choice to me. ' +
-      'Take every figure from Salli rather than working any out yourself, and record nothing unless I say so.',
   },
 
   later: {
@@ -513,8 +499,17 @@ export const strings = {
     failed: (why: string) => `Something went wrong: ${why}`,
     notReady: 'Your AI isn’t set up yet.',
     setUp: 'Set up Your AI',
-    fromHome: 'Where do I stand today?',
-    fromDecide: 'Help me think a decision through.',
+    open: 'Your AI',
+    openSetUp: 'Set up Your AI',
+    startWith: 'Start with',
+    // Starters for the tab the AI was opened from (design 22).
+    starters: {
+      home: ['Where do I stand today?', 'What needs my attention?', 'Can I afford something?'],
+      cash: ['What’s coming up in the next weeks?', 'When is my cash lowest, and why?', 'Can I afford something?'],
+      decide: ['Help me think a decision through.', 'How did my last decision turn out?', 'Which of my principles matter here?'],
+      books: ['What needs sorting in my books?', 'Where did my money go this month?', 'What changed in my spending?'],
+    } as Record<string, readonly string[]>,
+    tabs: { home: 'Home', cash: 'Cash', decide: 'Decide', books: 'Books' } as Record<string, string>,
     changeLabels: {
       create_reminder: 'Add a reminder',
       post_journal_entry: 'Book an entry',
