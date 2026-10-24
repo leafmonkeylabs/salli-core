@@ -78,3 +78,64 @@ async def test_an_income_source_opens_accounts_and_posts_nothing():
     assert ids == ["acct-4700"]
     ledger.add_entry.assert_not_awaited()
     assert _roles(ledger) == {"4700": None, "1500": "cash"}
+
+
+def _currencies(ledger: MagicMock) -> dict[str, object]:
+    return {c.args[1]: c.kwargs.get("currency") for c in ledger.add_account.await_args_list}
+
+
+async def test_a_foreign_balance_opens_an_account_in_its_own_currency():
+    svc, ledger = _service()
+    await svc.declare_opening_balances(
+        USER,
+        [
+            {
+                "code": "1500",
+                "name": "Dollar account",
+                "type": "asset",
+                "amount": "1000",
+                "currency": "usd",
+                "fx_rate": "0.92",
+                "asset_role": "cash",
+            },
+            {
+                "code": "1510",
+                "name": "Current account",
+                "type": "asset",
+                "amount": "900",
+                "asset_role": "cash",
+            },
+        ],
+    )
+    held_in = _currencies(ledger)
+    assert (held_in["1500"], held_in["1510"]) == ("USD", "EUR")
+
+
+async def test_an_existing_account_in_another_currency_is_refused():
+    import pytest
+
+    from salli.domain.accounting.models import Account
+
+    svc, ledger = _service()
+    ledger.list_accounts = AsyncMock(
+        return_value=[
+            Account(
+                id="a1", user_id=USER, code="1500", name="Current", type="asset", currency="EUR"
+            )
+        ]
+    )
+    with pytest.raises(ValueError, match="held in EUR"):
+        await svc.declare_opening_balances(
+            USER,
+            [
+                {
+                    "code": "1500",
+                    "name": "Dollar account",
+                    "type": "asset",
+                    "amount": "10",
+                    "currency": "USD",
+                    "fx_rate": "0.9",
+                }
+            ],
+        )
+    ledger.add_entry.assert_not_awaited()

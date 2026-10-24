@@ -347,10 +347,13 @@ class UserProfileService:
         name: str,
         type_: AccountType,
         asset_role: AssetRole | None = None,
+        currency: str | None = None,
     ) -> str:
         if code in cache:
             return cache[code]
-        new_id = await self._ledger.add_account(user_id, code, name, type_, asset_role=asset_role)
+        new_id = await self._ledger.add_account(
+            user_id, code, name, type_, currency=currency, asset_role=asset_role
+        )
         cache[code] = new_id
         return new_id
 
@@ -367,7 +370,9 @@ class UserProfileService:
         """
         today = datetime.date.today().isoformat()
         base = await self._ledger.base_currency(user_id)
-        cache = {a.code: a.id for a in await self._ledger.list_accounts(user_id)}
+        existing = await self._ledger.list_accounts(user_id)
+        cache = {a.code: a.id for a in existing}
+        held_in = {a.code: a.currency for a in existing}
         entry_ids: list[str] = []
 
         for item in balances:
@@ -383,9 +388,17 @@ class UserProfileService:
                 raise ValueError(f"Unsupported opening-balance account type: {acc_type}")
 
             role = (item.get("asset_role") or "other") if acc_type == "asset" else None
+            # The account is held in the balance's own currency, so it keeps
+            # its exposure and is revalued at each day's rate.
+            if held_in.get(item["code"], currency) != currency:
+                raise ValueError(
+                    f"Account {item['code']} is held in {held_in[item['code']]}, "
+                    f"not {currency}: give it its own code"
+                )
             acc_id = await self._ensure_account(
-                user_id, cache, item["code"], item["name"], acc_type, role
+                user_id, cache, item["code"], item["name"], acc_type, role, currency
             )
+            held_in[item["code"]] = currency
             equity_id = await self._ensure_account(
                 user_id, cache, _OPENING_EQUITY_CODE, _OPENING_EQUITY_NAME, _OPENING_EQUITY_TYPE
             )
