@@ -32,8 +32,8 @@ jobs:
       - run: uv sync --group dev --frozen
       - name: Lint
         run: |
-          uv run ruff check src tests
-          uv run ruff format --check src tests
+          uv run ruff check src tests benchmark
+          uv run ruff format --check src tests benchmark
       - name: Type-check the extension seam, salli-server, sign-in and the money path
         # The rest of the codebase predates strict typing; these modules are
         # held to it so the seam extensions build on (salli-server's commands

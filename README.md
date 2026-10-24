@@ -28,6 +28,7 @@ came from.
 
 It runs on your own server, and it works with the AI agent you already use.
 **Salli computes; your AI explains.** No model ever does the maths.
+The [accuracy benchmark](docs/benchmark.md) checks an agent's answers, figure by figure, against Salli's own.
 
 Nothing about any country is built in. Your tax rules, planning figures and tax
 ids are your data: written by you, or researched by your agent, then cited and

@@ -363,7 +363,8 @@ class FakeLedger:
     """The ledger repository over accounts and entries held in memory, scoped
     to their owner as the SQL repository is: each query answers for one user."""
 
-    def __init__(self) -> None:
+    def __init__(self, base: str = "EUR") -> None:
+        self.base = base
         self.accounts: list[Any] = []
         self.entries: list[Any] = []
 
@@ -437,6 +438,52 @@ class FakeLedger:
                     pair[0] += signed
                     pair[1] += signed * p.fx_rate
         return [(a, c, amount, base) for (a, c), (amount, base) in sums.items()]
+
+    async def search_entries(
+        self,
+        user_id: str,
+        *,
+        text: str | None = None,
+        account_id: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        min_base_minor: int | None = None,
+        max_base_minor: int | None = None,
+        after: tuple[str, str] | None = None,
+        limit: int = 50,
+    ) -> tuple[list[Any], int, list[tuple[str, str, Decimal]]]:
+        """Entries matched as the SQL repository matches them, newest first,
+        with the count and the totals per account type and currency over
+        every match."""
+        from salli.domain.money import to_minor
+
+        def posting_fits(p: Any) -> bool:
+            minor = to_minor(p.amount * p.fx_rate, self.base)
+            return (
+                (not account_id or p.account_id == account_id)
+                and (min_base_minor is None or minor >= min_base_minor)
+                and (max_base_minor is None or minor <= max_base_minor)
+            )
+
+        matched = [
+            e
+            for e in await self.get_entries(user_id, from_date or None, to_date or None)
+            if (not text or text.lower() in e.description.lower())
+            and (
+                not (account_id or min_base_minor is not None or max_base_minor is not None)
+                or any(posting_fits(p) for p in e.postings)
+            )
+        ]
+        newest = sorted(matched, key=lambda e: (e.entry_date, e.id), reverse=True)
+        page = [e for e in newest if after is None or (e.entry_date, e.id) < after][:limit]
+        types = {a.id: a.type for a in self.accounts}
+        sums: dict[tuple[str, str], Decimal] = {}
+        for e in matched:
+            for p in e.postings:
+                if not account_id or p.account_id == account_id:
+                    key = (types[p.account_id], p.currency)
+                    sums[key] = sums.get(key, Decimal(0)) + Decimal(p.direction.value) * p.amount
+        return page, len(matched), [(t, c, net) for (t, c), net in sorted(sums.items())]
 
     async def balances_before(self, user_id: str, before: str) -> dict[str, Decimal]:
         balances: dict[str, Decimal] = {}
@@ -888,7 +935,7 @@ class FakeUoW:
 
     def __init__(self, base_currency: str = "EUR") -> None:
         self.user_profiles = FakeProfiles(base_currency)
-        self.ledger = FakeLedger()
+        self.ledger = FakeLedger(base_currency)
         self.goals = FakeGoals()
         self.fi_scores = FakeScores()
         self.fire_strategies = FakeStrategies()

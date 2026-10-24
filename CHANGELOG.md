@@ -22,7 +22,16 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   `BYOK_ENCRYPTION_KEYS`. The owner turns it off for someone who has lost
   both with `salli-server members reset-password --clear-totp`. The app
   signs in on the same pages, so it asks for the code there. Migration
-  `core_0028_totp`.
+  `core_0027_totp`.
+- **An accuracy benchmark for agents** (`benchmark/`,
+  [docs/benchmark.md](docs/benchmark.md)): 100 questions a person asks their
+  AI about their money, on the golden households, each answered by Salli's
+  own tools into a committed key (`uv run python -m benchmark.answer_key`).
+  `uv run python -m benchmark.run --model anthropic:<model>` (or
+  `openai:<model>`) asks a model through Salli's MCP tools in-process and
+  scores its answers: accuracy overall and by category, and how many
+  answers invented a figure or advised. `--self-check` scores the key
+  against itself; a contract test runs it. No results are published yet.
 - **Your AI starts from where you stand, and can find what you booked.**
   MCP `get_overview` is one small read of Salli's figures: net worth, cash,
   free until payday and its low point, signals, the FI month and progress,

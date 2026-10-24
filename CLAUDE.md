@@ -22,8 +22,8 @@ uv run pytest tests/unit/domain/test_accounting.py
 uv run pytest -k "test_journal_entry_must_balance"
 
 # Lint + format
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
+uv run ruff check src/ tests/ benchmark/
+uv run ruff format src/ tests/ benchmark/
 
 # Type check
 uv run pyright src/
@@ -75,6 +75,11 @@ SALLI_CONSOLE_DIR=packages/console/dist uv run salli-server serve
 # home.ts, lab.ts and where.ts);
 # test_console_fixtures.py fails while they differ
 uv run python -m tests.console_fixtures
+# After changing a figure the MCP read tools return: the accuracy benchmark's
+# key (benchmark/answers.json; docs/benchmark.md); test_benchmark_key.py fails
+# while it differs. --self-check scores the key against itself.
+uv run python -m benchmark.answer_key
+uv run python -m benchmark.run --self-check
 ```
 
 ## Architecture
