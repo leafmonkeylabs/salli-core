@@ -144,9 +144,6 @@ export default function Review() {
               ))}
             </View>
           ) : null}
-          <Body small muted>
-            {t.note}
-          </Body>
         </View>
 
         {said || notes.length ? (
@@ -202,7 +199,7 @@ export default function Review() {
           <Text accessibilityLiveRegion="polite" style={[styles.status, { color: theme.muted }]}>
             {t.status(ready.length, waiting)}
           </Text>
-          <Button label={t.post(ready.length)} busy={post.isPending} disabled={!ready.length || post.isPending} onPress={askPost} />
+          <Button label={t.post(ready.length)} accessibilityHint={t.note} busy={post.isPending} disabled={!ready.length || post.isPending} onPress={askPost} />
         </View>
       ) : null}
 
@@ -258,6 +255,8 @@ function Row({
   const duplicate = txn.dedup_status === 'fuzzy_match' && !bookedAnyway;
   // Out is money leaving the account: shown as the brand shows a negative.
   const amount = txn.credit_flag ? txn.amount : negateAmount(txn.amount);
+  // A small tag on screen; the whole sentence is VoiceOver's.
+  const tag = txn.rule_id ? t.tagRule : txn.confidence > 0 && txn.confidence < 1 ? t.tagModel(new Intl.NumberFormat('en-GB', { style: 'percent', maximumFractionDigits: 0 }).format(txn.confidence)) : t.tagYours;
   const how = txn.rule_id
     ? ruleName
       ? t.byRule(ruleName)
@@ -300,14 +299,14 @@ function Row({
               accessibilityLabel={t.change(accountName(other), how)}
               disabled={busy}
               onPress={onChoose}
-              style={[styles.chip, { backgroundColor: theme.work, borderColor: theme.rule }]}
+              style={[styles.chip, { backgroundColor: theme.work, borderColor: theme.rule, borderRadius: Math.min(theme.control, 12) }]}
             >
               <Body>{accountName(other)}</Body>
               <Icon name="down" size={14} colour={theme.muted} />
             </Pressable>
-            <Body small muted>
-              {how}
-            </Body>
+            <Text accessibilityElementsHidden importantForAccessibility="no" style={[styles.tag, { color: theme.muted, borderColor: theme.rule, borderRadius: Math.min(theme.control, 999) }]}>
+              {tag}
+            </Text>
           </View>
         ) : (
           <Pressable
@@ -315,7 +314,7 @@ function Row({
             accessibilityLabel={`${t.chooseAccount}: ${shown(txn)}, ${txn.credit_flag ? t.cameFrom : t.wentTo}`}
             disabled={busy}
             onPress={onChoose}
-            style={[styles.chooseButton, { borderColor: theme.chart }]}
+            style={[styles.chooseButton, { borderColor: theme.chart, borderRadius: Math.min(theme.control, 12) }]}
           >
             <Text style={[styles.chooseText, { color: theme.chart }]}>{t.chooseAccount}</Text>
           </Pressable>
@@ -339,6 +338,7 @@ const styles = StyleSheet.create({
   chosen: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: StyleSheet.hairlineWidth },
   chooseButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1 },
+  tag: { fontFamily: font.regular, fontSize: 12, paddingHorizontal: 8, paddingVertical: 2, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   chooseText: { fontFamily: font.medium, fontSize: size.small },
   currency: { alignSelf: 'flex-end', paddingTop: 10, paddingBottom: 2, fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingTop: 10, gap: 8 },

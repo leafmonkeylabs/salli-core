@@ -62,17 +62,6 @@ export default function SignIns() {
           <CardHead label={p.title} />
         </View>
         <Toggle label={p.lock(how)} help={phone.unlockWith ? p.lockHelpShort : p.noLock} value={phone.settings.lock} disabled={!phone.unlockWith} onChange={(on) => void phone.setLock(on)} />
-        <View style={[styles.rule, { backgroundColor: theme.rule }]} />
-        <View style={[styles.rule, { backgroundColor: theme.rule }]} />
-        <View style={styles.planned}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Body>{p.digest}</Body>
-            <Body small muted>
-              {p.digestHelp}
-            </Body>
-          </View>
-          <Text style={[styles.chip, { color: theme.muted, borderColor: theme.rule }]}>{p.planned}</Text>
-        </View>
       </Card>
 
       <Card style={{ gap: 12 }}>
@@ -85,9 +74,9 @@ export default function SignIns() {
           <Icon name="chevron" size={16} colour={theme.muted} />
         </Pressable>
         {mine ? (
-          <Body small muted>
-            {t.since(displayDateTime(new Date(mine.started_at)), mine.client_name ?? 'Salli app')}
-          </Body>
+          <Text accessibilityLabel={t.since(displayDateTime(new Date(mine.started_at)), mine.client_name ?? 'Salli app')} style={[styles.since, { color: theme.muted }]}>
+            {t.sinceShort(displayDateTime(new Date(mine.started_at)))}
+          </Text>
         ) : null}
         <Button
           kind="secondary"
@@ -193,6 +182,7 @@ const styles = StyleSheet.create({
   sheetTitle: { fontFamily: font.medium, fontSize: size.heading },
   address: { fontFamily: font.mono, fontSize: size.small },
   input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
+  since: { fontFamily: font.regular, fontSize: size.small },
   server: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   serverMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   host: { fontFamily: font.mono, fontSize: size.small },
@@ -203,7 +193,4 @@ const styles = StyleSheet.create({
   underline: { textDecorationLine: 'underline' },
   add: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
   addText: { fontFamily: font.medium, fontSize: size.body },
-  rule: { height: StyleSheet.hairlineWidth },
-  planned: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8 },
-  chip: { fontFamily: font.medium, fontSize: 12.5, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
 });

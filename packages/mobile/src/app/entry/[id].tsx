@@ -4,8 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
-import { Body, Button, Card, CardHead, LinesTable, Title, Waiting } from '../../kit';
-import { displayDate, displayRange } from '../../lib/display';
+import { Body, Button, Card, LinesTable, Title, Waiting } from '../../kit';
+import { displayDate } from '../../lib/display';
 import { Page } from '../../shell';
 import { Sheet } from '../../sheet';
 import { strings } from '../../strings';
@@ -64,7 +64,14 @@ export default function Entry() {
           <View style={{ gap: 6 }}>
             <Title>{data.description}</Title>
             <View style={styles.chips}>
-              {[displayDate(data.entry_date), data.id.slice(0, 8), t.sourceChip[data.source] ?? data.source].map((fact, i) => (
+              {[
+                displayDate(data.entry_date),
+                data.id.slice(0, 8),
+                t.sourceChip[data.source] ?? data.source,
+                // The statement by its bank: never its id.
+                ...(statement?.statement?.bank ? [statement.statement.bank] : []),
+                ...(data.reversed_by ? [strings.entries.reversed] : []),
+              ].map((fact, i) => (
                 <Text key={fact} style={[styles.chip, i === 1 ? styles.mono : null, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), overflow: 'hidden' }]}>
                   {fact}
                 </Text>
@@ -85,39 +92,9 @@ export default function Entry() {
             />
           </Card>
 
-          <Card style={{ gap: 6 }}>
-            <CardHead label={t.cameFrom} />
-            <Body>{t.sources[data.source] ?? data.source}</Body>
-            {statement ? (
-              <>
-                {/* The statement by its bank and period, and the line as it read: never its id. */}
-                <Body small muted>
-                  {t.statementOf(
-                    statement.statement?.bank ?? null,
-                    statement.statement?.period_start && statement.statement.period_end
-                      ? displayRange(statement.statement.period_start, statement.statement.period_end)
-                      : '',
-                  )}
-                </Body>
-                {/* Its amount is left out: the statement sends it without its direction. */}
-                <Body small muted>
-                  {t.asTheBankWrote(`${statement.raw_description}, ${displayDate(statement.raw_date)}`)}
-                </Body>
-              </>
-            ) : null}
-            {data.reversed_by ? (
-              <Body small muted>
-                {t.reversedBy}
-              </Body>
-            ) : null}
-          </Card>
-
           {data.reversed_by || reverse.isSuccess ? null : (
             <View style={{ gap: 6 }}>
-              <Button kind="secondary" label={t.reverse} busy={reverse.isPending} disabled={reverse.isPending} onPress={() => setAsking(true)} />
-              <Body small muted>
-                {t.reverseHelp}
-              </Body>
+              <Button kind="secondary" label={t.reverse} accessibilityHint={t.reverseHelp} busy={reverse.isPending} disabled={reverse.isPending} onPress={() => setAsking(true)} />
             </View>
           )}
           {reverse.isSuccess ? (
