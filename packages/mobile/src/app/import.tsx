@@ -83,7 +83,7 @@ export default function Import() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: insets.bottom + 24 }]}>
-        <Field label={t.file} help={tooLarge ? t.tooLarge : t.fileHelp}>
+        <Field label={t.file} {...(tooLarge ? { help: t.tooLarge } : {})}>
           {file ? (
             <View style={[styles.file, { borderColor: theme.fieldBorder, backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12) }]}>
               <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={2}>
@@ -91,13 +91,23 @@ export default function Import() {
               </Text>
             </View>
           ) : null}
-          <Button kind="secondary" label={file ? t.chooseAgain : t.choose} onPress={() => void choose()} />
+          <Button kind="secondary" label={file ? t.chooseAgain : t.choose} accessibilityHint={t.fileHelp} onPress={() => void choose()} />
+          {file ? null : (
+            <View style={styles.formats} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              {t.formats.map((f) => (
+                <Text key={f} style={[styles.format, { color: theme.muted, borderColor: theme.rule, borderRadius: Math.min(theme.control, 999) }]}>
+                  {f}
+                </Text>
+              ))}
+            </View>
+          )}
         </Field>
 
-        <Field label={t.account} help={t.accountHelp}>
+        <Field label={t.account}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${t.account}: ${name}`}
+            accessibilityHint={t.accountHelp}
             onPress={() => setPicking(true)}
             style={[styles.choose, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder }]}
           >
@@ -114,9 +124,6 @@ export default function Import() {
             disabled={!file || tooLarge || upload.isPending}
             onPress={() => file && upload.mutate(file)}
           />
-          <Body small muted>
-            {t.nothingBooked}
-          </Body>
         </View>
       </ScrollView>
 
@@ -152,6 +159,8 @@ function Field({ label, help, children }: { label: string; help?: string; childr
 }
 
 const styles = StyleSheet.create({
+  formats: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  format: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 4, fontFamily: font.regular, fontSize: 12, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
   headerButton: { minHeight: size.target, minWidth: 72, justifyContent: 'center', paddingHorizontal: 8 },
   headerTitle: { fontFamily: font.medium, fontSize: 17 },
