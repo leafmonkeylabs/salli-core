@@ -222,7 +222,9 @@ test('adds an entry from one account to another, sees it in the ledger and the b
   // Reversed after a confirmation; both entries stay.
   const standing = page.getByRole('region', { name: 'Standing' });
   await standing.getByRole('button', { name: 'Reverse this entry' }).click();
-  await page.getByRole('alertdialog', { name: 'Reverse this entry?' }).getByRole('button', { name: 'Reverse it' }).click();
+  const ask = page.getByRole('alertdialog', { name: 'Reverse this entry?' });
+  await ask.getByRole('textbox', { name: /Why reverse it/ }).fill('Paid twice');
+  await ask.getByRole('button', { name: 'Reverse it' }).click();
   await expect(standing.getByText(/Reversed\. Both entries are in the ledger\./)).toBeVisible();
   await page.goto(`/console/books/entries?q=${stamp}`);
   await expect(entries.getByText('Showing 1–2 of 2 entries')).toBeVisible();
