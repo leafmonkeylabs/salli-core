@@ -1,8 +1,8 @@
 /**
  * What the widgets show (design 15): a small snapshot the app writes to the
  * app group after each read, worded here so the widget holds no words of its
- * own. It carries no name, question, note or anything else from the ledger,
- * and the amount only when the person asked for amounts outside the app.
+ * own. The phone is the person's own: it carries figures, and what is coming
+ * up by name; never a question, a note or a reminder's text.
  */
 import { compareAmounts, type BankStatementList, type CashForecast, type DueReviews, type FinanceSignals, type IncomeStatement, type NetWorthByMonth, type ReminderList, type SafeToSpend } from '@leafmonkeylabs/salli-sdk';
 import { strings } from '../strings';
@@ -44,6 +44,8 @@ export interface Glance {
   forecast?: { label: string; low: string; spoken: string; points: number[]; lowIndex: number };
   spent?: { label: string; figure: string; then: string; spoken: string };
   netWorth?: { label: string; figure: string; spoken: string; points: number[] };
+  /** The next few things in and out of cash: day, what, and the amount signed. */
+  comingUp?: { label: string; rows: { day: string; title: string; amount: string; in: boolean }[]; spoken: string };
   /** Days until the next income, and how much of a month's ring they leave. */
   payday?: { days: number; unit: string; share: number; spoken: string };
   /** The app's theme, by day and by night (the same for a theme with one side). */
@@ -132,6 +134,21 @@ export function glanceOf(reads: GlanceReads, options: { host: string; showAmount
             figure: whole(history.points[history.points.length - 1]?.net_worth ?? '0', history.currency),
             spoken: t.netWorthSpoken(said(history.points[history.points.length - 1]?.net_worth ?? '0', history.currency)),
             points: heights(history.points.map((p) => p.net_worth), 12),
+          },
+        }
+      : {}),
+    ...(forecast && forecast.flows.length
+      ? {
+          comingUp: {
+            label: t.comingUp,
+            rows: forecast.flows.slice(0, 3).map((flow) => {
+              const parts = amountParts(flow.amount, flow.currency);
+              return { day: displayDay(flow.date), title: flow.description, amount: `${parts.negative ? '−' : '+'}${parts.digits}`, in: !parts.negative };
+            }),
+            spoken: forecast.flows
+              .slice(0, 3)
+              .map((flow) => `${displayDate(flow.date)}, ${flow.description}, ${amountParts(flow.amount, flow.currency).spoken}`)
+              .join('. '),
           },
         }
       : {}),

@@ -40,6 +40,17 @@ struct Glance: Decodable {
     let spoken: String
     let points: [Double]
   }
+  struct ComingUp: Decodable {
+    struct Row: Decodable {
+      let day: String
+      let title: String
+      let amount: String
+      let `in`: Bool
+    }
+    let label: String
+    let rows: [Row]
+    let spoken: String
+  }
   struct Payday: Decodable {
     let days: Int
     let unit: String
@@ -67,6 +78,7 @@ struct Glance: Decodable {
   let forecast: Forecast?
   let spent: Spent?
   let netWorth: NetWorth?
+  let comingUp: ComingUp?
   let payday: Payday?
   let colors: Colors
   let open: String

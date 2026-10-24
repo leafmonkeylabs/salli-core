@@ -14,6 +14,7 @@ struct SalliWidgets: WidgetBundle {
     ForecastWidget()
     SpentWidget()
     NetWorthWidget()
+    ComingUpWidget()
     PaydayWidget()
   }
 }

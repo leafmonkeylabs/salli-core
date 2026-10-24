@@ -1,5 +1,5 @@
 // The figure widgets (design 35): the cash forecast, this month's spending,
-// net worth, and the days to the next income. Like the others, they show
+// net worth, what is coming up, and the days to the next income. Like the others, they show
 // only what the snapshot carries: figures, never a name from the books.
 import SwiftUI
 import WidgetKit
@@ -36,6 +36,17 @@ struct NetWorthWidget: Widget {
     .configurationDisplayName("Net worth")
     .description("Your net worth, with the last 12 months.")
     .supportedFamilies([.systemSmall])
+  }
+}
+
+struct ComingUpWidget: Widget {
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: "comingUp", provider: GlanceProvider()) { entry in
+      ComingUpView(entry: entry)
+    }
+    .configurationDisplayName("Coming up")
+    .description("The next things in and out of your cash.")
+    .supportedFamilies([.systemMedium])
   }
 }
 
@@ -177,6 +188,43 @@ struct NetWorthView: View {
         .accessibilityLabel(worth.spoken)
       } else {
         Empty(label: "Net worth", glance: entry.glance, look: look)
+      }
+    }
+    .containerBackground(for: .widget) { look.paper }
+  }
+}
+
+struct ComingUpView: View {
+  let entry: GlanceEntry
+  @Environment(\.colorScheme) private var scheme
+
+  var body: some View {
+    let look = Look(entry.glance, scheme)
+    Group {
+      if let glance = entry.glance, let coming = glance.comingUp, !entry.old {
+        VStack(alignment: .leading, spacing: 6) {
+          Text(coming.label).font(.custom("Geist-Regular", size: 13)).foregroundStyle(look.muted)
+          ForEach(Array(coming.rows.enumerated()), id: \.offset) { _, row in
+            HStack(spacing: 10) {
+              Text(row.day)
+                .font(.custom("Geist-Regular", size: 13))
+                .foregroundStyle(look.muted)
+                .frame(width: 48, alignment: .leading)
+              Text(row.title).font(.custom("Geist-Regular", size: 14)).foregroundStyle(look.ink).lineLimit(1)
+              Spacer(minLength: 4)
+              Text(row.amount)
+                .font(.custom("Geist-Medium", size: 14))
+                .foregroundStyle(row.in ? look.accent : look.ink)
+                .monospacedDigit()
+            }
+          }
+          Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(coming.spoken)
+      } else {
+        Empty(label: "Coming up", glance: entry.glance, look: look)
       }
     }
     .containerBackground(for: .widget) { look.paper }

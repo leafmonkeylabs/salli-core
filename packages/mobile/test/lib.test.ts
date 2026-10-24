@@ -342,7 +342,10 @@ describe('the widgets\' snapshot', () => {
 
   it('adds the forecast, spending, net worth and days to income, hiding every amount unless allowed', () => {
     const more = reads({
-      forecast: { currency: 'EUR', lowest: '16312.40', lowest_date: '2026-11-19', daily: [
+      forecast: { currency: 'EUR', lowest: '16312.40', lowest_date: '2026-11-19', flows: [
+        { date: '2026-10-25', description: 'Acme Salary', amount: '4000.00', currency: 'EUR' },
+        { date: '2026-11-01', description: 'Rent', amount: '-1450.00', currency: 'EUR' },
+      ], daily: [
         { date: '2026-10-24', balance: '18503.37' },
         { date: '2026-11-19', balance: '16312.40' },
         { date: '2026-12-23', balance: '21944.54' },
@@ -362,6 +365,10 @@ describe('the widgets\' snapshot', () => {
     expect(shown.forecast?.low).toBe('low 16,312 · Nov 19');
     expect(shown.spent).toMatchObject({ figure: '1,795', then: '↓ Sep 1,806' });
     expect(shown.netWorth?.figure).toBe('33,567');
+    expect(shown.comingUp?.rows).toEqual([
+      { day: 'Oct 25', title: 'Acme Salary', amount: '+4,000.00', in: true },
+      { day: 'Nov 1', title: 'Rent', amount: '−1,450.00', in: false },
+    ]);
   });
 });
 

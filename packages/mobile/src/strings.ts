@@ -579,6 +579,7 @@ export const strings = {
     spentThen: (month: string, amount: string, more: boolean) => `${more ? '↑' : '↓'} ${month} ${amount}`,
     spentSpoken: (month: string, amount: string, then: string, thenAmount: string) => `Spent in ${month} so far: ${amount}. By this day in ${then}: ${thenAmount}.`,
     netWorth: 'Net worth',
+    comingUp: 'Coming up',
     netWorthSpoken: (amount: string) => `Net worth: ${amount}, with the last 12 months`,
     days: (n: number) => (n === 1 ? 'day' : 'days'),
     daysSpoken: (n: number) => (n === 0 ? 'Income is due today' : n === 1 ? '1 day until income' : `${n} days until income`),
