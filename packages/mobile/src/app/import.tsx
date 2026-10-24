@@ -1,4 +1,4 @@
-import { accountsList, statementsUpload, type StatementUpload } from '@leafmonkeylabs/salli-sdk';
+import { accountsList, statementsUpload } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
@@ -7,7 +7,7 @@ import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
-import { Body, Button, Card, Icon } from '../kit';
+import { Body, Button, Icon } from '../kit';
 import { Picker } from '../picker';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -32,13 +32,11 @@ export default function Import() {
   const [account, setAccount] = useState<string | undefined>(undefined);
   const [picking, setPicking] = useState(false);
   const [tooLarge, setTooLarge] = useState(false);
-  const [read, setRead] = useState<StatementUpload | undefined>(undefined);
 
   const choose = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
     const asset = result.canceled ? undefined : result.assets[0];
     if (!asset) return;
-    setRead(undefined);
     setTooLarge(asset.size !== undefined && asset.size > MAX_BYTES);
     setFile({ uri: asset.uri, name: asset.name, type: asset.mimeType ?? 'application/octet-stream', size: asset.size });
   };
@@ -62,9 +60,11 @@ export default function Import() {
     },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: [api.server] });
-      // Rows it couldn't read are said here first; otherwise straight to review.
-      if (result.errors.length) setRead(result);
-      else router.replace({ pathname: '/review/[id]', params: { id: result.statement_id, read: String(result.parsed) } });
+      // Straight to review, with what the server noted while reading the file.
+      router.replace({
+        pathname: '/review/[id]',
+        params: { id: result.statement_id, read: String(result.parsed), ...(result.errors.length ? { notes: JSON.stringify(result.errors) } : {}) },
+      });
     },
   });
 
@@ -107,32 +107,17 @@ export default function Import() {
         </Field>
 
         {upload.error ? <Body alert>{upload.error.message}</Body> : null}
-        {read ? (
-          <Card style={{ gap: 8 }}>
-            <Body alert>{`✓ ${t.read(String(read.parsed))}`}</Body>
-            <Body small muted>
-              {t.notes}
-            </Body>
-            {read.errors.map((note) => (
-              <Body key={note} small>
-                {note}
-              </Body>
-            ))}
-            <Button label={t.reviewThem} onPress={() => router.replace({ pathname: '/review/[id]', params: { id: read.statement_id } })} />
-          </Card>
-        ) : (
-          <View style={{ gap: 6 }}>
-            <Button
-              label={upload.isPending ? t.submitting : t.submit}
-              busy={upload.isPending}
-              disabled={!file || tooLarge || upload.isPending}
-              onPress={() => file && upload.mutate(file)}
-            />
-            <Body small muted>
-              {t.nothingBooked}
-            </Body>
-          </View>
-        )}
+        <View style={{ gap: 6 }}>
+          <Button
+            label={upload.isPending ? t.submitting : t.submit}
+            busy={upload.isPending}
+            disabled={!file || tooLarge || upload.isPending}
+            onPress={() => file && upload.mutate(file)}
+          />
+          <Body small muted>
+            {t.nothingBooked}
+          </Body>
+        </View>
       </ScrollView>
 
       <Picker

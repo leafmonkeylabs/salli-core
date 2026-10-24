@@ -266,8 +266,6 @@ export const strings = {
     submitting: 'Reading the file…',
     nothingBooked: 'Nothing is booked until you review it and post it.',
     read: (count: string) => (count === '1' ? 'Read 1 transaction. Nothing is booked yet.' : `Read ${count} transactions. Nothing is booked yet.`),
-    notes: 'What Salli noted while reading it',
-    reviewThem: 'Review them',
     queue: 'The review queue',
     waiting: 'Waiting for review',
     nothingWaiting: 'Nothing waits for review.',
