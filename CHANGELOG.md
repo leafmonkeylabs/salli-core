@@ -30,6 +30,15 @@
   cushion and goals' cash. Scenarios and principle checks read the same
   figure.
 
+- **First run books only what is true.** An opening balance for something
+  you own takes an `asset_role` (cash, investment or other); without one it
+  is "other", never cash, so a brokerage account or a car no longer counts as
+  money to spend. `POST /v1/onboarding/income` opens an income account per
+  source and posts nothing (it used to book a made-up month of pay dated
+  today); it answers `income_accounts`, and `amount`, `currency` and
+  `fx_rate` are gone from `IncomeItem`. `salli profile balance-sheet` takes
+  `CODE:NAME:TYPE:AMOUNT[:ROLE]`; `salli profile income` takes `CODE:NAME`.
+
 ### Removed
 
 - **The FIRE strategy generator.** A model no longer drafts a FIRE strategy:

@@ -3849,7 +3849,7 @@
           "onboarding"
         ],
         "summary": "Declare Income",
-        "description": "Post one representative monthly entry per declared income source.",
+        "description": "Open an income account per source, and the account it is paid into.\nNothing is posted: income enters the books when it is paid.",
         "operationId": "onboarding.income",
         "requestBody": {
           "content": {
@@ -3867,7 +3867,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeclaredEntries"
+                  "$ref": "#/components/schemas/IncomeAccounts"
                 }
               }
             }
@@ -23607,6 +23607,22 @@
         "type": "object",
         "title": "HoldingUpdateRequest"
       },
+      "IncomeAccounts": {
+        "properties": {
+          "income_accounts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Income Accounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "income_accounts"
+        ],
+        "title": "IncomeAccounts"
+      },
       "IncomeChange": {
         "properties": {
           "type": {
@@ -23696,41 +23712,6 @@
             "type": "string",
             "title": "Name"
           },
-          "amount": {
-            "type": "string",
-            "pattern": "^-?\\d+(\\.\\d+)?$",
-            "title": "Amount",
-            "description": "Decimal string, read exactly; a JSON number is refused.",
-            "examples": [
-              "1234.50"
-            ]
-          },
-          "currency": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Currency"
-          },
-          "fx_rate": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^-?\\d+(\\.\\d+)?$",
-                "examples": [
-                  "0.05"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fx Rate"
-          },
           "deposit_account_code": {
             "anyOf": [
               {
@@ -23757,10 +23738,10 @@
         "type": "object",
         "required": [
           "code",
-          "name",
-          "amount"
+          "name"
         ],
-        "title": "IncomeItem"
+        "title": "IncomeItem",
+        "description": "A source of income, opened as an income account so the first real pay\nis booked to it. Nothing is posted: an amount sent is not booked."
       },
       "IncomeStatement": {
         "properties": {
@@ -25727,6 +25708,22 @@
           "type": {
             "type": "string",
             "title": "Type"
+          },
+          "asset_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "investment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Role"
           },
           "amount": {
             "type": "string",
