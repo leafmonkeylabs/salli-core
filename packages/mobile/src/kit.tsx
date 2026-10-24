@@ -1,7 +1,8 @@
 /**
  * The app's parts, as the console's kit has them (docs/design/mobile.md):
  * square corners, hairline cards, 48 px to touch, the outlined-square label,
- * figures exactly as the server sent them.
+ * figures exactly as the server sent them. A theme other than Ledger changes
+ * their corners, edges, markers and icon lines (theme.ts).
  */
 import { SalliNetworkError } from '@leafmonkeylabs/salli-sdk';
 import type { ReactNode } from 'react';
@@ -10,7 +11,7 @@ import Svg, { Path, Rect, SvgXml } from 'react-native-svg';
 import { LOGO_DARK, LOGO_LIGHT } from './brand/logo';
 import { amountParts } from './lib/display';
 import { strings } from './strings';
-import { font, size, useTheme } from './theme';
+import { font, size, useTheme, type Theme } from './theme';
 
 export function Logo({ height = 36 }: { height?: number }) {
   const theme = useTheme();
@@ -18,10 +19,21 @@ export function Logo({ height = 36 }: { height?: number }) {
   return <SvgXml xml={theme.dark ? LOGO_DARK : LOGO_LIGHT} height={height} width={(height * 472.214) / 137.829} accessibilityLabel="Salli" />;
 }
 
+/** Sticker's offset shadow, drawn solid; nothing in other themes. */
+export function offsetOf(theme: Theme): ViewStyle | null {
+  return theme.offset ? { shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: theme.offset, height: theme.offset } } : null;
+}
+
+/** A card's own corners and edge in the theme. */
+export function cardOf(theme: Theme): ViewStyle {
+  return { backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: theme.cardBorderWidth < 1 ? StyleSheet.hairlineWidth : theme.cardBorderWidth, borderRadius: theme.radius, ...offsetOf(theme) };
+}
+
 export function Card({ children, style, tile }: { children: ReactNode; style?: ViewStyle; tile?: boolean }) {
   const theme = useTheme();
+  const tileEdge = theme.offset ? { borderColor: theme.cardBorder, borderWidth: theme.cardBorderWidth } : null;
   return (
-    <View style={[styles.card, tile ? { backgroundColor: theme.tile } : { backgroundColor: theme.card, borderColor: theme.rule, borderWidth: StyleSheet.hairlineWidth }, style]}>
+    <View style={[styles.card, tile ? { backgroundColor: theme.tile, borderRadius: theme.radius, ...tileEdge, ...offsetOf(theme) } : cardOf(theme), style]}>
       {children}
     </View>
   );
@@ -33,7 +45,7 @@ export function SectionLabel({ children, onTile }: { children: string; onTile?: 
   const colour = onTile ? theme.tileMuted : theme.muted;
   return (
     <View style={styles.label} accessibilityRole="header">
-      <View style={[styles.square, { borderColor: colour }]} />
+      <View style={[styles.square, { borderColor: colour }, theme.marker === 'dot' ? { borderRadius: 4 } : null]} />
       <Text style={[styles.labelText, { color: colour }]}>{children.toUpperCase()}</Text>
     </View>
   );
@@ -67,7 +79,11 @@ export function Button({ label, kind = 'primary', busy, icon, ...rest }: { label
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!rest.disabled || !!busy, busy: !!busy }}
-      style={({ pressed }) => [styles.button, { backgroundColor: fill, borderColor: unavailable ? theme.fieldBorder : kind === 'secondary' ? theme.button2Border : 'transparent', opacity: unavailable ? 1 : rest.disabled ? 0.45 : pressed ? 0.8 : 1 }]}
+      style={({ pressed }) => [
+        styles.button,
+        { backgroundColor: fill, borderRadius: theme.control, borderColor: unavailable ? theme.fieldBorder : kind === 'secondary' ? theme.button2Border : 'transparent', opacity: unavailable ? 1 : rest.disabled ? 0.45 : pressed ? 0.8 : 1 },
+        kind === 'tertiary' || unavailable ? null : offsetOf(theme),
+      ]}
       {...rest}
     >
       {busy ? <ActivityIndicator color={colour} /> : null}
@@ -114,7 +130,7 @@ export function Row({ title, detail, onPress, action, last }: { title: string; d
   const theme = useTheme();
   const content = (
     <>
-      <View style={[styles.bullet, { backgroundColor: theme.muted }]} />
+      <View style={[styles.bullet, { backgroundColor: theme.muted }, theme.marker === 'dot' ? { borderRadius: 3 } : null]} />
       <View style={styles.rowText}>
         <Body>{title}</Body>
         {detail ? <Body small muted>{detail}</Body> : null}
@@ -325,8 +341,8 @@ export function Toggle({ label, help, value, disabled, onChange }: { label: stri
           </Body>
         ) : null}
       </View>
-      <View style={[styles.track, value ? { backgroundColor: theme.button, justifyContent: 'flex-end' } : { backgroundColor: theme.card, borderColor: theme.muted, borderWidth: 1.5 }]}>
-        <View style={value ? [styles.knobOn, { backgroundColor: theme.buttonText }] : [styles.knobOff, { backgroundColor: theme.muted }]} />
+      <View style={[styles.track, { borderRadius: theme.control ? 999 : 0 }, value ? { backgroundColor: theme.button, justifyContent: 'flex-end' } : { backgroundColor: theme.card, borderColor: theme.muted, borderWidth: 1.5 }]}>
+        <View style={[value ? [styles.knobOn, { backgroundColor: theme.buttonText }] : [styles.knobOff, { backgroundColor: theme.muted }], { borderRadius: theme.control ? 999 : 0 }]} />
       </View>
     </Pressable>
   );
@@ -374,23 +390,31 @@ const ICONS = {
   settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 5h4v4h-4zM8 15h4v4H8z',
   server: 'M4 4h16v7H4zM4 13h16v7H4zM8 7.5h2M8 16.5h2',
   message: 'M4 5h16v11H10l-6 4zM8 9h8M8 12h5',
+  appearance: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 3v18M12 8h4.5M12 12h6M12 16h4.5',
 } as const;
 
 export type IconName = keyof typeof ICONS | 'cash' | 'books';
 
-/** The console's icons: a 24 grid, 1.5 strokes, square caps, mitred joins. */
-export function Icon({ name, size: px = 24, colour }: { name: IconName; size?: number; colour: string }) {
-  const stroke = { stroke: colour, strokeWidth: (1.5 * 24) / px, strokeLinecap: 'square' as const, strokeLinejoin: 'miter' as const, fill: 'none' };
+/**
+ * The console's icons: a 24 grid, 1.5 strokes, square caps, mitred joins;
+ * other themes round them and change their weight. `fill` fills a closed
+ * shape, as the bar does for the current place in some themes.
+ */
+export function Icon({ name, size: px = 24, colour, fill = 'none' }: { name: IconName; size?: number; colour: string; fill?: string }) {
+  const theme = useTheme();
+  const round = theme.iconCap === 'round';
+  const stroke = { stroke: colour, strokeWidth: (theme.iconWidth * 24) / px, strokeLinecap: theme.iconCap, strokeLinejoin: round ? ('round' as const) : ('miter' as const), fill };
+  const rx = round ? 3 : 0;
   return (
     <Svg width={px} height={px} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no">
       {name === 'cash' ? (
         <>
-          <Rect x={3} y={7} width={18} height={10} {...stroke} />
+          <Rect x={3} y={7} width={18} height={10} rx={rx} {...stroke} />
           <Path d="M12 9.5v5M9.5 12h5" {...stroke} />
         </>
       ) : name === 'books' ? (
         <>
-          <Rect x={4} y={4} width={16} height={16} {...stroke} />
+          <Rect x={4} y={4} width={16} height={16} rx={rx} {...stroke} />
           <Path d="M4 9h16M4 14h16M10 4v16" {...stroke} />
         </>
       ) : (

@@ -19,7 +19,7 @@ import { useApi, useRead } from '../../api';
 import { Body, Button, Card, Icon, Money, Waiting } from '../../kit';
 import { displayDate, displayDay, displayRange } from '../../lib/display';
 import { Picker } from '../../picker';
-import { Header } from '../../shell';
+import { Glow, Header } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 
@@ -119,6 +119,7 @@ export default function Review() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.work }}>
+      <Glow />
       <Header
         back={{ label: t.back, onPress: () => router.back() }}
         action={

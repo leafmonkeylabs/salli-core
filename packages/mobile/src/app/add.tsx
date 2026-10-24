@@ -119,7 +119,7 @@ export default function Add() {
               <TextInput
                 value={description}
                 onChangeText={setDescription}
-                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.fieldBorder, color: theme.text }]}
+                style={[styles.input, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
               />
             </Field>
             <Field label={t.amount} help={amount && !exact ? t.notAnAmount : t.amountHelp(currency)}>
@@ -127,7 +127,7 @@ export default function Add() {
                 value={amount}
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
-                style={[styles.input, styles.amountInput, { backgroundColor: theme.card, borderColor: theme.fieldBorder, color: theme.text }]}
+                style={[styles.input, styles.amountInput, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
               />
             </Field>
             <AccountField label={t.debit} value={name(debit)} onPress={() => setPicking('debit')} />
@@ -221,7 +221,7 @@ function AccountField({ label, value, onPress }: { label: string; value: string;
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value}`}
         onPress={onPress}
-        style={[styles.input, styles.choose, { backgroundColor: theme.card, borderColor: theme.fieldBorder }]}
+        style={[styles.input, styles.choose, { backgroundColor: theme.card, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder }]}
       >
         <Body>{value}</Body>
         <Icon name="down" size={16} colour={theme.muted} />

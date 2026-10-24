@@ -11,7 +11,9 @@
       "bundleIdentifier": "money.salli.app",
       "supportsTablet": false,
       "entitlements": {
-        "com.apple.security.application-groups": ["group.money.salli.app"]
+        "com.apple.security.application-groups": [
+          "group.money.salli.app"
+        ]
       },
       "infoPlist": {
         "NSAppTransportSecurity": {
@@ -58,6 +60,43 @@
             "backgroundColor": "#0E1513"
           }
         }
+      ],
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "LedgerRounded",
+            "ios": "./assets/icons/LedgerRounded.png",
+            "android": {
+              "foregroundImage": "./assets/icons/LedgerRounded-foreground.png",
+              "backgroundColor": "#173B33"
+            }
+          },
+          {
+            "name": "Bold",
+            "ios": "./assets/icons/Bold.png",
+            "android": {
+              "foregroundImage": "./assets/icons/Bold-foreground.png",
+              "backgroundColor": "#0B0B0C"
+            }
+          },
+          {
+            "name": "Sticker",
+            "ios": "./assets/icons/Sticker.png",
+            "android": {
+              "foregroundImage": "./assets/icons/Sticker-foreground.png",
+              "backgroundColor": "#FFD23F"
+            }
+          },
+          {
+            "name": "Aurora",
+            "ios": "./assets/icons/Aurora.png",
+            "android": {
+              "foregroundImage": "./assets/icons/Aurora-foreground.png",
+              "backgroundColor": "#0A0E1F"
+            }
+          }
+        ]
       ]
     ]
   }

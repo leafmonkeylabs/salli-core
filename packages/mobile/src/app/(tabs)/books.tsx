@@ -61,7 +61,7 @@ export default function Books() {
         </Card>
       ) : null}
 
-      <View style={[styles.places, { backgroundColor: theme.card, borderColor: theme.rule }]}>
+      <View style={[styles.places, { backgroundColor: theme.card, borderColor: theme.rule, borderRadius: theme.radius, overflow: 'hidden' }]}>
         <Pressable
           accessibilityRole="link"
           onPress={() => router.push('/entries')}

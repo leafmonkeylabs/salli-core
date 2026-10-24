@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { Body, Button, Card, Icon, Title } from './kit';
 import { useSession } from './session';
 import { strings } from './strings';
@@ -64,6 +65,29 @@ export function Pull({ read }: { read: () => Promise<unknown> }) {
 /** Room below a tab's last card, so the AI button floating over it never covers it. */
 export const UNDER_AI = 56 + 16 + 8;
 
+/** Aurora's two lights behind a page; nothing in other themes. */
+export function Glow() {
+  const theme = useTheme();
+  if (!theme.glow) return null;
+  const [one, two] = theme.glow;
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Defs>
+        <RadialGradient id="one" cx="10%" cy="8%" r="60%">
+          <Stop offset="0" stopColor={one} stopOpacity={0.35} />
+          <Stop offset="1" stopColor={one} stopOpacity={0} />
+        </RadialGradient>
+        <RadialGradient id="two" cx="100%" cy="40%" r="60%">
+          <Stop offset="0" stopColor={two} stopOpacity={0.4} />
+          <Stop offset="1" stopColor={two} stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#one)" />
+      <Rect width="100%" height="100%" fill="url(#two)" />
+    </Svg>
+  );
+}
+
 /** A place: its header, then its cards, pulled down to read again. */
 export function Page({
   title,
@@ -84,6 +108,7 @@ export function Page({
   const theme = useTheme();
   return (
     <View style={{ flex: 1, backgroundColor: theme.work }}>
+      <Glow />
       <Header {...(title ? { title } : {})} {...(back ? { back } : {})} action={action} />
       <ScrollView
         contentContainerStyle={[styles.page, underAI ? { paddingBottom: UNDER_AI } : null]}

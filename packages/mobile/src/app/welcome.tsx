@@ -48,7 +48,7 @@ export default function Welcome() {
           <Logo height={40} />
         </View>
         {ended ? (
-          <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card }]} accessibilityRole="alert">
+          <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]} accessibilityRole="alert">
             <Body style={{ fontFamily: font.medium }}>{strings.problem.signedOutTitle}</Body>
             <Body small muted>
               {strings.problem.signedOut}

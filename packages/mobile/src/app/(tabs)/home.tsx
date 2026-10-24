@@ -20,7 +20,7 @@ import { displayDate, displayDateTime, displayMoment, displayRange, monthNameOf,
 import { useSession } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
-import { Header, Pull, UNDER_AI } from '../../shell';
+import { Glow, Header, Pull, UNDER_AI } from '../../shell';
 
 const t = strings.home;
 
@@ -48,6 +48,7 @@ export default function Home() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.work }}>
+      <Glow />
       <Header
         server
         unreachable={reach.unreachable}
@@ -66,7 +67,7 @@ export default function Home() {
       />
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: UNDER_AI }]} refreshControl={<Pull read={readAgain} />}>
         {reach.unreachable ? (
-          <View accessibilityRole="alert" style={[styles.reach, { backgroundColor: theme.card, borderColor: theme.text }]}>
+          <View accessibilityRole="alert" style={[styles.reach, { backgroundColor: theme.card, borderColor: theme.text, borderRadius: theme.radius }]}>
             <Body>
               <Text style={{ fontFamily: font.medium }}>{strings.reach.cantReach(host)}</Text>
               {reach.lastAnswer ? strings.reach.sentAt(displayMoment(reach.lastAnswer)) : strings.reach.nothingYet}
