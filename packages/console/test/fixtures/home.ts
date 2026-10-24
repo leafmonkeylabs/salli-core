@@ -259,8 +259,11 @@ export const REMINDERS: ReminderList = {
 
 export const SAFE_TO_SPEND: SafeToSpend = {
   "currency": "EUR",
-  "amount": "15727.02",
+  "amount": "15316.35",
   "cash_today": "15801.47",
+  "everyday_spending": "206.96",
+  "cushion": "203.71",
+  "held_for_goals": "0.00",
   "until": "2026-10-25",
   "next_income": {
     "date": "2026-10-25",
@@ -316,7 +319,7 @@ export const REVIEWS_DUE: DueReviews = {
       "as_of": "2026-08-11",
       "review_on": "2026-09-30",
       "recorded_at": "2026-08-11T09:00:00+00:00",
-      "hash": "sha256:d8a9829d192035339c382b21cce971cb24c8b8896bd756dcdf90a2645794db88",
+      "hash": "sha256:0fa348c392ac8344680c108a131a5e003305f52861c48e78deacca27154f19a7",
       "notes": 0,
       "reviews": 0,
       "last_reviewed_at": null,

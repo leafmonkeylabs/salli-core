@@ -279,16 +279,33 @@ async def test_an_account_whose_balance_cant_be_known_is_left_out_and_said(monke
 async def test_safe_to_spend_is_the_low_point_before_money_comes_in():
     # No salary rhythm in this ledger, so it looks 30 days ahead: FitX on
     # Nov 1 is committed; Netflix on Nov 8 falls on the last day, outside.
+    # Netflix is all its spending, and scheduled: no everyday spending, and a
+    # tenth of a usual month's 38.99 kept back.
     result = await _service([_subscription()]).safe_to_spend("u")
     assert (result["amount"], result["cash_today"], result["until"]) == (
-        "2792.04",
+        "2788.14",
         "2831.04",
         "2026-11-08",
     )
+    assert (result["everyday_spending"], result["cushion"]) == ("0.00", "3.90")
     assert result["next_income"] is None
     assert [(f["date"], f["description"], f["amount"]) for f in result["committed"]] == [
         ("2026-11-01", "Fitx Studio", "-39.00")
     ]
+
+
+async def test_cash_set_aside_for_a_goal_is_not_free_to_spend():
+    service = _service([_subscription()])
+    uow = service._uow_factory()
+    uow.goals.goals = [{"id": "trip", "priority": 1}, {"id": "old", "priority": 2}]
+    uow.goals.allocations = [
+        {"goal_id": "trip", "account_id": "bank", "allocated_minor": 50000},
+        # A goal that is gone or archived holds nothing back.
+        {"goal_id": "gone", "account_id": "bank", "allocated_minor": 99999},
+    ]
+    result = await service.safe_to_spend("u")
+    assert result["held_for_goals"] == "500.00"
+    assert result["amount"] == "2288.14"
 
 
 async def test_signals_point_at_new_recurring_charges_nobody_tracks():

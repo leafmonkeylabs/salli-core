@@ -1280,6 +1280,9 @@ export class MockSalli {
             until: '2026-11-01',
             next_income: { date: '2026-11-01', description: 'Salary', amount: '5000.00', currency: 'USD' },
             committed: [{ date: '2026-10-20', description: 'Streaming', amount: '15.99', currency: 'USD' }],
+            everyday_spending: '410.00',
+            cushion: '120.00',
+            held_for_goals: '0.00',
             notes: ['Keeps one month of spending aside.'],
           } satisfies SafeToSpend,
         };

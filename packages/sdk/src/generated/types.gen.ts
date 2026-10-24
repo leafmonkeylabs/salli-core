@@ -9077,8 +9077,10 @@ export type RuleUpdate = {
 /**
  * SafeToSpend
  *
- * What could go out today without the cash forecast going below zero
- * before money next comes in.
+ * Free to spend until payday: the lowest the cash gets before money next
+ * comes in, after what is scheduled (`committed`) and the everyday
+ * spending a usual month has beyond it, less a cushion and the cash set
+ * aside for goals. Never below zero.
  */
 export type SafeToSpend = {
     /**
@@ -9099,6 +9101,24 @@ export type SafeToSpend = {
      * Decimal string in the currency's own precision; never a float.
      */
     cash_today: string;
+    /**
+     * Everyday Spending
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    everyday_spending: string;
+    /**
+     * Cushion
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cushion: string;
+    /**
+     * Held For Goals
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    held_for_goals: string;
     /**
      * Until
      */

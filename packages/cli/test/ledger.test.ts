@@ -33,7 +33,7 @@ describe('salli status', () => {
       Net worth       USD 14,034.50
         Assets        USD 15,234.50
         Liabilities   USD  1,200.00
-      Safe to spend   USD 1,234.56 until Nov 1, 2026, when Salary comes in
+      Free to spend   USD 1,234.56 until Nov 1, 2026, when Salary comes in
 
       October 2026 so far (Oct 1 – 9, 2026)
         Income        USD 5,000.00
@@ -265,6 +265,9 @@ describe('salli status', () => {
               "currency": "USD"
             }
           ],
+          "everyday_spending": "410.00",
+          "cushion": "120.00",
+          "held_for_goals": "0.00",
           "notes": [
             "Keeps one month of spending aside."
           ]

@@ -366,7 +366,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
     "figures": {
       "lowest_cash": "13998.91",
       "cash_in_12_months": "15801.47",
-      "safe_to_spend": "15727.02",
+      "safe_to_spend": "15316.35",
       "any_account_below_zero": false,
       "monthly_spending": "1898.32",
       "emergency_months": "7.37",
@@ -424,7 +424,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
       "figures": {
         "lowest_cash": "11598.91",
         "cash_in_12_months": "13401.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "6.11",
@@ -483,7 +483,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
       "figures": {
         "lowest_cash": "13821.01",
         "cash_in_12_months": "15801.47",
-        "safe_to_spend": "15727.02",
+        "safe_to_spend": "15316.35",
         "any_account_below_zero": false,
         "monthly_spending": "1898.32",
         "emergency_months": "7.28",

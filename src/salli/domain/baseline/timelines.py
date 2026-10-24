@@ -946,14 +946,18 @@ def monthly(
 #: takes when the ledger expects none.
 SAFE_LOOKAHEAD_DAYS = 45
 SAFE_WINDOW_DAYS = 30
+#: The cushion kept back: this share of a usual month's spending. Part of the
+#: method, the same for everyone, and said in every answer.
+SAFE_CUSHION = Decimal("0.1")
 
 
 @dataclass(frozen=True)
 class SafeToSpend:
-    """How much could go out on the as-of date without the scheduled cash
-    dropping below zero before money next comes in."""
+    """What is free to spend until money next comes in: the lowest the cash
+    gets before then, after what is scheduled and the everyday spending a
+    usual month has beyond it, less a cushion."""
 
-    #: The lowest the cash total gets until `until`, never below zero.
+    #: Never below zero.
     amount: Decimal
     cash_today: Decimal
     #: The next income's day, or 30 days on when the ledger expects none.
@@ -963,18 +967,50 @@ class SafeToSpend:
     #: neither income nor committed: it never leaves cash.
     committed: tuple[forecasting.Flow, ...]
     forecast: forecasting.Forecast
+    #: The everyday spending expected from today to the day before `until`:
+    #: a usual month's spending beyond what is scheduled, day by day.
+    everyday: Decimal = Decimal(0)
+    #: Kept back: `SAFE_CUSHION` of a usual month's spending.
+    cushion: Decimal = Decimal(0)
     notes: tuple[str, ...] = ()
+
+
+def everyday_per_day(baseline: Baseline) -> Decimal:
+    """A usual day's spending beyond what is scheduled: the average month's
+    spending less the scheduled spending in a month (the next twelve,
+    averaged), over a month's days. Scheduled spending is the rhythms booked
+    to a spending account and the declared subscriptions; a rhythm that moves
+    money to an account that holds it (investments, a debt) is not spending."""
+    start = baseline.as_of
+    end = start + dt.timedelta(days=365)
+    held = {b.account_id for b in baseline.balances}
+    cash = {account_id: currency for account_id, (currency, _) in baseline.cash_accounts.items()}
+    spending = [r for r in baseline.recurring if r.direction == "out" and r.account_id not in held]
+    scheduled = Decimal(0)
+    for flow in [
+        *forecasting.recurring_flows(spending, cash, start, end),
+        *forecasting.declared_flows(baseline.charges, baseline.currency, start, end),
+    ]:
+        if flow.amount < 0 and not flow.transfer:
+            amount = in_base(baseline, flow)
+            if amount is not None:
+                scheduled -= amount
+    monthly = max(baseline.flows.expenses - scheduled / _TWELVE, Decimal(0))
+    return monthly * _TWELVE / Decimal(365)
 
 
 def safe_to_spend(
     baseline: Baseline, changes: Changes | Sequence[forecasting.Flow] = NO_CHANGES
 ) -> SafeToSpend:
-    """Safe-to-spend from the cash forecast (what is scheduled, and the
-    changes' cash flows): the lowest the total gets from the as-of date until
-    the day before the next income the ledger expects (a change's money in is
-    not one, so a scenario is measured over the baseline's window), or over
-    30 days when it expects none; never below zero."""
+    """Free to spend until payday, from the cash forecast (what is
+    scheduled, and the changes' cash flows): from the as-of date until the
+    day before the next income the ledger expects (a change's money in is not
+    one, so a scenario is measured over the baseline's window), or over 30
+    days when it expects none, the lowest the total gets once each day's
+    everyday spending so far is out too (`everyday_per_day`), less the
+    cushion; never below zero."""
     as_of = baseline.as_of
+    currency = baseline.currency
     result, notes = forecast(baseline, as_of + dt.timedelta(days=SAFE_LOOKAHEAD_DAYS), changes)
     today = as_of.isoformat()
     income = next(
@@ -986,14 +1022,27 @@ def safe_to_spend(
         None,
     )
     until = income.date if income else (as_of + dt.timedelta(days=SAFE_WINDOW_DAYS)).isoformat()
-    window = [v for d, v in result.daily if d < until] or [result.today]
+    per_day = everyday_per_day(baseline)
+    window = [
+        v - per_day * ((dt.date.fromisoformat(d) - as_of).days + 1)
+        for d, v in result.daily
+        if d < until
+    ] or [result.today - per_day]
+    days = max((dt.date.fromisoformat(until) - as_of).days, 1)
+    cushion = _money(baseline.flows.expenses * SAFE_CUSHION, currency)
+    if not baseline.flows.months:
+        notes.append(
+            "No full month of spending yet: only what is scheduled is taken off, with no cushion."
+        )
     committed = tuple(f for f in result.flows if f.amount < 0 and not f.transfer and f.date < until)
     return SafeToSpend(
-        amount=max(min(window), Decimal(0)),
+        amount=max(_money(min(window) - cushion, currency), Decimal(0)),
         cash_today=result.today,
         until=until,
         next_income=income,
         committed=committed,
         forecast=result,
+        everyday=_money(per_day * days, currency),
+        cushion=cushion,
         notes=tuple(dict.fromkeys(notes)),
     )

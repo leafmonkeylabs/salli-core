@@ -93,7 +93,7 @@ describe('salli whatif', () => {
       Lowest cash                                                  13,998.91     11,626.24       -2,372.67
       Lowest on                                                 Feb 24, 2027  Nov 24, 2026  92 days sooner
       Cash by Oct 31, 2027                                         15,801.47     31,401.47      +15,600.00
-      Safe to spend until Oct 25, 2026                             15,727.02     15,727.02            0.00
+      Free until payday, Oct 25, 2026                              15,316.35     15,316.35            0.00
       Checking at its lowest                                        6,063.46      4,883.77       -1,179.69
       Savings at its lowest                                         7,800.00      7,800.00            0.00
       Dollar account at its lowest                                  2,500.00      2,500.00            0.00
@@ -317,7 +317,7 @@ describe('salli compare', () => {
       Lowest cash                     13,998.91     11,598.91     13,821.01
       Lowest on                    Feb 24, 2027  Feb 24, 2027  Feb 24, 2027
       Cash by Oct 31, 2027            15,801.47     13,401.47     15,801.47
-      Safe to spend                   15,727.02     15,727.02     15,727.02
+      Free until payday               15,316.35     15,316.35     15,316.35
       Emergency months at the low          7.37          6.11          7.28
       Net worth in 1 year            366,266.13    363,866.13    363,738.21
       Net worth in 5 years           485,551.81    483,151.81    482,585.47
