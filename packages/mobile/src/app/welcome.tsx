@@ -42,11 +42,11 @@ export default function Welcome() {
           <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.cancel}>
             <Body>{t.cancel}</Body>
           </Pressable>
-        ) : (
-          <View style={{ marginLeft: -8 }}>
-            <Logo height={40} />
-          </View>
-        )}
+        ) : null}
+        {/* The logo heads the page either way, as the design has it. */}
+        <View style={{ marginLeft: -8 }}>
+          <Logo height={40} />
+        </View>
         {ended ? (
           <View style={[styles.notice, { borderColor: theme.rule, backgroundColor: theme.card }]} accessibilityRole="alert">
             <Body style={{ fontFamily: font.medium }}>{strings.problem.signedOutTitle}</Body>
