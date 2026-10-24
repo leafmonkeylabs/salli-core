@@ -462,6 +462,7 @@ export const strings = {
     forgetShort: 'Forget it',
     forgetHelp: 'Only its address and your email are kept for a server you are signed out of.',
     signedInCard: 'Signed in',
+    sinceShort: (when: string) => `Since ${when}`,
     since: (when: string, as: string) => `Since ${when}, as ${as}. It is listed in your sign-ins on the console, where you can end it from anywhere.`,
   },
 
@@ -472,9 +473,6 @@ export const strings = {
     lockHelp: 'Salli asks again when it opens, and after a minute away.',
     noLock: 'Set a passcode on this phone first, in its Settings, to lock Salli.',
     lockHelpShort: 'Or the phone’s own unlock, after 1 minute away',
-    digest: 'Digest on this phone',
-    digestHelp: 'Needs a push notifier on your server',
-    planned: 'Planned',
     locked: 'Salli is locked',
     lockedBody: 'Unlock to see your books.',
     unlock: (how: string) => `Unlock with ${how}`,

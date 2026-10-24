@@ -60,14 +60,12 @@ export default function Servers() {
           <Button
             kind="secondary"
             label={t.add}
+            accessibilityHint={t.addHelp}
             onPress={() => {
               router.back();
               router.push('/welcome');
             }}
           />
-          <Body small muted>
-            {t.addHelp}
-          </Body>
         </View>
       </ScrollView>
     </View>
