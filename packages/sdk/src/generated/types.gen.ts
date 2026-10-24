@@ -9102,6 +9102,16 @@ export type SafeToSpend = {
      */
     cash_today: string;
     /**
+     * Low Point
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    low_point: string;
+    /**
+     * Low Point Date
+     */
+    low_point_date: string;
+    /**
      * Everyday Spending
      *
      * Decimal string in the currency's own precision; never a float.

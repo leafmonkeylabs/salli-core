@@ -29051,6 +29051,19 @@
               "1234.50"
             ]
           },
+          "low_point": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Low Point",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "low_point_date": {
+            "type": "string",
+            "title": "Low Point Date"
+          },
           "everyday_spending": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",
@@ -29119,6 +29132,8 @@
           "currency",
           "amount",
           "cash_today",
+          "low_point",
+          "low_point_date",
           "everyday_spending",
           "cushion",
           "held_for_goals",

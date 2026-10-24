@@ -249,6 +249,11 @@ class SafeToSpend(BaseModel):
     currency: CurrencyCode
     amount: Amount
     cash_today: Amount
+    #: The lowest the cash gets before `until`, after what is committed and
+    #: the everyday spending so far, and its day. `amount` is this less
+    #: `cushion` and `held_for_goals`.
+    low_point: Amount
+    low_point_date: str
     #: The everyday spending expected until `until`: a usual month's spending
     #: beyond what is scheduled, day by day.
     everyday_spending: Amount

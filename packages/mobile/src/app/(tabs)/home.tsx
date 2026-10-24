@@ -96,7 +96,7 @@ export default function Home() {
           </Card>
         ) : null}
         <Card tile style={{ gap: 6 }}>
-          <SectionLabel onTile>{t.safe}</SectionLabel>
+          <SectionLabel onTile>{safe.data && !safe.data.next_income ? t.safe30 : t.safe}</SectionLabel>
           {safe.data ? (
             <>
               <Money amount={safe.data.amount} currency={safe.data.currency} figure="hero" onTile />

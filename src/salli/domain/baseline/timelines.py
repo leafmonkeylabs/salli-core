@@ -955,7 +955,8 @@ SAFE_CUSHION = Decimal("0.1")
 class SafeToSpend:
     """What is free to spend until money next comes in: the lowest the cash
     gets before then, after what is scheduled and the everyday spending a
-    usual month has beyond it, less a cushion."""
+    usual month has beyond it (`low_point`), less a cushion and the cash set
+    aside for goals."""
 
     #: Never below zero.
     amount: Decimal
@@ -972,6 +973,13 @@ class SafeToSpend:
     everyday: Decimal = Decimal(0)
     #: Kept back: `SAFE_CUSHION` of a usual month's spending.
     cushion: Decimal = Decimal(0)
+    #: The cash set aside for goals (`Baseline.held_for_goals`).
+    held_for_goals: Decimal = Decimal(0)
+    #: The lowest the cash gets before `until`, after what is scheduled and
+    #: the everyday spending so far, and its day: `amount` is this less the
+    #: cushion and the goals' cash.
+    low_point: Decimal = Decimal(0)
+    low_point_date: str = ""
     notes: tuple[str, ...] = ()
 
 
@@ -1024,10 +1032,11 @@ def safe_to_spend(
     until = income.date if income else (as_of + dt.timedelta(days=SAFE_WINDOW_DAYS)).isoformat()
     per_day = everyday_per_day(baseline)
     window = [
-        v - per_day * ((dt.date.fromisoformat(d) - as_of).days + 1)
+        (v - per_day * ((dt.date.fromisoformat(d) - as_of).days + 1), d)
         for d, v in result.daily
         if d < until
-    ] or [result.today - per_day]
+    ] or [(result.today - per_day, today)]
+    low, low_date = min(window, key=lambda point: point[0])
     days = max((dt.date.fromisoformat(until) - as_of).days, 1)
     cushion = _money(baseline.flows.expenses * SAFE_CUSHION, currency)
     if not baseline.flows.months:
@@ -1036,7 +1045,7 @@ def safe_to_spend(
         )
     committed = tuple(f for f in result.flows if f.amount < 0 and not f.transfer and f.date < until)
     return SafeToSpend(
-        amount=max(_money(min(window) - cushion, currency), Decimal(0)),
+        amount=max(_money(low - cushion - baseline.held_for_goals, currency), Decimal(0)),
         cash_today=result.today,
         until=until,
         next_income=income,
@@ -1044,5 +1053,8 @@ def safe_to_spend(
         forecast=result,
         everyday=_money(per_day * days, currency),
         cushion=cushion,
+        held_for_goals=_money(baseline.held_for_goals, currency),
+        low_point=_money(low, currency),
+        low_point_date=low_date,
         notes=tuple(dict.fromkeys(notes)),
     )

@@ -129,6 +129,8 @@ async def test_safe_to_spend_and_signals_come_typed(client, insights):
         "currency": "USD",
         "amount": "240.00",
         "cash_today": "900.00",
+        "low_point": "430.00",
+        "low_point_date": "2026-10-24",
         "everyday_spending": "310.00",
         "cushion": "90.00",
         "held_for_goals": "0.00",

@@ -261,6 +261,8 @@ export const SAFE_TO_SPEND: SafeToSpend = {
   "currency": "EUR",
   "amount": "15316.35",
   "cash_today": "15801.47",
+  "low_point": "15520.06",
+  "low_point_date": "2026-10-24",
   "everyday_spending": "206.96",
   "cushion": "203.71",
   "held_for_goals": "0.00",

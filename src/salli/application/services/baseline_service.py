@@ -15,7 +15,7 @@ rates are the ones for it.
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -263,6 +263,11 @@ class BaselineService:
             residency: str | None = profile.get("tax_residency") or None
             rules = tax_rules(active_rules, residency, as_of)
             sets: list[dict[str, Any]] = [] if rules else await uow.tax_rule_sets.list_sets(user_id)
+            claims = goal_claims(
+                await uow.goals.list(user_id, active_only=True),
+                await uow.goals.list_allocations(user_id),
+                base,
+            )
             held = await uow.holdings.list(user_id, active_only=False)
             holdings = (
                 holding_inputs(
@@ -305,6 +310,7 @@ class BaselineService:
                 subscriptions=subscriptions,
                 statement_accounts=fed,
                 own_assumptions=OwnAssumptions.from_stored(profile.get("fi_assumptions")),
+                goal_claims=claims,
                 rule_sets=covering_rule_sets(active_rules, residency, as_of),
                 tax=tax,
                 holdings=holdings,
@@ -498,3 +504,17 @@ def view(
         "fingerprint": baseline.fingerprint,
         "notes": list(dict.fromkeys([*baseline.notes, *cash.notes, *monthly.notes])),
     }
+
+
+def goal_claims(
+    goals: Sequence[Mapping[str, Any]], allocations: Sequence[Mapping[str, Any]], base: str
+) -> dict[str, Decimal]:
+    """What active goals claim of each account, in the base currency. A claim
+    from a goal that is gone or archived holds nothing back."""
+    active = {g["id"] for g in goals}
+    out: dict[str, Decimal] = {}
+    for a in allocations:
+        if a["goal_id"] in active:
+            amount = from_minor(a["allocated_minor"], base)
+            out[a["account_id"]] = out.get(a["account_id"], Decimal(0)) + amount
+    return out

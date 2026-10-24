@@ -265,6 +265,8 @@ describe('salli status', () => {
               "currency": "USD"
             }
           ],
+          "low_point": "1774.56",
+          "low_point_date": "2026-10-31",
           "everyday_spending": "410.00",
           "cushion": "120.00",
           "held_for_goals": "0.00",

@@ -26,7 +26,6 @@ from salli.domain.baseline import flows as baseline_flows
 from salli.domain.baseline.models import MONTHS_OBSERVED
 from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import rate_text
-from salli.domain.money import from_minor
 from salli.domain.reports import forecast as forecasting
 from salli.domain.reports import insights
 from salli.domain.reports import signals as signal_rules
@@ -293,18 +292,19 @@ class InsightsService:
         income, before, until = safe.next_income, safe.committed, safe.until
         base = baseline.currency
         notes = [*baseline.cash_notes, *safe.notes]
-        held = await self._held_for_goals(user_id, baseline)
 
         def money(value: Decimal, currency: str = base) -> str:
             return str(quantize(value, currency, strict=False))
 
         return {
             "currency": base,
-            "amount": money(max(safe.amount - held, Decimal(0))),
+            "amount": money(safe.amount),
             "cash_today": money(safe.cash_today),
+            "low_point": money(safe.low_point),
+            "low_point_date": safe.low_point_date,
             "everyday_spending": money(safe.everyday),
             "cushion": money(safe.cushion),
-            "held_for_goals": money(held),
+            "held_for_goals": money(safe.held_for_goals),
             "until": until,
             "next_income": None
             if income is None
@@ -326,26 +326,6 @@ class InsightsService:
             "fx": _rates(baseline),
             "notes": list(dict.fromkeys(notes)),
         }
-
-    async def _held_for_goals(self, user_id: str, baseline: Baseline) -> Decimal:
-        """The cash set aside for active goals: each cash account's claims,
-        up to what the account holds, in the base currency."""
-        async with self._uow_factory() as uow:
-            goals = {g["id"] for g in await uow.goals.list(user_id, active_only=True)}
-            allocations = await uow.goals.list_allocations(user_id)
-        claimed: dict[str, Decimal] = {}
-        for a in allocations:
-            if a["goal_id"] in goals:
-                amount = from_minor(a["allocated_minor"], baseline.currency)
-                claimed[a["account_id"]] = claimed.get(a["account_id"], Decimal(0)) + amount
-        return sum(
-            (
-                min(claimed[b.account_id], max(b.value, Decimal(0)))
-                for b in baseline.balances
-                if b.in_cash and b.value is not None and b.account_id in claimed
-            ),
-            Decimal(0),
-        )
 
     async def signals(self, user_id: str) -> dict[str, Any]:
         """What needs the user's attention now (domain/reports/signals.py),

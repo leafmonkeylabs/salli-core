@@ -306,6 +306,15 @@ async def test_cash_set_aside_for_a_goal_is_not_free_to_spend():
     result = await service.safe_to_spend("u")
     assert result["held_for_goals"] == "500.00"
     assert result["amount"] == "2288.14"
+    # The amount is the low point less the cushion and the goals' cash.
+    assert (result["low_point"], result["cushion"]) == ("2792.04", "3.90")
+    # One figure: scenarios and principle checks read the baseline's, the same.
+    from decimal import Decimal
+
+    from salli.domain.baseline import timelines
+
+    baseline = await service._baselines.build("u", dt.date(2026, 10, 9))
+    assert timelines.safe_to_spend(baseline).amount == Decimal("2288.14")
 
 
 async def test_signals_point_at_new_recurring_charges_nobody_tracks():
