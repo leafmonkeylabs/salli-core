@@ -10,6 +10,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { conversationsFile } from './ai/files';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from './lib/pkce';
 import { checkServer, type AppSignIn, type ServerCheck } from './lib/server';
 import { forgotten, listOf, remembered, storeKeyOf, withoutServer, withServer, type ServerIndex } from './lib/servers';
@@ -46,6 +47,8 @@ export type Session =
       server: string;
       client: SalliClient;
       consoleUrl: string | null;
+      /** How the app signs in to it: the same endpoints sign its AI in to MCP. */
+      signIn: AppSignIn;
       /** Every server this phone is signed in to, the one on screen among them. */
       servers: readonly string[];
       /** A server whose sign-in ended, if one did since the last change: said once on Home. */
@@ -155,6 +158,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       server: next.server,
       client,
       consoleUrl: next.consoleUrl,
+      signIn: next.signIn,
       servers: index.current?.servers ?? [next.server],
       ...(endedOn ? { endedOn } : {}),
       known: listOf(index.current),
@@ -272,6 +276,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Its automation rules go with it: they name its accounts.
       await SecureStore.deleteItemAsync(storeKeyOf(server, 'automations'));
       await SecureStore.deleteItemAsync(storeKeyOf(server, 'unread'));
+      await SecureStore.deleteItemAsync(storeKeyOf(server, 'mcp'));
+      const conversations = conversationsFile(server);
+      if (conversations.exists) conversations.delete();
       if (listOf(next).length) await write(INDEX_KEY, next);
       else await SecureStore.deleteItemAsync(INDEX_KEY);
       setSession((now) => (now.status === 'loading' ? now : { ...now, known: listOf(next) }));

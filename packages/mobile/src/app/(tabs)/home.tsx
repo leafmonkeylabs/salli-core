@@ -17,6 +17,7 @@ import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-nati
 import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, Row, SectionLabel } from '../../kit';
 import { displayDate, displayDateTime, displayMoment, displayRange, monthNameOf, monthOf, todayIso } from '../../lib/display';
+import { useYourAI } from '../../ai/store';
 import { useSession } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -38,6 +39,7 @@ export default function Home() {
   const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
   const [dismissed, setDismissed] = useState<string | undefined>(undefined);
   const reach = useReach();
+  const ai = useYourAI();
   const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
   const api = useApi();
   const queryClient = useQueryClient();
@@ -126,10 +128,21 @@ export default function Home() {
         <Attention unreachable={reach.unreachable} />
 
         <View style={{ gap: 6 }}>
-          <Button kind="secondary" label={t.think} onPress={() => void Share.share({ message: t.thinkPrompt(session.status === 'signed-in' ? session.server : '') })} />
-          <Body small muted>
-            {t.thinkNote}
-          </Body>
+          {/* Your AI when it is set up (design 20); until then, a prompt handed to another app. */}
+          <Button
+            kind="secondary"
+            label={t.think}
+            onPress={() =>
+              ai.ready
+                ? router.push({ pathname: '/agent', params: { ask: strings.ai.fromHome } })
+                : void Share.share({ message: t.thinkPrompt(session.status === 'signed-in' ? session.server : '') })
+            }
+          />
+          {ai.ready ? null : (
+            <Body small muted>
+              {t.thinkNote}
+            </Body>
+          )}
         </View>
       </ScrollView>
     </View>

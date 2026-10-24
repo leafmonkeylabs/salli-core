@@ -260,6 +260,36 @@ alerts@bank.example") hands the text to an action of Salli's instead.
   to make a rule from or let go; each run reads them again, so a new rule
   picks them up.
 
+## Your AI
+
+An AI the person chooses, on their own key, that reads their books through
+Salli's tools and asks before any change (designs 18 to 21). It lives only in
+the app: core holds no key and runs no model for it.
+
+- **Providers:** Anthropic, OpenAI, xAI, Meta (the Llama API) and OpenRouter,
+  through the AI SDK (`ai`, `@ai-sdk/*`); the model is chosen from the
+  provider's own list for the key. Keys are kept in the keychain, one per
+  provider, and sent only to that provider.
+- **Salli's tools** come from the server's MCP, on a sign-in of the AI's own
+  (core: `salli-mobile` may ask for the MCP resource). The server's page asks
+  "Connect the AI in the Salli app?" (design 19); the connection is then an
+  AI connection like any other, ended from the app (Disconnect) or the
+  console, and refused while MCP is off.
+- **Instructions are core's:** each turn starts from the `talk_with_me` MCP
+  prompt, which ends with Salli's guardrails (never compute, never rank,
+  never name products), so the app holds no words of its own for the model.
+- **Changes wait for the person:** a tool that only reads runs as the model
+  asks (`onlyReads` in `src/lib/ai.ts`: `get_`, `list_`, `check_` and the
+  like); any other, and any tool core adds later, shows on a card with
+  Approve and Not now (design 21), and the conversation waits on it.
+- **What leaves the phone:** the questions and what the tools return go to
+  the chosen provider; the settings page says so in one line.
+- **Conversations:** the last 20 per server, in a file of the app's own,
+  never sent; deleted from Your AI, or with the server when it is forgotten.
+- **Where it opens:** its own page, from "Think this through with your AI" on
+  Home and Decide once it is set up (until then those still hand a prompt to
+  another app), and from More → Your AI.
+
 ## Later
 
 Managed servers need no closed code in the app: one is another server, found

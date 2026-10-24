@@ -4,6 +4,7 @@ import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from '../src/lib
 import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
+import { blocksOf, changeOf, keepNewest, modelsOf, onlyReads, pendingOf, providerOf, titleOf } from '../src/lib/ai';
 import { amountOf, dateOf, read, readWith, type AutomationRule } from '../src/lib/automations';
 import { keepUnread, queueOf, sortInbox, type QueuedMessage } from '../src/lib/inbox';
 import { glanceOf, type GlanceReads } from '../src/lib/glance';
@@ -447,5 +448,75 @@ describe('the automations inbox', () => {
     const old = message('a', 'x', 'EXAMPLEBANK', '2026-10-01T00:00:00Z');
     const fresh = message('b', 'y', 'EXAMPLEBANK', '2026-10-20T00:00:00Z');
     expect(keepUnread([old], [fresh, old], 1)).toEqual([fresh]);
+  });
+});
+
+describe('your AI', () => {
+  it('reads every provider’s models list, chat models only', () => {
+    expect(modelsOf({ data: [{ id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5' }, { id: 'claude-haiku-5-5' }] })).toEqual([
+      { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
+      { id: 'claude-haiku-5-5', name: 'claude-haiku-5-5' },
+    ]);
+    expect(modelsOf({ data: [{ id: 'gpt-x' }, { id: 'text-embedding-3' }, { id: 'whisper-1' }] }).map((m) => m.id)).toEqual(['gpt-x']);
+    expect(modelsOf({ data: [{ id: 'meta/llama', name: 'Llama' }] })).toEqual([{ id: 'meta/llama', name: 'Llama' }]);
+    expect(modelsOf('nonsense')).toEqual([]);
+    expect(providerOf('anthropic')?.defaultModel).toBe('claude-opus-5-5');
+    expect(providerOf('elsewhere')).toBeUndefined();
+  });
+
+  it('runs only reading tools unasked: anything else, or new, waits for approval', () => {
+    for (const reads of ['get_safe_to_spend', 'list_due_reviews', 'run_scenario', 'start_decision', 'check_principles']) {
+      expect(onlyReads(reads)).toBe(true);
+    }
+    for (const writes of ['create_reminder', 'post_journal_entry', 'record_decision', 'save_memory', 'delete_document', 'a_tool_core_adds_later']) {
+      expect(onlyReads(writes)).toBe(false);
+    }
+  });
+
+  it('says a change in one line, amounts as given', () => {
+    expect(changeOf('create_reminder', { kind: 'Send the landlord the lease', due_date: '2026-10-12' })).toBe('Add a reminder: Send the landlord the lease, Oct 12, 2026');
+    expect(changeOf('post_journal_entry', { description: 'Corner Bakery', amount: '8.40', currency: 'EUR', entry_date: '2026-10-24' })).toBe('Book an entry: Corner Bakery, EUR 8.40, Oct 24, 2026');
+    expect(changeOf('a_new_tool', {})).toBe('A new tool');
+  });
+
+  it('titles a conversation by its first question and keeps the newest 20', () => {
+    expect(titleOf('  Where do I   stand today? ')).toBe('Where do I stand today?');
+    expect(titleOf('Can I afford a new bike before the holidays if I also keep my buffer?')).toBe('Can I afford a new bike before the holidays if…');
+    const old = Array.from({ length: 20 }, (_, i) => ({ id: `c${i}`, at: `2026-10-${String(i + 1).padStart(2, '0')}T00:00:00Z` }));
+    const kept = keepNewest(old, { id: 'new', at: '2026-10-24T00:00:00Z' });
+    expect(kept).toHaveLength(20);
+    expect(kept[0]?.id).toBe('new');
+    expect(kept.some((c) => c.id === 'c0')).toBe(false);
+  });
+});
+
+describe('a conversation with your AI', () => {
+  // As the AI SDK keeps it: the person, the AI's tool calls and answers, approvals asked and met.
+  const asked = [
+    { role: 'user', content: 'Where do I stand today?' },
+    { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 't1', toolName: 'get_safe_to_spend', input: {} }, { type: 'tool-call', toolCallId: 't2', toolName: 'get_signals', input: {} }] },
+    { role: 'tool', content: [{ type: 'tool-result', toolCallId: 't1', toolName: 'get_safe_to_spend', output: { type: 'json', value: {} } }] },
+    { role: 'assistant', content: [{ type: 'text', text: 'EUR 15,727.02 is safe to spend.' }] },
+    { role: 'user', content: 'Remind me about the lease tomorrow.' },
+    {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'That changes your reminders. Approve it?' },
+        { type: 'tool-call', toolCallId: 't3', toolName: 'create_reminder', input: { kind: 'Send the lease', due_date: '2026-10-12' } },
+        { type: 'tool-approval-request', approvalId: 'a1', toolCallId: 't3' },
+      ],
+    },
+  ] as unknown as Parameters<typeof blocksOf>[0];
+
+  it('shows each answer with how much it read, and what waits for approval', () => {
+    expect(blocksOf(asked)).toEqual([
+      { kind: 'you', text: 'Where do I stand today?' },
+      { kind: 'ai', reads: 2, text: 'EUR 15,727.02 is safe to spend.' },
+      { kind: 'you', text: 'Remind me about the lease tomorrow.' },
+      { kind: 'ai', reads: 0, text: 'That changes your reminders. Approve it?' },
+    ]);
+    expect(pendingOf(asked)).toEqual([{ approvalId: 'a1', tool: 'create_reminder', input: { kind: 'Send the lease', due_date: '2026-10-12' } }]);
+    const met = [...asked, { role: 'tool', content: [{ type: 'tool-approval-response', approvalId: 'a1', approved: true }] }] as unknown as Parameters<typeof pendingOf>[0];
+    expect(pendingOf(met)).toEqual([]);
   });
 });

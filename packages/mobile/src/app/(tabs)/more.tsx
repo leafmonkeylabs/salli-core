@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Body, Card, Icon, type IconName } from '../../kit';
+import { useYourAI } from '../../ai/store';
+import { providerOf } from '../../lib/ai';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
@@ -19,6 +21,7 @@ const PLACES: readonly { key: keyof typeof t.places; icon: IconName; path: strin
 /** More (design 14): the places beyond the bar, then Servers and sign-in. */
 export default function More() {
   const { session } = useSession();
+  const ai = useYourAI();
   const consoleUrl = session.status === 'signed-in' ? session.consoleUrl : null;
   const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
 
@@ -41,6 +44,7 @@ export default function More() {
         </Card>
       ) : null}
       <Card style={{ paddingVertical: 4 }}>
+        <Place icon="ai" title={strings.ai.title} body={ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : strings.ai.notSet} onPress={() => router.push('/ai')} />
         <Place icon="message" title={t.automationsPlace} body={t.automationsBody} onPress={() => router.push('/automations')} />
         <Place icon="server" title={t.serversPlace} body={t.serversBody(host)} onPress={() => router.push('/sign-ins')} last />
       </Card>

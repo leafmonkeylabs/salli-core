@@ -5,6 +5,8 @@ import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, CardHead, Money, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
+import { router } from 'expo-router';
+import { useYourAI } from '../../ai/store';
 import { useSession } from '../../session';
 import { Page } from '../../shell';
 import { Sheet } from '../../sheet';
@@ -15,6 +17,7 @@ const t = strings.decide;
 
 export default function Decide() {
   const { session } = useSession();
+  const ai = useYourAI();
   const due = useRead('decisions.reviews.due', decisionsReviewsDue);
   // A review recorded here leaves the due list when it is read again; it stays
   // on the page, said as recorded, until the person leaves.
@@ -41,10 +44,20 @@ export default function Decide() {
         <Waiting query={due} what="decisions" />
       )}
       <View style={{ gap: 6 }}>
-        <Button kind="secondary" label={t.think} onPress={() => void Share.share({ message: t.thinkPrompt(session.status === 'signed-in' ? session.server : '') })} />
-        <Body small muted>
-          {t.thinkNote}
-        </Body>
+        <Button
+          kind="secondary"
+          label={t.think}
+          onPress={() =>
+            ai.ready
+              ? router.push({ pathname: '/agent', params: { ask: strings.ai.fromDecide } })
+              : void Share.share({ message: t.thinkPrompt(session.status === 'signed-in' ? session.server : '') })
+          }
+        />
+        {ai.ready ? null : (
+          <Body small muted>
+            {t.thinkNote}
+          </Body>
+        )}
       </View>
     </Page>
   );
