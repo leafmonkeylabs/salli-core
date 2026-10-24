@@ -58,6 +58,10 @@ from salli.domain.money import from_minor, to_minor
 
 __all__ = ["FiService", "assumptions_dict"]
 
+#: The full months of income and spending a score needs before it is worth
+#: showing (`status`); fewer, and it is "not_enough_data".
+MONTHS_FOR_A_SCORE = 2
+
 
 def decimal_arg(value: object, what: str) -> Decimal:
     """`value` as a Decimal, or a ValueError naming `what`."""
@@ -294,6 +298,10 @@ class FiService:
             projected_fi_months=outlook.months,
         )
         result = _score_to_dict(score, baseline.as_of)
+        # Under two full months of income and spending, a grade says nothing.
+        observed = len(baseline.flows.months)
+        result["months_observed"] = observed
+        result["status"] = "ok" if observed >= MONTHS_FOR_A_SCORE else "not_enough_data"
         result["assumptions"] = assumptions_dict(applied)
         result["inputs_hash"] = self._inputs_hash(snapshot, applied, pack, outlook.month)
         return result

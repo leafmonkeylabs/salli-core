@@ -66,14 +66,14 @@ def asset_role_for(
     if type != "asset":
         if given is not None:
             raise ValueError(
-                f"Only an asset account has an asset role (cash, investment or other); "
+                f"Only an asset account has an asset role (cash, savings, investment or other); "
                 f"this is a {type} account"
             )
         return None
     if given is None:
         return current or "cash"
     if given not in ASSET_ROLES:
-        raise ValueError(f"An asset role is cash, investment or other, not {given!r}")
+        raise ValueError(f"An asset role is cash, savings, investment or other, not {given!r}")
     return given  # type: ignore[return-value]
 
 

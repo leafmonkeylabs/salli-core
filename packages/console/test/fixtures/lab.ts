@@ -177,6 +177,7 @@ export const BASELINE: Baseline = {
   ],
   "totals": {
     "cash": "15801.47",
+    "savings": "0.00",
     "liquid": "16493.15",
     "investments": "38000.00",
     "other_assets": "300000.00",
@@ -25377,7 +25378,7 @@ export const FIGURES: DecisionFigures = {
       "unit": "months of spending",
       "terms": "none",
       "group": "resilience",
-      "description": "The months of that spending your cash covers at its lowest over the same thirteen months."
+      "description": "The months of that spending your cash and savings cover at its lowest over the same thirteen months."
     },
     {
       "name": "emergency_months_in_12_months",
@@ -25385,7 +25386,7 @@ export const FIGURES: DecisionFigures = {
       "unit": "months of spending",
       "terms": "none",
       "group": "resilience",
-      "description": "The months of that spending your cash covers at the end of the twelfth month."
+      "description": "The months of that spending your cash and savings cover at the end of the twelfth month."
     },
     {
       "name": "net_worth_1y",

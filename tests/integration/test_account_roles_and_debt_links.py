@@ -82,11 +82,29 @@ def test_core_0016_gives_every_asset_account_a_role_and_reverses(monkeypatch):
         assert scalar(url, "select asset_role from accounts where id = 'bank'") == "cash"
 
 
+def test_core_0026_allows_savings_and_its_downgrade_makes_them_cash(monkeypatch):
+    with scratch_database() as url:
+        monkeypatch.setenv("DATABASE_URL", url)
+        upgrade(CORE_SCRIPT_LOCATION, "core_0024_briefings")
+        with pytest.raises(Exception, match="ck_accounts_asset_role"):
+            _execute(url, _account_sql("rainy", "asset", "savings"))
+        upgrade(CORE_SCRIPT_LOCATION)
+        _execute(url, _account_sql("rainy", "asset", "savings"))
+
+        command.downgrade(alembic_config(CORE_SCRIPT_LOCATION), "core_0024_briefings")
+        assert scalar(url, "select asset_role from accounts where id = 'rainy'") == "cash"
+
+
 def test_only_an_asset_account_has_a_role_and_every_one_does(db):
-    _execute(db, _account_sql("bank", "asset", "cash"), _account_sql("home", "asset", "other"))
+    _execute(
+        db,
+        _account_sql("bank", "asset", "cash"),
+        _account_sql("rainy", "asset", "savings"),
+        _account_sql("home", "asset", "other"),
+    )
     for sql in (
         _account_sql("nothing", "asset"),
-        _account_sql("savings", "asset", "savings"),
+        _account_sql("stocks", "asset", "stocks"),
         _account_sql("card", "liability", "cash"),
         _account_sql("rent", "expense", "investment"),
     ):

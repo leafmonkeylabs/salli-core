@@ -437,7 +437,7 @@ function registerProfile(program: Command, app: App): void {
     .description('Record what you own and owe today, as opening-balance entries (net worth starts right)')
     .requiredOption(
       '--balance <code:name:type:amount[:role]>',
-      'One account, e.g. 1100:Checking:asset:2500:cash, 1500:Funds:asset:9000:investment or 2100:Car loan:liability:8400; an asset’s role is cash, investment or other (the default, never counted as cash) (repeatable)',
+      'One account, e.g. 1100:Checking:asset:2500:cash, 1500:Funds:asset:9000:investment or 2100:Car loan:liability:8400; an asset’s role is cash, savings, investment or other (the default, never counted as cash) (repeatable)',
       collect,
     )
     .action(async (opts) => {
@@ -451,15 +451,15 @@ function registerProfile(program: Command, app: App): void {
           throw new UsageError(`An opening balance is an asset or a liability (got "${type}" in "${raw}").`);
         }
         const assetRole = role?.trim().toLowerCase();
-        if (assetRole !== undefined && (kind !== 'asset' || !['cash', 'investment', 'other'].includes(assetRole))) {
-          throw new UsageError(`A role is for an asset: cash, investment or other (got "${role}" in "${raw}").`);
+        if (assetRole !== undefined && (kind !== 'asset' || !['cash', 'savings', 'investment', 'other'].includes(assetRole))) {
+          throw new UsageError(`A role is for an asset: cash, savings, investment or other (got "${role}" in "${raw}").`);
         }
         return {
           code: code.trim(),
           name: name.trim(),
           type: kind,
           amount: amountArg(amount, '--balance'),
-          ...(assetRole ? { asset_role: assetRole as 'cash' | 'investment' | 'other' } : {}),
+          ...(assetRole ? { asset_role: assetRole as 'cash' | 'savings' | 'investment' | 'other' } : {}),
         };
       });
       const api = await app.api();

@@ -152,14 +152,14 @@ FIGURES: tuple[FigureSpec, ...] = (
         "months",
         "none",
         "resilience",
-        "The months of that spending your cash covers at its lowest over the same thirteen months.",
+        "The months of that spending your cash and savings cover at its lowest over the same thirteen months.",
     ),
     FigureSpec(
         "emergency_months_in_12_months",
         "months",
         "none",
         "resilience",
-        "The months of that spending your cash covers at the end of the twelfth month.",
+        "The months of that spending your cash and savings cover at the end of the twelfth month.",
     ),
     *_monthly_specs(),
     FigureSpec(
@@ -330,8 +330,9 @@ def compute(
             missing[name] = why
     else:
         values["monthly_spending"] = money(spend)
-        values["emergency_months"] = _months(forecast.lowest / spend)
-        values["emergency_months_in_12_months"] = _months(forecast.end_balance / spend)
+        kept = baseline.savings  # beside the cash forecast, which leaves it out
+        values["emergency_months"] = _months((forecast.lowest + kept) / spend)
+        values["emergency_months_in_12_months"] = _months((forecast.end_balance + kept) / spend)
 
     # The monthly timeline, in today's money.
     points = mine.monthly.points

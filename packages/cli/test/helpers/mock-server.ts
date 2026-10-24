@@ -750,6 +750,7 @@ export class MockSalli {
         ],
         totals: {
           cash: '9397.60',
+          savings: '0.00',
           liquid: '9397.60',
           investments: '30000.00',
           other_assets: '250000.00',

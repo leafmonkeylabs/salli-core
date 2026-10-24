@@ -986,7 +986,7 @@ class DebtsResult:
 
 @dataclass(frozen=True)
 class Resilience:
-    """Months of spending the cash covers: at its lowest in the next twelve
+    """Months of spending the cash and savings cover: at its lowest in the next twelve
     months, and at their end."""
 
     #: "essential" when spending carries need tags, else "all"; None without
@@ -1258,8 +1258,9 @@ def _resilience(baseline: Baseline, base: Outlook, mine: Outlook) -> Resilience:
     if basis is None or spend is None:
         return Resilience(None, None, Figure(None, None), Figure(None, None))
 
+    # The savings accounts count beside the cash timeline, which leaves them out.
     def months(value: Decimal) -> Decimal:
-        return value / spend
+        return (value + baseline.savings) / spend
 
     return Resilience(
         basis=basis,
@@ -1353,7 +1354,7 @@ def cover_target(
         basis=basis,
         monthly_spending=shown,
         target=target,
-        now=baseline.cash / spend,
+        now=(baseline.cash + baseline.savings) / spend,
         reached=MonthFigure(fi.fi_month(baseline, b), fi.fi_month(baseline, s)),
         months=(b, s),
     )

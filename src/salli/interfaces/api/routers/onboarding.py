@@ -206,9 +206,10 @@ class OpeningBalanceItem(BaseModel):
     name: str
     type: str  # asset|liability
     #: For an asset: "cash" (money you spend from: a bank account, cash, a
-    #: card), "investment" (funds, shares, a pension) or "other" (a home, a
-    #: car). Left out, an asset is "other": never counted as cash.
-    asset_role: Literal["cash", "investment", "other"] | None = None
+    #: card), "savings" (cash you keep: a savings account, an emergency fund),
+    #: "investment" (funds, shares, a pension) or "other" (a home, a car).
+    #: Left out, an asset is "other": never counted as cash.
+    asset_role: Literal["cash", "savings", "investment", "other"] | None = None
     #: A decimal string: these post straight into the ledger, the tax base.
     amount: AmountIn
     #: Defaults to the base currency. Another currency is converted at

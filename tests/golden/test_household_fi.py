@@ -120,6 +120,8 @@ async def test_the_score(fi):
     # puts it back two months, to 187.
     assert (score["projected_fi_months"], score["projected_fi_month"]) == (187, "2042-05")
     assert score["as_of"] == "2026-10-11"
+    # New: six full months observed (April to September), enough to show it.
+    assert (score["status"], score["months_observed"]) == ("ok", 6)
 
 
 async def test_reading_the_score_stores_nothing():

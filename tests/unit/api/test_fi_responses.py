@@ -152,6 +152,19 @@ async def test_amounts_are_at_the_currency_precision(client, fi):
     assert all(_AMOUNT.fullmatch(p["base"]) for p in projections["points"])
 
 
+async def test_a_score_on_too_little_data_says_so(client, mock_services):
+    """Under two full months of income and spending the score is still
+    computed, and says it isn't worth showing."""
+    uow = FakeUoW("KES")
+    uow.ledger.accounts = list(_ACCOUNTS)
+    uow.ledger.entries = [_entry(1, 0, "savings", "salary", "300000.00")]
+    mock_services.fi = FiService(uow.factory())
+
+    score = (await client.get("/v1/fi/score", headers=AUTH)).json()
+    assert (score["status"], score["months_observed"]) == ("not_enough_data", 0)
+    assert "overall_score" in score and "grade" in score
+
+
 async def test_every_fi_figure_says_which_assumptions_it_used(client, fi):
     """The placeholders, and no inflation: so no nominal figure, until the
     user sets their own."""
