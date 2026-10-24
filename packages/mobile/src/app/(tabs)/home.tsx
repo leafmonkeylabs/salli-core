@@ -1,4 +1,5 @@
 import {
+  accountsList,
   decisionsReviewsDue,
   fiScoreGet,
   insightsSafeToSpend,
@@ -7,14 +8,15 @@ import {
   remindersList,
   remindersMarkDone,
   reportsBalanceSheet,
+  statementsList,
 } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, Row, SectionLabel } from '../../kit';
-import { displayDate, displayDateTime, displayMoment, monthNameOf, monthOf, todayIso } from '../../lib/display';
+import { displayDate, displayDateTime, displayMoment, displayRange, monthNameOf, monthOf, todayIso } from '../../lib/display';
 import { useSession } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -100,12 +102,14 @@ export default function Home() {
         </Card>
 
         <Card style={styles.figures}>
-          <Figure label={t.netWorth}>{sheet.data ? <Money amount={sheet.data.net_worth} currency={sheet.data.currency} figure="key" /> : missing}</Figure>
+          <Figure label={t.netWorth} divider>
+            {sheet.data ? <Money amount={sheet.data.net_worth} currency={sheet.data.currency} figure="key" /> : missing}
+          </Figure>
           <Figure label={t.spentIn(monthName)}>
             {spent.data ? <Money amount={spent.data.total_expenses} currency={spent.data.currency} figure="key" /> : missing}
           </Figure>
           {fi.data ? (
-            <View style={styles.fiRow}>
+            <View style={[styles.fiRow, { borderTopColor: theme.rule }]}>
               <View style={{ flex: 1 }}>
                 <Body small muted>
                   {t.fiScore(fi.data.grade)}
@@ -120,14 +124,22 @@ export default function Home() {
         </Card>
 
         <Attention unreachable={reach.unreachable} />
+
+        <View style={{ gap: 6 }}>
+          <Button kind="secondary" label={t.think} onPress={() => void Share.share({ message: t.thinkPrompt(session.status === 'signed-in' ? session.server : '') })} />
+          <Body small muted>
+            {t.thinkNote}
+          </Body>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-function Figure({ label, children }: { label: string; children: ReactNode }) {
+function Figure({ label, divider, children }: { label: string; divider?: boolean; children: ReactNode }) {
+  const theme = useTheme();
   return (
-    <View style={styles.figure}>
+    <View style={[styles.figure, divider ? { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: theme.rule } : null]}>
       <Body small muted>
         {label}
       </Body>
@@ -143,6 +155,14 @@ function Attention({ unreachable }: { unreachable: boolean }) {
   const signals = useRead('insights.signals', insightsSignals);
   const reminders = useRead('reminders.list', remindersList, { query: { status: 'pending' } });
   const reviews = useRead('decisions.reviews.due', decisionsReviewsDue);
+  const statements = useRead('statements.list', statementsList, { query: { limit: 200 } });
+  const accounts = useRead('accounts.list', accountsList);
+  const waiting = (statements.data?.statements ?? []).filter((x) => x.status === 'pending');
+  const [only] = waiting;
+  // A statement's bank may be an empty string: then its account, then just "Statement".
+  const onlyName = only ? only.bank || (only.account_id ? accounts.data?.find((a) => a.id === only.account_id)?.name : undefined) || strings.imports.statement : '';
+  // Away from the server, a row opens a place that can't load: it stays text.
+  const open = (go: () => void) => (unreachable ? {} : { onPress: go });
   const done = useMutation({
     mutationFn: (id: string) => api.call(remindersMarkDone, { path: { reminder_id: id } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.server, 'reminders.list'] }),
@@ -151,17 +171,28 @@ function Attention({ unreachable }: { unreachable: boolean }) {
 
   const rows: { key: string; title: string; detail?: string; onPress?: () => void; action?: ReactNode }[] = [];
   for (const review of reviews.data?.reviews ?? []) {
-    rows.push({ key: `review-${review.id}`, title: t.decision, detail: `${review.question} ${t.reviewDue(displayDate(review.review_on))}`, onPress: () => router.push('/decide') });
+    rows.push({ key: `review-${review.id}`, title: t.decision, detail: `${review.question} ${t.reviewDue(displayDate(review.review_on))}`, ...open(() => router.push('/decide')) });
   }
   for (const signal of signals.data?.signals ?? []) {
     if (signal.kind === 'decision_review_due') continue; // listed above, from the journal
-    rows.push({
-      key: `signal-${signal.kind}-${signal.date ?? ''}`,
-      title: signal.title,
-      ...(signal.date ? { detail: displayDate(signal.date) } : {}),
-      // What waits for review is in Books' review queue.
-      ...(signal.kind === 'review_waiting' ? { onPress: () => router.push('/books') } : {}),
-    });
+    if (signal.kind === 'review_waiting') {
+      // Named by the statement waiting, and opening its review; with several, Books' queue.
+      const detail = only && waiting.length === 1
+        ? t.statementWaiting(onlyName, only.period_start && only.period_end ? displayRange(only.period_start, only.period_end) : '')
+        : waiting.length > 1
+          ? t.statementsWaiting(waiting.length)
+          : signal.date
+            ? displayDate(signal.date)
+            : undefined;
+      rows.push({
+        key: `signal-${signal.kind}`,
+        title: signal.title,
+        ...(detail ? { detail } : {}),
+        ...open(() => (only && waiting.length === 1 ? router.push({ pathname: '/review/[id]', params: { id: only.id } }) : router.push('/books'))),
+      });
+      continue;
+    }
+    rows.push({ key: `signal-${signal.kind}-${signal.date ?? ''}`, title: signal.title, ...(signal.date ? { detail: displayDate(signal.date) } : {}) });
   }
   for (const reminder of reminders.data?.reminders ?? []) {
     if (reminder.source_domain === 'decision') continue; // the review above
@@ -215,7 +246,7 @@ const styles = StyleSheet.create({
   tileSmall: { fontFamily: 'Geist_400Regular', fontSize: size.small },
   figures: { padding: 0, flexDirection: 'row', flexWrap: 'wrap' },
   figure: { flexBasis: '50%', flexGrow: 1, padding: 14, gap: 4, minWidth: 150 },
-  fiRow: { flexBasis: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingBottom: 14 },
+  fiRow: { flexBasis: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth },
   score: { fontFamily: 'Geist_500Medium', fontSize: size.keyFigure, fontVariant: ['tabular-nums'] },
   reach: { borderWidth: 1, padding: 14, gap: 10 },
 });
