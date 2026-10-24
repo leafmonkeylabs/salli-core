@@ -471,6 +471,9 @@ export const strings = {
   ai: {
     title: 'Your AI',
     back: 'More',
+    use: 'Use AI',
+    off: 'Off',
+    offNote: 'Off: no AI button, nothing sent.',
     provider: 'Provider',
     key: 'API key',
     model: 'Model',

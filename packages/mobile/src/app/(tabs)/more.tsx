@@ -46,7 +46,7 @@ export default function More() {
         </Card>
       ) : null}
       <Card style={{ paddingVertical: 4 }}>
-        <Place icon="ai" title={strings.ai.title} body={ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : strings.ai.notSet} onPress={() => router.push('/ai')} />
+        <Place icon="ai" title={strings.ai.title} body={!ai.enabled ? strings.ai.off : ai.model ? `${ai.model} · ${providerOf(ai.provider)?.name ?? ''}` : strings.ai.notSet} onPress={() => router.push('/ai')} />
         <Place icon="message" title={t.automationsPlace} body={t.automationsBody} onPress={() => router.push('/automations')} />
         <Place icon="appearance" title={strings.appearance.title} body={strings.appearance.names[appearance.theme]} onPress={() => router.push('/appearance')} />
         <Place icon="server" title={t.serversPlace} body={t.serversBody(host)} onPress={() => router.push('/sign-ins')} last />

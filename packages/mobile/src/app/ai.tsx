@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { listModels } from '../ai/agent';
 import { useYourAI } from '../ai/store';
-import { Body, Button, Card, CardHead, Icon } from '../kit';
+import { Body, Button, Card, CardHead, Icon, Toggle } from '../kit';
 import { PROVIDERS, providerOf, type Model, type ProviderId } from '../lib/ai';
 import { displayMoment } from '../lib/display';
 import { Page } from '../shell';
@@ -13,7 +13,7 @@ import { font, size, useTheme } from '../theme';
 
 const t = strings.ai;
 
-/** Your AI (design 18): one row each for the provider, its key, the model and Salli's tools; then the conversations. */
+/** Your AI (designs 18, 32 and 33): a switch to use it at all, then one row each for the provider, its key, the model and Salli's tools; then the conversations. */
 export default function YourAISettings() {
   const theme = useTheme();
   const ai = useYourAI();
@@ -38,56 +38,67 @@ export default function YourAISettings() {
 
   return (
     <Page title={t.title} back={{ label: t.back, onPress: () => (router.canGoBack() ? router.back() : router.replace('/more')) }}>
-      <Card style={{ paddingVertical: 0 }}>
-        <SettingRow label={t.provider} value={provider?.name ?? t.notSet} onPress={() => setOpen('provider')} />
-        <SettingRow label={t.key} value={ai.keyEnd ? `••••${ai.keyEnd}` : t.notSet} mono={Boolean(ai.keyEnd)} disabled={!provider} onPress={() => setOpen('key')} />
-        <SettingRow label={t.model} value={ai.model ?? t.notSet} disabled={!ai.keyEnd} onPress={() => setOpen('model')} />
-        <View style={[styles.row, { minHeight: 56 }]}>
-          <Text style={[styles.label, { color: theme.muted }]}>{t.tools}</Text>
-          {ai.connectedSince ? (
-            <>
-              <Text accessibilityLabel={`${t.connected}, ${displayMoment(new Date(ai.connectedSince))}`} style={[styles.value, { color: theme.text }]}>
-                ✓ {t.connected}
-              </Text>
-              <Button kind="secondary" label={t.disconnect} onPress={() => void ai.disconnect()} />
-            </>
-          ) : (
-            <Button kind="secondary" label={t.connect} busy={connecting} disabled={connecting} onPress={() => void connect()} />
-          )}
-        </View>
-      </Card>
-      {problem ? <Body alert>{problem}</Body> : null}
-      <Body small muted>
-        {provider ? t.note(provider.name) : t.setUpNote}
-      </Body>
-
       <Card style={{ paddingVertical: 4 }}>
-        <View style={{ paddingTop: 8 }}>
-          <CardHead label={t.conversations} />
-        </View>
-        {ai.conversations.length === 0 ? (
-          <Body muted style={{ paddingVertical: 12 }}>
-            {t.noConversations}
-          </Body>
-        ) : (
-          ai.conversations.map((c, i) => (
-            <Pressable
-              key={c.id}
-              accessibilityRole="link"
-              onPress={() => router.push({ pathname: '/agent', params: { id: c.id } })}
-              style={[styles.conversation, i < ai.conversations.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}
-            >
-              <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-                {c.title}
-              </Text>
-              <Body small muted>
-                {displayMoment(new Date(c.at))}
-              </Body>
-            </Pressable>
-          ))
-        )}
+        <Toggle label={t.use} value={ai.enabled} onChange={(on) => void ai.setEnabled(on)} />
       </Card>
-      {ai.conversations.length ? <Button kind="tertiary" label={t.deleteAll} onPress={confirmDelete} /> : null}
+      {ai.enabled ? (
+        <>
+          <Card style={{ paddingVertical: 0 }}>
+            <SettingRow label={t.provider} value={provider?.name ?? t.notSet} onPress={() => setOpen('provider')} />
+            <SettingRow label={t.key} value={ai.keyEnd ? `••••${ai.keyEnd}` : t.notSet} mono={Boolean(ai.keyEnd)} disabled={!provider} onPress={() => setOpen('key')} />
+            <SettingRow label={t.model} value={ai.model ?? t.notSet} disabled={!ai.keyEnd} onPress={() => setOpen('model')} />
+            <View style={[styles.row, { minHeight: 56 }]}>
+              <Text style={[styles.label, { color: theme.muted }]}>{t.tools}</Text>
+              {ai.connectedSince ? (
+                <>
+                  <Text accessibilityLabel={`${t.connected}, ${displayMoment(new Date(ai.connectedSince))}`} style={[styles.value, { color: theme.text }]}>
+                    ✓ {t.connected}
+                  </Text>
+                  <Button kind="secondary" label={t.disconnect} onPress={() => void ai.disconnect()} />
+                </>
+              ) : (
+                <Button kind="secondary" label={t.connect} busy={connecting} disabled={connecting} onPress={() => void connect()} />
+              )}
+            </View>
+          </Card>
+          {problem ? <Body alert>{problem}</Body> : null}
+          <Body small muted>
+            {provider ? t.note(provider.name) : t.setUpNote}
+          </Body>
+
+          <Card style={{ paddingVertical: 4 }}>
+            <View style={{ paddingTop: 8 }}>
+              <CardHead label={t.conversations} />
+            </View>
+            {ai.conversations.length === 0 ? (
+              <Body muted style={{ paddingVertical: 12 }}>
+                {t.noConversations}
+              </Body>
+            ) : (
+              ai.conversations.map((c, i) => (
+                <Pressable
+                  key={c.id}
+                  accessibilityRole="link"
+                  onPress={() => router.push({ pathname: '/agent', params: { id: c.id } })}
+                  style={[styles.conversation, i < ai.conversations.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}
+                >
+                  <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+                    {c.title}
+                  </Text>
+                  <Body small muted>
+                    {displayMoment(new Date(c.at))}
+                  </Body>
+                </Pressable>
+              ))
+            )}
+          </Card>
+          {ai.conversations.length ? <Button kind="tertiary" label={t.deleteAll} onPress={confirmDelete} /> : null}
+        </>
+      ) : (
+        <Body small muted>
+          {t.offNote}
+        </Body>
+      )}
 
       <ProviderSheet visible={open === 'provider'} chosen={ai.provider} onClose={() => setOpen(undefined)} onPick={(id) => void ai.setProvider(id).then(() => setOpen(undefined))} />
       <KeySheet visible={open === 'key'} onClose={() => setOpen(undefined)} />

@@ -12,7 +12,7 @@ import { createXai } from '@ai-sdk/xai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { stepCountIs, streamText, type LanguageModel, type ModelMessage } from 'ai';
 import { fetch as expoFetch } from 'expo/fetch';
-import { modelsOf, onlyReads, providerOf, type Model, type ProviderId } from '../lib/ai';
+import { BRIEF, modelsOf, onlyReads, providerOf, type Model, type ProviderId } from '../lib/ai';
 
 // Streaming needs Expo's fetch: React Native's own reads a response whole.
 const streamingFetch = expoFetch as unknown as typeof globalThis.fetch;
@@ -83,7 +83,7 @@ export async function runTurn(options: {
     const tools = await mcp.tools();
     const result = streamText({
       model: options.model,
-      system: instructions,
+      system: `${instructions}\n\n${BRIEF}`,
       messages: options.messages,
       tools,
       toolApproval: ({ toolCall }) => (onlyReads(toolCall.toolName) ? undefined : 'user-approval'),
