@@ -296,6 +296,8 @@ export const strings = {
     sendersHelp: 'The sender as your Shortcuts automation names it. Separate several with commas.',
     sample: 'A sample message',
     sampleHelp: 'Paste one of the messages this rule should read.',
+    samplePlaceholder: 'A message this rule should read',
+    insert: (token: string) => `Add ${token} to the pattern`,
     pattern: 'Pattern',
     useSample: 'Start from the sample',
     patternHelp: 'The message’s words, with the parts to read marked: {amount}, {payee}, {date}, {ref}. {skip} passes over words that change.',
