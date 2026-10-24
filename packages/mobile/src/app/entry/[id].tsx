@@ -1,8 +1,8 @@
-import { accountsList, entriesGet, entriesProvenance, entriesReverse } from '@leafmonkeylabs/salli-sdk';
+import { accountsList, accountsOverview, entriesGet, entriesProvenance, entriesReverse, formatAmount } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, CardHead, LinesTable, Title, Waiting } from '../../kit';
 import { displayDate, displayRange } from '../../lib/display';
@@ -17,10 +17,14 @@ export default function Entry() {
   const theme = useTheme();
   const api = useApi();
   const queryClient = useQueryClient();
-  const { id = '', booked } = useLocalSearchParams<{ id: string; booked?: string }>();
+  const { id = '', booked, account } = useLocalSearchParams<{ id: string; booked?: string; account?: string }>();
   const entry = useRead('entries.get', entriesGet, { path: { entry_id: id } });
   const provenance = useRead('entries.provenance', entriesProvenance, { path: { entry_id: id } });
   const accounts = useRead('accounts.list', accountsList);
+  // Just booked: the balance of the account the money moved in, read after the booking.
+  const moved = accounts.data?.find((a) => a.id === account && a.type === 'asset');
+  const overview = useRead('accounts.overview', accountsOverview, { path: { account_id: account ?? '' } }, { enabled: !!booked && !!moved });
+  const now = moved && overview.data?.balance != null ? formatAmount(overview.data.balance, moved.currency) : undefined;
   const reverse = useMutation({
     mutationFn: () => api.call(entriesReverse, { path: { entry_id: id } }),
     onSuccess: () => {
@@ -36,17 +40,36 @@ export default function Entry() {
   const [asking, setAsking] = useState(false);
 
   return (
-    <Page back={{ label: strings.books.back, onPress: () => router.back() }}>
+    <Page
+      // Opened from a link there is nothing behind it, and just booked Books is not behind it: then back goes to Books.
+      back={{ label: strings.books.back, onPress: () => (router.canGoBack() && !booked ? router.back() : router.replace('/books')) }}
+      // Just booked, Done returns to where Add was opened (Home or Books).
+      {...(booked
+        ? {
+            action: (
+              <Pressable accessibilityRole="button" onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))} style={styles.done}>
+                <Text style={[styles.doneText, { color: theme.text }]}>{t.done}</Text>
+              </Pressable>
+            ),
+          }
+        : {})}
+    >
       {booked ? (
         <Card>
-          <Body alert>{`✓ ${t.booked}`}</Body>
+          <Body alert>{`✓ ${moved && now ? t.bookedNow(moved.name, now) : t.booked}`}</Body>
         </Card>
       ) : null}
       {data ? (
         <>
           <View style={{ gap: 6 }}>
             <Title>{data.description}</Title>
-            <Text style={[styles.meta, { color: theme.muted }]}>{`${displayDate(data.entry_date)} · ${data.id.slice(0, 8)}`}</Text>
+            <View style={styles.chips}>
+              {[displayDate(data.entry_date), data.id.slice(0, 8), t.sourceChip[data.source] ?? data.source].map((fact, i) => (
+                <Text key={fact} style={[styles.chip, i === 1 ? styles.mono : null, { color: theme.text, borderColor: theme.rule, backgroundColor: theme.card }]}>
+                  {fact}
+                </Text>
+              ))}
+            </View>
           </View>
 
           <Card style={{ paddingVertical: 12 }}>
@@ -146,8 +169,12 @@ export default function Entry() {
 }
 
 const styles = StyleSheet.create({
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { fontFamily: font.regular, fontSize: 13, paddingHorizontal: 8, paddingVertical: 3, borderWidth: StyleSheet.hairlineWidth },
+  mono: { fontFamily: font.mono },
+  done: { minHeight: size.target, justifyContent: 'center', paddingHorizontal: 12 },
+  doneText: { fontFamily: font.medium, fontSize: size.body },
   sheetTitle: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.3 },
   reversal: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, gap: 6 },
   reversalTitle: { fontFamily: font.medium, fontSize: size.body },
-  meta: { fontFamily: font.mono, fontSize: 13 },
 });
