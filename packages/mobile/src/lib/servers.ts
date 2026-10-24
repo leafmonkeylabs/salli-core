@@ -21,12 +21,12 @@ export interface ServerIndex {
 }
 
 /**
- * The keychain key for a server's sign-in, its automation rules or the
- * messages they couldn't read. A key takes letters, digits and
+ * The keychain key for a server's sign-in, its automation rules, the
+ * messages they couldn't read, or its AI's sign-in to MCP. A key takes letters, digits and
  * `.-_` only, so every other character (and `-` itself) is written as `-`
  * and its code in hex: two servers never share a key.
  */
-export function storeKeyOf(server: string, what: 'sign-in' | 'automations' | 'unread' = 'sign-in'): string {
+export function storeKeyOf(server: string, what: 'sign-in' | 'automations' | 'unread' | 'mcp' = 'sign-in'): string {
   const escaped = Array.from(server, (c) => (/[A-Za-z0-9._]/.test(c) ? c : `-${c.codePointAt(0)?.toString(16) ?? ''}`)).join('');
   return `salli.${what}.${escaped}`;
 }

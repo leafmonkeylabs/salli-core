@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { YourAIProvider } from '../ai/store';
 import { ApiProvider } from '../api';
 import { Glance } from '../glance';
 import { Inbox } from '../inbox';
@@ -22,7 +23,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SessionProvider>
         <PhoneProvider>
-          <ApiProvider>{fontsLoaded ? <Navigator /> : null}</ApiProvider>
+          <ApiProvider>
+            <YourAIProvider>{fontsLoaded ? <Navigator /> : null}</YourAIProvider>
+          </ApiProvider>
         </PhoneProvider>
       </SessionProvider>
     </SafeAreaProvider>
@@ -57,6 +60,8 @@ function Navigator() {
           <Stack.Screen name="sign-ins" />
           <Stack.Screen name="automations" />
           <Stack.Screen name="automation/[id]" />
+          <Stack.Screen name="ai" />
+          <Stack.Screen name="agent" />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />
