@@ -64,6 +64,11 @@ function Navigator() {
           <Stack.Screen name="ai" />
           <Stack.Screen name="agent" />
           <Stack.Screen name="appearance" />
+          <Stack.Screen name="fi/index" />
+          <Stack.Screen name="fi/assumptions" />
+          <Stack.Screen name="fi/goals" />
+          <Stack.Screen name="fi/strategy" />
+          <Stack.Screen name="fi/surplus" />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />
