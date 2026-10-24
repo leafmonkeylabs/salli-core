@@ -1,13 +1,15 @@
 import { accountsList, entriesGet, entriesProvenance, entriesReverse } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, CardHead, LinesTable, Title, Waiting } from '../../kit';
 import { displayDate, displayRange } from '../../lib/display';
 import { Page } from '../../shell';
+import { Sheet } from '../../sheet';
 import { strings } from '../../strings';
-import { font, useTheme } from '../../theme';
+import { font, size, useTheme } from '../../theme';
 
 const t = strings.entry;
 
@@ -21,19 +23,17 @@ export default function Entry() {
   const accounts = useRead('accounts.list', accountsList);
   const reverse = useMutation({
     mutationFn: () => api.call(entriesReverse, { path: { entry_id: id } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.server] }),
+    onSuccess: () => {
+      setAsking(false);
+      return queryClient.invalidateQueries({ queryKey: [api.server] });
+    },
   });
   const data = entry.data;
   const names = new Map((accounts.data ?? []).map((a) => [a.id, a.name]));
   const statement = provenance.data?.statement;
 
-  const confirm = () => {
-    if (!data) return;
-    Alert.alert(t.confirmTitle(data.description), t.confirmBody, [
-      { text: t.keep, style: 'cancel' },
-      { text: t.confirm, style: 'destructive', onPress: () => reverse.mutate() },
-    ]);
-  };
+  // The reversal as Salli will book it: each line on the other side.
+  const [asking, setAsking] = useState(false);
 
   return (
     <Page back={{ label: strings.books.back, onPress: () => router.back() }}>
@@ -91,7 +91,7 @@ export default function Entry() {
 
           {data.reversed_by || reverse.isSuccess ? null : (
             <View style={{ gap: 6 }}>
-              <Button kind="secondary" label={t.reverse} busy={reverse.isPending} disabled={reverse.isPending} onPress={confirm} />
+              <Button kind="secondary" label={t.reverse} busy={reverse.isPending} disabled={reverse.isPending} onPress={() => setAsking(true)} />
               <Body small muted>
                 {t.reverseHelp}
               </Body>
@@ -102,7 +102,7 @@ export default function Entry() {
               <Body alert>{`✓ ${t.reversed}`}</Body>
             </Card>
           ) : null}
-          {reverse.error ? (
+          {reverse.error && !asking ? (
             <Card>
               <Body>{reverse.error.message}</Body>
             </Card>
@@ -111,10 +111,43 @@ export default function Entry() {
       ) : (
         <Waiting query={entry} what="the entry" />
       )}
+      {data ? (
+        <Sheet visible={asking} onClose={() => setAsking(false)} label={t.confirmTitle(data.description)}>
+          <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.text }]}>
+            {t.confirmTitle(data.description)}
+          </Text>
+          <Body>{t.confirmBody(displayDate(data.entry_date))}</Body>
+          <View style={[styles.reversal, { borderColor: theme.rule, backgroundColor: theme.card }]}>
+            <Text style={[styles.reversalTitle, { color: theme.text }]}>{t.reversalOf(data.description)}</Text>
+            <LinesTable
+              total={false}
+              currency={data.postings[0]?.currency ?? ''}
+              // Each line on the other side, debits first as a ledger lists them.
+              lines={[...data.postings]
+                .sort((a, b) => a.direction - b.direction)
+                .map((posting) => ({
+                  key: posting.id,
+                  account: names.get(posting.account_id) ?? posting.account_id.slice(0, 8),
+                  side: posting.direction > 0 ? 'credit' : 'debit',
+                  amount: posting.amount,
+                  currency: posting.currency,
+                }))}
+            />
+          </View>
+          {reverse.error ? <Body alert>{reverse.error.message}</Body> : null}
+          <View style={{ gap: 4 }}>
+            <Button label={t.confirm} busy={reverse.isPending} disabled={reverse.isPending} onPress={() => reverse.mutate()} />
+            <Button kind="tertiary" label={t.keep} disabled={reverse.isPending} onPress={() => setAsking(false)} />
+          </View>
+        </Sheet>
+      ) : null}
     </Page>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetTitle: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.3 },
+  reversal: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, gap: 6 },
+  reversalTitle: { fontFamily: font.medium, fontSize: size.body },
   meta: { fontFamily: font.mono, fontSize: 13 },
 });

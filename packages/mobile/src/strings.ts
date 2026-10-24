@@ -135,7 +135,9 @@ export const strings = {
     reverse: 'Reverse this entry',
     reverseHelp: 'A posted entry is never edited. Reversing books the opposite entry on the same date and marks this one reversed.',
     confirmTitle: (what: string) => `Reverse ${what}?`,
-    confirmBody: 'Salli books the opposite entry on the same date. Nothing is edited or deleted, and a reversed entry can’t be reversed again.',
+    confirmBody: (date: string) =>
+      `Salli books this opposite entry on ${date} and marks the original reversed. Nothing is edited or deleted, and a reversed entry can’t be reversed again.`,
+    reversalOf: (description: string) => `REVERSAL: ${description}`,
     confirm: 'Book the reversal',
     keep: 'Keep the entry',
     reversed: 'Reversed.',
