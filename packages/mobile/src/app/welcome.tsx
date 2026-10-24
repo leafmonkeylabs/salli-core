@@ -101,6 +101,18 @@ export default function Welcome() {
           </View>
         </View>
 
+        {/* Planned: a pairing code needs the server's side (salli ui --qr) first. */}
+        <View accessible accessibilityState={{ disabled: true }} accessibilityLabel={`${t.scan}. ${t.planned}. ${t.scanHelp}`} style={[styles.scan, { borderColor: theme.rule }]}>
+          <Icon name="scan" colour={theme.muted} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Body style={{ fontFamily: font.medium }}>{t.scan}</Body>
+            <Body small muted>
+              {t.scanHelp}
+            </Body>
+          </View>
+          <Text style={[styles.chip, { color: theme.muted, borderColor: theme.rule }]}>{t.planned}</Text>
+        </View>
+
         <View style={{ flex: 1 }} />
         {/* Adding a server, the person has one: no need to say how to run one. */}
         {adding ? null : (
@@ -125,6 +137,8 @@ export default function Welcome() {
 
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: size.gutter, gap: 28 },
+  scan: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 72, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
+  chip: { fontFamily: font.medium, fontSize: 12.5, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
   cancel: { minHeight: size.target, justifyContent: 'center', alignSelf: 'flex-start', paddingRight: 12 },
   notice: { borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 4 },
   fieldLabel: { fontFamily: font.medium, fontSize: size.small },

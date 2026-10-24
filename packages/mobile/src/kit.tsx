@@ -365,6 +365,7 @@ const ICONS = {
   external: 'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
   upload: 'M12 16V5M7 10l5-5 5 5M5 20h14',
   check: 'M5 12.5l4.5 4.5L19 7.5',
+  scan: 'M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6M8 8h3v3H8zM13 13h3v3h-3zM13 8h3v3M8 13v3h3',
   tax: 'M6 3h9l3 3v15H6zM9 16l6-6M9 10h1.5M13.5 16H15',
   attention: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4',
   independence: 'M4 18l6-6 4 4 6-8M15 8h5v5',
