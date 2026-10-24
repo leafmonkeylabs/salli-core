@@ -80,8 +80,15 @@ def _draft(summary: str, *notes: str) -> Draft:
         ("Consider moving {surplus} into savings.", "advises"),
         ("Your best month was this one.", "advises"),
         ("Your score went up.", "advises"),
+        ("A good month: you kept {savings_rate}.", "advises"),
+        ("Pay down the card before {fi_month}.", "advises"),
+        ("You spent {spending}. Move what is left over.", "advises"),
+        ("You may want to look at {spending}.", "advises"),
+        ("Your cash covers three months of spending.", "number"),
+        ("You kept half of your income.", "number"),
         ("Idle cash could sit in a fixed deposit.", "product"),
         ("Index funds are where the {surplus} goes.", "product"),
+        ("Your pension holds {invested}.", "product"),
         ("You spent {groceries} on food.", "slots"),
         ("You saved {surplus}!", "exclamation"),
     ],
@@ -89,6 +96,20 @@ def _draft(summary: str, *notes: str) -> Draft:
 def test_a_draft_that_breaks_the_rules_is_refused(text, why):
     reason = check(_draft("Where things stand.", text), _figures())
     assert reason is not None and why in reason
+
+
+def test_the_reason_never_repeats_the_word_it_caught():
+    reason = check(_draft("You should save more."), _figures())
+    assert reason is not None and "should" not in reason
+
+
+def test_salli_s_own_words_for_its_figures_pass():
+    for text in (
+        "Your emergency fund covers {cash_cover}.",
+        "Your net worth is {net_worth}.",
+        "Kitchen holds {goal_1_saved} of {goal_1_target}.",
+    ):
+        assert check(_draft(text), _figures()) is None, text
 
 
 def test_a_draft_that_describes_with_slots_is_kept_and_filled():

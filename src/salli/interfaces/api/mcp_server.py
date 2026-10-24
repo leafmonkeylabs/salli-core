@@ -1501,7 +1501,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     @mcp.prompt()
     def review_my_month(month: str = "") -> str:
         """A short review of the month: what came in and went out, what
-        changed, what needs attention, and a few actions."""
+        changed, and what needs attention."""
         when = f"for {month}" if month else "for this month"
         return (
             f"Review my finances {when} with Salli's tools: start with get_signals, "
@@ -1510,8 +1510,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "numbers exactly; never compute or estimate amounts yourself. Tell me, "
             "briefly: how this month compares with my usual months, anything that "
             "needs attention (a forecast low point before payday, a new or more "
-            "expensive recurring charge, a category well above usual), and at most "
-            "three concrete things I could do. Keep it short and plain."
+            "expensive recurring charge, a category well above usual). Describe; "
+            "don't tell me what to do. Keep it short and plain."
         )
 
     @mcp.prompt()

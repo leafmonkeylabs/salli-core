@@ -106,14 +106,14 @@ class AdvisorService:
         }
 
     async def _signals(self, user_id: str) -> list[dict[str, Any]]:
-        """Salli's signals, in its own words: what kind, how pressing, and
-        its title and detail. Never its references."""
+        """Salli's signals, in its own words: what kind, and its title and
+        detail. Never how pressing it is (the briefing doesn't rank or press)
+        nor its references."""
         if self._insights is None:
             return []
         found = await self._insights.signals(user_id)
         return [
-            {k: s.get(k) for k in ("kind", "severity", "title", "detail")}
-            for s in found.get("signals", [])
+            {k: s.get(k) for k in ("kind", "title", "detail")} for s in found.get("signals", [])
         ]
 
     async def persist_report(

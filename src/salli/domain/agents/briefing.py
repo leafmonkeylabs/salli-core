@@ -172,15 +172,32 @@ SLOT = re.compile(r"\{([a-z0-9_]+)\}")
 #: Words that advise, rank, judge or press. The briefing describes.
 ADVICE = re.compile(
     r"\b(should|ought|must|need to|needs to|recommend\w*|suggest\w*|consider\w*|advis\w*|"
-    r"best|better|worse|worst|optimal|ideal|priorit\w*|rank\w*|scor\w*|urgent\w*|"
-    r"make sure|try to|aim to|focus on|time to|it'?s worth|you could|you might want)\b",
+    r"best|better|worse|worst|optimal|ideal|good|bad|great|poor|excellent|healthy|"
+    r"unhealthy|worrying|concerning|impressive|well done|priorit\w*|rank\w*|scor\w*|"
+    r"urgent\w*|pressing|make sure|try to|aim to|focus on|time to|(?<!net )worth|you could|"
+    r"you may want|you might|it would help|it may help|it might help|wise|smart|opportunit\w*)\b",
     re.IGNORECASE,
 )
-#: Kinds of product: a briefing names none.
+#: A sentence that starts with an instruction ("Pay down the card.").
+INSTRUCTION = re.compile(
+    r"(?:^|[.;:]\s+)(pay|move|cut|save|invest|put|open|close|switch|reduce|increase|raise|"
+    r"lower|start|stop|avoid|keep|build|set|try|look|think|plan|shift|transfer|spend|"
+    r"sell|buy|use|boost|trim|redirect|review|check)\b",
+    re.IGNORECASE,
+)
+#: Numbers written as words: a figure is a slot, however it is spelled.
+NUMBER_WORDS = re.compile(
+    r"\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|"
+    r"fifty|sixty|seventy|eighty|ninety|hundred\w*|thousand\w*|million\w*|billion\w*|"
+    r"half|halves|quarters?|third|double|doubled|twice|triple|percent|per cent)\b",
+    re.IGNORECASE,
+)
+#: Kinds of product: a briefing names none ("emergency fund" is not one).
 PRODUCTS = re.compile(
-    r"\b(index funds?|mutual funds?|etfs?|stocks?|equities|bonds?|fixed deposits?|"
-    r"certificates? of deposit|t-?bills?|treasur\w*|annuit\w*|crypto\w*|bitcoin|"
-    r"high[- ]yield|money market)\b",
+    r"\b(index funds?|mutual funds?|etfs?|stocks?|shares|equities|bonds?|gilts?|"
+    r"fixed deposits?|term deposits?|certificates? of deposit|savings accounts?|"
+    r"t-?bills?|treasur\w*|annuit\w*|pensions?|crypto\w*|bitcoin|gold|property|"
+    r"real estate|high[- ]yield|money market|(?<!emergency )funds?)\b",
     re.IGNORECASE,
 )
 
@@ -198,10 +215,14 @@ def check(draft: Draft, figures: Mapping[str, object]) -> str | None:
         words = SLOT.sub("", text)
         if re.search(r"\d", words):
             return "It writes a number itself instead of using a slot."
-        if found := ADVICE.search(words):
-            return f"It advises or judges ({found.group(0)!r}): describe only."
-        if found := PRODUCTS.search(words):
-            return f"It names a kind of product ({found.group(0)!r})."
+        # The reason never repeats the word it caught: echoed back, it
+        # teaches the model what to spell around.
+        if ADVICE.search(words) or INSTRUCTION.search(words):
+            return "It advises, instructs or judges: describe only."
+        if NUMBER_WORDS.search(words):
+            return "It writes a number in words instead of using a slot."
+        if PRODUCTS.search(words):
+            return "It names a kind of product or account: name none."
         if "!" in words:
             return "It uses an exclamation mark."
     return None
