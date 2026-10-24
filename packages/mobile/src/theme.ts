@@ -41,6 +41,8 @@ export interface Theme {
   buttonText: string;
   button2: string;
   button2Text: string;
+  /** A secondary button's edge: none on paper, where sand stands out; on night, where it sits on cards, a hairline. */
+  button2Border: string;
   /** The one key figure's tile. */
   tile: string;
   tileText: string;
@@ -68,6 +70,7 @@ export const light: Theme = {
   buttonText: brand.paper,
   button2: brand.sand,
   button2Text: brand.ink,
+  button2Border: 'transparent',
   tile: brand.ledgerGreen,
   tileText: brand.paperOnDark,
   tileMuted: brand.sand,
@@ -89,8 +92,10 @@ export const night: Theme = {
   fieldBorder: brand.mutedOnDark,
   button: brand.sandOnDark,
   buttonText: brand.night,
-  button2: brand.deepGreen,
+  // Night, not deep green: a deep-green button vanishes on a deep-green card.
+  button2: brand.night,
   button2Text: brand.paperOnDark,
+  button2Border: 'rgba(242, 236, 223, 0.16)',
   tile: brand.sandOnDark,
   tileText: brand.night,
   tileMuted: brand.deepGreen,

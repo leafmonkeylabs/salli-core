@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, CardHead, Money, Title, Waiting } from '../../kit';
-import { displayDate } from '../../lib/display';
+import { displayDate, displayRange } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -25,6 +25,7 @@ export default function Entry() {
   });
   const data = entry.data;
   const names = new Map((accounts.data ?? []).map((a) => [a.id, a.name]));
+  const statement = provenance.data?.statement;
 
   const confirm = () => {
     if (!data) return;
@@ -76,10 +77,22 @@ export default function Entry() {
           <Card style={{ gap: 6 }}>
             <CardHead label={t.cameFrom} />
             <Body>{t.sources[data.source] ?? data.source}</Body>
-            {provenance.data?.statement ? (
-              <Body small muted>
-                {data.external_ref ?? ''}
-              </Body>
+            {statement ? (
+              <>
+                {/* The statement by its bank and period, and the line as it read: never its id. */}
+                <Body small muted>
+                  {t.statementOf(
+                    statement.statement?.bank ?? null,
+                    statement.statement?.period_start && statement.statement.period_end
+                      ? displayRange(statement.statement.period_start, statement.statement.period_end)
+                      : '',
+                  )}
+                </Body>
+                {/* Its amount is left out: the statement sends it without its direction. */}
+                <Body small muted>
+                  {t.asTheBankWrote(`${statement.raw_description}, ${displayDate(statement.raw_date)}`)}
+                </Body>
+              </>
             ) : null}
             {data.reversed_by ? (
               <Body small muted>
