@@ -462,6 +462,13 @@ export const strings = {
     forgetShort: 'Forget it',
     forgetHelp: 'Only its address and your email are kept for a server you are signed out of.',
     signedInCard: 'Signed in',
+    name: 'Name',
+    noName: 'Add a name',
+    nameTitle: 'Name this server',
+    namePlaceholder: 'Home',
+    nameHelp: 'Shown in place of its address on this phone.',
+    save: 'Save',
+    useAddress: 'Use its address',
     since: (when: string, as: string) => `Since ${when}, as ${as}. It is listed in your sign-ins on the console, where you can end it from anywhere.`,
   },
 
