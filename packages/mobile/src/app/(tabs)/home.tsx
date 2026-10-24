@@ -22,7 +22,7 @@ import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, SectionLabel } from '../../kit';
 import { filled, lineChart } from '../../lib/chart';
 import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, sameDaysLastMonth, todayIso, wholeDigits } from '../../lib/display';
-import { useSession } from '../../session';
+import { useSession, labelIn } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 import { Glow, Header, Pull, UNDER_AI } from '../../shell';
@@ -50,7 +50,7 @@ export default function Home() {
   const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
   const [dismissed, setDismissed] = useState<string | undefined>(undefined);
   const reach = useReach();
-  const host = session.status === 'signed-in' ? session.server.replace(/^https?:\/\//, '') : '';
+  const host = session.status === 'signed-in' ? labelIn(session, session.server) : '';
   const api = useApi();
   const queryClient = useQueryClient();
   // Everything on screen from this server, Needs attention's reads too.
@@ -91,7 +91,7 @@ export default function Home() {
         ) : null}
         {endedOn && dismissed !== endedOn ? (
           <Card style={{ gap: 8 }}>
-            <Body alert>{strings.servers.ended(endedOn.replace(/^https?:\/\//, ''))}</Body>
+            <Body alert>{strings.servers.ended(labelIn(session, endedOn))}</Body>
             <Button kind="tertiary" label={strings.servers.dismiss} onPress={() => setDismissed(endedOn)} />
           </Card>
         ) : null}
@@ -220,6 +220,7 @@ function Ring({ share, text }: { share: number; text: string }) {
 
 /** What needs attention: Salli's signals, reminders due, decisions due for review. */
 function Attention({ unreachable }: { unreachable: boolean }) {
+  const theme = useTheme();
   const api = useApi();
   const queryClient = useQueryClient();
   const signals = useRead('insights.signals', insightsSignals);
@@ -291,8 +292,12 @@ function Attention({ unreachable }: { unreachable: boolean }) {
 
   return (
     <Card style={{ paddingVertical: 4 }}>
-      <View style={{ paddingTop: 12, paddingBottom: 4 }}>
+      <View style={styles.attentionHead}>
         <SectionLabel>{t.attention}</SectionLabel>
+        <Pressable accessibilityRole="link" onPress={() => router.push('/attention')} style={styles.seeAll}>
+          <Text style={[styles.seeAllText, { color: theme.muted }]}>{strings.attention.seeAll}</Text>
+          <Icon name="chevron" size={14} colour={theme.muted} />
+        </Pressable>
       </View>
       {loading && !(unreachable && unknown) ? (
         <Loading what={t.loading('what needs attention')} />
@@ -352,6 +357,9 @@ const styles = StyleSheet.create({
   tileLabel: { fontFamily: font.regular, fontSize: 13 },
   tileNote: { fontFamily: font.regular, fontSize: 13, fontVariant: ['tabular-nums'] },
   tileFigure: { fontFamily: font.medium, fontSize: 18, fontVariant: ['tabular-nums'] },
+  attentionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 },
+  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: size.target },
+  seeAllText: { fontFamily: font.regular, fontSize: size.small },
   line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 6 },
   marker: { width: 6, height: 6 },
   lineTitle: { flex: 1, fontFamily: font.regular, fontSize: size.body },

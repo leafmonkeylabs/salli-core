@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSh
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Body, Button, Icon, Logo, Title } from '../kit';
 import { serverUrlOf } from '../lib/server';
-import { useSession } from '../session';
+import { useSession, labelIn } from '../session';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
@@ -62,7 +62,7 @@ export default function Welcome() {
               <Button
                 key={known.server}
                 kind="secondary"
-                label={strings.servers.signInTo(known.server.replace(/^https?:\/\//, ''))}
+                label={strings.servers.signInTo(labelIn(session, known.server))}
                 onPress={() => router.push({ pathname: '/connect', params: { server: known.server } })}
               />
             ))}

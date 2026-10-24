@@ -69,6 +69,9 @@ function Navigator() {
           <Stack.Screen name="fi/goals" />
           <Stack.Screen name="fi/strategy" />
           <Stack.Screen name="fi/surplus" />
+          <Stack.Screen name="attention" />
+          <Stack.Screen name="filing" />
+          <Stack.Screen name="first-run" options={{ gestureEnabled: false }} />
         </Stack.Protected>
         {/* Signed out, the way in; signed in, the way to add another server. */}
         <Stack.Screen name="welcome" />

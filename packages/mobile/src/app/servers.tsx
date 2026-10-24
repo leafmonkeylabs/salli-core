@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Body, Button } from '../kit';
-import { useSession } from '../session';
+import { useSession, labelIn } from '../session';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
@@ -30,7 +30,8 @@ export default function Servers() {
         <View>
           {session.servers.map((server) => {
             const on = server === session.server;
-            const host = server.replace(/^https?:\/\//, '');
+            const host = labelIn(session, server);
+            const named = session.known.some((k) => k.server === server && k.name);
             return (
               <Pressable
                 key={server}
@@ -45,7 +46,7 @@ export default function Servers() {
               >
                 <View style={[styles.radio, { borderColor: on ? theme.text : theme.muted }]}>{on ? <View style={[styles.dot, { backgroundColor: theme.text }]} /> : null}</View>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[styles.host, { color: theme.text }]} numberOfLines={1}>
+                  <Text style={[styles.host, named ? styles.name : null, { color: theme.text }]} numberOfLines={1}>
                     {host}
                   </Text>
                   <Body small muted>
@@ -73,6 +74,7 @@ export default function Servers() {
 }
 
 const styles = StyleSheet.create({
+  name: { fontFamily: font.medium },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8, paddingTop: 8 },
   headerButton: { minHeight: size.target, minWidth: 72, justifyContent: 'center', paddingHorizontal: 8 },
   headerTitle: { fontFamily: font.medium, fontSize: 17 },

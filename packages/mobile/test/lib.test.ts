@@ -9,7 +9,7 @@ import { blocksOf, changeOf, keepNewest, modelsOf, onlyReads, pendingOf, provide
 import { amountOf, dateOf, read, readWith, type AutomationRule } from '../src/lib/automations';
 import { keepUnread, queueOf, sortInbox, type QueuedMessage } from '../src/lib/inbox';
 import { glanceOf, type GlanceReads } from '../src/lib/glance';
-import { forgotten, listOf, LOCK_AFTER_MS, lockDue, remembered, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
+import { forgotten, labelOf, listOf, named, LOCK_AFTER_MS, lockDue, remembered, storeKeyOf, withoutServer, withServer } from '../src/lib/servers';
 
 const REDIRECT = 'money.salli.app:/oauth/callback';
 
@@ -606,5 +606,17 @@ describe('an answer’s Markdown', () => {
       },
       { kind: 'paragraph', lines: [[{ text: 'Where would you like to start?' }], [{ text: 'Line two.' }]] },
     ]);
+  });
+});
+
+describe('server names', () => {
+  it('names a server on this phone, and goes back to its address when cleared', () => {
+    const index = withServer(undefined, 'https://money.example.org');
+    const home = named(index, 'https://money.example.org', '  Home ');
+    expect(listOf(home)[0]?.name).toBe('Home');
+    expect(labelOf('https://money.example.org', 'Home')).toBe('Home');
+    const cleared = named(home, 'https://money.example.org', '');
+    expect(listOf(cleared)[0]?.name).toBeUndefined();
+    expect(labelOf('https://money.example.org', undefined)).toBe('money.example.org');
   });
 });

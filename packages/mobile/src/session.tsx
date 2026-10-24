@@ -13,7 +13,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { conversationsFile } from './ai/files';
 import { authorizationUrlOf, base64UrlOf, callbackOf, tokenOf } from './lib/pkce';
 import { checkServer, type AppSignIn, type ServerCheck } from './lib/server';
-import { forgotten, listOf, remembered, storeKeyOf, withoutServer, withServer, type ServerIndex } from './lib/servers';
+import { forgotten, labelOf, listOf, named, remembered, storeKeyOf, withoutServer, withServer, type ServerIndex } from './lib/servers';
 
 const INDEX_KEY = 'salli.servers';
 /** The one sign-in an earlier version kept: moved into the index on launch. */
@@ -37,6 +37,12 @@ export interface Known {
   signedIn: boolean;
   email?: string;
   currency?: string;
+  name?: string;
+}
+
+/** How a server is shown in this session: the name given to it on this phone, or its address. */
+export function labelIn(session: Session, server: string): string {
+  return labelOf(server, session.status === 'loading' ? undefined : session.known.find((k) => k.server === server)?.name);
 }
 
 export type Session =
@@ -69,6 +75,8 @@ interface SessionApi {
   ended(server: string): void;
   /** Forgets a server signed out of: nothing of it stays on the phone. */
   forgetServer(server: string): Promise<void>;
+  /** Names a server on this phone; an empty name shows its address again. */
+  rename(server: string, name: string): Promise<void>;
 }
 
 const SessionContext = createContext<SessionApi | null>(null);
@@ -286,6 +294,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const rename = useCallback(async (server: string, name: string) => {
+    if (!index.current) return;
+    const next = named(index.current, server, name);
+    index.current = next;
+    await write(INDEX_KEY, next);
+    setSession((now) => (now.status === 'loading' ? now : { ...now, known: listOf(next) }));
+  }, []);
+
   const signOut = useCallback(async () => {
     const stored = current.current;
     if (!stored) return;
@@ -305,7 +321,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const ended = useCallback((server: string) => void forget(server, server), [forget]);
 
-  const value = useMemo(() => ({ session, signIn, switchTo, signOut, ended, forgetServer }), [session, signIn, switchTo, signOut, ended, forgetServer]);
+  const value = useMemo(() => ({ session, signIn, switchTo, signOut, ended, forgetServer, rename }), [session, signIn, switchTo, signOut, ended, forgetServer, rename]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
