@@ -106,6 +106,10 @@ class AdvisoryReport(BaseModel):
     signals: list[BriefingSignal] | None = None
     assumptions: BriefingAssumptions | None = None
     created_at: str | None = None
+    #: Who wrote the summary and notes: always "ai".
+    written_by: Literal["ai"] | None = None
+    #: To show under the briefing wherever it is read.
+    notice: str | None = None
 
 
 class AdvisoryReportList(BaseModel):
@@ -168,6 +172,10 @@ class BriefingDraft(BaseModel):
     figures: dict[str, BriefingFigure]
     signals: list[BriefingSignal]
     assumptions: BriefingAssumptions
+    #: Who wrote the summary and notes: always "ai".
+    written_by: Literal["ai"]
+    #: To show under the briefing wherever it is read.
+    notice: str
 
 
 class BriefingPrepared(BaseModel):

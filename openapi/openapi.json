@@ -13681,6 +13681,29 @@
               }
             ],
             "title": "Created At"
+          },
+          "written_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "ai"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written By"
+          },
+          "notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice"
           }
         },
         "additionalProperties": true,
@@ -16008,6 +16031,15 @@
           },
           "assumptions": {
             "$ref": "#/components/schemas/BriefingAssumptions"
+          },
+          "written_by": {
+            "type": "string",
+            "const": "ai",
+            "title": "Written By"
+          },
+          "notice": {
+            "type": "string",
+            "title": "Notice"
           }
         },
         "type": "object",
@@ -16016,7 +16048,9 @@
           "notes",
           "figures",
           "signals",
-          "assumptions"
+          "assumptions",
+          "written_by",
+          "notice"
         ],
         "title": "BriefingDraft",
         "description": "A briefing before it is stored, as `AdvisoryReport` shows one."

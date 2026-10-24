@@ -6,8 +6,38 @@ Salli holds people's financial records, so we take reports seriously.
 [private vulnerability reporting](https://github.com/leafmonkeylabs/salli-core/security/advisories/new)
 rather than a public issue, or by email to
 [security@salli.money](mailto:security@salli.money). Include what you found,
-how to reproduce it, and the impact you expect. We'll acknowledge within a few working days and keep
-you updated until it's fixed.
+how to reproduce it, and the impact you expect.
+
+## What happens next
+
+| Step | Within |
+|---|---|
+| We acknowledge your report | 3 working days |
+| We confirm it, or say why not, with a severity | 10 working days |
+| A fix released for a critical or high severity issue | 30 days of confirming it |
+| A fix released for anything else | the next minor release |
+
+We keep you updated until it's fixed, credit you in the advisory unless you
+would rather we didn't, and publish a GitHub security advisory when the fix
+ships. Please give us 90 days, or until the fix is out if sooner, before you
+disclose. We won't pursue anyone who reports in good faith, keeps to their
+own account and data, and gives us that time.
+
+## Supported versions
+
+Salli is before 1.0: only the latest release of each part gets security
+fixes.
+
+| Part | Supported |
+|---|---|
+| The server image (`ghcr.io/leafmonkeylabs/salli`) and the console | the latest `server-v` release |
+| The `salli` CLI (`@leafmonkeylabs/salli`) | the latest `cli-v` release |
+| The SDK (`@leafmonkeylabs/salli-sdk`) | the latest `sdk-v` release |
+| `main` | yes, as the next release |
+
+The threat model and controls are in [docs/security.md](docs/security.md);
+what personal data Salli keeps and who else sees it is in
+[docs/privacy.md](docs/privacy.md).
 
 ## Running your own instance safely
 

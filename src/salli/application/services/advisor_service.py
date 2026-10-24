@@ -177,8 +177,11 @@ class AdvisorService:
 
 
 def _shown(report: dict[str, Any]) -> dict[str, Any]:
-    """A stored briefing as the API shows it: its stored parts at the top."""
+    """A stored briefing as the API shows it: its stored parts at the top,
+    labelled as the AI's words."""
     body = report.get("briefing") or {}
-    return {
-        k: report[k] for k in ("id", "user_id", "trigger", "summary", "created_at") if k in report
-    } | {k: body.get(k) for k in ("notes", "figures", "signals", "assumptions")}
+    return (
+        {k: report[k] for k in ("id", "user_id", "trigger", "summary", "created_at") if k in report}
+        | {k: body.get(k) for k in ("notes", "figures", "signals", "assumptions")}
+        | {"written_by": briefing_llm.WRITTEN_BY, "notice": briefing_llm.NOTICE}
+    )

@@ -306,6 +306,14 @@ export type AdvisoryReport = {
      * Created At
      */
     created_at?: string | null;
+    /**
+     * Written By
+     */
+    written_by?: 'ai' | null;
+    /**
+     * Notice
+     */
+    notice?: string | null;
     [key: string]: unknown;
 };
 
@@ -1653,6 +1661,14 @@ export type BriefingDraft = {
      */
     signals: Array<BriefingSignal>;
     assumptions: BriefingAssumptions;
+    /**
+     * Written By
+     */
+    written_by: 'ai';
+    /**
+     * Notice
+     */
+    notice: string;
 };
 
 /**

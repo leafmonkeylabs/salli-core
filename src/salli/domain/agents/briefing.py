@@ -30,6 +30,11 @@ from salli.domain.currency import format_amount
 
 Topic = Literal["cash", "spending", "saving", "debt", "independence", "goals", "assumptions"]
 
+#: Who wrote a briefing's words, on every briefing the API shows.
+WRITTEN_BY = "ai"
+#: Shown under every briefing, wherever it is read.
+NOTICE = "Written by an AI from Salli's own figures. Not financial advice."
+
 BRIEFING_PROMPT = (
     """You write a person's monthly money briefing for Salli. You describe; you never advise.
 

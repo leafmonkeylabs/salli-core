@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+Every change under **Breaking** needs something written against the last
+release to change with it, so the next releases are minor bumps: the SDK and
+the CLI are 0.5.0, and the server's next release is 0.5.0
+([RELEASING.md](RELEASING.md#breaking-changes)).
+
 ### Added
 
 - **Your AI starts from where you stand, and can find what you booked.**
@@ -21,7 +26,23 @@
   `client_ref`; sent again, it returns the entry first booked with it
   (`already_posted`) and books nothing.
 
-### Changed
+- **A briefing says an AI wrote it.** `AdvisoryReport` and `BriefingDraft`
+  carry `written_by` (`"ai"`) and a `notice` ("Written by an AI from Salli's
+  own figures. Not financial advice."), which `salli advisor` prints under
+  every briefing in place of its own words.
+- **Security and privacy, written down.** `docs/security.md` (the threat
+  model, and the controls with the gaps still open), `docs/privacy.md` (what
+  Salli stores, who else sees it and when, retention, export and erasure,
+  and an impact assessment template), response times and supported versions
+  in `SECURITY.md`, and a breaking-change policy in `RELEASING.md`.
+- **The supply chain is checked.** Every workflow's actions are pinned to
+  commit SHAs; Dependabot updates Python, npm, actions and base images
+  weekly; CodeQL scans the Python and TypeScript; and CI runs pip-audit and
+  npm audit (reporting only, until the current findings are fixed).
+
+### Breaking
+
+#### Changed
 
 - **MCP: `suggested_tax_accounts` only reads** (breaking for MCP clients):
   its `apply` is gone, and `apply_suggested_tax_accounts` creates the
@@ -65,7 +86,7 @@
   `fx_rate` are gone from `IncomeItem`. `salli profile balance-sheet` takes
   `CODE:NAME:TYPE:AMOUNT[:ROLE]`; `salli profile income` takes `CODE:NAME`.
 
-### Removed
+#### Removed
 
 - **The FIRE strategy generator.** A model no longer drafts a FIRE strategy:
   its allocation buckets, returns and withdrawal rate amounted to
