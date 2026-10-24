@@ -467,7 +467,10 @@ function registerGoals(program: Command, app: App): void {
 // ── Advisor ──────────────────────────────────────────────────────────────────
 
 /** A briefing's summary and notes, then Salli's signals, as it was written. */
-function notesView(app: App, b: { summary?: string | null; notes?: { topic: string; text: string }[] | null; signals?: { title?: string | null }[] | null }): void {
+function notesView(
+  app: App,
+  b: { summary?: string | null; notes?: { topic: string; text: string }[] | null; signals?: { title?: string | null }[] | null; notice?: string | null },
+): void {
   const out = app.out;
   if (b.summary) out.line(singleLine(b.summary));
   for (const note of b.notes ?? []) out.line(`${out.colors.dim(note.topic.padEnd(12))} ${singleLine(note.text)}`);
@@ -477,7 +480,8 @@ function notesView(app: App, b: { summary?: string | null; notes?: { topic: stri
     out.line(out.heading('Signals'));
     for (const s of signals) out.line(`- ${singleLine(str(s.title))}`);
   }
-  out.note('The AI’s words; every figure in them is Salli’s. Not advice.');
+  // The API's own label, so every surface says the same words.
+  if (b.notice) out.note(singleLine(b.notice));
 }
 
 function reportView(app: App, report: AdvisoryReport): void {

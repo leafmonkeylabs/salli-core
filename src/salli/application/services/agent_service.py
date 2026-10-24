@@ -945,7 +945,7 @@ class AgentService:
             {"user_id": user_id, "email": email},
             config=config,
         )
-        from salli.domain.agents.briefing import view
+        from salli.domain.agents.briefing import NOTICE, WRITTEN_BY, view
 
         draft = result.get("draft")
         shown = view(draft, result.get("context") or {}) if draft else {}
@@ -959,6 +959,8 @@ class AgentService:
                 "figures": body.get("figures", {}),
                 "signals": body.get("signals", []),
                 "assumptions": body.get("assumptions", {}),
+                "written_by": WRITTEN_BY,
+                "notice": NOTICE,
             },
         }
 

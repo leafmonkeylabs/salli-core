@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
 
+# Actions are pinned to commit SHAs (Dependabot keeps them current).
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -24,8 +25,8 @@ jobs:
       # Migration tests create and drop their own databases on this server.
       SALLI_TEST_DATABASE_URL: postgresql+asyncpg://postgres:ci@localhost:5432/postgres
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           version: "0.12.18"
       - run: uv sync --group dev --frozen
@@ -108,8 +109,8 @@ jobs:
     # and the console's type check, lint, component tests and build.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -161,7 +162,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --ipc=host
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: npm ci
       - name: Build, within the budget
         run: npm run build --workspace @leafmonkeylabs/salli-console
@@ -170,7 +171,7 @@ jobs:
         run: npx playwright test --shard=${{ matrix.shard }}/3
       - name: Report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: console-playwright-report-${{ matrix.shard }}
           path: |
@@ -181,14 +182,14 @@ jobs:
   cla-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Tests for the CLA bot
         run: node --test .github/cla/check.test.js
 
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: gitleaks
@@ -201,3 +202,27 @@ jobs:
           echo "${SHA256}  gitleaks.tgz" | sha256sum -c -
           tar -xzf gitleaks.tgz gitleaks
           ./gitleaks git . --redact --no-banner
+
+  security:
+    # Known vulnerabilities in what ships: the Python dependencies as uv.lock
+    # pins them (without the dev group), and the npm packages' runtime
+    # dependencies at high severity or above. Not yet a gate: it reports the
+    # findings already in the lock files until Dependabot's updates clear
+    # them, then continue-on-error goes.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          version: "0.12.18"
+      - name: pip-audit
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit==2.10.1 --strict --disable-pip --requirement "$RUNNER_TEMP/requirements.txt"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: npm audit
+        if: ${{ !cancelled() }}
+        run: npm audit --omit=dev --audit-level=high

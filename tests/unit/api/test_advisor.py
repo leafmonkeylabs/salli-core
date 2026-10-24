@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from salli.config import get_settings
+from salli.domain.agents.briefing import NOTICE
 from tests.unit.api.conftest import AUTH
 
 pytestmark = pytest.mark.asyncio
@@ -20,6 +21,8 @@ _BODY = {
         {"kind": "price_change", "severity": "medium", "title": "A charge went up", "detail": "x"}
     ],
     "assumptions": {"status": "placeholder", "placeholders": ["real_return"]},
+    "written_by": "ai",
+    "notice": NOTICE,
 }
 
 

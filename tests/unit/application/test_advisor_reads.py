@@ -58,3 +58,21 @@ async def test_a_run_records_the_score_it_described(monkeypatch):
     assert report["summary"] == "FI comes in May 2042 at this pace."
     [score] = uow.fi_scores.rows
     assert (score["overall_score"], score["as_of"]) == ("60.08", "2026-10-11")
+
+
+async def test_every_briefing_says_an_ai_wrote_it(monkeypatch):
+    import json
+
+    from salli.domain.agents.briefing import NOTICE
+    from tests.fakes import FakeLLM
+
+    uow = h.uow()
+    advisor = _advisor(uow, monkeypatch)
+    answer = json.dumps({"summary": "FI comes in {fi_month} at this pace.", "notes": []})
+    monkeypatch.setattr(advisor, "llm_for", AsyncMock(return_value=FakeLLM(answer)))
+
+    ran = await advisor.run_advisor(h.USER)
+    [listed] = await advisor.list_reports(h.USER)
+
+    for report in (ran, listed):
+        assert (report["written_by"], report["notice"]) == ("ai", NOTICE)
