@@ -248,4 +248,5 @@ async def test_talk_with_me_answers_from_salli_shows_each_change_and_keeps_the_g
     assert "say in one sentence what it will change; I approve each change myself" in text
     assert text.endswith(mcp_server.GUARDRAILS)
     _guarded(text)
+    assert "Keep it brief" in text and "only when I ask for detail" in text
     assert "My first question" not in await _prompt(services, "talk_with_me", {})

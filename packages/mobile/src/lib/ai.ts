@@ -151,3 +151,11 @@ export function pendingOf(messages: readonly ModelMessage[]): Pending[] {
     .filter((a) => !answered.has(a.approvalId))
     .map((a) => ({ approvalId: a.approvalId, ...(calls.get(a.toolCallId) ?? { tool: 'unknown', input: {} }) }));
 }
+
+/**
+ * How the app's AI answers on a phone, added to the server's instructions
+ * (older servers ask for "a few short sentences"): figures first, short,
+ * longer only when asked or needed.
+ */
+export const BRIEF =
+  'On a phone: lead with the figure, in one to three short lines or a short list. No preamble, no restating the question, no closing offer. Go longer only when asked for detail or when the question needs it, such as a decision or a comparison.';

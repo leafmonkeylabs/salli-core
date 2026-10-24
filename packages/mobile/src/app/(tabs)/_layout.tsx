@@ -43,7 +43,7 @@ function AIButton() {
   const insets = useSafeAreaInsets();
   const ai = useYourAI();
   const tab = usePathname().replace(/^\//, '');
-  if (!ai.loaded || !['home', 'cash', 'decide', 'books'].includes(tab)) return null;
+  if (!ai.loaded || !ai.enabled || !['home', 'cash', 'decide', 'books'].includes(tab)) return null;
   return (
     <Pressable
       accessibilityRole="button"

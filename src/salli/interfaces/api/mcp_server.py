@@ -1571,8 +1571,11 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "Talk with me about my money, with Salli's tools. "
             + start
             + "Read only what my question needs (get_safe_to_spend, get_signals, "
-            "list_due_reviews, get_cash_forecast and the like), and answer in a few short "
-            "sentences or a short list, quoting Salli's figures with their currencies and dates. "
+            "list_due_reviews, get_cash_forecast and the like). Keep it brief: the figure first, "
+            "in one to three short lines or a short list, quoting Salli's figures with their "
+            "currencies and dates; no preamble, no restating my question, no closing offer. Go "
+            "longer only when I ask for detail or the question needs it, such as a decision or "
+            "a comparison. "
             "Before any tool that changes my books or my reminders, say in one sentence what "
             "it will change; I approve each change myself. When I ask about a decision, think "
             "it through as the think_through_decision prompt does. " + GUARDRAILS

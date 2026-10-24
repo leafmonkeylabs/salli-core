@@ -23,6 +23,8 @@ const keyOf = (provider: ProviderId) => `salli.ai.key.${provider}`;
 interface Settings {
   provider?: ProviderId;
   models: Partial<Record<ProviderId, string>>;
+  /** Turned off in Your AI: no button, no conversation, nothing sent. */
+  off?: boolean;
 }
 
 export interface Conversation {
@@ -40,13 +42,16 @@ interface Stored {
 
 export interface YourAI {
   loaded: boolean;
+  /** Whether the person uses an AI at all on this phone (design 32). */
+  enabled: boolean;
+  setEnabled(on: boolean): Promise<void>;
   provider: ProviderId | undefined;
   model: string | undefined;
   /** The key's last four characters, when one is saved for the provider. */
   keyEnd: string | undefined;
   /** When the AI's sign-in to the server's MCP was made; undefined when not connected. */
   connectedSince: string | undefined;
-  /** Provider, key, model and the tools: everything a conversation needs. */
+  /** On, with a provider, key, model and the tools: everything a conversation needs. */
   ready: boolean;
   conversations: readonly Conversation[];
   setProvider(provider: ProviderId): Promise<void>;
@@ -126,6 +131,9 @@ export function YourAIProvider({ children }: { children: ReactNode }) {
     setSettings(next);
     await SecureStore.setItemAsync(SETTINGS, JSON.stringify(next));
   }, []);
+
+  const enabled = !settings?.off;
+  const setEnabled = useCallback(async (on: boolean) => writeSettings({ ...(settings ?? { models: {} }), off: !on }), [settings, writeSettings]);
 
   const provider = settings?.provider;
   const model = provider ? (settings?.models[provider] ?? providerOf(provider)?.defaultModel) : undefined;
@@ -237,11 +245,13 @@ export function YourAIProvider({ children }: { children: ReactNode }) {
   const value = useMemo<YourAI>(
     () => ({
       loaded,
+      enabled,
+      setEnabled,
       provider,
       model,
       keyEnd,
       connectedSince: stored?.since,
-      ready: Boolean(provider && model && keyEnd && stored),
+      ready: Boolean(enabled && provider && model && keyEnd && stored),
       conversations,
       setProvider,
       setModel,
@@ -255,7 +265,7 @@ export function YourAIProvider({ children }: { children: ReactNode }) {
       save,
       deleteConversations,
     }),
-    [loaded, provider, model, keyEnd, stored, conversations, setProvider, setModel, setKey, removeKey, key, connect, disconnect, mcpToken, mcpUrl, save, deleteConversations],
+    [loaded, enabled, setEnabled, provider, model, keyEnd, stored, conversations, setProvider, setModel, setKey, removeKey, key, connect, disconnect, mcpToken, mcpUrl, save, deleteConversations],
   );
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
 }
