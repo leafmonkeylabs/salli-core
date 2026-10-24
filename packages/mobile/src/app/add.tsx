@@ -71,7 +71,10 @@ export default function Add() {
       }),
     onSuccess: async (entry) => {
       await queryClient.invalidateQueries({ queryKey: [api.server] });
-      router.replace({ pathname: '/entry/[id]', params: { id: entry.id, booked: '1' } });
+      // The account the money moved in (what you own or owe), for its new balance on the entry.
+      const held = (id: string | undefined) => accounts.data?.find((a) => a.id === id && (a.type === 'asset' || a.type === 'liability'));
+      const money = held(credit) ?? held(debit);
+      router.replace({ pathname: '/entry/[id]', params: { id: entry.id, booked: '1', ...(money ? { account: money.id } : {}) } });
     },
   });
 
