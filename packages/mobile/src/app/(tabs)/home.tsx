@@ -19,8 +19,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent }
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, SectionLabel } from '../../kit';
-import { filled, lineChart, shares } from '../../lib/chart';
-import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, previousMonthOf, todayIso, wholeDigits } from '../../lib/display';
+import { lineChart } from '../../lib/chart';
+import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, todayIso, wholeDigits } from '../../lib/display';
 import { useSession } from '../../session';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -35,14 +35,12 @@ export default function Home() {
   const safe = useRead('insights.safeToSpend', insightsSafeToSpend);
   const sheet = useRead('reports.balanceSheet', reportsBalanceSheet);
   const spent = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: month.from, to_date: month.to } });
-  const lastMonth = previousMonthOf(today);
-  const spentBefore = useRead('ledger.incomeStatement', ledgerIncomeStatement, { query: { from_date: lastMonth.from, to_date: lastMonth.to } });
   const fi = useRead('fi.score.get', fiScoreGet);
   const forecast = useRead('insights.forecast', insightsForecast);
   const history = useRead('insights.netWorth', insightsNetWorth, { query: { months: 12 } });
   const reads = [safe, sheet, spent, fi];
   const monthName = monthNameOf(today);
-  const lastName = monthNameOf(lastMonth.from);
+
   const { session } = useSession();
   const endedOn = session.status === 'signed-in' ? session.endedOn : undefined;
   const [dismissed, setDismissed] = useState<string | undefined>(undefined);
@@ -128,19 +126,11 @@ export default function Home() {
           </Tile>
           <Tile
             label={t.spentShort(monthName.slice(0, 3))}
-            spoken={
-              spent.data && spentBefore.data
-                ? t.spentAgainst(monthName, amountParts(spent.data.total_expenses, spent.data.currency).spoken, lastName, amountParts(spentBefore.data.total_expenses, spentBefore.data.currency).spoken)
-                : undefined
-            }
+            spoken={spent.data ? `${t.spentIn(monthName)}: ${amountParts(spent.data.total_expenses, spent.data.currency).spoken}` : undefined}
             figure={spent.data ? wholeDigits(spent.data.total_expenses, spent.data.currency) : undefined}
             missing={missing}
-          >
-            {spent.data && spentBefore.data ? <Bars amounts={[spent.data.total_expenses, spentBefore.data.total_expenses]} /> : null}
-          </Tile>
-          <Tile label={t.fiScore} spoken={fi.data ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : undefined} figure={fi.data ? fi.data.overall_score.replace(/\.\d+$/, '') : undefined} missing={missing}>
-            {fi.data ? <Ring share={filled(fi.data.overall_score)} /> : null}
-          </Tile>
+          />
+          <Tile label={t.fiScore} spoken={fi.data ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : undefined} figure={fi.data ? fi.data.overall_score.replace(/\.\d+$/, '') : undefined} missing={missing} />
         </View>
 
         <Attention unreachable={reach.unreachable} />
@@ -189,35 +179,6 @@ function Spark({ amounts, colour, height, low, label }: { amounts: readonly stri
         </Svg>
       ) : null}
     </View>
-  );
-}
-
-/** This month's amount against last month's, as two bars. */
-function Bars({ amounts }: { amounts: readonly [string, string] }) {
-  const theme = useTheme();
-  const [now, before] = shares(amounts);
-  return (
-    <View style={{ gap: 4 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={[styles.bar, { backgroundColor: theme.rule }]}>
-        <View style={[styles.bar, { width: `${(now ?? 0) * 100}%`, backgroundColor: theme.chart }]} />
-      </View>
-      <View style={[styles.bar, { backgroundColor: theme.rule }]}>
-        <View style={[styles.bar, { width: `${(before ?? 0) * 100}%`, backgroundColor: theme.muted }]} />
-      </View>
-    </View>
-  );
-}
-
-/** How far a score fills its ring. */
-function Ring({ share }: { share: number }) {
-  const theme = useTheme();
-  const r = 11;
-  const round = 2 * Math.PI * r;
-  return (
-    <Svg width={28} height={28} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Circle cx={14} cy={14} r={r} stroke={theme.rule} strokeWidth={4} fill="none" />
-      <Circle cx={14} cy={14} r={r} stroke={theme.chart} strokeWidth={4} fill="none" strokeDasharray={`${share * round} ${round}`} transform="rotate(-90 14 14)" />
-    </Svg>
   );
 }
 
@@ -350,7 +311,6 @@ const styles = StyleSheet.create({
   tile: { flex: 1, padding: 12 },
   tileLabel: { fontFamily: font.regular, fontSize: 13 },
   tileFigure: { fontFamily: font.medium, fontSize: 18, fontVariant: ['tabular-nums'] },
-  bar: { height: 6 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 6 },
   marker: { width: 6, height: 6 },
   lineTitle: { flex: 1, fontFamily: font.regular, fontSize: size.body },
