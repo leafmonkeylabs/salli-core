@@ -1,5 +1,8 @@
 import type { ComponentProps } from 'react';
+import { onboardingStatus } from '@leafmonkeylabs/salli-sdk';
 import { router, Tabs, usePathname } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { useRead } from '../../api';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useYourAI } from '../../ai/store';
@@ -18,6 +21,14 @@ const PLACES: { name: string; label: string; icon: IconName }[] = [
 
 export default function TabsLayout() {
   const theme = useTheme();
+  // First run (designs 37 to 41), once, while the server says onboarding isn't done.
+  const status = useRead('onboarding.status', onboardingStatus);
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || !status.data || status.data.complete) return;
+    asked.current = true;
+    router.push('/first-run');
+  }, [status.data]);
   return (
     <View style={{ flex: 1 }}>
       <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.work } }} tabBar={(props) => <Bar {...props} />}>
