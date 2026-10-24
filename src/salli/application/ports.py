@@ -412,9 +412,32 @@ class StatementRepository(ABC):
         transactions: list[Any],
         storage_key: str = "",
         account_id: str | None = None,
+        kind: str = "import",
     ) -> None:
         """Store the statement and its transactions, and fill in each
-        transaction's new `id` and `statement_id`."""
+        transaction's new `id` and `statement_id`. `kind` is "import" (a file
+        or a feed) or "drafts" (a batch of drafted transactions)."""
+        ...
+
+    @abstractmethod
+    async def open_drafts(self, user_id: str, account_id: str) -> str | None:
+        """The account's drafts batch still in review (a row of it waiting),
+        locked until the unit of work ends; None when there is none."""
+        ...
+
+    @abstractmethod
+    async def add_rows(
+        self,
+        user_id: str,
+        statement_id: str,
+        transactions: list[Any],
+        *,
+        period_start: str,
+        period_end: str,
+    ) -> None:
+        """Add transactions to one of the user's statements (a drafts batch),
+        widen its period to take them in, and fill in each one's `id` and
+        `statement_id`."""
         ...
 
     @abstractmethod

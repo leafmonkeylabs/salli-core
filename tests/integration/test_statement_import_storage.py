@@ -3,6 +3,7 @@ what importing the same file again finds."""
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -245,3 +246,58 @@ async def test_a_statement_is_reviewed_once_nothing_in_it_waits(uow_factory, cha
         "u1", "oct.csv", STATEMENT, account_id=checking, api_key="k"
     )
     assert await status(again.statement_id) == "reviewed"
+
+
+async def test_drafts_collect_in_one_batch_while_it_waits(uow_factory, chart):
+    parsing = ParsingService(uow_factory)
+    checking = chart["checking"]
+
+    def drafted(description: str, day: str) -> RawRow:
+        return RawRow(
+            date=day,
+            description=description,
+            amount=Decimal("8.40"),
+            credit_flag=False,
+            currency="",
+        )
+
+    first = await parsing.draft(
+        "u1",
+        [drafted("CORNER BAKERY", "2026-10-05")],
+        account_id=checking,
+        source="Messages",
+        api_key="k",
+    )
+    second = await parsing.draft(
+        "u1",
+        [drafted("CITY TRANSIT", "2026-10-07")],
+        account_id=checking,
+        source="Mail",
+        api_key="k",
+    )
+
+    assert second.statement_id == first.statement_id
+    async with uow_factory() as uow:
+        statement = await uow.statements.get_statement("u1", first.statement_id)
+        listed = await uow.statements.list_statements("u1")
+    assert statement is not None
+    assert (statement["bank"], statement["period_start"], statement["period_end"]) == (
+        "Messages",
+        "2026-10-05",
+        "2026-10-07",
+    )
+    assert [s["status"] for s in listed] == ["pending"]
+    waiting = await _rows(uow_factory, first.statement_id)
+    assert sorted(t.raw.description for t in waiting) == ["CITY TRANSIT", "CORNER BAKERY"]
+    assert {t.raw.currency for t in waiting} == {"USD"}  # the account's
+
+    # Reviewed, the batch is done: the next draft starts another.
+    await parsing.discard("u1", first.statement_id)
+    third = await parsing.draft(
+        "u1",
+        [drafted("BOOKSHOP", "2026-10-08")],
+        account_id=checking,
+        source="Messages",
+        api_key="k",
+    )
+    assert third.statement_id not in ("", first.statement_id)

@@ -155,3 +155,31 @@ describe('salli statements', () => {
     expect(own.stderr).toContain('the statement’s own account');
   });
 });
+
+describe('salli statements draft', () => {
+  it('drafts one transaction on an account for review, money out unless --in', async () => {
+    const result = await run(['statements', 'draft', '8.40', 'Corner Bakery', '--account', 'checking', '--date', '2026-10-24', '--ref', 'REF-4471', '--source', 'Messages']);
+    expect(result.code).toBe(0);
+    expect(mock.data.bodies.find((b) => b.path === '/v1/statements/drafts')?.body).toEqual({
+      account_id: uid(2),
+      source: 'Messages',
+      transactions: [{ date: '2026-10-24', description: 'Corner Bakery', amount: '8.40', credit_flag: false, bank_ref: 'REF-4471' }],
+    });
+    expect(result.stderr).toContain(`Drafted 1 transaction for review into 1100 Checking (statement ${uid(802).slice(0, 8)}).`);
+  });
+
+  it('says when it was drafted before, and prints the result with --json', async () => {
+    const result = await run(['statements', 'draft', '2400', 'Payroll', '--account', 'checking', '--in', '--ref', 'seen', '--json']);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ drafted: 0, duplicates_dropped: 1 });
+    const body = mock.data.bodies.find((b) => b.path === '/v1/statements/drafts')?.body as { transactions: Array<{ credit_flag: boolean }> };
+    expect(body.transactions[0]?.credit_flag).toBe(true);
+  });
+
+  it('refuses an amount that is not more than zero', async () => {
+    const result = await run(['statements', 'draft', '-8.40', 'Corner Bakery', '--account', 'checking']);
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain('always more than zero');
+    expect(mock.requestsTo('POST', '/v1/statements/drafts')).toEqual([]);
+  });
+});

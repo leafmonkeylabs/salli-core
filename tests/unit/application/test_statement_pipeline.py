@@ -94,6 +94,7 @@ class Statements:
         transactions: list[ParsedTransaction],
         storage_key: str = "",
         account_id: str | None = None,
+        kind: str = "import",
     ) -> None:
         self.statements[statement_id] = {
             "id": statement_id,
@@ -102,11 +103,43 @@ class Statements:
             "period_start": period_start,
             "period_end": period_end,
             "storage_key": storage_key,
-        }
+        } | ({"kind": kind} if kind != "import" else {})
+        self._add(statement_id, account_id, transactions)
+
+    def _add(
+        self, statement_id: str, account_id: str | None, transactions: list[ParsedTransaction]
+    ) -> None:
         for txn in transactions:
             txn.id, txn.statement_id = str(uuid.uuid4()), statement_id
             txn.account_id = account_id or ""
             self.rows[txn.id] = replace(txn)
+
+    async def open_drafts(self, user_id: str, account_id: str) -> str | None:
+        waiting = {
+            t.statement_id
+            for t in self.rows.values()
+            if t.dedup_status not in ("posted", "discarded", "exact_duplicate")
+        }
+        batches = [
+            s["id"]
+            for s in self.statements.values()
+            if s.get("kind") == "drafts" and s["account_id"] == account_id and s["id"] in waiting
+        ]
+        return batches[-1] if batches else None
+
+    async def add_rows(
+        self,
+        user_id: str,
+        statement_id: str,
+        transactions: list[ParsedTransaction],
+        *,
+        period_start: str,
+        period_end: str,
+    ) -> None:
+        statement = self.statements[statement_id]
+        statement["period_start"] = min(statement["period_start"], period_start)
+        statement["period_end"] = max(statement["period_end"], period_end)
+        self._add(statement_id, statement["account_id"], transactions)
 
     async def get_statement(self, user_id: str, statement_id: str) -> dict[str, Any] | None:
         return self.statements.get(statement_id)
@@ -1053,3 +1086,110 @@ async def test_a_plan_that_needs_signing_in_refuses_a_request_and_lets_a_sync_go
     assert model == []
     assert "The model was not asked: Sign in with ChatGPT again." in synced.errors
     assert len(synced.transactions) == 1  # queued for review all the same
+
+
+# ── Drafts: what the person's own automation read from a message ─────────────
+
+
+async def test_drafts_wait_for_review_in_a_batch_on_their_account(world, model):
+    drafted = await world.service().draft(
+        USER, [_row("CORNER BAKERY", "8.40")], account_id="checking", source="Messages", api_key="k"
+    )
+
+    (statement,) = world.statements.statements.values()
+    assert statement | {"id": "-"} == {
+        "id": "-",
+        "bank": "Messages",
+        "account_id": "checking",
+        "period_start": "2026-10-05",
+        "period_end": "2026-10-05",
+        "storage_key": "",
+        "kind": "drafts",
+    }
+    (txn,) = drafted.transactions
+    # Sorted as an import is: the account the money side, the model the other.
+    assert (txn.debit_account_id, txn.credit_account_id) == ("food", "checking")
+    assert txn.raw.ref_source == "draft"
+    assert [t.id for t in await world.service().get_pending(USER, drafted.statement_id)] == [txn.id]
+
+
+async def test_a_draft_joins_the_batch_still_in_review_and_widens_it(world):
+    first = await world.service().draft(
+        USER, [_row("CORNER BAKERY", "8.40")], account_id="checking", source="Messages", api_key="k"
+    )
+    second = await world.service().draft(
+        USER,
+        [_row("CITY TRANSIT", "2.75", date="2026-10-07")],
+        account_id="checking",
+        source="Mail",
+        api_key="k",
+    )
+
+    assert second.statement_id == first.statement_id
+    (statement,) = world.statements.statements.values()
+    assert (statement["bank"], statement["period_start"], statement["period_end"]) == (
+        "Messages",
+        "2026-10-05",
+        "2026-10-07",
+    )
+    assert len(await world.service().get_pending(USER, first.statement_id)) == 2
+
+
+async def test_once_a_batch_is_reviewed_the_next_draft_starts_another(world):
+    first = await world.service().draft(
+        USER, [_row("CORNER BAKERY", "8.40")], account_id="checking", source="Messages", api_key="k"
+    )
+    await world.service().discard(USER, first.statement_id)
+    # Another account's drafts are a batch of their own, too.
+    on_card = await world.service().draft(
+        USER, [_row("BOOKSHOP", "21.00")], account_id="card", source="Messages", api_key="k"
+    )
+
+    again = await world.service().draft(
+        USER,
+        [_row("CITY TRANSIT", "2.75", date="2026-10-07")],
+        account_id="checking",
+        source="Messages",
+        api_key="k",
+    )
+
+    assert len({first.statement_id, on_card.statement_id, again.statement_id}) == 3
+
+
+async def test_the_same_message_drafted_twice_is_one_transaction(world, model):
+    message = _row("CORNER BAKERY", "8.40", bank_ref="REF-4471")
+    await world.service().draft(
+        USER, [message], account_id="checking", source="Messages", api_key="k"
+    )
+    model.clear()
+
+    again = await world.service().draft(
+        USER, [message], account_id="checking", source="Messages", api_key="k"
+    )
+
+    assert (again.transactions, again.duplicates_dropped) == ([], 1)
+    assert model == []  # nothing new to sort
+
+
+async def test_a_statement_row_for_a_drafted_transaction_is_flagged_not_dropped(world):
+    await world.service().draft(
+        USER, [_row("CORNER BAKERY", "8.40")], account_id="checking", source="Messages", api_key="k"
+    )
+
+    month = await world.service().import_rows(
+        USER,
+        [replace(_row("CORNER BAKERY 0042", "8.40", date="2026-10-06"), ref_source="csv")],
+        bank="Example Bank",
+        account_id="checking",
+        api_key="k",
+    )
+
+    [row] = month.transactions
+    assert row.dedup_status == "fuzzy_match" and row.duplicate_of
+
+
+async def test_drafts_are_on_one_of_the_users_money_accounts(world):
+    with pytest.raises(ValueError, match="Food is an expense account"):
+        await world.service().draft(
+            USER, [_row("CORNER BAKERY", "8.40")], account_id="food", source="Messages"
+        )

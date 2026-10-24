@@ -3,6 +3,8 @@ Statement parsing router.
 
 POST /statements/upload        — upload a bank statement (PDF, XLSX, CSV, OFX/QFX, QIF,
                                  camt.053, MT940), returns ParseResult
+POST /statements/drafts        — transactions the person's own automation drafted (a
+                                 bank's text message, an email), for review
 GET  /statements/               — statements uploaded so far, newest first
 GET  /statements/{id}           — a statement's transactions still to review
 POST /statements/{id}/post      — approve and post selected transactions as journal entries
@@ -11,14 +13,16 @@ POST /statements/{id}/discard   — discard pending transactions: they are never
 
 from __future__ import annotations
 
+import datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Form, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from salli.application.services.parsing_service import transaction_view
-from salli.domain.parsing.models import ParsedTransaction
-from salli.interfaces.api.contract import Amount, CurrencyCode, FileUpload
+from salli.domain.parsing.models import ParsedTransaction, RawRow
+from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, FileUpload
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 
 router = APIRouter(prefix="/statements", tags=["statements"])
@@ -185,6 +189,106 @@ async def upload_statement(
         period_end=result.period_end,
         total_rows=len(result.raw_rows),
         parsed=len(result.transactions),
+        errors=result.errors,
+        transactions=[_transaction(t) for t in result.transactions],
+    )
+
+
+class DraftTransaction(BaseModel):
+    """One transaction as the person's automation read it: what a bank's
+    message says, never the message itself."""
+
+    #: When it happened, YYYY-MM-DD.
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", examples=["2026-10-24"])
+    #: Who was paid or who paid, as the message names them.
+    description: str = Field(min_length=1, max_length=200)
+    #: Always positive, as written in the message: `credit_flag` says which
+    #: way the money moved.
+    amount: AmountIn
+    #: True when money came in.
+    credit_flag: bool
+    #: The bank's own reference for it, when the message gives one: the same
+    #: reference drafted twice is one transaction.
+    bank_ref: str = Field(default="", max_length=100)
+    #: Its currency, when not the account's.
+    currency: CurrencyCode | None = None
+
+    @field_validator("date")
+    @classmethod
+    def _real_date(cls, value: str) -> str:
+        datetime.date.fromisoformat(value)
+        return value
+
+    @field_validator("amount")
+    @classmethod
+    def _positive(cls, value: Decimal) -> Decimal:
+        if value <= 0:
+            raise ValueError("must be more than zero: credit_flag says which way it went")
+        return value
+
+
+class DraftRequest(BaseModel):
+    #: The account they are on (an active asset or liability account): the
+    #: money side of each, as a statement's account is.
+    account_id: str
+    #: What drafted them, named for review ("Messages", "Mail"): the name of
+    #: the batch they start when the account has none open.
+    source: str = Field(min_length=1, max_length=60)
+    transactions: list[DraftTransaction] = Field(min_length=1, max_length=50)
+
+
+class DraftedTransactions(BaseModel):
+    #: The drafts batch they joined; empty when every one was drafted before.
+    statement_id: str
+    #: How many joined it, to wait for review.
+    drafted: int
+    #: How many were left out as drafted before (the same message twice).
+    duplicates_dropped: int
+    errors: list[str]
+    transactions: list[StatementTransaction]
+
+
+@router.post("/drafts", status_code=status.HTTP_201_CREATED)
+async def draft_transactions(
+    body: DraftRequest, user_id: CurrentUser, email: CurrentEmail, svc: AppServices
+) -> DraftedTransactions:
+    """
+    Transactions drafted by the person's own automation — a bank's text
+    message or email handed over by a shortcut — to wait for review as an
+    import's do. Nothing is posted: they are approved, changed or discarded
+    from review like any statement's (`/statements/{statement_id}/post`).
+
+    They join the account's drafts batch while any of it waits for review,
+    or start one named `source`. Each is sorted as an import is, by the
+    person's rules and then, when one is set up, the model (passing the
+    usage meter first), and checked for duplicates: one drafted before (the
+    same `bank_ref`, or the same day, amount, direction and description on
+    this account) is left out and counted, and one that looks like an entry
+    already booked, or a statement's row, is flagged for review.
+    """
+    result = await svc.parsing.draft(
+        user_id,
+        [
+            RawRow(
+                date=t.date,
+                description=t.description,
+                amount=t.amount,
+                credit_flag=t.credit_flag,
+                currency=t.currency or "",
+                bank_ref=t.bank_ref,
+            )
+            for t in body.transactions
+        ],
+        account_id=body.account_id,
+        source=body.source,
+        email=email,
+    )
+    if result.errors and not result.transactions and not result.duplicates_dropped:
+        raise HTTPException(status_code=422, detail=result.errors)
+    return DraftedTransactions(
+        statement_id=result.statement_id,
+        drafted=len(result.transactions),
+        duplicates_dropped=result.duplicates_dropped,
         errors=result.errors,
         transactions=[_transaction(t) for t in result.transactions],
     )

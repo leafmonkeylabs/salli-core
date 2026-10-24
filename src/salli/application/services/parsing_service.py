@@ -58,6 +58,14 @@ if TYPE_CHECKING:
 _MONEY_TYPES = MONEY_TYPES
 
 
+#: A statement's kind: read from a file or a feed, or drafted by the
+#: person's own automation and collected in a batch per account (`draft`).
+IMPORT = "import"
+DRAFTS = "drafts"
+#: Where a drafted row's reference comes from: compared only with drafts'.
+DRAFT_SOURCE = "draft"
+
+
 def _slugify(label: str) -> str:
     """LLM category label → tag slug ("Bank Charge" → "bank-charge")."""
     cleaned = re.sub(r"[^a-z0-9]+", "-", label.strip().lower())
@@ -287,6 +295,58 @@ class ParsingService:
             on_usage_limit=on_usage_limit,
         )
 
+    async def draft(
+        self,
+        user_id: str,
+        rows: list[RawRow],
+        *,
+        account_id: str,
+        source: str,
+        api_key: Any = None,
+        email: str | None = None,
+    ) -> ParseResult:
+        """
+        Transactions a person's own automation drafted (a bank's text message,
+        an email, a shortcut), waiting for review like an import's: never
+        posted until someone approves them.
+
+        They join the account's open drafts batch, the drafts statement on
+        `account_id` that still has a row waiting, or start one named
+        `source` ("Messages"); once all of a batch's rows are reviewed, the
+        next draft starts another. Each row is checked for duplicates and
+        sorted as an import's are (the user's rules, then the model), and a
+        row already drafted (the same bank reference, or the same day, money,
+        direction and description on that account) is left out and counted,
+        as a feed's overlap is: the same message handled twice books once.
+        """
+        account = await self._money_account(user_id, account_id)
+        drafted = [
+            RawRow(
+                date=r.date,
+                description=r.description,
+                amount=r.amount,
+                credit_flag=r.credit_flag,
+                currency=r.currency or account.currency,
+                bank_ref=r.bank_ref,
+                ref_kind="id",
+                ref_source=DRAFT_SOURCE,
+            )
+            for r in rows
+        ]
+        return await self._import(
+            user_id,
+            drafted,
+            account=account,
+            bank=source,
+            errors=None,
+            filename=None,
+            file_bytes=None,
+            api_key=api_key,
+            email=email,
+            keep_duplicates=False,
+            drafts=True,
+        )
+
     async def _import(
         self,
         user_id: str,
@@ -302,8 +362,10 @@ class ParsingService:
         keep_duplicates: bool = True,
         on_usage_limit: Literal["raise", "skip"] = "raise",
         replaces: str | None = None,
+        drafts: bool = False,
     ) -> ParseResult:
-        """`import_rows` with the statement's account already resolved."""
+        """`import_rows` with the statement's account already resolved.
+        `drafts`: the rows join the account's open drafts batch (`draft`)."""
         from salli.adapters.parsing import llm_classifier
 
         errors = list(errors or [])
@@ -497,16 +559,30 @@ class ParsingService:
                 pass
 
         async with self._uow_factory() as uow:
-            await uow.statements.save_statement(
-                user_id=user_id,
-                statement_id=statement_id,
-                bank=bank,
-                period_start=period_start,
-                period_end=period_end,
-                transactions=parsed,
-                storage_key=storage_key,
-                account_id=account.id if account is not None else None,
+            # Drafts join the batch still in review, held while they do, so
+            # two drafts at once add to one batch rather than start two.
+            batch = (
+                await uow.statements.open_drafts(user_id, account.id)
+                if drafts and account is not None
+                else None
             )
+            if batch is not None:
+                statement_id = batch
+                await uow.statements.add_rows(
+                    user_id, batch, parsed, period_start=period_start, period_end=period_end
+                )
+            else:
+                await uow.statements.save_statement(
+                    user_id=user_id,
+                    statement_id=statement_id,
+                    bank=bank,
+                    period_start=period_start,
+                    period_end=period_end,
+                    transactions=parsed,
+                    storage_key=storage_key,
+                    account_id=account.id if account is not None else None,
+                    kind=DRAFTS if drafts else IMPORT,
+                )
             if replaces is not None:
                 await uow.statements.discard(user_id, replaces)
         await self._count_hits(user_id, decided)

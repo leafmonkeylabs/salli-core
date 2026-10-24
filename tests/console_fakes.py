@@ -173,12 +173,14 @@ class FakeStatements:
         transactions: list[Any],
         storage_key: str = "",
         account_id: str | None = None,
+        kind: str = "import",
     ) -> None:
         self.statements[statement_id] = {
             "id": statement_id,
             "user_id": user_id,
             "bank": (bank or "")[:100],
             "account_id": account_id,
+            "kind": kind,
             "period_start": period_start,
             "period_end": period_end,
             "storage_key": storage_key,
@@ -189,6 +191,38 @@ class FakeStatements:
             ),
             "created_at": self.now(),
         }
+        self._add(statement_id, account_id, transactions)
+
+    async def open_drafts(self, user_id: str, account_id: str) -> str | None:
+        batches = [
+            s
+            for s in self.statements.values()
+            if s["user_id"] == user_id
+            and s["account_id"] == account_id
+            and s.get("kind") == "drafts"
+            and any(r["statement_id"] == s["id"] and self._pending(r) for r in self.rows)
+        ]
+        batches.sort(key=lambda s: s["created_at"], reverse=True)
+        return batches[0]["id"] if batches else None
+
+    async def add_rows(
+        self,
+        user_id: str,
+        statement_id: str,
+        transactions: list[Any],
+        *,
+        period_start: str,
+        period_end: str,
+    ) -> None:
+        statement = self.statements[statement_id]
+        assert statement["user_id"] == user_id
+        statement["period_start"] = min(filter(None, (statement["period_start"], period_start)))
+        statement["period_end"] = max(filter(None, (statement["period_end"], period_end)))
+        self._add(statement_id, statement["account_id"], transactions)
+        if any(t.dedup_status not in _SETTLED for t in transactions):
+            statement["status"] = "pending"
+
+    def _add(self, statement_id: str, account_id: str | None, transactions: list[Any]) -> None:
         for txn in transactions:
             raw = txn.raw
             row_id = str(uuid.uuid4())
