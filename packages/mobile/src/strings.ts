@@ -277,8 +277,11 @@ export const strings = {
   automations: {
     title: 'Automations',
     back: 'More',
-    intro:
+    intro: 'Bank messages become drafts. They stay on this phone.',
+    introSpoken:
       'A rule reads a bank’s message and drafts the transaction for you to review in Books. Rules and messages stay on this phone: only what a rule reads is sent to your server.',
+    howTo: 'How to set up',
+    tryPlaceholder: 'Paste a bank’s message',
     rules: 'Your rules',
     noRules: 'No rules yet.',
     add: 'Add a rule',
