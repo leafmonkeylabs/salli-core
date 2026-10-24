@@ -6,7 +6,7 @@ import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 import { useRead } from '../../api';
 import { AmountRow, Body, Button, Card, CardHead, LedgerRow, Waiting } from '../../kit';
 import { placeLabels, stepChart } from '../../lib/chart';
-import { displayDate, displayDay } from '../../lib/display';
+import { amountParts, displayDate, displayDay, wholeDigits } from '../../lib/display';
 import { Page } from '../../shell';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
@@ -27,21 +27,11 @@ export default function Cash() {
   return (
     <Page underAI title={t.title} onRefresh={() => forecast.refetch()}>
       <Card style={{ gap: 10 }}>
-        <CardHead label={data ? t.forecast(String(data.daily.length - 1)) : t.forecast('60')} />
+        <CardHead label={data ? t.forecast(String(data.daily.length - 1)) : t.forecast('60')} {...(data ? { end: t.low(wholeDigits(data.lowest, data.currency), displayDay(data.lowest_date)) } : {})} />
         {data ? (
           <>
             <Chart data={data} width={chartWidth} height={chartHeight} />
-            <Body small muted>
-              {t.forecastCaption(
-                displayDate(data.start),
-                displayDate(data.end),
-                formatAmount(data.today, data.currency),
-                formatAmount(data.lowest, data.currency),
-                displayDate(data.lowest_date),
-                formatAmount(data.end_balance, data.currency),
-              )}
-            </Body>
-            {/* A text link, aligned with the caption: the button's own padding sits outside it. */}
+            {/* A text link, aligned with the chart: the button's own padding sits outside it. */}
             <View style={{ alignSelf: 'flex-start', marginLeft: -18 }}>
               <Button kind="tertiary" label={t.dayByDay} onPress={() => setDays(true)} />
             </View>
@@ -52,7 +42,7 @@ export default function Cash() {
       </Card>
 
       <Card style={{ paddingVertical: 12 }}>
-        <CardHead label={t.comingUp} help={t.comingUpHelp} end={data?.currency} />
+        <CardHead label={t.comingUp} end={data?.currency} />
         {data ? (
           data.flows.length ? (
             <>
@@ -60,10 +50,10 @@ export default function Cash() {
                 const account = data.accounts.find((a) => a.account_id === flow.account_id)?.name;
                 const source = t.sources[flow.source] ?? flow.source;
                 return (
-                  // One line, as the design's table; the account and the source are read out with it.
-                  <LedgerRow
+                  // One line: its day, what, and the amount signed; the account and the source are read out with it.
+                  <Flow
                     key={`${flow.date}-${flow.account_id ?? ''}-${flow.description}-${flow.amount}`}
-                    lead={displayDay(flow.date)}
+                    date={flow.date}
                     title={flow.description}
                     amount={flow.amount}
                     currency={flow.currency}
@@ -86,7 +76,7 @@ export default function Cash() {
 
       {data?.accounts.length ? (
         <Card style={{ paddingVertical: 12 }}>
-          <CardHead label={t.accounts} help={t.accountsHelp} />
+          <CardHead label={t.accounts} />
           {data.accounts.map((account, i) => (
             <AmountRow
               key={account.account_id}
@@ -202,7 +192,34 @@ function DayByDay({ data, visible, onClose }: { data: CashForecast; visible: boo
   );
 }
 
+/** Something coming up: the month over the day, what it is, and the amount with its sign, money in in the chart's colour. */
+function Flow({ date, title, amount, currency, label, last }: { date: string; title: string; amount: string; currency: string; label: string; last: boolean }) {
+  const theme = useTheme();
+  const parts = amountParts(amount, currency);
+  const [month, day] = displayDay(date).split(' ');
+  return (
+    <View accessible accessibilityLabel={label} style={[styles.flow, last ? null : { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule }]}>
+      <View style={styles.when}>
+        <Text style={[styles.month, { color: theme.muted }]}>{(month ?? '').toUpperCase()}</Text>
+        <Text style={[styles.day, { color: theme.text }]}>{day}</Text>
+      </View>
+      <Text style={[styles.flowTitle, { color: theme.text }]} numberOfLines={1}>
+        {title}
+      </Text>
+      <Text style={[styles.flowAmount, { color: parts.negative ? theme.text : theme.chart }]}>
+        {parts.negative ? '−' : '+'} {parts.digits}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  flow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 6 },
+  when: { width: 36, alignItems: 'center' },
+  month: { fontFamily: font.medium, fontSize: 11, letterSpacing: 0.6 },
+  day: { fontFamily: font.medium, fontSize: 17, fontVariant: ['tabular-nums'] },
+  flowTitle: { flex: 1, fontFamily: font.regular, fontSize: size.body },
+  flowAmount: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
   axis: { flexDirection: 'row', justifyContent: 'space-between' },
   axisText: { fontFamily: font.regular, fontSize: 12 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 8 },
