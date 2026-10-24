@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, CardHead, Money, Waiting } from '../../kit';
-import { displayDate } from '../../lib/display';
+import { shares } from '../../lib/chart';
+import { amountParts, displayDate, displayDay } from '../../lib/display';
 import { Page } from '../../shell';
 import { Sheet } from '../../sheet';
 import { strings } from '../../strings';
@@ -64,28 +65,38 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
       <Text accessibilityRole="header" style={[styles.question, { color: theme.text }]}>
         {review.question}
       </Text>
-      <Body>{t.chose(review.chosen, review.reasons ?? '')}</Body>
-      <Body small muted>
-        {t.recorded(displayDate(review.recorded_at), displayDate(review.review_on))}
-      </Body>
+      <Text accessibilityLabel={`${t.chose(review.chosen, review.reasons ?? '')} ${t.recorded(displayDate(review.recorded_at), displayDate(review.review_on))}`} style={[styles.chose, { color: theme.muted }]}>
+        {t.choseShort(review.chosen, displayDay(review.review_on))}
+      </Text>
 
       {comparison ? (
-        <View style={{ gap: 6, marginTop: 4 }}>
-          <Body small muted>
-            {t.against(displayDate(comparison.at))}
-          </Body>
-          <View style={[styles.line, { borderBottomColor: theme.rule }]}>
-            <Text style={[styles.head, styles.name, { color: theme.muted }]}>{comparison.currency}</Text>
-            <Text style={[styles.head, styles.figure, { color: theme.muted }]}>{t.projected.toUpperCase()}</Text>
-            <Text style={[styles.head, styles.figure, { color: theme.muted }]}>{t.actual.toUpperCase()}</Text>
+        <View accessibilityLabel={t.against(displayDate(comparison.at))} style={{ gap: 2, marginTop: 4 }}>
+          <View style={styles.key} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <View style={[styles.swatch, { backgroundColor: theme.muted }]} />
+            <Text style={[styles.keyText, { color: theme.muted }]}>{t.projected}</Text>
+            <View style={[styles.swatch, { backgroundColor: theme.chart, marginLeft: 12 }]} />
+            <Text style={[styles.keyText, { color: theme.muted }]}>{t.actual}</Text>
+            <Text style={[styles.keyText, { color: theme.muted, marginLeft: 'auto' }]}>{comparison.currency}</Text>
           </View>
-          {comparison.figures.map((row) => (
-            <View key={row.figure} accessible style={[styles.line, { borderBottomColor: theme.rule }]}>
-              <Body style={styles.name}>{t.figures[row.figure] ?? row.figure}</Body>
-              <View style={styles.figure}>{row.projected ? <Money amount={row.projected} currency={comparison.currency} /> : null}</View>
-              <View style={styles.figure}>{row.actual ? <Money amount={row.actual} currency={comparison.currency} /> : null}</View>
-            </View>
-          ))}
+          {comparison.figures.map((row) => {
+            const [projected, actual] = shares([row.projected ?? '0', row.actual ?? '0']);
+            const name = t.figures[row.figure] ?? row.figure;
+            const spoken = (a: string | null | undefined) => (a ? amountParts(a, comparison.currency).spoken : '—');
+            return (
+              <View key={row.figure} accessible accessibilityLabel={t.figureSpoken(name, spoken(row.projected), spoken(row.actual))} style={[styles.pair, { borderBottomColor: theme.rule }]}>
+                <View style={styles.pairHead}>
+                  <Body style={{ flex: 1 }}>{name}</Body>
+                  {row.actual ? <Money amount={row.actual} currency={comparison.currency} /> : null}
+                </View>
+                <View style={[styles.track, { backgroundColor: theme.rule }]}>
+                  <View style={[styles.track, { width: `${(projected ?? 0) * 100}%`, backgroundColor: theme.muted }]} />
+                </View>
+                <View style={[styles.track, { backgroundColor: theme.rule }]}>
+                  <View style={[styles.track, { width: `${(actual ?? 0) * 100}%`, backgroundColor: theme.chart }]} />
+                </View>
+              </View>
+            );
+          })}
           {comparison.notes.map((note) => (
             <Body key={note} small muted>
               {note}
@@ -101,6 +112,7 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
         <Text accessibilityRole="header" style={[styles.question, { color: theme.text }]}>
           {review.question}
         </Text>
+        <Body muted>{t.chose(review.chosen, review.reasons ?? '')}</Body>
         <View style={{ gap: 6 }}>
           <Text style={[styles.label, { color: theme.text }]}>{t.reflection}</Text>
           <TextInput
@@ -110,11 +122,10 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
             autoFocus
             accessibilityLabel={t.reflection}
             accessibilityHint={t.reflectionHelp}
+            placeholder={t.reflectionPlaceholder}
+            placeholderTextColor={theme.muted}
             style={[styles.input, { backgroundColor: theme.input, borderRadius: Math.min(theme.control, 12), borderColor: theme.fieldBorder, color: theme.text }]}
           />
-          <Body small muted>
-            {t.reflectionHelp}
-          </Body>
         </View>
         {record.error ? <Body alert>{record.error.message}</Body> : null}
         <View style={{ gap: 4 }}>
@@ -128,11 +139,13 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
 
 const styles = StyleSheet.create({
   question: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.3 },
-  // Read-only rows: 40 px, as the design's table; the 48 px rule is for what is tapped.
-  line: { flexDirection: 'row', alignItems: 'center', minHeight: 40, borderBottomWidth: StyleSheet.hairlineWidth, gap: 8 },
-  head: { fontFamily: font.medium, fontSize: size.label, letterSpacing: size.label * 0.12 },
-  name: { flex: 1 },
-  figure: { width: 104, alignItems: 'flex-end', textAlign: 'right' },
   label: { fontFamily: font.medium, fontSize: size.small },
+  chose: { fontFamily: font.regular, fontSize: size.body, lineHeight: size.body * 1.45 },
+  key: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 6 },
+  keyText: { fontFamily: font.regular, fontSize: 12 },
+  swatch: { width: 10, height: 6 },
+  pair: { gap: 4, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  pairHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  track: { height: 6 },
   input: { minHeight: 120, borderWidth: 1, borderRadius: 0, padding: 12, fontFamily: font.regular, fontSize: size.body, textAlignVertical: 'top' },
 });

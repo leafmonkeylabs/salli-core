@@ -132,3 +132,10 @@ export function lineChart(amounts: readonly string[], width: number, height: num
 export function filled(score: string, of = 100): number {
   return Math.min(1, Math.max(0, pixels(score) / of));
 }
+
+/** How long each bar is beside the longest, from 0 to 1: bars that compare amounts. */
+export function shares(amounts: readonly string[]): number[] {
+  const values = amounts.map((a) => Math.abs(pixels(a)));
+  const most = Math.max(0, ...values);
+  return values.map((v) => (most ? v / most : 0));
+}
