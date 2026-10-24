@@ -390,6 +390,8 @@ const ICONS = {
   settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 5h4v4h-4zM8 15h4v4H8z',
   server: 'M4 4h16v7H4zM4 13h16v7H4zM8 7.5h2M8 16.5h2',
   message: 'M4 5h16v11H10l-6 4zM8 9h8M8 12h5',
+  // Your AI: a spark, a point with rays.
+  spark: 'M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M10.5 12a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0z',
   appearance: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 3v18M12 8h4.5M12 12h6M12 16h4.5',
 } as const;
 

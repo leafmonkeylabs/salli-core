@@ -51,7 +51,7 @@ function AIButton() {
       onPress={() => (ai.ready ? router.push({ pathname: '/agent', params: { from: tab } }) : router.push('/ai'))}
       style={({ pressed }) => [styles.ai, { bottom: insets.bottom + BAR + 16, borderRadius: theme.control ? Math.min(theme.control, 28) : 0, backgroundColor: theme.button, shadowColor: theme.shadow, opacity: pressed ? 0.85 : 1 }, offsetOf(theme)]}
     >
-      <Icon name="message" size={26} colour={theme.buttonText} />
+      <Icon name="spark" size={26} colour={theme.buttonText} />
     </Pressable>
   );
 }
