@@ -148,21 +148,23 @@ async def test_rent_or_buy_starts_like_any_template(services):
             },
         },
     )
-    assert [o["label"] for o in started["options"]] == [
+    assert [o["label"]["untrusted_text"] for o in started["options"]] == [
         "Keep renting",
         "Buy, 4.2% over 300 months",
         "Buy, Shorter",
     ]
-    assert started["level"]["against"] == "Keep renting"
-    assert [o["option"] for o in started["level"]["options"]] == [
+    assert started["level"]["against"] == {"untrusted_text": "Keep renting"}
+    assert [o["option"]["untrusted_text"] for o in started["level"]["options"]] == [
         "Buy, 4.2% over 300 months",
         "Buy, Shorter",
     ]
-    kinds = {(b["kind"], b["option"]) for b in started["comparison"]["break_evens"]}
+    kinds = {
+        (b["kind"], b["option"]["untrusted_text"]) for b in started["comparison"]["break_evens"]
+    }
     assert ("asset_growth", "Buy, Shorter") in kinds
     assert ("asset_growth", "Buy, 4.2% over 300 months") in kinds
     assert {"asset_growth", "rent_growth"} <= set(started["placeholders"])
-    assert any("illiquid and undiversified" in n for n in started["notes"])
+    assert any("illiquid and undiversified" in n["untrusted_text"] for n in started["notes"])
     assert_never_ranks(started)
     assert (await services.decisions.list(USER))["decisions"] == []
 
@@ -181,7 +183,10 @@ async def test_starting_a_decision_and_recording_it_in_one_step(services):
             },
         },
     )
-    assert [o["label"] for o in started["options"]] == ["Pay down Student loan", "Invest it"]
+    assert [o["label"]["untrusted_text"] for o in started["options"]] == [
+        "Pay down Student loan",
+        "Invest it",
+    ]
     [even] = started["comparison"]["break_evens"]
     assert even["value"] == "0.0451"
     assert_never_ranks(started)

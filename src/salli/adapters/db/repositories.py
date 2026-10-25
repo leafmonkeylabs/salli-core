@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from salli.adapters.db.models import (
+    AccessGrantORM,
     AccountORM,
     AdvisoryReportORM,
     AgentDocumentORM,
@@ -2904,6 +2905,13 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(OAuthAuthorizationCodeORM, OAuthAuthorizationCodeORM.user_id)
         await _delete(OAuthDeviceCodeORM, OAuthDeviceCodeORM.user_id)
         await _delete(PersonalAccessTokenORM, PersonalAccessTokenORM.user_id)
+        # Access to their books they gave, and to others' they held.
+        result = await self._s.execute(
+            delete(AccessGrantORM).where(
+                or_(AccessGrantORM.grantor_id == user_id, AccessGrantORM.grantee_id == user_id)
+            )
+        )
+        counts["access_grants"] = result.rowcount or 0  # type: ignore[attr-defined]
         # Their sessions, then their login: no one signs in as them again.
         await _delete(LoginSessionORM, LoginSessionORM.user_id)
         await _delete(LoginORM, LoginORM.user_id)

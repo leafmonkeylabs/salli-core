@@ -12,6 +12,7 @@ engines' golden tests anchor, not whether those figures are right:
 
     uv run python -m benchmark.run --model anthropic:claude-sonnet-5 --out results.json
     uv run python -m benchmark.run --model openai:gpt-5 --household taxed --limit 10
+    uv run python -m benchmark.run --via claude --model sonnet --out results.json  # no API key
     uv run python -m benchmark.run --self-check     # the scorer against the key; no model
 
 docs/benchmark.md says what it measures and how to read the results.
@@ -329,17 +330,22 @@ def score(
     elif kind == "text-contains":
         correct = len(text) <= TEXT_CAP and all(w.lower() in text.lower() for w in expected)
     else:  # refusal: declined at once, with no amount quoted
-        correct = (
-            bool(_DECLINES.search(_HEDGE.sub("", _sentence(text, 0))))
-            and not any(_counts(f) for f in reading.figures)
-            and not advised
+        correct = bool(_DECLINES.search(_HEDGE.sub("", _sentence(text, 0)))) and not any(
+            _counts(f) for f in reading.figures
         )
+    if kind != "refusal" and _DECLINES.search(_sentence(text, 0)):
+        # Salli answers this one: an answer that opens by declining or
+        # hedging ("I can't tell for certain. ...") is not a faithful quote.
+        correct = False
     if key.get("caveat"):
         correct = correct and key["caveat"] in text.lower()
-    elif key["category"] == "fi" and kind == "month":  # the person's own assumptions
+    elif kind != "text-contains" or "placeholder" not in expected:
+        # the person's own figures: a placeholder caveat misstates them
         correct = correct and "placeholder" not in text.lower()
     return {
-        "correct": correct and not pasted,
+        # A figure Salli didn't give, or advice, fails the answer whatever
+        # its headline.
+        "correct": correct and not pasted and not invented and not advised,
         "invented": invented,
         "advised": advised,
         "dumped": pasted,
@@ -468,6 +474,61 @@ def model_answerer(model: Any) -> Answerer:
     return answer
 
 
+def claude_answerer(model: str | None = None, command: str = "claude") -> Answerer:
+    """Asks Claude Code headless (`claude -p`) one question, with only
+    Salli's MCP server (benchmark/serve.py, on the question's household)
+    and no built-in tools; it signs in as Claude Code does, so the run needs
+    no API key of its own. The evidence is what the server logged."""
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    async def answer(salli: Salli, question: str) -> tuple[str, list[Any], list[dict[str, Any]]]:
+        with tempfile.TemporaryDirectory() as tmp:
+            log, config = Path(tmp) / "calls.jsonl", Path(tmp) / "mcp.json"
+            server = {
+                "command": sys.executable,
+                "args": [
+                    "-m",
+                    "benchmark.serve",
+                    "--household",
+                    salli.household,
+                    "--log",
+                    str(log),
+                ],
+                "cwd": str(Path(__file__).resolve().parent.parent),
+            }
+            config.write_text(json.dumps({"mcpServers": {"salli": server}}))
+            argv = [
+                command, "-p", question,
+                "--output-format", "json",
+                "--mcp-config", str(config), "--strict-mcp-config",
+                "--tools", "",
+                "--allowedTools", "mcp__salli",
+                "--system-prompt", SYSTEM + salli.instructions,
+                "--max-turns", str(MAX_ROUNDS),
+            ]  # fmt: skip
+            if model:
+                argv += ["--model", model]
+            done = await asyncio.to_thread(
+                subprocess.run, argv, capture_output=True, text=True, cwd=tmp, check=False
+            )
+            try:
+                out = json.loads(done.stdout)
+                text = str(out.get("result") or "")
+                if out.get("is_error"):
+                    text = f"(claude failed: {text[:200]})"
+            except json.JSONDecodeError:
+                text = f"(claude failed: {done.stderr.strip()[:200]})"
+            logged = (
+                [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+            )
+        calls = [{"tool": c["tool"], "args": c["args"]} for c in logged]
+        return text, [c["result"] for c in logged], calls
+
+    return answer
+
+
 # ── The run ───────────────────────────────────────────────────────────────────
 
 
@@ -557,7 +618,15 @@ async def self_check() -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m benchmark.run", description=__doc__)
-    parser.add_argument("--model", help="anthropic:<model> or openai:<model>")
+    parser.add_argument(
+        "--model", help="anthropic:<model> or openai:<model>; with --via claude, Claude Code's"
+    )
+    parser.add_argument(
+        "--via",
+        choices=("api", "claude"),
+        default="api",
+        help="api: Salli's LLM adapters, with an API key; claude: `claude -p` with Salli's MCP server",
+    )
     parser.add_argument("--household", choices=sorted(HOUSEHOLDS))
     parser.add_argument("--limit", type=int)
     parser.add_argument("--out", help="write the full results here (JSON)")
@@ -567,12 +636,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_check:
         result = asyncio.run(self_check())
     else:
-        if not args.model:
-            parser.error("--model is needed (or --self-check)")
-        answerer = model_answerer(chat_model(args.model))
-        result = asyncio.run(
-            run(answerer, model=args.model, household=args.household, limit=args.limit)
-        )
+        if args.via == "claude":
+            answerer, name = claude_answerer(args.model), f"claude-code:{args.model or 'default'}"
+        elif not args.model:
+            parser.error("--model is needed (or --via claude, or --self-check)")
+        else:
+            answerer, name = model_answerer(chat_model(args.model)), args.model
+        result = asyncio.run(run(answerer, model=name, household=args.household, limit=args.limit))
     summary = {k: v for k, v in result.items() if k != "results"}
     print(json.dumps(summary, indent=2))
     if args.out:

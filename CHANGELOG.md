@@ -4,7 +4,50 @@
 
 ### Added
 
+- **Read-only access to another member's books.** A member lets another
+  member of the same server read their books (`salli access grant <email>`,
+  `POST /v1/access-grants`, behind the step-up; never from a token or
+  another application), both see it (`salli access list`), and either ends
+  it (`salli access revoke`). The grantee reads by naming the books
+  (`salli --books <member-id>`, `SALLI_BOOKS`, the `Salli-Books` header):
+  GET requests on the books' routes only; giving, receiving, ending and
+  every read are in the audit logs. Migration `core_0036_access_grants`.
+- **MCP catches up with the API.** `list_budgets`, `list_debts`,
+  `list_goals`, `list_reminders`, `get_entry`, and `reverse_entry` (a write,
+  with `confirmed_by_user`). A headless agent may send a personal access
+  token as its MCP bearer: it reads only, while MCP is on.
+- **The benchmark runs through Claude Code.** `uv run python -m
+  benchmark.run --via claude` asks `claude -p` with only Salli's MCP server
+  (`benchmark/serve.py`), so a run needs no API key of its own.
+- **Business notes** (`business/`): a commercial thesis for a first
+  launch, a commercial-licence offer for the AGPL parts and a metrics plan,
+  every figure in them a hypothesis.
+- **A benchmark scorer that can't be talked round.** An answer Salli can
+  answer that opens by declining or hedging, that adds a figure Salli didn't
+  give, or that advises (a ranking word, "you should buy", a product) is
+  wrong whatever its headline; and a placeholder caveat is wrong on any
+  answer whose figures are the person's own.
 - **Market packs** (`markets/`): a country's tax rule sets, planning assumptions and pension schemes as cited data, outside the core, with the bar to add one. The first is `markets/lk`: rule sets for two years of assessment with the authority's worked examples, capital-market assumptions, and the provident funds. `tests/taxrules/test_market_packs.py` validates every pack's rule sets and runs their examples.
+
+### Security
+
+- **Outside text is fenced everywhere a model reads it.** Every free-text
+  field any MCP read tool or in-app agent tool returns (descriptions,
+  payees, memos, account and holding names, principle labels, decisions'
+  text, signals, reminders, subscription reports, suggested rules, web
+  search results) comes inside `{"untrusted_text": ...}`, fenced once where
+  the answer is serialised, not field by field; a contract test walks every
+  MCP read tool on the golden households. The in-app agents' approvals fail
+  closed: an action whose approval the audit log can't record is not done.
+
+### Breaking
+
+#### Changed
+
+- MCP: every free-text string in a read tool's answer is now
+  `{"untrusted_text": ...}` (names, labels, notes, titles too, not only
+  descriptions and payees), and `get_budget_summary` takes a `budget_id`
+  (from `list_budgets`) instead of picking the first budget.
 
 ## 0.5.0 — 2026-10-25
 

@@ -20,6 +20,7 @@ from salli.application.ports import (
     StoragePort,
     UsageMeter,
 )
+from salli.application.services.access_grant_service import AccessGrantService
 from salli.application.services.advisor_service import AdvisorService
 from salli.application.services.agent_service import AgentService
 from salli.application.services.bank_connection_service import BankConnectionService, RowImporter
@@ -96,6 +97,7 @@ class Services:
     # A user's ChatGPT plan, signed in to and kept renewed.
     chatgpt: ChatGPTConnectionService
     tokens: PersonalAccessTokenService
+    access: AccessGrantService
     # Salli's own accounts: passwords, sign-in and sessions.
     logins: LoginService
     rules: RulesService
@@ -326,6 +328,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
         llm_credentials=llm_credentials,
         chatgpt=chatgpt,
         tokens=PersonalAccessTokenService(uow_factory),
+        access=AccessGrantService(uow_factory),
         logins=_build_logins(settings, uow_factory),
         rules=rules,
         insights=insights,

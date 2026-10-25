@@ -3,6 +3,7 @@
  */
 import { Command, type OutputConfiguration } from '@commander-js/extra-typings';
 import type { App } from './app';
+import { registerAccess } from './commands/access';
 import { registerAccounts } from './commands/accounts';
 import { registerAi } from './commands/ai';
 import { registerAuth } from './commands/auth';
@@ -47,6 +48,7 @@ export function buildProgram(app: App, output: OutputConfiguration): Command {
     .option('--context <name>', 'Use this context instead of the current one')
     .option('--server <url>', 'Talk to this server (overrides the context; SALLI_SERVER)')
     .option('--verbose', 'Log each request to stderr')
+    .option('--books <member-id>', "Read another member's books, where they gave you access (SALLI_BOOKS)")
     .exitOverride()
     .configureOutput(output)
     .showSuggestionAfterError(true)
@@ -102,6 +104,7 @@ Start with:  salli login   then   salli status`,
   registerSkills(program, app);
   registerExports(program, app);
   registerTokens(program, app);
+  registerAccess(program, app);
   registerPassword(program, app);
   registerTotp(program, app);
   registerContext(program, app);
