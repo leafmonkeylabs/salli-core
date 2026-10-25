@@ -584,13 +584,18 @@ async def test_deleting_the_account_ends_the_chatgpt_session_first(world):
     order: list[str] = []
 
     class Purge:
-        async def delete_all(self, user_id: str) -> dict[str, int]:
+        async def delete_all(self, user_id: str, *_: Any) -> dict[str, int]:
             order.append("purge")
             removed = repo.rows.pop((user_id, "chatgpt"), None) is not None
             return {"ai_connections": int(removed)}
 
+    class NoLogins:
+        async def get(self, user_id: str) -> None:
+            return None
+
     class UoW:
         data_portability = Purge()
+        logins = NoLogins()
 
         async def __aenter__(self) -> Any:
             return self

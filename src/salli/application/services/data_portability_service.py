@@ -45,6 +45,7 @@ class DataPortabilityService:
         notifications: Any = None,
         storage: StoragePort | None = None,
         conversations: ConversationStore | None = None,
+        pseudonym_key: str = "",
     ) -> None:
         self._uow_factory = uow_factory
         self._profile = profile_svc
@@ -70,6 +71,8 @@ class DataPortabilityService:
         # Postgres checkpointer: then nothing outlives the process).
         self._storage = storage
         self._conversations = conversations
+        # Keys the pseudonym an erased account's audit rows keep.
+        self._pseudonym_key = pseudonym_key
 
     async def export_plaintext(self, user_id: str, fmt: str) -> str:
         """The whole ledger as a Beancount file or an hledger journal.
@@ -202,6 +205,7 @@ class DataPortabilityService:
             "conversations": (
                 await self._conversations.export(user_id) if self._conversations else []
             ),
+            "audit_log": await self._audit_log(user_id),
         }
         data.update(
             await self._notifications.export(user_id)
@@ -213,6 +217,10 @@ class DataPortabilityService:
         for export in self._exporters:
             data.update(await export(user_id))
         return data
+
+    async def _audit_log(self, user_id: str) -> list[dict[str, Any]]:
+        async with self._uow_factory() as uow:
+            return list(await uow.audit_log.list(user_id, limit=None))
 
     async def _warnings(self, user_id: str) -> list[str]:
         """Where the books and a reconciled bank statement disagree: the
@@ -314,8 +322,16 @@ class DataPortabilityService:
                 await self._chatgpt.disconnect(user_id)
             except Exception:
                 _log.warning("Could not end a ChatGPT session before deleting an account")
+        from salli.application.services.login_service import sign_in_key
+        from salli.domain.audit_chain import pseudonym
+
         async with self._uow_factory() as uow:
-            counts = await uow.data_portability.delete_all(user_id)
+            login = await uow.logins.get(user_id)
+            counts = await uow.data_portability.delete_all(
+                user_id,
+                pseudonym(self._pseudonym_key, user_id),
+                [sign_in_key(login["email"])] if login else [],
+            )
         self._profile.forget(user_id)
         if self._storage is not None:
             await self._erase(counts, "stored_files", self._storage.delete_user, user_id)

@@ -1060,6 +1060,10 @@ class FakeAuditLog:
         )
         return str(len(self.rows))
 
+    async def list(self, user_id: str, limit: int | None = 100) -> list[dict[str, Any]]:
+        mine = [r for r in reversed(self.rows) if r["user_id"] == user_id]
+        return mine if limit is None else mine[:limit]
+
 
 class FakeUoW:
     """A unit of work over one in-memory ledger and what a user declares

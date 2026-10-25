@@ -67,11 +67,12 @@ rotates them.
   as plain text. No credential is ever in it. Conversations with Salli's AI
   are in it (`conversations`: each thread's messages in order, the tools the
   AI called by name only, read from the checkpoint tables). It leaves out the
-  uploaded files themselves, the sorting rules, the audit log and sign-in
-  records.
+  uploaded files themselves, the sorting rules and sign-in records; it
+  carries the person's audit log (`audit_log`, every row under their id).
 - **Erasure:** `DELETE /v1/onboarding/account` (`salli profile
   delete-account`), with the person's email typed again, deletes their rows in
   every table above, the decision journal and an extension's tables included,
+  but `audit_logs`,
   after ending a connected ChatGPT plan's sign-in with OpenAI
   (`data_portability_service.py`, `repositories.py`
   `SQLDataPortabilityRepository.delete_all`). Once those rows are gone, in
@@ -81,7 +82,16 @@ rotates them.
   If either can't be deleted, the response's `counts` say
   `stored_files_failed` or `conversations_failed` and the server logs
   `erase_incomplete` with the person's id, for the operator to remove what is
-  left by hand. It can't reach data already sent to the recipients above,
+  left by hand. **The audit trail is kept, pseudonymised:** each of the
+  person's rows (and each failed sign-in logged under a hash of their email)
+  keeps what was done, when, by which client and its outcome, with the
+  person's id replaced by `erased:` and a keyed hash of it (HMAC-SHA-256
+  under the instance's `MCP_SIGNING_SECRET`) and its arguments removed; the
+  database refuses any other change (core_0046), and the hash chain still
+  verifies (`salli-server audit verify`). Those rows identify no one, and are
+  kept for the life of the instance's audit trail, as its record of what
+  happened; the export above is how the person takes the full rows first.
+  It can't reach data already sent to the recipients above,
   or the operator's backups until they are rotated.
 
 ## Impact assessment template

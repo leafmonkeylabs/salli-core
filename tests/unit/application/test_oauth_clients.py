@@ -29,6 +29,7 @@ from salli.application.services.mcp_oauth_service import (
     RefreshTokenReused,
     may_change,
 )
+from tests.fakes import FakeAuditLog
 
 BASE = "https://salli.test"
 USER = "u1"
@@ -293,6 +294,7 @@ def world(clock):
         oauth_clients = clients
         oauth_tokens = tokens
         user_profiles = profiles
+        audit_log = FakeAuditLog()
 
     @asynccontextmanager
     async def uow_factory():

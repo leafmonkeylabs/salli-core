@@ -635,6 +635,14 @@ class AgentService:
         async with self._uow_factory() as uow:
             return await uow.audit_log.list(user_id, limit=limit)
 
+    async def verify_audit_chain(self) -> dict[str, Any]:
+        """Whether the instance's audit trail is as it was written: its hash
+        chain checked from the first row (`domain/audit_chain.verify`)."""
+        if not self._uow_factory:
+            return {"ok": True, "checked": 0, "first_break": None}
+        async with self._uow_factory() as uow:
+            return await uow.audit_log.verify()
+
     async def delete_session(self, user_id: str, thread_id: str) -> None:
         if not self._uow_factory:
             return

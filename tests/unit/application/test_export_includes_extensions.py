@@ -40,6 +40,7 @@ def _service(
                 get_accounts=AsyncMock(return_value=[]), get_entries=AsyncMock(return_value=[])
             ),
             reconciliations=SimpleNamespace(statements=AsyncMock(return_value=[])),
+            audit_log=SimpleNamespace(list=AsyncMock(return_value=[])),
         )
 
     return DataPortabilityService(uow, *svcs, exporters=exporters, conversations=conversations)
