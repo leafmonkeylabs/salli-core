@@ -22162,6 +22162,12 @@
             "type": "array",
             "title": "Debts"
           },
+          "order": {
+            "type": "string",
+            "const": "rate_desc",
+            "title": "Order",
+            "default": "rate_desc"
+          },
           "total_balance": {
             "type": "string",
             "pattern": "^-?\\d+(\\.\\d+)?$",

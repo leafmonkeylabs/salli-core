@@ -14,13 +14,17 @@ const t = strings.debts;
  * Debts (design HhDebts): what you owe in all, then each debt with its rate,
  * its minimum and the month it is paid off at minimum payments, as the
  * baseline reads them, and their minimums a month together (the server's
- * sum, from the debts read). A debt held in the books opens its account.
+ * sum, from the debts read). Listed in the debts read's order, by rate,
+ * highest first; the baseline row is looked up by id, never re-sorted. A
+ * debt held in the books opens its account.
  */
 export default function Debts() {
   const theme = useTheme();
   const baseline = useRead('baseline.get', baselineGet);
   const debts = useRead('debts.list', debtsList);
   const data = baseline.data;
+  const byId = new Map(data?.debts.map((d) => [d.debt_id, d]));
+  const rows = (debts.data?.debts ?? []).flatMap((d) => byId.get(d.id) ?? []);
   return (
     <Page
       title={t.title}
@@ -30,7 +34,7 @@ export default function Debts() {
       }}
       onRefresh={() => Promise.all([baseline.refetch(), debts.refetch()])}
     >
-      {data ? (
+      {data && debts.data ? (
         <>
           <Card>
             <CardHead label={t.total(displayDate(data.as_of))} />
@@ -44,8 +48,8 @@ export default function Debts() {
           </Card>
           <Card style={{ paddingBottom: 0 }}>
             <CardHead label={t.each(data.currency)} />
-            {data.debts.length ? (
-              data.debts.map((debt) => {
+            {rows.length ? (
+              rows.map((debt) => {
                 const row = (
                   <>
                     <View style={{ flex: 1, gap: 4 }}>
@@ -100,7 +104,7 @@ export default function Debts() {
           </Body>
         </>
       ) : (
-        <Waiting query={baseline} what="your debts" />
+        <Waiting query={data ? debts : baseline} what="your debts" />
       )}
     </Page>
   );

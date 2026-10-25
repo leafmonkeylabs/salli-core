@@ -60,7 +60,10 @@ class Debt(BaseModel):
 
 
 class DebtList(BaseModel):
+    #: Ordered by interest rate, highest first (ties by balance, then name);
+    #: a fact about each debt, not advice.
     debts: list[Debt]
+    order: Literal["rate_desc"] = "rate_desc"
     #: What the active debts owe together today: a linked debt what its
     #: ledger account holds, another its declared principal.
     total_balance: Amount

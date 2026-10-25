@@ -52,6 +52,7 @@ async def test_a_debt_reads_back_as_the_service_returns_it(client, mock_services
         "debts": [debt],
         "total_balance": "1000.00",
         "total_minimum_payments": "100.00",
+        "order": "rate_desc",
     }
 
 
@@ -65,6 +66,7 @@ async def test_an_update_answers_that_it_was_applied(client, mock_services):
         "debts": [],
         "total_balance": "0.00",
         "total_minimum_payments": "0.00",
+        "order": "rate_desc",
     }
     r = await client.get("/v1/debt/", params={"active_only": False}, headers=AUTH)
     assert [d["is_active"] for d in r.json()["debts"]] == [False]
