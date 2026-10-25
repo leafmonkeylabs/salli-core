@@ -15355,7 +15355,7 @@
           "notifications"
         ],
         "summary": "Update Preferences",
-        "description": "Turn your digest on or off, or change when it goes and what it holds.\nTurning it on needs a time zone.",
+        "description": "Turn your digest on or off, or change when it goes and what it holds;\nchoose the push alerts your phones take and their quiet hours. Turning\nthe digest on needs a time zone.",
         "operationId": "notifications.preferences.update",
         "requestBody": {
           "content": {
@@ -22147,11 +22147,31 @@
             },
             "type": "array",
             "title": "Debts"
+          },
+          "total_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "total_minimum_payments": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Minimum Payments",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
           }
         },
         "type": "object",
         "required": [
-          "debts"
+          "debts",
+          "total_balance",
+          "total_minimum_payments"
         ],
         "title": "DebtList"
       },
@@ -31280,6 +31300,28 @@
             "type": "array",
             "title": "Items"
           },
+          "push_items": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "reminder_due",
+                "cash_below_zero_ahead",
+                "budget_over"
+              ]
+            },
+            "type": "array",
+            "title": "Push Items"
+          },
+          "quiet_hours": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuietHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "time_zone": {
             "anyOf": [
               {
@@ -31314,6 +31356,8 @@
           "weekday",
           "hour",
           "items",
+          "push_items",
+          "quiet_hours",
           "time_zone",
           "next_at",
           "sender_enabled"
@@ -31403,6 +31447,35 @@
               }
             ],
             "title": "Items"
+          },
+          "push_items": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "reminder_due",
+                    "cash_below_zero_ahead",
+                    "budget_over"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Items"
+          },
+          "quiet_hours": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuietHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "time_zone": {
             "anyOf": [
@@ -34337,6 +34410,27 @@
         ],
         "title": "ProvenanceSubscription",
         "description": "A recurring subscription this entry looks like a payment of."
+      },
+      "QuietHours": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "QuietHours",
+        "description": "When no push alert goes, in the person's time zone; it may run past\nmidnight. What waits through them goes after."
       },
       "QuotedPrice": {
         "properties": {
@@ -39002,6 +39096,18 @@
             "type": "array",
             "title": "Months"
           },
+          "totals": {
+            "items": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string in the currency's own precision; never a float.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "array",
+            "title": "Totals"
+          },
           "categories": {
             "items": {
               "$ref": "#/components/schemas/CategoryTrend"
@@ -39014,6 +39120,7 @@
         "required": [
           "currency",
           "months",
+          "totals",
           "categories"
         ],
         "title": "SpendingTrend"

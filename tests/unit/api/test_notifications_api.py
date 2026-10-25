@@ -75,10 +75,28 @@ async def test_preferences_start_off(client):
             "filing_deadline",
             "cash_below_zero_ahead",
         ],
+        "push_items": ["reminder_due", "cash_below_zero_ahead", "budget_over"],
+        "quiet_hours": None,
         "time_zone": None,
         "next_at": None,
         "sender_enabled": True,
     }
+
+
+async def test_push_items_and_quiet_hours_save_and_clear(client):
+    body = {"push_items": ["budget_over"], "quiet_hours": {"start": "22:00", "end": "08:00"}}
+    r = await client.patch("/v1/notifications/preferences", json=body, headers=AUTH)
+    assert (r.json()["push_items"], r.json()["quiet_hours"]) == (
+        ["budget_over"],
+        {"start": "22:00", "end": "08:00"},
+    )
+    r = await client.patch(
+        "/v1/notifications/preferences", json={"quiet_hours": None}, headers=AUTH
+    )
+    assert (r.json()["push_items"], r.json()["quiet_hours"]) == (["budget_over"], None)
+    bad = {"quiet_hours": {"start": "25:00", "end": "08:00"}}
+    r = await client.patch("/v1/notifications/preferences", json=bad, headers=AUTH)
+    assert r.status_code == 422
 
 
 async def test_turning_digests_on_with_a_time_zone(client, uow):

@@ -116,7 +116,8 @@ def send_push() -> None:
         console.print(
             f"People {counts['people']} · sent {counts['sent']} · nothing waiting "
             f"{counts['nothing_waiting']} · no destination {counts['no_destination']} · "
-            f"failed {counts['failed']} · already sent {counts['skipped']}"
+            f"failed {counts['failed']} · already sent {counts['skipped']} "
+            f"· quiet hours {counts['quiet']}"
         )
     if counts["failed"]:
         raise typer.Exit(1)

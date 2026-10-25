@@ -61,6 +61,11 @@ class Debt(BaseModel):
 
 class DebtList(BaseModel):
     debts: list[Debt]
+    #: What the active debts owe together today: a linked debt what its
+    #: ledger account holds, another its declared principal.
+    total_balance: Amount
+    #: Their minimum payments a month together (a debt paid off pays none).
+    total_minimum_payments: Amount
 
 
 class PayoffScheduleEntry(BaseModel):
@@ -117,7 +122,9 @@ class PayoffPlan(BaseModel):
 
 @router.get("/")
 async def list_debts(user_id: CurrentUser, svc: AppServices, active_only: bool = True) -> DebtList:
-    return DebtList.model_validate({"debts": await svc.debt.list_debts(user_id, active_only)})
+    return DebtList.model_validate(
+        {"debts": await svc.debt.list_debts(user_id, active_only), **await svc.debt.totals(user_id)}
+    )
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)

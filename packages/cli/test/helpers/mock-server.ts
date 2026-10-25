@@ -1497,7 +1497,7 @@ export class MockSalli {
           const key = base.split('/').filter(Boolean).pop() ?? 'items';
           const name = { budget: 'budgets', debt: 'debts', portfolio: 'holdings', policies: 'policies', goals: 'goals' }[key] ?? key;
           const activeOnly = req.query.get('active_only') !== 'false';
-          return { status: 200, body: { [name]: items.filter((i) => !activeOnly || i.is_active !== false), ...(key === 'documents' ? { count: items.length } : {}) } };
+          return { status: 200, body: { [name]: items.filter((i) => !activeOnly || i.is_active !== false), ...(key === 'documents' ? { count: items.length } : {}), ...(key === 'debt' ? { total_balance: '9600.00', total_minimum_payments: '345.00' } : {}) } };
         }
         if (req.method === 'POST') {
           this.data.bodies.push({ method: req.method, path: req.path, body: req.json });

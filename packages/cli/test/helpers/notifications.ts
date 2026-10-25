@@ -23,6 +23,8 @@ export const PREFERENCES: NotificationPreferences = {
   weekday: 'monday',
   hour: 9,
   items: ['decision_review_due', 'reminder_due', 'filing_deadline', 'cash_below_zero_ahead'],
+  push_items: ['reminder_due', 'cash_below_zero_ahead', 'budget_over'],
+  quiet_hours: null,
   time_zone: null,
   next_at: null,
   sender_enabled: true,

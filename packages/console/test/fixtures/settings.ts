@@ -74,6 +74,12 @@ export const PREFERENCES: NotificationPreferences = {
     "filing_deadline",
     "cash_below_zero_ahead"
   ],
+  "push_items": [
+    "reminder_due",
+    "cash_below_zero_ahead",
+    "budget_over"
+  ],
+  "quiet_hours": null,
   "time_zone": "Europe/Lisbon",
   "next_at": "2026-10-12T08:00:00+01:00",
   "sender_enabled": true
@@ -225,6 +231,12 @@ export const PREFERENCES_SAVED: NotificationPreferences = {
     "filing_deadline",
     "cash_below_zero_ahead"
   ],
+  "push_items": [
+    "reminder_due",
+    "cash_below_zero_ahead",
+    "budget_over"
+  ],
+  "quiet_hours": null,
   "time_zone": "Europe/Lisbon",
   "next_at": "2026-11-02T07:00:00+00:00",
   "sender_enabled": true

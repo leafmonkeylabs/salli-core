@@ -1,30 +1,46 @@
-import { devicesAdd, devicesList, devicesRemove } from '@leafmonkeylabs/salli-sdk';
+import { devicesAdd, devicesList, devicesRemove, notificationsPreferencesGet, notificationsPreferencesUpdate, type NotificationPreferences, type NotificationPreferencesUpdate } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApi, useRead } from '../api';
-import { Body, Card, SectionLabel, Toggle, Waiting } from '../kit';
+import { Body, Card, Choice, SectionLabel, Toggle, Waiting } from '../kit';
 import { storeKeyOf } from '../lib/servers';
+import { Sheet } from '../sheet';
 import { Page } from '../shell';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
 const t = strings.notifications;
 
+type PushItem = NotificationPreferences['push_items'][number];
+const KINDS: readonly PushItem[] = ['budget_over', 'cash_below_zero_ahead', 'reminder_due'];
+const HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
+const QUIET = { start: '22:00', end: '08:00' };
+
 /**
  * Settings › Notifications (design HhPush): push alerts on this phone, on or
  * off. On asks the phone's permission, then gives the server this phone's
- * Expo push token (`POST /v1/devices`); off removes it. The alerts are the
- * server's: what they are about, and how one reads on the lock screen.
+ * Expo push token (`POST /v1/devices`); off removes it. Which alerts come
+ * and the quiet hours (in the person's time zone) are their preferences on
+ * the server, for every phone of theirs; and how one reads on the lock screen.
  */
 export default function NotificationsScreen() {
   const theme = useTheme();
   const api = useApi();
   const queryClient = useQueryClient();
   const devices = useRead('devices.list', devicesList);
+  const prefs = useRead('notifications.preferences', notificationsPreferencesGet);
+  const [editing, setEditing] = useState<'start' | 'end' | undefined>();
+  const save = useMutation({
+    mutationFn: (body: NotificationPreferencesUpdate) => api.call(notificationsPreferencesUpdate, { body }),
+    onSuccess: (saved) => queryClient.setQueryData([api.server, 'notifications.preferences', null], saved),
+  });
+  const chosen = prefs.data?.push_items ?? [];
+  const quiet = prefs.data?.quiet_hours ?? null;
   const key = storeKeyOf(api.server, 'push');
   // The device this phone registered as, kept on the phone.
   const mine = useQuery({ queryKey: [api.server, 'push.device'], queryFn: async () => (await SecureStore.getItemAsync(key)) ?? '' });
@@ -61,14 +77,59 @@ export default function NotificationsScreen() {
             />
           </Card>
           {turn.error ? <Body alert>{turn.error.message}</Body> : null}
-          <Card style={{ paddingBottom: 4 }}>
-            <SectionLabel>{t.alerts}</SectionLabel>
-            {t.kinds.map((kind) => (
-              <View key={kind} style={[styles.kind, { borderTopColor: theme.rule }]}>
-                <Body>{kind}</Body>
-              </View>
-            ))}
-          </Card>
+          {prefs.data ? (
+            <>
+              <Card style={{ paddingBottom: 4 }}>
+                <SectionLabel>{t.alerts}</SectionLabel>
+                {KINDS.map((kind) => (
+                  <View key={kind} style={[styles.kind, { borderTopColor: theme.rule }]}>
+                    <Toggle
+                      label={t.kinds[kind]}
+                      value={chosen.includes(kind)}
+                      disabled={save.isPending}
+                      onChange={(next) => save.mutate({ push_items: next ? [...chosen, kind] : chosen.filter((k) => k !== kind) })}
+                    />
+                  </View>
+                ))}
+              </Card>
+              <Card style={{ gap: 8 }}>
+                <SectionLabel>{t.quiet}</SectionLabel>
+                <Toggle label={t.quietOn} help={t.quietHelp} value={!!quiet} disabled={save.isPending} onChange={(next) => save.mutate({ quiet_hours: next ? QUIET : null })} />
+                {quiet ? (
+                  <View style={styles.times}>
+                    {(['start', 'end'] as const).map((end) => (
+                      <Pressable
+                        key={end}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t[end]} ${quiet[end]}`}
+                        onPress={() => setEditing(end)}
+                        style={[styles.time, { backgroundColor: theme.input, borderColor: theme.fieldBorder, borderRadius: Math.min(theme.control, 12) }]}
+                      >
+                        <Text style={[styles.small, { color: theme.muted }]}>{t[end]}</Text>
+                        <Text style={[styles.clock, { color: theme.text }]}>{quiet[end]}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </Card>
+              {save.error ? <Body alert>{save.error.message}</Body> : null}
+              <Sheet visible={!!editing && !!quiet} onClose={() => setEditing(undefined)} label={editing ? t[editing] : t.quiet}>
+                {editing && quiet ? (
+                  <Choice
+                    label={t[editing]}
+                    options={HOURS.filter((h) => h !== quiet[editing === 'start' ? 'end' : 'start']).map((h) => ({ id: h, text: h }))}
+                    chosen={quiet[editing]}
+                    onPick={(h) => {
+                      setEditing(undefined);
+                      save.mutate({ quiet_hours: { ...quiet, [editing]: h } });
+                    }}
+                  />
+                ) : null}
+              </Sheet>
+            </>
+          ) : (
+            <Waiting query={prefs} what="your alerts" />
+          )}
           <View style={{ gap: 8 }}>
             <SectionLabel>{t.lockScreen}</SectionLabel>
             <View accessible accessibilityLabel={`${t.sampleTitle} ${t.sampleBody}`} style={[styles.lock, { backgroundColor: theme.text }]}>
@@ -99,7 +160,10 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  kind: { minHeight: 48, justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth },
+  kind: { justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth },
+  times: { flexDirection: 'row', gap: 12 },
+  time: { borderWidth: 1, minHeight: 48, minWidth: 110, paddingHorizontal: 12, paddingVertical: 6, justifyContent: 'center' },
+  clock: { fontFamily: font.regular, fontSize: size.body, fontVariant: ['tabular-nums'] },
   lock: { paddingVertical: 16, paddingHorizontal: 12 },
   note: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 10, paddingHorizontal: 12, opacity: 0.94 },
   appIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },

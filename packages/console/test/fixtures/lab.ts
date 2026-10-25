@@ -5746,7 +5746,9 @@ export const DEBTS: DebtList = {
       "created_at": "2026-04-01T00:00:00+00:00",
       "updated_at": "2026-04-01T00:00:00+00:00"
     }
-  ]
+  ],
+  "total_balance": "17900.00",
+  "total_minimum_payments": "470.00"
 };
 
 export const HOLDINGS: HoldingList = {

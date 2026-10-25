@@ -1,4 +1,4 @@
-import { baselineGet, formatAmount, formatRatio } from '@leafmonkeylabs/salli-sdk';
+import { baselineGet, debtsList, formatAmount, formatRatio } from '@leafmonkeylabs/salli-sdk';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRead } from '../api';
@@ -13,11 +13,13 @@ const t = strings.debts;
 /**
  * Debts (design HhDebts): what you owe in all, then each debt with its rate,
  * its minimum and the month it is paid off at minimum payments, as the
- * baseline reads them. A debt held in the books opens its account.
+ * baseline reads them, and their minimums a month together (the server's
+ * sum, from the debts read). A debt held in the books opens its account.
  */
 export default function Debts() {
   const theme = useTheme();
   const baseline = useRead('baseline.get', baselineGet);
+  const debts = useRead('debts.list', debtsList);
   const data = baseline.data;
   return (
     <Page
@@ -26,13 +28,19 @@ export default function Debts() {
         label: strings.attention.title,
         onPress: () => (router.canGoBack() ? router.back() : router.replace('/attention')),
       }}
-      onRefresh={() => baseline.refetch()}
+      onRefresh={() => Promise.all([baseline.refetch(), debts.refetch()])}
     >
       {data ? (
         <>
           <Card>
             <CardHead label={t.total(displayDate(data.as_of))} />
             <Money amount={data.totals.debts} currency={data.currency} figure="key" />
+            {debts.data ? (
+              <View style={[styles.line, styles.minimums]}>
+                <Text style={[styles.detail, { color: theme.muted }]}>{t.minimums}</Text>
+                <Money amount={debts.data.total_minimum_payments} currency={data.currency} style={styles.name} />
+              </View>
+            ) : null}
           </Card>
           <Card style={{ paddingBottom: 0 }}>
             <CardHead label={t.each(data.currency)} />
@@ -108,6 +116,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   line: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  minimums: { alignItems: 'baseline', marginTop: 8 },
   name: { fontFamily: font.medium, fontSize: size.body },
   detail: {
     fontFamily: font.regular,

@@ -3666,6 +3666,18 @@ export type DebtList = {
      * Debts
      */
     debts: Array<Debt>;
+    /**
+     * Total Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_balance: string;
+    /**
+     * Total Minimum Payments
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total_minimum_payments: string;
 };
 
 /**
@@ -8543,6 +8555,11 @@ export type NotificationPreferences = {
      */
     items: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review' | 'budget_over'>;
     /**
+     * Push Items
+     */
+    push_items: Array<'reminder_due' | 'cash_below_zero_ahead' | 'budget_over'>;
+    quiet_hours: QuietHours | null;
+    /**
      * Time Zone
      */
     time_zone: string | null;
@@ -8582,6 +8599,11 @@ export type NotificationPreferencesUpdate = {
      * Items
      */
     items?: Array<'decision_review_due' | 'reminder_due' | 'filing_deadline' | 'cash_below_zero_ahead' | 'transactions_to_review' | 'budget_over'> | null;
+    /**
+     * Push Items
+     */
+    push_items?: Array<'reminder_due' | 'cash_below_zero_ahead' | 'budget_over'> | null;
+    quiet_hours?: QuietHours | null;
     /**
      * Time Zone
      */
@@ -10189,6 +10211,23 @@ export type ProvenanceSubscription = {
      * Name
      */
     name: string;
+};
+
+/**
+ * QuietHours
+ *
+ * When no push alert goes, in the person's time zone; it may run past
+ * midnight. What waits through them goes after.
+ */
+export type QuietHours = {
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * End
+     */
+    end: string;
 };
 
 /**
@@ -12713,6 +12752,10 @@ export type SpendingTrend = {
      * Months
      */
     months: Array<string>;
+    /**
+     * Totals
+     */
+    totals: Array<string>;
     /**
      * Categories
      */

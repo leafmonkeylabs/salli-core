@@ -4,6 +4,16 @@
 
 ### Added
 
+- **Push preferences, debt and trend totals.** Each person chooses which push
+  alerts their phones take (over budget, cash low ahead, reminders due) and
+  quiet hours in their time zone (`push_items`, `quiet_hours` on
+  `/v1/notifications/preferences`; `salli notifications set --push --quiet`);
+  `salli-server jobs send-push` honours both, holding an alert through quiet hours.
+  `GET /v1/debt/` adds `total_balance` and `total_minimum_payments`, and
+  `/v1/budget/trend` adds `totals` per month, both summed on the server. The
+  phone shows the toggles and quiet hours on More › Notifications, the
+  minimums a month on Debts and each month's total on the budget's trend
+  bars. Migration `core_0048_push_preferences` adds one nullable column.
 - **Household basics in the phone app.** Add picks the entry's day (Today,
   Yesterday or a calendar) instead of always today; an entry's category can
   be changed beside Reverse (a sheet of the same kind of accounts, then the

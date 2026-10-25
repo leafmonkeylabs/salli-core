@@ -48,7 +48,11 @@ async def test_a_debt_reads_back_as_the_service_returns_it(client, mock_services
     assert debt["apr"] == "0.24"
 
     r = await client.get("/v1/debt/", headers=AUTH)
-    assert r.json() == {"debts": [debt]}
+    assert r.json() == {
+        "debts": [debt],
+        "total_balance": "1000.00",
+        "total_minimum_payments": "100.00",
+    }
 
 
 async def test_an_update_answers_that_it_was_applied(client, mock_services):
@@ -57,7 +61,11 @@ async def test_an_update_answers_that_it_was_applied(client, mock_services):
 
     r = await client.patch(f"/v1/debt/{debt_id}", json={"is_active": False}, headers=AUTH)
     assert (r.status_code, r.json()) == (200, {"updated": True})
-    assert (await client.get("/v1/debt/", headers=AUTH)).json() == {"debts": []}
+    assert (await client.get("/v1/debt/", headers=AUTH)).json() == {
+        "debts": [],
+        "total_balance": "0.00",
+        "total_minimum_payments": "0.00",
+    }
     r = await client.get("/v1/debt/", params={"active_only": False}, headers=AUTH)
     assert [d["is_active"] for d in r.json()["debts"]] == [False]
 
