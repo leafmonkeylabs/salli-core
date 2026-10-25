@@ -1,0 +1,25 @@
+{
+  "schema": "salli.bankformat/1",
+  "name": "NDB Bank: account statement (CSV)",
+  "bank": "National Development Bank PLC",
+  "columns": {
+    "date": "Posting Date",
+    "description": [
+      "Narration"
+    ],
+    "amount": "Amount",
+    "direction": "Dr/Cr"
+  },
+  "date_format": "%d/%m/%Y",
+  "decimal_separator": ".",
+  "thousands_separator": ",",
+  "sources": [
+    {
+      "url": "https://www.ndbbank.com/personal/digital-banking",
+      "note": "NDB NEOS offers statement download; no sample file published. Retrieved 2026-10-25"
+    }
+  ],
+  "notes": "One amount with a Dr/Cr column assumed; confirm against a real export.",
+  "verified": false,
+  "sample": "samples/ndb.csv"
+}

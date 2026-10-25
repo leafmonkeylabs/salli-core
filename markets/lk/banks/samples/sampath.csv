@@ -1,0 +1,6 @@
+Account Statement
+Account,1234XXXX5678
+Date,Description,Withdrawals,Deposits,Balance
+01-10-2026,OPENING BALANCE,,,"50,000.00"
+03-10-2026,ATM WITHDRAWAL,"10,000.00",,"40,000.00"
+15-10-2026,FUND TRANSFER IN,,"22,750.25","62,750.25"

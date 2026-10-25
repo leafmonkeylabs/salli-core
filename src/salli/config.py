@@ -131,6 +131,12 @@ class Settings(BaseSettings):
     # or decides per user through its extension (ChatGPTPlanPolicy), until then.
     salli_chatgpt_plan_usage: bool = True
 
+    # Usage counts for the owner (`salli-server stats`): members active,
+    # statement entries imported and reconciliations completed in the last
+    # week, counted from the database when asked. Off by default; nothing is
+    # ever sent anywhere (business/metrics.md).
+    salli_usage_counters: bool = False
+
     # The base currency a new account is given when nothing else says which —
     # `salli-server setup` asks, and onboarding can change it while the ledger is
     # still empty. Existing users keep theirs; this only applies to new ones.

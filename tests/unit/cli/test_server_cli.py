@@ -64,6 +64,7 @@ def test_the_server_has_only_operator_commands():
     assert _commands() == {
         "setup",
         "serve",
+        "stats",
         "doctor",
         "db upgrade",
         "db current",

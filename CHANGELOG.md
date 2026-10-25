@@ -19,6 +19,36 @@
   line, the result, a deadline or a form field may say `"provisional":
   true` with a `note`; every computation (and the MCP tax reads) lists
   them under `provisional`.
+- **Bank formats as data.** A bank's statement layout is a
+  `salli.bankformat/1` JSON document (columns by header or position, date
+  format, decimal and thousands separators, debit and credit columns, a
+  direction column or a sign), given with an import: `salli import
+  --format <file or directory>`, the `formats` field of `POST
+  /v1/statements/upload`. It reads CSV files and the tables of PDF and Excel
+  statements; with several, the one that reads the most rows is used, and
+  the result's `formats` counts what each read and could not. The first
+  market pack's banks are in `markets/lk/banks/`, each with a synthetic
+  sample the tests read, none yet verified against a real export.
+- **Usage counts for the owner.** `SALLI_USAGE_COUNTERS=true` (off by
+  default) enables `salli-server stats`: members active, statement entries
+  imported and reconciliations completed in the last seven days, counted
+  from the database when asked and never sent anywhere
+  (business/metrics.md).
+- **A hosted path.** `deploy/host.sh` sets up one instance per person or
+  household with the published image, HTTPS, the owner and nightly
+  backups, and upgrades it; docs/hosting.md is the guide, including where
+  a hosted service's extension would report counts and where a payment
+  processor sits (outside the core).
+- **Connector directory kit.** docs/connectors.md lists what Claude's and
+  ChatGPT's connector directories ask, and a test checks the server's side:
+  the OAuth metadata now carries `scopes_supported` (and
+  `bearer_methods_supported`), the protected resource metadata is also served
+  at `/.well-known/oauth-protected-resource/mcp`, a 401 from `/mcp` names it in
+  `WWW-Authenticate`, and every MCP tool has a title.
+- **docs/scope.md**: the surface is frozen until the first pilots (no new
+  engines), what is core and what is experimental; the decision lab's docs
+  say it is experimental.
+
 - **An investment policy statement.** Target allocation by asset class with
   a band each, a rebalancing rule (bands, calendar or both), horizon,
   objectives, constraints and a review date, stored as versions and never

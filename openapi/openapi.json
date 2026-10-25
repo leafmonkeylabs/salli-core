@@ -5128,7 +5128,7 @@
           "statements"
         ],
         "summary": "Upload Statement",
-        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`account_id` is the account the statement is for (an active asset or\nliability account): the money side of every transaction in it. `currency`\nis the statement's ISO 4217 code, for files that do not name their own\n(OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the\naccount's currency, else the user's base currency, and a transaction in\nanother currency than the account's is skipped. Posting a statement in\nanother currency than the base converts each transaction at the published\nrate for its date. `date_order` settles dates a CSV or QIF file leaves\nambiguous (01/02/2026). Rows that could not be read, and any guess the\nimporter made, come back in `errors`.\n\nA file holding several accounts (a QIF with a card register, an OFX with\ntwo statements) is imported one account at a time: `source_account`\nnames the file's account to import when the statement's account does not\nmatch one by name or code. `replaces` is an earlier upload of the same\nstatement, imported again on purpose: its rows are not taken for\nduplicates, and those still in review are discarded.",
+        "description": "Parse a bank statement file. Returns the statement_id and extracted transactions.\nTransactions have LLM-assigned accounts and dedup status; review before posting.\nPasses the deployment's usage meter before any parsing starts.\n\n`account_id` is the account the statement is for (an active asset or\nliability account): the money side of every transaction in it. `currency`\nis the statement's ISO 4217 code, for files that do not name their own\n(OFX, camt.053 and MT940 always do, and a CSV may); it defaults to the\naccount's currency, else the user's base currency, and a transaction in\nanother currency than the account's is skipped. Posting a statement in\nanother currency than the base converts each transaction at the published\nrate for its date. `date_order` settles dates a CSV or QIF file leaves\nambiguous (01/02/2026). Rows that could not be read, and any guess the\nimporter made, come back in `errors`.\n\nA file holding several accounts (a QIF with a card register, an OFX with\ntwo statements) is imported one account at a time: `source_account`\nnames the file's account to import when the statement's account does not\nmatch one by name or code. `replaces` is an earlier upload of the same\nstatement, imported again on purpose: its rows are not taken for\nduplicates, and those still in review are discarded. `formats` (a form\nfield) states the bank's layout as `salli.bankformat/1` documents; the\nresult counts what each read and could not.",
         "operationId": "statements.upload",
         "security": [
           {
@@ -5237,7 +5237,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/FileUpload"
+                "$ref": "#/components/schemas/StatementFileUpload"
               }
             }
           }
@@ -16754,6 +16754,13 @@
             },
             "type": "array",
             "title": "Token Endpoint Auth Methods Supported"
+          },
+          "scopes_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scopes Supported"
           }
         },
         "type": "object",
@@ -16767,7 +16774,8 @@
           "response_types_supported",
           "grant_types_supported",
           "code_challenge_methods_supported",
-          "token_endpoint_auth_methods_supported"
+          "token_endpoint_auth_methods_supported",
+          "scopes_supported"
         ],
         "title": "AuthorizationServerMetadata",
         "description": "RFC 8414 §2."
@@ -25585,6 +25593,34 @@
         ],
         "title": "ForecastDay"
       },
+      "FormatOutcomeView": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parsed": {
+            "type": "integer",
+            "title": "Parsed"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "chosen": {
+            "type": "boolean",
+            "title": "Chosen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "parsed",
+          "failed",
+          "chosen"
+        ],
+        "title": "FormatOutcomeView"
+      },
       "FxRevaluationPosted": {
         "properties": {
           "entry_id": {
@@ -32290,12 +32326,28 @@
             },
             "type": "array",
             "title": "Authorization Servers"
+          },
+          "scopes_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scopes Supported"
+          },
+          "bearer_methods_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Bearer Methods Supported"
           }
         },
         "type": "object",
         "required": [
           "resource",
-          "authorization_servers"
+          "authorization_servers",
+          "scopes_supported",
+          "bearer_methods_supported"
         ],
         "title": "ProtectedResourceMetadata",
         "description": "RFC 9728 §2."
@@ -37221,6 +37273,32 @@
         ],
         "title": "StatementBalancesRequest"
       },
+      "StatementFileUpload": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "formats": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "StatementFileUpload",
+        "description": "A statement file, and the bank formats to read it with."
+      },
       "StatementTransaction": {
         "properties": {
           "id": {
@@ -37443,6 +37521,14 @@
             },
             "type": "array",
             "title": "Transactions"
+          },
+          "formats": {
+            "items": {
+              "$ref": "#/components/schemas/FormatOutcomeView"
+            },
+            "type": "array",
+            "title": "Formats",
+            "default": []
           }
         },
         "type": "object",

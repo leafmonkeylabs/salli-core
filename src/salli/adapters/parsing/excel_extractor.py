@@ -14,7 +14,7 @@ import datetime
 import io
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 
-from salli.adapters.parsing.csv_import import Table, extract_from_tables
+from salli.adapters.parsing.csv_import import CsvMapping, Table, extract_from_tables
 from salli.adapters.parsing.dates import DateOrder
 from salli.adapters.parsing.support import Extraction
 
@@ -25,6 +25,7 @@ def extract_from_excel(
     date_order: DateOrder | None = None,
     prefer_order: DateOrder = "DMY",
     currency: str | None = None,
+    mapping: CsvMapping | None = None,
 ) -> Extraction:
     """Every transaction on the first sheet of an .xlsx workbook that is a
     statement. Sheets are read one at a time, and reading stops at the
@@ -35,6 +36,7 @@ def extract_from_excel(
     def read(sheet: Table) -> Extraction | None:
         result = extract_from_tables(
             [sheet],
+            mapping,
             date_order=date_order,
             prefer_order=prefer_order,
             currency=currency,

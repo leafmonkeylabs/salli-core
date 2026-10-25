@@ -141,7 +141,8 @@ The console has:
   flow and spending; signals and reminders; the FI number and its
   assumptions.
 - **Decide**: the decision lab (the baseline, templates, scenarios,
-  principles, the journal and reviews).
+  principles, the journal and reviews). Experimental: it works, but may
+  change before the first pilots end ([scope](scope.md)).
 - **Books**: the accounts and the ledger, adding and reversing an entry;
   **imports** (a statement file uploaded from your device, then a review
   queue where you choose accounts and post or discard: nothing is booked
@@ -217,6 +218,7 @@ is needed to start.
 | `SALLI_CONSOLE_DIR` | `/opt/salli-console` in the image | Where the console's built files are (`index.html` and `assets/`). Without them, no console is served: from a source checkout, build it (`npm run build --workspace @leafmonkeylabs/salli-console`) and point this at `packages/console/dist`. |
 | `SALLI_CONSOLE_SIGN_IN_HOURS` | `12` | How long a console sign-in lasts after its password, however often it refreshes (1 to 168). The CLI's sign-ins are not affected. |
 | `SALLI_CHATGPT_PLAN_USAGE` | `true` | Whether people may run Salli's AI on their ChatGPT plan. |
+| `SALLI_USAGE_COUNTERS` | `false` | Lets the owner see this instance's weekly usage counts with `salli-server stats` (members active, statement entries imported, reconciliations completed). Counts only, read from the database when asked; never sent anywhere. |
 | `TAVILY_API_KEY` | none | Web search for the agents. |
 | `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` | none, `salli` | Tracing. |
 | `LOG_LEVEL` | `INFO` | |

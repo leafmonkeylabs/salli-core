@@ -92,6 +92,7 @@ async def test_an_upload_returns_its_transactions_for_review(client, mock_servic
                 "splits": [],
             }
         ],
+        "formats": [],
     }
 
 

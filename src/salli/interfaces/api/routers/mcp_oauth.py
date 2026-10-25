@@ -57,6 +57,7 @@ class AuthorizationServerMetadata(BaseModel):
     grant_types_supported: list[str]
     code_challenge_methods_supported: list[str]
     token_endpoint_auth_methods_supported: list[str]
+    scopes_supported: list[str]
 
 
 class ProtectedResourceMetadata(BaseModel):
@@ -64,6 +65,8 @@ class ProtectedResourceMetadata(BaseModel):
 
     resource: str
     authorization_servers: list[str]
+    scopes_supported: list[str]
+    bearer_methods_supported: list[str]
 
 
 @router.get("/.well-known/oauth-authorization-server")
@@ -73,6 +76,9 @@ async def authorization_server_metadata(svc: AppServices) -> AuthorizationServer
     )
 
 
+# Also at the path RFC 9728 section 3.1 derives from the resource (/mcp),
+# which the MCP endpoint's 401 names in its WWW-Authenticate challenge.
+@router.get("/.well-known/oauth-protected-resource/mcp", include_in_schema=False)
 @router.get("/.well-known/oauth-protected-resource")
 async def protected_resource_metadata(svc: AppServices) -> ProtectedResourceMetadata:
     return ProtectedResourceMetadata.model_validate(

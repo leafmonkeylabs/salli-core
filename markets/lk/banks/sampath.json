@@ -1,0 +1,25 @@
+{
+  "schema": "salli.bankformat/1",
+  "name": "Sampath Bank: account statement (CSV)",
+  "bank": "Sampath Bank PLC",
+  "columns": {
+    "date": "Date",
+    "description": [
+      "Description"
+    ],
+    "debit": "Withdrawals",
+    "credit": "Deposits"
+  },
+  "date_format": "%d-%m-%Y",
+  "decimal_separator": ".",
+  "thousands_separator": ",",
+  "sources": [
+    {
+      "url": "https://www.sampath.lk/en/personal/e-banking",
+      "note": "Sampath Vishwa offers statement download; no sample file published. Retrieved 2026-10-25"
+    }
+  ],
+  "notes": "Withdrawals and deposits as two columns assumed; confirm against a real export.",
+  "verified": false,
+  "sample": "samples/sampath.csv"
+}

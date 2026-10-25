@@ -16,6 +16,23 @@ What a reviewer should check is [at the end](#for-the-reviewer).
 | [`tax/2024-25.json`](tax/2024-25.json) | The same for 2024/2025, whose relief, bands and interest AIT differ. 5 worked examples. |
 | [`cma.json`](cma.json) | Capital-market assumptions (`salli.cma/1`): inflation, cash yield, four asset classes, correlations. |
 | [`pensions.json`](pensions.json) | EPF and ETF (`salli.pensions/1`): contributions, payout, tax treatment, ledger postings. |
+| [`banks/`](banks) | Statement layouts (`salli.bankformat/1`) for Commercial Bank, Sampath, Bank of Ceylon, HNB and NDB. |
+
+### Bank statement formats
+
+`salli import statement.csv --account <account> --format markets/lk/banks/`
+tries every layout here and uses the one that reads the most rows; the
+result says how many rows each read and failed to. They apply to CSV
+exports and to the tables of PDF statements.
+
+**None is verified** (`"verified": false` in each file). No bank publishes
+its export layout or a sample statement, so the columns, date format and
+debit/credit style come from the banks' online-banking pages and, for Bank
+of Ceylon, one unofficial printed statement; each file cites what was seen.
+Each has a synthetic sample in `banks/samples/` that the tests read. To
+verify one, import a real export with `--format` and, when every row reads,
+set `verified` to true and add the date; when it doesn't, correct the
+columns from the file's header row.
 
 ### The tax rule sets
 

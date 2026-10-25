@@ -827,6 +827,10 @@ export type AuthorizationServerMetadata = {
      * Token Endpoint Auth Methods Supported
      */
     token_endpoint_auth_methods_supported: Array<string>;
+    /**
+     * Scopes Supported
+     */
+    scopes_supported: Array<string>;
 };
 
 /**
@@ -5828,6 +5832,28 @@ export type ForecastDay = {
 };
 
 /**
+ * FormatOutcomeView
+ */
+export type FormatOutcomeView = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Parsed
+     */
+    parsed: number;
+    /**
+     * Failed
+     */
+    failed: number;
+    /**
+     * Chosen
+     */
+    chosen: boolean;
+};
+
+/**
  * FxRevaluationPosted
  */
 export type FxRevaluationPosted = {
@@ -9466,6 +9492,14 @@ export type ProtectedResourceMetadata = {
      * Authorization Servers
      */
     authorization_servers: Array<string>;
+    /**
+     * Scopes Supported
+     */
+    scopes_supported: Array<string>;
+    /**
+     * Bearer Methods Supported
+     */
+    bearer_methods_supported: Array<string>;
 };
 
 /**
@@ -12213,6 +12247,22 @@ export type StatementBalancesRequest = {
 };
 
 /**
+ * StatementFileUpload
+ *
+ * A statement file, and the bank formats to read it with.
+ */
+export type StatementFileUpload = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Formats
+     */
+    formats?: string | null;
+};
+
+/**
  * StatementTransaction
  *
  * A transaction read from a statement and classified, awaiting review.
@@ -12336,6 +12386,10 @@ export type StatementUpload = {
      * Transactions
      */
     transactions: Array<StatementTransaction>;
+    /**
+     * Formats
+     */
+    formats?: Array<FormatOutcomeView>;
 };
 
 /**
@@ -17694,7 +17748,7 @@ export type AccountDeleteResponses = {
 export type AccountDeleteResponse = AccountDeleteResponses[keyof AccountDeleteResponses];
 
 export type StatementsUploadData = {
-    body: FileUpload;
+    body: StatementFileUpload;
     path?: never;
     query?: {
         /**
