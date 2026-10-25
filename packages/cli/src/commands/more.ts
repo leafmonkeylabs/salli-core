@@ -171,9 +171,12 @@ function registerReports(program: Command, app: App): void {
     .command('balance-sheet')
     .alias('bs')
     .description('What you own, what you owe, and your net worth')
-    .action(async () => {
+    .option('--as-of <date>', 'As of this day (default: today)')
+    .action(async (opts) => {
       const api = await app.api();
-      const bs = await api.call(reportsBalanceSheet);
+      const bs = await api.call(reportsBalanceSheet, {
+        query: opts.asOf ? { as_of: parseDate(opts.asOf, app.runtime.now(), '--as-of') } : {},
+      });
       const lines = [
         ...bs.assets.map((l) => ({ section: 'asset', ...l })),
         ...bs.liabilities.map((l) => ({ section: 'liability', ...l })),
@@ -204,6 +207,8 @@ function registerReports(program: Command, app: App): void {
           section('Liabilities', lines.filter((l) => l.section === 'liability'), bs.total_liabilities);
           if (bs.equity.length) section('Equity', lines.filter((l) => l.section === 'equity'), bs.total_equity);
           out.line(row('Net worth', out.signed(out.amount(bs.net_worth, cur), bs.net_worth), true));
+          if (bs.unrealised_fx.lines.length) out.line(c.dim(`Of which unrealised exchange gain: ${out.amount(bs.unrealised_fx.total, cur)}`));
+          for (const note of bs.notes) out.warn(note);
         },
       });
     });
@@ -387,6 +392,8 @@ function registerProfile(program: Command, app: App): void {
     .addOption(new Option('--residency <status>', 'Tax residency').choices(['resident', 'non_resident']))
     .option('--employer <name>', 'Employer')
     .option('--tax-residency <country>', 'The country you are taxed in, as a two-letter code (DE, KE, BR…); "none" clears it')
+    .option('--books-start <date>', 'The day your books start: opening balances are posted on it')
+    .option('--retention-years <n>', 'Keep each document saved from now on this many years', countArg('--retention-years'))
     .option('--tax-id <scheme=number>', 'A tax id as SCHEME=NUMBER, the scheme your country\'s code and the kind of number, e.g. XX-TIN=123456789 (repeatable); SCHEME= removes one', collect)
     .action(async (opts) => {
       const residency = opts.taxResidency?.trim();
@@ -401,6 +408,8 @@ function registerProfile(program: Command, app: App): void {
           employment_type: opts.employmentType,
           residency_status: opts.residency,
           employer: opts.employer,
+          books_start: opts.booksStart ? parseDate(opts.booksStart, app.runtime.now(), '--books-start') : undefined,
+          document_retention_years: opts.retentionYears,
           tax_residency: residency === undefined ? undefined : residency.toLowerCase() === 'none' ? null : countryArg(residency),
         }).filter(([, v]) => v !== undefined),
       );

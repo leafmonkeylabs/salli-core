@@ -9,12 +9,43 @@ from collections import defaultdict
 from decimal import Decimal
 
 from salli.domain.accounting.models import (
+    Account,
     AccountType,
     Direction,
     JournalEntry,
     Posting,
     StoredJournalEntry,
+    base_minor_net,
 )
+from salli.domain.money import from_minor
+
+#: The code of the account a multi-currency entry's rounding is posted to,
+#: opened in the base currency the first time one is needed.
+FX_ROUNDING = "fx_rounding"
+
+
+def fx_rounding(postings: list[Posting], base_currency: str, account_id: str) -> Posting | None:
+    """The posting that makes an entry with converted postings balance
+    exactly in the base currency, on `account_id`; None when it already does
+    or converts nothing.
+
+    Each posting's base value is rounded to the base currency's minor units
+    as the ledger stores it, so an entry that balances in its own currencies
+    (or at rates given to eight places) can be a unit or so out in the base
+    one. Only rounding is taken up: at most one minor unit a posting. A larger
+    difference is an entry that does not balance, refused as before."""
+    if all(p.fx_rate == 1 for p in postings):
+        return None
+    net = base_minor_net(postings, base_currency)
+    if net == 0 or abs(net) > len(postings):
+        return None
+    return Posting(
+        account_id=account_id,
+        direction=Direction.CREDIT if net > 0 else Direction.DEBIT,
+        amount=from_minor(abs(net), base_currency),
+        currency=base_currency,
+        fx_rate_source="rounding",
+    )
 
 
 def account_balance(postings: list[Posting]) -> Decimal:
@@ -180,3 +211,60 @@ NORMAL_BALANCE: dict[AccountType, Direction] = {
     "equity": Direction.CREDIT,
     "income": Direction.CREDIT,
 }
+
+
+# ── unrealised exchange gains and losses ───────────────────────────────────────
+
+#: The accounts a revaluation is posted to, when the person asks for one at a
+#: period's end: the gain or loss (income) against an equity adjustment, so
+#: the foreign-currency accounts keep their own currency's amounts.
+FX_REVALUATION = "fx_revaluation"
+UNREALISED_FX = "unrealised_fx"
+
+
+def unrealised_fx(
+    entries: list[StoredJournalEntry],
+    accounts: list[Account],
+    base_currency: str,
+    rates: dict[str, Decimal],
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Each asset or liability account held in another currency than the
+    base, revalued: its balance at `rates` (the as-of day's rate into the
+    base, by currency) against what it cost, the base amounts its postings
+    were booked at. `entries` are those up to the as-of day. Returns the
+    lines (account, balance, cost, value, gain, each in Decimal) and the
+    currencies with no rate, left out."""
+    lines: list[dict[str, object]] = []
+    missing: list[str] = []
+    for account in accounts:
+        if account.type not in ("asset", "liability") or account.currency == base_currency:
+            continue
+        native: Decimal | None = Decimal(0)
+        cost = Decimal(0)
+        touched = False
+        for entry in entries:
+            for p in entry.postings:
+                if p.account_id != account.id:
+                    continue
+                touched = True
+                cost += p.base_signed
+                amount = native_signed(p, account.currency, base_currency)
+                native = None if native is None or amount is None else native + amount
+        if not touched or native is None:
+            continue
+        rate = rates.get(account.currency)
+        if rate is None:
+            if account.currency not in missing:
+                missing.append(account.currency)
+            continue
+        value = native * rate
+        lines.append(
+            {
+                "account": account,
+                "balance": native,
+                "cost": cost,
+                "value": value,
+                "gain": value - cost,
+            }
+        )
+    return lines, missing

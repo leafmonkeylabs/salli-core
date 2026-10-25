@@ -376,6 +376,10 @@ export type AgentDocument = {
      */
     description: string | null;
     /**
+     * Retain Until
+     */
+    retain_until?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -869,6 +873,11 @@ export type BalanceSheet = {
      * Decimal string in the currency's own precision; never a float.
      */
     net_worth: string;
+    /**
+     * As Of
+     */
+    as_of: string;
+    unrealised_fx: UnrealisedFx;
     /**
      * Notes
      */
@@ -2527,6 +2536,20 @@ export type CheckedOption = {
      * Scenario Hash
      */
     scenario_hash: string;
+};
+
+/**
+ * ClearRequest
+ */
+export type ClearRequest = {
+    /**
+     * Posting Ids
+     */
+    posting_ids: Array<string>;
+    /**
+     * Cleared
+     */
+    cleared?: boolean;
 };
 
 /**
@@ -4260,6 +4283,10 @@ export type DraftTransaction = {
      * Currency
      */
     currency?: string | null;
+    /**
+     * Base Amount
+     */
+    base_amount?: string | null;
 };
 
 /**
@@ -5288,6 +5315,26 @@ export type ForecastDay = {
 };
 
 /**
+ * FxRevaluationPosted
+ */
+export type FxRevaluationPosted = {
+    /**
+     * Entry Id
+     */
+    entry_id: string | null;
+};
+
+/**
+ * FxRevaluationRequest
+ */
+export type FxRevaluationRequest = {
+    /**
+     * As Of
+     */
+    as_of: string;
+};
+
+/**
  * Goal
  *
  * A savings goal, its progress measured from what its accounts actually hold.
@@ -6253,6 +6300,14 @@ export type IncomeStatement = {
      * Lines
      */
     lines: Array<IncomeStatementLine>;
+    /**
+     * Unrealised Fx
+     */
+    unrealised_fx?: string | null;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
 };
 
 /**
@@ -8367,6 +8422,14 @@ export type Profile = {
      * Lock Date
      */
     lock_date?: string | null;
+    /**
+     * Books Start
+     */
+    books_start?: string | null;
+    /**
+     * Document Retention Years
+     */
+    document_retention_years?: number | null;
 };
 
 /**
@@ -8413,6 +8476,14 @@ export type ProfileIdentityRequest = {
      * Base Currency
      */
     base_currency?: string | null;
+    /**
+     * Books Start
+     */
+    books_start?: string | null;
+    /**
+     * Document Retention Years
+     */
+    document_retention_years?: number | null;
 };
 
 /**
@@ -8604,6 +8675,182 @@ export type RebalancingAlert = {
      * Drift Pct
      */
     drift_pct: string;
+};
+
+/**
+ * ReconcilableStatement
+ */
+export type ReconcilableStatement = {
+    /**
+     * Statement Id
+     */
+    statement_id: string;
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Account Name
+     */
+    account_name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Opening Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    opening_balance: string;
+    /**
+     * Closing Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    closing_balance: string;
+    reconciliation: Reconciliation | null;
+};
+
+/**
+ * ReconcilableStatementList
+ */
+export type ReconcilableStatementList = {
+    /**
+     * Statements
+     */
+    statements: Array<ReconcilableStatement>;
+};
+
+/**
+ * Reconciliation
+ *
+ * A completed reconciliation: recorded only at a difference of zero.
+ */
+export type Reconciliation = {
+    /**
+     * Cleared Total
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cleared_total: string;
+    /**
+     * Difference
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    difference: string;
+    /**
+     * Completed By
+     */
+    completed_by: string;
+    /**
+     * Completed At
+     */
+    completed_at: string;
+};
+
+/**
+ * ReconciliationStatus
+ */
+export type ReconciliationStatus = {
+    /**
+     * Statement Id
+     */
+    statement_id: string;
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Account Name
+     */
+    account_name: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Opening Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    opening_balance: string;
+    /**
+     * Closing Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    closing_balance: string;
+    reconciliation: Reconciliation | null;
+    /**
+     * Cleared Total
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cleared_total: string;
+    /**
+     * Difference
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    difference: string;
+    /**
+     * Postings
+     */
+    postings: Array<ReconcilingPosting>;
+};
+
+/**
+ * ReconcilingPosting
+ */
+export type ReconcilingPosting = {
+    /**
+     * Posting Id
+     */
+    posting_id: string;
+    /**
+     * Entry Id
+     */
+    entry_id: string;
+    /**
+     * Entry Date
+     */
+    entry_date: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Amount
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    amount: string;
+    /**
+     * Cleared
+     */
+    cleared: boolean;
 };
 
 /**
@@ -10609,6 +10856,56 @@ export type SpendingLine = {
 };
 
 /**
+ * SplitPart
+ *
+ * One part of a transaction that was for several things.
+ */
+export type SplitPartInput = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Amount
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    amount: string;
+    /**
+     * Category
+     */
+    category?: string;
+    /**
+     * Need
+     */
+    need?: 'essential' | 'discretionary' | 'savings' | '';
+};
+
+/**
+ * SplitPart
+ *
+ * One part of a transaction that was for several things.
+ */
+export type SplitPartOutput = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Amount
+     */
+    amount: string;
+    /**
+     * Category
+     */
+    category?: string;
+    /**
+     * Need
+     */
+    need?: 'essential' | 'discretionary' | 'savings' | '';
+};
+
+/**
  * StartAnswer
  */
 export type StartAnswer = {
@@ -10706,6 +11003,40 @@ export type StartTemplate = {
 };
 
 /**
+ * StatementBalancesRequest
+ */
+export type StatementBalancesRequest = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Period Start
+     */
+    period_start: string;
+    /**
+     * Period End
+     */
+    period_end: string;
+    /**
+     * Opening Balance
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    opening_balance: string;
+    /**
+     * Closing Balance
+     *
+     * Decimal string, read exactly; a JSON number is refused.
+     */
+    closing_balance: string;
+    /**
+     * Bank
+     */
+    bank?: string;
+};
+
+/**
  * StatementTransaction
  *
  * A transaction read from a statement and classified, awaiting review.
@@ -10783,6 +11114,14 @@ export type StatementTransaction = {
      * Duplicate Of
      */
     duplicate_of: string | null;
+    /**
+     * Base Amount
+     */
+    base_amount?: string | null;
+    /**
+     * Splits
+     */
+    splits?: Array<SplitPartOutput>;
 };
 
 /**
@@ -12919,7 +13258,7 @@ export type TransactionChoice = {
     /**
      * Account Id
      */
-    account_id: string;
+    account_id?: string;
     /**
      * Category
      */
@@ -12928,6 +13267,10 @@ export type TransactionChoice = {
      * Need
      */
     need?: 'essential' | 'discretionary' | 'savings' | null;
+    /**
+     * Splits
+     */
+    splits?: Array<SplitPartInput> | null;
 };
 
 /**
@@ -12952,6 +13295,104 @@ export type TrialBalance = {
      * Decimal string in the currency's own precision; never a float.
      */
     net: string;
+};
+
+/**
+ * UnrealisedFx
+ *
+ * Foreign-currency asset and liability accounts revalued at a day's
+ * rate against their historical cost: computed, not posted, unless a
+ * revaluation was posted at a period's end (`ledger.fxRevaluation.post`).
+ */
+export type UnrealisedFx = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Total
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    total: string;
+    /**
+     * Posted
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    posted: string;
+    /**
+     * Unposted
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    unposted: string;
+    /**
+     * Lines
+     */
+    lines: Array<UnrealisedFxLine>;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
+ * UnrealisedFxLine
+ */
+export type UnrealisedFxLine = {
+    /**
+     * Account Id
+     */
+    account_id: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Account Currency
+     *
+     * ISO 4217 currency code
+     */
+    account_currency: string;
+    /**
+     * Balance
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    balance: string;
+    /**
+     * Rate
+     */
+    rate: string;
+    /**
+     * Cost
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cost: string;
+    /**
+     * Value
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    value: string;
+    /**
+     * Gain
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    gain: string;
 };
 
 /**
@@ -13931,6 +14372,69 @@ export type EntriesPostingsSetTagsResponses = {
 };
 
 export type EntriesPostingsSetTagsResponse = EntriesPostingsSetTagsResponses[keyof EntriesPostingsSetTagsResponses];
+
+export type LedgerUnrealisedFxData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * As Of
+         */
+        as_of: string;
+    };
+    url: '/v1/ledger/unrealised-fx';
+};
+
+export type LedgerUnrealisedFxErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerUnrealisedFxError = LedgerUnrealisedFxErrors[keyof LedgerUnrealisedFxErrors];
+
+export type LedgerUnrealisedFxResponses = {
+    /**
+     * Successful Response
+     */
+    200: UnrealisedFx;
+};
+
+export type LedgerUnrealisedFxResponse = LedgerUnrealisedFxResponses[keyof LedgerUnrealisedFxResponses];
+
+export type LedgerFxRevaluationPostData = {
+    body: FxRevaluationRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/ledger/fx-revaluation';
+};
+
+export type LedgerFxRevaluationPostErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type LedgerFxRevaluationPostError = LedgerFxRevaluationPostErrors[keyof LedgerFxRevaluationPostErrors];
+
+export type LedgerFxRevaluationPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FxRevaluationPosted;
+};
+
+export type LedgerFxRevaluationPostResponse = LedgerFxRevaluationPostResponses[keyof LedgerFxRevaluationPostResponses];
 
 export type LedgerTrialBalanceData = {
     body?: never;
@@ -18077,11 +18581,20 @@ export type InsurancePoliciesUpdateResponse = InsurancePoliciesUpdateResponses[k
 export type ReportsBalanceSheetData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * As Of
+         */
+        as_of?: string | null;
+    };
     url: '/v1/reports/balance-sheet';
 };
 
 export type ReportsBalanceSheetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
     /**
      * An error, as RFC 9457 problem details
      */
@@ -18180,6 +18693,162 @@ export type ReportsExportCsvResponses = {
      */
     200: unknown;
 };
+
+export type ReconciliationStatementsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/reconciliation/statements';
+};
+
+export type ReconciliationStatementsListErrors = {
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsListError = ReconciliationStatementsListErrors[keyof ReconciliationStatementsListErrors];
+
+export type ReconciliationStatementsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconcilableStatementList;
+};
+
+export type ReconciliationStatementsListResponse = ReconciliationStatementsListResponses[keyof ReconciliationStatementsListResponses];
+
+export type ReconciliationStatementsAddData = {
+    body: StatementBalancesRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/reconciliation/statements';
+};
+
+export type ReconciliationStatementsAddErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsAddError = ReconciliationStatementsAddErrors[keyof ReconciliationStatementsAddErrors];
+
+export type ReconciliationStatementsAddResponses = {
+    /**
+     * Successful Response
+     */
+    201: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsAddResponse = ReconciliationStatementsAddResponses[keyof ReconciliationStatementsAddResponses];
+
+export type ReconciliationStatementsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: string;
+    };
+    query?: never;
+    url: '/v1/reconciliation/statements/{statement_id}';
+};
+
+export type ReconciliationStatementsGetErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsGetError = ReconciliationStatementsGetErrors[keyof ReconciliationStatementsGetErrors];
+
+export type ReconciliationStatementsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsGetResponse = ReconciliationStatementsGetResponses[keyof ReconciliationStatementsGetResponses];
+
+export type ReconciliationStatementsClearData = {
+    body: ClearRequest;
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: string;
+    };
+    query?: never;
+    url: '/v1/reconciliation/statements/{statement_id}/clear';
+};
+
+export type ReconciliationStatementsClearErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsClearError = ReconciliationStatementsClearErrors[keyof ReconciliationStatementsClearErrors];
+
+export type ReconciliationStatementsClearResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsClearResponse = ReconciliationStatementsClearResponses[keyof ReconciliationStatementsClearResponses];
+
+export type ReconciliationStatementsCompleteData = {
+    body?: never;
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: string;
+    };
+    query?: never;
+    url: '/v1/reconciliation/statements/{statement_id}/complete';
+};
+
+export type ReconciliationStatementsCompleteErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type ReconciliationStatementsCompleteError = ReconciliationStatementsCompleteErrors[keyof ReconciliationStatementsCompleteErrors];
+
+export type ReconciliationStatementsCompleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReconciliationStatus;
+};
+
+export type ReconciliationStatementsCompleteResponse = ReconciliationStatementsCompleteResponses[keyof ReconciliationStatementsCompleteResponses];
 
 export type LlmKeysListData = {
     body?: never;

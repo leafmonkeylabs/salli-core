@@ -24,10 +24,12 @@ import uuid
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
+from salli.application.services.ledger_service import balanced_in_base
 from salli.domain.accounting.models import MONEY_TYPES, money_account_problem, refuse_if_locked
 from salli.domain.currency import UnknownCurrencyError, normalize_currency, quantize
 from salli.domain.dedup.matcher import (
@@ -41,6 +43,7 @@ from salli.domain.dedup.matcher import (
 )
 from salli.domain.files import safe_filename
 from salli.domain.llm import LLMError
+from salli.domain.money import to_minor
 from salli.domain.parsing.models import DedupState, ParsedTransaction, ParseResult, RawRow
 from salli.domain.rules.engine import Facts, Rule
 from salli.domain.rules.history import booked_transactions
@@ -220,10 +223,18 @@ class ParsingService:
 
         # Reading a file is CPU work, kept off the event loop: a heavy PDF or
         # workbook must not stall every other request this worker serves.
+        balances: dict[str, tuple[Decimal | None, Decimal | None]] = {}
         raw_rows, errors = await asyncio.to_thread(
-            _extract, filename, file_bytes, currency, date_order=date_order, csv_mapping=csv_mapping
+            _extract,
+            filename,
+            file_bytes,
+            currency,
+            date_order=date_order,
+            csv_mapping=csv_mapping,
+            balances=balances,
         )
         raw_rows, refusal = _on_account(raw_rows, account, source_account, errors)
+        on = {r.source_account for r in raw_rows}
         if refusal is not None or not raw_rows:
             return ParseResult(
                 statement_id="",
@@ -246,6 +257,7 @@ class ParsingService:
             api_key=api_key,
             email=email,
             replaces=replaces,
+            balances=balances.get(on.pop()) if len(on) == 1 else None,
         )
 
     async def import_rows(
@@ -330,6 +342,7 @@ class ParsingService:
                 bank_ref=r.bank_ref,
                 ref_kind="id",
                 ref_source=DRAFT_SOURCE,
+                base_amount=r.base_amount,
             )
             for r in rows
         ]
@@ -363,9 +376,13 @@ class ParsingService:
         on_usage_limit: Literal["raise", "skip"] = "raise",
         replaces: str | None = None,
         drafts: bool = False,
+        balances: tuple[Decimal | None, Decimal | None] | None = None,
     ) -> ParseResult:
         """`import_rows` with the statement's account already resolved.
-        `drafts`: the rows join the account's open drafts batch (`draft`)."""
+        `drafts`: the rows join the account's open drafts batch (`draft`).
+        `balances`: the bank's opening and closing balance the file states
+        (in credit positive), kept on the statement for reconciling when it
+        is for an account."""
         from salli.adapters.parsing import llm_classifier
 
         errors = list(errors or [])
@@ -582,6 +599,7 @@ class ParsingService:
                     storage_key=storage_key,
                     account_id=account.id if account is not None else None,
                     kind=DRAFTS if drafts else IMPORT,
+                    balances_minor=_balances_minor(balances, account),
                 )
             if replaces is not None:
                 await uow.statements.discard(user_id, replaces)
@@ -634,7 +652,9 @@ class ParsingService:
         AI client working for them over MCP, decided before posting.
 
         Each choice names a `transaction_id` and an `account_id`, and may set
-        a `category` and a `need`. The statement's own account stays the money
+        a `category` and a `need`; or, for a row that was for several things,
+        `splits` instead: [{"account_id", "amount", "category"?, "need"?}],
+        whose amounts (in the row's currency) add up to the row's. The statement's own account stays the money
         side. A choice replaces whatever a rule or the model chose, so the row
         no longer says a rule decided it. Refused (ValueError) for a row that
         is not waiting for review, an account that is not one of the user's
@@ -656,7 +676,10 @@ class ParsingService:
                         f"Transaction {txn.id} is {txn.dedup_status.replace('_', ' ')}: "
                         "only transactions waiting for review can change"
                     )
-                account = accounts.get(str(choice["account_id"]))
+                splits = _splits(choice.get("splits") or [], txn, accounts)
+                account = accounts.get(
+                    splits[0]["account_id"] if splits else str(choice["account_id"])
+                )
                 if account is None:
                     raise ValueError(f"No active account {choice['account_id']!r}")
                 if account.id == txn.account_id:
@@ -683,6 +706,7 @@ class ParsingService:
                     "debit_account_id": money_side if money_in else account.id,
                     "credit_account_id": account.id if money_in else money_side,
                     "rule_id": "",
+                    "splits": splits,
                 }
                 if choice.get("category") is not None:
                     fields["category"] = str(choice["category"])
@@ -728,47 +752,139 @@ class ParsingService:
                 tags = {"category": _slugify(txn.category)} if txn.category else {}
                 if txn.need:
                     tags["need"] = txn.need
-                debit_tags, credit_tags = (
-                    (tags, {}) if _counter_is_debit(txn, kinds) else ({}, tags)
-                )
 
-                # A statement in another currency is converted at the rate for
-                # the transaction's own date (see application/fx.py).
-                fx_rate, fx_source = await rate_to_base(
-                    self._fx, txn.raw.currency, base, txn.raw.date
+                # A statement in another currency is converted at the rate the
+                # bank's own base amount implies, when the row carries one, or
+                # else at the rate for the transaction's own date (see
+                # application/fx.py).
+                if txn.raw.base_amount is not None and txn.raw.currency != base:
+                    fx_rate = (txn.raw.base_amount / txn.raw.amount).quantize(Decimal("1e-8"))
+                    fx_source: str | None = "bank"
+                else:
+                    fx_rate, fx_source = await rate_to_base(
+                        self._fx, txn.raw.currency, base, txn.raw.date
+                    )
+                money_is_debit = not _counter_is_debit(txn, kinds)
+                money_id = txn.debit_account_id if money_is_debit else txn.credit_account_id
+                counter = (
+                    [
+                        (
+                            part["account_id"],
+                            Decimal(part["amount"]),
+                            {
+                                k: v
+                                for k, v in (
+                                    ("category", _slugify(part["category"])),
+                                    ("need", part["need"]),
+                                )
+                                if v
+                            },
+                        )
+                        for part in txn.splits
+                    ]
+                    if txn.splits
+                    else [
+                        (
+                            txn.credit_account_id if money_is_debit else txn.debit_account_id,
+                            txn.raw.amount,
+                            tags,
+                        )
+                    ]
                 )
+                money_direction = Direction.DEBIT if money_is_debit else Direction.CREDIT
                 postings = [
                     Posting(
-                        account_id=txn.debit_account_id,
-                        direction=Direction.DEBIT,
+                        account_id=money_id,
+                        direction=money_direction,
                         amount=txn.raw.amount,
                         currency=txn.raw.currency,
                         fx_rate=fx_rate,
                         fx_rate_source=fx_source,
-                        tags=debit_tags,
                     ),
-                    Posting(
-                        account_id=txn.credit_account_id,
-                        direction=Direction.CREDIT,
-                        amount=txn.raw.amount,
-                        currency=txn.raw.currency,
-                        fx_rate=fx_rate,
-                        fx_rate_source=fx_source,
-                        tags=credit_tags,
+                    *(
+                        Posting(
+                            account_id=account_id,
+                            direction=Direction(-money_direction.value),
+                            amount=amount,
+                            currency=txn.raw.currency,
+                            fx_rate=fx_rate,
+                            fx_rate_source=fx_source,
+                            tags=part_tags,
+                        )
+                        for account_id, amount, part_tags in counter
                     ),
                 ]
+                postings.sort(key=lambda p: -p.direction.value)  # debits first
                 entry = JournalEntry(
                     entry_date=txn.raw.date,
                     description=txn.description or txn.raw.description,
                     source="statement",
                     external_ref=txn.id,
-                    postings=postings,
+                    postings=await balanced_in_base(uow, user_id, postings, base),
+                    base_currency=base,
                 )
                 entry_id = await uow.ledger.save_entry(user_id, entry)
                 await uow.statements.mark_posted(txn.id, entry_id)
                 entry_ids.append(entry_id)
 
         return entry_ids
+
+
+def _splits(
+    given: Sequence[Mapping[str, Any]], txn: ParsedTransaction, accounts: Mapping[str, Account]
+) -> list[dict[str, str]]:
+    """A row's other side split across accounts, checked: two or more parts,
+    each an active account other than the statement's own and more than
+    zero, adding up to the row's amount (at its currency's precision)."""
+    if not given:
+        return []
+    if len(given) < 2:
+        raise ValueError("A split has two parts or more: for one, choose its account")
+    currency = txn.raw.currency
+    parts: list[dict[str, str]] = []
+    for part in given:
+        account = accounts.get(str(part["account_id"]))
+        if account is None:
+            raise ValueError(f"No active account {part['account_id']!r}")
+        if account.id == txn.account_id:
+            raise ValueError(f"{account.name} is the statement's own account")
+        amount = quantize(Decimal(str(part["amount"])), currency)
+        if amount <= 0:
+            raise ValueError("Each part of a split is more than zero")
+        need = str(part.get("need") or "")
+        if need and need not in _NEEDS:
+            raise ValueError(f"need must be one of {', '.join(_NEEDS)}")
+        parts.append(
+            {
+                "account_id": account.id,
+                "amount": str(amount),
+                "category": str(part.get("category") or ""),
+                "need": need,
+            }
+        )
+    total = sum((Decimal(p["amount"]) for p in parts), Decimal(0))
+    if total != quantize(txn.raw.amount, currency, strict=False):
+        raise ValueError(
+            f"The parts add up to {total} {currency}, not the transaction's "
+            f"{quantize(txn.raw.amount, currency, strict=False)}"
+        )
+    return parts
+
+
+def _balances_minor(
+    balances: tuple[Decimal | None, Decimal | None] | None, account: Account | None
+) -> tuple[int, int] | None:
+    """A file's opening and closing balance (in credit positive) as a
+    statement keeps them: minor units of the account's currency, in its
+    normal direction (held for an asset, owed for a liability). None unless
+    the statement has an account and the file states both."""
+    if account is None or balances is None or None in balances:
+        return None
+    sign = 1 if account.type == "asset" else -1
+    return tuple(  # type: ignore[return-value]
+        to_minor(sign * amount, account.currency)  # type: ignore[operator]
+        for amount in balances
+    )
 
 
 def transaction_view(t: ParsedTransaction) -> dict[str, Any]:
@@ -796,6 +912,8 @@ def transaction_view(t: ParsedTransaction) -> dict[str, Any]:
         "confidence": t.confidence,
         "dedup_status": t.dedup_status,
         "duplicate_of": t.duplicate_of or None,
+        "base_amount": None if raw.base_amount is None else str(raw.base_amount),
+        "splits": [dict(part) for part in t.splits],
     }
 
 
@@ -1023,9 +1141,12 @@ def _extract(
     *,
     date_order: DateOrder | None = None,
     csv_mapping: CsvMapping | None = None,
+    balances: dict[str, tuple[Decimal | None, Decimal | None]] | None = None,
 ) -> tuple[list[RawRow], list[str]]:
     """The file's transactions as RawRows, and what could not be read. Each
     row names the account in the file it is on, when the file holds several.
+    `balances`, when given, takes the opening and closing balances the file
+    states (`Extraction.balances`).
 
     Numbers come from deterministic importers only, never the LLM. Dates
     that read either way are read the way the statement's country writes
@@ -1081,6 +1202,8 @@ def _extract(
             "camt.053 and MT940 statements"
         )
         return [], [message]
+    if balances is not None:
+        balances.update(extraction.balances)
     return _raw_rows(extraction, currency, kind)
 
 

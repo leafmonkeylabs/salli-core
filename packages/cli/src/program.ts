@@ -20,6 +20,7 @@ import { registerExports } from './commands/exports';
 import { registerInsights } from './commands/insights';
 import { registerPlanningAhead } from './commands/fi';
 import { registerLedger } from './commands/ledger';
+import { registerReconcile } from './commands/reconcile';
 import { registerMore, registerYourData } from './commands/more';
 import { registerNotifications } from './commands/notifications';
 import { registerOnboarding } from './commands/onboarding';
@@ -77,6 +78,7 @@ Start with:  salli login   then   salli status`,
   registerAccounts(program, app);
   registerEntries(program, app);
   registerLedger(program, app);
+  registerReconcile(program, app);
   registerStatements(program, app);
   registerRules(program, app);
   registerBanks(program, app);

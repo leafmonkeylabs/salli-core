@@ -95,6 +95,7 @@ class Statements:
         storage_key: str = "",
         account_id: str | None = None,
         kind: str = "import",
+        balances_minor: tuple[int, int] | None = None,
     ) -> None:
         self.statements[statement_id] = {
             "id": statement_id,

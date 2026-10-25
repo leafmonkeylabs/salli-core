@@ -9,7 +9,7 @@ from typing import Any
 
 from salli.application.fx import rate_to_base
 from salli.application.ownership import require_own_accounts
-from salli.application.ports import EntryRefTaken
+from salli.application.ports import EntryRefTaken, FxUnavailableError
 from salli.domain.accounting import ledger as ledger_ops
 from salli.domain.accounting.models import (
     ASSET_ROLES,
@@ -54,6 +54,36 @@ def _cursor_position(cursor: str) -> tuple[str, str]:
 CLIENT_REF_PREFIX = "client-ref:"
 #: The longest client_ref: with the prefix, within external_ref's 200.
 CLIENT_REF_MAX = 180
+
+
+async def balanced_in_base(
+    uow: Any, user_id: str, postings: list[Posting], base: str
+) -> list[Posting]:
+    """`postings`, with the rounding that makes them balance exactly in the
+    base currency posted to the `fx_rounding` account (opened in the base
+    currency, as an expense, the first time one is needed;
+    `ledger.fx_rounding`)."""
+    probe = ledger_ops.fx_rounding(postings, base, "")
+    if probe is None:
+        return postings
+    accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+    found = next((a for a in accounts if a.code == ledger_ops.FX_ROUNDING), None)
+    account_id = (
+        found.id
+        if found is not None
+        else await uow.ledger.save_account(
+            user_id,
+            Account(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                code=ledger_ops.FX_ROUNDING,
+                name="Currency rounding",
+                type="expense",
+                currency=base,
+            ),
+        )
+    )
+    return [*postings, probe.model_copy(update={"account_id": account_id})]
 
 
 class UnknownTaxRoleError(ValueError):
@@ -123,6 +153,18 @@ class LedgerService:
     @staticmethod
     async def _lock_date(uow: Any, user_id: str) -> str | None:
         return ((await uow.user_profiles.get(user_id)) or {}).get("lock_date")
+
+    async def books_note(self, user_id: str, since: str) -> list[str]:
+        """What a report for a time from `since` should say about the books'
+        start: that they don't cover the days before it."""
+        async with self._uow_factory() as uow:
+            start = ((await uow.user_profiles.get(user_id)) or {}).get("books_start")
+        if start is None or since >= start:
+            return []
+        return [
+            f"The books start on {start}: nothing before it is recorded, so the "
+            "figures before then are not the whole story."
+        ]
 
     async def lock_date(self, user_id: str) -> str | None:
         """The last day of the user's closed books (YYYY-MM-DD), or None."""
@@ -264,16 +306,18 @@ class LedgerService:
                     }
                 )
             )
-        # JournalEntry.__init__ runs must_balance validator — raises ValueError if unbalanced
-        entry = JournalEntry(
-            entry_date=entry_date,
-            description=description,
-            source=source,
-            external_ref=external_ref,
-            postings=postings,
-        )
         async with self._uow_factory() as uow:
             refuse_if_locked(entry_date, await self._lock_date(uow, user_id))
+            # must_balance refuses an entry that doesn't balance in the base
+            # currency, once any rounding is taken up.
+            entry = JournalEntry(
+                entry_date=entry_date,
+                description=description,
+                source=source,
+                external_ref=external_ref,
+                postings=await balanced_in_base(uow, user_id, postings, base),
+                base_currency=base,
+            )
             return await uow.ledger.save_entry(user_id, entry)
 
     async def get_entries(
@@ -666,8 +710,125 @@ class LedgerService:
                 description=f"Reversal of {original.description}: {reason}",
                 source="reversal",
                 postings=reversed_postings,
+                base_currency=await uow.user_profiles.base_currency(user_id),
             )
             refuse_if_locked(on, locked)
             reversing_id = await uow.ledger.save_entry(user_id, reversing)
             await uow.ledger.set_reversed_by(entry_id, reversing_id)
         return reversing_id
+
+    # ── unrealised exchange gains and losses ──────────────────────────────────
+
+    async def _ensure_code(
+        self, uow: Any, user_id: str, code: str, name: str, type_: AccountType, base: str
+    ) -> str:
+        accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+        found = next((a for a in accounts if a.code == code), None)
+        if found is not None:
+            return found.id
+        return await uow.ledger.save_account(
+            user_id,
+            Account(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                code=code,
+                name=name,
+                type=type_,
+                currency=base,
+            ),
+        )
+
+    async def unrealised_fx(self, user_id: str, as_of: str) -> dict[str, Any]:
+        """Computed, never posted: each foreign-currency asset and liability
+        account revalued at `as_of`'s rate against its historical cost (the
+        base amounts it was booked at), and the total gain (a loss negative).
+        `posted` is what revaluations posted up to `as_of` already booked
+        (`post_fx_revaluation`), `unposted` the rest. An account in a
+        currency with no rate for the day is left out, and said in `notes`."""
+        async with self._uow_factory() as uow:
+            base = await uow.user_profiles.base_currency(user_id)
+            accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+            entries = await uow.ledger.get_entries(user_id, to_date=as_of)
+        rates: dict[str, Decimal] = {}
+        for currency in {a.currency for a in accounts} - {base}:
+            try:
+                rates[currency], _ = await rate_to_base(self._fx, currency, base, as_of)
+            except FxUnavailableError:
+                continue
+        lines, missing = ledger_ops.unrealised_fx(entries, accounts, base, rates)
+        reserve = {a.id for a in accounts if a.code == ledger_ops.FX_REVALUATION}
+        posted = sum(
+            (p.base_signed for e in entries for p in e.postings if p.account_id in reserve),
+            Decimal(0),
+        )
+        total = sum((line["gain"] for line in lines), Decimal(0))  # type: ignore[misc]
+
+        def money(amount: Any, currency: str = base) -> str:
+            return str(quantize(amount, currency, strict=False))
+
+        return {
+            "as_of": as_of,
+            "currency": base,
+            "total": money(total),
+            "posted": money(posted),
+            "unposted": money(total - posted),
+            "lines": [
+                {
+                    "account_id": line["account"].id,  # type: ignore[attr-defined]
+                    "code": line["account"].code,  # type: ignore[attr-defined]
+                    "name": line["account"].name,  # type: ignore[attr-defined]
+                    "account_currency": line["account"].currency,  # type: ignore[attr-defined]
+                    "balance": money(line["balance"], line["account"].currency),  # type: ignore[attr-defined]
+                    "rate": str(rates[line["account"].currency]),  # type: ignore[attr-defined]
+                    "cost": money(line["cost"]),
+                    "value": money(line["value"]),
+                    "gain": money(line["gain"]),
+                }
+                for line in lines
+            ],
+            "notes": [
+                f"No {c}→{base} rate for {as_of}: accounts in {c} are left out." for c in missing
+            ],
+        }
+
+    async def post_fx_revaluation(self, user_id: str, as_of: str) -> str | None:
+        """At a period's end (a month's last day), and only when the person
+        asks: post what `unrealised_fx` hasn't booked yet, the gain to the
+        `unrealised_fx` income account against the `fx_revaluation` equity
+        adjustment, dated `as_of`. The foreign-currency accounts themselves
+        are untouched. None when nothing is left to post."""
+        day = dt.date.fromisoformat(as_of)
+        if (day + dt.timedelta(days=1)).day != 1:
+            raise ValueError("A revaluation is posted at a period's end: a month's last day.")
+        if day >= self._today():
+            raise ValueError("A revaluation is posted for a period that has ended.")
+        figures = await self.unrealised_fx(user_id, as_of)
+        if figures["notes"]:
+            raise ValueError(" ".join(figures["notes"]))
+        amount = Decimal(figures["unposted"])
+        if amount == 0:
+            return None
+        base = figures["currency"]
+        async with self._uow_factory() as uow:
+            reserve = await self._ensure_code(
+                uow, user_id, ledger_ops.FX_REVALUATION, "Currency revaluation", "equity", base
+            )
+            gains = await self._ensure_code(
+                uow,
+                user_id,
+                ledger_ops.UNREALISED_FX,
+                "Unrealised currency gains and losses",
+                "income",
+                base,
+            )
+        debit, credit = (reserve, gains) if amount > 0 else (gains, reserve)
+        return await self.add_entry(
+            user_id,
+            as_of,
+            f"Currency revaluation at {as_of}",
+            "system",
+            [
+                {"account_id": debit, "direction": Direction.DEBIT, "amount": abs(amount)},
+                {"account_id": credit, "direction": Direction.CREDIT, "amount": abs(amount)},
+            ],
+        )

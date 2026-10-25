@@ -14,6 +14,7 @@ a new frontend wizard is a follow-up once these are in place.
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
@@ -128,6 +129,11 @@ class ProfileIdentityRequest(BaseModel):
     tax_ids: list[TaxId] | None = None
     #: ISO 4217. Changes only while the ledger is empty (409 otherwise).
     base_currency: str | None = None
+    #: The day the books start (opening balances are posted on it); no
+    #: later than the first entry already booked (422 otherwise).
+    books_start: dt.date | None = None
+    #: How many years each document saved from now on is kept (1 to 100).
+    document_retention_years: int | None = Field(default=None, ge=1, le=100)
 
 
 class Profile(BaseModel):
@@ -172,6 +178,12 @@ class Profile(BaseModel):
     #: nothing is posted or reversed on or before it. Null: none are closed.
     #: Set with `ledger.lockDate.set`.
     lock_date: str | None = None
+    #: The day the books start (YYYY-MM-DD): opening balances are posted on
+    #: it, and a report for a time before it says the books don't cover it.
+    #: Null until opening balances are declared or it is set.
+    books_start: str | None = None
+    #: Years a document saved now is kept before it may be deleted; null: none.
+    document_retention_years: int | None = None
 
 
 class ProfileUpdated(BaseModel):
@@ -218,7 +230,8 @@ class OpeningBalanceItem(BaseModel):
     #: A decimal string: these post straight into the ledger, the tax base.
     amount: AmountIn
     #: Defaults to the base currency. Another currency is converted at
-    #: `fx_rate` (units of base per unit), or today's rate when omitted.
+    #: `fx_rate` (units of base per unit), or the rate on the day the books
+    #: start when omitted.
     currency: str | None = None
     fx_rate: DecimalIn | None = None
 
@@ -236,7 +249,9 @@ class DeclaredEntries(BaseModel):
 async def declare_balance_sheet(
     body: BalanceSheetRequest, user_id: CurrentUser, svc: AppServices
 ) -> DeclaredEntries:
-    """Post real opening-balance journal entries so net worth is non-zero immediately."""
+    """Post real opening-balance journal entries so net worth is non-zero immediately,
+    on the day the books start (the profile's `books_start`; today, and set so, when
+    none is set)."""
     entry_ids = await svc.profile.declare_opening_balances(
         user_id, [b.model_dump(exclude_none=True) for b in body.balances]
     )

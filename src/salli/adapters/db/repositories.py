@@ -60,6 +60,7 @@ from salli.adapters.db.models import (
     PostingORM,
     PostingTagORM,
     PrincipleORM,
+    ReconciliationORM,
     RecurringSubscriptionORM,
     ReminderORM,
     StatementORM,
@@ -671,6 +672,7 @@ class SQLStatementRepository(StatementRepository):
         storage_key: str = "",
         account_id: str | None = None,
         kind: str = "import",
+        balances_minor: tuple[int, int] | None = None,
     ) -> None:
         # The label fits its column, whoever made it: a bank feed's
         # "institution · account name" can run past it.
@@ -684,6 +686,8 @@ class SQLStatementRepository(StatementRepository):
             kind=kind,
             period_start=period_start,
             period_end=period_end,
+            opening_balance_minor=balances_minor[0] if balances_minor else None,
+            closing_balance_minor=balances_minor[1] if balances_minor else None,
             # Nothing to review (empty, or every row an exact duplicate): done.
             status=(
                 "pending"
@@ -758,6 +762,7 @@ class SQLStatementRepository(StatementRepository):
                     "rule_id": txn.rule_id,
                     "duplicate_of": txn.duplicate_of,
                     "ref_kind": raw.ref_kind,
+                    "base_amount": None if raw.base_amount is None else str(raw.base_amount),
                     "ref_source": raw.ref_source,
                     "source_account": raw.source_account,
                 },
@@ -973,6 +978,7 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         ref_kind=j.get("ref_kind", "id"),
         ref_source=j.get("ref_source", ""),
         source_account=j.get("source_account", ""),
+        base_amount=Decimal(j["base_amount"]) if j.get("base_amount") else None,
     )
     return ParsedTransaction(
         raw=raw,
@@ -990,6 +996,7 @@ def _orm_to_parsed(row: ParsedTransactionORM, account_id: str | None = None) -> 
         id=row.id,
         statement_id=row.statement_id,
         account_id=account_id or "",
+        splits=list(j.get("splits") or []),
     )
 
 
@@ -1163,6 +1170,7 @@ def _doc_to_dict(row: AgentDocumentORM) -> dict[str, Any]:
         "namespace": row.namespace,
         "slug": row.slug,
         "description": row.description,
+        "retain_until": row.retain_until.isoformat() if row.retain_until else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -1187,11 +1195,23 @@ class SQLAgentDocumentRepository(AgentDocumentRepository):
             namespace=doc.get("namespace", "documents"),
             slug=doc.get("slug"),
             description=doc.get("description"),
+            retain_until=doc.get("retain_until"),
             created_at=now,
             updated_at=now,
         )
         self._session.add(row)
         return doc_id
+
+    async def cited_by_entry(self, user_id: str, doc_id: str) -> bool:
+        """Whether one of the user's journal entries cites the document (a
+        manual entry's receipt, its external_ref)."""
+        return (
+            await self._session.scalar(
+                select(JournalEntryORM.id)
+                .where(JournalEntryORM.user_id == user_id, JournalEntryORM.external_ref == doc_id)
+                .limit(1)
+            )
+        ) is not None
 
     async def get(self, user_id: str, doc_id: str) -> dict[str, Any] | None:
         stmt = select(AgentDocumentORM).where(
@@ -1388,6 +1408,8 @@ class SQLUserProfileRepository(UserProfileRepository):
             "fi_assumptions": dict(row.fi_assumptions or {}),
             "time_zone": row.time_zone,
             "lock_date": row.lock_date.isoformat() if row.lock_date else None,
+            "books_start": row.books_start.isoformat() if row.books_start else None,
+            "document_retention_years": row.document_retention_years,
         }
 
     async def set_lock_date(self, user_id: str, lock_date: str | None) -> None:
@@ -2857,6 +2879,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # the same way (already emptied above, so that cascade is a no-op —
         # harmless). Both must still go before accounts.
         await _delete(JournalEntryORM, JournalEntryORM.user_id)
+        await _delete(ReconciliationORM, ReconciliationORM.user_id)
         await _delete(StatementORM, StatementORM.user_id)
         await _delete(AccountORM, AccountORM.user_id)
 

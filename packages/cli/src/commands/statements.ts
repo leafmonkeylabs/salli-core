@@ -31,7 +31,7 @@ import { plural, singleLine } from '../output/text';
 import { displayDate, displayRange, parseDate } from '../util/dates';
 import { readUpload } from '../util/files';
 import { resolveById } from '../util/resolve';
-import { AccountBook, amountArg, confirmAction, currencyArg, limitArg } from './shared';
+import { AccountBook, accountAmountArg, amountArg, collect, confirmAction, currencyArg, limitArg } from './shared';
 
 type Transaction = StatementTransaction;
 
@@ -429,6 +429,7 @@ Examples:
     .option('--date <date>', 'When (YYYY-MM-DD, today, yesterday)', 'today')
     .option('--ref <reference>', 'The bank’s reference for it: the same reference drafted twice is one transaction')
     .option('--currency <code>', 'Its currency, when not the account’s', currencyArg)
+    .option('--base-amount <amount>', 'Its amount in your base currency, as the bank gave it: the rate is derived from it')
     .option('--source <name>', 'What drafted it, the name of a new batch', 'Salli CLI')
     .action(async (amountText, description, opts) => {
       const amount = amountArg(amountText);
@@ -448,6 +449,7 @@ Examples:
               credit_flag: Boolean(opts.in),
               ...(opts.ref ? { bank_ref: opts.ref } : {}),
               ...(opts.currency ? { currency: opts.currency } : {}),
+              ...(opts.baseAmount ? { base_amount: amountArg(opts.baseAmount, '--base-amount') } : {}),
             },
           ],
         },
@@ -468,14 +470,27 @@ Examples:
   statements
     .command('categorize')
     .argument('<transaction>', 'A pending transaction id (or its start)')
-    .argument('<account>', 'Where the money came from or went (code, name or id)')
-    .description('Choose where a pending transaction goes before posting it')
+    .argument('[account]', 'Where the money came from or went (code, name or id)')
+    .description('Choose where a pending transaction goes before posting it, or split it across accounts')
     .option('--category <slug>', 'Tag it with this category')
     .addOption(new Option('--need <need>', 'Tag it with this need').choices(NEEDS))
+    .option('--split <account:amount>', 'A part of a transaction for several things (repeatable, two or more, adding up to its amount)', collect)
     .action(async (query, accountQuery, opts) => {
       const api = await app.api();
       const [transactions, book] = await Promise.all([pendingOf(api), AccountBook.load(api)]);
       const transaction = resolveById(transactions, query, 'pending transaction');
+      if (opts.split?.length) {
+        if (accountQuery) throw new UsageError('Pass an account, or --split parts, not both.');
+        const splits = opts.split.map((value) => {
+          const part = accountAmountArg(value, '--split');
+          return { account_id: book.resolve(part.account).id, amount: part.amount };
+        });
+        const updated = await categorize(api, [{ transaction_id: transaction.id, splits }]);
+        if (!updated.length) throw new NotFoundError('That transaction was not changed.');
+        app.out.done({ updated }, `“${singleLine(shownDescription(transaction))}” is split ${splits.length} ways. Post it with \`salli statements post\`.`);
+        return;
+      }
+      if (!accountQuery) throw new UsageError('Name the account it goes to, or split it with --split.');
       const account = book.resolve(accountQuery);
       if (account.id === moneySide(transaction)) {
         throw new UsageError(`${singleLine(account.name)} is the statement’s own account: choose where the money came from or went.`);

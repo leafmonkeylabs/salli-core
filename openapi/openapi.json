@@ -1595,6 +1595,122 @@
         }
       }
     },
+    "/v1/ledger/unrealised-fx": {
+      "get": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Unrealised Fx",
+        "description": "Unrealised exchange gains and losses as of a day: computed, nothing\nis posted.",
+        "operationId": "ledger.unrealisedFx",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnrealisedFx"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ledger/fx-revaluation": {
+      "post": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Post Fx Revaluation",
+        "description": "Post the unrealised exchange gain or loss not yet booked at a\nperiod's end: to the `unrealised_fx` income account against the\n`fx_revaluation` equity adjustment, dated that day. Only when asked.",
+        "operationId": "ledger.fxRevaluation.post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FxRevaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxRevaluationPosted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/ledger/trial-balance": {
       "get": {
         "tags": [
@@ -4037,7 +4153,7 @@
           "documents"
         ],
         "summary": "Delete Document",
-        "description": "Permanently delete a document.",
+        "description": "Permanently delete a document. Refused (409) before its\n`retain_until`, and while an entry cites it as evidence and it has no\nretention period that has passed.",
         "operationId": "documents.delete",
         "security": [
           {
@@ -4273,7 +4389,7 @@
           "onboarding"
         ],
         "summary": "Declare Balance Sheet",
-        "description": "Post real opening-balance journal entries so net worth is non-zero immediately.",
+        "description": "Post real opening-balance journal entries so net worth is non-zero immediately,\non the day the books start (the profile's `books_start`; today, and set so, when\nnone is set).",
         "operationId": "onboarding.balanceSheet",
         "requestBody": {
           "content": {
@@ -9082,7 +9198,32 @@
           "reports"
         ],
         "summary": "Get Balance Sheet",
+        "description": "What is owned and owed as of a day (today unless given).",
         "operationId": "reports.balanceSheet",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9090,6 +9231,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BalanceSheet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -9104,12 +9255,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/v1/reports/net-worth": {
@@ -9213,6 +9359,282 @@
             "description": "The report as a CSV file.",
             "content": {
               "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reconciliation/statements": {
+      "get": {
+        "tags": [
+          "reconciliation"
+        ],
+        "summary": "List Statements",
+        "description": "Statements that carry the bank's opening and closing balances (an\nimport that had them, or one typed in), newest period first.",
+        "operationId": "reconciliation.statements.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconcilableStatementList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "reconciliation"
+        ],
+        "summary": "Add Statement",
+        "description": "A statement typed in from the bank's: its account, period and balances.",
+        "operationId": "reconciliation.statements.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementBalancesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/reconciliation/statements/{statement_id}": {
+      "get": {
+        "tags": [
+          "reconciliation"
+        ],
+        "summary": "Get Status",
+        "description": "The statement's account's postings in its period, the cleared total\nand the difference from the closing balance.",
+        "operationId": "reconciliation.statements.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "statement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Statement Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reconciliation/statements/{statement_id}/clear": {
+      "post": {
+        "tags": [
+          "reconciliation"
+        ],
+        "summary": "Clear",
+        "description": "Mark postings cleared (matched to the statement's lines), or not.\nRefused once the reconciliation is complete (409).",
+        "operationId": "reconciliation.statements.clear",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "statement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Statement Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reconciliation/statements/{statement_id}/complete": {
+      "post": {
+        "tags": [
+          "reconciliation"
+        ],
+        "summary": "Complete",
+        "description": "Record the reconciliation: only at a difference of zero (422\notherwise), once (409).",
+        "operationId": "reconciliation.statements.complete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "statement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Statement Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationStatus"
+                }
+              }
             }
           },
           "422": {
@@ -14117,6 +14539,17 @@
             ],
             "title": "Description"
           },
+          "retain_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retain Until"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -14930,6 +15363,13 @@
               "1234.50"
             ]
           },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "unrealised_fx": {
+            "$ref": "#/components/schemas/UnrealisedFx"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -14948,6 +15388,8 @@
           "total_liabilities",
           "total_equity",
           "net_worth",
+          "as_of",
+          "unrealised_fx",
           "notes"
         ],
         "title": "BalanceSheet",
@@ -17815,6 +18257,29 @@
         ],
         "title": "CheckedOption"
       },
+      "ClearRequest": {
+        "properties": {
+          "posting_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Posting Ids"
+          },
+          "cleared": {
+            "type": "boolean",
+            "title": "Cleared",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "posting_ids"
+        ],
+        "title": "ClearRequest"
+      },
       "CommittedFlow": {
         "properties": {
           "date": {
@@ -20639,6 +21104,22 @@
               }
             ],
             "title": "Currency"
+          },
+          "base_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Amount"
           }
         },
         "type": "object",
@@ -22718,6 +23199,40 @@
         ],
         "title": "ForecastDay"
       },
+      "FxRevaluationPosted": {
+        "properties": {
+          "entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry_id"
+        ],
+        "title": "FxRevaluationPosted"
+      },
+      "FxRevaluationRequest": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of"
+        ],
+        "title": "FxRevaluationRequest"
+      },
       "Goal": {
         "properties": {
           "id": {
@@ -24598,6 +25113,30 @@
             },
             "type": "array",
             "title": "Lines"
+          },
+          "unrealised_fx": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealised Fx"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "default": []
           }
         },
         "type": "object",
@@ -28318,6 +28857,28 @@
               }
             ],
             "title": "Lock Date"
+          },
+          "books_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Books Start"
+          },
+          "document_retention_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Retention Years"
           }
         },
         "type": "object",
@@ -28461,6 +29022,31 @@
               }
             ],
             "title": "Base Currency"
+          },
+          "books_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Books Start"
+          },
+          "document_retention_years": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Retention Years"
           }
         },
         "type": "object",
@@ -28748,6 +29334,280 @@
         ],
         "title": "RebalancingAlert",
         "description": "An asset class whose share has drifted from its target by the threshold or more."
+      },
+      "ReconcilableStatement": {
+        "properties": {
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "account_name": {
+            "type": "string",
+            "title": "Account Name"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "opening_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Opening Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "closing_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Closing Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "reconciliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reconciliation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "account_id",
+          "account_name",
+          "currency",
+          "period_start",
+          "period_end",
+          "opening_balance",
+          "closing_balance",
+          "reconciliation"
+        ],
+        "title": "ReconcilableStatement"
+      },
+      "ReconcilableStatementList": {
+        "properties": {
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/ReconcilableStatement"
+            },
+            "type": "array",
+            "title": "Statements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statements"
+        ],
+        "title": "ReconcilableStatementList"
+      },
+      "Reconciliation": {
+        "properties": {
+          "cleared_total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cleared Total",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "difference": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Difference",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "completed_by": {
+            "type": "string",
+            "title": "Completed By"
+          },
+          "completed_at": {
+            "type": "string",
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cleared_total",
+          "difference",
+          "completed_by",
+          "completed_at"
+        ],
+        "title": "Reconciliation",
+        "description": "A completed reconciliation: recorded only at a difference of zero."
+      },
+      "ReconciliationStatus": {
+        "properties": {
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "account_name": {
+            "type": "string",
+            "title": "Account Name"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "opening_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Opening Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "closing_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Closing Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "reconciliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reconciliation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cleared_total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cleared Total",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "difference": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Difference",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "postings": {
+            "items": {
+              "$ref": "#/components/schemas/ReconcilingPosting"
+            },
+            "type": "array",
+            "title": "Postings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "statement_id",
+          "account_id",
+          "account_name",
+          "currency",
+          "period_start",
+          "period_end",
+          "opening_balance",
+          "closing_balance",
+          "reconciliation",
+          "cleared_total",
+          "difference",
+          "postings"
+        ],
+        "title": "ReconciliationStatus"
+      },
+      "ReconcilingPosting": {
+        "properties": {
+          "posting_id": {
+            "type": "string",
+            "title": "Posting Id"
+          },
+          "entry_id": {
+            "type": "string",
+            "title": "Entry Id"
+          },
+          "entry_date": {
+            "type": "string",
+            "title": "Entry Date"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "cleared": {
+            "type": "boolean",
+            "title": "Cleared"
+          }
+        },
+        "type": "object",
+        "required": [
+          "posting_id",
+          "entry_id",
+          "entry_date",
+          "description",
+          "amount",
+          "cleared"
+        ],
+        "title": "ReconcilingPosting"
       },
       "RecordedPrice": {
         "properties": {
@@ -32396,6 +33256,82 @@
         ],
         "title": "SpendingLine"
       },
+      "SplitPart-Input": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": ""
+          },
+          "need": {
+            "type": "string",
+            "enum": [
+              "essential",
+              "discretionary",
+              "savings",
+              ""
+            ],
+            "title": "Need",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "amount"
+        ],
+        "title": "SplitPart",
+        "description": "One part of a transaction that was for several things."
+      },
+      "SplitPart-Output": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": ""
+          },
+          "need": {
+            "type": "string",
+            "enum": [
+              "essential",
+              "discretionary",
+              "savings",
+              ""
+            ],
+            "title": "Need",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "amount"
+        ],
+        "title": "SplitPart",
+        "description": "One part of a transaction that was for several things."
+      },
       "StartAnswer": {
         "properties": {
           "id": {
@@ -32548,6 +33484,57 @@
         ],
         "title": "StartTemplate"
       },
+      "StatementBalancesRequest": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "opening_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Opening Balance",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "closing_balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Closing Balance",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "bank": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Bank",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "period_start",
+          "period_end",
+          "opening_balance",
+          "closing_balance"
+        ],
+        "title": "StatementBalancesRequest"
+      },
       "StatementTransaction": {
         "properties": {
           "id": {
@@ -32683,6 +33670,29 @@
               }
             ],
             "title": "Duplicate Of"
+          },
+          "base_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string in the currency's own precision; never a float.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Amount"
+          },
+          "splits": {
+            "items": {
+              "$ref": "#/components/schemas/SplitPart-Output"
+            },
+            "type": "array",
+            "title": "Splits"
           }
         },
         "type": "object",
@@ -36551,7 +37561,8 @@
           },
           "account_id": {
             "type": "string",
-            "title": "Account Id"
+            "title": "Account Id",
+            "default": ""
           },
           "category": {
             "anyOf": [
@@ -36579,12 +37590,26 @@
               }
             ],
             "title": "Need"
+          },
+          "splits": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SplitPart-Input"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splits"
           }
         },
         "type": "object",
         "required": [
-          "transaction_id",
-          "account_id"
+          "transaction_id"
         ],
         "title": "TransactionChoice"
       },
@@ -36628,6 +37653,155 @@
           "net"
         ],
         "title": "TrialBalance"
+      },
+      "UnrealisedFx": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "posted": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Posted",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "unposted": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Unposted",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/UnrealisedFxLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "currency",
+          "total",
+          "posted",
+          "unposted",
+          "lines",
+          "notes"
+        ],
+        "title": "UnrealisedFx",
+        "description": "Foreign-currency asset and liability accounts revalued at a day's\nrate against their historical cost: computed, not posted, unless a\nrevaluation was posted at a period's end (`ledger.fxRevaluation.post`)."
+      },
+      "UnrealisedFxLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "account_currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Account Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Balance",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "rate": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Rate"
+          },
+          "cost": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Value",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "gain": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Gain",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "code",
+          "name",
+          "account_currency",
+          "balance",
+          "rate",
+          "cost",
+          "value",
+          "gain"
+        ],
+        "title": "UnrealisedFxLine"
       },
       "UpdateAccountRequest": {
         "properties": {

@@ -88,6 +88,8 @@ async def test_an_upload_returns_its_transactions_for_review(client, mock_servic
                 "confidence": 0.92,
                 "dedup_status": "pending",
                 "duplicate_of": None,
+                "base_amount": None,
+                "splits": [],
             }
         ],
     }

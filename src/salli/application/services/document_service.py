@@ -9,7 +9,9 @@ so the agent can update a memory key without creating duplicates.
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import uuid
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from salli.domain.files import safe_filename
@@ -19,10 +21,33 @@ if TYPE_CHECKING:
     from salli.application.unit_of_work import UnitOfWork
 
 
+class DocumentRetained(ValueError):
+    """Deleting a document that must be kept: before its retain_until, or
+    cited by an entry with no retention period that has passed."""
+
+
+async def _retain_until(uow: Any, user_id: str, today: dt.date) -> dt.date | None:
+    """When a document saved today may first be deleted: the person's
+    retention period from today, or None when they chose none."""
+    years = ((await uow.user_profiles.get(user_id)) or {}).get("document_retention_years")
+    if not years:
+        return None
+    try:
+        return today.replace(year=today.year + years)
+    except ValueError:  # 29 February into a year without one
+        return today.replace(year=today.year + years, day=28)
+
+
 class DocumentService:
-    def __init__(self, uow_factory: Any, storage: StoragePort) -> None:
+    def __init__(
+        self,
+        uow_factory: Any,
+        storage: StoragePort,
+        today: Callable[[], dt.date] = dt.date.today,
+    ) -> None:
         self._uow_factory = uow_factory
         self._storage = storage
+        self._today = today
 
     async def save_document(
         self,
@@ -48,6 +73,8 @@ class DocumentService:
         }
         async with self._uow_factory() as uow:
             uow: UnitOfWork
+            if namespace == "documents":
+                doc["retain_until"] = await _retain_until(uow, user_id, self._today())
             doc_id = await uow.agent_documents.save(user_id, doc)
         return doc_id
 
@@ -75,8 +102,24 @@ class DocumentService:
             )
 
     async def delete_document(self, user_id: str, doc_id: str) -> None:
+        """Delete a document, unless it must be kept (`DocumentRetained`):
+        before its `retain_until`, or while an entry cites it as evidence and
+        no retention period it had has passed."""
         async with self._uow_factory() as uow:
             uow: UnitOfWork
+            doc = await uow.agent_documents.get(user_id, doc_id)
+            if doc is not None:
+                until = doc.get("retain_until")
+                today = self._today().isoformat()
+                if until is not None and today < until:
+                    raise DocumentRetained(
+                        f"This document is kept until {until}, so it can't be deleted yet."
+                    )
+                if until is None and await uow.agent_documents.cited_by_entry(user_id, doc_id):
+                    raise DocumentRetained(
+                        "An entry in your books cites this document as its evidence, so it "
+                        "is kept. Set a retention period to let it go once that has passed."
+                    )
             # The file, if any, stays until the account is erased: StoragePort
             # deletes a user's files all at once, not one by one.
             await uow.agent_documents.delete(user_id, doc_id)
@@ -139,6 +182,7 @@ class DocumentService:
                     "source": "user_upload",
                     "namespace": "documents",
                     "tags": ["upload"],
+                    "retain_until": await _retain_until(uow, user_id, self._today()),
                 },
             )
         return {

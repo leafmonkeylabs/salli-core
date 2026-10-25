@@ -29,6 +29,9 @@ class AgentDocument(BaseModel):
     #: A memory's name, unique within its namespace; null for documents.
     slug: str | None
     description: str | None
+    #: Kept until this day (YYYY-MM-DD), from the retention period set when
+    #: it was saved; null: none.
+    retain_until: str | None = None
     created_at: str
     updated_at: str
 
@@ -69,5 +72,7 @@ async def get_document(doc_id: str, user_id: CurrentUser, svc: AppServices) -> A
 
 @router.delete("/{doc_id}", status_code=204)
 async def delete_document(doc_id: str, user_id: CurrentUser, svc: AppServices):
-    """Permanently delete a document."""
+    """Permanently delete a document. Refused (409) before its
+    `retain_until`, and while an entry cites it as evidence and it has no
+    retention period that has passed."""
     await svc.documents.delete_document(user_id, doc_id)

@@ -106,6 +106,8 @@ async def test_a_quiet_period_still_reads_in_the_currencys_precision(client, moc
         "total_expenses": "0.00",
         "net_income": "0.00",
         "lines": [],
+        "unrealised_fx": "0.00",
+        "notes": [],
     }
 
 

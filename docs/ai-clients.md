@@ -13,6 +13,9 @@ shows how.
 Once connected, your AI can:
 - start from where you stand (`get_overview`), and find what you booked, by
   text, account, dates or amount, with Salli's totals (`search_entries`);
+- read how your accounts reconcile with the bank's statements: the cleared
+  total and the difference (`get_reconciliation`; clearing and completing
+  stay yours, in Salli);
 - read your cash flow, spending, net worth over time, recurring payments and your
   cash forecast;
 - weigh a decision (can I afford it, cash or instalments, pay down a debt or

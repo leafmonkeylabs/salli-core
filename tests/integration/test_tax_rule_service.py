@@ -410,3 +410,25 @@ async def test_another_user_can_reach_none_of_a_user_s_rule_sets(uow_factory, sv
     assert untouched["active_version_id"] is None
     # And B's own import made B's own set, not a version of A's.
     assert mine["rule_set_id"] != set_id
+
+
+async def test_a_realised_gain_role_takes_the_holdings_sales_in_the_year(uow_factory, svc):
+    from salli.application.services.portfolio_service import PortfolioService
+
+    doc = minimal()
+    doc["roles"].append({"key": "realised_gain", "kind": "income", "label": "Gains"})
+    doc["lines"].append({"key": "gains", "label": "Gains", "expr": "role.realised_gain"})
+    first = await svc.create(ME, doc)
+    portfolio = PortfolioService(uow_factory)
+    holding = await portfolio.add_holding(
+        A, {"symbol": "XYZ", "name": "Xyz", "asset_class": "equity", "currency": "EUR"}
+    )
+    for tx in (
+        {"kind": "buy", "date": "2030-05-01", "quantity": "10", "price": "100"},
+        {"kind": "sell", "date": "2030-12-01", "quantity": "2", "price": "110"},
+        {"kind": "sell", "date": "2031-06-01", "quantity": "5", "price": "130", "fees": "5"},
+    ):
+        await portfolio.add_transaction(A, holding, tx)
+    result = await svc.evaluate(A, first["id"])
+    # 2031's sale only: 650 − 5 − 500.
+    assert {r["key"]: r["total"] for r in result["roles"]}["realised_gain"] == "145"

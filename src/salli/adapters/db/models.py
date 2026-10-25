@@ -153,6 +153,11 @@ class PostingORM(Base):
     # Base-currency amount, in the base currency's minor units; the balance
     # trigger checks these sum to zero per entry. Nothing reads them back.
     base_amount_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Matched to a bank statement's line (reconciliation). The one column a
+    # posting in closed books may still change (core_0034).
+    cleared: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     entry: Mapped[JournalEntryORM] = relationship("JournalEntryORM", back_populates="postings")
     tag_links: Mapped[list[PostingTagORM]] = relationship(
@@ -243,6 +248,13 @@ class StatementORM(Base):
     )
     period_start: Mapped[str | None] = mapped_column(String(10), nullable=True)
     period_end: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # The account's balance at the start and end of the period as the bank
+    # states it, in the account's currency's minor units and its normal
+    # direction (held for an asset, owed for a liability): what a
+    # reconciliation checks the cleared postings against. Null when the
+    # import carried none.
+    opening_balance_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    closing_balance_minor: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
@@ -280,6 +292,32 @@ class ParsedTransactionORM(Base):
         Index("ix_parsed_transactions_statement_id", "statement_id"),
         # What every import searches its history by: the row's date.
         Index("ix_parsed_transactions_date", text("(extracted_json ->> 'date')")),
+    )
+
+
+class ReconciliationORM(Base):
+    """A statement reconciled: its cleared postings add up to the bank's
+    closing balance. Recorded only once the difference is zero."""
+
+    __tablename__ = "reconciliations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    statement_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("statements.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    # The opening balance plus the cleared postings in the period, in the
+    # account's currency's minor units; and the closing balance less that.
+    cleared_total_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    difference_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Who completed it: "user", or the client that did ("mcp:<client id>").
+    completed_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint("difference_minor = 0", name="ck_reconciliations_difference"),
     )
 
 
@@ -519,6 +557,10 @@ class AgentDocumentORM(Base):
     # Named key for memories (unique per user+namespace)
     slug: Mapped[str | None] = mapped_column(String(200), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Kept until this day: not deleted before it. Set when it is saved from
+    # the person's retention period (`user_profiles.document_retention_years`);
+    # null when they chose none.
+    retain_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -880,6 +922,13 @@ class UserProfileORM(Base):
     # The books are closed up to and including this day: no entry is added on
     # or before it (core_0025's trigger). NULL while none are closed.
     lock_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # The day the books start: opening balances are posted on it, and a
+    # report for a time before it says the books don't cover it. NULL until
+    # opening balances are declared or the person sets it.
+    books_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # How many years a document is kept from the day it is saved
+    # (`agent_documents.retain_until`); NULL: no retention period.
+    document_retention_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
