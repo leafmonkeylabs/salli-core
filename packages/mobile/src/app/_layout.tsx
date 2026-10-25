@@ -69,6 +69,10 @@ function Navigator() {
           <Stack.Screen name="fi/goals" />
           <Stack.Screen name="fi/surplus" />
           <Stack.Screen name="attention" />
+          <Stack.Screen name="debts" />
+          <Stack.Screen name="budget/index" />
+          <Stack.Screen name="budget/[id]" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="notifications" />
           <Stack.Screen name="filing" />
           <Stack.Screen name="first-run" options={{ gestureEnabled: false }} />
         </Stack.Protected>

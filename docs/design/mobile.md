@@ -120,6 +120,21 @@ seeded by `core_0022_mobile_client`:
   against what happened, and a reflection to record. Templates and
   scenarios stay in the console.
 
+## Household basics (built)
+
+Designs HhAddDate, HhRecategorise, HhObOwe, HhDebts, HhBudget, HhBudgetEdit
+and HhPush. Add's draft carries its day, picked in a sheet (no day after
+today). An entry's category moves through `POST
+/v1/entries/{id}/recategorise`, never an edit. First run's owe lines send
+`rate` (typed in percent, sent as a fraction by moving the point) and
+`minimum_payment`. Debts reads `GET /v1/baseline` (its total and each
+debt's `paid_off`), Budget `GET /v1/budget/current` and `/trend`, its edit
+`PUT /v1/budget/monthly` with every line. Notifications registers the
+phone with `POST /v1/devices` and keeps the device id in the keychain; the
+alerts' kinds and quiet hours are the server's, not chosen here yet. The
+trend's bars are sized from each month's categories (pixel geometry); no
+total is shown, since the app adds no money.
+
 ## Servers and this phone
 
 - **More than one server.** Each sign-in is its own keychain item

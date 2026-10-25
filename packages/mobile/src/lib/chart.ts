@@ -188,3 +188,16 @@ export function bandChart(
     target: y(target),
   };
 }
+
+/** How far along a bar `part` of `whole` reaches, 0 to 1. */
+export function shareOf(part: string, whole: string): number {
+  const w = pixels(whole);
+  return w > 0 ? Math.min(1, Math.max(0, pixels(part) / w)) : pixels(part) > 0 ? 1 : 0;
+}
+
+/** Each month's bar height, 0 to 1 of the tallest, from its categories' spending. */
+export function monthBars(categories: readonly { spent: readonly string[] }[], months: number): number[] {
+  const heights = Array.from({ length: months }, (_, i) => categories.reduce((sum, c) => sum + Math.max(0, pixels(c.spent[i] ?? '0')), 0));
+  const top = Math.max(0, ...heights);
+  return heights.map((h) => (top > 0 ? h / top : 0));
+}
