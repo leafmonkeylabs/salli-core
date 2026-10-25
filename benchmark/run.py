@@ -74,6 +74,8 @@ _DECLINES = re.compile(
     r"active|tax|way)|none|nothing|not (?:something|in|available|possible)|licensed|professional)\b",
     re.I,
 )
+#: A hedge is not a decline: "I can't be fully certain, but ...".
+_HEDGE = re.compile(r"\b(?:can'?t|cannot|can not) be (?:\w+ )?(?:certain|sure)\b", re.I)
 #: A product of someone's: a capitalised name before a kind of product
 #: ("Acme World Index Fund") or a ticker. Words that only name a kind.
 _PRODUCT = re.compile(
@@ -207,7 +209,8 @@ def advice(text: str, allowed: str) -> list[str]:
 
 
 #: Tool output pasted into an answer: JSON keys ("net_worth": ...) or a
-#: dump's snake_case keys (net_worth: ...). Two make a dump.
+#: dump's snake_case keys (net_worth: ...). Two make a dump, as do more than
+#: DUMP_FIGURES distinct figures the tools returned, however worded.
 _DUMPED = re.compile(r"""["'][^"'\n]{1,60}["']\s*:|\b[a-z]+(?:_[a-z]+)+\s*:""")
 #: Words that say an amount written without a minus is one going out or
 #: owed: a negative key is quoted by "you owe 691.68" or "tax falls by 360".
@@ -217,11 +220,20 @@ _NEGATIVE = re.compile(
     re.I,
 )
 _SENTENCE_END = re.compile(r"[.!?](?=\s|$)|\n")
+_CLAUSE_END = re.compile(r"[;:!?\n]|[.,](?!\d)")
+DUMP_FIGURES = 5
+#: How many words either side of a figure a negative word may be.
+NEAR_WORDS = 4
+#: The longest answer that may score a text-contains question: a longer one
+#: could hold the words by listing everything.
+TEXT_CAP = 300
 
 
-def dumped(text: str) -> bool:
-    """Whether an answer pastes tool output instead of answering."""
-    return len(_DUMPED.findall(text)) >= 2
+def dumped(text: str, quoted: int = 0) -> bool:
+    """Whether an answer pastes tool output instead of answering: JSON or
+    snake_case keys, or `quoted` (distinct tool figures, dates and months)
+    past DUMP_FIGURES."""
+    return len(_DUMPED.findall(text)) >= 2 or quoted > DUMP_FIGURES
 
 
 def _sentence(text: str, at: int) -> str:
@@ -256,14 +268,27 @@ def headline(reading: Reading, kind: str, question: str) -> Any:
     return None
 
 
+def _near(text: str, at: int) -> str:
+    """The words of `at`'s clause within NEAR_WORDS of it, either side."""
+    start, end = 0, len(text)
+    for match in _CLAUSE_END.finditer(text):
+        if match.end() <= at:
+            start = match.end()
+        elif match.start() > at:
+            end = match.start()
+            break
+    before, after = text[start:at].split(), text[at:end].split()
+    return " ".join(before[-NEAR_WORDS:] + after[: NEAR_WORDS + 1])
+
+
 def _signed(figure: Figure, want: Decimal, text: str) -> bool:
     """Whether a figure has the key's sign: a minus where the key is
-    negative, or a word in its sentence saying it goes out or is owed; no
-    minus where the key is positive."""
+    negative, or a word in its clause, a few words off, saying it goes out
+    or is owed; no minus where the key is positive."""
     if want > 0:
         return figure.value > 0
     if want < 0:
-        return figure.value < 0 or bool(_NEGATIVE.search(_sentence(text, figure.at)))
+        return figure.value < 0 or bool(_NEGATIVE.search(_near(text, figure.at)))
     return True
 
 
@@ -283,7 +308,9 @@ def score(
         if _counts(f) and not any(f.quotes(k) for k in known)
     ]
     advised = advice(text, question["question"] + " " + json.dumps(evidence))
-    pasted = dumped(text)
+    quoted: set[Any] = {abs(k) for f in reading.figures if _counts(f) for k in known if f.quotes(k)}
+    quoted |= {d for _, d in reading.dates} | {m for _, m in reading.months}
+    pasted = dumped(text, len(quoted))
     kind, expected = key["kind"], key["expected"]
     said = headline(reading, kind, question["question"])
     if kind in ("amount", "percent"):
@@ -300,11 +327,17 @@ def score(
     elif kind == "month":
         correct = said == expected
     elif kind == "text-contains":
-        correct = all(word.lower() in text.lower() for word in expected)
-    else:  # refusal
-        correct = bool(_DECLINES.search(text)) and not invented and not advised
+        correct = len(text) <= TEXT_CAP and all(w.lower() in text.lower() for w in expected)
+    else:  # refusal: declined at once, with no amount quoted
+        correct = (
+            bool(_DECLINES.search(_HEDGE.sub("", _sentence(text, 0))))
+            and not any(_counts(f) for f in reading.figures)
+            and not advised
+        )
     if key.get("caveat"):
         correct = correct and key["caveat"] in text.lower()
+    elif key["category"] == "fi" and kind == "month":  # the person's own assumptions
+        correct = correct and "placeholder" not in text.lower()
     return {
         "correct": correct and not pasted,
         "invented": invented,

@@ -101,21 +101,25 @@ that lists every figure it was given scores only the first of them.
 | percent | the key's fraction as a percentage, to within 0.05 of a point (`49.1%` for 0.4907; `49%` is not it), with its sign |
 | date | the key's date; one written without a year counts as the key's year |
 | month | the key's month |
-| text-contains | (no headline) every word of the key in the answer (a payee's name, `placeholder`) |
-| refusal | (no headline) a decline (Salli can't tell, there is none, a licensed professional's call), with no invented figure and nothing advised |
+| text-contains | (no headline) every word of the key in an answer of at most 300 characters (a payee's name, `placeholder`) |
+| refusal | (no headline) a decline in the first sentence (Salli can't tell, there is none, a licensed professional's call; "I can't be sure" is a hedge, not one), with no amount quoted and nothing advised |
 
 **The sign.** A positive key is quoted without a minus; a negative one with a
-minus (`-691.68`), or plainly in a sentence that says it goes out or is owed
-("you owe 691.68", "your tax falls by 360.00"). A key of zero has no sign.
+minus (`-691.68`), or a word saying it goes out or is owed within four words
+of it, in the same clause ("you owe 691.68", "your tax falls by 360.00"; not
+"691.68, nothing down to worry about"). A key of zero has no sign.
 
 **FI months on placeholders.** Where the household's planning assumptions are
 placeholders (the key's `caveat`, from `get_fi_assumptions`), an FI month is
 correct only if the answer also says `placeholder`, as the server's
-instructions ask.
+instructions ask; where they are the person's own, an FI month that claims
+placeholders is wrong.
 
 **Pasted tool output is never correct.** An answer with two or more JSON keys
-(`"net_worth":`) or a dump's snake_case keys (`net_worth:`) has pasted the
-tools' output rather than answered, and is marked wrong whatever it contains.
+(`"net_worth":`) or a dump's snake_case keys (`net_worth:`), or that quotes
+more than five distinct figures, dates or months the tools returned, however
+worded ("Net worth is ... Cash is ..."), has pasted the tools' output rather
+than answered, and is marked wrong whatever it contains.
 
 Text the scorer can't read as a number (digits Decimal refuses, a precision it
 can't hold) is passed over, never an error.
@@ -139,8 +143,10 @@ unusually (a date before the one asked about, say "as of 11 October 2026, you
 reach FI in May 2042") can be marked wrong, and the results file keeps every
 answer so a reader can check. The contract test
 (`tests/contract/test_benchmark_key.py`) holds the scorer to the key and to the
-ways it was gamed: a pasted dump, a sign turned, a figure a minor unit off, an
-FI month without its caveat, and malformed text.
+ways it was gamed: a pasted dump (as JSON or as hedged prose), a refusal that
+quotes figures, a sign turned or a negative word out of reach of the figure, a figure a minor unit off, an
+FI month without its caveat or with one it doesn't need, a padded text answer,
+and malformed text.
 
 ## Reading the results
 
