@@ -78,7 +78,9 @@ async def test_windowed_insights_answer_as_the_whole_ledger_does(uow_factory):
             ],
         )
         day = (day.replace(day=1) + dt.timedelta(days=32)).replace(day=1)
-    await ledger.deactivate_account("u1", euros)  # closed, and still owned
+    # Closed with a balance (as before closing one was refused), and still owned.
+    async with uow_factory() as uow:
+        await uow.ledger.deactivate_account("u1", euros)
 
     fx = FakeFx({("EUR", "USD", None): (Decimal("1.0791"), "ecb")})
     baselines = BaselineService(uow_factory, fx=fx, today=lambda: TODAY)

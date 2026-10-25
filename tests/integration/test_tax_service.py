@@ -22,7 +22,7 @@ from salli.application.services.ledger_service import LedgerService
 from salli.application.services.reminder_service import ReminderService
 from salli.application.services.tax_rule_service import RuleSetStateError, TaxRuleService
 from salli.application.services.tax_service import NoTaxRulesError, TaxService
-from salli.domain.accounting.models import Direction
+from salli.domain.accounting.models import BooksLocked, Direction
 from salli.domain.taxrules.explain import UnknownLine
 from tests.integration.pg import _sync, requires_postgres, scalar
 
@@ -212,6 +212,21 @@ async def test_previewing_stores_nothing(db, uow_factory, tax, rules):
     assert preview["id"] is None
     assert scalar(db, "select count(*) from tax_computations") == 0
     assert await tax.get_latest_computation(A, country="XG") is None
+
+
+async def test_a_closed_year_s_stored_figure_is_never_replaced(db, uow_factory, tax, rules):
+    await _activate(rules, remitland())
+    await _book(uow_factory, A, local="5000")
+    filed = await tax.compute_tax(A, country="XG", year="2031/32")
+    async with uow_factory() as uow:
+        await uow.user_profiles.set_lock_date(A, filed["period_end"])
+
+    with pytest.raises(BooksLocked, match="can't be replaced"):
+        await tax.compute_tax(A, country="XG", year="2031/32")
+    assert "error" in await tax.prepare_return(A, country="XG", year="2031/32")
+    preview = await tax.compute_tax(A, country="XG", year="2031/32", persist=False)
+    assert any("this year is closed" in w for w in preview["warnings"])
+    assert scalar(db, "select count(*) from tax_computations") == 1
 
 
 async def test_a_net_finer_than_the_currency_is_stored_rounded_and_said_so(uow_factory, tax, rules):

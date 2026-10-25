@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from salli.application.services.ledger_service import LedgerService
-from salli.domain.accounting.models import BooksLocked, Direction
+from salli.domain.accounting.models import AccountNotEmpty, BooksLocked, Direction
 from tests.integration.pg import _sync, requires_postgres, scalar
 
 pytestmark = [requires_postgres, pytest.mark.asyncio]
@@ -169,3 +169,38 @@ async def test_closed_postings_keep_their_tags_and_accounts_their_type(uow_facto
     async with uow_factory() as uow:
         rows = await uow.audit_log.list("alice")
     assert [(r["action"], r["params"]["change"]) for r in rows] == [("set_lock_date", "set")]
+
+
+async def test_an_account_netting_to_zero_in_closed_books_still_keeps_its_type(uow_factory, db):
+    ledger, closed, _ = await _books(uow_factory)
+    await ledger.set_lock_date("alice", None)
+    await ledger.reverse_entry("alice", closed, "Wrong")  # dated 2025-11-20, nets to zero
+    await ledger.set_lock_date("alice", "2025-12-31")
+    food = str(scalar(db, "select id from accounts where code = '5000'"))
+
+    with pytest.raises(BooksLocked, match="type and tax role"):
+        await ledger.update_account("alice", food, "5000", "Food", "asset")
+    engine = create_engine(_sync(db))
+    try:
+        with (
+            pytest.raises(Exception, match="type and tax role can't change"),
+            engine.begin() as conn,
+        ):
+            conn.execute(text("update accounts set type = 'asset' where id = :id"), {"id": food})
+        with engine.begin() as conn:
+            conn.execute(text("update accounts set name = 'Meals' where id = :id"), {"id": food})
+            conn.execute(text("select set_config('salli.erase_user', 'alice', true)"))
+            conn.execute(text("update accounts set tax_role = 'x' where id = :id"), {"id": food})
+    finally:
+        engine.dispose()
+
+
+async def test_an_account_holding_a_balance_can_t_be_closed(uow_factory, db):
+    ledger, _, _ = await _books(uow_factory)
+    food = str(scalar(db, "select id from accounts where code = '5000'"))
+    spare = await ledger.add_account("alice", "5100", "Spare", "expense")
+
+    with pytest.raises(AccountNotEmpty, match="80.00 CAD"):
+        await ledger.deactivate_account("alice", food)
+    await ledger.deactivate_account("alice", spare)
+    assert scalar(db, f"select is_active from accounts where id = '{spare}'") is False
