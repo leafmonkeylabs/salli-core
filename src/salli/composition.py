@@ -277,6 +277,7 @@ def build_services(settings: Settings, checkpointer: Any = None, pooled: bool = 
             f"{public_url}{CONSOLE_CALLBACK_PATH}" if settings.salli_console else None
         ),
         console_sign_in_hours=settings.salli_console_sign_in_hours,
+        mcp_grant_lifetime_days=settings.mcp_grant_lifetime_days,
         console_secure=is_secure_origin(public_url),
     )
     data_portability = DataPortabilityService(

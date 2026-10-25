@@ -122,6 +122,14 @@ async def lifespan(app: FastAPI):
         set_checkpointer(checkpointer)
         log.info("LangGraph PostgreSQL checkpointer initialised")
     except Exception as exc:
+        # In memory, a briefing or return awaiting review, and every
+        # conversation, would vanish on a restart and escape the export and
+        # erasure: tests and development only.
+        if settings.environment == "production":
+            raise RuntimeError(
+                "Salli can't start: the PostgreSQL checkpointer is unavailable in "
+                f"production ({exc})."
+            ) from exc
         log.warning("PostgreSQL checkpointer unavailable (%s) — falling back to in-memory", exc)
 
     # ── Warm the DB connection pool ───────────────────────────────────────────
@@ -135,7 +143,11 @@ async def lifespan(app: FastAPI):
     # request throws "Task group is not initialized".
     from salli.interfaces.api.mcp_server import build_mcp_server
 
-    mcp_server = build_mcp_server(svc, issuer_url=settings.salli_public_url.rstrip("/"))
+    mcp_server = build_mcp_server(
+        svc,
+        issuer_url=settings.salli_public_url.rstrip("/"),
+        allowed_origins=settings.allowed_origins,
+    )
     # Mounted at root, not "/mcp": FastMCP's own streamable_http_path default
     # ("/mcp") already puts the real route at exactly /mcp with no trailing
     # slash, matching the resource URL we advertise everywhere. Mounting at
@@ -244,8 +256,11 @@ def create_app() -> FastAPI:
     # ── No caching of anyone's ledger ─────────────────────────────────────────
     # Every response but the console's own files says `no-store` unless it
     # set its own Cache-Control, so no browser or proxy keeps a page of
-    # someone's data.
-    app.add_middleware(NoStoreMiddleware)
+    # someone's data. Served over HTTPS, every response also tells the browser
+    # to use nothing else (HSTS).
+    app.add_middleware(
+        NoStoreMiddleware, hsts=settings.salli_public_url.lower().startswith("https://")
+    )
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Only the origins ALLOWED_ORIGINS names, in every environment: none by

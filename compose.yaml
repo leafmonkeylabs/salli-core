@@ -19,7 +19,9 @@ services:
   # the encryption key for users' own AI keys, the MCP signing secret, the
   # cron secret), one file each, and never replaces one. Then exits.
   secrets:
-    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:latest}
+    # A release, never :latest, so an upgrade is a choice (RELEASING.md bumps
+    # it with the version; docs/self-host.md#upgrades).
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.4.1}
     command: ["salli-server", "secrets", "init", "--dir", "/var/lib/salli/secrets"]
     volumes:
       - secrets:/var/lib/salli/secrets
@@ -51,7 +53,7 @@ services:
     networks: [database]
 
   salli:
-    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:latest}
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.4.1}
     # A checkout builds the image from source (`docker compose build`); with
     # just this file, the published image is pulled.
     build: .
@@ -68,18 +70,17 @@ services:
       DATABASE_URL: postgresql+asyncpg://salli@postgres:5432/salli
       SALLI_SECRETS_DIR: /var/lib/salli/secrets
       SALLI_PUBLIC_URL: ${SALLI_PUBLIC_URL:-http://localhost:8000}
-      # Trust X-Forwarded-For from whatever reaches the port: by default only
-      # this machine (the port is bound to 127.0.0.1) and Caddy (the tls
-      # profile). Sign-in throttling counts by the address it gives. If you
-      # publish the port beyond this machine without a proxy, set this to
-      # 127.0.0.1 in .env.
-      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+      # Believe X-Forwarded-For only from the bundled proxy, Caddy (the tls
+      # profile), at its fixed address on the proxy network: sign-in
+      # throttling counts by the address it gives, so nothing else may name
+      # one. Behind a proxy of your own, set its address in .env.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-10.248.53.2}
     ports:
       - "${SALLI_BIND:-127.0.0.1}:${SALLI_PORT:-8000}:8000"
     volumes:
       - files:/var/lib/salli/files
       - secrets:/var/lib/salli/secrets:ro
-    networks: [database, default]
+    networks: [database, default, proxy]
 
   # HTTPS on your own domain: `docker compose --profile tls up -d`, with
   # SALLI_DOMAIN and SALLI_PUBLIC_URL (https://<domain>) in .env, and the
@@ -104,10 +105,19 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      proxy:
+        ipv4_address: 10.248.53.2
 
 networks:
   database:
     internal: true
+  # Caddy to Salli, with Caddy at the one address Salli believes forwarded
+  # headers from (FORWARDED_ALLOW_IPS).
+  proxy:
+    ipam:
+      config:
+        - subnet: 10.248.53.0/29
 
 volumes:
   postgres:

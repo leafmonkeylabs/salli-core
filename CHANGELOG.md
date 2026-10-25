@@ -107,6 +107,22 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- Every MCP tool call is in the audit log: a read as one row (the tool, the
+  client and the outcome, no arguments), written before its answer is sent.
+- An AI client's connection ends 90 days after the person approved it
+  (`MCP_GRANT_LIFETIME_DAYS`), however often it refreshes; core_0029 gives
+  existing connections that end. The console keeps its 12 hours; the CLI and
+  the app have none.
+- A client that registers itself may use only https or loopback redirects,
+  never the device grant (Salli's CLI's alone), and the consent page shows its
+  name beside "Not verified by Salli".
+- Exporting everything and deleting the account go through the step-up in the
+  console and the app; the console's export follows it.
+- HSTS where `SALLI_PUBLIC_URL` is https; MCP's DNS rebinding protection on,
+  for the public URL's host; production refuses to start without the Postgres
+  checkpointer; compose believes forwarded addresses only from Caddy and pins
+  the image to a release.
+
 - **No known vulnerability in what ships, and CI now fails on one.** Python:
   aiohttp 3.14.5, anyio 4.15.1, certifi 2026.10.23, cryptography 50.0.2,
   langgraph-checkpoint-postgres 3.1.3, langgraph-sdk 0.4.4, langsmith 0.8.18,
@@ -121,6 +137,12 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 ### Breaking
 
 #### Changed
+
+- `compose.yaml` runs a named release (0.4.1), not `latest`, and believes
+  `X-Forwarded-For` only from Caddy (`FORWARDED_ALLOW_IPS=10.248.53.2`); set
+  it to your own proxy's address if you use one. `/mcp` answers only requests
+  whose Host is `SALLI_PUBLIC_URL`'s. Self-registered clients lose the device
+  grant and plain-http redirects other than loopback.
 
 - **One net worth.** Net worth over time and the balance sheet said a
   different net worth from the overview, FI and the reports for the same

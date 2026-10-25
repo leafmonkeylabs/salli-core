@@ -38,8 +38,10 @@ Flow:
 
 A native app's loopback redirect (http://127.0.0.1/callback) matches on any
 port (RFC 8252 §7.3), since the app listens wherever the OS gives it a port.
-A client on a machine without a browser uses the device grant (RFC 8628)
-instead: it gets a short code the person approves on the device page.
+A client registers https redirects, or loopback ones; nothing else. Salli's
+own CLI, on a machine without a browser, uses the device grant (RFC 8628)
+instead: it gets a short code the person approves on the device page. No
+other client may: a code to approve is too easy to phish with.
 
 Salli's console (`salli-console`, docs/design/console.md) is the other first
 party client. Its one redirect is `{SALLI_PUBLIC_URL}/console/callback`,
@@ -50,8 +52,10 @@ localhost, and not at all while SALLI_CONSOLE is off.
 **Grants.** Each approval starts a grant: one sign-in, which every token
 issued from it belongs to, through every refresh. A grant records when the
 person's password was checked (`authenticated_at`), which the console's
-step-up reads (application/permissions.py), and the console's grants end
-SALLI_CONSOLE_SIGN_IN_HOURS after it, however often they refresh. Refresh
+step-up reads (application/permissions.py). The console's grants end
+SALLI_CONSOLE_SIGN_IN_HOURS after it, and an AI client's (any but Salli's
+own) MCP_GRANT_LIFETIME_DAYS after it, however often they refresh; the CLI's
+and the app's have no such end. Refresh
 tokens rotate, and a rotated one presented again revokes its whole grant, for
 every client: a thief and the person can't both keep going, and the person
 finds out by being signed out. Revoking any token of a grant (RFC 7009)
@@ -183,6 +187,7 @@ class McpOAuthService:
         device_verification_url: str | None = None,
         console_redirect_uri: str | None = None,
         console_sign_in_hours: int = 12,
+        mcp_grant_lifetime_days: int = 90,
         console_secure: bool = True,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -206,6 +211,7 @@ class McpOAuthService:
         # The console's one redirect, or None while SALLI_CONSOLE is off.
         self._console_redirect = console_redirect_uri
         self._console_lifetime = timedelta(hours=console_sign_in_hours)
+        self._third_party_lifetime = timedelta(days=mcp_grant_lifetime_days)
         # Whether SALLI_PUBLIC_URL is HTTPS or localhost: the console signs
         # in only where a browser treats it as a secure context.
         self._console_secure = console_secure
@@ -253,9 +259,10 @@ class McpOAuthService:
         if not redirect_uris:
             raise OAuthError("redirect_uris must be a non-empty list")
         for uri in redirect_uris:
-            parsed = urlparse(uri)
-            if parsed.scheme not in ("https", "http") or not parsed.netloc:
-                raise OAuthError(f"invalid redirect_uri: {uri}")
+            if not _may_register(uri):
+                raise OAuthError(
+                    f"invalid redirect_uri: {uri} (https, or http to 127.0.0.1 or localhost)"
+                )
         async with self._uow_factory() as uow:
             client = await uow.oauth_clients.register(client_name, redirect_uris)
         return {
@@ -263,8 +270,8 @@ class McpOAuthService:
             "client_name": client["client_name"],
             "redirect_uris": client["redirect_uris"],
             "token_endpoint_auth_method": "none",  # public client, PKCE-only
-            # Every client may use any grant this server supports.
-            "grant_types": ["authorization_code", "refresh_token", DEVICE_GRANT_TYPE],
+            # The device grant is the CLI's alone (start_device_authorization).
+            "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
         }
 
@@ -292,8 +299,13 @@ class McpOAuthService:
 
     def _lifetime_of(self, client_id: str) -> timedelta | None:
         """How long a sign-in of this client lasts at most, refresh or not:
-        the console's SALLI_CONSOLE_SIGN_IN_HOURS; none for other clients."""
-        return self._console_lifetime if client_id == CONSOLE_CLIENT_ID else None
+        the console's SALLI_CONSOLE_SIGN_IN_HOURS; none for the CLI's and the
+        app's; MCP_GRANT_LIFETIME_DAYS for any other (an AI client)."""
+        if client_id == CONSOLE_CLIENT_ID:
+            return self._console_lifetime
+        if client_id in (CLI_CLIENT_ID, MOBILE_CLIENT_ID):
+            return None
+        return self._third_party_lifetime
 
     # ── Authorize → consent handoff ──────────────────────────────────────────
 
@@ -350,7 +362,9 @@ class McpOAuthService:
                     "The app signs in only over HTTPS, or on this machine at localhost: "
                     "set SALLI_PUBLIC_URL to an https:// address (docs/self-host.md)."
                 )
-        if not self._matches(client, redirect_uri):
+        if not self._matches(client, redirect_uri) or not (
+            client.get("first_party") or _may_register(redirect_uri)
+        ):
             raise OAuthError("redirect_uri does not match a registered value for this client")
 
         art = jwt.encode(
@@ -790,8 +804,13 @@ class McpOAuthService:
                 "The console and the app sign in with the authorization code grant only."
             )
         async with self._uow_factory() as uow:
-            if await uow.oauth_clients.get(client_id) is None:
+            client = await uow.oauth_clients.get(client_id)
+            if client is None:
                 raise OAuthError("unknown client_id")
+            if not client.get("first_party"):
+                # A code approved on another device is easy to phish: only
+                # Salli's own CLI may ask for one.
+                raise OAuthError("Only Salli's own CLI signs in with a device code.")
             device_code = secrets.token_urlsafe(32)
             user_code = "".join(secrets.choice(_USER_CODE_ALPHABET) for _ in range(8))
             await uow.oauth_tokens.save_device_code(
@@ -888,6 +907,16 @@ class McpOAuthService:
             "resource": self._resource,
             "authorization_servers": [issuer],
         }
+
+
+def _may_register(uri: str) -> bool:
+    """A redirect a client may register for itself: https, or http to this
+    machine (a native app's loopback redirect, RFC 8252 section 7.3)."""
+    parsed = urlparse(uri)
+    if not parsed.netloc:
+        return False
+    loopback = {h.strip("[]") for h in _LOOPBACK_HOSTS}
+    return parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname in loopback)
 
 
 def _redirect_matches(requested: str, registered: str) -> bool:

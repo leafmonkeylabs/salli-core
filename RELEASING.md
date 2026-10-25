@@ -125,7 +125,8 @@ Each push carries an SBOM and a provenance attestation (`provenance: mode=max`),
 which `docker buildx imagetools inspect ghcr.io/leafmonkeylabs/salli:<version>
 --format '{{ json .Provenance }}'` shows.
 
-1. Bump `version` in `pyproject.toml` in a pull request (`uv lock` updates the lock
+1. Bump `version` in `pyproject.toml`, and the image tag in `compose.yaml` and
+   `.env.example`, in a pull request (`uv lock` updates the lock
    file's entry for Salli). The OpenAPI document carries the version, so
    regenerate it too: `uv run python -m salli.interfaces.api.spec >
    openapi/openapi.json`. The pull request builds the image and runs

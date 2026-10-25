@@ -99,7 +99,7 @@ async def test_suggested_accounts_are_shown_then_applied_and_audited(services):
     assert (actor.kind, actor.name) == ("agent", "Claude")
     # The read tool can't create: there is no apply to pass it.
     assert "apply" not in services.tax_rules.suggested_accounts.await_args.kwargs
-    services.audit.log.assert_not_awaited()
+    assert services.audit.log.await_args.args[1:4] == ("suggested_tax_accounts", {}, "succeeded")
 
     await _call(services, "apply_suggested_tax_accounts", {"rule_set_id": "rs1"})
     assert services.tax_rules.suggested_accounts.await_args.kwargs["apply"] is True

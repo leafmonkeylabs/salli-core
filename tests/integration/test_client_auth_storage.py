@@ -50,7 +50,7 @@ async def test_a_device_code_goes_from_pending_to_tokens(uow_factory):
         access_token_ttl_seconds=3600,
         refresh_token_ttl_seconds=86400,
     )
-    client = await service.register_client("Salli CLI", ["http://127.0.0.1/callback"])
+    client = {"client_id": "salli-cli"}
     started = await service.start_device_authorization(client["client_id"], "", f"{BASE}/v1")
     assert (await service.device_request(started["user_code"]))["audience"] == "api"
 
@@ -77,7 +77,7 @@ async def test_connections_are_ai_clients_and_never_the_users_own_cli(uow_factor
     )
     async with uow_factory() as uow:
         await uow.user_profiles.upsert("u1", {"base_currency": "USD", "mcp_enabled": True})
-    client = await service.register_client("Salli CLI", ["http://127.0.0.1/callback"])
+    client = {"client_id": "salli-cli"}
     for resource in (f"{BASE}/v1", f"{BASE}/mcp"):
         started = await service.start_device_authorization(client["client_id"], "", resource)
         await service.decide_device(started["user_code"], "u1", approve=True)
@@ -113,9 +113,7 @@ async def test_disconnecting_a_client_revokes_its_whole_grant(uow_factory):
     async with uow_factory() as uow:
         await uow.user_profiles.upsert("u1", {"base_currency": "USD", "mcp_enabled": True})
     client = await service.register_client("Claude", ["https://claude.test/cb"])
-    started = await service.start_device_authorization(client["client_id"], "", f"{BASE}/mcp")
-    await service.decide_device(started["user_code"], "u1", approve=True)
-    first = await service.exchange_device_code(started["device_code"], client["client_id"])
+    first = await _code_token(service, client["client_id"], "https://claude.test/cb", f"{BASE}/mcp")
     rotated = await service.exchange_refresh_token(first["refresh_token"], client["client_id"])
 
     # Every access token has run out; the live refresh token still connects it.
@@ -140,3 +138,21 @@ async def test_disconnecting_a_client_revokes_its_whole_grant(uow_factory):
     assert await service.is_salli_token(first["access_token"])
     assert await service.is_salli_token(rotated["refresh_token"])
     assert not await service.is_salli_token("someone")
+
+
+async def _code_token(service: McpOAuthService, client_id: str, redirect: str, resource: str):
+    """Tokens as a client that registered itself gets them: the person
+    approves on the consent page, and the client redeems the code."""
+    import base64
+    import hashlib
+    from urllib.parse import parse_qs, urlparse
+
+    verifier = "v" * 64
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+    consent = await service.build_consent_redirect(
+        client_id, redirect, challenge.rstrip(b"=").decode(), "S256", "", resource, None
+    )
+    art = parse_qs(urlparse(consent).query)["rt"][0]
+    back = await service.complete_consent(art, "u1", approve=True, password_checked=True)
+    code = parse_qs(urlparse(back).query)["code"][0]
+    return await service.exchange_authorization_code(code, redirect, client_id, verifier)

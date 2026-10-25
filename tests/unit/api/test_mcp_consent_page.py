@@ -41,6 +41,21 @@ async def test_the_page_names_the_client_safely(client, consent):
     assert r.headers["cache-control"] == "no-store"
 
 
+async def test_a_self_registered_client_s_name_is_marked_not_verified(client, consent):
+    r = await client.get(PAGE, params={"rt": "token"})
+    assert "Claude &lt;script&gt; to your Salli? <span class=unverified>Not verified by Salli" in (
+        r.text
+    )
+    consent.get_consent_info.return_value = {
+        "client_id": "salli-cli",
+        "client_name": "Salli CLI",
+        "first_party": True,
+        "audience": "api",
+    }
+    r = await client.get(PAGE, params={"rt": "token"})
+    assert "Salli CLI" in r.text and "Not verified" not in r.text
+
+
 async def test_an_expired_request_says_so(client, consent):
     consent.get_consent_info.side_effect = ConsentError(
         "This sign-in link has expired. Go back to the app and start again."

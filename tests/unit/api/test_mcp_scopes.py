@@ -2,7 +2,8 @@
 What an MCP connection may do: read always; change only with `mcp:write`,
 checked in one place for every tool that isn't read-only. Every call of one
 is audited with the person, the client, the tool, its arguments and the
-outcome, never a decision nobody made.
+outcome, never a decision nobody made; every read with the tool, the client
+and the outcome.
 """
 
 from __future__ import annotations
@@ -89,13 +90,33 @@ async def test_a_write_that_fails_is_audited_as_failed(services):
 
 
 @pytest.mark.parametrize("scopes", [[], ["mcp:read"]])
-async def test_reads_need_no_scope_and_are_not_audited(services, scopes):
+async def test_reads_need_no_scope_and_are_audited_without_their_arguments(services, scopes):
     result = await _request(services, "get_memory", {"slug": "accountant_name"}, scopes)
 
     assert result.isError is False
     assert result.structuredContent is not None
     assert result.structuredContent["value"] == "Ana"
-    services.audit.log.assert_not_awaited()
+    services.audit.log.assert_awaited_once_with(
+        "u1", "get_memory", {}, "succeeded", client_id="claude-1"
+    )
+
+
+async def test_a_read_that_fails_is_audited_as_failed(services):
+    services.documents.get_memory.side_effect = RuntimeError("the store is down")
+    result = await _request(services, "get_memory", {"slug": "accountant_name"}, [])
+
+    assert result.isError is True
+    services.audit.log.assert_awaited_once_with(
+        "u1", "get_memory", {}, "failed", client_id="claude-1"
+    )
+
+
+async def test_a_read_whose_audit_row_cant_be_written_is_not_answered(services):
+    services.audit.log.side_effect = RuntimeError("audit_logs refused it")
+    result = await _request(services, "get_memory", {"slug": "accountant_name"}, [])
+
+    assert result.isError is True
+    assert result.structuredContent is None
 
 
 async def test_every_tool_that_is_not_read_only_is_gated(services):

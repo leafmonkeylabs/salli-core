@@ -171,9 +171,10 @@ The image carries the built console (`SALLI_CONSOLE_DIR=/opt/salli-console`);
 - **Your display choices** (light, dark or as the system; a locale for
   numbers and dates) are kept in that browser only. Nothing else is kept on
   the device but the tab's own sign-in.
-- **Activating tax rules** from the console, or making a personal access token
-  that can, needs the password entered in the last five minutes: the console
-  sends you through the sign-in page again first.
+- **Activating tax rules** from the console, making a personal access token
+  that can, or saving everything Salli keeps (Settings, Your data), needs the
+  password entered in the last five minutes: the console sends you through
+  the sign-in page again first.
 - **Switching it off:** `SALLI_CONSOLE=false` serves no console, and its
   sign-in refuses everyone. The CLI, MCP and the API are unaffected.
 
@@ -192,8 +193,8 @@ is needed to start.
 | `SALLI_BIND` | `127.0.0.1` | The interface the port is published on. `0.0.0.0` publishes it to your network: see [Security](#security). |
 | `SALLI_PORT` | `8000` | The port on that interface. |
 | `SALLI_DOMAIN` | none | The domain Caddy serves with HTTPS (the `tls` profile). |
-| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:latest` | The image to run. Pin a version (`…/salli:0.1.0`) to upgrade only when you choose. |
-| `FORWARDED_ALLOW_IPS` | `*` | Whose `X-Forwarded-For` to believe. See [Security](#security). |
+| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:0.4.1` | The image to run: the release this `compose.yaml` names, never `latest`. See [Upgrades](#upgrades). |
+| `FORWARDED_ALLOW_IPS` | `10.248.53.2` (Caddy) | Whose `X-Forwarded-For` to believe: only the bundled proxy. See [Security](#security). |
 
 ### The server
 
@@ -213,7 +214,8 @@ is needed to start.
 | `ENVIRONMENT` | `production` in the image | `development` serves API docs at `/docs` and allows the development sign-in. Never on a server others can reach. |
 | `MCP_CONSENT_URL` | Salli's own page | Where people approve an MCP connection, if you run your own web app for it. |
 | `MCP_ACCESS_TOKEN_TTL_SECONDS` | `3600` | How long an OAuth access token lasts (the CLI's, an AI client's). |
-| `MCP_REFRESH_TOKEN_TTL_SECONDS` | `2592000` | How long a refresh token lasts (30 days). Each refresh issues a new one; a sign-in lasts while it keeps refreshing, except the console's (above). |
+| `MCP_REFRESH_TOKEN_TTL_SECONDS` | `2592000` | How long a refresh token lasts (30 days). Each refresh issues a new one; a sign-in lasts while it keeps refreshing, except the console's (above) and an AI client's (below). |
+| `MCP_GRANT_LIFETIME_DAYS` | `90` | How long an AI client's connection lasts after the person approved it, however often it refreshes (1 to 365); then the person connects it again. Salli's own CLI and app are not affected. |
 | `MCP_AUTH_CODE_TTL_SECONDS`, `MCP_ART_TTL_SECONDS` | `120`, `1800` | How long an authorisation code, and a pending approval, last. |
 | `SALLI_EXTENSIONS` | none | Extensions to load, comma-separated. They must be installed in the image. |
 | `SALLI_USER_ID` | the owner | Whom a `salli-server` command that acts on one user acts as. |
@@ -402,6 +404,9 @@ Everyone's sign-ins come back with the database: nobody needs to sign in again.
 
 ## Upgrades
 
+`compose.yaml` names one release of the image. To upgrade, take the newer
+`compose.yaml` (or set `SALLI_IMAGE` to the new version), then:
+
 ```bash
 docker compose pull
 docker compose up -d
@@ -434,10 +439,18 @@ restore, as above, onto the new version.
   the owner lifts the lock. This holds on the consent and device pages (where
   `salli login` signs in) and for `POST /v1/auth/sessions` alike.
 - **Addresses.** The throttle counts by the client's address. Behind Caddy
-  that comes from `X-Forwarded-For`, which Salli believes from anything that
-  reaches its port (`FORWARDED_ALLOW_IPS=*`): by default, only this machine
-  and Caddy. If you publish port 8000 beyond this machine without a proxy, set
-  `FORWARDED_ALLOW_IPS=127.0.0.1`.
+  that comes from `X-Forwarded-For`, which Salli believes only from Caddy, at
+  its fixed address on compose's `proxy` network (`FORWARDED_ALLOW_IPS`).
+  Behind a proxy of your own, set that to its address.
+- **HTTPS only.** Where `SALLI_PUBLIC_URL` is `https://`, every response
+  carries `Strict-Transport-Security` (a year), so a browser never falls back
+  to plain HTTP.
+- **MCP answers only its own address.** `/mcp` serves a request only when its
+  `Host` is `SALLI_PUBLIC_URL`'s (a 421 otherwise), and a browser's only from
+  that origin or one `ALLOWED_ORIGINS` names, against DNS rebinding.
+- **Production refuses to start** without the Postgres store for
+  conversations and reviews (`ENVIRONMENT=production`, as the image is), rather
+  than keep them in memory.
 - **Sessions and tokens** are opaque random strings, and only their SHA-256
   hashes are stored. Sessions expire after 30 days, and end on sign-out, on a
   password change (the others) and on a reset (all). Nothing uses cookies, so

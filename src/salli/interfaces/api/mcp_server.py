@@ -15,7 +15,8 @@ nothing. Every call of one, refused or not, is recorded in the append-only
 audit log with the person, the connection's client, the tool, its arguments
 and the outcome (succeeded, refused, failed); a change is recorded in the
 transaction that makes it (unit_of_work.pending_audit), so a change whose
-row can't be written isn't made. Scrooge's write tools pause for the person
+row can't be written isn't made. A read is recorded too, as one row with the
+tool, the client and the outcome but no arguments. Scrooge's write tools pause for the person
 (langgraph interrupt()); an MCP client asks the person itself, as the Salli
 app does before every change.
 
@@ -40,6 +41,7 @@ import datetime
 from collections.abc import Callable, Sequence
 from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
+from urllib.parse import urlparse
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
@@ -170,8 +172,8 @@ def _failed(result: Any) -> bool:
 
 
 class _SalliMCP(FastMCP[Any]):
-    """FastMCP, with every tool that isn't read-only checked and audited
-    here, in one place."""
+    """FastMCP, with every tool call audited, and every tool that isn't
+    read-only checked, here, in one place."""
 
     def __init__(self, audit_uow: Callable[[], Any], **settings: Any) -> None:
         super().__init__(**settings)
@@ -182,7 +184,7 @@ class _SalliMCP(FastMCP[Any]):
     ) -> Sequence[ContentBlock] | dict[str, Any]:
         tool = self._tool_manager.get_tool(name)
         if tool is None or (tool.annotations is not None and tool.annotations.readOnlyHint):
-            return await super().call_tool(name, arguments)
+            return await self._read(name, arguments)
         record = AuditRecord(_current_user_id(), _current_client_id(), name, _redacted(arguments))
         if MCP_WRITE not in _current_scopes():
             await self._audit(record, "refused")
@@ -200,11 +202,37 @@ class _SalliMCP(FastMCP[Any]):
             if not record.recorded or outcome != "succeeded":
                 await self._audit(record, outcome)
 
+    async def _read(
+        self, name: str, arguments: dict[str, Any]
+    ) -> Sequence[ContentBlock] | dict[str, Any]:
+        """A read, audited as one compact row (the tool and the client, no
+        arguments) before its answer is sent, so an answer whose row can't
+        be written isn't."""
+        record = AuditRecord(_current_user_id(), _current_client_id(), name, {})
+        outcome = "failed"
+        try:
+            result = await super().call_tool(name, arguments)
+            outcome = "failed" if _failed(result) else "succeeded"
+        finally:
+            await self._audit(record, outcome)
+        return result
+
     async def _audit(self, record: AuditRecord, outcome: str) -> None:
         async with self._audit_uow() as uow:
             await uow.audit_log.log(
                 record.user_id, record.action, record.params, outcome, client_id=record.client_id
             )
+
+
+def _transport_security(
+    public_url: str, allowed_origins: Sequence[str]
+) -> TransportSecuritySettings:
+    public = urlparse(public_url)
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[public.netloc, f"{public.hostname}:*"],
+        allowed_origins=[f"{public.scheme}://{public.netloc}", *allowed_origins],
+    )
 
 
 def _jsonable(value: Any) -> Any:
@@ -298,7 +326,9 @@ GUARDRAILS = (
 )
 
 
-def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
+def build_mcp_server(
+    services: Any, issuer_url: str, allowed_origins: Sequence[str] = ()
+) -> FastMCP:
     ledger_svc = services.ledger
     tax_svc = services.tax
     profile_svc = services.profile
@@ -383,17 +413,10 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         # connected client on the very next deploy (each request gets its own
         # transport instead, so nothing is pinned to server-process memory).
         stateless_http=True,
-        # FastMCP auto-enables an allowlist check on the Host header ("DNS
-        # rebinding protection") whenever host defaults to 127.0.0.1 — which
-        # it does here, since we never set host (we're mounted under our own
-        # FastAPI app, not run standalone). That allowlist only ever contains
-        # loopback patterns, so every real request — Host: <your public host>
-        # — fails it with a 421, regardless of a valid bearer token. This
-        # protection targets locally-exposed MCP servers trusted by same-host
-        # browsers; it's meaningless for a public server that already requires
-        # a valid OAuth bearer token on every request, so it's disabled here
-        # rather than trying to keep a Host allowlist in sync with prod/dev.
-        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        # DNS rebinding protection: a request is served only when addressed
+        # to SALLI_PUBLIC_URL's host (any port), else a 421; one a browser
+        # sends, only from that origin or one ALLOWED_ORIGINS names, else a 403.
+        transport_security=_transport_security(issuer_url, allowed_origins),
     )
 
     @mcp.tool(annotations=READS)

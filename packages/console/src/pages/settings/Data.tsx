@@ -4,17 +4,20 @@
  * everything Salli keeps as one JSON file, each saved on this device as the
  * API answered it (amounts exact: the JSON is written with the SDK's exact
  * writer, never through a float). A blob URL, which the CSP allows, and
- * nothing sent anywhere.
+ * nothing sent anywhere. Everything, like deleting the account, needs the
+ * password entered in the last five minutes: past that, the step-up, and the
+ * file is saved on the way back.
  */
 import { accountExport, exportsBeancount, exportsHledger, toJsonText } from '@leafmonkeylabs/salli-sdk';
 import { useState } from 'react';
-import { useApi } from '../../api';
+import { useApi, useWrite } from '../../api';
 import { isoDate } from '../../kit/dates';
 import { saveText, textOf } from '../../kit/download';
 import { Button } from '../../kit/forms';
 import { Grid, Page, Panel, Section } from '../../kit/layout';
 import { ProblemView } from '../../kit/Problem';
 import { settingsStrings } from '../../settings-strings';
+import { strings } from '../../strings';
 import { SettingsNav } from './nav';
 
 const t = settingsStrings.data;
@@ -27,17 +30,27 @@ export function Data() {
   const [saved, setSaved] = useState('');
   const [error, setError] = useState<unknown>(null);
   const today = isoDate(new Date());
+  const everything = useWrite<null, string>(
+    'account.export',
+    async (client) => {
+      const name = `salli-${isoDate(new Date())}.json`;
+      saveText(name, `${toJsonText(await client.call(accountExport))}\n`, 'application/json');
+      return name;
+    },
+    { onSuccess: (name) => setSaved(t.savedFile(name)) },
+  );
 
   const save = async (kind: Kind): Promise<void> => {
-    setBusy(kind);
     setSaved('');
     setError(null);
+    if (kind === 'json') {
+      everything.mutate(null);
+      return;
+    }
+    setBusy(kind);
     try {
       let name: string;
-      if (kind === 'json') {
-        name = `salli-${today}.json`;
-        saveText(name, `${toJsonText(await api.call(accountExport))}\n`, 'application/json');
-      } else if (kind === 'beancount') {
+      if (kind === 'beancount') {
         name = `salli-${today}.beancount`;
         saveText(name, textOf(await api.call(exportsBeancount, { parseAs: 'text' })), 'text/plain');
       } else {
@@ -73,8 +86,8 @@ export function Data() {
           <Panel>
             <p className="section-help">{t.everythingHelp}</p>
             <div className="form-actions">
-              <Button variant="secondary" onPress={() => void save('json')} isPending={busy === 'json'}>
-                {busy === 'json' ? t.saving : t.json}
+              <Button variant="secondary" onPress={() => void save('json')} isPending={everything.isPending}>
+                {everything.isPending ? t.saving : t.json}
               </Button>
             </div>
           </Panel>
@@ -85,9 +98,12 @@ export function Data() {
               <>
                 <span aria-hidden="true">✓</span> {saved}
               </>
+            ) : everything.stepUpPending ? (
+              strings.signIn.redirecting
             ) : null}
           </p>
           {error ? <ProblemView error={error} compact /> : null}
+          {everything.isError && !everything.stepUpPending ? <ProblemView error={everything.error} compact /> : null}
         </div>
       </Grid>
     </Page>
