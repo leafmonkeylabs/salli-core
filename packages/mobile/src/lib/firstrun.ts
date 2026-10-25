@@ -10,6 +10,9 @@ export interface Line {
   amount: string;
   /** For something you own: what kind of money it is. */
   role?: AssetRole;
+  /** For something you owe, optional: its yearly rate as typed in percent ("21.9"), and its minimum payment a month. */
+  rate?: string;
+  minimum?: string;
 }
 
 /** Cash is what you spend from; savings you keep, never free to spend; investments grow; other (a home, a car) is none of these. */
@@ -30,16 +33,37 @@ export function filled(lines: readonly Line[]): { name: string; amount: string; 
   });
 }
 
+/** What you owe worth sending: named, with an amount, and a rate and minimum where they read. */
+function owedOf(owe: readonly Line[]) {
+  return owe.flatMap((l) => {
+    const amount = amountOf(l.amount);
+    if (!l.name.trim() || !amount) return [];
+    const rate = l.rate?.trim() ? fractionOf(l.rate) : undefined;
+    const minimum = l.minimum?.trim() ? amountOf(l.minimum) : undefined;
+    return [{ name: l.name.trim(), amount, ...(rate ? { rate } : {}), ...(minimum ? { minimum_payment: minimum } : {}) }];
+  });
+}
+
 /** Whether every line you own that would be sent says what kind it is. */
 export function rolesGiven(own: readonly Line[]): boolean {
   return filled(own).every((l) => l.role !== undefined);
 }
 
-/** Opening balances: what you own from 1500, what you owe from 2500, ten apart. */
+/** A rate typed in percent ("21.9", "6.4%") as the fraction the server takes ("0.219"), by moving the point: no arithmetic. */
+export function fractionOf(percent: string): string | undefined {
+  const exact = normalizeAmountInput(percent.trim().replace(/%$/, '').trim());
+  if (!exact || exact.startsWith('-')) return undefined;
+  const [whole = '0', part = ''] = exact.split('.');
+  const digits = whole.padStart(3, '0') + part;
+  const fraction = `${digits.slice(0, -2 - part.length)}.${digits.slice(-2 - part.length)}`.replace(/^0+(?=\d)/, '').replace(/\.?0+$/, '');
+  return fraction === '' || fraction === '0' ? '0' : fraction;
+}
+
+/** Opening balances: what you own from 1500, what you owe from 2500, ten apart; owed ones with their rate and minimum when given. */
 export function balancesOf(own: readonly Line[], owe: readonly Line[]) {
   return [
     ...filled(own).map((l, i) => ({ code: String(1500 + i * 10), name: l.name, type: 'asset' as const, amount: l.amount, ...(l.role ? { asset_role: l.role } : {}) })),
-    ...filled(owe).map((l, i) => ({ code: String(2500 + i * 10), name: l.name, type: 'liability' as const, amount: l.amount })),
+    ...owedOf(owe).map((l, i) => ({ code: String(2500 + i * 10), type: 'liability' as const, ...l })),
   ];
 }
 

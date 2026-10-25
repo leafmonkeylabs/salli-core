@@ -4,6 +4,16 @@
 
 ### Added
 
+- **Household basics in the phone app.** Add picks the entry's day (Today,
+  Yesterday or a calendar) instead of always today; an entry's category can
+  be changed beside Reverse (a sheet of the same kind of accounts, then the
+  server's recategorise); first run asks what you owe on its own step, with
+  an optional rate and minimum payment; a Debts screen (Attention's debt
+  signals open it) reads the baseline's debts and debt-free months; Cash
+  links to a Budget screen (this month's limits, left, the month gone, six
+  months of spending) and its edit screen (limit, rollover); More ›
+  Notifications turns push alerts on for this phone, registering its Expo
+  push token (`expo-notifications`).
 - **A withdrawal rate over your own drawdown.** A derived withdrawal rate
   must last from your FI month to your planning age (the FI plan's new
   `planning_age`; a labelled 95 without one, a labelled 30 years without a

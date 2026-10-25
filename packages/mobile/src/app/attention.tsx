@@ -14,7 +14,7 @@ import { font, size, useTheme } from '../theme';
 const t = strings.attention;
 
 /** Where a signal points in the app. */
-function placeOf(signal: FinanceSignal): '/cash' | '/books' | '/decide' | undefined {
+function placeOf(signal: FinanceSignal): '/cash' | '/books' | '/decide' | '/debts' | '/budget' | undefined {
   switch (signal.action) {
     case 'see_forecast':
     case 'see_recurring':
@@ -24,6 +24,9 @@ function placeOf(signal: FinanceSignal): '/cash' | '/books' | '/decide' | undefi
     case 'review':
       return '/books';
     case 'see_debts':
+      return '/debts';
+    case 'see_budget':
+      return '/budget';
     case 'review_decision':
       return '/decide';
     default:
