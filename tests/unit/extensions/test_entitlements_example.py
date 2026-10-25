@@ -27,7 +27,14 @@ async def _tier(name: str | None):
 
 
 async def test_a_paying_or_pilot_tier_sees_everything():
-    for name in ("self_hosted", "pilot", "hosted_person", "hosted_household"):
+    for name in (
+        "self_hosted",
+        "pilot",
+        "hosted_person",
+        "hosted_household",
+        "practice",
+        "developer",
+    ):
         view = await _tier(name)
         assert view.shape(Surface.FI_PROJECTIONS, PROJECTIONS) == PROJECTIONS
         assert view.shape(Surface.ADVISOR_REPORT, BRIEFING) == BRIEFING

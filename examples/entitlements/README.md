@@ -8,11 +8,12 @@ Salli: the open core has no plans and shows everything (`FullAccess`), and
 
 | Tier | What it sees | The thesis row it tests |
 |---|---|---|
-| `self_hosted` | everything | What is sold: the self-hosted open core |
+| `self_hosted` | everything | What is sold: self-hosted, free under AGPL-3.0 |
 | `pilot` | everything | The design-partner pilot: activation and retention, not limits |
-| `hosted_person` | everything | Who pays: salaried professionals keeping their own books |
-| `hosted_household` | everything | Who pays: households in two currencies |
-| `trial` (and anyone unplaced) | the books in full; FI projections to five years; the briefing without its notes | Pricing hypotheses: which depth people pay for |
+| `hosted_person`, `hosted_household` | everything | Pricing hypotheses: hosted, household and more |
+| `practice` | everything | One company, one wedge: accountants and planners on seats |
+| `developer` | everything | What is sold: hosted, for developers, by usage |
+| `trial` (and anyone unplaced) | the books in full; FI projections to five years; the briefing without its notes | Pricing hypotheses: hosted, one person (capped) |
 
 Salli computes the whole, truthful payload every time; the policy only
 leaves parts out, and lists them in `withheld`, so no figure shown is ever a
