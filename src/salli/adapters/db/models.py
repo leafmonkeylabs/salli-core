@@ -1743,6 +1743,22 @@ class AuditLogORM(Base):
     __table_args__ = (Index("ix_audit_logs_user_created", "user_id", "created_at"),)
 
 
+class McpClientRefORM(Base):
+    """An agent's own id for one write it asked for (client_ref), and what
+    the write answered: sent again, the write is not made twice. `result` is
+    null while the first is still running."""
+
+    __tablename__ = "mcp_client_refs"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tool: Mapped[str] = mapped_column(String(50), primary_key=True)
+    client_ref: Mapped[str] = mapped_column(String(180), primary_key=True)
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+
 # ── MCP OAuth (lets external AI clients — Claude, ChatGPT, etc. — connect to a
 # user's read-only financial data via a Model Context Protocol server) ─────────
 
