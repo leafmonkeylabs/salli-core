@@ -92,7 +92,7 @@ async def test_a_refusal_lists_its_problems_for_the_agent_to_fix(services):
         "error": "This is not a rule set Salli can read",
         "problems": [{"path": "$", "message": "Not valid JSON", "snippet": None}],
     }
-    services.audit.log.assert_not_awaited()
+    assert services.audit.log.await_args.args[3] == "failed"
 
 
 async def test_proposing_tells_the_agent_that_only_the_user_activates(services):

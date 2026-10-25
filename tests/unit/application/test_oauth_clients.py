@@ -26,6 +26,7 @@ from salli.application.services.mcp_oauth_service import (
     McpOAuthService,
     OAuthError,
     RefreshTokenReused,
+    may_change,
 )
 
 BASE = "https://salli.test"
@@ -411,6 +412,52 @@ async def test_an_ai_clients_token_never_opens_the_api(world):
     assert await service.verify_access_token(pair["access_token"], audience=API) is None
     profiles.mcp_enabled = False
     assert await service.verify_access_token(pair["access_token"], audience=MCP) is None
+
+
+async def _granted(service, client_id, redirect_uri, resource, scope="", **decision) -> str:
+    verifier, challenge = _pkce()
+    consent = await service.build_consent_redirect(
+        client_id, redirect_uri, challenge, "S256", scope, resource, None
+    )
+    rt = parse_qs(urlparse(consent).query)["rt"][0]
+    back = await service.complete_consent(rt, USER, approve=True, password_checked=True, **decision)
+    code = parse_qs(urlparse(back).query)["code"][0]
+    pair = await service.exchange_authorization_code(code, redirect_uri, client_id, verifier)
+    record = await service.verify_access_token(pair["access_token"], audience=MCP)
+    assert record is None or record["scope"] == pair["scope"]
+    return pair["scope"]
+
+
+async def test_an_ai_client_reads_and_changes_only_if_the_person_allowed_it(world):
+    service, clients, _, profiles = world
+    profiles.mcp_enabled = True
+    claude = await clients.register("Claude", ["https://claude.test/cb"])
+    cb, mcp = "https://claude.test/cb", f"{BASE}/mcp"
+
+    # Asking for the write scope is not being given it.
+    read = await _granted(service, claude["client_id"], cb, mcp, scope="mcp:write")
+    assert read == "mcp:read" and not may_change(read)
+    allowed = await _granted(service, claude["client_id"], cb, mcp, allow_changes=True)
+    assert allowed == "mcp:read mcp:write" and may_change(allowed)
+    # Grants from before the scopes only read.
+    assert not may_change("") and not may_change("salli")
+
+    # The app's AI asks the person before each change, so it may change.
+    _app(clients)
+    assert may_change(await _granted(service, APP, APP_CALLBACK, mcp))
+    # An API sign-in is not an MCP connection: its scope is as asked.
+    assert await _granted(service, APP, APP_CALLBACK, f"{BASE}/v1", scope="x") == "x"
+
+
+async def test_an_ai_client_on_a_device_changes_only_if_the_person_allowed_it(world):
+    service, clients, tokens, profiles = world
+    profiles.mcp_enabled = True
+    for allow, scope in ((False, "mcp:read"), (True, "mcp:read mcp:write")):
+        client_id, started = await _start_device(service, clients, resource=f"{BASE}/mcp")
+        await service.decide_device(started["user_code"], USER, True, allow_changes=allow)
+        _make_pollable(tokens)
+        pair = await service.exchange_device_code(started["device_code"], client_id)
+        assert pair["scope"] == scope
 
 
 async def test_connections_list_ai_clients_not_cli_sessions(world):

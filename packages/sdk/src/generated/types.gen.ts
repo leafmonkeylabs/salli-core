@@ -702,6 +702,10 @@ export type AuditLogEntry = {
      */
     decision: string;
     /**
+     * Client Id
+     */
+    client_id?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -2677,6 +2681,10 @@ export type ConsentDecisionRequest = {
      * Approve
      */
     approve: boolean;
+    /**
+     * Allow Changes
+     */
+    allow_changes?: boolean;
 };
 
 /**

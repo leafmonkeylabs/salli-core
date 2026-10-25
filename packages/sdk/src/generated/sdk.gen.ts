@@ -742,7 +742,8 @@ export const agentSessionsList = <ThrowOnError extends boolean = false>(options?
 /**
  * Get Audit Log
  *
- * Every agent-initiated write decision (approved or denied).
+ * Every write an agent or an MCP client made or asked to make, and what
+ * came of it. The log is append-only.
  */
 export const agentAuditLog = <ThrowOnError extends boolean = false>(options?: Options<AgentAuditLogData, ThrowOnError>): RequestResult<AgentAuditLogResponses, AgentAuditLogErrors, ThrowOnError> => (options?.client ?? client).get<AgentAuditLogResponses, AgentAuditLogErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

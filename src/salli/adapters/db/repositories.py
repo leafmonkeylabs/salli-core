@@ -82,6 +82,7 @@ from salli.application.ports import (
     BudgetRepository,
     DataPortabilityRepository,
     DebtRepository,
+    EntryRefTaken,
     FireStrategyRepository,
     FiScoreRepository,
     GoalRepository,
@@ -358,7 +359,18 @@ class SQLLedgerRepository(LedgerRepository):
             orm_postings.append(orm_p)
 
         orm_entry.postings = orm_postings
-        self._session.add(orm_entry)
+        if entry.source != "manual" or not entry.external_ref:
+            self._session.add(orm_entry)
+            return entry_id
+        # In a savepoint, so the same client_ref booked meanwhile (core_0027's
+        # unique index) is a typed error the caller can act on.
+        try:
+            async with self._session.begin_nested():
+                self._session.add(orm_entry)
+        except IntegrityError as exc:
+            if "uq_journal_entries_client_ref" in str(exc.orig):
+                raise EntryRefTaken(entry.external_ref) from exc
+            raise
         return entry_id
 
     async def get_entries(
@@ -2753,6 +2765,7 @@ def _audit_log_to_dict(r: AuditLogORM) -> dict[str, Any]:
         "action": r.action,
         "params": r.params,
         "decision": r.decision,
+        "client_id": r.client_id,
         "created_at": r.created_at.isoformat(),
     }
 
@@ -2761,7 +2774,14 @@ class SQLAuditLogRepository(AuditLogRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
-    async def log(self, user_id: str, action: str, params: dict[str, Any], decision: str) -> str:
+    async def log(
+        self,
+        user_id: str,
+        action: str,
+        params: dict[str, Any],
+        decision: str,
+        client_id: str | None = None,
+    ) -> str:
         log_id = str(uuid.uuid4())
         self._s.add(
             AuditLogORM(
@@ -2770,6 +2790,7 @@ class SQLAuditLogRepository(AuditLogRepository):
                 action=action,
                 params=params,
                 decision=decision,
+                client_id=client_id,
             )
         )
         await self._s.flush()
@@ -3499,7 +3520,7 @@ class SQLOAuthTokenRepository(OAuthTokenRepository):
                 select(OAuthDeviceCodeORM).where(OAuthDeviceCodeORM.id == device_id)
             )
         ).scalar_one()
-        for key in ("status", "user_id", "authenticated_at", "last_polled_at"):
+        for key in ("status", "user_id", "authenticated_at", "last_polled_at", "scope"):
             if key in fields:
                 setattr(row, key, fields[key])
         await self._s.flush()

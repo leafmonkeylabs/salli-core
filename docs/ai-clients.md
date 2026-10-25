@@ -171,8 +171,14 @@ The same holds for an agent driving the `salli` CLI on your machine (Claude Code
 Before connecting anything:
 - **The switch:** MCP must be on for your account (`salli mcp enable`), and you approve
   each client on Salli's consent page.
-- **Writes:** these take effect when the AI calls them. The tools tell it to show you
-  what it will do first.
+- **Changes:** an AI app only reads unless you tick **Allow changes** on the consent
+  page (it starts unticked). Without it, a tool that changes anything is refused and
+  does nothing, and the AI is told to ask you to reconnect. With it, a change takes
+  effect when the AI calls the tool, and the tools tell it to show you what it will do
+  first. Every change, and every refused one, is in the audit log
+  (`GET /v1/agent/audit-log`) with the client that asked. Connections made before
+  this choice existed only read: disconnect and connect again to allow changes. The
+  Salli app's own AI may change, since the app asks you before each change.
 - **Disconnecting:** `salli mcp connections` lists connected clients, and
   `salli mcp revoke` disconnects one.
 

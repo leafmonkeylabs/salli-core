@@ -195,7 +195,8 @@ async def test_an_entry_sent_again_with_its_client_ref_is_booked_once(services):
         "posted": False,
         "already_posted": True,
     }
-    assert services.audit.log.await_count == 1  # nothing new to audit
+    # Booking nothing still answers the call: audited as succeeded.
+    assert [c.args[3] for c in services.audit.log.await_args_list] == ["succeeded"] * 2
 
-    refused = await _call(services, "post_journal_entry", {**args, "client_ref": "x" * 201})
-    assert refused == {"error": "client_ref is 1 to 200 characters"}
+    refused = await _call(services, "post_journal_entry", {**args, "client_ref": "x" * 181})
+    assert refused == {"error": "client_ref is 1 to 180 characters"}

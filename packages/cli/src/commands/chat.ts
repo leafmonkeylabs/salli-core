@@ -416,7 +416,7 @@ Examples:
 
   sessions
     .command('audit-log')
-    .description('Every change the AI asked to make, and whether it was approved')
+    .description('Every change an AI asked to make, and what came of it')
     .option('--limit <n>', 'At most this many', limitArg)
     .action(async (opts) => {
       const api = await app.api();
@@ -433,7 +433,7 @@ Examples:
             app.out.table(d.entries, [
               { header: 'WHEN', get: (e) => displayDate(e.created_at, app.out.locale) },
               { header: 'ACTION', get: (e) => e.action },
-              { header: 'DECISION', get: (e) => e.decision, style: (t) => (t === 'approved' ? c.green(t) : c.red(t)) },
+              { header: 'DECISION', get: (e) => e.decision, style: (t) => (t === 'approved' || t === 'succeeded' ? c.green(t) : c.red(t)) },
               { header: 'DETAILS', get: (e) => preview(e.params, 80), shrink: true },
             ]),
           );

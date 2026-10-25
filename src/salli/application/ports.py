@@ -747,6 +747,15 @@ class AccountCodeTaken(ValueError):
         self.code = code
 
 
+class EntryRefTaken(ValueError):
+    """An entry was booked with this client_ref meanwhile (a retry that ran
+    at the same time): core_0027's unique index refused the second."""
+
+    def __init__(self, external_ref: str) -> None:
+        super().__init__(f"An entry is already booked with {external_ref}")
+        self.external_ref = external_ref
+
+
 class FxUnavailableError(LookupError):
     """No source could give this rate. Never answered with a made-up number."""
 
@@ -1337,9 +1346,16 @@ class InsuranceTargetRepository(ABC):
 
 
 class AuditLogRepository(ABC):
+    """Append-only (core_0027's trigger): rows are added, never changed."""
+
     @abstractmethod
     async def log(
-        self, user_id: str, action: str, params: dict[str, Any], decision: str
+        self,
+        user_id: str,
+        action: str,
+        params: dict[str, Any],
+        decision: str,
+        client_id: str | None = None,
     ) -> str: ...
 
     @abstractmethod

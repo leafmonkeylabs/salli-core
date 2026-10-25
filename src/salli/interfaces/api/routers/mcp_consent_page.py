@@ -20,6 +20,11 @@ has no sign-in form of its own, and comes back here (`prompt=login`) for the
 password again before activating tax rules. Beside the password is a field
 for an authenticator app's code (or a recovery code), which a login with
 two-step sign-in on must fill in; for anyone else it stays empty.
+
+An AI client is let in to read. Changing anything (posting, discarding,
+rules, documents) is a separate permission, `mcp:write`, given only by ticking
+"Allow changes", which starts unticked. The Salli app's own AI asks the person
+before each change in the app, so it has no tick box and may change.
 """
 
 from __future__ import annotations
@@ -79,10 +84,13 @@ _STYLE = (
     "button[value=deny]{background:var(--sand);border-color:var(--hairline);color:var(--ink)}"
     "input:focus-visible,button:focus-visible{outline:2px solid var(--focus);"
     "outline-offset:2px}"
-    "code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:.9em}"
     ".err{color:var(--error);margin-top:1rem}"
     ".muted{color:var(--graphite);font-size:.875rem;margin-top:1.4rem}"
     ".muted+.muted{margin-top:0}"
+    ".allow{display:flex;gap:.6rem;align-items:flex-start;margin:1.2rem 0 0}"
+    ".allow input{flex:none;width:24px;height:24px;margin:0;accent-color:var(--green)}"
+    ".allow label{margin:0;font-size:1rem;font-weight:400;color:var(--ink)}"
+    ".allow small{display:block;color:var(--graphite);font-size:.875rem}"
 )
 
 #: The logo, outlined (docs/brand/assets/salli-logo.svg; the wordmark is never
@@ -200,19 +208,30 @@ def _who(dev: bool, autofocus: bool = True) -> str:
     )
 
 
-def _asking(client: str, audience: str, scope: str, client_id: str = "") -> str:
-    """What the client wants, in words: an AI client acting on your data over
+def _asking(client: str, audience: str, client_id: str = "") -> str:
+    """What the client wants, in words: an AI client reading your data over
     MCP, or one of your own Salli clients (the CLI) signing in as you."""
     e = html.escape
     if client_id == MOBILE_CLIENT_ID and audience == "mcp":
         return "It reads your books and asks you in the app before any change."
     if audience == "api":
         return f"{e(client)} is asking to sign in to your Salli account as you."
-    return (
-        f"{e(client)} is asking to read your Salli data and act on it for you"
-        + (f" (scope: <code>{e(scope)}</code>)" if scope else "")
-        + ". You can disconnect it at any time."
-    )
+    return f"{e(client)} is asking to read your Salli data. You can disconnect it at any time."
+
+
+#: The write permission (`mcp:write`), offered to an AI client other than
+#: the Salli app's, and never ticked for the person.
+_ALLOW_CHANGES = (
+    "<p class=allow><input type=checkbox id=allow_changes name=allow_changes value=yes>"
+    "<label for=allow_changes>Allow changes"
+    "<small>Let it book and discard transactions, add rules and accounts, and delete "
+    "documents. Without this it can only read.</small></label></p>"
+)
+
+
+def _offers_changes(info: dict[str, Any]) -> bool:
+    """Whether the page asks about changes: an AI client, not the app's own."""
+    return info.get("audience", "mcp") == "mcp" and not _is_apps_ai(info)
 
 
 def _is_salli(info: dict[str, Any]) -> bool:
@@ -253,9 +272,7 @@ def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
     elif _is_salli(info):
         intro = ""
     else:
-        asking = _asking(
-            info["client_name"], audience, info.get("scope") or "", str(info.get("client_id") or "")
-        )
+        asking = _asking(info["client_name"], audience, str(info.get("client_id") or ""))
         intro = f"<p>{asking}</p>"
     if info.get("reauthenticate") or _is_salli(info):
         label = "Continue" if info.get("reauthenticate") else "Sign in"
@@ -269,6 +286,7 @@ def _form(rt: str, info: dict[str, Any], dev: bool, error: str = "") -> str:
         f"<h1>{e(_title(info))}</h1>{intro}"
         "<form method=post>"
         f'<input type=hidden name=rt value="{e(rt)}">{_who(dev)}'
+        + (_ALLOW_CHANGES if _offers_changes(info) and not info.get("reauthenticate") else "")
         + buttons
         + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
         + (
@@ -343,6 +361,7 @@ async def consent_page_decision(
     password: Annotated[str, Form()] = "",
     user_id: Annotated[str, Form()] = "",
     code: Annotated[str, Form(max_length=64)] = "",
+    allow_changes: Annotated[str, Form()] = "",
 ):
     try:
         info = await svc.mcp_oauth.get_consent_info(rt, user_id="")
@@ -370,7 +389,13 @@ async def consent_page_decision(
 
     try:
         # The password was checked just now: the sign-in records that.
-        target = await svc.mcp_oauth.complete_consent(rt, caller, approve, password_checked=approve)
+        target = await svc.mcp_oauth.complete_consent(
+            rt,
+            caller,
+            approve,
+            password_checked=approve,
+            allow_changes=_offers_changes(info) and allow_changes == "yes",
+        )
     except ConsentError as exc:
         return again(_Refusal(str(exc), status.HTTP_403_FORBIDDEN))
     return RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
@@ -381,7 +406,9 @@ async def consent_page_decision(
 _DEVICE_TITLE = "Sign in a device"
 
 
-def _device_form(user_code: str, dev: bool, error: str = "", client: str = "") -> str:
+def _device_form(
+    user_code: str, dev: bool, error: str = "", client: str = "", ai: bool = False
+) -> str:
     e = html.escape
     what = (
         f"<p>{e(client)} on another device is waiting to be signed in.</p>"
@@ -394,6 +421,7 @@ def _device_form(user_code: str, dev: bool, error: str = "", client: str = "") -
         f'<input id=user_code name=user_code value="{e(user_code)}" required '
         'autocomplete=off autocapitalize=characters spellcheck=false placeholder="ABCD-EFGH">'
         + _who(dev, autofocus=bool(user_code))
+        + (_ALLOW_CHANGES if ai else "")
         + "<div class=row><button name=decision value=allow>Allow</button>"
         "<button name=decision value=deny formnovalidate>Deny</button></div>"
         + (f"<p class=err role=alert>{e(error)}</p>" if error else "")
@@ -410,8 +438,14 @@ async def device_page(
     info = await svc.mcp_oauth.device_request(user_code) if user_code else None
     client = info["client_name"] if info else ""
     return _page(
-        _device_form(user_code, insecure_dev_auth(settings), client=client), title=_DEVICE_TITLE
+        _device_form(user_code, insecure_dev_auth(settings), client=client, ai=_is_ai(info)),
+        title=_DEVICE_TITLE,
     )
+
+
+def _is_ai(info: dict[str, Any] | None) -> bool:
+    """A device code an AI client asked for (MCP): the page asks about changes."""
+    return bool(info) and (info or {}).get("audience", "mcp") == "mcp"
 
 
 @router.post("/mcp/oauth/device", response_class=HTMLResponse)
@@ -425,6 +459,7 @@ async def device_page_decision(
     password: Annotated[str, Form()] = "",
     user_id: Annotated[str, Form()] = "",
     code: Annotated[str, Form(max_length=64)] = "",
+    allow_changes: Annotated[str, Form()] = "",
 ):
     dev = insecure_dev_auth(settings)
     info = await svc.mcp_oauth.device_request(user_code)
@@ -437,7 +472,9 @@ async def device_page_decision(
 
     def again(refusal: _Refusal) -> HTMLResponse:
         return _page(
-            _device_form(user_code, dev, refusal.message, client=info["client_name"]),
+            _device_form(
+                user_code, dev, refusal.message, client=info["client_name"], ai=_is_ai(info)
+            ),
             refusal.status_code,
             title=_DEVICE_TITLE,
         )
@@ -452,7 +489,9 @@ async def device_page_decision(
         if info.get("audience", "mcp") == "mcp":
             await svc.mcp_oauth.set_mcp_enabled(caller, True)
     try:
-        await svc.mcp_oauth.decide_device(user_code, caller, approve)
+        await svc.mcp_oauth.decide_device(
+            user_code, caller, approve, allow_changes=_is_ai(info) and allow_changes == "yes"
+        )
     except ConsentError as exc:
         return again(_Refusal(str(exc)))
     if not approve:

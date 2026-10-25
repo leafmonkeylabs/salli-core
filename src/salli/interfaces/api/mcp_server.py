@@ -7,13 +7,17 @@ each tool here resolves user_id from the OAuth bearer token (the grant itself
 is the scoping mechanism), rather than taking it as a parameter or relying on
 Scrooge's ambient contextvar.
 
-Scrooge's three write tools (create_account, create_reminder,
-post_journal_entry) normally pause via langgraph.types.interrupt() for
-in-chat human approval — that mechanism has no equivalent for a stateless MCP
-tool call, so here they execute immediately once the client presents a valid
-token. The OAuth consent screen (mcp_oauth.py) is the approval gate: it is
-where the user authorizes this client to read *and write* their data: every
-write is still recorded to the immutable audit log.
+Every tool says whether it only reads (`readOnlyHint`). Reading needs only a
+valid token. Any other tool is checked in one place, `_SalliMCP.call_tool`:
+on a connection without `mcp:write` (which the person ticks on the consent
+page, "Allow changes", unticked to begin with) it is refused and does
+nothing. Every call of one, refused or not, is recorded in the append-only
+audit log with the person, the connection's client, the tool, its arguments
+and the outcome (succeeded, refused, failed); a change is recorded in the
+transaction that makes it (unit_of_work.pending_audit), so a change whose
+row can't be written isn't made. Scrooge's write tools pause for the person
+(langgraph interrupt()); an MCP client asks the person itself, as the Salli
+app does before every change.
 
 Tax (docs/taxrules.md): Salli computes only from the user's own active rule
 set, and the tax tools say where each line came from. An AI client may
@@ -33,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+from collections.abc import Callable, Sequence
 from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
@@ -40,8 +45,9 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import ToolAnnotations
+from mcp.types import ContentBlock, ToolAnnotations
 from pydantic import AnyHttpUrl, BaseModel, Field, WithJsonSchema
 
 from salli.application.permissions import Actor
@@ -52,8 +58,10 @@ from salli.application.ports import (
     HoldingNotFound,
 )
 from salli.application.services.fi_service import decimal_arg
-from salli.application.services.mcp_oauth_service import McpOAuthService
+from salli.application.services.ledger_service import CLIENT_REF_MAX
+from salli.application.services.mcp_oauth_service import MCP_WRITE, McpOAuthService
 from salli.application.services.tax_rule_service import TaxRuleError
+from salli.application.unit_of_work import AuditRecord, pending_audit
 from salli.domain.agents.tools import computation_for_agent
 from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
@@ -133,6 +141,72 @@ def _current_client_id() -> str | None:
     return access_token.client_id if access_token is not None else None
 
 
+def _current_scopes() -> list[str]:
+    access_token = get_access_token()
+    return list(access_token.scopes) if access_token is not None else []
+
+
+#: What a write tool answers on a connection that may only read.
+READ_ONLY = (
+    "This connection can only read. To let it make changes, disconnect it in Salli "
+    "and connect again, ticking Allow changes."
+)
+
+#: Argument names whose values the audit log never keeps.
+_SECRET_WORDS = ("password", "secret", "token", "api_key")
+
+
+def _redacted(arguments: dict[str, Any]) -> dict[str, Any]:
+    return {
+        k: "[redacted]" if any(w in k.lower() for w in _SECRET_WORDS) else v
+        for k, v in arguments.items()
+    }
+
+
+def _failed(result: Any) -> bool:
+    """Whether a tool answered with an error of its own (`{"error": ...}`)."""
+    structured: object = result[1] if isinstance(result, tuple) else result
+    return isinstance(structured, dict) and "error" in structured
+
+
+class _SalliMCP(FastMCP[Any]):
+    """FastMCP, with every tool that isn't read-only checked and audited
+    here, in one place."""
+
+    def __init__(self, audit_uow: Callable[[], Any], **settings: Any) -> None:
+        super().__init__(**settings)
+        self._audit_uow = audit_uow
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> Sequence[ContentBlock] | dict[str, Any]:
+        tool = self._tool_manager.get_tool(name)
+        if tool is None or (tool.annotations is not None and tool.annotations.readOnlyHint):
+            return await super().call_tool(name, arguments)
+        record = AuditRecord(_current_user_id(), _current_client_id(), name, _redacted(arguments))
+        if MCP_WRITE not in _current_scopes():
+            await self._audit(record, "refused")
+            raise ToolError(READ_ONLY)
+        outcome = "failed"
+        token = pending_audit.set(record)
+        try:
+            result = await super().call_tool(name, arguments)
+            outcome = "failed" if _failed(result) else "succeeded"
+            return result
+        finally:
+            pending_audit.reset(token)
+            # A change was recorded as it committed; anything else (nothing
+            # changed, or it failed after) is recorded now.
+            if not record.recorded or outcome != "succeeded":
+                await self._audit(record, outcome)
+
+    async def _audit(self, record: AuditRecord, outcome: str) -> None:
+        async with self._audit_uow() as uow:
+            await uow.audit_log.log(
+                record.user_id, record.action, record.params, outcome, client_id=record.client_id
+            )
+
+
 def _jsonable(value: Any) -> Any:
     """Service results as JSON: dates and times as ISO strings."""
     if isinstance(value, datetime.datetime | datetime.date):
@@ -163,16 +237,6 @@ def _version_view(version: dict[str, Any], *, document: bool = False) -> dict[st
     if document and "content" in version:
         view["document"] = version["content"]
     return _jsonable(view)
-
-
-async def _log_audit(ledger_svc: Any, user_id: str, action: str, params: dict[str, Any]) -> None:
-    """Record every write this MCP client makes to the immutable audit log.
-    Never blocks the tool's own outcome on logging failure."""
-    try:
-        async with ledger_svc._uow_factory() as uow:
-            await uow.audit_log.log(user_id, action, params, "approved")
-    except Exception:
-        pass
 
 
 class TransactionChoice(BaseModel):
@@ -257,7 +321,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     template_svc = services.templates
     tax_rules_svc = services.tax_rules
 
-    mcp = FastMCP(
+    mcp = _SalliMCP(
+        ledger_svc._uow_factory,
         name="Salli",
         instructions=(
             "Access to one user's Salli financial data and account: cash flow, "
@@ -270,6 +335,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "search_entries finds booked transactions, with Salli's totals. Tools that "
             "write (their annotations say they are not read-only) take effect "
             "immediately: show the user what you will do and get their go-ahead first. "
+            "They work only if the user allowed changes when connecting you; if one is "
+            "refused, tell them to reconnect and tick Allow changes. "
             "Every money figure comes from one model of the user's money as of a day; "
             "get_baseline shows it with the definitions behind it (months averaged, "
             "exchange rates and their source, account roles, assumptions). "
@@ -302,6 +369,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "yourself: Salli's engine does."
         ),
         token_verifier=SalliTokenVerifier(services.mcp_oauth),
+        # No scope is required to connect: a grant from before the scopes
+        # reads. Writing needs mcp:write, checked in _SalliMCP.call_tool.
         auth=AuthSettings(
             issuer_url=AnyHttpUrl(issuer_url), resource_server_url=None, required_scopes=None
         ),
@@ -590,14 +659,12 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         user_id = _current_user_id()
         if await portfolio_svc.get_holding(user_id, holding_id) is None:
             return {"error": f"Holding not found: {holding_id}"}
-        params = {"holding_id": holding_id, "account_id": account_id}
         try:
             await portfolio_svc.update_holding(user_id, holding_id, {"account_id": account_id})
         except AccountNotFound as exc:
             return {"error": str(exc)}
         except ValueError as exc:
             return {"error": f"Could not link the holding: {exc}"}
-        await _log_audit(ledger_svc, user_id, "link_holding", params)
         return {"holding_id": holding_id, "account_id": account_id, "updated": True}
 
     @mcp.tool(annotations=READS)
@@ -723,7 +790,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         """Permanently delete a document from the user's document store."""
         user_id = _current_user_id()
         await documents_svc.delete_document(user_id, doc_id)
-        await _log_audit(ledger_svc, user_id, "delete_document", {"doc_id": doc_id})
         return {"doc_id": doc_id, "deleted": True}
 
     @mcp.tool(annotations=WRITES_OVER)
@@ -765,8 +831,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             ],
         }
 
-    # ── Writes (no in-chat approval step — the OAuth grant is the approval;
-    # every call is still recorded to the audit log) ─────────────────────
+    # ── Writes (mcp:write, and audited: _SalliMCP.call_tool) ────────────────
 
     @mcp.tool(annotations=WRITES)
     async def create_account(
@@ -785,20 +850,12 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         fund) or other (a home, a car)."""
         user_id = _current_user_id()
         currency = currency or await ledger_svc.base_currency(user_id)
-        params = {
-            "code": code,
-            "name": name,
-            "type": account_type,
-            "currency": currency,
-            "asset_role": asset_role,
-        }
         try:
             account_id = await ledger_svc.add_account(
                 user_id, code, name, account_type, currency, asset_role=asset_role
             )
         except (ValueError, LookupError) as exc:
             return {"error": f"Could not create the account: {exc}"}
-        await _log_audit(ledger_svc, user_id, "create_account", params)
         return {"account_id": account_id, "code": code, "name": name, "created": True}
 
     @mcp.tool(annotations=WRITES_OVER)
@@ -820,7 +877,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         account = await ledger_svc.get_account(user_id, account_id)
         if account is None:
             return {"error": f"Account not found: {account_id}"}
-        params = {"account_id": account_id, "code": code, "name": name, "asset_role": asset_role}
         try:
             await ledger_svc.update_account(
                 user_id,
@@ -833,7 +889,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             )
         except (ValueError, LookupError) as exc:
             return {"error": f"Could not update the account: {exc}"}
-        await _log_audit(ledger_svc, user_id, "update_account", params)
         updated = await ledger_svc.get_account(user_id, account_id)
         return {
             "account_id": account_id,
@@ -847,9 +902,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     async def create_reminder(description: str, due_date: str) -> dict[str, Any]:
         """Create a new reminder / deadline. due_date is YYYY-MM-DD."""
         user_id = _current_user_id()
-        params = {"description": description, "due_date": due_date}
         reminder_id = await reminders_svc.create_reminder(user_id, description, due_date)
-        await _log_audit(ledger_svc, user_id, "create_reminder", params)
         return {"reminder_id": reminder_id, "description": description, "due_date": due_date}
 
     @mcp.tool(annotations=WRITES)
@@ -868,21 +921,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         for the user's base currency. For another currency, fx_rate is units of
         the base currency per unit (the rate the bank used); leave it empty to
         use the published rate for entry_date. client_ref: your own id for
-        this entry (up to 200 characters); sent again, it books nothing and
+        this entry (up to 180 characters); sent again, it books nothing and
         returns the entry first booked with it, so a retry never books twice."""
         from salli.domain.accounting.models import Direction
 
         user_id = _current_user_id()
         currency = currency or await ledger_svc.base_currency(user_id)
         rate = Decimal(fx_rate) if fx_rate else None
-        params = {
-            "entry_date": entry_date,
-            "description": description,
-            "debit_account_id": debit_account_id,
-            "credit_account_id": credit_account_id,
-            "amount": amount,
-            "currency": currency,
-        }
         postings_data = [
             {
                 "account_id": debit_account_id,
@@ -899,8 +944,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
                 "fx_rate": rate,
             },
         ]
-        if client_ref is not None and not 0 < len(client_ref) <= 200:
-            return {"error": "client_ref is 1 to 200 characters"}
+        if client_ref is not None and not 0 < len(client_ref) <= CLIENT_REF_MAX:
+            return {"error": f"client_ref is 1 to {CLIENT_REF_MAX} characters"}
         try:
             if client_ref is None:
                 entry_id = await ledger_svc.add_entry(
@@ -917,7 +962,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return {"error": f"Could not post entry: {exc}"}
         if not posted:
             return {"entry_id": entry_id, "posted": False, "already_posted": True}
-        await _log_audit(ledger_svc, user_id, "post_journal_entry", params)
         return {"entry_id": entry_id, "posted": True}
 
     # ── Insights and the forecast ────────────────────────────────────────────
@@ -1164,7 +1208,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return _refusal(exc)
         except AccountNotFound as exc:
             return {"error": str(exc)}
-        await _log_audit(ledger_svc, user_id, "add_principle", {"label": label, "check": check})
         return stored
 
     @mcp.tool(annotations=READS)
@@ -1221,12 +1264,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return _refusal(exc)
         except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
-        await _log_audit(
-            ledger_svc,
-            user_id,
-            "record_decision",
-            {"decision_id": recorded["id"], "hash": recorded["hash"]},
-        )
         return recorded
 
     @mcp.tool(annotations=READS)
@@ -1280,7 +1317,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return _refusal(exc)
         except DecisionNotFound as exc:
             return {"error": str(exc)}
-        await _log_audit(ledger_svc, user_id, "review_decision", {"decision_id": decision_id})
         return reviewed
 
     @mcp.tool(annotations=READS)
@@ -1354,12 +1390,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             report = await fi_svc.set_assumptions(user_id, {name: change})
         except (ArithmeticError, ValueError) as exc:
             return _refusal(exc)
-        await _log_audit(
-            ledger_svc,
-            user_id,
-            "set_fi_assumption",
-            {"name": name, "value": value, "source": source},
-        )
         return report
 
     # ── Transactions waiting for review ──────────────────────────────────────
@@ -1409,7 +1439,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return {"error": f"No pending transaction {exc}"}
         except ValueError as exc:
             return {"error": str(exc)}
-        await _log_audit(ledger_svc, user_id, "categorize_transactions", {"choices": len(updated)})
         return {"updated": updated}
 
     @mcp.tool(annotations=_writes(idempotent=True))
@@ -1419,9 +1448,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         with no account chosen, or already booked, is skipped."""
         user_id = _current_user_id()
         entry_ids = await parsing_svc.post_approved(user_id, transaction_ids)
-        await _log_audit(
-            ledger_svc, user_id, "post_transactions", {"transaction_ids": transaction_ids}
-        )
         return {"posted": len(entry_ids), "entry_ids": entry_ids}
 
     @mcp.tool(annotations=WRITES_OVER)
@@ -1434,12 +1460,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         count = await parsing_svc.discard(user_id, statement_id, transaction_ids)
         if count is None:
             return {"error": f"No statement {statement_id}"}
-        await _log_audit(
-            ledger_svc,
-            user_id,
-            "discard_transactions",
-            {"statement_id": statement_id, "transaction_ids": transaction_ids},
-        )
         return {"discarded": count}
 
     # ── Rules ────────────────────────────────────────────────────────────────
@@ -1479,7 +1499,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             rule_id = await rules_svc.create(user_id, rule)
         except InvalidRule as exc:
             return {"error": str(exc)}
-        await _log_audit(ledger_svc, user_id, "create_rule", {"name": name})
         return {"rule_id": rule_id}
 
     # ── Tax rules (docs/taxrules.md): research, draft, check, propose. No
@@ -1533,12 +1552,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             version = await tax_rules_svc.draft(actor, document, rule_set_id=rule_set_id, note=note)
         except TaxRuleError as exc:
             return _refusal(exc)
-        await _log_audit(
-            ledger_svc,
-            actor.user_id,
-            "draft_tax_rule_set",
-            {"rule_set_id": version["rule_set_id"], "version_id": version["id"]},
-        )
         return _version_view(version)
 
     @mcp.tool(annotations=_writes(idempotent=True))
@@ -1552,9 +1565,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             version = await tax_rules_svc.validate(actor, version_id)
         except TaxRuleError as exc:
             return _refusal(exc)
-        await _log_audit(
-            ledger_svc, actor.user_id, "validate_tax_rule_set", {"version_id": version_id}
-        )
         return _version_view(version)
 
     @mcp.tool(annotations=_writes(idempotent=True))
@@ -1567,9 +1577,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             version = await tax_rules_svc.propose(actor, version_id)
         except TaxRuleError as exc:
             return _refusal(exc)
-        await _log_audit(
-            ledger_svc, actor.user_id, "propose_tax_rule_set", {"version_id": version_id}
-        )
         return {
             **_version_view(version),
             "next": (
@@ -1643,12 +1650,6 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             )
         except TaxRuleError as exc:
             return _refusal(exc)
-        await _log_audit(
-            ledger_svc,
-            actor.user_id,
-            "apply_suggested_tax_accounts",
-            {"rule_set_id": rule_set_id, "version_id": result["version_id"]},
-        )
         return _jsonable(result)
 
     # ── Prompts: what a user can start with in their AI client ──────────────

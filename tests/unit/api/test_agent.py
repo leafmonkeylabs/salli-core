@@ -115,6 +115,7 @@ async def test_the_audit_log_is_listed_as_stored(client, mock_services):
         "action": "post_journal_entry",
         "params": {"amount": "10000.00", "currency": "LKR"},
         "decision": "denied",
+        "client_id": None,
         "created_at": "2026-10-09T08:30:00+00:00",
     }
     mock_services.agent.get_audit_log.return_value = [entry]
