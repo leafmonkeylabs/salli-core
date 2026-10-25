@@ -282,6 +282,61 @@ class ParsingService:
         result.formats = outcomes
         return result
 
+    async def check(
+        self,
+        user_id: str,
+        filename: str,
+        file_bytes: bytes,
+        *,
+        currency: str | None = None,
+        date_order: DateOrder | None = None,
+        bank_formats: Sequence[BankFormat] = (),
+    ) -> dict[str, Any]:
+        """Read a statement and store nothing, run no model: what a person
+        checks against the bank's own figures before trusting a format.
+        Transactions read, money in and out, the dates they span, the
+        opening and closing balances the file states (signed, positive in
+        the customer's favour), whether opening plus the movements makes the
+        closing, and what could not be read."""
+        if currency:
+            currency = normalize_currency(currency)
+        else:
+            async with self._uow_factory() as uow:
+                currency = await uow.user_profiles.base_currency(user_id)
+        balances: dict[str, tuple[Decimal | None, Decimal | None]] = {}
+        outcomes: list[FormatOutcome] = []
+        rows, errors = await asyncio.to_thread(
+            _extract,
+            filename,
+            file_bytes,
+            currency,
+            date_order=date_order,
+            bank_formats=bank_formats,
+            outcomes=outcomes,
+            balances=balances,
+        )
+        money_in = sum((r.amount for r in rows if r.credit_flag), Decimal(0))
+        money_out = sum((r.amount for r in rows if not r.credit_flag), Decimal(0))
+        opening, closing = (
+            next(iter(balances.values()), (None, None)) if len(balances) == 1 else (None, None)
+        )
+        dates = sorted(r.date for r in rows)
+        return {
+            "currency": currency,
+            "transactions": len(rows),
+            "money_in": money_in,
+            "money_out": money_out,
+            "first_date": dates[0] if dates else None,
+            "last_date": dates[-1] if dates else None,
+            "opening_balance": opening,
+            "closing_balance": closing,
+            "balances_agree": None
+            if opening is None or closing is None
+            else opening + money_in - money_out == closing,
+            "errors": errors,
+            "formats": outcomes,
+        }
+
     async def import_rows(
         self,
         user_id: str,

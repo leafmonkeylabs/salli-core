@@ -13,9 +13,9 @@ session, app or AI connection, or token was used), **statement entries
 imported** (entries posted from imports) and **reconciliations completed**.
 They are counted from timestamps the database already holds when the
 command runs; nothing new is recorded, and no id, email, description or
-amount is read out. Core never sends them. A hosted deployment that wants
-them centrally reports them from its own extension (docs/hosting.md,
-"Measuring a beta"), under the rules below.
+amount is read out. Core sends them only when the owner sets a report URL and install id
+(docs/self-host.md, "Usage reports": the week's three totals and nothing
+else), under the rules below.
 
 ## The three numbers
 

@@ -141,7 +141,7 @@ export function registerPrinciples(program: Command, app: App): void {
   const principles = program
     .command('principles')
     .alias('principle')
-    .description('Your own rules of thumb, checked against your options (never a ranking)')
+    .description('Experimental: Your own rules of thumb, checked against your options (never a ranking)')
     .addHelpText(
       'after',
       `
@@ -396,7 +396,7 @@ export function registerDecisions(program: Command, app: App): void {
   const decisions = program
     .command('decisions')
     .alias('decision')
-    .description('Your decision journal: what you chose and why, and how it turned out')
+    .description('Experimental: Your decision journal: what you chose and why, and how it turned out')
     .addHelpText(
       'after',
       `

@@ -6,7 +6,9 @@ starts. Signing in needs nothing but this database (decision D13).
 (`PasswordHasher`; adapters/auth/passwords.py). A hash made with older
 parameters is made again, with the current ones, the next time its owner signs
 in. There is no sign-up: the owner's account is made by `salli-server setup`,
-and everyone else's by the owner (`salli-server members add`). Passwords are
+and everyone else's by the owner (`salli-server members add`), or by the
+person from an owner's single-use invitation link (`salli-server members
+invite`, the /join page), which the owner passes on themselves. Passwords are
 changed by their owner (`POST /v1/auth/password`, which needs the current one)
 or reset by the instance's owner on the server (`salli-server members
 reset-password`). Salli sends no email, so there is no reset link.
@@ -59,6 +61,10 @@ from salli.domain.currency import normalize_currency
 #: What a session token starts with: secret scanners can spot a leaked one,
 #: and the API can tell one from its other tokens without a lookup.
 SESSION_PREFIX = "salli_st_"
+
+#: What an invitation token starts with, and how long one is good for.
+INVITATION_PREFIX = "salli_inv_"
+INVITATION_TTL = timedelta(days=7)
 
 MIN_PASSWORD_LENGTH = 12
 #: Long enough for any passphrase or manager-made password; short enough that
@@ -256,22 +262,107 @@ class LoginService:
         address = normalize_email(email)
         check_password(password, address)
         password_hash = await self._hasher.hash(password)
+        async with self._uow_factory() as uow:
+            return await self._create(
+                uow, address, password_hash, base_currency, owner=owner, user_id=user_id
+            )
+
+    async def _create(
+        self,
+        uow: Any,
+        address: str,
+        password_hash: str,
+        base_currency: str | None,
+        *,
+        owner: bool = False,
+        user_id: str | None = None,
+    ) -> dict[str, Any]:
+        if await uow.logins.get_by_email(address) is not None:
+            raise LoginExists(f"{address} already has an account here.")
+        if owner and await uow.logins.owner() is not None:
+            raise LoginExists("This instance already has an owner.")
+        uid = user_id or str(uuid.uuid4())
+        if user_id is not None and await uow.logins.get(user_id) is not None:
+            raise LoginExists("That user can already sign in.")
+        profile = await uow.user_profiles.get(uid)
+        if profile is None:
+            currency = normalize_currency(base_currency or self._default_currency)
+            await uow.user_profiles.upsert(uid, {"email": address, "base_currency": currency})
+        elif not profile.get("email"):
+            await uow.user_profiles.upsert(uid, {"email": address})
+        return await uow.logins.create(
+            uid, address, password_hash, is_owner=owner, at=self._clock()
+        )
+
+    # ── Invitations ─────────────────────────────────────────────────────────
+
+    async def invite(self, email: str, *, base_currency: str | None = None) -> str:
+        """A single-use invitation for `email`, good for INVITATION_TTL: the
+        token, seen this once (only its hash is kept). The owner passes the
+        link on; whoever opens it sets the password. In the owner's audit log."""
+        address = normalize_email(email)
+        currency = normalize_currency(base_currency) if base_currency else None
+        token = INVITATION_PREFIX + secrets.token_urlsafe(32)
         now = self._clock()
         async with self._uow_factory() as uow:
             if await uow.logins.get_by_email(address) is not None:
                 raise LoginExists(f"{address} already has an account here.")
-            if owner and await uow.logins.owner() is not None:
-                raise LoginExists("This instance already has an owner.")
-            uid = user_id or str(uuid.uuid4())
-            if user_id is not None and await uow.logins.get(user_id) is not None:
-                raise LoginExists("That user can already sign in.")
-            profile = await uow.user_profiles.get(uid)
-            if profile is None:
-                currency = normalize_currency(base_currency or self._default_currency)
-                await uow.user_profiles.upsert(uid, {"email": address, "base_currency": currency})
-            elif not profile.get("email"):
-                await uow.user_profiles.upsert(uid, {"email": address})
-            return await uow.logins.create(uid, address, password_hash, is_owner=owner, at=now)
+            owner = await uow.logins.owner()
+            await uow.logins.create_invitation(
+                _sha256(token), address, currency, now, now + INVITATION_TTL
+            )
+            if owner is not None:
+                await uow.audit_log.log(
+                    owner["user_id"], "member.invite", {"email": address}, "succeeded"
+                )
+        return token
+
+    async def invitation(self, token: str) -> dict[str, Any] | None:
+        """{email, base_currency} of a good invitation, or None."""
+        async with self._uow_factory() as uow:
+            return await uow.logins.get_invitation(_sha256(token), self._clock())
+
+    async def accept_invitation(
+        self, token: str, password: str, *, totp_secret: str = "", code: str = ""
+    ) -> dict[str, Any]:
+        """Use an invitation: the account, with two-step sign-in on if the
+        person gave a code from `totp_secret`. {user_id, email,
+        recovery_codes}. Raises LoginNotFound for a token not good (used,
+        expired, unknown), PasswordRejected, CodeRefused."""
+        found = await self.invitation(token)
+        if found is None:
+            raise LoginNotFound("This invitation has been used or has expired.")
+        check_password(password, found["email"])
+        step: int | None = None
+        if code.strip():
+            if not self.two_step_available or not totp_secret:
+                raise TwoStepUnavailable("Two-step sign-in can't be set up on this server.")
+            step = totp.matching_step(totp_secret, code.strip(), self._clock().timestamp())
+            if step is None:
+                raise CodeRefused()
+        password_hash = await self._hasher.hash(password)
+        codes: list[str] = []
+        async with self._uow_factory() as uow:
+            invited = await uow.logins.use_invitation(_sha256(token), self._clock())
+            if invited is None:
+                raise LoginNotFound("This invitation has been used or has expired.")
+            login = await self._create(
+                uow, invited["email"], password_hash, invited["base_currency"]
+            )
+            user_id = login["user_id"]
+            if step is not None:
+                from salli.adapters.crypto.keyring import aad_for
+
+                sealed, version = self._keyring.seal(totp_secret, aad=aad_for(user_id, "totp"))
+                await uow.logins.set_totp(user_id, sealed, version)
+                codes = totp.new_recovery_codes()
+                await uow.logins.enable_totp(
+                    user_id, [totp.recovery_hash(c) for c in codes], step=step, at=self._clock()
+                )
+            await uow.audit_log.log(
+                user_id, "member.join", {"two_step": step is not None}, "succeeded"
+            )
+        return {"user_id": user_id, "email": login["email"], "recovery_codes": codes}
 
     async def get_login(self, user_id: str) -> dict[str, Any] | None:
         async with self._uow_factory() as uow:

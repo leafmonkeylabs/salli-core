@@ -239,6 +239,62 @@ async def upload_statement(
     )
 
 
+class StatementCheck(BaseModel):
+    """What a statement holds, read and not stored: to check a bank format
+    against the bank's own figures."""
+
+    currency: CurrencyCode
+    #: Transactions read.
+    transactions: int
+    money_in: Amount
+    money_out: Amount
+    first_date: str | None
+    last_date: str | None
+    #: The balances the file states, signed (positive in your favour); null
+    #: when it states none (a format names them with a `balance` column).
+    opening_balance: Amount | None
+    closing_balance: Amount | None
+    #: Whether opening + money in - money out = closing; null without both.
+    balances_agree: bool | None
+    errors: list[str]
+    formats: list[FormatOutcomeView] = []
+
+
+@router.post("/check")
+async def check_statement(
+    form: Annotated[StatementFileUpload, Form(media_type="multipart/form-data")],
+    user_id: CurrentUser,
+    svc: AppServices,
+    currency: CurrencyCode | None = None,
+    date_order: Literal["DMY", "MDY", "YMD"] | None = None,
+) -> StatementCheck:
+    """
+    Read a statement file without importing it: how many transactions,
+    money in and out, the dates, and the opening and closing balances, so
+    you can compare them with the bank's statement before trusting a bank
+    format (`formats`, as on upload). Stores nothing and runs no model.
+    """
+    file = form.file
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+    try:
+        formats = load_bank_formats(form.formats) if form.formats else []
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=[str(exc)]) from exc
+    result = await svc.parsing.check(
+        user_id,
+        file.filename or "",
+        data,
+        currency=currency,
+        date_order=date_order,
+        bank_formats=formats,
+    )
+    return StatementCheck(
+        **{**result, "formats": [FormatOutcomeView(**vars(f)) for f in result["formats"]]}
+    )
+
+
 class DraftTransaction(BaseModel):
     """One transaction as the person's automation read it: what a bank's
     message says, never the message itself."""

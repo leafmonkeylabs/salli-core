@@ -8,7 +8,8 @@
       "Narration"
     ],
     "amount": "Amount",
-    "direction": "Dr/Cr"
+    "direction": "Dr/Cr",
+    "balance": "Balance"
   },
   "date_format": "%d/%m/%Y",
   "decimal_separator": ".",

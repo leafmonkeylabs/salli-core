@@ -100,6 +100,17 @@ def send_digests() -> None:
         raise typer.Exit(1)
 
 
+@jobs_app.command("send-usage")
+def send_usage(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the report, don't send it"),
+) -> None:
+    """Send the week's usage totals to SALLI_USAGE_REPORT_URL (`stats --send`).
+    Run it weekly; off unless the owner set SALLI_USAGE_COUNTERS and the URL."""
+    from salli.interfaces.cli.stats import send_report
+
+    send_report(dry_run)
+
+
 @jobs_app.command("recompute-tax")
 def recompute_tax(
     apply: bool = typer.Option(

@@ -30,7 +30,9 @@ password over separately, and ask the owner to change it
 (`salli password` from their own computer) and turn on two-step sign-in
 (`salli totp enable`).
 
-The owner then adds their household (`salli-server members add`, run on the
+The owner then adds their household (`salli-server members invite`, a
+single-use link, good for seven days, where each person sets their own
+password and two-step sign-in, or `salli-server members add`; run on the
 machine by you at their request) and connects their AI client to
 `https://alex.example.org/mcp` ([ai-clients.md](ai-clients.md)).
 
@@ -68,15 +70,15 @@ Each instance can count its own use without anyone's data leaving it:
 set `SALLI_USAGE_COUNTERS=true` in its `.env` and run
 `docker compose exec salli salli-server stats` (members active, statement
 entries imported and reconciliations completed in the last seven days;
-`--json` for a script). Salli itself never sends them anywhere. The plan
+`--json` for a script). Salli sends them nowhere unless the owner sets a
+report URL and install id ([self-host.md](self-host.md#usage-reports)). The plan
 for what to count and how is [business/metrics.md](../business/metrics.md).
 
-A hosted service that wants the counts in one place reports them from an
-**extension** (`salli/extensions.py`): a `salli-server` command group of its
-own that reads the same counts (`salli.adapters.db.usage_counts`) and sends
-the totals, run from the instance's cron. It is the hosted service's code,
-said in its privacy notice and agreed by the pilot's participants; the open
-core ships nothing that sends.
+A pilot that wants the counts in one place sets the same
+`SALLI_USAGE_REPORT_URL` on each instance and runs `salli-server jobs
+send-usage` weekly: only the week's three totals, Salli's version and an
+install id the owner chooses go, said in the pilot's privacy notice and
+agreed by its participants. `examples/usage-collector/` is a receiver.
 
 ## Charging for it
 
