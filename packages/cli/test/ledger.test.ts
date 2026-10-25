@@ -644,17 +644,22 @@ describe('salli entries', () => {
   });
 
   it('reverses only after confirmation', async () => {
-    const noTty = await run(['entries', 'reverse', uid(202).slice(0, 8)]);
+    const noReason = await run(['entries', 'reverse', uid(202).slice(0, 8), '--yes']);
+    expect(noReason.code).toBe(2);
+    expect(noReason.stderr).toContain("Required option '--reason <text>' not specified");
+
+    const noTty = await run(['entries', 'reverse', uid(202).slice(0, 8), '--reason', 'Booked twice']);
     expect(noTty.code).toBe(2);
     expect(noTty.stderr).toContain('Pass --yes to confirm.');
 
     const prompter = new ScriptedPrompter([true]);
-    const confirmed = await run(['entries', 'reverse', uid(202)], { prompter });
+    const confirmed = await run(['entries', 'reverse', uid(202), '--reason', 'Paid by the landlord'], { prompter });
     expect(confirmed.code).toBe(0);
     expect(prompter.asked[0]).toBe('Reverse “Rent for October” (Oct 3, 2026, USD 1,800.00)?');
     expect(confirmed.stderr).toContain('Reversed “Rent for October”');
+    expect(mock.requestsTo('POST', `/v1/entries/${uid(202)}/reverse`)[0]?.json).toEqual({ reason: 'Paid by the landlord' });
 
-    const again = await run(['entries', 'reverse', uid(202), '--yes']);
+    const again = await run(['entries', 'reverse', uid(202), '--reason', 'Again', '--yes']);
     expect(again.code).toBe(2);
     expect(again.stderr).toContain('already reversed');
   });
@@ -777,5 +782,22 @@ describe('salli ledger and tags', () => {
       000001f6-5a11-4000-8000-000000000502,essential,Essential,need,#9e9e9e,true
       "
     `);
+  });
+});
+
+describe('salli ledger lock | unlock', () => {
+  it('closes the books up to a day, and opens them', async () => {
+    const locked = await run(['ledger', 'lock', '2025-12-31']);
+    expect(locked.code).toBe(0);
+    expect(locked.stderr).toContain('The books are closed up to and including Dec 31, 2025.');
+    const unlocked = await run(['ledger', 'unlock', '--json']);
+    expect(JSON.parse(unlocked.stdout)).toEqual({ lock_date: null });
+    expect(mock.requestsTo('PUT', '/v1/ledger/lock-date').map((r) => r.json)).toEqual([{ lock_date: '2025-12-31' }, { lock_date: null }]);
+  });
+
+  it('refuses what is not a date', async () => {
+    const result = await run(['ledger', 'lock', 'last year']);
+    expect(result.code).toBe(2);
+    expect(mock.requestsTo('PUT', '/v1/ledger/lock-date')).toHaveLength(0);
   });
 });

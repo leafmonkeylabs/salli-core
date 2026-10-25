@@ -163,6 +163,10 @@ class Profile(BaseModel):
     #: Their IANA time zone ("Europe/Lisbon"), null until they set it with
     #: their digest preferences (`notifications.preferences.update`).
     time_zone: str | None = None
+    #: The books are closed up to and including this day (YYYY-MM-DD):
+    #: nothing is posted or reversed on or before it. Null: none are closed.
+    #: Set with `ledger.lockDate.set`.
+    lock_date: str | None = None
 
 
 class ProfileUpdated(BaseModel):

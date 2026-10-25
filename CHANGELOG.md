@@ -86,6 +86,24 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   `fx_rate` are gone from `IncomeItem`. `salli profile balance-sheet` takes
   `CODE:NAME:TYPE:AMOUNT[:ROLE]`; `salli profile income` takes `CODE:NAME`.
 
+- **Closed books, and reversals that say why.** You can close your books up
+  to and including a day before today, so a filed year stays as filed:
+  nothing is posted, reversed or imported on or before it (a 409
+  `books-locked` problem), and a database trigger refuses an entry dated
+  there whatever path it comes by. A reversal is now dated the day it is
+  made, never the original's day, has the source `reversal`, and needs a
+  reason, kept in its description ("Reversal of Lunch: Paid twice").
+  - API (still v1): `PUT /v1/ledger/lock-date` (`{"lock_date": "YYYY-MM-DD"}`,
+    or null to open the books); moving it earlier takes your own sign-in,
+    with a recent password where the client asks for one (the console and
+    the app). The profile carries `lock_date`. `POST
+    /v1/entries/{entry_id}/reverse` takes `{"reason": "..."}` (breaking).
+  - CLI: `salli ledger lock <date>` and `salli ledger unlock`;
+    `salli entries reverse` needs `--reason`. The console and the app ask
+    for the reason. No MCP tool changes the lock date.
+  - Migration `core_0025_books_lock` adds `user_profiles.lock_date`, the
+    trigger, and `reversal` to the entry sources.
+
 #### Removed
 
 - **The FIRE strategy generator.** A model no longer drafts a FIRE strategy:

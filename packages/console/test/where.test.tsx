@@ -214,16 +214,20 @@ describe('adding an entry and reversing it', () => {
     expect(within(standing).getByText(/Posted entries are never edited/)).toBeTruthy();
     await click(await within(standing).findByRole('button', { name: 'Reverse this entry' }));
     const ask = screen.getByRole('alertdialog', { name: 'Reverse this entry?' });
-    expect(within(ask).getByText(/Salli will post “REVERSAL: Lunch with a friend” for Oct 11, 2026/)).toBeTruthy();
+    expect(within(ask).getByText(/Salli will post a reversal of “Lunch with a friend” today/)).toBeTruthy();
+    // Not without a reason.
+    expect(within(ask).getByRole('button', { name: 'Reverse it' }).hasAttribute('disabled')).toBe(true);
+    type(within(ask).getByRole('textbox', { name: /^Why reverse it/ }), 'Paid twice');
     expect(api.to(`/v1/entries/${where.LUNCH.id}/reverse`, 'POST')).toHaveLength(0);
     await click(within(ask).getByRole('button', { name: 'Reverse it' }));
+    expect(bodies(api, `/v1/entries/${where.LUNCH.id}/reverse`)).toEqual([{ reason: 'Paid twice' }]);
     expect(await within(standing).findByText(/Reversed\. Both entries are in the ledger\./)).toBeTruthy();
     expect(await within(standing).findByText(/Reversed by/)).toBeTruthy();
     expect(within(standing).queryByRole('button', { name: 'Reverse this entry' })).toBeNull();
 
     // Both in the ledger, and in checking's entries.
     await click(within(standing).getByRole('link', { name: 'Open the reversal' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'REVERSAL: Lunch with a friend' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Reversal of Lunch with a friend: Paid twice' })).toBeTruthy();
     expect(await within(screen.getByRole('region', { name: 'Standing' })).findByText(/Reverses/)).toBeTruthy();
   });
 
@@ -269,7 +273,9 @@ describe('adding an entry and reversing it', () => {
     await setup({ api, path: '/console/books/entries/e070' });
     const standing = await screen.findByRole('region', { name: 'Standing' });
     await click(await within(standing).findByRole('button', { name: 'Reverse this entry' }));
-    await click(within(screen.getByRole('alertdialog', { name: 'Reverse this entry?' })).getByRole('button', { name: 'Reverse it' }));
+    const ask = screen.getByRole('alertdialog', { name: 'Reverse this entry?' });
+    type(within(ask).getByRole('textbox', { name: /^Why reverse it/ }), 'Paid twice');
+    await click(within(ask).getByRole('button', { name: 'Reverse it' }));
     // An untyped problem gets the console's own title for its status, then the server's detail.
     expect(await within(standing).findByText("Salli didn't do this")).toBeTruthy();
     expect(within(standing).getByText(/already reversed/)).toBeTruthy();

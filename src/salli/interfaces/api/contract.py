@@ -66,6 +66,7 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/tags/"): "tags.list",
     ("GET", "/ledger/trial-balance"): "ledger.trialBalance",
     ("GET", "/ledger/income-statement"): "ledger.incomeStatement",
+    ("PUT", "/ledger/lock-date"): "ledger.lockDate.set",
     # tax
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",

@@ -2,7 +2,7 @@ import { accountsList, accountsOverview, entriesGet, entriesProvenance, entriesR
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, LinesTable, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
@@ -26,7 +26,7 @@ export default function Entry() {
   const overview = useRead('accounts.overview', accountsOverview, { path: { account_id: account ?? '' } }, { enabled: !!booked && !!moved });
   const now = moved && overview.data?.balance != null ? formatAmount(overview.data.balance, moved.currency) : undefined;
   const reverse = useMutation({
-    mutationFn: () => api.call(entriesReverse, { path: { entry_id: id } }),
+    mutationFn: (reason: string) => api.call(entriesReverse, { path: { entry_id: id }, body: { reason } }),
     onSuccess: () => {
       setAsking(false);
       return queryClient.invalidateQueries({ queryKey: [api.server] });
@@ -36,8 +36,9 @@ export default function Entry() {
   const names = new Map((accounts.data ?? []).map((a) => [a.id, a.name]));
   const statement = provenance.data?.statement;
 
-  // The reversal as Salli will book it: each line on the other side.
+  // The reversal as Salli will book it: each line on the other side, today, with why.
   const [asking, setAsking] = useState(false);
+  const [reason, setReason] = useState('');
 
   return (
     <Page
@@ -116,7 +117,7 @@ export default function Entry() {
           <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.text }]}>
             {t.confirmTitle(data.description)}
           </Text>
-          <Body>{t.confirmBody(displayDate(data.entry_date))}</Body>
+          <Body>{t.confirmBody}</Body>
           <View style={[styles.reversal, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]}>
             <Text style={[styles.reversalTitle, { color: theme.text }]}>{t.reversalOf(data.description)}</Text>
             <LinesTable
@@ -134,9 +135,18 @@ export default function Entry() {
                 }))}
             />
           </View>
+          <TextInput
+            value={reason}
+            onChangeText={setReason}
+            placeholder={t.reason}
+            placeholderTextColor={theme.muted}
+            accessibilityLabel={t.reason}
+            maxLength={200}
+            style={[styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }]}
+          />
           {reverse.error ? <Body alert>{reverse.error.message}</Body> : null}
           <View style={{ gap: 4 }}>
-            <Button label={t.confirm} busy={reverse.isPending} disabled={reverse.isPending} onPress={() => reverse.mutate()} />
+            <Button label={t.confirm} busy={reverse.isPending} disabled={reverse.isPending || !reason.trim()} onPress={() => reverse.mutate(reason.trim())} />
             <Button kind="tertiary" label={t.keep} disabled={reverse.isPending} onPress={() => setAsking(false)} />
           </View>
         </Sheet>
@@ -154,4 +164,5 @@ const styles = StyleSheet.create({
   sheetTitle: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.3 },
   reversal: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, gap: 6 },
   reversalTitle: { fontFamily: font.medium, fontSize: size.body },
+  input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
 });

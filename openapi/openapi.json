@@ -1250,6 +1250,7 @@
           "entries"
         ],
         "summary": "Reverse Entry",
+        "description": "Cancel an entry with its opposite, dated today (409 when today's books\nare closed).",
         "operationId": "entries.reverse",
         "security": [
           {
@@ -1267,6 +1268,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseEntryRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "Successful Response",
@@ -1506,6 +1517,63 @@
             }
           }
         }
+      }
+    },
+    "/v1/ledger/lock-date": {
+      "put": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Set Lock Date",
+        "description": "Close the books up to and including a day before today, or open them\n(null). Moving the day earlier opens what was closed, so only the person's\nown sign-in may, with a recent password where their client asks for one.",
+        "operationId": "ledger.lockDate.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LockDate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LockDate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/tags/": {
@@ -13221,7 +13289,8 @@
               "manual",
               "statement",
               "sms",
-              "system"
+              "system",
+              "reversal"
             ],
             "title": "Source"
           },
@@ -20440,7 +20509,8 @@
               "manual",
               "statement",
               "sms",
-              "system"
+              "system",
+              "reversal"
             ],
             "title": "Source"
           },
@@ -20823,7 +20893,8 @@
               "manual",
               "statement",
               "sms",
-              "system"
+              "system",
+              "reversal"
             ],
             "title": "Source"
           },
@@ -24393,7 +24464,8 @@
               "manual",
               "statement",
               "sms",
-              "system"
+              "system",
+              "reversal"
             ],
             "title": "Source"
           },
@@ -24714,6 +24786,27 @@
         ],
         "title": "LoanChange",
         "description": "Money borrowed on a day and repaid in level monthly payments from the\nmonth after, the last one clearing it. Its payments are fixed in money of\ntheir own day."
+      },
+      "LockDate": {
+        "properties": {
+          "lock_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lock_date"
+        ],
+        "title": "LockDate"
       },
       "LotConsumption": {
         "properties": {
@@ -27813,6 +27906,17 @@
               }
             ],
             "title": "Time Zone"
+          },
+          "lock_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Date"
           }
         },
         "type": "object",
@@ -28755,6 +28859,21 @@
           "decision"
         ],
         "title": "ResumeRequest"
+      },
+      "ReverseEntryRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ReverseEntryRequest"
       },
       "ReviewComparison": {
         "properties": {

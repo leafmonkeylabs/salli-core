@@ -1,7 +1,7 @@
 /**
  * What an entry's page and its sheet beside the ledger share: its lines,
  * each amount in its own currency, a debit or a credit; and reversing it,
- * after a confirmation that says what Salli will post. A total row is shown
+ * with a reason, after a confirmation that says what Salli will post. A total row is shown
  * only when each side is one line in one currency, so it is that line's
  * own amount, never a sum the console made.
  */
@@ -9,13 +9,11 @@ import { entriesReverse, type JournalEntry, type Posting, type Ref } from '@leaf
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useWrite } from '../../api';
-import { displayDate } from '../../kit/dates';
-import { Button, Confirm } from '../../kit/forms';
+import { Button, Confirm, TextField } from '../../kit/forms';
 import { Icon } from '../../kit/Icon';
 import { Money } from '../../kit/Money';
 import { ProblemView } from '../../kit/Problem';
 import { Table } from '../../kit/Table';
-import { useLocale } from '../../preferences';
 import { Blank } from '../../kit/layout';
 import { whereStrings } from '../../where-strings';
 import { AccountChipOf, entryLine, entryPath, LEDGER_READS, type AccountBook } from './ledger';
@@ -123,18 +121,22 @@ export function EntryLines({ entry, book, base, compact }: { entry: JournalEntry
   );
 }
 
-/** **Reverse this entry**, after a confirmation; then where the reversal is. */
+/** **Reverse this entry**, with a reason, after a confirmation; then where the reversal is. */
 export function ReverseEntry({ entry, book }: { entry: JournalEntry; book: AccountBook }) {
-  const locale = useLocale();
   const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState('');
   const [done, setDone] = useState<string | null>(null);
-  const reverse = useWrite<{ id: string }, Ref>('entries.reverse', (api, input) => api.call(entriesReverse, { path: { entry_id: input.id } }), {
-    invalidate: LEDGER_READS,
-    onSuccess: (ref) => {
-      setConfirming(false);
-      setDone(ref.id);
+  const reverse = useWrite<{ id: string; reason: string }, Ref>(
+    'entries.reverse',
+    (api, input) => api.call(entriesReverse, { path: { entry_id: input.id }, body: { reason: input.reason } }),
+    {
+      invalidate: LEDGER_READS,
+      onSuccess: (ref) => {
+        setConfirming(false);
+        setDone(ref.id);
+      },
     },
-  });
+  );
   const line = entryLine(entry, book);
   return (
     <>
@@ -161,14 +163,16 @@ export function ReverseEntry({ entry, book }: { entry: JournalEntry; book: Accou
         confirmLabel={reverse.isPending ? x.reversing : x.confirm}
         cancelLabel={x.cancel}
         isPending={reverse.isPending}
-        onConfirm={() => reverse.mutate({ id: entry.id })}
+        isDisabled={!reason.trim()}
+        onConfirm={() => reverse.mutate({ id: entry.id, reason: reason.trim() })}
       >
-        <p>{x.confirmBody(entry.description, displayDate(entry.entry_date, locale))}</p>
+        <p>{x.confirmBody(entry.description)}</p>
         {line.amount ? (
           <p>
             <Money amount={line.amount.amount} currency={line.amount.currency} /> · {line.from} → {line.to}
           </p>
         ) : null}
+        <TextField label={x.reason} description={x.reasonHelp} value={reason} onChange={setReason} isRequired maxLength={200} />
       </Confirm>
     </>
   );

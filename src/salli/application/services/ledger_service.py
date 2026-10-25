@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import uuid
 from collections.abc import Callable
 from decimal import Decimal
@@ -21,6 +22,7 @@ from salli.domain.accounting.models import (
     StoredJournalEntry,
     Tag,
     TaxRole,
+    refuse_if_locked,
 )
 from salli.domain.currency import normalize_currency, quantize
 from salli.domain.money import to_minor
@@ -88,16 +90,44 @@ def _role_refusal(role: str, declared: tuple[str, ...]) -> str:
 
 
 class LedgerService:
-    def __init__(self, uow_factory: Callable[[], Any], fx: Any = None) -> None:
+    def __init__(
+        self,
+        uow_factory: Callable[[], Any],
+        fx: Any = None,
+        today: Callable[[], dt.date] = dt.date.today,
+    ) -> None:
         self._uow_factory = uow_factory
         # Rates for postings in a currency other than the owner's base one
         # that arrive without their own (see application/fx.py).
         self._fx = fx
+        # The day a reversal is dated, and after which no lock date may fall.
+        self._today = today
 
     async def base_currency(self, user_id: str) -> str:
         """The ISO code this user's ledger is measured in."""
         async with self._uow_factory() as uow:
             return await uow.user_profiles.base_currency(user_id)
+
+    @staticmethod
+    async def _lock_date(uow: Any, user_id: str) -> str | None:
+        return ((await uow.user_profiles.get(user_id)) or {}).get("lock_date")
+
+    async def lock_date(self, user_id: str) -> str | None:
+        """The last day of the user's closed books (YYYY-MM-DD), or None."""
+        async with self._uow_factory() as uow:
+            return await self._lock_date(uow, user_id)
+
+    async def set_lock_date(self, user_id: str, lock_date: str | None) -> str | None:
+        """Close the books up to and including `lock_date`, or open them all
+        (None). Nothing is then posted or reversed on or before it, here or by
+        any other path (core_0025's trigger). It must be before today, whose
+        entries are still being made, so a reversal (dated today) is never
+        refused by it. Who may move it earlier is the API's to decide."""
+        if lock_date is not None and dt.date.fromisoformat(lock_date) >= self._today():
+            raise ValueError("The books can be closed only up to yesterday.")
+        async with self._uow_factory() as uow:
+            await uow.user_profiles.set_lock_date(user_id, lock_date)
+        return lock_date
 
     async def allowed_tax_roles(self, user_id: str) -> tuple[str, ...]:
         """The tax roles this user's accounts may carry: every role their own
@@ -203,6 +233,7 @@ class LedgerService:
             postings=postings,
         )
         async with self._uow_factory() as uow:
+            refuse_if_locked(entry_date, await self._lock_date(uow, user_id))
             return await uow.ledger.save_entry(user_id, entry)
 
     async def get_entries(
@@ -523,8 +554,16 @@ class LedgerService:
             "transactions": transactions,
         }
 
-    async def reverse_entry(self, user_id: str, entry_id: str) -> str:
-        """Create a reversing journal entry and mark the original as reversed."""
+    async def reverse_entry(self, user_id: str, entry_id: str, reason: str) -> str:
+        """Create a reversing journal entry and mark the original as reversed.
+
+        The reversal is dated today, never the original's day: a correction
+        belongs to the period it is made in, and the original's may be closed.
+        Its description keeps the original's and says why (`reason`)."""
+        reason = reason.strip()
+        if not reason:
+            raise ValueError("Say why the entry is reversed: a reversal needs a reason.")
+        today = self._today().isoformat()
         async with self._uow_factory() as uow:
             original = await uow.ledger.get_entry_by_id(user_id, entry_id)
             if original is None:
@@ -551,11 +590,12 @@ class LedgerService:
                 for p in original.postings
             ]
             reversing = JournalEntry(
-                entry_date=original.entry_date,
-                description=f"REVERSAL: {original.description}",
-                source="manual",
+                entry_date=today,
+                description=f"Reversal of {original.description}: {reason}",
+                source="reversal",
                 postings=reversed_postings,
             )
+            refuse_if_locked(today, await self._lock_date(uow, user_id))
             reversing_id = await uow.ledger.save_entry(user_id, reversing)
             await uow.ledger.set_reversed_by(entry_id, reversing_id)
         return reversing_id

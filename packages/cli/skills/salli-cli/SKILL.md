@@ -26,8 +26,10 @@ server.
    is the user's alone: `salli tax rules activate` has no `--yes` and refuses
    to run for you. Ask the user to run it themselves (see `salli-tax`).
 4. **Posted entries are permanent.** Fix a wrong entry with
-   `salli entries reverse <id> --yes` and then post the correct one. Never try
-   to edit or delete a posted entry.
+   `salli entries reverse <id> --reason "<why>" --yes` and then post the
+   correct one. Never try to edit or delete a posted entry. Closed books
+   (`salli ledger lock`) refuse anything dated on or before their lock date;
+   never unlock them for the user.
 5. **Money is a string.** Amounts come back as strings like `"1500.00"`. Keep
    them as strings; pass amounts as plain numbers (`1500`, `1500.50`), no
    currency symbols.
@@ -232,7 +234,7 @@ Other ids can be shortened to any unique prefix.
 | `add "<text>"` | an entry drafted by the AI from a sentence; `--dry-run` only shows the draft |
 | `entries` | journal entries: `list`, `search [text]` (with Salli's totals over every match: quote them, never sum), `add`, `show <id>`, `reverse <id>`, `tag` |
 | `import <file>`, `statements` | bank statements: import, then `statements pending`, `post`, `discard`, `categorize` |
-| `ledger` | `trial-balance`, `income-statement` |
+| `ledger` | `trial-balance`, `income-statement`; `lock <date>` closes the books up to a day, `unlock` is the user's alone |
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
 | `baseline` | the one model every figure comes from, as of a day (`--as-of`): months averaged, exchange rates and their source, account roles, debts, assumptions, and timelines to `--years` |
 | `decide` | a common decision from a template (`--list`, `<template> --questions`, `<template> --set id=value` or `--answers <file>`): the options built and compared, the principles checked, and recorded with `--record` once the user confirms |

@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from salli.application.fx import rate_to_base
 from salli.application.ports import StoragePort
-from salli.domain.accounting.models import MONEY_TYPES, money_account_problem
+from salli.domain.accounting.models import MONEY_TYPES, money_account_problem, refuse_if_locked
 from salli.domain.currency import UnknownCurrencyError, normalize_currency, quantize
 from salli.domain.dedup.matcher import (
     DATE_WINDOW_DAYS,
@@ -703,6 +703,7 @@ class ParsingService:
         from salli.domain.accounting.models import Direction, JournalEntry, Posting
 
         async with self._uow_factory() as uow:
+            profile = await uow.user_profiles.get(user_id) or {}
             base = await uow.user_profiles.base_currency(user_id)
             # Locked until this unit of work ends: a second approval of the
             # same rows waits, then finds them posted.
@@ -719,6 +720,7 @@ class ParsingService:
                     continue
                 if not txn.debit_account_id or not txn.credit_account_id:
                     continue
+                refuse_if_locked(txn.raw.date, profile.get("lock_date"))
 
                 # What the row was for — the classifier's label or a rule's
                 # category, and a rule's need — tags the other side of the

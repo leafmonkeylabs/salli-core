@@ -1,8 +1,10 @@
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 
 from salli.domain.accounting.models import Account, Direction, Posting, StoredJournalEntry
+from salli.interfaces.api.deps import Principal, get_principal
 from tests.unit.api.conftest import AUTH
 
 
@@ -204,3 +206,43 @@ async def test_health(client):
     r = await client.get("/healthz")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
+
+
+def _signed_in(app, **kw) -> None:
+    app.dependency_overrides[get_principal] = lambda: Principal("test-user-1", None, "oauth", **kw)
+
+
+@pytest.mark.asyncio
+async def test_the_books_are_closed_up_to_a_day(client, mock_services):
+    mock_services.ledger.lock_date.return_value = "2025-06-30"
+    r = await client.put("/v1/ledger/lock-date", json={"lock_date": "2025-12-31"}, headers=AUTH)
+    assert (r.status_code, r.json()) == (200, {"lock_date": "2025-12-31"})
+    mock_services.ledger.set_lock_date.assert_awaited_once_with("test-user-1", "2025-12-31")
+
+
+@pytest.mark.asyncio
+async def test_closing_later_needs_no_fresh_password_but_opening_does(app, client, mock_services):
+    mock_services.ledger.lock_date.return_value = "2025-12-31"
+    _signed_in(
+        app,
+        first_party_client=True,
+        sign_in_age=timedelta(minutes=10),
+        fresh_within=timedelta(minutes=5),
+    )
+    later = await client.put("/v1/ledger/lock-date", json={"lock_date": "2026-03-31"}, headers=AUTH)
+    assert later.status_code == 200
+
+    for body in ({"lock_date": "2025-06-30"}, {"lock_date": None}):
+        r = await client.put("/v1/ledger/lock-date", json=body, headers=AUTH)
+        assert r.status_code == 403
+        assert r.json()["type"] == "/problems/step-up-required"
+    mock_services.ledger.set_lock_date.assert_awaited_once_with("test-user-1", "2026-03-31")
+
+
+@pytest.mark.asyncio
+async def test_another_application_can_close_but_never_open_the_books(app, client, mock_services):
+    mock_services.ledger.lock_date.return_value = "2025-12-31"
+    _signed_in(app, first_party_client=False)
+    r = await client.put("/v1/ledger/lock-date", json={"lock_date": None}, headers=AUTH)
+    assert r.status_code == 403
+    mock_services.ledger.set_lock_date.assert_not_awaited()

@@ -173,8 +173,10 @@ test('adds an entry and reverses it by keyboard alone, each after its confirmati
   await page.keyboard.press('Enter');
   const ask = page.getByRole('alertdialog', { name: 'Reverse this entry?' });
   await expect(ask).toBeVisible();
-  await page.keyboard.press('Tab');
-  await expect(ask.getByRole('button', { name: 'Reverse it' })).toBeFocused();
+  // A reversal says why, typed before it can be confirmed.
+  await tabTo(page, ask.getByRole('textbox', { name: /Why reverse it/ }));
+  await page.keyboard.type('Paid twice');
+  await tabTo(page, ask.getByRole('button', { name: 'Reverse it' }));
   await page.keyboard.press('Enter');
   await expect(standing.getByText(/Reversed\. Both entries are in the ledger\./)).toBeVisible();
   await expect(standing.getByText(/Reversed by/)).toBeVisible();

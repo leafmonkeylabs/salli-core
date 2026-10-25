@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from salli.domain.accounting.models import Account as DomainAccount
+from salli.domain.accounting.models import Source
 from salli.interfaces.api.contract import Amount, CurrencyCode, Ref
 from salli.interfaces.api.deps import AppServices, CurrentUser
 
@@ -84,7 +85,7 @@ class AccountActivity(BaseModel):
     entry_id: str
     entry_date: str
     description: str
-    source: Literal["manual", "statement", "sms", "system"]
+    source: Source
     external_ref: str | None
     #: The account's value after this entry, in the base currency.
     running_balance: Amount

@@ -17,7 +17,29 @@ class Direction(int, Enum):
 
 AccountType = Literal["asset", "liability", "equity", "income", "expense"]
 
-Source = Literal["manual", "statement", "sms", "system"]
+Source = Literal["manual", "statement", "sms", "system", "reversal"]
+
+
+class BooksLocked(ValueError):
+    """An entry dated on or before the user's lock date. The books are closed
+    up to and including that day, so a correction is posted after it."""
+
+    def __init__(self, entry_date: str, lock_date: str) -> None:
+        self.entry_date = entry_date
+        self.lock_date = lock_date
+        super().__init__(
+            f"The books are closed up to and including {lock_date}, so nothing can be "
+            f"posted on {entry_date}. Post the correction on a later day, or move the "
+            "lock date earlier."
+        )
+
+
+def refuse_if_locked(entry_date: str, lock_date: str | None) -> None:
+    """Raise BooksLocked when `entry_date` (YYYY-MM-DD) is on or before
+    `lock_date`; None locks nothing."""
+    if lock_date is not None and entry_date <= lock_date:
+        raise BooksLocked(entry_date, lock_date)
+
 
 # What an account means to the tax engine, declared explicitly rather than
 # guessed from its name or type: an account's postings count towards the role a

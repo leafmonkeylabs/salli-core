@@ -41,6 +41,9 @@ class FakeProfiles:
     async def set_preference(self, user_id: str, field: str, value: str | None) -> None:
         self.rows.setdefault(user_id, {})[field] = value
 
+    async def set_lock_date(self, user_id: str, lock_date: str | None) -> None:
+        self.rows.setdefault(user_id, {})["lock_date"] = lock_date
+
 
 class FakeRecords:
     """Things a user declares (budgets, debts, holdings, …) kept the way the SQL
