@@ -14,6 +14,16 @@
   VoiceOver's focus. Reduce Motion turns every motion into a fade, and the
   app runs at 120 Hz. The rules and tokens are docs/design/mobile.md's
   Motion.
+
+- **Support access: the operator's one way into a member's books.**
+  `salli-server support open <email> --reason "<ticket>" [--minutes 60]`
+  (at most 240) gives a read-only token for the books' GET routes; opening
+  it, every read and its end (by the member, `support close`, or its time)
+  are in the audit chain. The member lists them (`GET
+  /v1/auth/support-access`, `salli support-access`, the console's Settings,
+  Sign-ins) and ends an open one (`DELETE`, `salli support-access end`).
+  core_0052 adds `support_sessions` (docs/security.md#support-access).
+
 - **The phone's first screen asks where the books live.** "Salli's server"
   (by invitation during the pilot) takes a pasted invitation link
   (`/join?t=…`), opens its page in the secure browser sheet to set the
@@ -419,6 +429,15 @@
 
 ### Security
 
+- **Row-level security keeps members apart in Postgres too.** Every
+  table holding a person's data (core_0051) shows and accepts a row only for
+  the person the transaction acts for, set at the start of each transaction;
+  the paths that act across people (migrations, sign-in lookups, the
+  operator's members, sharing's lookup, the audit chain, erasure, usage
+  counts, scheduled jobs, support sessions) are named in one list with their
+  reasons (`application/acting.py`). A test fails on a new table without a
+  policy. `salli-server doctor` warns while Salli's role bypasses it.
+
 - **The CLI's and the app's sign-ins end** `SALLI_APP_SIGN_IN_DAYS` (90)
   after their password, however often they refresh; core_0050 gives older
   ones that end.
@@ -466,6 +485,13 @@
 ### Breaking
 
 #### Changed
+
+- **Salli connects as `salli_app` in compose.yaml**, a role that is no
+  superuser and has no BYPASSRLS, which the new `database-role` service
+  makes and gives the tables on every start (an existing install moves at its
+  next `up`). Running Salli another way, connect as such a role
+  (docs/self-host.md#the-database-role); until then row-level security is in
+  place but not enforced.
 
 - **The Sharpe ratio is on one basis.** The CMA pack's cash yield (real) is
   grossed up by the pack's inflation to set it against the nominal

@@ -56,6 +56,8 @@ from salli.adapters.db.repositories import (
     SQLStatementRepository,
     SQLUserProfileRepository,
 )
+from salli.adapters.db.session import system_scope
+from salli.adapters.db.support_sessions import SQLSupportSessionRepository
 from salli.adapters.db.tax_computations import SQLTaxComputationRepository
 from salli.adapters.db.tax_returns import SQLTaxReturnRepository
 from salli.adapters.db.tax_rule_sets import SQLTaxRuleSetRepository
@@ -96,6 +98,7 @@ from salli.application.ports import (
     ReminderRepository,
     RuleRepository,
     StatementRepository,
+    SupportSessionRepository,
     TaxComputationRepository,
     TaxReturnRepository,
     TaxRuleSetRepository,
@@ -163,6 +166,7 @@ class UnitOfWork:
     principles: PrincipleRepository
     decisions: DecisionRepository
     notifications: NotificationRepository
+    support_sessions: SupportSessionRepository
 
     def __init__(
         self,
@@ -215,6 +219,7 @@ class UnitOfWork:
         self.principles = SQLPrincipleRepository(self._session)
         self.decisions = SQLDecisionRepository(self._session)
         self.notifications = SQLNotificationRepository(self._session)
+        self.support_sessions = SQLSupportSessionRepository(self._session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -229,6 +234,12 @@ class UnitOfWork:
             # A failed audit row leaves the transaction uncommitted: closing
             # rolls it back.
             await self._session.close()
+
+    def across_people(self, path: str) -> Any:
+        """Within this transaction, act across people for one of
+        application/acting.py's SYSTEM_PATHS (an async context manager)."""
+        assert self._session is not None
+        return system_scope(self._session, path)
 
     async def commit(self) -> None:
         assert self._session is not None

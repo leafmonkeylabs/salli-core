@@ -21,6 +21,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
+from salli.application.acting import acting_as, system_path
 from salli.application.ports import (
     BankConnector,
     BankLinkError,
@@ -398,6 +399,7 @@ class BankConnectionService:
         unmapped = [a.name for a in snapshot.accounts if a.remote_id not in mapped]
         return {"accounts": results, "unmapped": unmapped, "warnings": snapshot.warnings}
 
+    @system_path("jobs")
     async def due(self, max_age: dt.timedelta = dt.timedelta(hours=12)) -> list[tuple[str, str]]:
         """(user id, connection id) of every connection due a sync: not
         attempted within `max_age`, not held by a sync running now, and, if
@@ -423,7 +425,8 @@ class BankConnectionService:
         async def one(user_id: str, connection_id: str) -> str:
             async with gate:
                 try:
-                    await self.sync(user_id, connection_id)
+                    with acting_as(user_id):
+                        await self.sync(user_id, connection_id)
                 except SyncInProgress:
                     return "skipped"
                 except BankLinkError:

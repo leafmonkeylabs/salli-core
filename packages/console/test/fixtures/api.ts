@@ -6,7 +6,7 @@
  * (where-api.ts) and books, tax and settings' (c4-api.ts) likewise; the
  * sign-in answers as Salli's OAuth endpoints do.
  */
-import type { Profile } from '@leafmonkeylabs/salli-sdk';
+import type { Profile, SupportSession } from '@leafmonkeylabs/salli-sdk';
 import { ME, metaAt, ORIGIN, PROFILE, SIGN_INS } from './auth';
 import * as home from './home';
 import { BooksState, SettingsState, TaxState } from './c4-api';
@@ -56,6 +56,7 @@ export class MockApi {
   me = ME;
   profile: Profile = { ...PROFILE };
   signIns = [...SIGN_INS];
+  supportSessions: SupportSession[] = [];
   reads: Record<string, unknown> = { ...HOME_READS };
   /** The decision lab's reads and writes (lab-api.ts). */
   lab = new LabState();
@@ -112,6 +113,15 @@ export class MockApi {
       return { status: 200, body: this.profile };
     }
     if (method === 'GET' && path === '/v1/auth/sign-ins') return { status: 200, body: this.signIns };
+    if (method === 'GET' && path === '/v1/auth/support-access') return { status: 200, body: this.supportSessions };
+    const endSupport = /^\/v1\/auth\/support-access\/([^/]+)$/.exec(path);
+    if (method === 'DELETE' && endSupport) {
+      const id = decodeURIComponent(endSupport[1] ?? '');
+      this.supportSessions = this.supportSessions.map((x) =>
+        x.id === id ? { ...x, open: false, ended_at: '2026-10-26T10:00:00Z', ended_by: 'person' } : x,
+      );
+      return { status: 204 };
+    }
     const revoke = /^\/v1\/auth\/sign-ins\/([^/]+)$/.exec(path);
     if (method === 'DELETE' && revoke) {
       this.signIns = this.signIns.filter((s) => s.id !== decodeURIComponent(revoke[1] ?? ''));

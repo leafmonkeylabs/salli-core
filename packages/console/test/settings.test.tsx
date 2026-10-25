@@ -93,6 +93,32 @@ describe('sign-ins', () => {
   });
 });
 
+describe('support access', () => {
+  it('shows each support session beside the sign-ins, and ends an open one', async () => {
+    const api = new MockApi();
+    api.supportSessions = [
+      {
+        id: 'support-1',
+        reason: 'Ticket 42: the import stopped',
+        opened_at: '2026-10-26T09:00:00Z',
+        expires_at: '2026-10-26T10:00:00Z',
+        ended_at: null,
+        ended_by: null,
+        open: true,
+        reads: [{ at: '2026-10-26T09:05:00Z', path: '/accounts' }],
+      },
+    ];
+    await setup({ path: '/console/settings', api });
+    const signIns = await screen.findByRole('region', { name: 'Sign-ins' });
+    expect(await within(signIns).findByText('Ticket 42: the import stopped')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(within(signIns).getByRole('button', { name: 'End it' }));
+    });
+    await waitFor(() => expect(api.to('/v1/auth/support-access/support-1', 'DELETE')).toHaveLength(1));
+    expect(await within(region('Sign-ins')).findByText('Ended by you')).toBeTruthy();
+  });
+});
+
 describe('this device', () => {
   it('keeps the theme and the locale in this browser only', async () => {
     const { api } = await setup({ path: '/console/settings' });

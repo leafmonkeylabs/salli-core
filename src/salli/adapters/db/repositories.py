@@ -70,6 +70,7 @@ from salli.adapters.db.models import (
     RecurringSubscriptionORM,
     ReminderORM,
     StatementORM,
+    SupportSessionORM,
     TagORM,
     TaxComputationORM,
     TaxReturnORM,
@@ -79,6 +80,7 @@ from salli.adapters.db.models import (
     UserLlmCredentialORM,
     UserProfileORM,
 )
+from salli.adapters.db.session import system_scope
 from salli.application.entry_author import current_author
 from salli.application.ports import (
     AccountCodeTaken,
@@ -3002,40 +3004,45 @@ class SQLAuditLogRepository(AuditLogRepository):
         # One chain for the instance: the next row waits for this
         # transaction to end.
         await self._s.execute(text("SELECT pg_advisory_xact_lock(hashtext('audit_logs'))"))
-        last = (
-            await self._s.execute(
-                select(AuditLogORM.seq, AuditLogORM.hash).order_by(AuditLogORM.seq.desc()).limit(1)
-            )
-        ).first()
-        seq, prev = (last[0] + 1, last[1]) if last else (1, None)
-        log_id = str(uuid.uuid4())
-        at = datetime.now(UTC)
-        body = audit_chain.body_hash(user_id, params)
-        self._s.add(
-            AuditLogORM(
-                id=log_id,
-                user_id=user_id,
-                action=action,
-                params=params,
-                decision=decision,
-                client_id=client_id,
-                created_at=at,
-                seq=seq,
-                prev_hash=prev,
-                body_hash=body,
-                hash=audit_chain.row_hash(
-                    seq=seq,
-                    prev_hash=prev,
-                    row_id=log_id,
+        await self._s.flush()
+        # The last row is anyone's, and a refused sign-in's row is no one's.
+        async with system_scope(self._s, "audit-chain"):
+            last = (
+                await self._s.execute(
+                    select(AuditLogORM.seq, AuditLogORM.hash)
+                    .order_by(AuditLogORM.seq.desc())
+                    .limit(1)
+                )
+            ).first()
+            seq, prev = (last[0] + 1, last[1]) if last else (1, None)
+            log_id = str(uuid.uuid4())
+            at = datetime.now(UTC)
+            body = audit_chain.body_hash(user_id, params)
+            self._s.add(
+                AuditLogORM(
+                    id=log_id,
+                    user_id=user_id,
                     action=action,
+                    params=params,
                     decision=decision,
                     client_id=client_id,
-                    created_at=at.isoformat(),
-                    body=body,
-                ),
+                    created_at=at,
+                    seq=seq,
+                    prev_hash=prev,
+                    body_hash=body,
+                    hash=audit_chain.row_hash(
+                        seq=seq,
+                        prev_hash=prev,
+                        row_id=log_id,
+                        action=action,
+                        decision=decision,
+                        client_id=client_id,
+                        created_at=at.isoformat(),
+                        body=body,
+                    ),
+                )
             )
-        )
-        await self._s.flush()
+            await self._s.flush()
         return log_id
 
     async def list(self, user_id: str, limit: int | None = 100) -> list[dict[str, Any]]:
@@ -3220,11 +3227,14 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
         # The audit trail keeps their rows, pseudonymised (core_0046): the
         # keyed hash in place of their id, and none of their arguments.
-        result = await self._s.execute(
-            update(AuditLogORM)
-            .where(AuditLogORM.user_id.in_([user_id, *also]))
-            .values(user_id=pseudonym, params={})
-        )
+        # Their refused sign-ins are under the email's hash, and the new
+        # owner of every row is the pseudonym: neither is the person.
+        async with system_scope(self._s, "erasure"):
+            result = await self._s.execute(
+                update(AuditLogORM)
+                .where(AuditLogORM.user_id.in_([user_id, *also]))
+                .values(user_id=pseudonym, params={})
+            )
         counts["audit_logs_pseudonymised"] = result.rowcount or 0  # type: ignore[attr-defined]
         await _delete(McpClientRefORM, McpClientRefORM.user_id)
         await _delete(OAuthRefreshTokenORM, OAuthRefreshTokenORM.user_id)
@@ -3241,6 +3251,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
             )
         )
         counts["access_grants"] = result.rowcount or 0  # type: ignore[attr-defined]
+        await _delete(SupportSessionORM, SupportSessionORM.user_id)
         # Their sessions, then their login: no one signs in as them again.
         await _delete(LoginSessionORM, LoginSessionORM.user_id)
         await _delete(LoginORM, LoginORM.user_id)

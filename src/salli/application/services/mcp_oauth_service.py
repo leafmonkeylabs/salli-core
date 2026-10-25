@@ -75,6 +75,7 @@ from urllib.parse import urlencode, urlparse
 
 import jwt
 
+from salli.application.acting import system_path
 from salli.application.ports import McpConnectionRow, SignInGrantRow
 
 _ART_ISSUER = "salli-mcp-oauth"
@@ -266,6 +267,7 @@ class McpOAuthService:
 
     # ── Dynamic Client Registration (RFC 7591) ──────────────────────────────
 
+    @system_path("sign-in")
     async def register_client(
         self, client_name: str | None, redirect_uris: list[str]
     ) -> dict[str, Any]:
@@ -323,6 +325,7 @@ class McpOAuthService:
 
     # ── Authorize → consent handoff ──────────────────────────────────────────
 
+    @system_path("sign-in")
     async def build_consent_redirect(
         self,
         client_id: str,
@@ -417,6 +420,7 @@ class McpOAuthService:
             ) from exc
         return payload
 
+    @system_path("sign-in")
     async def get_consent_info(self, art: str, user_id: str) -> dict[str, Any]:
         payload = self._decode_art(art)
         async with self._uow_factory() as uow:
@@ -431,6 +435,7 @@ class McpOAuthService:
             "reauthenticate": bool(payload.get("reauth")),
         }
 
+    @system_path("sign-in")
     async def complete_consent(
         self,
         art: str,
@@ -523,6 +528,7 @@ class McpOAuthService:
 
     # ── Token endpoint ────────────────────────────────────────────────────
 
+    @system_path("sign-in")
     async def exchange_authorization_code(
         self, code: str, redirect_uri: str, client_id: str, code_verifier: str
     ) -> dict[str, Any]:
@@ -551,6 +557,7 @@ class McpOAuthService:
                 authenticated_at=record.get("authenticated_at") or self._clock(),
             )
 
+    @system_path("sign-in")
     async def exchange_refresh_token(self, refresh_token: str, client_id: str) -> dict[str, Any]:
         """Rotate: a new pair in the same grant, the used refresh token
         revoked. A refresh token used a second time revokes its whole grant."""
@@ -694,6 +701,7 @@ class McpOAuthService:
         except OAuthError:
             return "unknown"
 
+    @system_path("sign-in")
     async def verify_access_token(
         self, access_token: str, audience: str = MCP
     ) -> dict[str, Any] | None:
@@ -720,6 +728,7 @@ class McpOAuthService:
                 await uow.oauth_tokens.touch_grant(record["grant_id"], now)
         return record
 
+    @system_path("sign-in")
     async def client_name(self, client_id: str) -> str | None:
         """The name a client registered with: recorded as the author of
         what an AI connector writes."""
@@ -727,6 +736,7 @@ class McpOAuthService:
             client: dict[str, Any] | None = await uow.oauth_clients.get(client_id)
         return (client or {}).get("client_name") or None
 
+    @system_path("sign-in")
     async def is_salli_token(self, token: str) -> bool:
         """Whether this server ever issued `token`, as an access or a refresh
         token, whatever its state now."""
@@ -735,6 +745,7 @@ class McpOAuthService:
 
     # ── Revocation ───────────────────────────────────────────────────────
 
+    @system_path("sign-in")
     async def revoke_token_by_value(self, token: str) -> None:
         """RFC 7009 — a client presenting a token it holds (access or
         refresh) to revoke it. Revokes the token's whole grant: signing out
@@ -834,6 +845,7 @@ class McpOAuthService:
 
     # ── Device authorization grant (RFC 8628) ───────────────────────────────
 
+    @system_path("sign-in")
     async def start_device_authorization(
         self, client_id: str, scope: str, resource: str | None
     ) -> dict[str, Any]:
@@ -878,6 +890,7 @@ class McpOAuthService:
     def normalize_user_code(user_code: str) -> str:
         return "".join(ch for ch in user_code.upper() if ch.isalnum())
 
+    @system_path("sign-in")
     async def device_request(self, user_code: str) -> dict[str, Any] | None:
         """What the device page shows: which client, for what — or None."""
         async with self._uow_factory() as uow:
@@ -892,6 +905,7 @@ class McpOAuthService:
             "audience": self._token_audience(record),
         }
 
+    @system_path("sign-in")
     async def decide_device(
         self,
         user_code: str,
@@ -918,6 +932,7 @@ class McpOAuthService:
                 ),
             )
 
+    @system_path("sign-in")
     async def exchange_device_code(self, device_code: str, client_id: str) -> dict[str, Any]:
         now = self._clock()
         async with self._uow_factory() as uow:

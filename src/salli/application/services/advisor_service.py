@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
+from salli.application.acting import system_path
 from salli.domain.agents import briefing as briefing_llm
 from salli.domain.usage import AIAction
 
@@ -149,6 +150,7 @@ class AdvisorService:
 
     # ── Scheduling helper ────────────────────────────────────────────────────────
 
+    @system_path("jobs")
     async def due_users(self) -> list[dict[str, str]]:
         """Opted-in users who have not had an advisory report today.
 

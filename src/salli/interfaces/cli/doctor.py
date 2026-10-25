@@ -194,6 +194,44 @@ def database_check(url: str) -> Check:
     return Check("Database", "ok", f"reachable at {where}")
 
 
+def row_security_check(url: str) -> Check:
+    """Whether the role Salli connects as is held to row-level security: a
+    superuser or a role with BYPASSRLS passes every policy."""
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def bypasses() -> bool:
+        engine = create_async_engine(
+            url, connect_args={"statement_cache_size": 0, "timeout": CONNECT_TIMEOUT_SECONDS}
+        )
+        try:
+            async with engine.connect() as conn:
+                return bool(
+                    await conn.scalar(
+                        text(
+                            "select rolsuper or rolbypassrls from pg_roles"
+                            " where rolname = current_user"
+                        )
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    try:
+        bypass = asyncio.run(asyncio.wait_for(bypasses(), CONNECT_TIMEOUT_SECONDS + 5))
+    except Exception as exc:  # noqa: BLE001 — report it and carry on
+        return Check("Row-level security", "fail", f"could not read: {type(exc).__name__}")
+    if bypass:
+        return Check(
+            "Row-level security",
+            "warn",
+            "Salli's database role is a superuser or bypasses row-level security, so "
+            "only Salli's own filtering keeps members apart: connect as a role without "
+            "either (docs/self-host.md#the-database-role)",
+        )
+    return Check("Row-level security", "ok", "enforced for Salli's database role")
+
+
 def current_heads(script_location: str) -> tuple[set[str], set[str]]:
     """(the revisions the database is at, the history's heads) for one
     migration history. Runs its env.py, so each history reads its own version
@@ -259,6 +297,8 @@ def run_checks() -> list[Check]:
     checks.append(console_check(settings))
     database = database_check(database_url())
     checks.append(database)
+    if database.status == "ok":
+        checks.append(row_security_check(database_url()))
     if database.status == "ok" and checks[1].status == "ok":
         checks += migration_checks(settings)
         if all(c.status == "ok" for c in checks if c.name.startswith("Migrations")):

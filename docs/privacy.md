@@ -44,6 +44,7 @@ no telemetry.
 | **SimpleFIN bridge** (bank feed) | Connecting, and each sync (asked for, or the scheduled job) | The access credential; the bridge answers with accounts and transactions (`adapters/banks/simplefin.py`) | The person |
 | **A URL the person gives** | Importing a tax rule set from it | A request for that URL (`adapters/net/fetch.py`) | The person |
 | **The deployment's notifier** | A digest is due | A message with no amount, name or ledger text in it (`domain/notifications/digest.py`) | An extension; Salli as shipped sends none |
+| **The server's operator** | A support session they open, for a reason, on your books | Your books, read-only, for at most four hours; each read is in your audit log | The operator; you see every session and may end one (`salli support-access`, Settings, Sign-ins; [security.md](security.md#support-access)) |
 | **LangSmith** | Each model call, if tracing is on | Model inputs and outputs (LangChain's tracing) | The operator, by setting `LANGSMITH_TRACING` and `LANGSMITH_API_KEY` in the server's environment |
 
 Each provider keeps what it is sent under its own terms. An operator should

@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import HTTPException, Request, status
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from salli.application.acting import acting_as
 from salli.application.services.ledger_service import CLIENT_REF_MAX
 
 HEADER = "idempotency-key"
@@ -87,14 +88,15 @@ class IdempotencyMiddleware:
             await self.app(scope, receive, keep)
         finally:
             if "claimed" in slot:
-                async with slot["uow_factory"]() as uow:
-                    if 200 <= sent["status"] < 300:
-                        try:
-                            body = json.loads(sent["body"] or b"null")
-                        except ValueError:
-                            body = None
-                        await uow.client_refs.settle(
-                            *slot["claimed"], {"status": sent["status"], "body": body}
-                        )
-                    else:
-                        await uow.client_refs.release(*slot["claimed"])
+                with acting_as(slot["claimed"][0]):
+                    async with slot["uow_factory"]() as uow:
+                        if 200 <= sent["status"] < 300:
+                            try:
+                                body = json.loads(sent["body"] or b"null")
+                            except ValueError:
+                                body = None
+                            await uow.client_refs.settle(
+                                *slot["claimed"], {"status": sent["status"], "body": body}
+                            )
+                        else:
+                            await uow.client_refs.release(*slot["claimed"])

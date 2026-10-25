@@ -17,6 +17,7 @@ from typing import Any
 
 import typer
 
+from salli.application.acting import as_system
 from salli.interfaces.cli.support import console, emit
 
 #: What a report is: changing its fields changes this.
@@ -35,7 +36,8 @@ def _counts() -> tuple[Any, datetime.datetime, dict[str, int]]:
         )
         raise typer.Exit(1)
     now = datetime.datetime.now(datetime.UTC)
-    counts = asyncio.run(usage_counts(make_session_factory(settings, pooled=False), now))
+    with as_system("usage"):
+        counts = asyncio.run(usage_counts(make_session_factory(settings, pooled=False), now))
     return settings, now, counts
 
 

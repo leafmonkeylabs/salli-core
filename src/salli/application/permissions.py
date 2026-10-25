@@ -18,6 +18,7 @@ kept to channels an agent cannot fake:
 | a personal access token                         | only if made with it              |
 | OAuth, for the REST API, as any other client    | no                                |
 | OAuth, for MCP (an AI connector), any client    | never                             |
+| the operator's support session (read-only)      | never                             |
 
 "Salli's own CLI" and "Salli's console" are clients the server knows as
 first party (`oauth_clients.first_party`, seeded by core_0011 and core_0021),
@@ -67,7 +68,7 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset({TAX_ACTIVATE})
 Permission = Literal["tax:activate"]
 
 #: How a caller signed in (`interfaces/api/deps.Principal.method`, plus MCP).
-SignIn = Literal["session", "oauth", "pat", "dev", "mcp"]
+SignIn = Literal["session", "oauth", "pat", "dev", "mcp", "support"]
 
 AuthorKind = Literal["user", "agent"]
 

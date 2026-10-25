@@ -55,9 +55,10 @@ class AuthIdentity(BaseModel):
     #: The address they sign in with, when Salli knows it.
     email: str | None = None
     #: How this request signed in: a session (signing in with a password),
-    #: a Salli OAuth token (the CLI), a personal access token, or local
-    #: development.
-    method: Literal["session", "oauth", "pat", "dev"]
+    #: a Salli OAuth token (the CLI), a personal access token, local
+    #: development, or the operator's support session (which never reaches
+    #: this route: it only reads the books).
+    method: Literal["session", "oauth", "pat", "dev", "support"]
     #: What this sign-in may do beyond reading and writing your data
     #: (`tax:activate`: activate a tax rule set). Follows from how it signed
     #: in; a personal access token holds what it was made with.
@@ -257,6 +258,61 @@ async def revoke_sign_in(sign_in_id: str, user_id: CurrentUser, svc: AppServices
     if await svc.mcp_oauth.revoke_sign_in(user_id, sign_in_id):
         return
     raise HTTPException(status.HTTP_404_NOT_FOUND, detail="sign-in not found")
+
+
+# ── Support access ────────────────────────────────────────────────────────────
+
+
+class SupportRead(BaseModel):
+    at: datetime
+    #: What was read (the API path, after /v1).
+    path: str
+
+
+class SupportSession(BaseModel):
+    """A time the instance's operator could read your books: opened on the
+    server (`salli-server support open`), for a reason, read-only, for at
+    most four hours. Every read made under it is listed."""
+
+    id: str
+    #: Why, as the operator gave it (a ticket, or a sentence).
+    reason: str
+    opened_at: datetime
+    #: When it ends unless ended first.
+    expires_at: datetime
+    #: When it ended; None while it is open.
+    ended_at: datetime | None
+    #: Who ended it: you (`person`), the operator, or its time (`expiry`).
+    ended_by: Literal["person", "operator", "expiry"] | None
+    #: Whether it can read your books now.
+    open: bool
+    reads: list[SupportRead]
+
+
+@router.get("/support-access")
+async def list_support_access(user_id: CurrentUser, svc: AppServices) -> list[SupportSession]:
+    """Every support session on your books, open and past, newest first,
+    with the reason and each read made under it (docs/security.md)."""
+    return [
+        SupportSession(
+            id=s["id"],
+            reason=s["reason"],
+            opened_at=s["opened_at"],
+            expires_at=s["expires_at"],
+            ended_at=s["ended_at"],
+            ended_by=s["ended_by"],
+            open=s["ended_at"] is None,
+            reads=[SupportRead(at=r["at"], path=r["path"]) for r in s["reads"]],
+        )
+        for s in await svc.support.list(user_id)
+    ]
+
+
+@router.delete("/support-access/{session_id}", status_code=204)
+async def end_support_access(session_id: str, user_id: CurrentUser, svc: AppServices) -> None:
+    """End an open support session on your books now."""
+    if not await svc.support.end(user_id, session_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="no open support session")
 
 
 # ── Password ──────────────────────────────────────────────────────────────────

@@ -18,8 +18,8 @@ pytestmark = pytest.mark.asyncio
 
 
 class _FakeSession:
-    async def execute(self, statement):
-        return SimpleNamespace(rowcount=0)
+    async def execute(self, statement, params=None):
+        return SimpleNamespace(rowcount=0, scalar=lambda: None)
 
 
 async def test_purgers_run_in_the_same_session_and_report_their_counts():

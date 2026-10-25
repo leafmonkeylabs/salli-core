@@ -129,6 +129,7 @@ def require_user() -> str:
     someone's records in an account no one can sign in to."""
     import asyncio
 
+    from salli.application.acting import act_as
     from salli.config import get_settings
 
     user_id = os.environ.get("SALLI_USER_ID") or get_settings().salli_user_id
@@ -140,6 +141,8 @@ def require_user() -> str:
             "[red]No user set.[/red] Run [bold]salli-server setup[/bold], or set SALLI_USER_ID."
         )
         raise typer.Exit(1)
+    # The command acts for them (application/acting.py).
+    act_as(user_id)
     return user_id
 
 
