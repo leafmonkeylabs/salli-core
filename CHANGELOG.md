@@ -5,6 +5,7 @@
 ### Added
 
 - **Market packs** (`markets/`): a country's tax rule sets, planning assumptions and pension schemes as cited data, outside the core, with the bar to add one. The first is `markets/lk`: rule sets for two years of assessment with the authority's worked examples, capital-market assumptions, and the provident funds. `tests/taxrules/test_market_packs.py` validates every pack's rule sets and runs their examples.
+
 ## 0.5.0 — 2026-10-25
 
 Every change under **Breaking** needs something written against the last
