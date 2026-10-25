@@ -29,6 +29,20 @@ def _figure(value: Decimal | None) -> str | None:
     return None if value is None else str(value.quantize(Decimal("0.01")))
 
 
+#: How the read is scored, beside it: the buckets both scores fall in and the
+#: bands each profile is described by (docs/risk.md).
+_RISK_METHOD: dict[str, Any] = {
+    "doc": "docs/risk.md",
+    "score_buckets": {"conservative": "0-39", "balanced": "40-69", "aggressive": "70-100"},
+    "equity_max": {k: str(v) for k, v in capacity.EQUITY_BANDS.items()},
+    "need_max": {k: str(v) for k, v in capacity.NEED_BANDS.items()},
+    "says": "Tolerance and capacity each score 0-100: under 40 conservative, under 70 "
+    "balanced, else aggressive; the profile is the lower. Equity up to 40%, 70% and 100% "
+    "and a needed real return up to 2%, 4.5% and 20% a year describe the three. "
+    "Salli's method, in docs/risk.md.",
+}
+
+
 class InvestmentPolicyService:
     def __init__(
         self,
@@ -120,6 +134,7 @@ class InvestmentPolicyService:
             },
             "profile": chosen,
             "equity_max": str(capacity.EQUITY_BANDS[chosen]),
+            "method": _RISK_METHOD,
         }
 
     async def drift(self, user_id: str) -> dict[str, Any] | None:

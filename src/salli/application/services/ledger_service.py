@@ -477,6 +477,8 @@ class LedgerService:
                 "description": entry.description,
                 "source": entry.source,
                 "external_ref": entry.external_ref,
+                # A corrected copy's provenance is its original's, which it keeps.
+                "corrects": entry.corrects,
                 "statement": None,
                 "receipt": None,
             }
@@ -736,12 +738,13 @@ class LedgerService:
     ) -> dict[str, str]:
         """Move one posting of an entry to another account of the same type:
         in one transaction, the entry's reversal and a corrected copy, both
-        dated as the reversal is (`reverse_entry`). The copy has source
-        `recategorise`, the original's description, amounts, rates and tags,
-        and names the original in `external_ref` ("recategorise:<id>"); the
+        dated as the reversal is (`reverse_entry`). The copy keeps the
+        original's description, source, external_ref (its provenance),
+        amounts, rates and tags, and names the original in `corrects`; the
         original's `reversed_by` is the reversal. ValueError for an entry or
-        posting that isn't there, an account that isn't the user's or is of
-        another type, or no reason; BooksLocked on a closed day."""
+        posting that isn't there, an account that isn't the user's, is
+        inactive or is of another type, or no reason; BooksLocked on a closed
+        day."""
         async with self._uow_factory() as uow:
             original = await self._reversible(uow, user_id, entry_id)
             moved = next((p for p in original.postings if p.id == posting_id), None)
@@ -751,6 +754,8 @@ class LedgerService:
             current = await uow.ledger.get_account(user_id, moved.account_id)
             if target is None or current is None:
                 raise ValueError(f"Account {account_id} not found.")
+            if not target.is_active:
+                raise ValueError(f"{target.name} is inactive: reactivate it to post to it.")
             if target.id == current.id:
                 raise ValueError("The posting is already on that account.")
             if target.type != current.type:
@@ -762,8 +767,9 @@ class LedgerService:
             corrected = JournalEntry(
                 entry_date=reversing.entry_date,
                 description=original.description,
-                source="recategorise",
-                external_ref=f"recategorise:{original.id}",
+                source=original.source,
+                external_ref=original.external_ref,
+                corrects=original.id,
                 postings=[
                     Posting(
                         account_id=account_id if p.id == posting_id else p.account_id,

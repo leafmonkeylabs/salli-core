@@ -166,7 +166,7 @@ def make_entry():
     e.source = "manual"
     e.external_ref = None
     e.reversed_by = None
-    e.reverses = e.created_by = e.created_via = e.seq = e.hash = None
+    e.reverses = e.corrects = e.created_by = e.created_via = e.seq = e.hash = None
     p = MagicMock()
     p.id = "posting-1"
     p.tags = {}

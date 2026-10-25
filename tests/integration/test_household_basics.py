@@ -59,7 +59,9 @@ async def _books(uow_factory, user: str = "kofi"):
 
 async def test_recategorise_books_a_reversal_and_a_corrected_copy(uow_factory):
     ledger, bank, food, out = await _books(uow_factory)
-    lunch = await ledger.add_entry("kofi", "2026-10-03", "Lunch", "manual", _legs(food, bank, "40"))
+    lunch = await ledger.add_entry(
+        "kofi", "2026-10-03", "Lunch", "manual", _legs(food, bank, "40"), "client-ref:lunch-1"
+    )
     original = await ledger.get_entry("kofi", lunch)
     assert original is not None
     moved = next(p for p in original.postings if p.account_id == food)
@@ -74,11 +76,15 @@ async def test_recategorise_books_a_reversal_and_a_corrected_copy(uow_factory):
         lunch,
         "2026-10-03",
     )
-    assert (corrected.source, corrected.external_ref, corrected.entry_date) == (
-        "recategorise",
-        f"recategorise:{lunch}",
-        "2026-10-03",
+    # The copy keeps the original's provenance and links to it.
+    assert (corrected.source, corrected.external_ref, corrected.corrects) == (
+        "manual",
+        "client-ref:lunch-1",
+        lunch,
     )
+    assert corrected.entry_date == "2026-10-03"
+    provenance = await ledger.get_entry_provenance("kofi", made["corrected_id"])
+    assert provenance is not None and provenance["corrects"] == lunch
     assert {p.account_id for p in corrected.postings} == {out, bank}
     again = await ledger.get_entry("kofi", lunch)
     assert again is not None and again.reversed_by == made["reversal_id"]
@@ -96,6 +102,10 @@ async def test_recategorise_keeps_the_type_and_dates_a_closed_day_today(uow_fact
     on_food = next(p for p in entry.postings if p.account_id == food)
     with pytest.raises(ValueError, match="same type"):
         await ledger.recategorise_entry("kofi", lunch, on_food.id or "", bank, "Wrong")
+    await ledger.deactivate_account("kofi", out)
+    with pytest.raises(ValueError, match="inactive"):
+        await ledger.recategorise_entry("kofi", lunch, on_food.id or "", out, "Cafe")
+    await ledger.reactivate_account("kofi", out)
 
     await ledger.set_lock_date("kofi", "2026-09-30")
     made = await ledger.recategorise_entry("kofi", lunch, on_food.id or "", out, "Cafe")

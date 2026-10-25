@@ -2,8 +2,8 @@
 
 Additive: one nullable column; null reads as every alert, no quiet hours.
 
-Revision ID: core_0048_push_preferences
-Revises: core_0047_household_basics
+Revision ID: core_0049_push_preferences
+Revises: core_0048_entry_corrects
 Create Date: 2026-10-25
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "core_0048_push_preferences"
-down_revision: str | None = "core_0047_household_basics"
+revision: str = "core_0049_push_preferences"
+down_revision: str | None = "core_0048_entry_corrects"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

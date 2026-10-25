@@ -5008,6 +5008,10 @@ export type EntryProvenance = {
      * External Ref
      */
     external_ref: string | null;
+    /**
+     * Corrects
+     */
+    corrects?: string | null;
     statement: ProvenanceStatement | null;
     receipt: ProvenanceReceipt | null;
     /**
@@ -5269,6 +5273,10 @@ export type ExportedJournalEntry = {
      * Reverses
      */
     reverses?: string | null;
+    /**
+     * Corrects
+     */
+    corrects?: string | null;
     /**
      * Reversed By
      */
@@ -7683,6 +7691,7 @@ export type InvestorRiskProfile = {
      * Decimal string, exact; never a float.
      */
     equity_max: string;
+    method: RiskMethod;
 };
 
 /**
@@ -7717,6 +7726,10 @@ export type JournalEntry = {
      * Reverses
      */
     reverses?: string | null;
+    /**
+     * Corrects
+     */
+    corrects?: string | null;
     /**
      * Created By
      */
@@ -10980,6 +10993,40 @@ export type RiskFigures = {
      */
     tracking_against?: 'benchmark' | 'blended_benchmark' | null;
     net_of_fees: NetOfFees;
+};
+
+/**
+ * RiskMethod
+ *
+ * The method's cut-offs, disclosed beside every read (docs/risk.md).
+ */
+export type RiskMethod = {
+    /**
+     * Doc
+     */
+    doc: string;
+    /**
+     * Score Buckets
+     */
+    score_buckets: {
+        [key: string]: string;
+    };
+    /**
+     * Equity Max
+     */
+    equity_max: {
+        [key: string]: string;
+    };
+    /**
+     * Need Max
+     */
+    need_max: {
+        [key: string]: string;
+    };
+    /**
+     * Says
+     */
+    says: string;
 };
 
 /**

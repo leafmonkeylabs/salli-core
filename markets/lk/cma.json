@@ -8,7 +8,8 @@
       "real_return": {
         "value": "0.018",
         "source": "Central Bank of Sri Lanka, Monetary Policy Review No. 3 of 2026 (26 May 2026): deposit rate 6.86% less the 5% target",
-        "date": "2026-05-26"
+        "date": "2026-05-26",
+        "basis": "real"
       },
       "volatility": {
         "value": "0.01",
@@ -21,7 +22,8 @@
       "real_return": {
         "value": "0.033",
         "source": "Central Bank of Sri Lanka, Monetary Policy Review No. 3 of 2026 (26 May 2026): 1-year bill 8.49% less the 5% target",
-        "date": "2026-05-26"
+        "date": "2026-05-26",
+        "basis": "real"
       },
       "volatility": {
         "value": "0.05",
@@ -34,7 +36,8 @@
       "real_return": {
         "value": "0.06",
         "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md)",
-        "date": "2026-05-26"
+        "date": "2026-05-26",
+        "basis": "real"
       },
       "volatility": {
         "value": "0.25",
@@ -47,7 +50,8 @@
       "real_return": {
         "value": "0.05",
         "source": "Assumption, not from a primary source: for the reviewer to replace (markets/lk/README.md); in US-dollar real terms, the rupee's move not modelled",
-        "date": "2026-05-26"
+        "date": "2026-05-26",
+        "basis": "real"
       },
       "volatility": {
         "value": "0.16",
@@ -101,8 +105,9 @@
     }
   ],
   "cash_yield": {
-    "value": "0.0686",
-    "source": "Central Bank of Sri Lanka, Monetary Policy Review No. 3 of 2026 (26 May 2026): average weighted deposit rate, April 2026 (nominal)",
+    "value": "0.018",
+    "basis": "real",
+    "source": "Central Bank of Sri Lanka, Monetary Policy Review No. 3 of 2026 (26 May 2026): average weighted deposit rate 6.86% (April 2026), deflated by the 5% inflation target: 1.0686 / 1.05 - 1",
     "date": "2026-05-26"
   },
   "inflation": {
