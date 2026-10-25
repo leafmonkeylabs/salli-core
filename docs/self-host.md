@@ -288,15 +288,15 @@ Pass `--profile tls` to every `docker compose up`, or set
 
 ## Scheduled jobs
 
-Three jobs run for every user who wants them: the daily briefing,
-syncing connected banks, and the digests (below). Run them from the host's
-crontab:
+Four jobs run for every user who wants them: the daily briefing,
+syncing connected banks, the digests and push alerts (below). compose.yaml's
+`push` service runs `salli-server jobs send-push` every 15 minutes; run the
+others from the host's crontab:
 
 ```cron
 0 6 * * *   cd /path/to/salli && docker compose exec -T salli salli-server jobs run-advisor
 0 */6 * * * cd /path/to/salli && docker compose exec -T salli salli-server jobs sync-banks
 0 * * * *   cd /path/to/salli && docker compose exec -T salli salli-server jobs send-digests
-30 * * * *  cd /path/to/salli && docker compose exec -T salli salli-server jobs send-push
 ```
 
 A scheduler that calls the API instead uses each job's cron route with the
@@ -438,7 +438,7 @@ can't be replayed or altered. Device tokens are
 sealed with `BYOK_ENCRYPTION_KEYS` and found by their SHA-256 hash; without
 a relay and a key, registering a device answers 503 and nothing is sent.
 
-**Scheduling.** Run `salli-server jobs send-push` hourly (above). An alert
+**Scheduling.** compose.yaml runs `salli-server jobs send-push` every 15 minutes (above). An alert
 goes once per state: its delivery-log period is a hash of its items, so the
 same alert never goes twice, and a new one goes only when what is waiting
 changes. Push alerts are logged with the digests (`salli notifications log`).

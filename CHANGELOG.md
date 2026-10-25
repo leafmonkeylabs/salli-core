@@ -4,6 +4,13 @@
 
 ### Added
 
+- **Push alerts are sent, and only once chosen.** compose.yaml gains a
+  `push` service that runs `salli-server jobs send-push` every 15 minutes
+  (docs/self-host.md's jobs list says so). On the phone, the over-budget
+  attention row opens that category's budget line; Home offers "Add what you
+  own" when there is no cash or savings account; first run takes a debt's
+  rate as a percent, with a % suffix.
+
 - **MCP catches up with the API, round 8.** Budget and debt writes
   (`set_monthly_budget`, `add_debt`, `update_debt`, each with
   `confirmed_by_user`); `client_ref` on `import_statement` (which is also
@@ -409,6 +416,9 @@
 ### Breaking
 
 #### Changed
+
+- Push alerts are off for every kind until the person turns one on
+  (`push_items` defaults to none, not every kind).
 
 - **`SALLI_EXPERIMENTAL` is off by default.** The experimental engines'
   MCP tools and prompts (the investment policy, FI odds, the decision lab)

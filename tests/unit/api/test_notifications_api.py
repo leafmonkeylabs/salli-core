@@ -75,7 +75,7 @@ async def test_preferences_start_off(client):
             "filing_deadline",
             "cash_below_zero_ahead",
         ],
-        "push_items": ["reminder_due", "cash_below_zero_ahead", "budget_over"],
+        "push_items": [],
         "quiet_hours": None,
         "time_zone": None,
         "next_at": None,

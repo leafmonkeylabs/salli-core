@@ -8,7 +8,7 @@ import {
   onboardingRiskQuestionnaire,
 } from '@leafmonkeylabs/salli-sdk';
 import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +36,9 @@ export default function FirstRun() {
   const queryClient = useQueryClient();
   const entries = useRead('entries.list', entriesList);
   const empty = entries.data ? entries.data.length === 0 : false;
-  const steps: Step[] = empty ? ['you', 'own', 'owe', 'income', 'goals', 'risk'] : ['you', 'goals', 'risk'];
+  // From Home with nothing in cash or savings: just what you own, owe and earn.
+  const { own: ownOnly } = useLocalSearchParams<{ own?: string }>();
+  const steps: Step[] = ownOnly ? ['own', 'owe', 'income'] : empty ? ['you', 'own', 'owe', 'income', 'goals', 'risk'] : ['you', 'goals', 'risk'];
   const [at, setAt] = useState(0);
   const step = steps[Math.min(at, steps.length - 1)] ?? 'you';
   const [busy, setBusy] = useState(false);
@@ -264,21 +266,24 @@ function Owe({ lines, onChange, currency }: { lines: Line[]; onChange: (l: Line[
   const theme = useTheme();
   const set = (i: number, patch: Partial<Line>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
-  const field = (label: string, optional: boolean, value: string, onText: (v: string) => void, props: { width?: number; amount?: boolean; placeholder?: string }) => (
+  const field = (label: string, optional: boolean, value: string, onText: (v: string) => void, props: { width?: number; amount?: boolean; percent?: boolean; placeholder?: string }) => (
     <View style={props.width ? { width: props.width, gap: 4 } : { flex: 1, gap: 4 }}>
       <Text style={[styles.label, { color: theme.text }]}>
         {label}
         {optional ? <Text style={{ fontFamily: font.regular, color: theme.muted }}>{` ${t.optional}`}</Text> : null}
       </Text>
-      <TextInput
-        value={value}
-        onChangeText={onText}
-        accessibilityLabel={optional ? `${label}, ${t.optional}` : label}
-        placeholder={props.placeholder}
-        placeholderTextColor={theme.muted}
-        {...(props.amount ? { keyboardType: 'decimal-pad' as const } : {})}
-        style={[...input, props.amount ? styles.figure : null]}
-      />
+      <View style={styles.suffixed}>
+        <TextInput
+          value={value}
+          onChangeText={onText}
+          accessibilityLabel={optional ? `${label}, ${t.optional}` : label}
+          placeholder={props.placeholder}
+          placeholderTextColor={theme.muted}
+          {...(props.amount || props.percent ? { keyboardType: 'decimal-pad' as const } : {})}
+          style={[...input, { flex: 1 }, props.amount || props.percent ? styles.figure : null]}
+        />
+        {props.percent ? <Body muted>%</Body> : null}
+      </View>
     </View>
   );
   return (
@@ -290,7 +295,7 @@ function Owe({ lines, onChange, currency }: { lines: Line[]; onChange: (l: Line[
             {field(t.owed(currency), false, line.amount, (amount) => set(i, { amount }), { width: 132, amount: true, placeholder: '0.00' })}
           </View>
           <View style={styles.lineRow}>
-            {field(t.rate, true, line.rate ?? '', (rate) => set(i, { rate }), { amount: true })}
+            {field(t.rate, true, line.rate ?? '', (rate) => set(i, { rate }), { percent: true, placeholder: '18' })}
             {field(t.minimum(currency), true, line.minimum ?? '', (minimum) => set(i, { minimum }), { amount: true })}
           </View>
         </Card>
@@ -323,6 +328,7 @@ function Goals({ goals, onChange }: { goals: (Line & { date: string })[]; onChan
 }
 
 const styles = StyleSheet.create({
+  suffixed: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: size.gutter, paddingBottom: 12, gap: 12 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', minHeight: 36 },
   headerButton: { minHeight: 36, justifyContent: 'center' },
