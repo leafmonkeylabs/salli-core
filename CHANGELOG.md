@@ -23,15 +23,20 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   both with `salli-server members reset-password --clear-totp`. The app
   signs in on the same pages, so it asks for the code there. Migration
   `core_0027_totp`.
-- **An accuracy benchmark for agents** (`benchmark/`,
+- **A fidelity benchmark for agents** (`benchmark/`,
   [docs/benchmark.md](docs/benchmark.md)): 100 questions a person asks their
   AI about their money, on the golden households, each answered by Salli's
   own tools into a committed key (`uv run python -m benchmark.answer_key`).
   `uv run python -m benchmark.run --model anthropic:<model>` (or
-  `openai:<model>`) asks a model through Salli's MCP tools in-process and
-  scores its answers: accuracy overall and by category, and how many
-  answers invented a figure or advised. `--self-check` scores the key
-  against itself; a contract test runs it. No results are published yet.
+  `openai:<model>`) asks a model through Salli's whole MCP tool list
+  in-process, on a connection that may only read, and scores how faithfully
+  its answers quote Salli (whose figures the golden tests check): each
+  answer's headline figure, with its sign, an FI month on placeholder
+  assumptions only with that caveat, and pasted tool output never; fidelity
+  overall and by category, and how many answers invented a figure, advised
+  or pasted tool output. `--self-check` scores the key against itself; a
+  contract test runs it, and the ways the scorer was gamed. No results are
+  published yet.
 - **Your AI starts from where you stand, and can find what you booked.**
   MCP `get_overview` is one small read of Salli's figures: net worth, cash
   and savings, free until payday and its low point, signals, the FI month
@@ -190,6 +195,23 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
     erasing an account.
   - Migration `core_0028_mcp_scopes_audit` adds `audit_logs.client_id`, the
     trigger, and the unique index for `client_ref`.
+
+- **MCP tools fail as errors, with a code** (breaking for MCP clients that
+  read `{"error": ...}` from a result). A tool that can't answer returns an
+  error result (`isError` true) whose `error` has a `code` (`invalid_input`,
+  `not_found`, `refused`, `scope`, `not_enough_data`, `unavailable`), a short
+  `message`, `retryable`, and for input the `problems` with their paths; it
+  used to answer `{"error": ...}` as data, and a malformed amount
+  (`"1O.00"`) came back as a crash's raw text. Amounts and rates are read by
+  one check that names the field. Arguments that don't fit a tool are
+  `invalid_input` too.
+- **MCP: the tool list is a third of the size** (119 KB to 39 KB as JSON).
+  `run_scenario`, `compare_options`, `check_principles` and
+  `record_decision` take scenarios as objects pointing to
+  `get_scenario_schema`, which gives the schema once, with how tax, holdings
+  and assets go into one in its `description`; Salli still validates each.
+  Descriptions are sent on one line, without generated titles or the output
+  schemas that only said "an object", and an optional argument as its type.
 
 - **MCP: `suggested_tax_accounts` only reads** (breaking for MCP clients):
   its `apply` is gone, and `apply_suggested_tax_accounts` creates the

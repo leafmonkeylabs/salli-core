@@ -1,5 +1,5 @@
 """
-The benchmark's answer key, computed by Salli.
+The fidelity benchmark's answer key, computed by Salli.
 
 Each question in questions.yaml says which read tool answers it, with what
 arguments, and where in the tool's result the answer is. This calls each
@@ -7,7 +7,10 @@ tool on the question's golden household, in-process, through Salli's own
 MCP server over the real services (benchmark/households.py), and writes
 what it finds to answers.json. No expected value is typed by hand, so the
 key changes only when Salli's figures do, and
-tests/contract/test_benchmark_key.py fails until it is written again:
+tests/contract/test_benchmark_key.py fails until it is written again. An
+FI month that rests on the household's placeholder assumptions carries the
+caveat an answer must give (`caveat`: "placeholder", from
+get_fi_assumptions):
 
     uv run python -m benchmark.answer_key            # write answers.json
     uv run python -m benchmark.answer_key --check    # what the contract test does
@@ -123,6 +126,10 @@ async def compute() -> tuple[dict[str, Any], dict[str, list[Any]]]:
             entry["expected"] = expected(q["kind"], value, source.get("words"))
             entry["from"] = {"tool": source["tool"], "args": args, "path": shown(source["path"])}
             evidence[q["id"]] = [result]
+            if q["category"] == "fi" and q["kind"] == "month":
+                assumptions = await call(q["household"], "get_fi_assumptions", {})
+                if assumptions["applied"]["status"] == "placeholder":
+                    entry["caveat"] = "placeholder"
         if q["kind"] in TOLERANCE:
             entry["tolerance"] = TOLERANCE[q["kind"]]
         answers[q["id"]] = entry

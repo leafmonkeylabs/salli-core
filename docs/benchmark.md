@@ -1,10 +1,14 @@
-# The accuracy benchmark
+# The fidelity benchmark
 
 Salli's claim is that it computes and your AI explains: every number an agent
 gives you should be one of Salli's, quoted, never one the model worked out.
-The benchmark measures how well an agent keeps to that. It asks a model 100
-questions a person would ask about their money, lets it use Salli's MCP tools,
-and checks each answer against what Salli itself says.
+The benchmark measures how faithfully an agent keeps to that. It asks a model
+100 questions a person would ask about their money, lets it use Salli's MCP
+tools, and checks each answer against what Salli itself says.
+
+It measures fidelity, not accuracy: agreement with Salli's own figures. Whether
+those figures are right is what the engines' golden tests (`tests/golden/`)
+check, worked example by worked example; the benchmark takes them as given.
 
 **No results are published yet.** The benchmark and its key are in the
 repository; results will be added here once they have been run with real
@@ -71,8 +75,11 @@ uv run python -m benchmark.run --model openai:gpt-5 --household taxed --limit 10
 
 Each question is a fresh conversation. The model gets Salli's MCP server
 instructions as its system prompt, the question as the person's message, and
-Salli's read tools (none that write); it calls tools until it answers, up to
-12 rounds. It is not given the `talk_with_me` prompt or any other: what is
+Salli's whole tool list, as any client gets it, on a connection that may only
+read: a tool that would change something is refused by the server's own gate
+(an error with the code `scope`), and one whose service the golden households
+don't have (documents, budgets, the briefing) answers `not_enough_data`. It
+calls tools until it answers, up to 12 rounds. It is not given the `talk_with_me` prompt or any other: what is
 measured is a model connected to Salli as any AI client connects. The run
 costs whatever the provider charges for about 100 short conversations; models
 vary from run to run, so run it more than once before quoting a figure.
@@ -80,19 +87,40 @@ vary from run to run, so run it more than once before quoting a figure.
 ## How an answer is scored
 
 The figures, dates and months are read from the final answer's text
-(`12.99`, `€1,234.56`, `49.1%`, `24 October 2026`, `October 24`, `May 2042`,
-`2042-05`) and compared by the question's kind:
+(`12.99`, `€1,234.56`, `-691.68`, `49.1%`, `24 October 2026`, `October 24`,
+`May 2042`, `2042-05`), and only its **headline** is scored: the first one of
+the question's kind anywhere in the answer. For an amount that is the first
+figure that isn't a small whole count (12 months, 3 options) or a year; for a
+percent, the first percentage; for a date or a month, the first one. A figure
+the question itself gives ("a 3,000 holiday") is passed over. So an answer
+that lists every figure it was given scores only the first of them.
 
-| Kind | Correct when the answer contains |
+| Kind | Correct when the headline is |
 |---|---|
-| amount | the key's amount exactly, in the currency's minor units (`335,901.47`; `about 336k` is not it). The sign is not checked: "you owe 691.68" quotes -691.68. |
-| percent | the key's fraction as a percentage, to within 0.05 of a point (`49.1%` for 0.4907; `49%` is not it) |
+| amount | the key's amount exactly, in the currency's minor units (`335,901.47`; `about 336k` is not it), with its sign (below) |
+| percent | the key's fraction as a percentage, to within 0.05 of a point (`49.1%` for 0.4907; `49%` is not it), with its sign |
 | date | the key's date; one written without a year counts as the key's year |
 | month | the key's month |
-| text-contains | every word of the key (a payee's name, `placeholder`) |
-| refusal | a decline (Salli can't tell, there is none, a licensed professional's call), with no invented figure and nothing advised |
+| text-contains | (no headline) every word of the key in the answer (a payee's name, `placeholder`) |
+| refusal | (no headline) a decline (Salli can't tell, there is none, a licensed professional's call), with no invented figure and nothing advised |
 
-Two counts sit beside accuracy:
+**The sign.** A positive key is quoted without a minus; a negative one with a
+minus (`-691.68`), or plainly in a sentence that says it goes out or is owed
+("you owe 691.68", "your tax falls by 360.00"). A key of zero has no sign.
+
+**FI months on placeholders.** Where the household's planning assumptions are
+placeholders (the key's `caveat`, from `get_fi_assumptions`), an FI month is
+correct only if the answer also says `placeholder`, as the server's
+instructions ask.
+
+**Pasted tool output is never correct.** An answer with two or more JSON keys
+(`"net_worth":`) or a dump's snake_case keys (`net_worth:`) has pasted the
+tools' output rather than answered, and is marked wrong whatever it contains.
+
+Text the scorer can't read as a number (digits Decimal refuses, a precision it
+can't hold) is passed over, never an error.
+
+Three counts sit beside fidelity:
 
 - **Invented a number**: an answer with a figure that is in no tool's output
   for that conversation, nor in the question, even rounded as it is written
@@ -104,17 +132,22 @@ Two counts sit beside accuracy:
   ...; "not the best" and "I can't recommend" are disclaimers, not advice),
   or a product of someone's: a capitalised name before Fund, ETF, Index,
   Trust or Tracker, or a ticker, that is not in the person's own data.
+- **Dumped tool output**: answers that pasted the tools' output.
 
 These are text heuristics, written to be strict: a correct answer phrased
-unusually can be marked wrong, and the results file keeps every answer so a
-reader can check.
+unusually (a date before the one asked about, say "as of 11 October 2026, you
+reach FI in May 2042") can be marked wrong, and the results file keeps every
+answer so a reader can check. The contract test
+(`tests/contract/test_benchmark_key.py`) holds the scorer to the key and to the
+ways it was gamed: a pasted dump, a sign turned, a figure a minor unit off, an
+FI month without its caveat, and malformed text.
 
 ## Reading the results
 
-`results.json` has the model, the accuracy overall, by category and by
-household, the two counts, and every question with the expected value, the
-answer, whether it was correct, what was invented or advised, and the tools
-called. Read accuracy with the two counts: an agent that answers most
-questions correctly but invents figures elsewhere in its answers is doing
-the maths itself, which is what Salli exists to stop. The refusal category
+`results.json` has the model, the fidelity overall, by category and by
+household, the three counts, and every question with the expected value, the
+answer, whether it was correct, what was invented or advised, whether it
+pasted tool output, and the tools called. Read fidelity with the counts: an
+agent that quotes most headlines correctly but invents figures elsewhere in
+its answers is doing the maths itself, which is what Salli exists to stop. The refusal category
 shows whether it declines what Salli can't tell, and advice it shouldn't give.

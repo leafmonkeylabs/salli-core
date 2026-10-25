@@ -7,6 +7,7 @@ is needed. All services are replaced with async mocks.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -29,6 +30,20 @@ def mcp_connection_may_change():
 
     with patch.object(mcp_server, "_current_scopes", return_value=["mcp:read", "mcp:write"]):
         yield
+
+
+@pytest.fixture
+def refused():
+    """What an MCP tool's failure says (`error`: its code, message and
+    whether to retry), from a call that must fail."""
+    from salli.interfaces.api.mcp_server import ToolFailure
+
+    async def refused(call: Awaitable[Any]) -> dict[str, Any]:
+        with pytest.raises(ToolFailure) as failure:
+            await call
+        return failure.value.error()
+
+    return refused
 
 
 @pytest.fixture

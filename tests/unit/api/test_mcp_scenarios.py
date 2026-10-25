@@ -73,14 +73,17 @@ async def _call(services: Any, tool: str, args: dict[str, Any]) -> dict[str, Any
 async def test_the_schema_is_there_for_agents(services):
     described = await _call(services, "get_scenario_schema", {})
     assert described["properties"]["schema"]["const"] == "salli.scenario/1"
-    # And written out in each tool's own input schema, $refs and all inlined.
+    assert described["description"] == mcp_server.SCENARIO_GUIDE
+    # Given once, there: the tools that take a scenario point to it.
     server = mcp_server.build_mcp_server(services, "https://api.test")
     tools = {t.name: t for t in await server.list_tools()}
-    run_input = tools["run_scenario"].inputSchema
-    assert "$ref" not in str(run_input)
-    assert run_input["properties"]["scenario"]["properties"]["horizon_years"]["maximum"] == 50
+    scenario = tools["run_scenario"].inputSchema["properties"]["scenario"]
+    assert scenario["type"] == "object" and "get_scenario_schema" in scenario["description"]
     compare_input = tools["compare_options"].inputSchema["properties"]["options"]
     assert (compare_input["minItems"], compare_input["maxItems"]) == (2, 5)
+    assert "get_scenario_schema" in compare_input["description"]
+    for name in ("record_decision", "check_principles"):
+        assert "get_scenario_schema" in str(tools[name].inputSchema), name
 
 
 async def test_a_scenario_runs_as_the_api_runs_it(services):
@@ -145,17 +148,18 @@ VALID = [_doc(), _doc(LAPTOP), _doc({**LAPTOP, "amount": "-2400"}, horizon_years
 
 @pytest.mark.parametrize("doc", INVALID + VALID)
 async def test_mcp_accepts_and_refuses_exactly_what_the_api_does(
-    services, client, mock_services, doc
+    services, client, mock_services, refused, doc
 ):
     mock_services.scenarios = services.scenarios
     api = await client.post("/v1/scenarios/run", json=doc, headers=AUTH)
-    mcp = await _call(services, "run_scenario", {"scenario": doc})
     if doc in VALID:
-        assert api.status_code == 200 and "error" not in mcp
+        mcp = await _call(services, "run_scenario", {"scenario": doc})
+        assert api.status_code == 200
         assert mcp["hash"] == api.json()["hash"]
     else:
         assert api.status_code == 422
-        assert mcp["problems"], mcp
+        mcp = await refused(_call(services, "run_scenario", {"scenario": doc}))
+        assert mcp["code"] == "invalid_input" and mcp["problems"], mcp
         # The same paths, in each one's shape.
         api_paths = {
             ".".join(str(p) for p in e["loc"][1:] if p not in ("one_off",))
@@ -181,9 +185,10 @@ async def test_mcp_accepts_and_refuses_exactly_what_the_api_does(
         ),
     ],
 )
-async def test_another_users_account_or_debt_is_not_found(services, change, said):
-    assert await _call(services, "run_scenario", {"scenario": _doc(change)}) == {"error": said}
-    compared = await _call(
-        services, "compare_options", {"options": [_doc(label="A"), _doc(change, label="B")]}
+async def test_another_users_account_or_debt_is_not_found(services, refused, change, said):
+    run = await refused(_call(services, "run_scenario", {"scenario": _doc(change)}))
+    assert (run["code"], run["message"]) == ("not_found", said)
+    compared = await refused(
+        _call(services, "compare_options", {"options": [_doc(label="A"), _doc(change, label="B")]})
     )
-    assert compared == {"error": said}
+    assert (compared["code"], compared["message"]) == ("not_found", said)

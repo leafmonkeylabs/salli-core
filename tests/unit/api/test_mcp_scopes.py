@@ -63,6 +63,8 @@ async def test_a_write_on_a_read_only_connection_is_refused_and_does_nothing(ser
     [text] = result.content
     assert isinstance(text, types.TextContent)
     assert "can only read" in text.text and "Allow changes" in text.text
+    assert result.structuredContent is not None
+    assert result.structuredContent["error"]["code"] == "scope"
     services.reminders.create_reminder.assert_not_awaited()
     services.audit.log.assert_awaited_once_with(
         "u1", "create_reminder", REMINDER, "refused", client_id="claude-1"

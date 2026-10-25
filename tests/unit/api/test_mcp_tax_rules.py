@@ -83,27 +83,28 @@ async def test_a_draft_is_recorded_as_the_agent_s_and_audited(services):
     assert services.audit.log.await_args.args[1] == "draft_tax_rule_set"
 
 
-async def test_a_refusal_lists_its_problems_for_the_agent_to_fix(services):
+async def test_a_refusal_lists_its_problems_for_the_agent_to_fix(services, refused):
     services.tax_rules.draft.side_effect = RuleSetDocumentError(
         "This is not a rule set Salli can read", [Problem("$", "Not valid JSON")]
     )
-    result = await _call(services, "draft_tax_rule_set", {"document": "{"})
-    assert result == {
-        "error": "This is not a rule set Salli can read",
+    error = await refused(_call(services, "draft_tax_rule_set", {"document": "{"}))
+    assert error == {
+        "code": "invalid_input",
+        "message": "This is not a rule set Salli can read",
+        "retryable": False,
         "problems": [{"path": "$", "message": "Not valid JSON", "snippet": None}],
     }
     assert services.audit.log.await_args.args[3] == "failed"
 
 
-async def test_proposing_tells_the_agent_that_only_the_user_activates(services):
+async def test_proposing_tells_the_agent_that_only_the_user_activates(services, refused):
     services.tax_rules.propose.return_value = {**VERSION, "status": "proposed"}
     result = await _call(services, "propose_tax_rule_set", {"version_id": "v1"})
     assert result["status"] == "proposed"
     assert "Only the user can activate it" in result["next"]
     services.tax_rules.propose.side_effect = RuleSetStateError("can't be proposed: examples")
-    assert await _call(services, "propose_tax_rule_set", {"version_id": "v1"}) == {
-        "error": "can't be proposed: examples"
-    }
+    error = await refused(_call(services, "propose_tax_rule_set", {"version_id": "v1"}))
+    assert (error["code"], error["message"]) == ("refused", "can't be proposed: examples")
 
 
 async def test_evaluating_runs_salli_s_engine_on_the_user_s_ledger(services):

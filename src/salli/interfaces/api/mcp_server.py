@@ -38,9 +38,10 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 from collections.abc import Callable, Sequence
 from decimal import Decimal
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal, NoReturn, cast
 from urllib.parse import urlparse
 
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -49,21 +50,30 @@ from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import ContentBlock, ToolAnnotations
-from pydantic import AnyHttpUrl, BaseModel, Field, WithJsonSchema
+from mcp.types import CallToolResult, ContentBlock, TextContent, ToolAnnotations
+from mcp.types import Tool as MCPTool
+from pydantic import AnyHttpUrl, BaseModel, Field, ValidationError
 
 from salli.application.permissions import Actor
 from salli.application.ports import (
     AccountNotFound,
     DebtNotFound,
     DecisionNotFound,
+    FxUnavailableError,
     HoldingNotFound,
 )
 from salli.application.services.fi_service import decimal_arg
 from salli.application.services.ledger_service import CLIENT_REF_MAX
 from salli.application.services.mcp_oauth_service import MCP_WRITE, McpOAuthService
-from salli.application.services.tax_rule_service import TaxRuleError
+from salli.application.services.tax_rule_service import (
+    RuleSetConflict,
+    RuleSetRateMissing,
+    RuleSetStateError,
+    TaxRuleError,
+)
+from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.unit_of_work import AuditRecord, pending_audit
+from salli.domain.accounting.models import BooksLocked
 from salli.domain.agents.tools import computation_for_agent
 from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
@@ -72,41 +82,53 @@ from salli.domain.decisions.templates import TemplateError, UnknownTemplate
 from salli.domain.scenarios import schema as scenario_schema
 from salli.domain.scenarios.engine import STALE_AFTER_DAYS, ScenarioError
 
-#: A scenario document, as the tools take it: its JSON Schema written out in
-#: the tool's own input schema, so an agent sees every field. Salli
-#: validates it with the same model the API does, and says what is wrong
-#: with each problem's path.
-ScenarioDocument = Annotated[dict[str, Any], WithJsonSchema(scenario_schema.inline_json_schema())]
-ScenarioOptions = Annotated[
-    list[dict[str, Any]],
-    WithJsonSchema(
-        {
-            "type": "array",
-            "minItems": 2,
-            "maxItems": 5,
-            "items": scenario_schema.inline_json_schema(),
-        }
-    ),
+#: Scenario documents (salli.scenario/1), as the tools take them: objects,
+#: with their JSON Schema once, in get_scenario_schema, rather than written
+#: out in every tool that takes one. Salli validates each with the same
+#: model the API does, and says what is wrong with each problem's path.
+_EACH = "each a scenario (salli.scenario/1) with its own label; get_scenario_schema has its schema"
+ScenarioDocument = Annotated[
+    dict[str, Any],
+    Field(description="A scenario (salli.scenario/1); get_scenario_schema has its schema"),
 ]
-
-
+#: Two to five options, to compare.
+ScenarioOptions = Annotated[
+    list[dict[str, Any]], Field(min_length=2, max_length=5, description=f"Two to five, {_EACH}")
+]
 #: None to five options, for checking principles against.
 CheckedOptions = Annotated[
-    list[dict[str, Any]],
-    WithJsonSchema({"type": "array", "maxItems": 5, "items": scenario_schema.inline_json_schema()}),
+    list[dict[str, Any]], Field(max_length=5, description=f"Up to five, {_EACH}")
 ]
-#: One to five options, for a decision: each a scenario with its own label.
+#: One to five options, for a decision.
 DecisionOptions = Annotated[
-    list[dict[str, Any]],
-    WithJsonSchema(
-        {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 5,
-            "items": scenario_schema.inline_json_schema(),
-        }
-    ),
+    list[dict[str, Any]], Field(min_length=1, max_length=5, description=f"One to five, {_EACH}")
 ]
+
+
+#: How a scenario's changes take tax, holdings and assets: the description
+#: get_scenario_schema gives the schema, read when a scenario is written
+#: rather than in every turn's tool list.
+SCENARIO_GUIDE = (
+    "The baseline plus changes. "
+    "Tax: an amount is what reaches cash unless you tag the change with a `tax_role` "
+    "(one_off, recurring, income_change): a role of kind income or deduction in the user's "
+    "tax rules (get_tax_rule_set shows them), and the amount is then before tax. A raise in "
+    "the salary's role, a taxable bonus, a deductible pension contribution. Salli computes the "
+    "change in each year's tax with the user's active rules; put answers to the rules' "
+    "questions in the scenario's `tax.answers`. Never work out a net figure yourself: tag the "
+    "gross one. "
+    "Holdings: an `invest` may name one of the user's own holdings (`holding`, an id from "
+    "list_holdings) and `fees`; a `sell` sells part of one (`quantity` or `amount`, `fees`, "
+    "named `lots` or first in, first out, `into` a cash account, and a `tax_role` of kind "
+    "income for the realised gain). A sale needs its holding linked to the investment account "
+    "that holds it (link_holding) and can't take out more than that account holds. Fees are "
+    "the user's own figure: never assume one. Salli prices a trade at the holding's last "
+    "recorded price and forecasts no price. "
+    "An asset (a home) is bought from cash and counted at its value less its selling costs, "
+    "growing at its own real_growth (0 beyond inflation when left out, labelled the "
+    "asset_growth placeholder); a mortgage is an ordinary loan. A recurring cost may grow "
+    "beyond inflation (real_growth). Growth is the person's own view: ask, never supply one."
+)
 
 
 class SalliTokenVerifier(TokenVerifier):
@@ -165,10 +187,151 @@ def _redacted(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _failed(result: Any) -> bool:
-    """Whether a tool answered with an error of its own (`{"error": ...}`)."""
-    structured: object = result[1] if isinstance(result, tuple) else result
-    return isinstance(structured, dict) and "error" in structured
+#: What kind of failure a tool reports (its result's `error.code`):
+#: invalid_input, an argument to fix (`problems` say where); not_found, an id
+#: that isn't the person's; refused, not possible as things stand (closed
+#: books, a version's state, a usage limit); scope, a change on a connection
+#: that may only read; not_enough_data, something Salli needs and lacks (tax
+#: rules, an exchange rate, a briefing); unavailable, a model that failed.
+ErrorCode = Literal[
+    "invalid_input", "not_found", "refused", "scope", "not_enough_data", "unavailable"
+]
+
+
+class ToolFailure(ToolError):
+    """A tool's failure, as a client gets it: a result with isError true
+    whose `error` has the code, a short message, whether the same call may
+    work if tried again, and any problems with their paths."""
+
+    def __init__(
+        self,
+        code: ErrorCode,
+        message: str,
+        *,
+        retryable: bool = False,
+        problems: Sequence[dict[str, Any]] = (),
+    ) -> None:
+        super().__init__(message)
+        self.code: ErrorCode = code
+        self.retryable = retryable
+        self.problems = list(problems)
+
+    def error(self) -> dict[str, Any]:
+        error: dict[str, Any] = {
+            "code": self.code,
+            "message": str(self),
+            "retryable": self.retryable,
+        }
+        return {**error, "problems": self.problems} if self.problems else error
+
+    def result(self) -> CallToolResult:
+        error = {"error": self.error()}
+        return CallToolResult(
+            content=[TextContent(type="text", text=json.dumps(error))],
+            structuredContent=error,
+            isError=True,
+        )
+
+
+def _fail(
+    code: ErrorCode,
+    message: str,
+    *,
+    retryable: bool = False,
+    problems: Sequence[dict[str, Any]] = (),
+) -> NoReturn:
+    """Every tool fails through here."""
+    raise ToolFailure(code, message, retryable=retryable, problems=problems)
+
+
+def _refused(exc: Exception) -> NoReturn:
+    """A service's refusal as a tool's failure, coded by its kind, with each
+    problem's path for the agent to fix."""
+    code: ErrorCode
+    if isinstance(exc, NoTaxRulesError | FxUnavailableError | RuleSetRateMissing):
+        code = "not_enough_data"
+    elif isinstance(exc, LookupError):
+        code = "not_found"
+    elif isinstance(exc, PermissionError | RuleSetStateError | RuleSetConflict | BooksLocked):
+        code = "refused"
+    else:
+        code = "invalid_input"
+    problems = [
+        {"path": p.path, "message": p.message, "snippet": p.snippet}
+        for p in getattr(exc, "problems", ())
+    ]
+    _fail(code, str(exc), problems=problems)
+
+
+def _decimal(value: str, field: str) -> Decimal:
+    """A decimal-string argument, or invalid_input naming its field."""
+    try:
+        return decimal_arg(value, field)
+    except ValueError:
+        _fail(
+            "invalid_input",
+            f"{field} is a decimal string, such as '1200.50', not {value!r}",
+            problems=[{"path": field, "message": "not a decimal string"}],
+        )
+
+
+def _failure(exc: ToolError) -> ToolFailure | None:
+    """The failure behind FastMCP's wrapping of what a tool raised: one of
+    ours, or arguments that don't fit the tool's (invalid_input)."""
+    cause = exc.__cause__
+    if isinstance(exc, ToolFailure):
+        return exc
+    if isinstance(cause, ToolFailure):
+        return cause
+    if isinstance(cause, ValidationError):
+        problems = [
+            {"path": ".".join(str(part) for part in e["loc"]), "message": e["msg"]}
+            for e in cause.errors()
+        ]
+        message = "; ".join(f"{p['path']}: {p['message']}" for p in problems)
+        return ToolFailure("invalid_input", message, problems=problems)
+    return None
+
+
+def _untitled(node: Any) -> Any:
+    """A JSON Schema without the titles pydantic writes for each field."""
+    if isinstance(node, dict):
+        return {
+            k: _untitled(v)
+            for k, v in cast("dict[str, Any]", node).items()
+            if not (k == "title" and isinstance(v, str))
+        }
+    if isinstance(node, list):
+        return [_untitled(v) for v in cast("list[Any]", node)]
+    return node
+
+
+def _optional(schema: dict[str, Any]) -> dict[str, Any]:
+    """An argument that may be left out, as its type alone: leaving it out
+    is the null its schema would otherwise also allow."""
+    either = schema.get("anyOf")
+    if "default" not in schema or schema["default"] is not None or not isinstance(either, list):
+        return schema
+    types = [t for t in cast("list[Any]", either) if t != {"type": "null"}]
+    if len(types) != 1:
+        return schema
+    rest = {k: v for k, v in schema.items() if k not in ("anyOf", "default")}
+    return {**rest, **types[0]}
+
+
+def _compact(tool: MCPTool) -> MCPTool:
+    """A tool as an agent reads it, on every turn: its description on one
+    line, its arguments without generated titles, and no output schema
+    (each would only say "an object")."""
+    schema = _untitled(tool.inputSchema)
+    properties = {k: _optional(v) for k, v in schema.get("properties", {}).items()}
+    return tool.model_copy(
+        update={
+            "description": " ".join((tool.description or "").split()),
+            "inputSchema": {**schema, "properties": properties},
+            "outputSchema": None,
+        }
+    )
 
 
 class _SalliMCP(FastMCP[Any]):
@@ -178,22 +341,40 @@ class _SalliMCP(FastMCP[Any]):
     def __init__(self, audit_uow: Callable[[], Any], **settings: Any) -> None:
         super().__init__(**settings)
         self._audit_uow = audit_uow
+        # In place of FastMCP's handler: a tool's failure reaches the client
+        # as an error result with its code (ToolFailure.result).
+        self._mcp_server.call_tool(validate_input=False)(self._answer)
+
+    async def list_tools(self) -> list[MCPTool]:
+        return [_compact(tool) for tool in await super().list_tools()]
+
+    async def _answer(
+        self, name: str, arguments: dict[str, Any]
+    ) -> Sequence[ContentBlock] | dict[str, Any] | CallToolResult:
+        try:
+            return await self.call_tool(name, arguments)
+        except ToolFailure as failure:
+            return failure.result()
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> Sequence[ContentBlock] | dict[str, Any]:
+        """The tool's answer, or a ToolFailure: in-process callers get the
+        exception, a client its result (_answer)."""
         tool = self._tool_manager.get_tool(name)
-        if tool is None or (tool.annotations is not None and tool.annotations.readOnlyHint):
+        if tool is None:
+            _fail("not_found", f"There is no tool {name}")
+        if tool.annotations is not None and tool.annotations.readOnlyHint:
             return await self._read(name, arguments)
         record = AuditRecord(_current_user_id(), _current_client_id(), name, _redacted(arguments))
         if MCP_WRITE not in _current_scopes():
             await self._audit(record, "refused")
-            raise ToolError(READ_ONLY)
+            _fail("scope", READ_ONLY)
         outcome = "failed"
         token = pending_audit.set(record)
         try:
-            result = await super().call_tool(name, arguments)
-            outcome = "failed" if _failed(result) else "succeeded"
+            result = await self._run(name, arguments)
+            outcome = "succeeded"
             return result
         finally:
             pending_audit.reset(token)
@@ -211,11 +392,22 @@ class _SalliMCP(FastMCP[Any]):
         record = AuditRecord(_current_user_id(), _current_client_id(), name, {})
         outcome = "failed"
         try:
-            result = await super().call_tool(name, arguments)
-            outcome = "failed" if _failed(result) else "succeeded"
+            result = await self._run(name, arguments)
+            outcome = "succeeded"
         finally:
             await self._audit(record, outcome)
         return result
+
+    async def _run(
+        self, name: str, arguments: dict[str, Any]
+    ) -> Sequence[ContentBlock] | dict[str, Any]:
+        try:
+            return await super().call_tool(name, arguments)
+        except ToolError as exc:
+            failure = _failure(exc)
+            if failure is None:
+                raise
+            raise failure from None
 
     async def _audit(self, record: AuditRecord, outcome: str) -> None:
         async with self._audit_uow() as uow:
@@ -244,18 +436,6 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [_jsonable(v) for v in cast("list[Any]", value)]
     return value
-
-
-def _refusal(exc: Exception) -> dict[str, Any]:
-    """What a tax-rules tool answers when the service refuses: the reason,
-    and each problem with its path, for the agent to fix."""
-    out: dict[str, Any] = {"error": str(exc)}
-    problems = getattr(exc, "problems", ())
-    if problems:
-        out["problems"] = [
-            {"path": p.path, "message": p.message, "snippet": p.snippet} for p in problems
-        ]
-    return out
 
 
 def _version_view(version: dict[str, Any], *, document: bool = False) -> dict[str, Any]:
@@ -494,13 +674,13 @@ def build_mcp_server(
                 account_id=account_id or None,
                 from_date=from_date or None,
                 to_date=to_date or None,
-                min_amount=None if not min_amount else decimal_arg(min_amount, "a minimum"),
-                max_amount=None if not max_amount else decimal_arg(max_amount, "a maximum"),
+                min_amount=None if not min_amount else _decimal(min_amount, "min_amount"),
+                max_amount=None if not max_amount else _decimal(max_amount, "max_amount"),
                 limit=_window(limit, 1, 200),
                 cursor=cursor or None,
             )
         except ValueError as exc:
-            return {"error": str(exc)}
+            _refused(exc)
         return {
             "entries": [
                 {
@@ -581,7 +761,7 @@ def build_mcp_server(
                 persist=False,
             )
         except (LookupError, ValueError) as exc:
-            return _refusal(exc)
+            _refused(exc)
         return _jsonable(computation_for_agent(result))
 
     @mcp.tool(annotations=READS)
@@ -609,7 +789,7 @@ def build_mcp_server(
                 )
             )
         except (LookupError, ValueError) as exc:
-            return _refusal(exc)
+            _refused(exc)
 
     @mcp.tool(annotations=READS)
     async def get_financial_profile() -> dict[str, Any]:
@@ -625,11 +805,11 @@ def build_mcp_server(
         if budget_id is None:
             budgets = await budget_svc.list_budgets(user_id)
             if not budgets:
-                return {"error": "No budgets found."}
+                _fail("not_enough_data", "No budgets yet")
             budget_id = budgets[0]["id"]
         summary = await budget_svc.get_summary(user_id, budget_id)
         if summary is None:
-            return {"error": f"Budget {budget_id} not found"}
+            _fail("not_found", f"Budget not found: {budget_id}")
         return summary
 
     @mcp.tool(annotations=READS)
@@ -643,12 +823,12 @@ def build_mcp_server(
         paid and the schedule. extra_monthly_payment is a decimal string from
         0, paid on top of the minimums each month. Quote the figures exactly."""
         if strategy not in ("avalanche", "snowball"):
-            return {"error": f"Unknown strategy '{strategy}'. Use 'avalanche' or 'snowball'."}
+            _fail("invalid_input", "strategy is avalanche or snowball")
+        extra = _decimal(extra_monthly_payment, "extra_monthly_payment")
         try:
-            extra = decimal_arg(extra_monthly_payment, "an extra monthly payment")
             return await debt_svc.get_payoff_plan(_current_user_id(), extra, strategy)
         except (ArithmeticError, ValueError) as exc:
-            return {"error": f"Could not plan that: {exc}"}
+            _refused(exc)
 
     @mcp.tool(annotations=READS)
     async def get_portfolio_summary(target_allocation: str | None = None) -> dict[str, Any]:
@@ -662,7 +842,7 @@ def build_mcp_server(
             for pair in target_allocation.split(","):
                 asset_class, _, pct = pair.strip().partition(":")
                 if asset_class and pct:
-                    parsed_target[asset_class] = Decimal(pct)
+                    parsed_target[asset_class] = _decimal(pct, "target_allocation")
         return await portfolio_svc.get_summary(user_id, parsed_target)
 
     @mcp.tool(annotations=READS)
@@ -687,13 +867,11 @@ def build_mcp_server(
         holding and the account first and get their go-ahead."""
         user_id = _current_user_id()
         if await portfolio_svc.get_holding(user_id, holding_id) is None:
-            return {"error": f"Holding not found: {holding_id}"}
+            _fail("not_found", f"Holding not found: {holding_id}")
         try:
             await portfolio_svc.update_holding(user_id, holding_id, {"account_id": account_id})
-        except AccountNotFound as exc:
-            return {"error": str(exc)}
-        except ValueError as exc:
-            return {"error": f"Could not link the holding: {exc}"}
+        except (AccountNotFound, ValueError) as exc:
+            _refused(exc)
         return {"holding_id": holding_id, "account_id": account_id, "updated": True}
 
     @mcp.tool(annotations=READS)
@@ -706,7 +884,7 @@ def build_mcp_server(
             return {"reports": await subscription_svc.get_all_reports(user_id, today)}
         report = await subscription_svc.get_report(user_id, subscription_id, today)
         if report is None:
-            return {"error": f"Subscription {subscription_id} not found"}
+            _fail("not_found", f"Subscription not found: {subscription_id}")
         return report
 
     @mcp.tool(annotations=READS)
@@ -726,7 +904,9 @@ def build_mcp_server(
         It describes and never advises."""
         user_id = _current_user_id()
         report = await advisor_svc.get_latest_report(user_id)
-        return report or {"error": "No briefing yet."}
+        if not report:
+            _fail("not_enough_data", "No briefing yet")
+        return report
 
     @mcp.tool(annotations=_writes(open_world=True))
     async def run_briefing() -> dict[str, Any]:
@@ -739,8 +919,10 @@ def build_mcp_server(
         user_id = _current_user_id()
         try:
             return await advisor_svc.run_advisor(user_id, email=None, trigger="manual")
-        except (UsageLimitReached, LLMError) as exc:
-            return {"error": exc.message}
+        except UsageLimitReached as exc:
+            _fail("refused", exc.message)
+        except LLMError as exc:
+            _fail("unavailable", exc.message, retryable=True)
 
     # ── Documents & memories ─────────────────────────────────────────────
 
@@ -771,7 +953,7 @@ def build_mcp_server(
         user_id = _current_user_id()
         doc = await documents_svc.get_document(user_id, doc_id)
         if not doc:
-            return {"error": f"Document {doc_id} not found"}
+            _fail("not_found", f"Document not found: {doc_id}")
         return doc
 
     @mcp.tool(annotations=WRITES_OVER)
@@ -784,7 +966,7 @@ def build_mcp_server(
         user_id = _current_user_id()
         updates = {k: v for k, v in {"title": title, "content": content}.items() if v is not None}
         if not updates:
-            return {"error": "No updates provided"}
+            _fail("invalid_input", "Give a title or content to change")
         await documents_svc.update_document(user_id, doc_id, **updates)
         return {"doc_id": doc_id, "updated": list(updates.keys())}
 
@@ -884,7 +1066,7 @@ def build_mcp_server(
                 user_id, code, name, account_type, currency, asset_role=asset_role
             )
         except (ValueError, LookupError) as exc:
-            return {"error": f"Could not create the account: {exc}"}
+            _refused(exc)
         return {"account_id": account_id, "code": code, "name": name, "created": True}
 
     @mcp.tool(annotations=WRITES_OVER)
@@ -895,17 +1077,15 @@ def build_mcp_server(
         asset_role: Literal["cash", "savings", "investment", "other"] | None = None,
     ) -> dict[str, Any]:
         """Change an account's code, name or asset role; what you leave out
-        stays as it is. asset_role, for an asset account only: cash, savings,
-        investment or other (a home, a car). Planning reads the role, never the
-        name: mark a brokerage or a pension fund as an investment so its growth
-        is projected, a savings account or an emergency fund as savings so it
-        isn't counted as free to spend, and a home as other so it isn't
-        counted as cash. Writes
-        immediately: show the user the change and get their go-ahead first."""
+        stays as it is. asset_role, for an asset account only: cash, savings
+        (kept, not spent: an emergency fund), investment (its growth
+        projected: a brokerage, a pension fund) or other (a home, a car).
+        Planning reads the role, never the name. Writes immediately: show
+        the user the change and get their go-ahead first."""
         user_id = _current_user_id()
         account = await ledger_svc.get_account(user_id, account_id)
         if account is None:
-            return {"error": f"Account not found: {account_id}"}
+            _fail("not_found", f"Account not found: {account_id}")
         try:
             await ledger_svc.update_account(
                 user_id,
@@ -917,7 +1097,7 @@ def build_mcp_server(
                 asset_role=asset_role,
             )
         except (ValueError, LookupError) as exc:
-            return {"error": f"Could not update the account: {exc}"}
+            _refused(exc)
         updated = await ledger_svc.get_account(user_id, account_id)
         return {
             "account_id": account_id,
@@ -954,27 +1134,28 @@ def build_mcp_server(
         returns the entry first booked with it, so a retry never books twice."""
         from salli.domain.accounting.models import Direction
 
+        value = _decimal(amount, "amount")
+        rate = _decimal(fx_rate, "fx_rate") if fx_rate else None
+        if client_ref is not None and not 0 < len(client_ref) <= CLIENT_REF_MAX:
+            _fail("invalid_input", f"client_ref is 1 to {CLIENT_REF_MAX} characters")
         user_id = _current_user_id()
         currency = currency or await ledger_svc.base_currency(user_id)
-        rate = Decimal(fx_rate) if fx_rate else None
         postings_data = [
             {
                 "account_id": debit_account_id,
                 "direction": Direction.DEBIT,
-                "amount": Decimal(amount),
+                "amount": value,
                 "currency": currency,
                 "fx_rate": rate,
             },
             {
                 "account_id": credit_account_id,
                 "direction": Direction.CREDIT,
-                "amount": Decimal(amount),
+                "amount": value,
                 "currency": currency,
                 "fx_rate": rate,
             },
         ]
-        if client_ref is not None and not 0 < len(client_ref) <= CLIENT_REF_MAX:
-            return {"error": f"client_ref is 1 to {CLIENT_REF_MAX} characters"}
         try:
             if client_ref is None:
                 entry_id = await ledger_svc.add_entry(
@@ -986,9 +1167,9 @@ def build_mcp_server(
                     user_id, entry_date, description, postings_data, client_ref
                 )
         except (ValueError, LookupError) as exc:
-            # LookupError covers FxUnavailableError: no published rate, so the
+            # FxUnavailableError (not_enough_data): no published rate, so the
             # caller has to send fx_rate.
-            return {"error": f"Could not post entry: {exc}"}
+            _refused(exc)
         if not posted:
             return {"entry_id": entry_id, "posted": False, "already_posted": True}
         return {"entry_id": entry_id, "posted": True}
@@ -1006,7 +1187,7 @@ def build_mcp_server(
         """Where the money went over the last `months` months, largest first: by
         "category", "account" or "need", with each month's figure and its share."""
         if by not in ("category", "account", "need"):
-            return {"error": "by is category, account or need"}
+            _fail("invalid_input", "by is category, account or need")
         return await insights_svc.spending(_current_user_id(), _window(months, 1, 120), by)  # type: ignore[arg-type]
 
     @mcp.tool(annotations=READS)
@@ -1056,54 +1237,27 @@ def build_mcp_server(
     async def get_scenario_schema() -> dict[str, Any]:
         """The JSON Schema of a scenario document (salli.scenario/1): the
         baseline plus changes (one_off, recurring, income_change, loan,
-        extra_debt_payment, invest, stop_recurring, set_aside, sell, asset).
-        Amounts and rates are decimal strings ("-2400.00", "0.069"), dates YYYY-MM-DD;
-        account and debt ids come from get_accounts and get_payoff_plan, a
-        recurring flow's key from get_recurring_payments. Build every option
-        of a decision with it, never estimate one yourself.
-
-        Tax: an amount is what reaches cash unless you tag the change with a
-        `tax_role` (one_off, recurring, income_change): a role of kind income
-        or deduction in the user's tax rules (get_tax_rule_set shows them), and
-        the amount is then before tax. A raise in the salary's role, a
-        taxable bonus, a deductible pension contribution. Salli computes the
-        change in each year's tax with the user's active rules; put answers
-        to the rules' questions in the scenario's `tax.answers`. Never work
-        out a net figure yourself: tag the gross one.
-
-        Holdings: an `invest` may name one of the user's own holdings
-        (`holding`, an id from list_holdings) and `fees`; a `sell` sells part
-        of one (`quantity` or `amount`, `fees`, named `lots` or first in,
-        first out, `into` a cash account, and a `tax_role` of kind income for
-        the realised gain). A sale needs its holding linked to the investment
-        account that holds it (link_holding) and can't take out more than
-        that account holds. Fees are the user's own figure: never assume
-        one. Salli prices a trade at the holding's last recorded price and
-        forecasts no price.
-
-        An asset (a home) is bought from cash and counted at its value less
-        its selling costs, growing at its own real_growth (0 beyond
-        inflation when left out, labelled the asset_growth placeholder); a
-        mortgage is an ordinary loan. A recurring cost may grow beyond
-        inflation (real_growth). Growth is the person's own view: ask, never
-        supply one."""
-        return scenario_schema.json_schema()
+        extra_debt_payment, invest, stop_recurring, set_aside, sell, asset),
+        and in its description how tax, holdings and assets go into one: read
+        it before writing a scenario. Amounts and rates are decimal strings
+        ("-2400.00", "0.069"), dates YYYY-MM-DD; account and debt ids come
+        from get_accounts and get_payoff_plan, a recurring flow's key from
+        get_recurring_payments. Build every option of a decision with it,
+        never estimate one yourself."""
+        return {**scenario_schema.json_schema(), "description": SCENARIO_GUIDE}
 
     @mcp.tool(annotations=READS)
     async def list_decision_templates() -> dict[str, Any]:
-        """Salli's decision templates: common decisions (afford-it, debt-or-invest,
-        windfall, big-change, borrow, emergency-fund, rent-or-buy) as a few
-        typed questions and the options their answers build. Each question
-        says its type, whether it is needed, and its default where there is
-        an honest one (from the user's own debts, cash accounts and
-        principles, or the date); answers_schema is the answers' JSON Schema.
-        Conveniences, not advice: ask the person the questions, in your own
-        words, and start one with start_decision. Never fill in an answer
-        they haven't given that has no default (a price, a rate, a target):
-        ask. Rent-or-buy's growths beyond inflation (rent_growth,
-        home_growth) default to 0 as a labelled placeholder (source
-        "placeholder"), not a forecast: ask for the person's own view, and
-        never supply one."""
+        """Salli's decision templates: common decisions as a few typed
+        questions and the options their answers build. Each question says
+        its type, whether it is needed, and its default where there is an
+        honest one; answers_schema is the answers' JSON Schema. Conveniences,
+        not advice: ask the person the questions, in your own words, and
+        start one with start_decision. Never fill in an answer they haven't
+        given that has no default (a price, a rate, a target): ask.
+        Rent-or-buy's growths beyond inflation (rent_growth, home_growth)
+        default to 0 as a labelled placeholder, not a forecast: ask for the
+        person's own view, and never supply one."""
         return await template_svc.every(_current_user_id())
 
     @mcp.tool(annotations=READS)
@@ -1114,27 +1268,19 @@ def build_mcp_server(
         tax_answers: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Start a decision from a template (list_decision_templates) with the
-        person's answers, by question id (amounts and rates as decimal
-        strings, months as whole numbers, dates YYYY-MM-DD). Salli builds the
-        options and runs every one on their baseline: the comparison (each
-        option's figures, what each gains and gives up against the others,
+        person's answers by question id (amounts and rates as decimal strings,
+        months as whole numbers, dates YYYY-MM-DD). Salli builds and runs
+        every option: the comparison (figures, what each gains and gives up,
         sensitivity to the real return, break-evens with a sentence each),
-        which of their principles each keeps or breaks, for an emergency
-        fund the month cash covers the target, and for rent-or-buy the month
-        each way of buying draws level with renting (level) and the
-        house-price growth at which the answer turns (the asset_growth
-        break-even). Quote it, with the assumptions it rests on (notes,
-        placeholders); never compute. It
-        ranks nothing, and neither do you. It stores nothing: when they have
-        chosen and want it recorded, call record_decision with
-        record.question (in their words if they change it), record.options,
-        the label they chose, their reasons in their words and a review date,
-        once they confirm. A problem comes back with its path
-        (answers.price), to fix and start again. Where a template asks for a
-        tax role (big-change's pay, a taxable windfall), the amount is then
-        before tax and Salli computes the tax with the user's active rules;
-        `tax_answers` answers the rules' questions, by key, for every
-        option."""
+        which of their principles each keeps or breaks, when cash covers an
+        emergency fund's target, and when buying draws level with renting
+        (level). Quote it with the assumptions it rests on (notes,
+        placeholders); never compute. It ranks nothing, and neither do you.
+        It stores nothing: once they confirm, call record_decision with its
+        record, the label they chose, their reasons in their words and a
+        review date. Where a template asks for a tax role, the amount is
+        before tax; `tax_answers` answers the rules' questions, by key. A
+        problem comes back with its path (answers.price), to fix."""
         try:
             return await template_svc.start(
                 _current_user_id(),
@@ -1145,55 +1291,47 @@ def build_mcp_server(
                     "tax_answers": tax_answers,
                 },
             )
-        except (TemplateError, ScenarioError) as exc:
-            return _refusal(exc)
-        except (UnknownTemplate, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
-            return {"error": str(exc)}
+        except (
+            TemplateError,
+            ScenarioError,
+            UnknownTemplate,
+            AccountNotFound,
+            DebtNotFound,
+            HoldingNotFound,
+        ) as exc:
+            _refused(exc)
 
     @mcp.tool(annotations=READS)
     async def run_scenario(scenario: ScenarioDocument) -> dict[str, Any]:
-        """Run a scenario (salli.scenario/1, see get_scenario_schema) on the
-        user's baseline. Every figure comes under the baseline, under the
-        scenario, and as the delta: cash over the next twelve months (its
-        lowest and when, accounts going below zero, safe-to-spend), net worth,
-        cash, investments and debts at 1, 5, 10 and 20 years and the horizon
-        in today's money, each debt's payoff month and interest, emergency-fund
-        months, and the FI number and month with months gained or lost. With
-        changes tagged with a tax role, `tax` gives each tax year's role
-        totals, the change in tax from the user's active rules and how it
-        comes out of cash; `tax.status` "not_computed" says why not (the
-        tagged amounts then count before tax: say so). An invest into a
-        holding, or a sale, comes with its units, the price it rests on, the
-        fees (or that none were given), and a sale's lots and realised gain,
-        under `changes[n].holding`. It records the
-        assumptions (placeholders flagged), versions and a hash of its
-        inputs. Stores nothing. Quote its figures; never compute your own.
-        A problem comes back with its path, to fix and run again."""
+        """Run a scenario on the user's baseline: every figure under the
+        baseline, under the scenario and as the delta (cash over twelve months
+        with its lowest point and accounts below zero, net worth, cash,
+        investments and debts to the horizon in today's money, each debt's
+        payoff, emergency-fund months, the FI month with months gained or
+        lost); with changes tagged with a tax role, the change in each tax
+        year's tax (`tax.status` "not_computed" says why not: the tagged
+        amounts then count before tax, say so); a holding's trade with its
+        units, price, fees and gain (`changes[n].holding`); and the
+        assumptions, placeholders flagged. Stores nothing. Quote its figures;
+        never compute your own. A problem comes back with its path, to fix."""
         try:
             return await scenario_svc.run(_current_user_id(), scenario)
-        except ScenarioError as exc:
-            return _refusal(exc)
-        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
-            return {"error": str(exc)}
+        except (ScenarioError, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
+            _refused(exc)
 
     @mcp.tool(annotations=READS)
     async def compare_options(options: ScenarioOptions) -> dict[str, Any]:
-        """Compare two to five options, each a scenario with its own label
-        (salli.scenario/1, one as_of and one horizon for all), on the user's
-        baseline: each option's figures as run_scenario gives them, what each
-        gains and gives up against each other one (figure deltas), the same
-        options under the conservative and growth real returns, and the
-        break-evens (the real return at which investing beats paying down a
-        debt, the most a recurring cost can be with cash staying above zero,
-        the loan rate at which two financing options cost the same). Salli
+        """Compare two to five options (each a scenario with its own label,
+        one as_of and one horizon for all) on the user's baseline: each
+        option's figures as run_scenario gives them, what each gains and
+        gives up against each other, the same under the conservative and
+        growth real returns, and the break-evens, each with a sentence. Salli
         never ranks options, and neither do you: lay out the trade and what
         would change the answer, and let the user choose. Stores nothing."""
         try:
             return await scenario_svc.compare(_current_user_id(), options)
-        except ScenarioError as exc:
-            return _refusal(exc)
-        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
-            return {"error": str(exc)}
+        except (ScenarioError, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
+            _refused(exc)
 
     # ── Principles and the decision journal (docs/decisions.md) ─────────────
 
@@ -1236,10 +1374,8 @@ def build_mcp_server(
                 author="agent",
                 agent=await _client_name(),
             )
-        except PrincipleError as exc:
-            return _refusal(exc)
-        except AccountNotFound as exc:
-            return {"error": str(exc)}
+        except (PrincipleError, AccountNotFound) as exc:
+            _refused(exc)
         return stored
 
     @mcp.tool(annotations=READS)
@@ -1251,10 +1387,8 @@ def build_mcp_server(
         don't count or rank them yourself either. Stores nothing."""
         try:
             return await principle_svc.check(_current_user_id(), options or [])
-        except ScenarioError as exc:
-            return _refusal(exc)
-        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
-            return {"error": str(exc)}
+        except (ScenarioError, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
+            _refused(exc)
 
     @mcp.tool(annotations=WRITES)
     async def record_decision(
@@ -1292,10 +1426,8 @@ def build_mcp_server(
                 },
                 via={"channel": "mcp", "client": client, "confirmed_by_user": True},
             )
-        except (ScenarioError, JournalError) as exc:
-            return _refusal(exc)
-        except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
-            return {"error": str(exc)}
+        except (ScenarioError, JournalError, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
+            _refused(exc)
         return recorded
 
     @mcp.tool(annotations=READS)
@@ -1314,7 +1446,7 @@ def build_mcp_server(
         try:
             return await decision_svc.get(_current_user_id(), decision_id)
         except DecisionNotFound as exc:
-            return {"error": str(exc)}
+            _refused(exc)
 
     @mcp.tool(annotations=READS)
     async def list_due_reviews() -> dict[str, Any]:
@@ -1345,24 +1477,19 @@ def build_mcp_server(
                 author="agent",
                 agent=await _client_name(),
             )
-        except JournalError as exc:
-            return _refusal(exc)
-        except DecisionNotFound as exc:
-            return {"error": str(exc)}
+        except (JournalError, DecisionNotFound) as exc:
+            _refused(exc)
         return reviewed
 
     @mcp.tool(annotations=READS)
     async def get_fi_projections() -> dict[str, Any]:
-        """The user's financial-independence projections: their cash and
-        investments less their debts, on the baseline's monthly timeline (the
-        share of their monthly surplus they invest, surplus_invested, grows at
-        the real return with their investments; cash earns nothing), under
-        conservative, base and growth real returns, with the FI number and the
-        month it is reached in each, in today's money (and each year's own
-        money too, when they set their inflation).
-        assumptions.status is "placeholder" while a round stand-in is used for
-        the return, the withdrawal rate or the share of the surplus invested
-        (assumptions.placeholders says which): say so, and quote
+        """The user's financial-independence projections on the baseline's
+        monthly timeline, in today's money (and each year's own, once they
+        set their inflation): the FI number, and the month it is reached
+        under conservative, base and growth real returns (the surplus they
+        invest, surplus_invested, grows with their investments; cash earns
+        nothing). assumptions.status is "placeholder" while a stand-in is
+        used (assumptions.placeholders says which): say so, and quote
         assumptions.message. Quote the figures exactly."""
         return await fi_svc.get_projections(_current_user_id())
 
@@ -1376,26 +1503,27 @@ def build_mcp_server(
     @mcp.tool(annotations=READS)
     async def get_baseline(as_of: str | None = None, horizon_years: int = 10) -> dict[str, Any]:
         """The user's money as of a day (as_of, YYYY-MM-DD; omit for today):
-        the one model FI, insights, the cash forecast and the debt plan compute
-        from. It says the definitions it used: the full months income and
-        expenses are averaged over (months_observed), the published exchange
-        rates balances are valued at and their source (rates), each account's
-        role (cash, savings, investment, other_asset, liability), debts counted once
-        (source: account or declared), the assumptions and which are
-        placeholders. Two timelines: cash month-ends for the next twelve
-        months with the lowest point (cash; the day-by-day series is in the
-        API), and net worth, cash, investments and debts at each month's end
-        to horizon_years (1 to 50) in today's money (monthly). Quote these
-        figures; never compute your own."""
+        the one model FI, insights, the cash forecast and the debt plan
+        compute from, with the definitions it used: the months averaged
+        (months_observed), the exchange rates and their source (rates), each
+        account's role, debts counted once (source), the assumptions and
+        which are placeholders. Two timelines: cash month-ends for twelve
+        months with the lowest point (cash), and net worth, cash,
+        investments and debts at each month's end to horizon_years (1 to 50)
+        in today's money (monthly). Quote these figures; never compute your
+        own."""
         try:
             day = datetime.date.fromisoformat(as_of) if as_of else None
-            if day is not None and day > baseline_svc.today():
-                return {"error": "The as-of date can't be after today"}
+        except ValueError:
+            _fail("invalid_input", f"as_of is a date, YYYY-MM-DD, not {as_of!r}")
+        if day is not None and day > baseline_svc.today():
+            _fail("invalid_input", "The as-of date can't be after today")
+        try:
             return await baseline_svc.get_baseline(
                 _current_user_id(), day, horizon_years, daily=False
             )
         except ValueError as exc:
-            return {"error": f"Could not read the baseline: {exc}"}
+            _refused(exc)
 
     @mcp.tool(annotations=WRITES_OVER)
     async def set_fi_assumption(
@@ -1421,7 +1549,7 @@ def build_mcp_server(
         try:
             report = await fi_svc.set_assumptions(user_id, {name: change})
         except (ArithmeticError, ValueError) as exc:
-            return _refusal(exc)
+            _refused(exc)
         return report
 
     # ── Transactions waiting for review ──────────────────────────────────────
@@ -1468,9 +1596,9 @@ def build_mcp_server(
                 user_id, [c.model_dump(exclude_none=True) for c in choices]
             )
         except KeyError as exc:
-            return {"error": f"No pending transaction {exc}"}
+            _fail("not_found", f"No pending transaction {exc}")
         except ValueError as exc:
-            return {"error": str(exc)}
+            _refused(exc)
         return {"updated": updated}
 
     @mcp.tool(annotations=_writes(idempotent=True))
@@ -1491,7 +1619,7 @@ def build_mcp_server(
         user_id = _current_user_id()
         count = await parsing_svc.discard(user_id, statement_id, transaction_ids)
         if count is None:
-            return {"error": f"No statement {statement_id}"}
+            _fail("not_found", f"No statement {statement_id}")
         return {"discarded": count}
 
     # ── Rules ────────────────────────────────────────────────────────────────
@@ -1530,7 +1658,7 @@ def build_mcp_server(
         try:
             rule_id = await rules_svc.create(user_id, rule)
         except InvalidRule as exc:
-            return {"error": str(exc)}
+            _refused(exc)
         return {"rule_id": rule_id}
 
     # ── Tax rules (docs/taxrules.md): research, draft, check, propose. No
@@ -1566,7 +1694,7 @@ def build_mcp_server(
                 return _version_view(version, document=True)
             return _jsonable(await tax_rules_svc.get(user_id, rule_set_id))
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
 
     @mcp.tool(annotations=WRITES)
     async def draft_tax_rule_set(
@@ -1583,7 +1711,7 @@ def build_mcp_server(
         try:
             version = await tax_rules_svc.draft(actor, document, rule_set_id=rule_set_id, note=note)
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
         return _version_view(version)
 
     @mcp.tool(annotations=_writes(idempotent=True))
@@ -1596,7 +1724,7 @@ def build_mcp_server(
         try:
             version = await tax_rules_svc.validate(actor, version_id)
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
         return _version_view(version)
 
     @mcp.tool(annotations=_writes(idempotent=True))
@@ -1608,7 +1736,7 @@ def build_mcp_server(
         try:
             version = await tax_rules_svc.propose(actor, version_id)
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
         return {
             **_version_view(version),
             "next": (
@@ -1630,7 +1758,7 @@ def build_mcp_server(
                 _current_user_id(), rule_set_id, to_version_id, from_version_id
             )
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
         return _jsonable(diff)
 
     @mcp.tool(annotations=READS)
@@ -1649,7 +1777,7 @@ def build_mcp_server(
                 _current_user_id(), version_id, answers or {}, year_label=year
             )
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
         return _jsonable(result)
 
     @mcp.tool(annotations=READS)
@@ -1664,7 +1792,7 @@ def build_mcp_server(
                 await _agent(), rule_set_id, version_id=version_id
             )
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
         return _jsonable(result)
 
     @mcp.tool(annotations=_writes(idempotent=True))
@@ -1681,7 +1809,7 @@ def build_mcp_server(
                 actor, rule_set_id, version_id=version_id, apply=True
             )
         except TaxRuleError as exc:
-            return _refusal(exc)
+            _refused(exc)
         return _jsonable(result)
 
     # ── Prompts: what a user can start with in their AI client ──────────────

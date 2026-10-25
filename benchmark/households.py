@@ -3,8 +3,11 @@ Salli's MCP tools, in-process, on the golden households (tests/golden/).
 
 Each household's books are the golden fixtures' in-memory unit of work, and
 the services are the real ones, on the household's own date, so a tool here
-answers exactly what Salli's MCP server answers that person. Only reads are
-offered: the benchmark asks questions, it never changes the books.
+answers exactly what Salli's MCP server answers that person, through the
+server's own handler. Every tool is listed, as to any client, on a
+connection that may only read: the server's gate refuses a change, so the
+benchmark never changes the books. A tool whose service the households
+don't have (documents, budgets, the briefing, ...) says so as an error.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
+from mcp import types
 from mcp.server.fastmcp import FastMCP
 
 from salli.application.services.baseline_service import BaselineService
@@ -36,42 +40,29 @@ from tests.fakes import FakeFx, FakeUoW
 from tests.golden import household as h
 from tests.golden import renting, taxed
 
-#: The read tools an agent is given: what a person's questions about their
-#: money need, and nothing that writes.
-TOOLS = (
-    "get_overview",
-    "search_entries",
-    "get_accounts",
-    "get_trial_balance",
-    "get_cash_flow",
-    "get_spending",
-    "get_net_worth_history",
-    "get_recurring_payments",
-    "get_cash_forecast",
-    "get_safe_to_spend",
-    "get_signals",
-    "get_baseline",
-    "get_payoff_plan",
-    "get_fi_projections",
-    "get_fi_assumptions",
-    "get_tax_computation",
-    "explain_tax_line",
-    "list_decision_templates",
-    "start_decision",
-    "get_scenario_schema",
-    "run_scenario",
-    "compare_options",
-    "list_principles",
-    "check_principles",
-)
+
+class _Absent:
+    """A service the golden households don't have: any use of it fails the
+    tool, as one with nothing to answer from."""
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __getattr__(self, method: str) -> Any:
+        def absent(*args: Any, **kwargs: Any) -> Any:
+            raise mcp_server.ToolFailure(
+                "not_enough_data", f"The benchmark's households have no {self._name}"
+            )
+
+        return absent
 
 
 class _Services(SimpleNamespace):
-    """The services the read tools use; the rest (documents, budgets, the
-    briefing, ...) are absent, as no tool offered here reaches them."""
+    """The services the households have (books, baseline, plans, decisions,
+    tax); the rest are absent."""
 
     def __getattr__(self, name: str) -> Any:
-        return None
+        return _Absent(name)
 
 
 def _services(uow: FakeUoW, fx: FakeFx, as_of: dt.date) -> SimpleNamespace:
@@ -130,21 +121,28 @@ class Salli:
         self.instructions = self._server.instructions or ""
 
     async def tools(self) -> list[dict[str, Any]]:
-        """The tools' names, descriptions and input schemas."""
+        """Every tool's name, description and input schema, as listed."""
         listed = await self._server.list_tools()
         return [
             {"name": t.name, "description": t.description or "", "input_schema": t.inputSchema}
             for t in listed
-            if t.name in TOOLS
         ]
 
     async def call(self, tool: str, args: dict[str, Any] | None = None) -> Any:
-        """What the tool answers, as JSON-ready data."""
-        if tool not in TOOLS:
-            return {"error": f"{tool} is not a tool here"}
-        with mock.patch.object(mcp_server, "_current_user_id", return_value=self.user):
-            try:
-                _, structured = await self._server.call_tool(tool, args or {})
-            except Exception as exc:  # a bad call is the agent's to fix
-                return {"error": str(exc)}
-        return json.loads(json.dumps(structured, default=str))
+        """What the tool answers, as a client gets it, as JSON-ready data: a
+        failure as its `error` (a refused change's code is `scope`)."""
+        handler = self._server._mcp_server.request_handlers[types.CallToolRequest]  # pyright: ignore[reportPrivateUsage]
+        request = types.CallToolRequest(
+            method="tools/call",
+            params=types.CallToolRequestParams(name=tool, arguments=args or {}),
+        )
+        with (
+            mock.patch.object(mcp_server, "_current_user_id", return_value=self.user),
+            mock.patch.object(mcp_server, "_current_scopes", return_value=["mcp:read"]),
+        ):
+            result = (await handler(request)).root
+        assert isinstance(result, types.CallToolResult)
+        if result.structuredContent is not None:
+            return json.loads(json.dumps(result.structuredContent, default=str))
+        text = " ".join(c.text for c in result.content if isinstance(c, types.TextContent))
+        return {"error": {"message": text}} if result.isError else text

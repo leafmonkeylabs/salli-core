@@ -304,8 +304,6 @@ def test_the_json_schema_describes_the_document_for_agents():
     one_off = described["$defs"]["OneOffChange"]
     assert one_off["properties"]["amount"]["type"] == "string"
     assert one_off["additionalProperties"] is False
-    # Written out in place for a tool's input schema: no $ref left.
-    assert "$ref" not in str(schema.inline_json_schema())
 
 
 # ── What the engine refuses, seeing the user's money ─────────────────────────

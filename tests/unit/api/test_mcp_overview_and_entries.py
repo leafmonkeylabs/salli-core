@@ -130,7 +130,7 @@ async def test_the_overview_is_salli_s_figures_in_one_call(services):
     }
 
 
-async def test_entries_are_found_with_totals_over_every_match(services):
+async def test_entries_are_found_with_totals_over_every_match(services, refused):
     entry = StoredJournalEntry(
         id="e1",
         user_id="u1",
@@ -187,14 +187,18 @@ async def test_entries_are_found_with_totals_over_every_match(services):
     assert found["totals"] == [{"account_type": "expense", "currency": "EUR", "net": "61.20"}]
     assert found["next_cursor"] == "MjAyNi0xMC0yNHxlMQ=="
 
-    assert "error" in await _call(services, "search_entries", {"max_amount": "about ten"})
+    vague = await refused(_call(services, "search_entries", {"max_amount": "about ten"}))
+    assert vague["problems"] == [{"path": "max_amount", "message": "not a decimal string"}]
     services.ledger.search_entries.side_effect = ValueError("That cursor is not one a search gave")
-    assert await _call(services, "search_entries", {"cursor": "nonsense"}) == {
-        "error": "That cursor is not one a search gave"
+    cursor = await refused(_call(services, "search_entries", {"cursor": "nonsense"}))
+    assert cursor == {
+        "code": "invalid_input",
+        "message": "That cursor is not one a search gave",
+        "retryable": False,
     }
 
 
-async def test_an_entry_sent_again_with_its_client_ref_is_booked_once(services):
+async def test_an_entry_sent_again_with_its_client_ref_is_booked_once(services, refused):
     args = {
         "entry_date": "2026-10-24",
         "description": "Corner Bakery",
@@ -218,5 +222,7 @@ async def test_an_entry_sent_again_with_its_client_ref_is_booked_once(services):
     # Booking nothing still answers the call: audited as succeeded.
     assert [c.args[3] for c in services.audit.log.await_args_list] == ["succeeded"] * 2
 
-    refused = await _call(services, "post_journal_entry", {**args, "client_ref": "x" * 181})
-    assert refused == {"error": "client_ref is 1 to 180 characters"}
+    too_long = await refused(
+        _call(services, "post_journal_entry", {**args, "client_ref": "x" * 181})
+    )
+    assert too_long["message"] == "client_ref is 1 to 180 characters"

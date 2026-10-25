@@ -151,5 +151,5 @@ async def test_mcp_runs_the_same_tax(client, scenarios):
     api = await client.post("/v1/scenarios/run", json=_doc(RAISE), headers=AUTH)
     assert result["tax"] == api.json()["tax"]
     tools = {t.name: t for t in await server.list_tools()}
-    assert "tax_role" in (tools["get_scenario_schema"].description or "")
+    assert "tax_role" in mcp_server.SCENARIO_GUIDE
     assert "tax_answers" in tools["start_decision"].inputSchema["properties"]

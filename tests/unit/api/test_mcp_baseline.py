@@ -48,7 +48,7 @@ async def _call(services, tool: str, args: dict):
     return structured
 
 
-async def test_the_baseline_is_salli_s_with_its_definitions(services):
+async def test_the_baseline_is_salli_s_with_its_definitions(services, refused):
     body = await _call(services, "get_baseline", {})
     assert body["as_of"] == "2026-10-11"
     assert body["months_observed"][0] == "2026-04"
@@ -63,17 +63,19 @@ async def test_the_baseline_is_salli_s_with_its_definitions(services):
     assert past["as_of"] == "2026-06-30"
     for args, said in (
         ({"as_of": "2026-12-01"}, "after today"),
-        ({"as_of": "soon"}, "Could not read"),
+        ({"as_of": "soon"}, "as_of is a date"),
         ({"horizon_years": 70}, "horizon"),
     ):
-        refused = await _call(services, "get_baseline", args)
-        assert said in refused["error"]
+        error = await refused(_call(services, "get_baseline", args))
+        assert said in error["message"]
+        assert (error["code"], error["retryable"]) == ("invalid_input", False)
 
 
 @pytest.mark.parametrize("extra", ["-50", "nothing", "NaN"])
-async def test_an_extra_payment_out_of_bounds_is_refused(services, extra):
-    refused = await _call(services, "get_payoff_plan", {"extra_monthly_payment": extra})
-    assert refused["error"].startswith("Could not plan that")
+async def test_an_extra_payment_out_of_bounds_is_refused(services, refused, extra):
+    error = await refused(_call(services, "get_payoff_plan", {"extra_monthly_payment": extra}))
+    assert error["code"] == "invalid_input"
+    assert "extra" in error["message"].lower()
 
 
 async def test_the_payoff_plan_is_on_calendar_months(services):
@@ -121,9 +123,11 @@ async def test_an_account_is_created_and_changed_with_its_asset_role(services):
     )
 
 
-async def test_an_account_that_is_not_the_users_is_not_changed(services):
+async def test_an_account_that_is_not_the_users_is_not_changed(services, refused):
     services.ledger.get_account.side_effect = None
     services.ledger.get_account.return_value = None  # not theirs, or nowhere
-    refused = await _call(services, "update_account", {"account_id": "x", "asset_role": "other"})
-    assert refused == {"error": "Account not found: x"}
+    error = await refused(
+        _call(services, "update_account", {"account_id": "x", "asset_role": "other"})
+    )
+    assert error == {"code": "not_found", "message": "Account not found: x", "retryable": False}
     services.ledger.update_account.assert_not_awaited()
