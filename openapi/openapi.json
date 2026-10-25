@@ -3,7 +3,7 @@
   "info": {
     "title": "Salli API",
     "description": "Privacy-first personal finance, tax and financial independence",
-    "version": "0.4.1"
+    "version": "0.5.0"
   },
   "paths": {
     "/v1/auth/me": {
@@ -22803,7 +22803,9 @@
               "spending_spike",
               "savings_rate_drop",
               "review_waiting",
-              "decision_review_due"
+              "decision_review_due",
+              "emergency_fund_low",
+              "expensive_debt"
             ],
             "title": "Kind"
           },
@@ -22831,6 +22833,7 @@
               "see_recurring",
               "see_spending",
               "see_cash_flow",
+              "see_debts",
               "review",
               "review_decision"
             ],

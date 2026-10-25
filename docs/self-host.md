@@ -202,7 +202,7 @@ is needed to start.
 | `SALLI_BIND` | `127.0.0.1` | The interface the port is published on. `0.0.0.0` publishes it to your network: see [Security](#security). |
 | `SALLI_PORT` | `8000` | The port on that interface. |
 | `SALLI_DOMAIN` | none | The domain Caddy serves with HTTPS (the `tls` profile). |
-| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:0.4.1` | The image to run: the release this `compose.yaml` names, never `latest`. See [Upgrades](#upgrades). |
+| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:0.5.0` | The image to run: the release this `compose.yaml` names, never `latest`. See [Upgrades](#upgrades). |
 | `FORWARDED_ALLOW_IPS` | `10.248.53.2` (Caddy) | Whose `X-Forwarded-For` to believe: only the bundled proxy. See [Security](#security). |
 
 ### The server

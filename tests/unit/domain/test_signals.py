@@ -7,7 +7,10 @@ from decimal import Decimal
 
 from salli.domain.reports.insights import MonthFlow, Recurring, SpendingLine
 from salli.domain.reports.signals import (
+    EXPENSIVE_DEBT_RATE,
     decision_reviews_due,
+    emergency_fund_low,
+    expensive_debts,
     low_balance_ahead,
     new_recurring,
     price_changes,
@@ -16,6 +19,7 @@ from salli.domain.reports.signals import (
     savings_rate_drop,
     spending_spikes,
 )
+from tests.guardrails import assert_never_urges
 
 TODAY = dt.date(2026, 10, 9)
 
@@ -115,3 +119,26 @@ def test_a_decision_due_for_review_is_an_invitation_not_an_alarm():
         "2027-04-11",
     )
     assert '"Laptop: cash or not?"' in signal.detail
+
+
+def test_cash_covering_fewer_months_than_the_target_is_described_once_a_month_is_seen():
+    low = emergency_fund_low(Decimal(500), Decimal(1000), 6, 1, "USD")
+    assert [s.kind for s in low] == ["emergency_fund_low"]
+    assert "0.5 months" in low[0].detail and low[0].action == "see_cash_flow"
+    assert_never_urges([s.title for s in low] + [s.detail for s in low])
+    assert emergency_fund_low(Decimal(500), Decimal(1000), 6, 0, "USD") == []
+    assert emergency_fund_low(Decimal(6000), Decimal(1000), 6, 3, "USD") == []
+
+
+def test_a_debt_at_or_above_the_methods_line_is_described_with_its_source():
+    found = expensive_debts(
+        [
+            ("d1", "Card", Decimal("0.24"), Decimal(2000)),
+            ("d2", "Car loan", EXPENSIVE_DEBT_RATE - Decimal("0.01"), Decimal(9000)),
+            ("d3", "Old card", Decimal("0.30"), Decimal(0)),
+        ],
+        "USD",
+    )
+    assert [(s.kind, s.refs, s.action) for s in found] == [("expensive_debt", ("d1",), "see_debts")]
+    assert "placeholder" in found[0].detail and "not any country's figure" in found[0].detail
+    assert_never_urges([found[0].title, found[0].detail])

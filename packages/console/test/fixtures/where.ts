@@ -5642,7 +5642,7 @@ export const SCORE_HISTORY: FiScoreHistory = {
   "currency": "EUR",
   "history": [
     {
-      "score": 60.08,
+      "score": 57.59,
       "net_worth": "335901.47",
       "created_at": "2026-10-11T10:00:00+00:00"
     }
@@ -6764,9 +6764,9 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
  * With the real return set.
  */
 export const FI_SCORE_SET: FiScore = {
-  "pack_version": "2.0.0",
-  "overall_score": "60.08",
-  "grade": "Strong",
+  "pack_version": "3.0.0",
+  "overall_score": "57.59",
+  "grade": "On track",
   "currency": "EUR",
   "monthly_income": "4000.00",
   "monthly_expenses": "2037.09",
@@ -6810,9 +6810,9 @@ export const FI_SCORE_SET: FiScore = {
     {
       "key": "debt",
       "label": "Debt load",
-      "score": "94.76",
+      "score": "73.63",
       "weight": "0.12",
-      "detail": "Liabilities are 5.24% of assets"
+      "detail": "Debts cost 5.27% a year, averaged by balance"
     }
   ],
   "assumptions": {
@@ -6849,7 +6849,7 @@ export const FI_SCORE_SET: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "3847fe6cd9d1703c75b55dc6c1c78ec6d5dc5ff2acdbe8d3c389fb7329c2b9c3"
+  "inputs_hash": "5035e212facf96812fa01e87e5b84e05576fd0bd6446ae57125c66df601aefdf"
 };
 
 /**

@@ -5262,7 +5262,7 @@ export type FinanceSignal = {
     /**
      * Kind
      */
-    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting' | 'decision_review_due';
+    kind: 'low_balance_ahead' | 'price_change' | 'new_recurring' | 'spending_spike' | 'savings_rate_drop' | 'review_waiting' | 'decision_review_due' | 'emergency_fund_low' | 'expensive_debt';
     /**
      * Severity
      */
@@ -5278,7 +5278,7 @@ export type FinanceSignal = {
     /**
      * Action
      */
-    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'review' | 'review_decision';
+    action: 'see_forecast' | 'see_recurring' | 'see_spending' | 'see_cash_flow' | 'see_debts' | 'review' | 'review_decision';
     /**
      * Amount
      */

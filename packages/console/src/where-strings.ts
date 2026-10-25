@@ -348,6 +348,7 @@ export const whereStrings = {
       see_recurring: 'See the recurring payments',
       see_spending: 'See spending by category',
       see_cash_flow: 'See cash flow by month',
+      see_debts: 'See your debts in the baseline',
       review: 'Review the imported transactions',
       review_decision: 'Open the decision in your journal',
     } as Record<string, string>,

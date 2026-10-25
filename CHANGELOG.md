@@ -2,11 +2,6 @@
 
 ## Unreleased
 
-Every change under **Breaking** needs something written against the last
-release to change with it, so the next releases are minor bumps: the SDK and
-the CLI are 0.5.0, and the server's next release is 0.5.0
-([RELEASING.md](RELEASING.md#breaking-changes)).
-
 ### Added
 
 - **Read-only access to another member's books.** A member lets another
@@ -32,7 +27,43 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
   give, or that advises (a ranking word, "you should buy", a product) is
   wrong whatever its headline; and a placeholder caveat is wrong on any
   answer whose figures are the person's own.
+- **Market packs** (`markets/`): a country's tax rule sets, planning assumptions and pension schemes as cited data, outside the core, with the bar to add one. The first is `markets/lk`: rule sets for two years of assessment with the authority's worked examples, capital-market assumptions, and the provident funds. `tests/taxrules/test_market_packs.py` validates every pack's rule sets and runs their examples.
 
+### Security
+
+- **Outside text is fenced everywhere a model reads it.** Every free-text
+  field any MCP read tool or in-app agent tool returns (descriptions,
+  payees, memos, account and holding names, principle labels, decisions'
+  text, signals, reminders, subscription reports, suggested rules, web
+  search results) comes inside `{"untrusted_text": ...}`, fenced once where
+  the answer is serialised, not field by field; a contract test walks every
+  MCP read tool on the golden households. The in-app agents' approvals fail
+  closed: an action whose approval the audit log can't record is not done.
+
+### Breaking
+
+#### Changed
+
+- MCP: every free-text string in a read tool's answer is now
+  `{"untrusted_text": ...}` (names, labels, notes, titles too, not only
+  descriptions and payees), and `get_budget_summary` takes a `budget_id`
+  (from `list_budgets`) instead of picking the first budget.
+
+## 0.5.0 — 2026-10-25
+
+Every change under **Breaking** needs something written against the last
+release to change with it, so this is a minor release of each part: the
+server (and the console with it), the SDK and the CLI are all 0.5.0
+([RELEASING.md](RELEASING.md#breaking-changes)).
+
+### Added
+
+- **Two more signals.** `emergency_fund_low`: cash and savings cover fewer
+  months of average spending than the FI method's emergency target, once a
+  full month is seen. `expensive_debt`: a declared debt charging at or above
+  8% a year, Salli's labelled line (the placeholder real return plus a 4%
+  margin, not any country's figure). A new action, `see_debts`, opens the
+  baseline's debts in the console and Decide on the phone.
 - **A stricter benchmark scorer.** A refusal must decline in its first
   sentence and quote no amount; a negative word must sit by the figure it
   signs; an answer quoting more than five tool figures is a dump however it
@@ -143,15 +174,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
-- **Outside text is fenced everywhere a model reads it.** Every free-text
-  field any MCP read tool or in-app agent tool returns (descriptions,
-  payees, memos, account and holding names, principle labels, decisions'
-  text, signals, reminders, subscription reports, suggested rules, web
-  search results) comes inside `{"untrusted_text": ...}`, fenced once where
-  the answer is serialised, not field by field; a contract test walks every
-  MCP read tool on the golden households. The in-app agents' approvals fail
-  closed: an action whose approval the audit log can't record is not done.
-
+- The tax agent and the briefing and return workflows refuse to build on the
+  in-memory checkpointer in production (`ENVIRONMENT=production`), as the
+  server's start-up already did, so nothing awaiting review can live only in
+  memory there.
 - Prompt injection is fenced: statement and bank descriptions, payees,
   documents and saved memories reach a model only inside an
   `untrusted_text` field, and every prompt says never to follow
@@ -193,11 +219,12 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 #### Changed
 
-- MCP: every free-text string in a read tool's answer is now
-  `{"untrusted_text": ...}` (names, labels, notes, titles too, not only
-  descriptions and payees), and `get_budget_summary` takes a `budget_id`
-  (from `list_budgets`) instead of picking the first budget.
-
+- **FI pack 3.0.0.** "FI-ready" needs 100% progress to FI and "Strong" 50%;
+  the debt component is scored by what the debts cost (their rates weighted by
+  balance, no marks at 20%) where rates are known, by liabilities over assets
+  otherwise; and under two full months of income and spending the engine's
+  grade is "Not enough data", so every caller agrees with `status`. A
+  household's score and grade can move.
 - MCP `search_entries` and `list_pending_transactions` return `description`,
   `get_recurring_payments` `payee` and `examples`, the documents tools
   `content` and `description`, and the memory tools `value` as
