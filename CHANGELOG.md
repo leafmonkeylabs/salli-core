@@ -24,7 +24,7 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 - **The benchmark runs through Claude Code.** `uv run python -m
   benchmark.run --via claude` asks `claude -p` with only Salli's MCP server
   (`benchmark/serve.py`), so a run needs no API key of its own.
-- **Business notes** (`docs/business/`): a commercial thesis for a first
+- **Business notes** (`business/`): a commercial thesis for a first
   launch, a commercial-licence offer for the AGPL parts and a metrics plan,
   every figure in them a hypothesis.
 - **A benchmark scorer that can't be talked round.** An answer Salli can

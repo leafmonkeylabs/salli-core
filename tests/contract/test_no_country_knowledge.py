@@ -68,10 +68,6 @@ HISTORICAL = (
     # written, including what a change removed (the country-neutral design
     # names the country-specific code it took out).
     "docs/design/",
-    # Business notes about launching in a market (who pays, prices, the
-    # regulator), not the product's docs: nothing in them is code or tells
-    # Salli anything about a country.
-    "docs/business/",
 )
 
 
