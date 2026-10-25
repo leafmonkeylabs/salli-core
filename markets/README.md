@@ -10,6 +10,7 @@ into their own Salli, outside the core:
 | `tax/<year>.json` | One tax rule set per year of assessment | `salli.tax/1` ([docs/taxrules.md](../docs/taxrules.md)) |
 | `cma.json` | Capital-market assumptions for planning: inflation, cash yield, and per asset class a real return, volatility and correlations | `salli.cma/1` |
 | `pensions.json` | The country's mandatory pension or provident schemes: contribution rates, payout, tax treatment, how to post them | `salli.pensions/1` |
+| `banks/<bank>.json` | Each bank's statement layout, with a synthetic sample statement in `banks/samples/` that the tests read | `salli.bankformat/1` ([docs/books.md](../docs/books.md#imports)) |
 | `README.md` | What is in the pack, how to load it, the sources, what is uncertain, and its review status | |
 
 A pack is a starting point. Once loaded, the rules are the user's: they read,

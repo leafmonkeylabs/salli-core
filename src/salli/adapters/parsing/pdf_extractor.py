@@ -29,7 +29,7 @@ from decimal import Decimal
 from typing import Any
 
 from salli.adapters.parsing.amounts import decimal_mark_for, parse_decimal
-from salli.adapters.parsing.csv_import import Table, extract_from_tables
+from salli.adapters.parsing.csv_import import CsvMapping, Table, extract_from_tables
 from salli.adapters.parsing.dates import DateOrder, detect_date_order, parse_date
 from salli.adapters.parsing.support import Extraction, StatementLine
 from salli.domain.currency import exponent, is_currency
@@ -80,8 +80,10 @@ def extract_from_pdf(
     date_order: DateOrder | None = None,
     prefer_order: DateOrder = "DMY",
     currency: str | None = None,
+    mapping: CsvMapping | None = None,
 ) -> Extraction:
-    """Every transaction in a PDF statement, from its tables or its text."""
+    """Every transaction in a PDF statement, from its tables or its text.
+    A `mapping` states its tables' layout, as for a CSV file."""
     import pdfplumber
 
     tables: list[Table] = []
@@ -113,6 +115,7 @@ def extract_from_pdf(
     from_tables = (
         extract_from_tables(
             tables,
+            mapping,
             date_order=date_order,
             prefer_order=prefer_order,
             currency=currency,

@@ -1,0 +1,26 @@
+{
+  "schema": "salli.bankformat/1",
+  "name": "Commercial Bank of Ceylon: account statement (CSV)",
+  "bank": "Commercial Bank of Ceylon PLC",
+  "columns": {
+    "date": "Txn Date",
+    "description": [
+      "Description"
+    ],
+    "debit": "Debit",
+    "credit": "Credit",
+    "reference": "Cheque No"
+  },
+  "date_format": "%d/%m/%Y",
+  "decimal_separator": ".",
+  "thousands_separator": ",",
+  "sources": [
+    {
+      "url": "https://www.combank.lk/personal-banking/digital-banking",
+      "note": "Online banking offers statement download; no sample file published. Retrieved 2026-10-25"
+    }
+  ],
+  "notes": "Columns assumed from the bank's online statement view (transaction date, value date, description, cheque number, debit, credit, balance). Confirm against a real export.",
+  "verified": false,
+  "sample": "samples/combank.csv"
+}

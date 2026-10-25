@@ -1098,7 +1098,9 @@ export const accountDelete = <ThrowOnError extends boolean = false>(options: Opt
  * names the file's account to import when the statement's account does not
  * match one by name or code. `replaces` is an earlier upload of the same
  * statement, imported again on purpose: its rows are not taken for
- * duplicates, and those still in review are discarded.
+ * duplicates, and those still in review are discarded. `formats` (a form
+ * field) states the bank's layout as `salli.bankformat/1` documents; the
+ * result counts what each read and could not.
  */
 export const statementsUpload = <ThrowOnError extends boolean = false>(options: Options<StatementsUploadData, ThrowOnError>): RequestResult<StatementsUploadResponses, StatementsUploadErrors, ThrowOnError> => (options.client ?? client).post<StatementsUploadResponses, StatementsUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,
