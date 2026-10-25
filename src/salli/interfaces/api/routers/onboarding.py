@@ -373,6 +373,7 @@ class ExportedAccount(BaseModel):
     is_active: bool
     #: The tax role the account carries for the user's tax rules, if any.
     tax_role: str | None = None
+    equity_role: Literal["retained_earnings"] | None = None
 
 
 class ExportedPosting(BaseModel):
@@ -395,7 +396,16 @@ class ExportedJournalEntry(BaseModel):
     description: str
     source: Source
     external_ref: str | None
+    #: For a reversal, the entry it reverses.
+    reverses: str | None = None
     reversed_by: str | None
+    #: Who posted it (a user id) and how they came in (console, cli,
+    #: mobile, mcp:<client>, import, automation, ...).
+    created_by: str | None = None
+    created_via: str | None = None
+    #: Its place in the ledger's hash chain, and its hash.
+    seq: int | None = None
+    hash: str | None = None
     postings: list[ExportedPosting]
 
 
@@ -434,6 +444,9 @@ class DataExport(BaseModel):
     tax_computations: list[dict[str, Any]] = Field(default_factory=list)
     """Every stored tax computation, newest first, as `tax.latest` shows one:
     the rule set version that computed it, its inputs and every line."""
+    tax_returns: list[dict[str, Any]] = Field(default_factory=list)
+    """Every version of every return, as `tax.returnRecords.list` shows one:
+    its status, filing, snapshot and payments."""
     budgets: list[dict[str, Any]]
     """Each as in `budgets.list`."""
     debts: list[dict[str, Any]]

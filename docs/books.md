@@ -58,7 +58,7 @@ cleared postings; the difference is the closing balance less that. A
 reconciliation completes (`salli reconcile complete`) only at a difference of
 zero, recording who completed it and when; its postings then stay as they
 are. Clearing is the one change a posting in closed books still takes
-(core_0034). An AI reads the state with `get_reconciliation`.
+(core_0038). An AI reads the state with `get_reconciliation`.
 
 ## Imports
 

@@ -18,7 +18,7 @@ class Direction(int, Enum):
 
 AccountType = Literal["asset", "liability", "equity", "income", "expense"]
 
-Source = Literal["manual", "statement", "sms", "system", "reversal"]
+Source = Literal["manual", "statement", "sms", "system", "reversal", "year_end_close"]
 
 
 class BooksLocked(ValueError):
@@ -90,6 +90,11 @@ _TAX_ROLE_SHAPE = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
 # own to plan with. The name matters no more than it does for `tax_role`:
 # an earlier pattern on names matched "fd" inside "Refund".
 AssetRole = Literal["cash", "savings", "investment", "other"]
+
+# What an equity account is for, when the books need to know: the one
+# `retained_earnings` account a year-end close moves income and expenses to
+# (LedgerService.close_year). At most one per user.
+EquityRole = Literal["retained_earnings"]
 ASSET_ROLES: tuple[AssetRole, ...] = ("cash", "savings", "investment", "other")
 
 
@@ -118,6 +123,8 @@ class Account(BaseModel):
     # An asset account's role (`AssetRole`): "cash" unless it says otherwise.
     # Always None for any other type of account.
     asset_role: AssetRole | None = None
+    # An equity account's role (`EquityRole`), or None.
+    equity_role: EquityRole | None = None
 
     @field_validator("currency", mode="before")
     @classmethod
@@ -140,6 +147,10 @@ class Account(BaseModel):
                 )
         elif self.asset_role is None:
             self.asset_role = "cash"
+        if self.equity_role is not None and self.type != "equity":
+            raise ValueError(
+                f"Only an equity account has an equity role; this is a {self.type} account"
+            )
         return self
 
 
@@ -251,6 +262,8 @@ class JournalEntry(BaseModel):
     description: str
     source: Source
     external_ref: str | None = None
+    #: For a reversal: the entry it reverses.
+    reverses: str | None = None
     postings: list[Posting] = Field(min_length=2)
     #: The owner's base currency, when the caller knows it: the entry then
     #: balances as the ledger keeps it, each posting's base value in that
@@ -288,7 +301,16 @@ class StoredJournalEntry(JournalEntry):
 
     id: str
     user_id: str
+    #: The reversal of this entry, if any: read from the reversal's
+    #: `reverses`, never written on this entry.
     reversed_by: str | None = None
+    #: Who posted it: the signed-in person's user id, and how they came in
+    #: (console, cli, mobile, mcp:<client>, import, automation, ...).
+    created_by: str | None = None
+    created_via: str | None = None
+    #: Its place in the user's hash chain (domain/accounting/chain.py).
+    seq: int | None = None
+    hash: str | None = None
 
     @model_validator(mode="after")
     def must_balance(self) -> StoredJournalEntry:

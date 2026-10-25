@@ -56,8 +56,8 @@ uv run python -m benchmark.run --self-check      # the scorer against the key
 
 ## Running it
 
-The benchmark asks the model through Salli's own LLM adapters, with your own
-API key. Without one it stops and says which to set.
+The benchmark asks the model one of two ways. Through Salli's own LLM
+adapters, with your own API key (without one it stops and says which to set):
 
 ```bash
 export ANTHROPIC_API_KEY=...        # or OPENAI_API_KEY
@@ -65,8 +65,21 @@ uv run python -m benchmark.run --model anthropic:claude-sonnet-5 --out results.j
 uv run python -m benchmark.run --model openai:gpt-5 --household taxed --limit 10
 ```
 
+Or through Claude Code headless (`claude -p`), signed in as Claude Code is,
+so no separate API key is needed. Each question starts `claude -p` with only
+Salli's MCP server configured (`benchmark/serve.py`, a stdio server for the
+question's household that answers as the in-process one does and logs each
+call as the evidence), no built-in tools and the same system prompt:
+
+```bash
+uv run python -m benchmark.run --via claude --model sonnet --out results.json
+uv run python -m benchmark.run --via claude --household taxed --limit 10
+```
+
+- `--via`: `api` (the default) or `claude`.
 - `--model`: `anthropic:<model>` or `openai:<model>` (a name starting
-  `claude` needs no prefix).
+  `claude` needs no prefix); with `--via claude`, any name `claude --model`
+  takes, or none for Claude Code's default.
 - `--household`: only one household's questions.
 - `--limit`: only the first questions.
 - `--out`: the full results, every answer with its score and the tools it called.
@@ -109,11 +122,20 @@ minus (`-691.68`), or a word saying it goes out or is owed within four words
 of it, in the same clause ("you owe 691.68", "your tax falls by 360.00"; not
 "691.68, nothing down to worry about"). A key of zero has no sign.
 
-**FI months on placeholders.** Where the household's planning assumptions are
+**Placeholders.** Where the household's planning assumptions are
 placeholders (the key's `caveat`, from `get_fi_assumptions`), an FI month is
 correct only if the answer also says `placeholder`, as the server's
-instructions ask; where they are the person's own, an FI month that claims
-placeholders is wrong.
+instructions ask; any other answer that claims placeholders (unless the
+question asks which they are) is wrong.
+
+**Opening with a decline.** A question Salli answers is not answered by
+declining or hedging first: an answer whose first sentence declines ("I
+can't tell for certain.") or hedges ("I can't be fully certain, but") is
+wrong whatever follows.
+
+**An invented figure or advice fails the answer.** A correct headline does
+not save an answer that also gives a figure in no tool's output (below) or
+advises (a ranking word, "you should buy ...", or a product named).
 
 **Pasted tool output is never correct.** An answer with two or more JSON keys
 (`"net_worth":`) or a dump's snake_case keys (`net_worth:`), or that quotes
@@ -145,8 +167,9 @@ answer so a reader can check. The contract test
 (`tests/contract/test_benchmark_key.py`) holds the scorer to the key and to the
 ways it was gamed: a pasted dump (as JSON or as hedged prose), a refusal that
 quotes figures, a sign turned or a negative word out of reach of the figure, a figure a minor unit off, an
-FI month without its caveat or with one it doesn't need, a padded text answer,
-and malformed text.
+FI month without its caveat or any answer with one it doesn't need, a right
+answer opened by a decline or a hedge, or with an invented figure or advice
+added, a padded text answer, and malformed text.
 
 ## Reading the results
 

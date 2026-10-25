@@ -44,10 +44,15 @@ class LedgerRepository(ABC):
         """Return a single StoredJournalEntry by ID, or None."""
         ...
 
-    @abstractmethod
-    async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
-        """Mark an entry as reversed by another entry."""
-        ...
+    async def verify_chain(self, user_id: str) -> dict[str, Any]:
+        """The user's hash chain checked from its first entry
+        (`domain.accounting.chain.verify`)."""
+        raise NotImplementedError
+
+    async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
+        """Make this (equity) account the user's one `retained_earnings`
+        account, taking the role from any other."""
+        raise NotImplementedError
 
     async def posting_totals(
         self, user_id: str, account_ids: Collection[str], to_date: str | None = None
@@ -150,6 +155,33 @@ class LedgerRepository(ABC):
     async def reactivate_account(self, user_id: str, account_id: str) -> None:
         """Reverse a soft-delete by setting is_active=True."""
         ...
+
+
+class TaxReturnRepository(ABC):
+    """A user's tax returns, each version a row, and the payments made
+    against them, as plain dicts. Rows are only added."""
+
+    @abstractmethod
+    async def add(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]: ...
+
+    @abstractmethod
+    async def get(self, user_id: str, return_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def list(self, user_id: str, year: str | None = None) -> list[dict[str, Any]]:
+        """Newest year first, each year's versions newest first."""
+        ...
+
+    @abstractmethod
+    async def latest_of_each(self, user_id: str) -> list[dict[str, Any]]:
+        """The latest version of each jurisdiction and year's return."""
+        ...
+
+    @abstractmethod
+    async def add_payment(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]: ...
+
+    @abstractmethod
+    async def payments(self, user_id: str) -> list[dict[str, Any]]: ...
 
 
 class TaxComputationRepository(ABC):
@@ -953,6 +985,12 @@ class AgentDocumentRepository(ABC):
     @abstractmethod
     async def cited_by_entry(self, user_id: str, doc_id: str) -> bool:
         """Whether one of the user's journal entries cites the document."""
+        ...
+
+    @abstractmethod
+    async def filed_return_citing(self, user_id: str, doc_id: str) -> date | None:
+        """The latest filing date of a filed tax return whose period holds an
+        entry citing the document, or None."""
         ...
 
     @abstractmethod
@@ -1798,6 +1836,29 @@ class RuleRepository(ABC):
     @abstractmethod
     async def record_hits(self, user_id: str, counts: dict[str, int], at: datetime) -> None:
         """Add to each rule's hit count, and stamp when it last decided something."""
+        ...
+
+
+class AccessGrantRepository(ABC):
+    """Read-only access one member gives another to their books."""
+
+    @abstractmethod
+    async def create(self, grantor_id: str, grantee_id: str) -> dict[str, Any]:
+        """A live grant: {id, grantor_id, grantee_id, created_at}; the live
+        one already there for the pair, if any."""
+        ...
+
+    @abstractmethod
+    async def list_for(self, user_id: str) -> list[dict[str, Any]]:
+        """The live grants the user gave or holds, newest first."""
+        ...
+
+    @abstractmethod
+    async def is_live(self, grantor_id: str, grantee_id: str) -> bool: ...
+
+    @abstractmethod
+    async def revoke(self, user_id: str, grant_id: str) -> dict[str, Any] | None:
+        """End a live grant the user gave or holds; it, or None."""
         ...
 
 

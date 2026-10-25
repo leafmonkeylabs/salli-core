@@ -51,7 +51,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": "cash"
+      "asset_role": "cash",
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "6543.15",
@@ -438,7 +439,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": "cash"
+      "asset_role": "cash",
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "7800.00",
@@ -519,7 +521,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": "cash"
+      "asset_role": "cash",
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "2275.00",
@@ -555,7 +558,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": "investment"
+      "asset_role": "investment",
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "13000.00",
@@ -636,7 +640,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": "investment"
+      "asset_role": "investment",
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "25000.00",
@@ -663,7 +668,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": "other"
+      "asset_role": "other",
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "300000.00",
@@ -690,7 +696,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "-691.68",
@@ -1005,7 +1012,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "-9900.00",
@@ -1095,7 +1103,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "-334000.00",
@@ -1176,7 +1185,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "-24000.00",
@@ -1266,7 +1276,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "10500.00",
@@ -1347,7 +1358,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "2577.90",
@@ -1500,7 +1512,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "454.70",
@@ -1572,7 +1585,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "350.00",
@@ -1653,7 +1667,8 @@ export const OVERVIEWS: AccountOverview[] = [
       "parent_id": null,
       "is_active": true,
       "tax_role": null,
-      "asset_role": null
+      "asset_role": null,
+      "equity_role": null
     },
     "base_currency": "EUR",
     "current_balance": "90.93",
@@ -1737,6 +1752,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "manual",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e001.1",
@@ -1765,6 +1785,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "manual",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e002.1",
@@ -1793,6 +1818,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "manual",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e003.1",
@@ -1821,6 +1851,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "manual",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e004.1",
@@ -1849,6 +1884,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "manual",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e005.1",
@@ -1877,6 +1917,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "manual",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e006.1",
@@ -1905,6 +1950,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "manual",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e007.1",
@@ -1933,6 +1983,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e008.1",
@@ -1963,6 +2018,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e009.1",
@@ -2000,6 +2060,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e010.1",
@@ -2030,6 +2095,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e011.1",
@@ -2060,6 +2130,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e013.1",
@@ -2090,6 +2165,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e012.1",
@@ -2120,6 +2200,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e014.1",
@@ -2148,6 +2233,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e015.1",
@@ -2176,6 +2266,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e016.1",
@@ -2204,6 +2299,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e017.1",
@@ -2234,6 +2334,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e018.1",
@@ -2271,6 +2376,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e019.1",
@@ -2301,6 +2411,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e020.1",
@@ -2331,6 +2446,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e021.1",
@@ -2359,6 +2479,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e023.1",
@@ -2389,6 +2514,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e022.1",
@@ -2419,6 +2549,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e024.1",
@@ -2447,6 +2582,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e071.1",
@@ -2475,6 +2615,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "system",
     "external_ref": "e071",
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e072.1",
@@ -2503,6 +2648,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e025.1",
@@ -2531,6 +2681,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e026.1",
@@ -2559,6 +2714,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e027.1",
@@ -2589,6 +2749,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e028.1",
@@ -2626,6 +2791,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e029.1",
@@ -2656,6 +2826,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e030.1",
@@ -2686,6 +2861,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e073.1",
@@ -2716,6 +2896,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "system",
     "external_ref": "e073",
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e074.1",
@@ -2746,6 +2931,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e031.1",
@@ -2774,6 +2964,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e033.1",
@@ -2804,6 +2999,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e032.1",
@@ -2834,6 +3034,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e034.1",
@@ -2862,6 +3067,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e035.1",
@@ -2890,6 +3100,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e036.1",
@@ -2918,6 +3133,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e037.1",
@@ -2948,6 +3168,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e038.1",
@@ -2985,6 +3210,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e039.1",
@@ -3015,6 +3245,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e040.1",
@@ -3045,6 +3280,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e041.1",
@@ -3073,6 +3313,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e075.1",
@@ -3101,6 +3346,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e043.1",
@@ -3131,6 +3381,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e042.1",
@@ -3161,6 +3416,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e044.1",
@@ -3189,6 +3449,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e045.1",
@@ -3217,6 +3482,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e046.1",
@@ -3245,6 +3515,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e047.1",
@@ -3275,6 +3550,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e048.1",
@@ -3312,6 +3592,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e049.1",
@@ -3342,6 +3627,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e050.1",
@@ -3372,6 +3662,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e051.1",
@@ -3400,6 +3695,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e053.1",
@@ -3430,6 +3730,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e052.1",
@@ -3460,6 +3765,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e054.1",
@@ -3488,6 +3798,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e055.1",
@@ -3516,6 +3831,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e056.1",
@@ -3544,6 +3864,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e057.1",
@@ -3574,6 +3899,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e058.1",
@@ -3611,6 +3941,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e059.1",
@@ -3641,6 +3976,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e060.1",
@@ -3671,6 +4011,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e061.1",
@@ -3699,6 +4044,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e063.1",
@@ -3729,6 +4079,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e062.1",
@@ -3759,6 +4114,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e064.1",
@@ -3787,6 +4147,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e065.1",
@@ -3815,6 +4180,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e066.1",
@@ -3843,6 +4213,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e067.1",
@@ -3873,6 +4248,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e068.1",
@@ -3910,6 +4290,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e069.1",
@@ -3940,6 +4325,11 @@ export const ENTRIES: JournalEntry[] = [
     "source": "statement",
     "external_ref": null,
     "reversed_by": null,
+    "reverses": null,
+    "created_by": null,
+    "created_via": null,
+    "seq": null,
+    "hash": null,
     "postings": [
       {
         "id": "e070.1",
@@ -5642,7 +6032,7 @@ export const SCORE_HISTORY: FiScoreHistory = {
   "currency": "EUR",
   "history": [
     {
-      "score": 60.08,
+      "score": 57.59,
       "net_worth": "335901.47",
       "created_at": "2026-10-11T10:00:00+00:00"
     }
@@ -5666,6 +6056,11 @@ export const LUNCH: JournalEntry = {
   "source": "manual",
   "external_ref": null,
   "reversed_by": null,
+  "reverses": null,
+  "created_by": null,
+  "created_via": null,
+  "seq": null,
+  "hash": null,
   "postings": [
     {
       "id": "0000239e-5a11-4000-8000-000000009118",
@@ -5712,7 +6107,8 @@ export const CHECKING_POSTED: AccountOverview = {
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "cash"
+    "asset_role": "cash",
+    "equity_role": null
   },
   "base_currency": "EUR",
   "current_balance": "6530.65",
@@ -6141,6 +6537,11 @@ export const LUNCH_REVERSED: JournalEntry = {
   "source": "manual",
   "external_ref": null,
   "reversed_by": "000023a5-5a11-4000-8000-000000009125",
+  "reverses": null,
+  "created_by": null,
+  "created_via": null,
+  "seq": null,
+  "hash": null,
   "postings": [
     {
       "id": "0000239e-5a11-4000-8000-000000009118",
@@ -6170,6 +6571,11 @@ export const REVERSAL: JournalEntry = {
   "source": "reversal",
   "external_ref": null,
   "reversed_by": null,
+  "reverses": "0000239d-5a11-4000-8000-000000009117",
+  "created_by": null,
+  "created_via": null,
+  "seq": null,
+  "hash": null,
   "postings": [
     {
       "id": "000023a6-5a11-4000-8000-000000009126",
@@ -6216,7 +6622,8 @@ export const CHECKING_REVERSED: AccountOverview = {
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "cash"
+    "asset_role": "cash",
+    "equity_role": null
   },
   "base_currency": "EUR",
   "current_balance": "6543.15",
@@ -6661,6 +7068,11 @@ export const DOLLARS: JournalEntry = {
   "source": "manual",
   "external_ref": null,
   "reversed_by": null,
+  "reverses": null,
+  "created_by": null,
+  "created_via": null,
+  "seq": null,
+  "hash": null,
   "postings": [
     {
       "id": "000023b0-5a11-4000-8000-000000009136",
@@ -6764,9 +7176,9 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
  * With the real return set.
  */
 export const FI_SCORE_SET: FiScore = {
-  "pack_version": "2.0.0",
-  "overall_score": "60.08",
-  "grade": "Strong",
+  "pack_version": "3.0.0",
+  "overall_score": "57.59",
+  "grade": "On track",
   "currency": "EUR",
   "monthly_income": "4000.00",
   "monthly_expenses": "2037.09",
@@ -6810,9 +7222,9 @@ export const FI_SCORE_SET: FiScore = {
     {
       "key": "debt",
       "label": "Debt load",
-      "score": "94.76",
+      "score": "73.63",
       "weight": "0.12",
-      "detail": "Liabilities are 5.24% of assets"
+      "detail": "Debts cost 5.27% a year, averaged by balance"
     }
   ],
   "assumptions": {
@@ -6849,7 +7261,7 @@ export const FI_SCORE_SET: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "3847fe6cd9d1703c75b55dc6c1c78ec6d5dc5ff2acdbe8d3c389fb7329c2b9c3"
+  "inputs_hash": "5035e212facf96812fa01e87e5b84e05576fd0bd6446ae57125c66df601aefdf"
 };
 
 /**

@@ -14,6 +14,10 @@ import {
   taxCurrentYear,
   taxExplain,
   taxLatest,
+  taxReturnRecordsPaymentsCreate,
+  taxReturnRecordsGet,
+  taxReturnRecordsList,
+  taxReturnRecordsCreate,
   taxReturnsGet,
   taxReturnsPrepare,
   taxReturnsResume,
@@ -21,6 +25,7 @@ import {
   type TaxComputation,
   type TaxLineExplanation,
   type TaxReturnDraft,
+  type TaxReturnRecord,
   type TaxReturnResumed,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
@@ -417,5 +422,115 @@ Examples:
       await review(app, api, thread, opts);
     });
 
+  registerReturnRecords(tax, app);
   registerTaxRules(tax, app);
+}
+
+// ── return records ───────────────────────────────────────────────────────────
+
+function renderRecord(app: App, r: TaxReturnRecord): void {
+  const out = app.out;
+  const cur = r.snapshot.currency;
+  out.line(
+    out.details([
+      ['Return', `${place(r)} · version ${r.version} · ${r.status}`],
+      ['Filed', r.filed_on ? `${displayDate(r.filed_on, out.locale)}${r.reference ? ` (${singleLine(r.reference)})` : ''}` : 'not filed'],
+      ...(r.reason ? ([['Why', singleLine(r.reason)]] as [string, string][]) : []),
+      ['Net', `${out.amount(r.snapshot.net, cur)} ${cur}`],
+      ['Snapshot', `${r.snapshot_hash} (rules v${r.snapshot.version})`],
+    ]),
+  );
+  if (r.payments.length) {
+    out.line(
+      out.table(r.payments, [
+        { header: 'PAID', get: (p) => displayDate(p.paid_on, out.locale) },
+        { header: `AMOUNT (${cur})`, get: (p) => out.amount(p.amount, cur), align: 'right' },
+        { header: 'REFERENCE', get: (p) => singleLine(p.reference ?? ''), shrink: true },
+      ]),
+    );
+  }
+}
+
+function registerReturnRecords(tax: Command, app: App): void {
+  const returns = tax
+    .command('returns')
+    .description('What you filed: each version of a year’s return (draft, filed, amended) and its payments');
+
+  returns
+    .command('list', { isDefault: true })
+    .description('Every version of your returns, newest year first')
+    .option('--year <year>', 'One tax year, as your rules name it')
+    .action(async (opts) => {
+      const api = await app.api();
+      const data = await api.call(taxReturnRecordsList, { query: opts.year ? { year: opts.year } : {} });
+      app.out.emit(data, {
+        human: (rows) => {
+          if (rows.length === 0) {
+            app.out.note('No returns recorded. Record one with `salli tax returns record <computation> --status filed`.');
+            return;
+          }
+          app.out.line(
+            app.out.table(rows, [
+              { header: 'ID', get: (r) => r.id.slice(0, 8) },
+              { header: 'YEAR', get: (r) => place(r), shrink: true },
+              { header: 'V', get: (r) => String(r.version), align: 'right' },
+              { header: 'STATUS', get: (r) => r.status },
+              { header: 'FILED', get: (r) => (r.filed_on ? displayDate(r.filed_on, app.out.locale) : '') },
+              { header: 'REFERENCE', get: (r) => singleLine(r.reference ?? ''), shrink: true },
+            ]),
+          );
+        },
+      });
+    });
+
+  returns
+    .command('show')
+    .argument('<id>', 'A return version')
+    .description('One version: its status, filing, snapshot and payments')
+    .action(async (id) => {
+      const api = await app.api();
+      const data = await api.call(taxReturnRecordsGet, { path: { return_id: id } });
+      app.out.emit(data, { human: (r) => renderRecord(app, r) });
+    });
+
+  returns
+    .command('record')
+    .argument('<computation>', 'A stored computation (`salli tax compute`): its year and figures')
+    .addOption(new Option('--status <status>', 'What this version is').choices(['draft', 'filed', 'amended']).makeOptionMandatory())
+    .option('--filed-on <date>', 'With filed: the day you filed it (YYYY-MM-DD)')
+    .option('--reference <ref>', 'The authority’s reference')
+    .option('--reason <text>', 'Why (needed for an amendment)')
+    .action(async (computation, opts) => {
+      const api = await app.api();
+      const data = await api.call(taxReturnRecordsCreate, {
+        body: {
+          computation_id: computation,
+          status: opts.status as 'draft' | 'filed' | 'amended',
+          ...(opts.filedOn ? { filed_on: opts.filedOn } : {}),
+          ...(opts.reference ? { reference: opts.reference } : {}),
+          ...(opts.reason ? { reason: opts.reason } : {}),
+        },
+      });
+      app.out.emit(data, {
+        human: (r) => {
+          renderRecord(app, r);
+          app.out.success(`Recorded version ${r.version} of the return for ${place(r)}.`);
+        },
+      });
+    });
+
+  returns
+    .command('pay')
+    .argument('<id>', 'A filed (or amended) return version')
+    .argument('<amount>', 'What you paid, in the return’s currency (a decimal)')
+    .requiredOption('--on <date>', 'The day you paid (YYYY-MM-DD)')
+    .option('--reference <ref>', 'The payment’s reference')
+    .action(async (id, amount, opts) => {
+      const api = await app.api();
+      const data = await api.call(taxReturnRecordsPaymentsCreate, {
+        path: { return_id: id },
+        body: { paid_on: opts.on, amount, ...(opts.reference ? { reference: opts.reference } : {}) },
+      });
+      app.out.emit(data, { human: (r) => app.out.success(`Payment recorded against ${place(r)}, version ${r.version}.`) });
+    });
 }

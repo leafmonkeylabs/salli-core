@@ -51,16 +51,16 @@ async def test_closed_books_refuse_every_way_in(uow_factory, db):
             conn.execute(
                 text(
                     "insert into journal_entries (id, user_id, entry_date, description, "
-                    "source, created_at) values ('e-back', 'alice', '2025-06-01', "
-                    "'Backdated', 'manual', now())"
+                    "source, created_at, created_by, created_via, seq, hash) values ('e-back', 'alice', '2025-06-01', "
+                    "'Backdated', 'manual', now(), 'alice', 'sql', 90, 'x')"
                 )
             )
         with engine.begin() as conn:
             conn.execute(
                 text(
                     "insert into journal_entries (id, user_id, entry_date, description, "
-                    "source, created_at) values ('e-open', 'alice', '2026-01-01', "
-                    "'Open', 'manual', now())"
+                    "source, created_at, created_by, created_via, seq, hash) values ('e-open', 'alice', '2026-01-01', "
+                    "'Open', 'manual', now(), 'alice', 'sql', 91, 'x')"
                 )
             )
     finally:
@@ -89,7 +89,7 @@ async def _books(uow_factory):
         "update journal_entries set description = 'Edited' where id = :closed",
         "update journal_entries set entry_date = '2026-01-05' where id = :closed",
         "update journal_entries set entry_date = '2025-12-01' where id = :open",
-        "update journal_entries set reversed_by = :closed where id = :closed",
+        "update journal_entries set reverses_id = :closed where id = :closed",
         "delete from journal_entries where id = :closed",
         "update postings set fx_rate = 2 where entry_id = :closed",
         "delete from postings where entry_id = :closed",
@@ -117,25 +117,27 @@ async def test_the_database_refuses_to_change_closed_books(uow_factory, db, stat
     assert scalar(db, f"select description from journal_entries where id = '{closed}'") == "Lunch"
 
 
-async def test_open_books_change_and_erasure_clears_closed_ones(uow_factory, db):
+async def test_open_books_keep_their_entries_too_and_erasure_clears_them(uow_factory, db):
     _, closed, open_ = await _books(uow_factory)
     engine = create_engine(_sync(db))
     try:
-        with engine.begin() as conn:
-            conn.execute(
-                text("update journal_entries set description = 'Supper' where id = :id"),
-                {"id": open_},
-            )
-            conn.execute(
-                text("update postings set fx_rate = 1 where entry_id = :id"), {"id": open_}
-            )
-            conn.execute(text("delete from journal_entries where id = :id"), {"id": open_})
+        for statement in (
+            "update journal_entries set description = 'Supper' where id = :id",
+            "update postings set fx_rate = 1 where entry_id = :id",
+            "delete from journal_entries where id = :id",
+            "delete from postings where entry_id = :id",
+        ):
+            with (
+                pytest.raises(Exception, match="keeps every entry as posted"),
+                engine.begin() as conn,
+            ):
+                conn.execute(text(statement), {"id": open_})
     finally:
         engine.dispose()
 
     async with uow_factory() as uow:
         counts = await uow.data_portability.delete_all("alice")
-    assert counts["journal_entries"] == 1
+    assert counts["journal_entries"] == 2
     assert scalar(db, f"select count(*) from postings where entry_id = '{closed}'") == 0
 
 
@@ -147,7 +149,7 @@ async def test_a_reversal_is_dated_the_originals_day_unless_its_books_are_closed
 
     assert in_open is not None and in_closed is not None
     assert (in_open.entry_date, in_closed.entry_date) == ("2026-02-01", "2026-03-10")
-    # Only the link to its reversal was written on the closed original.
+    # Nothing was written on the closed original: its reversal names it.
     original = await ledger.get_entry("alice", closed)
     assert original is not None
     assert (original.reversed_by, original.description) == (in_closed.id, "Lunch")

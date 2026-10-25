@@ -1,15 +1,18 @@
 /**
- * salli ledger trial-balance | income-statement | unrealised-fx | revalue | lock | unlock,
- * and salli tags list
+ * salli ledger trial-balance | income-statement | unrealised-fx | revalue | lock | unlock |
+ * close-year | retained-earnings | verify, and salli tags list
  */
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
   compareAmounts,
+  ledgerCloseYear,
   ledgerIncomeStatement,
   ledgerLockDateSet,
   ledgerFxRevaluationPost,
+  ledgerRetainedEarningsSet,
   ledgerTrialBalance,
   ledgerUnrealisedFx,
+  ledgerVerify,
   tagsList,
 } from '@leafmonkeylabs/salli-sdk';
 import type { App } from '../app';
@@ -180,6 +183,53 @@ export function registerLedger(program: Command, app: App): void {
       const api = await app.api();
       const lock = await api.call(ledgerLockDateSet, { body: { lock_date: null } });
       app.out.emit(lock, { human: () => app.out.success('The books are open: no day is closed.') });
+    });
+
+  ledger
+    .command('close-year')
+    .argument('<date>', 'The last day of the year to close (YYYY-MM-DD)')
+    .description('Move the year’s income and expenses to retained earnings, in one entry on that day')
+    .action(async (date) => {
+      const api = await app.api();
+      const closed = await api.call(ledgerCloseYear, { body: { period_end: parseDate(date, app.runtime.now(), '<date>') } });
+      app.out.emit(closed, {
+        human: (d) =>
+          app.out.success(
+            `Closed to ${displayDate(d.period_end, app.out.locale)}: ${app.out.amount(d.earnings, d.currency)} ${d.currency} moved to retained earnings.`,
+          ),
+      });
+    });
+
+  ledger
+    .command('retained-earnings')
+    .argument('<account>', 'An equity account (code or id)')
+    .description('Say which equity account a year-end close moves earnings to')
+    .action(async (account) => {
+      const api = await app.api();
+      const book = await AccountBook.load(api);
+      const { id } = book.resolve(account);
+      await api.call(ledgerRetainedEarningsSet, { body: { account_id: id } });
+      app.out.done({ account_id: id }, `${singleLine(book.name(id))} now holds retained earnings.`);
+    });
+
+  ledger
+    .command('verify')
+    .description('Check every entry is as it was posted (the ledger’s hash chain)')
+    .action(async () => {
+      const api = await app.api();
+      const check = await api.call(ledgerVerify, {});
+      app.out.emit(check, {
+        human: (d) => {
+          if (d.ok) {
+            app.out.success(`All ${d.checked} entries are as they were posted.`);
+            return;
+          }
+          const b = d.first_break;
+          const why = { missing: 'an entry before it is missing', link: 'it does not follow the entry before it', content: 'it changed after it was posted' };
+          app.out.warn(b ? `The chain breaks at entry ${b.seq} (${b.entry_id.slice(0, 8)}): ${why[b.reason]}.` : 'The chain breaks.');
+          app.out.note(`${d.checked} entries before it check out.`);
+        },
+      });
     });
 
   program

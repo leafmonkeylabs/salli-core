@@ -45,6 +45,8 @@ export interface GlobalOptions {
   context?: string;
   server?: string;
   verbose?: boolean;
+  /** Read another member's books, under their grant (Salli-Books). */
+  books?: string;
 }
 
 export interface ActiveContext {
@@ -275,6 +277,7 @@ export class App {
   /** A client for `server` sending `auth` (none for public endpoints). */
   client(server: string, auth?: TokenProvider, timeoutMs?: number): SalliClient {
     const verbose = this.globals.verbose || this.runtime.env.SALLI_DEBUG === '1';
+    const books = this.globals.books ?? this.runtime.env.SALLI_BOOKS;
     return createClient({
       server,
       ...(auth ? { auth } : {}),
@@ -282,6 +285,7 @@ export class App {
       // Ctrl-C ends whatever request is in flight, as an interruption (130).
       signal: this.runtime.signal,
       userAgent: this.userAgent,
+      ...(books ? { headers: { 'Salli-Books': books } } : {}),
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       ...(verbose
         ? {

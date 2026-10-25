@@ -32,10 +32,14 @@ async def _retain_until(uow: Any, user_id: str, today: dt.date) -> dt.date | Non
     years = ((await uow.user_profiles.get(user_id)) or {}).get("document_retention_years")
     if not years:
         return None
+    return _years_after(today, years)
+
+
+def _years_after(day: dt.date, years: int) -> dt.date:
     try:
-        return today.replace(year=today.year + years)
+        return day.replace(year=day.year + years)
     except ValueError:  # 29 February into a year without one
-        return today.replace(year=today.year + years, day=28)
+        return day.replace(year=day.year + years, day=28)
 
 
 class DocumentService:
@@ -103,14 +107,22 @@ class DocumentService:
 
     async def delete_document(self, user_id: str, doc_id: str) -> None:
         """Delete a document, unless it must be kept (`DocumentRetained`):
-        before its `retain_until`, or while an entry cites it as evidence and
-        no retention period it had has passed."""
+        before its `retain_until` (counted from the filing of a filed tax
+        return whose period holds an entry citing it, when that is later),
+        or while an entry cites it as evidence and no retention period it
+        had has passed."""
         async with self._uow_factory() as uow:
             uow: UnitOfWork
             doc = await uow.agent_documents.get(user_id, doc_id)
             if doc is not None:
                 until = doc.get("retain_until")
                 today = self._today().isoformat()
+                filed_on = await uow.agent_documents.filed_return_citing(user_id, doc_id)
+                years = ((await uow.user_profiles.get(user_id)) or {}).get(
+                    "document_retention_years"
+                )
+                if until is not None and filed_on is not None and years:
+                    until = max(until, _years_after(filed_on, years).isoformat())
                 if until is not None and today < until:
                     raise DocumentRetained(
                         f"This document is kept until {until}, so it can't be deleted yet."

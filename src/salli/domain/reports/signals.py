@@ -6,7 +6,9 @@ recurring payments, spending by month, cash flow, transactions waiting for
 review) and says, plainly and with its evidence, when something stands out:
 the cash running out before payday, a subscription that got dearer, a new
 recurring charge, a category far above usual, the savings rate falling, a
-review queue growing old, a decision whose review date has come. Nothing
+review queue growing old, a decision whose review date has come, cash and
+savings covering fewer months than the FI method's emergency target, a debt
+charging more than the method's line. Nothing
 here advises; it points. Pure: no I/O.
 """
 
@@ -19,6 +21,7 @@ from decimal import Decimal
 from statistics import median
 from typing import Literal
 
+from salli.domain.fi.assumptions import PLACEHOLDERS
 from salli.domain.reports.insights import MonthFlow, Recurring, SpendingLine
 
 Severity = Literal["high", "medium", "info"]
@@ -30,11 +33,24 @@ SignalKind = Literal[
     "savings_rate_drop",
     "review_waiting",
     "decision_review_due",
+    "emergency_fund_low",
+    "expensive_debt",
 ]
 #: What the user can look at or do about it, for a client to link to.
 Action = Literal[
-    "see_forecast", "see_recurring", "see_spending", "see_cash_flow", "review", "review_decision"
+    "see_forecast",
+    "see_recurring",
+    "see_spending",
+    "see_cash_flow",
+    "see_debts",
+    "review",
+    "review_decision",
 ]
+
+#: The yearly rate at or above which a debt is described as costly: the
+#: placeholder real return plus a margin. Part of the method, not any
+#: country's figure.
+EXPENSIVE_DEBT_RATE = PLACEHOLDERS["real_return"].value + Decimal("0.04")
 
 _ORDER: dict[Severity, int] = {"high": 0, "medium": 1, "info": 2}
 
@@ -255,6 +271,59 @@ def decision_reviews_due(due: Sequence[tuple[str, str, str]]) -> list[Signal]:
             refs=(decision_id,),
         )
         for decision_id, question, review_on in due
+    ]
+
+
+def emergency_fund_low(
+    liquid: Decimal,
+    monthly_spending: Decimal,
+    target_months: int,
+    full_months: int,
+    currency: str,
+) -> list[Signal]:
+    """Cash and savings covering fewer than `target_months` of average
+    spending (the FI method's emergency target), once a full month of
+    spending has been seen."""
+    if full_months < 1 or monthly_spending <= 0 or target_months <= 0:
+        return []
+    covered = liquid / monthly_spending
+    if covered >= target_months:
+        return []
+    return [
+        Signal(
+            "emergency_fund_low",
+            "medium",
+            "Cash and savings cover few months",
+            f"Your cash and savings ({liquid} {currency}) cover {max(covered, Decimal(0)):.1f} "
+            f"months of your average spending ({monthly_spending} {currency} a month); the "
+            f"FI method's emergency target is {target_months} months.",
+            "see_cash_flow",
+            liquid,
+            currency,
+        )
+    ]
+
+
+def expensive_debts(
+    debts: Sequence[tuple[str, str, Decimal, Decimal]], currency: str
+) -> list[Signal]:
+    """A declared debt whose yearly rate is at or above `EXPENSIVE_DEBT_RATE`:
+    (id, name, rate, balance) each, the balance in `currency`."""
+    return [
+        Signal(
+            "expensive_debt",
+            "medium",
+            f"{name} charges {rate:.1%} a year",
+            f"{name} ({balance} {currency} owed) charges {rate:.1%} a year, at or above "
+            f"{EXPENSIVE_DEBT_RATE:.0%}: Salli's line for a costly debt, the placeholder "
+            "real return plus a 4% margin, not any country's figure.",
+            "see_debts",
+            balance,
+            currency,
+            refs=(debt_id,),
+        )
+        for debt_id, name, rate, balance in debts
+        if rate >= EXPENSIVE_DEBT_RATE and balance > 0
     ]
 
 

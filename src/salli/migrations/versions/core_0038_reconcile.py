@@ -5,7 +5,8 @@
   the person typed them in from a paper statement.
 - `postings.cleared`: matched to a statement's line. The one change a posting
   in closed books may still take, so a closed month can be reconciled:
-  core_0030's trigger now lets an UPDATE through that changes nothing else.
+  core_0030's trigger, and core_0037's that refuses any change to the
+  ledger, now let an UPDATE through that changes nothing else.
 - `reconciliations`: a statement whose cleared postings add up to its
   closing balance, who completed it and when; recorded only at a difference
   of zero.
@@ -13,8 +14,8 @@
 - `user_profiles.document_retention_years` and `agent_documents.retain_until`:
   a document is kept until then.
 
-Revision ID: core_0034_reconcile
-Revises: core_0032_account_freeze
+Revision ID: core_0038_reconcile
+Revises: core_0037_filed_years
 Create Date: 2026-10-25
 """
 
@@ -23,8 +24,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "core_0034_reconcile"
-down_revision: str | None = "core_0032_account_freeze"
+revision: str = "core_0038_reconcile"
+down_revision: str | None = "core_0037_filed_years"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -67,6 +68,38 @@ _POSTING_TRIGGER = """
     $$
 """
 
+# core_0037's function, with the cleared flag let through on postings.
+_LEDGER_TRIGGER = """
+    CREATE OR REPLACE FUNCTION refuse_ledger_change()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE owner TEXT;
+    BEGIN
+        IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'postings' AND {cleared_only} THEN
+            RETURN NEW;
+        END IF;
+        IF TG_OP = 'DELETE' THEN
+            IF TG_TABLE_NAME = 'postings' THEN
+                SELECT user_id INTO owner FROM journal_entries WHERE id = OLD.entry_id;
+                -- Deleted with its entry, which passed the entry's check.
+                IF owner IS NULL THEN
+                    RETURN OLD;
+                END IF;
+            ELSE
+                owner := OLD.user_id;
+            END IF;
+            IF current_setting('salli.erase_user', true) IS NOT NULL
+               AND current_setting('salli.erase_user', true) = owner THEN
+                RETURN OLD;
+            END IF;
+        END IF;
+        RAISE EXCEPTION
+            'The ledger keeps every entry as posted: % on % is refused (post a reversal)',
+            TG_OP, TG_TABLE_NAME;
+    END;
+    $$
+"""
+_CLEARED_ONLY = "to_jsonb(NEW) - 'cleared' = to_jsonb(OLD) - 'cleared'"
+
 
 def upgrade() -> None:
     op.add_column("statements", sa.Column("opening_balance_minor", sa.BigInteger(), nullable=True))
@@ -97,14 +130,12 @@ def upgrade() -> None:
         "user_profiles", sa.Column("document_retention_years", sa.Integer(), nullable=True)
     )
     op.add_column("agent_documents", sa.Column("retain_until", sa.Date(), nullable=True))
-    op.execute(
-        _POSTING_TRIGGER.format(
-            cleared_only="to_jsonb(NEW) - 'cleared' = to_jsonb(OLD) - 'cleared'"
-        )
-    )
+    op.execute(_POSTING_TRIGGER.format(cleared_only=_CLEARED_ONLY))
+    op.execute(_LEDGER_TRIGGER.format(cleared_only=_CLEARED_ONLY))
 
 
 def downgrade() -> None:
+    op.execute(_LEDGER_TRIGGER.format(cleared_only="false"))
     op.execute(_POSTING_TRIGGER.format(cleared_only="false"))
     op.drop_column("agent_documents", "retain_until")
     op.drop_column("user_profiles", "document_retention_years")

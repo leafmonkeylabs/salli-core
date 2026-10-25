@@ -119,3 +119,18 @@ async def test_reports_before_the_books_start_say_so(uow_factory):
     assert await ledger.books_note("ines", "2031-03-01") == []
     [note] = await ledger.books_note("ines", "2031-02-01")
     assert "2031-03-01" in note
+
+
+async def test_opening_balances_post_on_the_day_the_books_start(uow_factory):
+    from unittest.mock import MagicMock
+
+    from salli.application.services.user_profile_service import UserProfileService
+
+    ledger = await _ledger(uow_factory)
+    profile = UserProfileService(uow_factory, ledger, MagicMock(), MagicMock())
+    await profile.update_identity("ines", {"books_start": "2031-03-01"})
+    [entry_id] = await profile.declare_opening_balances(
+        "ines", [{"code": "1000", "name": "Bank", "type": "asset", "amount": "120"}]
+    )
+    [entry] = [e for e in await ledger.get_entries("ines") if e.id == entry_id]
+    assert entry.entry_date == "2031-03-01"

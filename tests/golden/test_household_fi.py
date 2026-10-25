@@ -81,9 +81,11 @@ async def test_the_snapshot(fi):
 async def test_the_score(fi):
     score = await fi.compute_score(h.USER)
 
-    # Was 84.96 and "FI-ready": the flat no longer counts towards FI.
-    assert score["overall_score"] == "60.08"
-    assert score["grade"] == "Strong"
+    # Was 84.96 and "FI-ready": the flat no longer counts towards FI. Was
+    # 60.08: debt is scored by its rates, weighted by balance (pack 3.0.0).
+    assert score["overall_score"] == "57.59"
+    # Was "Strong": under 50% of the way to FI, the top grades are not given.
+    assert score["grade"] == "On track"
     assert score["monthly_surplus"] == "1962.91"  # was 1,734.55875
     # Was 0.4956.
     assert Decimal(score["savings_rate"]).quantize(Decimal("0.0001")) == Decimal("0.4907")

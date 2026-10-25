@@ -154,6 +154,7 @@ def make_account(
     a.is_active = True
     a.tax_role = tax_role
     a.asset_role = "cash"
+    a.equity_role = None
     return a
 
 
@@ -165,6 +166,7 @@ def make_entry():
     e.source = "manual"
     e.external_ref = None
     e.reversed_by = None
+    e.reverses = e.created_by = e.created_via = e.seq = e.hash = None
     p = MagicMock()
     p.id = "posting-1"
     p.tags = {}

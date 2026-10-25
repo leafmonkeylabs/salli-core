@@ -23,6 +23,7 @@ function placeOf(signal: FinanceSignal): '/cash' | '/books' | '/decide' | undefi
       return '/cash';
     case 'review':
       return '/books';
+    case 'see_debts':
     case 'review_decision':
       return '/decide';
     default:

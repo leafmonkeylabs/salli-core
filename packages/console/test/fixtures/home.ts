@@ -76,11 +76,17 @@ export const BALANCE_SHEET: BalanceSheet = {
       "code": "3000",
       "name": "Opening equity",
       "balance": "334000.00"
+    },
+    {
+      "account_id": null,
+      "code": "",
+      "name": "Current-year earnings",
+      "balance": "10026.47"
     }
   ],
   "total_assets": "354493.15",
   "total_liabilities": "18591.68",
-  "total_equity": "334000.00",
+  "total_equity": "344026.47",
   "net_worth": "335901.47",
   "as_of": "2026-10-11",
   "unrealised_fx": {
@@ -165,9 +171,9 @@ export const INCOME_STATEMENT: IncomeStatement = {
 };
 
 export const FI_SCORE: FiScore = {
-  "pack_version": "2.0.0",
-  "overall_score": "60.08",
-  "grade": "Strong",
+  "pack_version": "3.0.0",
+  "overall_score": "57.59",
+  "grade": "On track",
   "currency": "EUR",
   "monthly_income": "4000.00",
   "monthly_expenses": "2037.09",
@@ -211,9 +217,9 @@ export const FI_SCORE: FiScore = {
     {
       "key": "debt",
       "label": "Debt load",
-      "score": "94.76",
+      "score": "73.63",
       "weight": "0.12",
-      "detail": "Liabilities are 5.24% of assets"
+      "detail": "Debts cost 5.27% a year, averaged by balance"
     }
   ],
   "assumptions": {
@@ -251,7 +257,7 @@ export const FI_SCORE: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "47717adf53094d505d1e2e1e01a0f4043a82498de64bb7040298644ebfeae03a"
+  "inputs_hash": "e897489b46a508aae24e5a709a1b8e68fc53d02a465612a8b23d0dfe7e9cb238"
 };
 
 export const REMINDERS: ReminderList = {

@@ -5531,7 +5531,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "cash"
+    "asset_role": "cash",
+    "equity_role": null
   },
   {
     "id": "sav",
@@ -5542,7 +5543,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "cash"
+    "asset_role": "cash",
+    "equity_role": null
   },
   {
     "id": "usd",
@@ -5553,7 +5555,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "cash"
+    "asset_role": "cash",
+    "equity_role": null
   },
   {
     "id": "brk",
@@ -5564,7 +5567,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "investment"
+    "asset_role": "investment",
+    "equity_role": null
   },
   {
     "id": "pen",
@@ -5575,7 +5579,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "investment"
+    "asset_role": "investment",
+    "equity_role": null
   },
   {
     "id": "flat",
@@ -5586,7 +5591,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": "other"
+    "asset_role": "other",
+    "equity_role": null
   },
   {
     "id": "card",
@@ -5597,7 +5603,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "loan",
@@ -5608,7 +5615,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "eq",
@@ -5619,7 +5627,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "sal",
@@ -5630,7 +5639,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "rent",
@@ -5641,7 +5651,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "food",
@@ -5652,7 +5663,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "out",
@@ -5663,7 +5675,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "int",
@@ -5674,7 +5687,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   },
   {
     "id": "tv",
@@ -5685,7 +5699,8 @@ export const ACCOUNTS: Account[] = [
     "parent_id": null,
     "is_active": true,
     "tax_role": null,
-    "asset_role": null
+    "asset_role": null,
+    "equity_role": null
   }
 ];
 

@@ -12,13 +12,19 @@ says what to do.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-from salli.interfaces.api.contract import Amount, CountryCode, CurrencyCode, DecimalOut
+from salli.interfaces.api.contract import (
+    Amount,
+    AmountIn,
+    CountryCode,
+    CurrencyCode,
+    DecimalOut,
+)
 from salli.interfaces.api.deps import AppServices, CurrentUser
 from salli.interfaces.api.routers.tax_rules import (
     TaxRuleForm,
@@ -432,3 +438,120 @@ async def resume_return(
         draft=_draft(resumed["draft_return"]),
         error=resumed["error"],
     )
+
+
+# ── return records ─────────────────────────────────────────────────────────────
+#
+# What was filed, kept apart from the workflow above: each version of a
+# year's return (draft, filed, amended), append-only, with a snapshot of the
+# computation it was made from. A filed one keeps its year's books closed.
+
+
+class TaxReturnPayment(BaseModel):
+    id: str
+    paid_on: str
+    #: In the return's currency.
+    amount: Amount
+    currency: CurrencyCode
+    reference: str | None
+
+
+class TaxReturnRecord(BaseModel):
+    """One version of a year's return. Nothing about it changes once
+    recorded: a later version supersedes it."""
+
+    id: str
+    country: CountryCode
+    region: str | None
+    year: str
+    period_start: str
+    period_end: str
+    #: 1 for the year's first version, then one more for each.
+    version: int
+    #: `draft`; `filed` (with the authority, on `filed_on`); `amended`: a
+    #: filed return being corrected, which lets the year's books open.
+    status: Literal["draft", "filed", "amended"]
+    #: The version this one supersedes; null for the first.
+    supersedes_id: str | None
+    #: Why (required for an amendment).
+    reason: str | None
+    #: The authority's reference for the filing.
+    reference: str | None
+    filed_on: str | None
+    computation_id: str
+    #: The rule set version that computed it, and that version's content hash.
+    rule_set_version_id: str
+    content_hash: str
+    #: The computation as it stood when this version was recorded.
+    snapshot: TaxComputation
+    #: "sha256:" and the hash of the snapshot's canonical JSON.
+    snapshot_hash: str
+    payments: list[TaxReturnPayment]
+    created_at: str
+
+
+class TaxReturnRecordIn(BaseModel):
+    #: A stored computation of yours: the year and the figures recorded.
+    computation_id: str
+    status: Literal["draft", "filed", "amended"]
+    reference: Annotated[str | None, Field(max_length=200)] = None
+    #: Required for `filed`, and only then.
+    filed_on: date | None = None
+    #: Required for `amended`.
+    reason: Annotated[str | None, Field(max_length=1000)] = None
+
+
+@router.get("/return-records")
+async def list_return_records(
+    user_id: CurrentUser, svc: AppServices, year: YearParam = None
+) -> list[TaxReturnRecord]:
+    """Every version of your returns (of `year`), newest year first, each
+    with the payments made against it."""
+    return [TaxReturnRecord.model_validate(r) for r in await svc.tax.list_returns(user_id, year)]
+
+
+@router.post("/return-records", status_code=201)
+async def record_return(
+    body: TaxReturnRecordIn, user_id: CurrentUser, svc: AppServices
+) -> TaxReturnRecord:
+    """Record a version of a year's return from a stored computation: a
+    draft, what was filed, or an amendment of a filed one (with its reason).
+    It supersedes the year's latest version; after a filed one, only an
+    amendment may follow. 422 when this version can't follow the latest."""
+    result = await svc.tax.record_return(
+        user_id,
+        body.computation_id,
+        body.status,
+        reference=body.reference,
+        filed_on=body.filed_on,
+        reason=body.reason,
+    )
+    return TaxReturnRecord.model_validate(result)
+
+
+@router.get("/return-records/{return_id}")
+async def get_return_record(
+    return_id: str, user_id: CurrentUser, svc: AppServices
+) -> TaxReturnRecord:
+    result = await svc.tax.get_return(user_id, return_id)
+    if result is None:
+        raise KeyError(return_id)
+    return TaxReturnRecord.model_validate(result)
+
+
+class TaxReturnPaymentIn(BaseModel):
+    paid_on: date
+    #: In the return's currency, more than zero.
+    amount: AmountIn
+    reference: Annotated[str | None, Field(max_length=200)] = None
+
+
+@router.post("/return-records/{return_id}/payments", status_code=201)
+async def add_return_payment(
+    return_id: str, body: TaxReturnPaymentIn, user_id: CurrentUser, svc: AppServices
+) -> TaxReturnRecord:
+    """Record a payment made against a filed (or amended) return."""
+    result = await svc.tax.add_return_payment(
+        user_id, return_id, paid_on=body.paid_on, amount=body.amount, reference=body.reference
+    )
+    return TaxReturnRecord.model_validate(result)

@@ -3,7 +3,7 @@
   "info": {
     "title": "Salli API",
     "description": "Privacy-first personal finance, tax and financial independence",
-    "version": "0.4.1"
+    "version": "0.5.0"
   },
   "paths": {
     "/v1/auth/me": {
@@ -1863,7 +1863,7 @@
           "ledger"
         ],
         "summary": "Set Lock Date",
-        "description": "Close the books up to and including a day before today, or open them\n(null). Moving the day earlier opens what was closed, so only the person's\nown sign-in may, with a recent password where their client asks for one.\nEvery change is written to the audit log.",
+        "description": "Close the books up to and including a day before today, or open them\n(null). Moving the day earlier opens what was closed, so only the person's\nown sign-in may, with a recent password where their client asks for one,\nand never past a tax year whose latest return is filed (a 409) until an\namendment of it is recorded. Every change is written to the audit log.",
         "operationId": "ledger.lockDate.set",
         "requestBody": {
           "content": {
@@ -1892,6 +1892,150 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ledger/year-end-close": {
+      "post": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Close Year",
+        "description": "Close the income and expense accounts into retained earnings: one\nentry on `period_end` bringing each to zero against the equity account\nwhose role is `retained_earnings`. Lock the books afterwards.",
+        "operationId": "ledger.closeYear",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YearEndCloseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearEndClose"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ledger/retained-earnings": {
+      "put": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Set Retained Earnings",
+        "description": "Make an equity account the one a year-end close moves earnings to\n(its `equity_role` becomes `retained_earnings`; any other loses it).",
+        "operationId": "ledger.retainedEarnings.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetainedEarningsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/ledger/verify": {
+      "get": {
+        "tags": [
+          "ledger"
+        ],
+        "summary": "Verify Ledger",
+        "description": "Check the ledger's hash chain from its first entry: each entry holds\nthe hash of the one before and its own over what it says, so a changed,\nremoved or reordered entry shows as the first break.",
+        "operationId": "ledger.verify",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainCheck"
                 }
               }
             }
@@ -2591,6 +2735,259 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/v1/tax/return-records": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "List Return Records",
+        "description": "Every version of your returns (of `year`), newest year first, each\nwith the payments made against it.",
+        "operationId": "tax.returnRecords.list",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2031/32"
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaxReturnRecord"
+                  },
+                  "title": "Response Tax.Returnrecords.List"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Record Return",
+        "description": "Record a version of a year's return from a stored computation: a\ndraft, what was filed, or an amendment of a filed one (with its reason).\nIt supersedes the year's latest version; after a filed one, only an\namendment may follow. 422 when this version can't follow the latest.",
+        "operationId": "tax.returnRecords.create",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxReturnRecordIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxReturnRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/return-records/{return_id}": {
+      "get": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Get Return Record",
+        "operationId": "tax.returnRecords.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "return_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Return Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxReturnRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tax/return-records/{return_id}/payments": {
+      "post": {
+        "tags": [
+          "tax"
+        ],
+        "summary": "Add Return Payment",
+        "description": "Record a payment made against a filed (or amended) return.",
+        "operationId": "tax.returnRecords.payments.create",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "return_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Return Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaxReturnPaymentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxReturnRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/tax/schema": {
@@ -13787,6 +14184,168 @@
         }
       }
     },
+    "/v1/access-grants": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "List Access Grants",
+        "operationId": "access.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrants"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Grant Access",
+        "description": "Let another member read your books, until either of you ends it.",
+        "operationId": "access.grant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrant"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not your own sign-in, or `/problems/step-up-required`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No member of this server signs in with that email",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/access-grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Revoke Access Grant",
+        "description": "End access you gave, or access you were given.",
+        "operationId": "access.revoke",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grant Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -13821,6 +14380,66 @@
   },
   "components": {
     "schemas": {
+      "AccessGrant": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "member_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Email"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "member_id",
+          "member_email",
+          "created_at"
+        ],
+        "title": "AccessGrant"
+      },
+      "AccessGrants": {
+        "properties": {
+          "given": {
+            "items": {
+              "$ref": "#/components/schemas/AccessGrant"
+            },
+            "type": "array",
+            "title": "Given"
+          },
+          "received": {
+            "items": {
+              "$ref": "#/components/schemas/AccessGrant"
+            },
+            "type": "array",
+            "title": "Received"
+          }
+        },
+        "type": "object",
+        "required": [
+          "given",
+          "received"
+        ],
+        "title": "AccessGrants"
+      },
       "Account": {
         "properties": {
           "id": {
@@ -13902,6 +14521,18 @@
               }
             ],
             "title": "Asset Role"
+          },
+          "equity_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "retained_earnings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Role"
           }
         },
         "type": "object",
@@ -13955,7 +14586,8 @@
               "statement",
               "sms",
               "system",
-              "reversal"
+              "reversal",
+              "year_end_close"
             ],
             "title": "Source"
           },
@@ -17572,6 +18204,63 @@
         ],
         "title": "CategorizedTransactions"
       },
+      "ChainBreak": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "entry_id": {
+            "type": "string",
+            "title": "Entry Id"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "link",
+              "content"
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "entry_id",
+          "reason"
+        ],
+        "title": "ChainBreak"
+      },
+      "ChainCheck": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "checked": {
+            "type": "integer",
+            "title": "Checked"
+          },
+          "first_break": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChainBreak"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "checked",
+          "first_break"
+        ],
+        "title": "ChainCheck"
+      },
       "ChangePasswordRequest": {
         "properties": {
           "current_password": {
@@ -19006,6 +19695,15 @@
             "type": "array",
             "title": "Tax Computations",
             "description": "Every stored tax computation, newest first, as `tax.latest` shows one:\nthe rule set version that computed it, its inputs and every line."
+          },
+          "tax_returns": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Tax Returns",
+            "description": "Every version of every return, as `tax.returnRecords.list` shows one:\nits status, filing, snapshot and payments."
           },
           "budgets": {
             "items": {
@@ -21302,7 +22000,8 @@
               "statement",
               "sms",
               "system",
-              "reversal"
+              "reversal",
+              "year_end_close"
             ],
             "title": "Source"
           },
@@ -21651,6 +22350,18 @@
               }
             ],
             "title": "Tax Role"
+          },
+          "equity_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "retained_earnings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Role"
           }
         },
         "type": "object",
@@ -21712,7 +22423,8 @@
               "statement",
               "sms",
               "system",
-              "reversal"
+              "reversal",
+              "year_end_close"
             ],
             "title": "Source"
           },
@@ -21727,6 +22439,17 @@
             ],
             "title": "External Ref"
           },
+          "reverses": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverses"
+          },
           "reversed_by": {
             "anyOf": [
               {
@@ -21737,6 +22460,50 @@
               }
             ],
             "title": "Reversed By"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_via": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created Via"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          },
+          "hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hash"
           },
           "postings": {
             "items": {
@@ -23062,7 +23829,9 @@
               "spending_spike",
               "savings_rate_drop",
               "review_waiting",
-              "decision_review_due"
+              "decision_review_due",
+              "emergency_fund_low",
+              "expensive_debt"
             ],
             "title": "Kind"
           },
@@ -23090,6 +23859,7 @@
               "see_recurring",
               "see_spending",
               "see_cash_flow",
+              "see_debts",
               "review",
               "review_decision"
             ],
@@ -23587,6 +24357,21 @@
           "goals"
         ],
         "title": "GoalsRequest"
+      },
+      "GrantAccessRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "GrantAccessRequest"
       },
       "Health": {
         "properties": {
@@ -25396,7 +26181,8 @@
               "statement",
               "sms",
               "system",
-              "reversal"
+              "reversal",
+              "year_end_close"
             ],
             "title": "Source"
           },
@@ -25421,6 +26207,61 @@
               }
             ],
             "title": "Reversed By"
+          },
+          "reverses": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverses"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_via": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created Via"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          },
+          "hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hash"
           },
           "postings": {
             "items": {
@@ -30120,6 +30961,19 @@
           "decision"
         ],
         "title": "ResumeRequest"
+      },
+      "RetainedEarningsRequest": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id"
+        ],
+        "title": "RetainedEarningsRequest"
       },
       "ReverseEntryRequest": {
         "properties": {
@@ -35274,6 +36128,92 @@
         "title": "TaxReturnDraft",
         "description": "A return, prepared for review: each form the rules define, filled in\nfrom a stored computation, with its filing instructions and URL."
       },
+      "TaxReturnPayment": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paid_on": {
+            "type": "string",
+            "title": "Paid On"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "paid_on",
+          "amount",
+          "currency",
+          "reference"
+        ],
+        "title": "TaxReturnPayment"
+      },
+      "TaxReturnPaymentIn": {
+        "properties": {
+          "paid_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Paid On"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Amount",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paid_on",
+          "amount"
+        ],
+        "title": "TaxReturnPaymentIn"
+      },
       "TaxReturnPending": {
         "properties": {
           "thread_id": {
@@ -35400,6 +36340,216 @@
         ],
         "title": "TaxReturnPrepared",
         "description": "A return held for review under `thread_id`."
+      },
+      "TaxReturnRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "country": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "title": "Country",
+            "description": "ISO 3166-1 alpha-2 country code",
+            "examples": [
+              "LK"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          },
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "filed",
+              "amended"
+            ],
+            "title": "Status"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "filed_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filed On"
+          },
+          "computation_id": {
+            "type": "string",
+            "title": "Computation Id"
+          },
+          "rule_set_version_id": {
+            "type": "string",
+            "title": "Rule Set Version Id"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/TaxComputation"
+          },
+          "snapshot_hash": {
+            "type": "string",
+            "title": "Snapshot Hash"
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/TaxReturnPayment"
+            },
+            "type": "array",
+            "title": "Payments"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "country",
+          "region",
+          "year",
+          "period_start",
+          "period_end",
+          "version",
+          "status",
+          "supersedes_id",
+          "reason",
+          "reference",
+          "filed_on",
+          "computation_id",
+          "rule_set_version_id",
+          "content_hash",
+          "snapshot",
+          "snapshot_hash",
+          "payments",
+          "created_at"
+        ],
+        "title": "TaxReturnRecord",
+        "description": "One version of a year's return. Nothing about it changes once\nrecorded: a later version supersedes it."
+      },
+      "TaxReturnRecordIn": {
+        "properties": {
+          "computation_id": {
+            "type": "string",
+            "title": "Computation Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "filed",
+              "amended"
+            ],
+            "title": "Status"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "filed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filed On"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "computation_id",
+          "status"
+        ],
+        "title": "TaxReturnRecordIn"
       },
       "TaxReturnResumeIn": {
         "properties": {
@@ -37890,6 +39040,63 @@
         ],
         "title": "Updated",
         "description": "What the updates that predate `Ref` return instead of an id."
+      },
+      "YearEndClose": {
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "title": "Entry Id"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "earnings": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Earnings",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "retained_earnings_account_id": {
+            "type": "string",
+            "title": "Retained Earnings Account Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry_id",
+          "period_end",
+          "currency",
+          "earnings",
+          "retained_earnings_account_id"
+        ],
+        "title": "YearEndClose"
+      },
+      "YearEndCloseRequest": {
+        "properties": {
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period_end"
+        ],
+        "title": "YearEndCloseRequest"
       },
       "deviceAuthorization": {
         "properties": {
