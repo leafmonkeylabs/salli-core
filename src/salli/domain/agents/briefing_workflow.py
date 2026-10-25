@@ -139,10 +139,9 @@ def build_briefing_workflow(advisor_svc: Any, checkpointer: Any = None) -> Any:
             config={"configurable": {"thread_id": thread_id}},
         )
     """
-    from langgraph.checkpoint.memory import MemorySaver
+    from salli.domain.agents.checkpointing import checkpointer_or_memory
 
-    if checkpointer is None:
-        checkpointer = MemorySaver()
+    checkpointer = checkpointer_or_memory(checkpointer)
 
     # Bind services into closures
     async def gather(state: BriefingState) -> dict[str, Any]:

@@ -1,0 +1,124 @@
+{
+  "schema": "salli.pensions/1",
+  "market": "LK",
+  "currency": "LKR",
+  "sources": [
+    {
+      "id": "epf_faq",
+      "url": "https://epf.lk/?p=811",
+      "title": "EPF Department (Central Bank): FAQs for Employers (employee 8%, employer 12% of total monthly earnings; EPF Act No. 15 of 1958)",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "id": "etf_secondary",
+      "url": "https://etfb.lk/employed-members/",
+      "title": "ETF Board: employed members (the 3% rate itself was confirmed only from secondary payroll guides; see README)",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "id": "ird_guide",
+      "url": "https://www.ird.gov.lk/en/Downloads/IT_Individuals_Doc/Guide_to_IIT_2425_E.pdf",
+      "title": "IRD: e-Filing guide 2024/2025, Annexure 2 (approved or regulated provident fund payments exempt) and Annexure 5 (ETF payments at retirement taxed at concessionary rates)",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "id": "ird_chart",
+      "url": "https://www.ird.gov.lk/en/publications/SitePages/tax_chart_2526.aspx?menuid=1404",
+      "title": "IRD: Tax Chart 2025/2026, terminal benefits (0% on the first Rs 10,000,000, 6% on the next 10,000,000, 12% above)",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "id": "epf_rate_2025",
+      "url": "https://bizenglish.adaderana.lk/epf-assets-rise-13-to-rs-4-94-t-in-2025/",
+      "title": "Press report of the Central Bank's Annual Economic Review 2025: 10.75% on member balances for 2025 (11.00% for 2024); secondary, pending ministerial concurrence",
+      "retrieved": "2026-10-25"
+    }
+  ],
+  "schemes": [
+    {
+      "key": "epf",
+      "label": "Employees' Provident Fund",
+      "kind": "provident",
+      "guaranteed": false,
+      "contributions": [
+        {
+          "payer": "employee",
+          "rate": "0.08",
+          "of": "total monthly earnings",
+          "deducted_from_pay": true,
+          "source": "epf_faq"
+        },
+        {
+          "payer": "employer",
+          "rate": "0.12",
+          "of": "total monthly earnings",
+          "deducted_from_pay": false,
+          "source": "epf_faq"
+        }
+      ],
+      "crediting_rate": {
+        "last_declared": "0.1075",
+        "year": "2025",
+        "nominal": true,
+        "source": "epf_rate_2025",
+        "uncertain": true
+      },
+      "payout": {
+        "form": "lump_sum",
+        "tax": "exempt",
+        "tax_source": "ird_guide"
+      },
+      "ledger": {
+        "accounts": [
+          "1500 EPF Balance (asset)",
+          "4810 Employer Pension Contributions (income, no tax role)",
+          "4800 Pension Fund Interest (income, no tax role)"
+        ],
+        "payroll": "One entry per payslip: Dr 1200 Bank (net pay), Dr 1410 APIT Deducted (the APIT), Dr 1500 EPF Balance (20% of earnings); Cr 4100 Employment Income (gross pay), Cr 4810 Employer Pension Contributions (the employer's 12%).",
+        "interest": "When the annual statement arrives: Dr 1500 EPF Balance; Cr 4800 Pension Fund Interest.",
+        "withdrawal": "Two entries, so the payout shows as exempt income without counting the fund twice: Dr 1200 Bank, Cr 4950 Provident Fund Payouts (tax role withdrawal); and Dr 5900 Provident Fund Balance Paid Out, Cr 1500 EPF Balance."
+      }
+    },
+    {
+      "key": "etf",
+      "label": "Employees' Trust Fund",
+      "kind": "provident",
+      "guaranteed": false,
+      "contributions": [
+        {
+          "payer": "employer",
+          "rate": "0.03",
+          "of": "total monthly earnings",
+          "deducted_from_pay": false,
+          "source": "etf_secondary",
+          "uncertain": true
+        }
+      ],
+      "crediting_rate": {
+        "last_declared": null,
+        "source": "etf_secondary",
+        "uncertain": true
+      },
+      "payout": {
+        "form": "lump_sum",
+        "tax": "terminal_benefit_concessionary",
+        "tax_source": "ird_chart"
+      },
+      "ledger": {
+        "accounts": [
+          "1510 ETF Balance (asset)"
+        ],
+        "payroll": "In the same payslip entry: Dr 1510 ETF Balance (3% of earnings); Cr 4810 Employer Pension Contributions.",
+        "withdrawal": "Dr 1200 Bank, Cr 4960 ETF Payout (income, no tax role: a terminal benefit, not exempt); and Dr 5900 Provident Fund Balance Paid Out, Cr 1510 ETF Balance. At retirement it counts towards the terminal-benefit bands (0% on the first Rs 10,000,000); the rule sets don't compute terminal-benefit tax."
+      }
+    }
+  ],
+  "planning": {
+    "note": "Neither fund guarantees an income: both pay a lump sum. Model each as a balance growing by contributions and a crediting rate, paid out at retirement; the planning engine should treat them as provident (capital), not guaranteed income.",
+    "real_crediting_rate_assumption": {
+      "value": "0.05",
+      "basis": "EPF's last declared rate (10.75%) less the 5% inflation target, rounded down; an assumption",
+      "uncertain": true
+    }
+  }
+}

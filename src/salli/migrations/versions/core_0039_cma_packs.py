@@ -6,8 +6,8 @@ core_0010 does for tax rule versions), and at most one pack of a user's is
 active. `user_profiles.fi_plan` holds their guaranteed income streams and
 spending phases.
 
-Revision ID: core_0035_cma_packs
-Revises: core_0032_account_freeze
+Revision ID: core_0039_cma_packs
+Revises: core_0038_reconcile
 Create Date: 2026-10-25
 """
 
@@ -17,8 +17,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "core_0035_cma_packs"
-down_revision: str | None = "core_0032_account_freeze"
+revision: str = "core_0039_cma_packs"
+down_revision: str | None = "core_0038_reconcile"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

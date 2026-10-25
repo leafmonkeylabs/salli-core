@@ -285,17 +285,21 @@ class FinanceSignal(BaseModel):
         "savings_rate_drop",
         "review_waiting",
         "decision_review_due",
+        "emergency_fund_low",
+        "expensive_debt",
     ]
     severity: Literal["high", "medium", "info"]
     title: str
     detail: str
     #: Where to look: see_forecast, see_recurring, see_spending, see_cash_flow,
-    #: review (transactions) or review_decision (a decision in the journal).
+    #: see_debts, review (transactions) or review_decision (a decision in the
+    #: journal).
     action: Literal[
         "see_forecast",
         "see_recurring",
         "see_spending",
         "see_cash_flow",
+        "see_debts",
         "review",
         "review_decision",
     ]

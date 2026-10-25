@@ -92,6 +92,15 @@ There is no sign-up. The owner adds everyone else, from the server:
 Each member has their own ledger and signs in with `salli login`. Salli sends
 no email, so a forgotten password is reset by the owner, never by a link.
 
+A member may let another member read their books, and change nothing: `salli
+access grant partner@example.com` (a recent password where the sign-in asks
+for one; never a token or another application). Both see it in `salli access
+list`, and either ends it with `salli access revoke`. The other member reads
+by naming the books (`salli --books <member-id> ...`, the `Salli-Books`
+header): only reads of the books (accounts, entries, reports, plans, tax),
+never sign-ins, tokens, keys, documents, imports or exports. Giving,
+receiving, ending and every read are in the audit logs.
+
 People change their own password with `salli password`. That signs out their
 other sessions; their CLI and console sign-ins and personal access tokens keep
 working. `salli sign-ins list` shows every way they are signed in (sessions,
@@ -193,7 +202,7 @@ is needed to start.
 | `SALLI_BIND` | `127.0.0.1` | The interface the port is published on. `0.0.0.0` publishes it to your network: see [Security](#security). |
 | `SALLI_PORT` | `8000` | The port on that interface. |
 | `SALLI_DOMAIN` | none | The domain Caddy serves with HTTPS (the `tls` profile). |
-| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:0.4.1` | The image to run: the release this `compose.yaml` names, never `latest`. See [Upgrades](#upgrades). |
+| `SALLI_IMAGE` | `ghcr.io/leafmonkeylabs/salli:0.5.0` | The image to run: the release this `compose.yaml` names, never `latest`. See [Upgrades](#upgrades). |
 | `FORWARDED_ALLOW_IPS` | `10.248.53.2` (Caddy) | Whose `X-Forwarded-For` to believe: only the bundled proxy. See [Security](#security). |
 
 ### The server

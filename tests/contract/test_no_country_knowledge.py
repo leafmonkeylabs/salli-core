@@ -58,6 +58,11 @@ ALLOWED: dict[tuple[str, str], str] = {
     ("src/salli/domain/jurisdiction.py", '"LK": "Sri Lanka",'): "ISO 3166-1 country names",
     # The ISO 4217 table: every currency's code, this one included.
     ("src/salli/domain/currency.py", '"LKR",'): "ISO 4217 currency codes",
+    # The root README names the first market, whose pack lives outside the core.
+    (
+        "README.md",
+        "Sri Lanka is the first market with a ready-made pack: [markets/lk](markets/lk/README.md).",
+    ): "the first market's pack, outside the core",
 }
 
 #: Whole directories that are history: an applied migration is never edited,

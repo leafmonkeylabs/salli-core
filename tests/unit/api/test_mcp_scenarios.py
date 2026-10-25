@@ -129,7 +129,9 @@ async def test_options_compare_without_a_ranking(services):
     # through.
     (break_even,) = result["break_evens"]
     assert (break_even["kind"], break_even["value"]) == ("invest_vs_debt_return", "0.0451")
-    assert break_even["says"].startswith("At a real return of 4.51% a year or more, Invest")
+    assert break_even["says"]["untrusted_text"].startswith(
+        "At a real return of 4.51% a year or more, Invest"
+    )
 
 
 INVALID = [

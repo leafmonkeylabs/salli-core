@@ -64,7 +64,8 @@ def _services(
 async def _caller(token: str, settings: Settings, services) -> str:
     """Authenticate the token, then check membership — as a request does."""
     principal = await get_principal(_creds(token), settings, services)
-    return await get_current_user(principal, services)
+    request = SimpleNamespace(headers={}, method="GET", url=SimpleNamespace(path="/v1/meta"))
+    return await get_current_user(principal, services, request)  # type: ignore[arg-type]
 
 
 class _Profiles:

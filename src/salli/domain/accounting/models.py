@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from salli.domain.currency import quantize
+from salli.domain.money import to_minor
 
 
 class Direction(int, Enum):
@@ -17,7 +18,7 @@ class Direction(int, Enum):
 
 AccountType = Literal["asset", "liability", "equity", "income", "expense"]
 
-Source = Literal["manual", "statement", "sms", "system", "reversal"]
+Source = Literal["manual", "statement", "sms", "system", "reversal", "year_end_close"]
 
 
 class BooksLocked(ValueError):
@@ -89,6 +90,11 @@ _TAX_ROLE_SHAPE = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
 # own to plan with. The name matters no more than it does for `tax_role`:
 # an earlier pattern on names matched "fd" inside "Refund".
 AssetRole = Literal["cash", "savings", "investment", "other"]
+
+# What an equity account is for, when the books need to know: the one
+# `retained_earnings` account a year-end close moves income and expenses to
+# (LedgerService.close_year). At most one per user.
+EquityRole = Literal["retained_earnings"]
 ASSET_ROLES: tuple[AssetRole, ...] = ("cash", "savings", "investment", "other")
 
 
@@ -117,6 +123,8 @@ class Account(BaseModel):
     # An asset account's role (`AssetRole`): "cash" unless it says otherwise.
     # Always None for any other type of account.
     asset_role: AssetRole | None = None
+    # An equity account's role (`EquityRole`), or None.
+    equity_role: EquityRole | None = None
 
     @field_validator("currency", mode="before")
     @classmethod
@@ -139,6 +147,10 @@ class Account(BaseModel):
                 )
         elif self.asset_role is None:
             self.asset_role = "cash"
+        if self.equity_role is not None and self.type != "equity":
+            raise ValueError(
+                f"Only an equity account has an equity role; this is a {self.type} account"
+            )
         return self
 
 
@@ -250,10 +262,26 @@ class JournalEntry(BaseModel):
     description: str
     source: Source
     external_ref: str | None = None
+    #: For a reversal: the entry it reverses.
+    reverses: str | None = None
     postings: list[Posting] = Field(min_length=2)
+    #: The owner's base currency, when the caller knows it: the entry then
+    #: balances as the ledger keeps it, each posting's base value in that
+    #: currency's minor units (what core_0001's trigger adds up), which is
+    #: what a multi-currency entry balances in once its rounding is posted
+    #: (`ledger.fx_rounding`). Not stored.
+    base_currency: str | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def must_balance(self) -> JournalEntry:
+        if self.base_currency is not None:
+            net = base_minor_net(self.postings, self.base_currency)
+            if net != 0:
+                raise ValueError(
+                    f"Journal entry is unbalanced: net base amount = {net} minor units of "
+                    f"{self.base_currency} (must be exactly zero)"
+                )
+            return self
         total = sum((p.base_signed for p in self.postings), Decimal(0))
         if total != Decimal(0):
             raise ValueError(
@@ -262,9 +290,31 @@ class JournalEntry(BaseModel):
         return self
 
 
+def base_minor_net(postings: list[Posting], base_currency: str) -> int:
+    """The entry's net in `base_currency`'s minor units, each posting's base
+    value rounded as the ledger stores it."""
+    return sum(p.direction.value * to_minor(p.amount * p.fx_rate, base_currency) for p in postings)
+
+
 class StoredJournalEntry(JournalEntry):
     """A JournalEntry that has been persisted and given an ID."""
 
     id: str
     user_id: str
+    #: The reversal of this entry, if any: read from the reversal's
+    #: `reverses`, never written on this entry.
     reversed_by: str | None = None
+    #: Who posted it: the signed-in person's user id, and how they came in
+    #: (console, cli, mobile, mcp:<client>, import, automation, ...).
+    created_by: str | None = None
+    created_via: str | None = None
+    #: Its place in the user's hash chain (domain/accounting/chain.py).
+    seq: int | None = None
+    hash: str | None = None
+
+    @model_validator(mode="after")
+    def must_balance(self) -> StoredJournalEntry:
+        # Stored, so balanced as the ledger keeps it (core_0001's trigger),
+        # which a multi-currency entry with its rounding posted is only in
+        # minor units, never exactly as amount × rate.
+        return self

@@ -56,6 +56,22 @@ class Extraction:
     accounts: list[str] = field(default_factory=list[str])
     #: What kind each of `accounts` is, where the file says ("credit card").
     account_kinds: dict[str, str] = field(default_factory=dict[str, str])
+    #: The bank's opening and closing balance for each account ("" when the
+    #: file names none), where the file states them: signed, positive in the
+    #: customer's favour (a credit balance). The first opening and the last
+    #: closing when the file holds several statements of one account.
+    balances: dict[str, tuple[Decimal | None, Decimal | None]] = field(
+        default_factory=dict[str, tuple[Decimal | None, Decimal | None]]
+    )
+
+    def note_balance(self, account: str, kind: str, amount: Decimal) -> None:
+        """Keep an "opening" or "closing" balance the file states."""
+        opening, closing = self.balances.get(account, (None, None))
+        if kind == "opening":
+            opening = amount if opening is None else opening
+        else:
+            closing = amount
+        self.balances[account] = (opening, closing)
 
 
 def real_date(year: int, month: int, day: int) -> str | None:

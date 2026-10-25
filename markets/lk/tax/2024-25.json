@@ -1,0 +1,500 @@
+{
+  "schema": "salli.tax/1",
+  "jurisdiction": {
+    "country": "LK",
+    "region": null
+  },
+  "year": {
+    "label": "2024/2025",
+    "start": "2024-04-01",
+    "end": "2025-03-31"
+  },
+  "currency": "LKR",
+  "sources": [
+    {
+      "id": "apit_2324",
+      "url": "https://www.ird.gov.lk/en/publications/APIT_Tax_Tables/2023-2024/Table%20-%201/02.%20APIT_2324_Table_01_Text.pdf",
+      "title": "IRD: APIT Tax Table No. 01 (2023/2024 tables, which apply to later years until replaced)",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "id": "cgt",
+      "url": "https://www.ird.gov.lk/en/Type%20of%20Taxes/SitePages/Capital%20Gain%20Tax%20(CGT).aspx?menuid=1208",
+      "title": "IRD: Capital Gain Tax (10% for individuals from 2018-04-01 to 2026-06-02; exemptions; 30-day return)",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "id": "guide",
+      "url": "https://www.ird.gov.lk/en/Downloads/IT_Individuals_Doc/Guide_to_IIT_2425_E.pdf",
+      "title": "IRD: Guidelines for e-Filing the Individual Income Tax Return, Y/A 2024/2025 (structure, schedules, cages, annexures)",
+      "retrieved": "2026-10-25"
+    },
+    {
+      "id": "chart",
+      "url": "https://www.ird.gov.lk/en/publications/SitePages/tax_chart_2526.aspx?menuid=1404",
+      "title": "IRD: Tax Chart, Year of Assessment 2025/2026 (reliefs, rates, WHT/AIT)",
+      "retrieved": "2026-10-25"
+    }
+  ],
+  "roles": [
+    {
+      "key": "employment_income",
+      "kind": "income",
+      "label": "Employment income (gross, before the employee's EPF contribution)",
+      "description": "Salary, allowances and the taxable value of non-cash benefits. The employee's 8% EPF contribution is not deducted: the APIT tables allow no exemption beyond the Third Schedule."
+    },
+    {
+      "key": "interest_income",
+      "kind": "income",
+      "label": "Interest (gross, before AIT)",
+      "description": "Interest on rupee deposits, treasury bills and bonds, gross of the advance income tax withheld. Interest on approved foreign-currency accounts is exempt: do not tag it."
+    },
+    {
+      "key": "rent_income",
+      "kind": "income",
+      "label": "Rent received"
+    },
+    {
+      "key": "other_income",
+      "kind": "income",
+      "label": "Other assessable income"
+    },
+    {
+      "key": "realised_gain",
+      "kind": "income",
+      "label": "Taxable gains on realising investment assets",
+      "description": "Only taxable gains: gains on shares quoted on a licensed stock exchange, on a qualifying principal residence, and a gain of up to 50,000 when the year's gains are at most 600,000 are exempt. A loss is never set off against a gain."
+    },
+    {
+      "key": "withdrawal",
+      "kind": "other",
+      "label": "Payouts from approved or regulated provident funds (EPF)",
+      "description": "Exempt; declared on the return as exempt income."
+    },
+    {
+      "key": "solar_expenditure",
+      "kind": "deduction",
+      "label": "Solar panels connected to the national grid (spent or loan repaid this year)"
+    },
+    {
+      "key": "donations",
+      "kind": "deduction",
+      "label": "Donations in money to an approved charity"
+    },
+    {
+      "key": "apit_withheld",
+      "kind": "withholding",
+      "label": "APIT deducted by employers"
+    },
+    {
+      "key": "interest_wht",
+      "kind": "withholding",
+      "label": "AIT/WHT deducted from interest"
+    },
+    {
+      "key": "cgt_paid",
+      "kind": "withholding",
+      "label": "Capital gains tax already paid on realisation"
+    },
+    {
+      "key": "instalments_paid",
+      "kind": "withholding",
+      "label": "Quarterly instalments paid"
+    }
+  ],
+  "questions": [],
+  "band_tables": {
+    "progressive": {
+      "label": "Rates on taxable income",
+      "bands": [
+        {
+          "upto": "500000",
+          "rate": "0.06"
+        },
+        {
+          "upto": "1000000",
+          "rate": "0.12"
+        },
+        {
+          "upto": "1500000",
+          "rate": "0.18"
+        },
+        {
+          "upto": "2000000",
+          "rate": "0.24"
+        },
+        {
+          "upto": "2500000",
+          "rate": "0.30"
+        },
+        {
+          "upto": null,
+          "rate": "0.36"
+        }
+      ],
+      "source": "guide"
+    }
+  },
+  "blocks": [
+    {
+      "type": "relief",
+      "key": "solar_relief",
+      "label": "Solar panel relief",
+      "of": "role.solar_expenditure",
+      "amount": "600000",
+      "source": "guide"
+    },
+    {
+      "type": "relief",
+      "key": "personal_relief",
+      "label": "Personal relief",
+      "of": "line.after_other_reliefs",
+      "amount": "1200000",
+      "source": "guide"
+    },
+    {
+      "type": "schedule",
+      "key": "income_tax",
+      "label": "Income tax at progressive rates",
+      "of": "line.taxable",
+      "table": "progressive"
+    },
+    {
+      "type": "final_rate",
+      "key": "cgt",
+      "label": "Tax on gains from realising investment assets",
+      "of": "role.realised_gain",
+      "rate": "0.10",
+      "source": "cgt"
+    },
+    {
+      "type": "credit",
+      "key": "apit",
+      "label": "APIT credit",
+      "of": "role.apit_withheld",
+      "refundable": true,
+      "source": "guide"
+    },
+    {
+      "type": "credit",
+      "key": "ait",
+      "label": "AIT on interest credit",
+      "of": "role.interest_wht",
+      "refundable": true,
+      "source": "guide"
+    },
+    {
+      "type": "credit",
+      "key": "cgt_credit",
+      "label": "Capital gains tax paid",
+      "of": "role.cgt_paid",
+      "refundable": true,
+      "source": "guide"
+    },
+    {
+      "type": "credit",
+      "key": "instalments",
+      "label": "Instalments paid",
+      "of": "role.instalments_paid",
+      "refundable": true,
+      "source": "guide"
+    }
+  ],
+  "lines": [
+    {
+      "key": "assessable",
+      "label": "Assessable income (gains excluded)",
+      "expr": "role.employment_income + role.interest_income + role.rent_income + role.other_income"
+    },
+    {
+      "key": "rent_relief",
+      "label": "Rent relief (25% of rent)",
+      "expr": "role.rent_income * 0.25",
+      "source": "guide"
+    },
+    {
+      "key": "after_other_reliefs",
+      "label": "Assessable income less rent and solar relief",
+      "expr": "max(0, line.assessable - line.rent_relief - line.solar_relief)"
+    },
+    {
+      "key": "donation_relief",
+      "label": "Qualifying payment: donations to approved charities",
+      "expr": "min(role.donations, 75000, line.assessable / 4)",
+      "source": "guide"
+    },
+    {
+      "key": "taxable",
+      "label": "Taxable income",
+      "expr": "max(0, line.personal_relief.remaining - line.donation_relief)"
+    },
+    {
+      "key": "tax_before_credits",
+      "label": "Total tax payable",
+      "expr": "line.income_tax + line.cgt"
+    },
+    {
+      "key": "balance",
+      "label": "Balance tax payable",
+      "expr": "line.tax_before_credits - line.apit - line.ait - line.cgt_credit - line.instalments"
+    }
+  ],
+  "result": {
+    "net": "line.balance",
+    "round": {
+      "mode": "nearest",
+      "unit": "0.01"
+    }
+  },
+  "deadlines": [
+    {
+      "key": "final_payment",
+      "label": "Final payment of the balance (inferred, see README)",
+      "date": "2025-09-30",
+      "source": "guide"
+    },
+    {
+      "key": "return",
+      "label": "Return of income due (inferred, see README)",
+      "date": "2025-11-30",
+      "source": "guide"
+    }
+  ],
+  "suggested_accounts": [
+    {
+      "code": "4100",
+      "name": "Employment Income",
+      "type": "income",
+      "tax_role": "employment_income"
+    },
+    {
+      "code": "4300",
+      "name": "Rental Income",
+      "type": "income",
+      "tax_role": "rent_income"
+    },
+    {
+      "code": "4400",
+      "name": "Interest Income",
+      "type": "income",
+      "tax_role": "interest_income"
+    },
+    {
+      "code": "4700",
+      "name": "Realised Gains",
+      "type": "income",
+      "tax_role": "realised_gain"
+    },
+    {
+      "code": "4900",
+      "name": "Other Assessable Income",
+      "type": "income",
+      "tax_role": "other_income"
+    },
+    {
+      "code": "1410",
+      "name": "APIT Deducted",
+      "type": "asset",
+      "tax_role": "apit_withheld"
+    },
+    {
+      "code": "1420",
+      "name": "AIT on Interest",
+      "type": "asset",
+      "tax_role": "interest_wht"
+    },
+    {
+      "code": "1430",
+      "name": "Capital Gains Tax Paid",
+      "type": "asset",
+      "tax_role": "cgt_paid"
+    },
+    {
+      "code": "1440",
+      "name": "Income Tax Instalments Paid",
+      "type": "asset",
+      "tax_role": "instalments_paid"
+    },
+    {
+      "code": "1500",
+      "name": "EPF Balance",
+      "type": "asset"
+    },
+    {
+      "code": "1510",
+      "name": "ETF Balance",
+      "type": "asset"
+    },
+    {
+      "code": "4950",
+      "name": "Provident Fund Payouts (exempt)",
+      "type": "income",
+      "tax_role": "withdrawal"
+    },
+    {
+      "code": "5900",
+      "name": "Provident Fund Balance Paid Out",
+      "type": "expense"
+    },
+    {
+      "code": "5300",
+      "name": "Solar Panels (grid-connected)",
+      "type": "expense",
+      "tax_role": "solar_expenditure"
+    },
+    {
+      "code": "5400",
+      "name": "Charitable Donations (approved)",
+      "type": "expense",
+      "tax_role": "donations"
+    }
+  ],
+  "forms": [
+    {
+      "key": "iit_return",
+      "label": "Return of Income, individual (main return and schedules)",
+      "url": "https://eservices.ird.gov.lk/Authentication/LoginPersonal",
+      "instructions": "Filed online only. Employment income goes in Schedule 1, interest and rent in Schedule 3, reliefs and qualifying payments in Schedule 5, AIT in Schedule 7A, credits in Schedule 9. Cage numbers follow the IRD e-filing guide for 2024/2025; check them against the current year's guide. Attach APIT T-10 certificates and the Statement of Assets and Liabilities.",
+      "fields": [
+        {
+          "id": "sch1_employment",
+          "label": "Schedule 1: employment income",
+          "value": "role.employment_income"
+        },
+        {
+          "id": "sch3_interest",
+          "label": "Schedule 3: interest income",
+          "value": "role.interest_income"
+        },
+        {
+          "id": "sch3_rent",
+          "label": "Schedule 3: rent income",
+          "value": "role.rent_income"
+        },
+        {
+          "id": "cage_210_exempt",
+          "label": "Cage 210: exempt income (provident fund withdrawals)",
+          "value": "role.withdrawal"
+        },
+        {
+          "id": "sch5_reliefs",
+          "label": "Schedule 5: rent and solar reliefs",
+          "value": "line.rent_relief + line.solar_relief"
+        },
+        {
+          "id": "personal_relief",
+          "label": "Personal relief",
+          "value": "line.personal_relief"
+        },
+        {
+          "id": "cage_100_qp",
+          "label": "Cage 100: qualifying payments",
+          "value": "line.donation_relief"
+        },
+        {
+          "id": "cage_120_taxable",
+          "label": "Cage 120: taxable income",
+          "value": "line.taxable"
+        },
+        {
+          "id": "cage_806_gain",
+          "label": "Cage 806.1: gains on realising investment assets",
+          "value": "role.realised_gain"
+        },
+        {
+          "id": "cage_140_cgt",
+          "label": "Cage 140: tax on gains",
+          "value": "line.cgt"
+        },
+        {
+          "id": "cage_150_tax",
+          "label": "Cage 150: tax on balance taxable income",
+          "value": "line.income_tax"
+        },
+        {
+          "id": "cage_903_apit",
+          "label": "Cage 903: APIT, primary employment",
+          "value": "line.apit"
+        },
+        {
+          "id": "cage_908_ait",
+          "label": "Cage 908: AIT deducted",
+          "value": "line.ait"
+        },
+        {
+          "id": "cage_909_cgt",
+          "label": "Cage 909: tax paid on gains",
+          "value": "line.cgt_credit"
+        },
+        {
+          "id": "cage_911_instalments",
+          "label": "Cage 911: instalments paid",
+          "value": "line.instalments"
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "name": "APIT Table 1: Rs 100,000 a month is relieved from tax",
+      "source": "apit_2324",
+      "inputs": {
+        "employment_income": "1200000"
+      },
+      "expected": {
+        "payable": "0",
+        "refund": "0"
+      }
+    },
+    {
+      "name": "APIT Table 1: Rs 250,000 a month, 24% less 39,000 (21,000 a month)",
+      "source": "apit_2324",
+      "inputs": {
+        "employment_income": "3000000"
+      },
+      "expected": {
+        "payable": "252000",
+        "lines": {
+          "taxable": "1800000"
+        }
+      }
+    },
+    {
+      "name": "APIT Table 1: Rs 400,000 a month, 36% less 73,500 (70,500 a month)",
+      "source": "apit_2324",
+      "inputs": {
+        "employment_income": "4800000",
+        "apit_withheld": "846000"
+      },
+      "expected": {
+        "payable": "0",
+        "refund": "0",
+        "lines": {
+          "income_tax": "846000"
+        }
+      }
+    },
+    {
+      "name": "Interest below the relief: the 5% AIT is refunded",
+      "source": "guide",
+      "inputs": {
+        "interest_income": "1000000",
+        "interest_wht": "50000"
+      },
+      "expected": {
+        "payable": "0",
+        "refund": "50000"
+      }
+    },
+    {
+      "name": "Gains at 10%, the personal relief doesn't reach them",
+      "source": "cgt",
+      "inputs": {
+        "realised_gain": "500000"
+      },
+      "expected": {
+        "payable": "50000"
+      }
+    }
+  ]
+}

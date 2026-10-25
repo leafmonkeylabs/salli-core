@@ -79,6 +79,9 @@ class Account(BaseModel):
     #: An asset account's role: cash, savings, investment or other. Null for any
     #: other type of account.
     asset_role: AssetRoleStr | None = None
+    #: "retained_earnings" on the equity account a year-end close moves
+    #: earnings to (`PUT /v1/ledger/retained-earnings`); null otherwise.
+    equity_role: Literal["retained_earnings"] | None = None
 
 
 class AccountActivity(BaseModel):
@@ -119,6 +122,7 @@ def _account(a: DomainAccount) -> Account:
         is_active=a.is_active,
         tax_role=a.tax_role,
         asset_role=a.asset_role,
+        equity_role=a.equity_role,
     )
 
 

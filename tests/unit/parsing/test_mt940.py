@@ -165,3 +165,15 @@ def test_no_reference_written_as_such_is_no_reference():
     lines = extract_from_mt940(data).lines
     # The customer's own reference is text, never the bank's id.
     assert [(line.bank_ref, line.ref_kind) for line in lines] == [("", "id"), ("CUST-7", "text")]
+
+
+def test_the_opening_and_closing_balances_are_kept_per_account():
+    extraction = extract_from_mt940((FIXTURES / "mt940_de.sta").read_bytes())
+    assert extraction.balances == {
+        "37040044/0532013000": (Decimal("2540.12"), Decimal("4790.12")),
+        "37040044/0532013001": (Decimal("1000.00"), Decimal("765")),
+    }
+    debit = extract_from_mt940(
+        "\r\n".join([":20:R", ":25:1", ":60F:D261001EUR5,00", ":62F:D261031EUR7,50", "-"]).encode()
+    )
+    assert debit.balances == {"1": (Decimal("-5.00"), Decimal("-7.50"))}

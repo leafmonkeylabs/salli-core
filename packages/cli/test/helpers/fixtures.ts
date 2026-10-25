@@ -93,6 +93,8 @@ export const BALANCE_SHEET = {
   total_liabilities: '1200.00',
   total_equity: '0.00',
   net_worth: '14034.50',
+  as_of: '2026-10-25',
+  unrealised_fx: { as_of: '2026-10-25', currency: 'USD', total: '0.00', posted: '0.00', unposted: '0.00', lines: [], notes: [] },
   notes: [],
 } satisfies BalanceSheet;
 

@@ -1,7 +1,7 @@
 """
 Storage for capital-market assumptions packs (application/ports.py
 `CmaPackRepository`). Every query names the owner; nothing here can change a
-pack's document once written (core_0035's trigger refuses it too).
+pack's document once written (core_0039's trigger refuses it too).
 """
 
 from __future__ import annotations

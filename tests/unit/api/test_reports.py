@@ -61,11 +61,25 @@ async def test_the_balance_sheet_is_what_the_baseline_owns_and_owes_today(client
             {"account_id": "card", "code": "1002", "name": "Card", "balance": "200.00"},
             {"account_id": None, "code": "", "name": "Student-Loan", "balance": "5000.00"},
         ],
-        "equity": [{"account_id": "eq", "code": "1003", "name": "Eq", "balance": "30300.50"}],
+        "equity": [
+            {"account_id": "eq", "code": "1003", "name": "Eq", "balance": "30300.50"},
+            # Nothing in income or expenses here to close.
+            {"account_id": None, "code": "", "name": "Current-year earnings", "balance": "0.00"},
+        ],
         "total_assets": "31500.50",
         "total_liabilities": "5200.00",
         "total_equity": "30300.50",
         "net_worth": "26300.50",
+        "as_of": TODAY.isoformat(),
+        "unrealised_fx": {
+            "as_of": TODAY.isoformat(),
+            "currency": "LKR",
+            "total": "0.00",
+            "posted": "0.00",
+            "unposted": "0.00",
+            "lines": [],
+            "notes": [],
+        },
         "notes": [],
     }
 

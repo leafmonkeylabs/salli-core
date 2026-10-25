@@ -54,6 +54,7 @@ from mcp.types import CallToolResult, ContentBlock, TextContent, ToolAnnotations
 from mcp.types import Tool as MCPTool
 from pydantic import AnyHttpUrl, BaseModel, Field, ValidationError
 
+from salli.application.entry_author import set_author
 from salli.application.permissions import Actor
 from salli.application.ports import (
     AccountNotFound,
@@ -65,6 +66,7 @@ from salli.application.ports import (
 from salli.application.services.fi_service import decimal_arg
 from salli.application.services.ledger_service import CLIENT_REF_MAX
 from salli.application.services.mcp_oauth_service import MCP_WRITE, McpOAuthService
+from salli.application.services.personal_access_token_service import is_personal_access_token
 from salli.application.services.tax_rule_service import (
     RuleSetConflict,
     RuleSetRateMissing,
@@ -75,7 +77,7 @@ from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.unit_of_work import AuditRecord, pending_audit
 from salli.domain.accounting.models import AccountNotEmpty, BooksLocked
 from salli.domain.agents.tools import computation_for_agent
-from salli.domain.agents.untrusted import UNTRUSTED_RULE, fence_document, untrusted
+from salli.domain.agents.untrusted import UNTRUSTED_RULE, fence, fence_document, untrusted
 from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
@@ -135,12 +137,28 @@ SCENARIO_GUIDE = (
 
 class SalliTokenVerifier(TokenVerifier):
     """Bridges the MCP SDK's auth middleware to McpOAuthService — every call
-    re-checks the live mcp_enabled gate, not just token expiry."""
+    re-checks the live mcp_enabled gate, not just token expiry.
 
-    def __init__(self, mcp_oauth: McpOAuthService) -> None:
+    A personal access token is accepted too, for a headless agent that can't
+    sign in through a browser: it reads only (no mcp:write), and only while
+    the user has MCP switched on."""
+
+    def __init__(self, mcp_oauth: McpOAuthService, tokens: Any = None) -> None:
         self._mcp_oauth = mcp_oauth
+        self._tokens = tokens
 
     async def verify_token(self, token: str) -> AccessToken | None:
+        if is_personal_access_token(token):
+            verified = None if self._tokens is None else await self._tokens.verify(token)
+            if verified is None or not await self._mcp_oauth.is_mcp_enabled(verified.user_id):
+                return None
+            return AccessToken(
+                token=token,
+                client_id=f"pat:{verified.name}"[:64],
+                scopes=[],
+                expires_at=None,
+                subject=verified.user_id,
+            )
         record = await self._mcp_oauth.verify_access_token(token)
         if record is None:
             return None
@@ -338,6 +356,22 @@ def _compact(tool: MCPTool) -> MCPTool:
     )
 
 
+#: Read tools that answer only Salli's own fixed documents (schemas and the
+#: template catalogue), with nothing from outside in them: not fenced.
+OWN_DOCUMENTS = frozenset({"get_scenario_schema", "get_tax_rule_schema", "list_decision_templates"})
+
+
+def _fenced(result: Any) -> Any:
+    """A read's answer with its free text fenced (`fence`), the text content
+    written again from the fenced data."""
+    if isinstance(result, tuple):
+        structured = fence(result[1])
+        return [TextContent(type="text", text=json.dumps(structured, indent=2))], structured
+    if isinstance(result, dict):
+        return fence(result)
+    return result
+
+
 class _SalliMCP(FastMCP[Any]):
     """FastMCP, with every tool call audited, and every tool that isn't
     read-only checked, here, in one place."""
@@ -375,6 +409,7 @@ class _SalliMCP(FastMCP[Any]):
             await self._audit(record, "refused")
             _fail("scope", READ_ONLY)
         outcome = "failed"
+        set_author(record.user_id, f"mcp:{record.client_id}")
         token = pending_audit.set(record)
         try:
             result = await self._run(name, arguments)
@@ -400,7 +435,7 @@ class _SalliMCP(FastMCP[Any]):
             outcome = "succeeded"
         finally:
             await self._audit(record, outcome)
-        return result
+        return result if name in OWN_DOCUMENTS else _fenced(result)
 
     async def _run(
         self, name: str, arguments: dict[str, Any]
@@ -461,6 +496,26 @@ class TransactionChoice(BaseModel):
     need: str | None = Field(default=None, description="essential, discretionary or savings")
 
 
+def _entry_view(e: Any) -> dict[str, Any]:
+    """A booked entry as the read tools show it."""
+    return {
+        "id": e.id,
+        "date": e.entry_date,
+        "description": untrusted(e.description),
+        "reversed_by": e.reversed_by,
+        "posted_via": e.created_via,
+        "postings": [
+            {
+                "account_id": p.account_id,
+                "side": "debit" if p.direction.value > 0 else "credit",
+                "amount": str(quantize(p.amount, p.currency, strict=False)),
+                "currency": p.currency,
+            }
+            for p in e.postings
+        ],
+    }
+
+
 def _writes(
     *, over: bool = False, idempotent: bool = False, open_world: bool = False
 ) -> ToolAnnotations:
@@ -514,6 +569,7 @@ def build_mcp_server(
     services: Any, issuer_url: str, allowed_origins: Sequence[str] = ()
 ) -> FastMCP:
     ledger_svc = services.ledger
+    reconciliation_svc = services.reconciliation
     tax_svc = services.tax
     profile_svc = services.profile
     budget_svc = services.budget
@@ -584,7 +640,7 @@ def build_mcp_server(
             "rules, and explain_tax_line says where each line came from. Never compute tax "
             "yourself: Salli's engine does."
         ),
-        token_verifier=SalliTokenVerifier(services.mcp_oauth),
+        token_verifier=SalliTokenVerifier(services.mcp_oauth, services.tokens),
         # No scope is required to connect: a grant from before the scopes
         # reads. Writing needs mcp:write, checked in _SalliMCP.call_tool.
         auth=AuthSettings(
@@ -655,6 +711,22 @@ def build_mcp_server(
         }
 
     @mcp.tool(annotations=READS)
+    async def get_reconciliation(statement_id: str | None = None) -> dict[str, Any]:
+        """Bank reconciliation. Without statement_id: the statements that
+        carry the bank's opening and closing balances, and whether each is
+        reconciled. With one: its account's postings in the period (cleared
+        or not), the cleared total and the difference from the closing
+        balance, in the account's currency. Quote Salli's difference; never
+        add up postings. Clearing and completing are the person's, in Salli."""
+        user_id = _current_user_id()
+        if statement_id is None:
+            return {"statements": await reconciliation_svc.list_statements(user_id)}
+        status = await reconciliation_svc.status(user_id, statement_id)
+        if status is None:
+            _fail("not_found", f"Statement not found: {statement_id}")
+        return status
+
+    @mcp.tool(annotations=READS)
     async def search_entries(
         text: str | None = None,
         account_id: str | None = None,
@@ -688,26 +760,32 @@ def build_mcp_server(
         except ValueError as exc:
             _refused(exc)
         return {
-            "entries": [
-                {
-                    "id": e.id,
-                    "date": e.entry_date,
-                    "description": untrusted(e.description),
-                    "reversed_by": e.reversed_by,
-                    "postings": [
-                        {
-                            "account_id": p.account_id,
-                            "side": "debit" if p.direction.value > 0 else "credit",
-                            "amount": str(quantize(p.amount, p.currency, strict=False)),
-                            "currency": p.currency,
-                        }
-                        for p in e.postings
-                    ],
-                }
-                for e in found["entries"]
-            ],
+            "entries": [_entry_view(e) for e in found["entries"]],
             **{k: v for k, v in found.items() if k != "entries"},
         }
+
+    @mcp.tool(annotations=READS)
+    async def get_entry(entry_id: str) -> dict[str, Any]:
+        """One booked entry by id (search_entries), with its postings."""
+        entry = await ledger_svc.get_entry(_current_user_id(), entry_id)
+        if entry is None:
+            _fail("not_found", f"Entry not found: {entry_id}")
+        return _entry_view(entry)
+
+    @mcp.tool(annotations=WRITES)
+    async def reverse_entry(
+        entry_id: str, reason: str, confirmed_by_user: Literal[True]
+    ) -> dict[str, Any]:
+        """Cancel a booked entry with its opposite (entries are never edited).
+        reason: why, up to 200 characters. Show the user the entry and the
+        reason first; pass confirmed_by_user: true only once they say yes."""
+        if not 0 < len(reason.strip()) <= 200:
+            _fail("invalid_input", "reason is 1 to 200 characters")
+        try:
+            reversing_id = await ledger_svc.reverse_entry(_current_user_id(), entry_id, reason)
+        except (ValueError, BooksLocked) as exc:
+            _refused(exc)
+        return {"entry_id": entry_id, "reversed_by": reversing_id}
 
     @mcp.tool(annotations=READS)
     async def get_trial_balance(
@@ -771,6 +849,28 @@ def build_mcp_server(
         return _jsonable(computation_for_agent(result))
 
     @mcp.tool(annotations=READS)
+    async def list_tax_returns(year: str | None = None) -> dict[str, Any]:
+        """The user's recorded tax returns (of `year`, as the rules name it),
+        newest year first: each version's status (draft, filed, amended),
+        the authority's reference, the filing date, why it was amended, the
+        figures recorded with it (net, tax payable, refund due, in its
+        currency) and the payments made against it. A filed return keeps its
+        year's books closed. Quote these figures exactly."""
+        returns = await tax_svc.list_returns(_current_user_id(), year or None)
+        keep = ("net", "tax_payable", "refund_due", "currency", "rule_set_version_id", "version")
+        return _jsonable(
+            {
+                "returns": [
+                    {
+                        **{k: v for k, v in r.items() if k != "snapshot"},
+                        "figures": {k: r["snapshot"].get(k) for k in keep},
+                    }
+                    for r in returns
+                ]
+            }
+        )
+
+    @mcp.tool(annotations=READS)
     async def explain_tax_line(
         line_key: str,
         year: str | None = None,
@@ -805,18 +905,35 @@ def build_mcp_server(
         return await profile_svc.get_profile(user_id)
 
     @mcp.tool(annotations=READS)
-    async def get_budget_summary(budget_id: str | None = None) -> dict[str, Any]:
-        """Return a budget's category limits vs. actual spend for its period."""
+    async def list_budgets() -> dict[str, Any]:
+        """The user's budgets: id, period, category lines."""
+        return {"budgets": _jsonable(await budget_svc.list_budgets(_current_user_id()))}
+
+    @mcp.tool(annotations=READS)
+    async def get_budget_summary(budget_id: str) -> dict[str, Any]:
+        """A budget's limits against spending (budget_id: list_budgets)."""
         user_id = _current_user_id()
-        if budget_id is None:
-            budgets = await budget_svc.list_budgets(user_id)
-            if not budgets:
-                _fail("not_enough_data", "No budgets yet")
-            budget_id = budgets[0]["id"]
         summary = await budget_svc.get_summary(user_id, budget_id)
         if summary is None:
             _fail("not_found", f"Budget not found: {budget_id}")
         return summary
+
+    @mcp.tool(annotations=READS)
+    async def list_debts(include_closed: bool = False) -> dict[str, Any]:
+        """The user's debts: balance, rate, minimum payment, linked account."""
+        found = await debt_svc.list_debts(_current_user_id(), not include_closed)
+        return {"debts": _jsonable(found)}
+
+    @mcp.tool(annotations=READS)
+    async def list_goals() -> dict[str, Any]:
+        """The user's active goals: target, date, how much is funded."""
+        return {"goals": _jsonable(await fi_svc.list_goals(_current_user_id()))}
+
+    @mcp.tool(annotations=READS)
+    async def list_reminders(status: str | None = None) -> dict[str, Any]:
+        """The user's reminders and deadlines; status filters (e.g. pending)."""
+        found = await reminders_svc.list_reminders(_current_user_id(), status or None)
+        return {"reminders": _jsonable(found)}
 
     @mcp.tool(annotations=READS)
     async def get_payoff_plan(

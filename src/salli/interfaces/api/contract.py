@@ -49,6 +49,10 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/auth/totp"): "auth.totp.begin",
     ("POST", "/auth/totp/confirm"): "auth.totp.confirm",
     ("DELETE", "/auth/totp"): "auth.totp.disable",
+    # read-only access to another member's books
+    ("GET", "/access-grants"): "access.list",
+    ("POST", "/access-grants"): "access.grant",
+    ("DELETE", "/access-grants/{grant_id}"): "access.revoke",
     # accounts
     ("GET", "/accounts/"): "accounts.list",
     ("POST", "/accounts/"): "accounts.create",
@@ -70,6 +74,18 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/ledger/trial-balance"): "ledger.trialBalance",
     ("GET", "/ledger/income-statement"): "ledger.incomeStatement",
     ("PUT", "/ledger/lock-date"): "ledger.lockDate.set",
+    ("GET", "/ledger/unrealised-fx"): "ledger.unrealisedFx",
+    ("POST", "/ledger/fx-revaluation"): "ledger.fxRevaluation.post",
+    ("GET", "/reconciliation/statements"): "reconciliation.statements.list",
+    ("POST", "/reconciliation/statements"): "reconciliation.statements.add",
+    ("GET", "/reconciliation/statements/{statement_id}"): "reconciliation.statements.get",
+    ("POST", "/reconciliation/statements/{statement_id}/clear"): "reconciliation.statements.clear",
+    ("POST", "/reconciliation/statements/{statement_id}/complete"): (
+        "reconciliation.statements.complete"
+    ),
+    ("POST", "/ledger/year-end-close"): "ledger.closeYear",
+    ("PUT", "/ledger/retained-earnings"): "ledger.retainedEarnings.set",
+    ("GET", "/ledger/verify"): "ledger.verify",
     # tax
     ("POST", "/tax/compute"): "tax.compute",
     ("GET", "/tax/latest"): "tax.latest",
@@ -77,6 +93,10 @@ OPERATION_IDS: dict[Route, str] = {
     ("POST", "/tax/explain"): "tax.explain",
     ("POST", "/tax/returns/prepare"): "tax.returns.prepare",
     ("POST", "/tax/returns/resume"): "tax.returns.resume",
+    ("GET", "/tax/return-records"): "tax.returnRecords.list",
+    ("POST", "/tax/return-records"): "tax.returnRecords.create",
+    ("GET", "/tax/return-records/{return_id}"): "tax.returnRecords.get",
+    ("POST", "/tax/return-records/{return_id}/payments"): "tax.returnRecords.payments.create",
     ("GET", "/tax/returns/{thread_id}"): "tax.returns.get",
     # tax rule sets: the user's own rules (docs/taxrules.md)
     ("GET", "/tax/schema"): "tax.schema",

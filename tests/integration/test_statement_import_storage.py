@@ -12,6 +12,7 @@ import pytest
 import salli.adapters.parsing.llm_classifier as llm_classifier
 from salli.application.services.ledger_service import LedgerService
 from salli.application.services.parsing_service import ParsingService
+from salli.domain.accounting.models import Direction
 from salli.domain.parsing.models import ParsedTransaction, RawRow
 from tests.integration.pg import requires_postgres
 
@@ -301,3 +302,82 @@ async def test_drafts_collect_in_one_batch_while_it_waits(uow_factory, chart):
         api_key="k",
     )
     assert third.statement_id not in ("", first.statement_id)
+
+
+@pytest.mark.asyncio
+async def test_an_import_stating_its_balances_is_a_statement_to_reconcile(uow_factory):
+    from salli.application.services.reconciliation_service import ReconciliationService
+
+    ledger = LedgerService(uow_factory)
+    giro = await ledger.add_account("u1", "1100", "Giro", "asset", currency="EUR")
+    data = (Path(__file__).parents[1] / "fixtures" / "statements" / "mt940_de.sta").read_bytes()
+    result = await ParsingService(uow_factory).parse_statement(
+        "u1", "oct.sta", data, account_id=giro, source_account="37040044/0532013000", api_key="k"
+    )
+    status = await ReconciliationService(uow_factory).status("u1", result.statement_id)
+    assert status is not None
+    assert (status["opening_balance"], status["closing_balance"]) == ("2540.12", "4790.12")
+    assert (status["period_start"], status["account_id"]) == ("2026-10-01", giro)
+
+
+@pytest.mark.asyncio
+async def test_a_row_posts_at_the_banks_base_amount_and_split_across_accounts(uow_factory, chart):
+    ledger = LedgerService(uow_factory)
+    wallet = await ledger.add_account("u1", "1200", "Pesos", "asset", currency="MXN")
+    fun = await ledger.add_account("u1", "5100", "Fun", "expense")
+    parsing = ParsingService(uow_factory)
+    drafted = await parsing.draft(
+        "u1",
+        [
+            RawRow(
+                date="2031-05-02",
+                description="Market and cinema",
+                amount=Decimal("300.00"),
+                credit_flag=False,
+                currency="MXN",
+                base_amount=Decimal("17.31"),
+            )
+        ],
+        account_id=wallet,
+        source="Messages",
+    )
+    [row] = drafted.transactions
+    with pytest.raises(ValueError, match="add up"):
+        await parsing.categorize(
+            "u1",
+            [
+                {
+                    "transaction_id": row.id,
+                    "splits": [
+                        {"account_id": chart["food"], "amount": "200"},
+                        {"account_id": fun, "amount": "50"},
+                    ],
+                }
+            ],
+        )
+    await parsing.categorize(
+        "u1",
+        [
+            {
+                "transaction_id": row.id,
+                "splits": [
+                    {"account_id": chart["food"], "amount": "200", "category": "groceries"},
+                    {"account_id": fun, "amount": "100", "need": "discretionary"},
+                ],
+            }
+        ],
+    )
+    [entry_id] = await parsing.post_approved("u1", [row.id])
+    entry = await ledger.get_entry("u1", entry_id)
+    assert entry is not None
+    legs = {(p.account_id, p.direction, p.amount) for p in entry.postings}
+    assert legs == {
+        (chart["food"], Direction.DEBIT, Decimal("200.00")),
+        (fun, Direction.DEBIT, Decimal("100.00")),
+        (wallet, Direction.CREDIT, Decimal("300.00")),
+    }
+    assert {p.fx_rate_source for p in entry.postings} == {"bank"}
+    assert entry.postings[0].fx_rate == Decimal("0.05770000")
+    tags = {p.account_id: p.tags for p in entry.postings}
+    assert tags[chart["food"]] == {"category": "groceries"}
+    assert tags[fun] == {"need": "discretionary"}

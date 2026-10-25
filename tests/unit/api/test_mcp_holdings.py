@@ -69,7 +69,8 @@ async def test_holdings_are_listed_as_the_person_named_them(services):
     fund = await _fund(services)
     listed = await _call(services, "list_holdings", {})
     (holding,) = listed["holdings"]
-    assert (holding["id"], holding["symbol"], holding["name"], holding["account_id"]) == (
+    name = holding["name"]["untrusted_text"]
+    assert (holding["id"], holding["symbol"], name, holding["account_id"]) == (
         fund,
         "FND",
         "My savings fund",

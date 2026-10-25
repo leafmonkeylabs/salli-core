@@ -109,6 +109,7 @@ class DataPortabilityService:
                     "parent_id": a.parent_id,
                     "is_active": a.is_active,
                     "tax_role": a.tax_role,
+                    "equity_role": a.equity_role,
                 }
                 # Closed accounts too: entries still refer to them.
                 for a in await self._ledger.list_accounts(user_id, include_inactive=True)
@@ -120,7 +121,13 @@ class DataPortabilityService:
                     "description": e.description,
                     "source": e.source,
                     "external_ref": e.external_ref,
+                    "reverses": e.reverses,
                     "reversed_by": e.reversed_by,
+                    # Who posted it, and its place in the hash chain.
+                    "created_by": e.created_by,
+                    "created_via": e.created_via,
+                    "seq": e.seq,
+                    "hash": e.hash,
                     "postings": [
                         {
                             "account_id": p.account_id,
@@ -138,6 +145,7 @@ class DataPortabilityService:
                 for e in entries
             ],
             "tax_computations": computations,
+            "tax_returns": await self._tax.list_returns(user_id),
             "budgets": await self._budget.list_budgets(user_id),
             "debts": await self._debt.list_debts(user_id, active_only=False),
             "holdings": await self._portfolio.list_holdings(user_id, active_only=False),

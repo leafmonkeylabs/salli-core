@@ -254,6 +254,26 @@ def history(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
     return [_transaction(row, currency, seq) for seq, row in enumerate(rows)]
 
 
+async def realised_gains(
+    uow: Any, user_id: str, start: date, end: date
+) -> list[tuple[str, Decimal]]:
+    """Each sale of the user's holdings dated `start` to `end` (both
+    included), and the gain it realised in the base currency (proceeds less
+    fees less the consumed lots' cost, each at its day's rate): (date, gain),
+    in date order. What a rule set's `realised_gain` role is filled from."""
+    holdings = await uow.holdings.list(user_id, active_only=False)
+    rows = await uow.holding_transactions.list(user_id)
+    gains: list[tuple[str, Decimal]] = []
+    for holding in holdings:
+        mine = [r for r in rows if r["holding_id"] == holding["id"]]
+        if not mine:
+            continue
+        for sale in replay(history(mine, holding["currency"])).sales:
+            if start <= sale.on <= end:
+                gains.append((sale.on.isoformat(), sale.gain_base))
+    return sorted(gains)
+
+
 def _check(rows: Iterable[dict[str, Any]], currency: str) -> list[Transaction]:
     """Refuse a history with a malformed transaction or one that cannot have
     happened. Returns it, as domain transactions."""

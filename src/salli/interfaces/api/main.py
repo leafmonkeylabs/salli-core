@@ -30,6 +30,8 @@ from salli.application.ports import (
     PrincipleNotFound,
     ProfileMissing,
 )
+from salli.application.services.document_service import DocumentRetained
+from salli.application.services.reconciliation_service import Reconciled
 from salli.application.services.tax_rule_service import (
     RuleSetConflict,
     RuleSetDocumentError,
@@ -57,6 +59,7 @@ from salli.interfaces.api.contract import API_PREFIX, document_problems, operati
 from salli.interfaces.api.deps import StepUpRequired, get_services
 from salli.interfaces.api.request_context import UNEXPECTED_TITLE, RequestContextMiddleware
 from salli.interfaces.api.routers import (
+    access,
     accounts,
     advisor,
     agent,
@@ -82,6 +85,7 @@ from salli.interfaces.api.routers import (
     onboarding,
     portfolio,
     principles,
+    reconciliation,
     reminders,
     reports,
     rules,
@@ -301,6 +305,7 @@ def create_app() -> FastAPI:
         subscriptions.router,
         insurance.router,
         reports.router,
+        reconciliation.router,
         llm_keys.router,
         ai.router,
         mcp_oauth.connections_router,
@@ -331,6 +336,7 @@ def create_app() -> FastAPI:
     app.include_router(principles.router, prefix=API_PREFIX)
     app.include_router(decisions.router, prefix=API_PREFIX)
     app.include_router(notifications.router, prefix=API_PREFIX)
+    app.include_router(access.router, prefix=API_PREFIX)
     # The console's static files, at /console: here, so before the MCP app's
     # catch-all mount at "/", which the lifespan adds last. None when it is
     # switched off (SALLI_CONSOLE=false) or no console is built.
@@ -541,6 +547,16 @@ def create_app() -> FastAPI:
     @app.exception_handler(BooksLocked)
     async def books_locked_handler(request: Request, exc: BooksLocked) -> JSONResponse:
         return problem(status.HTTP_409_CONFLICT, "books-locked", "The books are closed", str(exc))
+
+    # Deleting a document that is kept (its retention, or an entry cites it).
+    @app.exception_handler(DocumentRetained)
+    async def retained_handler(request: Request, exc: DocumentRetained) -> JSONResponse:
+        return problem(status.HTTP_409_CONFLICT, "document-retained", "Document kept", str(exc))
+
+    # A change to a statement whose reconciliation is complete.
+    @app.exception_handler(Reconciled)
+    async def reconciled_handler(request: Request, exc: Reconciled) -> JSONResponse:
+        return problem(status.HTTP_409_CONFLICT, "reconciled", "Already reconciled", str(exc))
 
     @app.exception_handler(AccountNotEmpty)
     async def account_not_empty_handler(request: Request, exc: AccountNotEmpty) -> JSONResponse:

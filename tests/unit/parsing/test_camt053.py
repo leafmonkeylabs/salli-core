@@ -211,3 +211,11 @@ def test_a_placeholder_date_is_reported():
     result = extract_from_camt053(_document(_entry(date="<BookgDt><Dt>9999-12-31</Dt></BookgDt>")))
     assert result.lines == []
     assert "no booking or value date" in result.errors[0]
+
+
+def test_the_previous_and_closing_balances_are_kept():
+    extraction = extract_from_camt053((FIXTURES / "camt053_v02.xml").read_bytes())
+    assert extraction.balances["DE89370400440532013000"] == (
+        Decimal("2540.12"),
+        Decimal("4730.33"),
+    )

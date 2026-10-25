@@ -42,6 +42,7 @@ from salli.application.services.tax_rule_service import (
     line_rows,
 )
 from salli.domain.accounting.models import BooksLocked
+from salli.domain.canonical import digest
 from salli.domain.currency import normalize_currency
 from salli.domain.jurisdiction import COUNTRIES, UnknownCountryError, country_phrase
 from salli.domain.money import from_minor, to_minor
@@ -61,6 +62,8 @@ ADD_RULES = (
     "(its `research_tax_rules` prompt drafts a rule set for you to review); then "
     "activate them yourself with `salli tax rules activate <set>`."
 )
+
+ReturnStatus = Literal["draft", "filed", "amended"]
 
 Reason = Literal["no_residency", "no_rule_set", "not_active", "no_year", "ambiguous"]
 
@@ -366,8 +369,8 @@ class TaxService:
                     end,
                     locked,
                     f"The books are closed up to and including {locked}, so the tax for "
-                    f"{rules.year} (to {end}) is filed and its stored figure can't be "
-                    "replaced. Preview it without storing, or move the lock date earlier.",
+                    f"{rules.year} (to {end}) keeps the figure stored when they closed. "
+                    "Preview it without storing.",
                 )
             if closed:
                 record["warnings"].append(
@@ -578,6 +581,137 @@ class TaxService:
             )
         return report
 
+    # ── Returns ──────────────────────────────────────────────────────────────
+
+    async def record_return(
+        self,
+        user_id: str,
+        computation_id: str,
+        status: ReturnStatus,
+        *,
+        reference: str | None = None,
+        filed_on: datetime.date | None = None,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """Record a version of the return for a stored computation's year:
+        a `draft`, what was `filed` (on `filed_on`, with the authority's
+        `reference`), or an `amended` one (a filed return being corrected,
+        and `reason` why). Each version keeps a snapshot of the computation
+        and its canonical-JSON hash, and supersedes the year's latest.
+
+        A filed return keeps its year's books closed (LedgerService); only
+        an amendment lets them open, and a later `filed` version closes
+        them again. KeyError for a computation that isn't the user's;
+        ValueError for a version that can't follow the latest."""
+        reason = (reason or "").strip() or None
+        async with self._uow_factory() as uow:
+            stored = await uow.tax_computations.get(user_id, computation_id)
+            if stored is None:
+                raise KeyError(computation_id)
+            snapshot = _view(stored)
+            latest = next(
+                (
+                    r
+                    for r in await uow.tax_returns.latest_of_each(user_id)
+                    if (r["country"], r["region"], r["year"])
+                    == (stored["country"], stored["region"], stored["year"])
+                ),
+                None,
+            )
+            was = latest["status"] if latest else None
+            if status == "amended":
+                if was != "filed":
+                    raise ValueError(
+                        f"Only a filed return is amended; the return for {stored['year']} "
+                        f"is {'not recorded' if was is None else was}."
+                    )
+                if reason is None:
+                    raise ValueError("Say why the filed return is amended: it needs a reason.")
+            elif was == "filed":
+                raise ValueError(
+                    f"The return for {stored['year']} is filed: record an amendment, with its "
+                    "reason, before another version."
+                )
+            if status == "filed":
+                if filed_on is None:
+                    raise ValueError("Say when it was filed (filed_on).")
+                if filed_on > self._today():
+                    raise ValueError("A return can't be filed after today.")
+            elif filed_on is not None:
+                raise ValueError("Only a filed return has a filing date.")
+            row = await uow.tax_returns.add(
+                user_id,
+                {
+                    "country": stored["country"],
+                    "region": stored["region"],
+                    "year": stored["year"],
+                    "period_start": datetime.date.fromisoformat(snapshot["period_start"]),
+                    "period_end": datetime.date.fromisoformat(snapshot["period_end"]),
+                    "version": (latest["version"] + 1) if latest else 1,
+                    "status": status,
+                    "supersedes_id": latest["id"] if latest else None,
+                    "reason": reason,
+                    "computation_id": stored["id"],
+                    "rule_set_version_id": stored["rule_set_version_id"],
+                    "content_hash": stored["content_hash"],
+                    "snapshot": snapshot,
+                    "snapshot_hash": digest(snapshot),
+                    "reference": reference,
+                    "filed_on": filed_on,
+                },
+            )
+        return _return_view(row, [])
+
+    async def list_returns(self, user_id: str, year: str | None = None) -> list[dict[str, Any]]:
+        """Every version of the user's returns (of `year`), newest year
+        first, each with its payments."""
+        async with self._uow_factory() as uow:
+            rows = await uow.tax_returns.list(user_id, year)
+            payments = await uow.tax_returns.payments(user_id)
+        return [_return_view(r, [p for p in payments if p["return_id"] == r["id"]]) for r in rows]
+
+    async def get_return(self, user_id: str, return_id: str) -> dict[str, Any] | None:
+        async with self._uow_factory() as uow:
+            row = await uow.tax_returns.get(user_id, return_id)
+            payments: list[dict[str, Any]] = await uow.tax_returns.payments(user_id) if row else []
+        if row is None:
+            return None
+        return _return_view(row, [p for p in payments if p["return_id"] == row["id"]])
+
+    async def add_return_payment(
+        self,
+        user_id: str,
+        return_id: str,
+        *,
+        paid_on: datetime.date,
+        amount: Decimal,
+        reference: str | None = None,
+    ) -> dict[str, Any]:
+        """Record a payment made against a filed (or amended) return, in its
+        computation's currency. KeyError for a return that isn't the user's."""
+        if amount <= 0:
+            raise ValueError("A payment is more than zero.")
+        async with self._uow_factory() as uow:
+            row = await uow.tax_returns.get(user_id, return_id)
+            if row is None:
+                raise KeyError(return_id)
+            if row["status"] == "draft":
+                raise ValueError("A draft isn't filed: record the filed return, then its payments.")
+            currency = row["snapshot"]["currency"]
+            await uow.tax_returns.add_payment(
+                user_id,
+                {
+                    "return_id": return_id,
+                    "paid_on": paid_on,
+                    "amount_minor": to_minor(amount, currency),
+                    "currency": currency,
+                    "reference": reference,
+                },
+            )
+        found = await self.get_return(user_id, return_id)
+        assert found is not None
+        return found
+
     # ── Explanations ─────────────────────────────────────────────────────────
 
     async def explain(
@@ -691,6 +825,42 @@ def _view(stored: Mapping[str, Any]) -> dict[str, Any]:
         "refund_due": _amount(stored["refund_due_minor"], currency),
         "warnings": stored.get("warnings") or [],
         "provenance": PROVENANCE,
+    }
+
+
+def _return_view(row: Mapping[str, Any], payments: list[dict[str, Any]]) -> dict[str, Any]:
+    """A return version as the API and the MCP tools see it."""
+    created = row.get("created_at")
+    filed_on = row.get("filed_on")
+    return {
+        "id": row["id"],
+        "country": row["country"],
+        "region": row["region"],
+        "year": row["year"],
+        "period_start": row["period_start"].isoformat(),
+        "period_end": row["period_end"].isoformat(),
+        "version": row["version"],
+        "status": row["status"],
+        "supersedes_id": row["supersedes_id"],
+        "reason": row["reason"],
+        "reference": row["reference"],
+        "filed_on": filed_on.isoformat() if filed_on else None,
+        "computation_id": row["computation_id"],
+        "rule_set_version_id": row["rule_set_version_id"],
+        "content_hash": row["content_hash"],
+        "snapshot": row["snapshot"],
+        "snapshot_hash": row["snapshot_hash"],
+        "payments": [
+            {
+                "id": p["id"],
+                "paid_on": p["paid_on"].isoformat(),
+                "amount": _amount(p["amount_minor"], p["currency"]),
+                "currency": p["currency"],
+                "reference": p["reference"],
+            }
+            for p in payments
+        ],
+        "created_at": created.isoformat() if isinstance(created, datetime.datetime) else created,
     }
 
 

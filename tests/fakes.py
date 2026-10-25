@@ -418,12 +418,22 @@ class FakeLedger:
         self.entries.append(
             StoredJournalEntry(**fields, postings=postings, id=entry_id, user_id=user_id)
         )
+        if entry.reverses:
+            # The original's reversed_by, as the SQL store reads it.
+            self.entries = [
+                e.model_copy(update={"reversed_by": entry_id}) if e.id == entry.reverses else e
+                for e in self.entries
+            ]
         return entry_id
 
-    async def set_reversed_by(self, entry_id: str, reversing_id: str) -> None:
-        self.entries = [
-            e.model_copy(update={"reversed_by": reversing_id}) if e.id == entry_id else e
-            for e in self.entries
+    async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
+        self.accounts = [
+            a.model_copy(
+                update={"equity_role": "retained_earnings" if a.id == account_id else None}
+            )
+            if a.user_id == user_id and (a.id == account_id or a.equity_role)
+            else a
+            for a in self.accounts
         ]
 
     async def posting_totals(
@@ -951,6 +961,46 @@ class FakeReminders:
             del self.rows[reminder_id]
 
 
+class FakeTaxReturns:
+    """Tax returns kept in memory as the SQL store keeps them: only added."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+        self.paid: list[dict[str, Any]] = []
+
+    async def add(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        row = {**record, "id": str(uuid.uuid4()), "user_id": user_id, "created_at": None}
+        self.rows.append(row)
+        return row
+
+    async def get(self, user_id: str, return_id: str) -> dict[str, Any] | None:
+        return next(
+            (r for r in self.rows if r["id"] == return_id and r["user_id"] == user_id), None
+        )
+
+    async def list(self, user_id: str, year: str | None = None) -> list[dict[str, Any]]:
+        mine = [r for r in self.rows if r["user_id"] == user_id and year in (None, r["year"])]
+        return sorted(mine, key=lambda r: (r["period_end"], r["version"]), reverse=True)
+
+    async def latest_of_each(self, user_id: str) -> list[dict[str, Any]]:
+        latest: dict[tuple[Any, ...], dict[str, Any]] = {}
+        for r in self.rows:
+            key = (r["country"], r["region"], r["year"])
+            if r["user_id"] == user_id and (
+                key not in latest or r["version"] > latest[key]["version"]
+            ):
+                latest[key] = r
+        return list(latest.values())
+
+    async def add_payment(self, user_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        row = {**record, "id": str(uuid.uuid4()), "user_id": user_id, "created_at": None}
+        self.paid.append(row)
+        return row
+
+    async def payments(self, user_id: str) -> list[dict[str, Any]]:
+        return [p for p in self.paid if p["user_id"] == user_id]
+
+
 class FakeAuditLog:
     """The audit log in memory: rows are added, never changed."""
 
@@ -1002,6 +1052,7 @@ class FakeUoW:
         self.holdings = FakeHoldings(self.holding_transactions)
         self.holding_prices = FakeHoldingPrices()
         self.audit_log = FakeAuditLog()
+        self.tax_returns = FakeTaxReturns()
 
     async def __aenter__(self) -> FakeUoW:
         return self

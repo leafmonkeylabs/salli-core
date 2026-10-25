@@ -28,6 +28,16 @@ from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
 router = APIRouter(prefix="/statements", tags=["statements"])
 
 
+class SplitPart(BaseModel):
+    """One part of a transaction that was for several things."""
+
+    account_id: str
+    #: In the transaction's currency; the parts add up to its amount.
+    amount: AmountIn
+    category: str = ""
+    need: Literal["essential", "discretionary", "savings", ""] = ""
+
+
 class StatementTransaction(BaseModel):
     """A transaction read from a statement and classified, awaiting review."""
 
@@ -69,6 +79,11 @@ class StatementTransaction(BaseModel):
     #: What it repeats: the earlier import's transaction (exact_duplicate) or
     #: the journal entry (fuzzy_match).
     duplicate_of: str | None
+    #: The amount in the base currency as the bank gave it: the rate posted
+    #: is derived from it. Null when the bank gave none.
+    base_amount: Amount | None = None
+    #: The other side split across accounts (`categorize`); empty for one.
+    splits: list[SplitPart] = Field(default_factory=list["SplitPart"])
 
 
 class StatementUpload(BaseModel):
@@ -212,6 +227,9 @@ class DraftTransaction(BaseModel):
     bank_ref: str = Field(default="", max_length=100)
     #: Its currency, when not the account's.
     currency: CurrencyCode | None = None
+    #: The amount in your base currency, when the bank gives it: the rate
+    #: posted is then derived from it.
+    base_amount: AmountIn | None = None
 
     @field_validator("date")
     @classmethod
@@ -276,6 +294,7 @@ async def draft_transactions(
                 credit_flag=t.credit_flag,
                 currency=t.currency or "",
                 bank_ref=t.bank_ref,
+                base_amount=t.base_amount,
             )
             for t in body.transactions
         ],
@@ -357,10 +376,13 @@ async def discard(
 class TransactionChoice(BaseModel):
     transaction_id: str
     #: Where the money came from (money in) or went (money out). The
-    #: statement's own account stays the other side.
-    account_id: str
+    #: statement's own account stays the other side. Left out with `splits`.
+    account_id: str = ""
     category: str | None = None
     need: Literal["essential", "discretionary", "savings"] | None = None
+    #: A transaction for several things, split across accounts: two parts or
+    #: more, adding up to its amount. Replaces `account_id`.
+    splits: list[SplitPart] | None = Field(default=None, max_length=50)
 
 
 class CategorizeRequest(BaseModel):
