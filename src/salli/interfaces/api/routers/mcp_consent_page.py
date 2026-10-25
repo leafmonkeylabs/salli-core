@@ -22,9 +22,10 @@ for an authenticator app's code (or a recovery code), which a login with
 two-step sign-in on must fill in; for anyone else it stays empty.
 
 A client that registered itself is named as it named itself, beside "Not
-verified by Salli". An AI client is let in to read. Changing anything (posting, discarding,
-rules, documents) is a separate permission, `mcp:write`, given only by ticking
-"Allow changes", which starts unticked. The Salli app's own AI asks the person
+verified by Salli". An AI client is let in to read. Changing anything is a
+separate permission for each part (the ledger, planning, documents,
+settings: `mcp:ledger` and so on), given only by ticking that part, which
+starts unticked. The Salli app's own AI asks the person
 before each change in the app, so it has no tick box and may change.
 """
 
@@ -88,7 +89,9 @@ _STYLE = (
     ".err{color:var(--error);margin-top:1rem}"
     ".muted{color:var(--graphite);font-size:.875rem;margin-top:1.4rem}"
     ".muted+.muted{margin-top:0}"
-    ".allow{display:flex;gap:.6rem;align-items:flex-start;margin:1.2rem 0 0}"
+    ".allow{border:0;padding:0;margin:1.2rem 0 0}"
+    ".allow legend{font-weight:600;color:var(--ink)}"
+    ".allow p{display:flex;gap:.6rem;align-items:flex-start;margin:.6rem 0 0}"
     ".allow input{flex:none;width:24px;height:24px;margin:0;accent-color:var(--green)}"
     ".allow label{margin:0;font-size:1rem;font-weight:400;color:var(--ink)}"
     ".allow small{display:block;color:var(--graphite);font-size:.875rem}"
@@ -223,14 +226,33 @@ def _asking(client: str, audience: str, client_id: str = "") -> str:
     return f"{e(client)} is asking to read your Salli data. You can disconnect it at any time."
 
 
-#: The write permission (`mcp:write`), offered to an AI client other than
-#: the Salli app's, and never ticked for the person.
+#: The parts an AI client may be let change (MCP_WRITE_SCOPES), offered to
+#: one other than the Salli app's, and never ticked for the person.
+_PARTS = (
+    ("ledger", "Change the books", "Book, recategorise, reverse and discard transactions; "
+     "import statements; add accounts and rules."),
+    ("planning", "Change plans", "Set the monthly budget, debts, planning assumptions and "
+     "principles; record decisions."),
+    ("documents", "Change documents", "Save, update and delete documents and memories; "
+     "add reminders."),
+    ("settings", "Change settings", "Draft and propose tax rule sets and add the accounts "
+     "they suggest."),
+)  # fmt: skip
 _ALLOW_CHANGES = (
-    "<p class=allow><input type=checkbox id=allow_changes name=allow_changes value=yes>"
-    "<label for=allow_changes>Allow changes"
-    "<small>Let it book and discard transactions, add rules and accounts, and delete "
-    "documents. Without this it can only read.</small></label></p>"
+    "<fieldset class=allow><legend>Allow changes "
+    "<small>Without these it can only read.</small></legend>"
+    + "".join(
+        f"<p><input type=checkbox id=allow_{part} name=allow value={part}>"
+        f"<label for=allow_{part}>{label}<small>{what}</small></label></p>"
+        for part, label, what in _PARTS
+    )
+    + "</fieldset>"
 )
+
+
+def _allowed(ticked: list[str]) -> list[str]:
+    """The scopes for the parts ticked, ignoring anything else sent."""
+    return [f"mcp:{part}" for part, _, _ in _PARTS if part in ticked]
 
 
 def _offers_changes(info: dict[str, Any]) -> bool:
@@ -372,7 +394,7 @@ async def consent_page_decision(
     password: Annotated[str, Form()] = "",
     user_id: Annotated[str, Form()] = "",
     code: Annotated[str, Form(max_length=64)] = "",
-    allow_changes: Annotated[str, Form()] = "",
+    allow: Annotated[list[str] | None, Form()] = None,
 ):
     try:
         info = await svc.mcp_oauth.get_consent_info(rt, user_id="")
@@ -405,7 +427,7 @@ async def consent_page_decision(
             caller,
             approve,
             password_checked=approve,
-            allow_changes=_offers_changes(info) and allow_changes == "yes",
+            allow_changes=_allowed(allow or []) if _offers_changes(info) else False,
         )
     except ConsentError as exc:
         return again(_Refusal(str(exc), status.HTTP_403_FORBIDDEN))
@@ -470,7 +492,7 @@ async def device_page_decision(
     password: Annotated[str, Form()] = "",
     user_id: Annotated[str, Form()] = "",
     code: Annotated[str, Form(max_length=64)] = "",
-    allow_changes: Annotated[str, Form()] = "",
+    allow: Annotated[list[str] | None, Form()] = None,
 ):
     dev = insecure_dev_auth(settings)
     info = await svc.mcp_oauth.device_request(user_code)
@@ -501,7 +523,10 @@ async def device_page_decision(
             await svc.mcp_oauth.set_mcp_enabled(caller, True)
     try:
         await svc.mcp_oauth.decide_device(
-            user_code, caller, approve, allow_changes=_is_ai(info) and allow_changes == "yes"
+            user_code,
+            caller,
+            approve,
+            allow_changes=_allowed(allow or []) if _is_ai(info) else False,
         )
     except ConsentError as exc:
         return again(_Refusal(str(exc)))

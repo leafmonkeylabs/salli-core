@@ -69,7 +69,7 @@ async def test_deny_needs_no_sign_in_and_redirects(client, consent):
     r = await client.post(PAGE, data={"rt": "t", "decision": "deny"})
     assert r.status_code == 303
     consent.complete_consent.assert_awaited_once_with(
-        "t", "", False, password_checked=False, allow_changes=False
+        "t", "", False, password_checked=False, allow_changes=[]
     )
     consent.set_mcp_enabled.assert_not_awaited()
 
@@ -111,7 +111,7 @@ async def test_allow_signs_in_enables_mcp_and_redirects_to_the_client(
     )
     consent.set_mcp_enabled.assert_awaited_once_with("owner", True)
     consent.complete_consent.assert_awaited_once_with(
-        "t", "owner", True, password_checked=True, allow_changes=False
+        "t", "owner", True, password_checked=True, allow_changes=[]
     )
 
 
@@ -218,20 +218,24 @@ async def test_the_console_reads_as_signing_in_to_salli_with_one_button(client, 
     assert "is asking" not in r.text
 
 
-_ALLOW = "<input type=checkbox id=allow_changes name=allow_changes value=yes>"
+_ALLOW = "<input type=checkbox id=allow_{part} name=allow value={part}>"
 _SIGNED_IN = {"rt": "t", "decision": "allow", "email": "a@b.c", "password": "pw"}
+_PARTS = ("ledger", "planning", "documents", "settings")
 
 
-async def test_an_ai_client_reads_unless_the_person_ticks_allow_changes(client, consent):
+async def test_an_ai_client_reads_unless_the_person_ticks_a_part(client, consent):
     r = await client.get(PAGE, params={"rt": "token"})
     assert "is asking to read your Salli data." in r.text
-    assert _ALLOW in r.text and "checked" not in r.text
-    assert "<label for=allow_changes>Allow changes" in r.text
+    assert all(_ALLOW.format(part=p) in r.text for p in _PARTS) and "checked" not in r.text
+    assert "<legend>Allow changes" in r.text
 
     await client.post(PAGE, data=_SIGNED_IN)
-    assert consent.complete_consent.await_args.kwargs["allow_changes"] is False
-    await client.post(PAGE, data={**_SIGNED_IN, "allow_changes": "yes"})
-    assert consent.complete_consent.await_args.kwargs["allow_changes"] is True
+    assert consent.complete_consent.await_args.kwargs["allow_changes"] == []
+    await client.post(PAGE, data={**_SIGNED_IN, "allow": ["planning", "ledger", "everything"]})
+    assert consent.complete_consent.await_args.kwargs["allow_changes"] == [
+        "mcp:ledger",
+        "mcp:planning",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -252,8 +256,8 @@ async def test_salli_s_own_sign_ins_are_not_asked_about_changes(
         "reauthenticate": False,
     }
     r = await client.get(PAGE, params={"rt": "token"})
-    assert "allow_changes" not in r.text
-    await client.post(PAGE, data={**_SIGNED_IN, "allow_changes": "yes"})
+    assert "name=allow" not in r.text
+    await client.post(PAGE, data={**_SIGNED_IN, "allow": ["ledger"]})
     assert consent.complete_consent.await_args.kwargs["allow_changes"] is False
 
 

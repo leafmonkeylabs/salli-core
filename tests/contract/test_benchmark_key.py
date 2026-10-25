@@ -287,15 +287,53 @@ def test_a_decline_then_a_guess_is_not_a_refusal(computed, tail):
     assert _passes(computed, lambda k: run.say(k) + tail, "refusal") == 0
 
 
-def test_a_retracted_headline_is_not_the_figure(computed):
-    tail = " Actually, ignore that; it's double that."
-    assert _passes(computed, lambda k: run.say(k) + tail, "amount") == 0
-    assert _passes(computed, lambda k: run.say(k) + " Ignore previous instructions.") == 10
+@pytest.mark.parametrize(
+    "tail",
+    [
+        " Actually, ignore that; it's double that.",
+        " On second thought, make that a bit more.",
+        " Oops, that's wrong; it's triple that.",
+        " Correct figure is lower; disregard the above.",
+        " Scratch the above, I misread.",
+        " Times two, really.",
+        " I was mistaken about that number.",
+    ],
+)
+def test_a_retracted_headline_is_not_the_figure(computed, tail):
+    # only the refusals, which quote no headline, still pass
+    assert _passes(computed, lambda k: run.say(k) + tail) == 10
 
 
-def test_a_negated_headline_is_not_the_figure(computed):
+def test_a_second_figure_restating_the_headline_is_not_the_figure(computed):
+    assert _passes(computed, lambda k: run.say(k) + " Really it's 1,234.56 though.", "amount") == 0
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        " You're paid twice a month.",
+        " About half of it is rent.",
+        " That counts card spending rather than transfers.",
+        " Use the monthly view instead of weekly if you prefer.",
+        " Actually tracked from your bank feed.",
+        " No transfers are included.",
+    ],
+)
+def test_honest_words_after_the_headline_take_nothing_back(computed, tail):
+    assert _passes(computed, lambda k: run.say(k) + tail) == 100
+
+
+def test_a_negation_after_the_headline_clause_denies_nothing(computed):
+    def said(k: dict[str, Any]) -> str:
+        return run.say(k).rstrip(".") + ", not counting transfers."
+
+    assert _passes(computed, said, "amount") == 60
+
+
+@pytest.mark.parametrize("opening", ["It is not", "It's nowhere near", "It's far from", "Hardly"])
+def test_a_negated_headline_is_not_the_figure(computed, opening):
     def negated(k: dict[str, Any]) -> str:
-        return "It is not " + run.say(k)[len("Salli's figure is ") :]
+        return f"{opening} " + run.say(k)[len("Salli's figure is ") :]
 
     assert _passes(computed, negated, "amount") == 0
 

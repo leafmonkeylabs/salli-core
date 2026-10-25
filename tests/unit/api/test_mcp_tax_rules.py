@@ -14,7 +14,7 @@ from salli.application.services.tax_rule_service import RuleSetDocumentError, Ru
 from salli.domain.taxrules.common import Problem
 from salli.interfaces.api import mcp_server
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 VERSION = {
     "id": "v1",

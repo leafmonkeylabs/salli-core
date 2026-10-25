@@ -15,7 +15,7 @@ import pytest
 
 from salli.interfaces.api import mcp_server
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 
 class _Refs:

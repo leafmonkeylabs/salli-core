@@ -24,7 +24,7 @@ from salli.domain.accounting.models import BooksLocked
 from salli.domain.scenarios.engine import ScenarioError
 from salli.interfaces.api import mcp_server
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 ENTRY = {
     "entry_date": "2026-10-24",
@@ -157,8 +157,9 @@ async def test_a_decimal_string_is_read_exactly():
 #: until the investment policy, 44 KB until every tool carried a title, as
 #: the connector directories ask; 46.5 KB until portfolio performance, statement
 #: import, pages of the longer lists and client_ref on four writes; 48.5 KB
-#: until recategorising an entry).
-TOOL_LIST_BUDGET = 49_000
+#: until recategorising an entry; 49 KB until the budget and debt writes,
+#: pages on every list and client_ref on every write that adds).
+TOOL_LIST_BUDGET = 52_000
 
 
 async def test_the_tool_list_stays_small(services):

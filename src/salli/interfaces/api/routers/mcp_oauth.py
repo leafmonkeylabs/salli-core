@@ -206,9 +206,12 @@ async def consent_info(rt: str, user_id: CurrentUser, svc: AppServices) -> Conse
 class ConsentDecisionRequest(BaseModel):
     rt: str
     approve: bool
-    #: Whether the person allowed an AI client to change their data
+    #: Whether the person allowed an AI client to change all of their data
     #: (`mcp:write`). Without it an MCP connection only reads. Ask, unticked.
     allow_changes: bool = False
+    #: Or the parts they allowed it to change (mcp:ledger, mcp:planning,
+    #: mcp:documents, mcp:settings), each asked, unticked.
+    allow: list[Literal["mcp:ledger", "mcp:planning", "mcp:documents", "mcp:settings"]] = []
 
 
 class ConsentDecision(BaseModel):
@@ -232,7 +235,7 @@ async def consent(
             user_id,
             body.approve,
             password_checked=False,
-            allow_changes=body.allow_changes,
+            allow_changes=body.allow_changes or body.allow,
         )
     except ConsentError as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc

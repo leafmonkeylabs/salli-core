@@ -1808,6 +1808,8 @@ class RemoteTransaction:
     #: Signed: positive is money into the account, as banks report it.
     amount: Decimal
     description: str
+    #: Not yet posted by the bank: never imported (it may change or vanish).
+    pending: bool = False
 
 
 @dataclass(frozen=True)
@@ -1820,6 +1822,9 @@ class BankSnapshot:
     #: Accounts whose institution reported a problem: what came back for
     #: them may be incomplete, so their import marker is not moved on.
     troubled: frozenset[str] = frozenset()
+    #: A credential to keep in place of the one used (a provider whose access
+    #: is refreshed as it is used); None keeps it.
+    credential: str | None = None
 
 
 class BankLinkError(Exception):
@@ -1827,7 +1832,14 @@ class BankLinkError(Exception):
 
 
 class BankConnector(ABC):
-    """A provider that reads accounts and transactions from people's banks."""
+    """A provider that reads accounts and transactions from people's banks:
+    a bridge the person holds the access token of (SimpleFIN, in
+    adapters/banks/), or an aggregator. What the service needs of either is
+    here: a credential from what the person brings back from the provider
+    (`link`), what it reads with it (`fetch`, which may hand back a renewed
+    credential and transactions still pending), and the access given up when
+    the person disconnects (`revoke`). Nothing here names a provider, a
+    country or a bank."""
 
     provider: str
 
@@ -1844,6 +1856,10 @@ class BankConnector(ABC):
         """Accounts, and transactions posted since `start`. Raises BankLinkError
         when the credential no longer works."""
         ...
+
+    async def revoke(self, credential: str) -> None:  # noqa: B027 -- optional
+        """Give the access up at the provider, where it has a way to; by
+        default there is none (the person revokes it there)."""
 
 
 class BankConnectionRepository(ABC):

@@ -195,9 +195,13 @@ The same holds for an agent driving the `salli` CLI on your machine (Claude Code
 Before connecting anything:
 - **The switch:** MCP must be on for your account (`salli mcp enable`), and you approve
   each client on Salli's consent page.
-- **Changes:** an AI app only reads unless you tick **Allow changes** on the consent
-  page (it starts unticked). Without it, a tool that changes anything is refused and
-  does nothing, and the AI is told to ask you to reconnect. With it, a change takes
+- **Changes:** an AI app only reads unless you tick a part under **Allow changes** on
+  the consent page: the books (transactions, statements, accounts, rules), plans (the
+  monthly budget, debts, planning assumptions, principles, decisions), documents
+  (documents, memories, reminders) or settings (tax rule drafts and their accounts),
+  each unticked to begin with. A tool that changes a part you didn't tick is refused and
+  does nothing, and the AI is told to ask you to reconnect. A connection made before
+  the parts keeps what it had. With a part ticked, a change takes
   effect when the AI calls the tool, and the tools tell it to show you what it will do
   first. Every change, and every refused one, is in the audit log
   (`GET /v1/agent/audit-log`) with the client that asked. Connections made before

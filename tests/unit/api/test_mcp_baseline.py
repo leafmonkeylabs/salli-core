@@ -19,7 +19,7 @@ from salli.domain.accounting.models import Account
 from salli.interfaces.api import mcp_server
 from tests.golden import household as h
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 
 @pytest.fixture

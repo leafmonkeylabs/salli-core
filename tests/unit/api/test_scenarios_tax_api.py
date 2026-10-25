@@ -23,7 +23,7 @@ from tests.guardrails import assert_never_ranks
 from tests.unit.api.conftest import AUTH
 from tests.unit.api.test_baseline_api import USER
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 RAISE = {
     "type": "income_change",

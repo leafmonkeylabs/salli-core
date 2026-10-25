@@ -16,7 +16,7 @@ from salli.domain.parsing.models import ParsedTransaction, RawRow
 from salli.domain.rules.engine import InvalidRule
 from salli.interfaces.api import mcp_server
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 
 @pytest.fixture
@@ -144,7 +144,21 @@ async def test_the_prompts_lean_on_salli_s_tools_not_the_model_s_arithmetic():
 
     sort = await server.get_prompt("sort_pending_transactions", {})
     text = sort.messages[0].content.text  # type: ignore[union-attr]
-    assert "Only after I approve" in text and "never invent" in text
+    assert "Book only after I approve" in text and "Never invent an account" in text
+
+
+async def test_each_prompt_says_its_purpose_tools_and_guardrails_once():
+    server = mcp_server.build_mcp_server(MagicMock(), "https://api.test", experimental_tools=True)
+    for prompt in await server.list_prompts():
+        args = {a.name: "x" for a in prompt.arguments or []}
+        text = (await server.get_prompt(prompt.name, args)).messages[0].content.text  # type: ignore[union-attr]
+        if prompt.name in ("think_through_decision", "can_i_afford"):
+            continue  # the decision walks, in numbered steps that end with GUARDRAILS
+        assert [line.split(":")[0] for line in text.splitlines()] == [
+            "Purpose",
+            "Tools",
+            "Guardrails",
+        ], prompt.name
 
 
 # ── Financial independence: real terms, placeholders, the user's own figures ──

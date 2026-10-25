@@ -37,9 +37,9 @@ What a pilot is judged on, and what the freeze protects:
 Working, documented and tested, and marked as experimental where the docs
 describe them. The engines without a pilot user yet are also marked in the
 API (`x-experimental: true` and the `experimental` tag on their operations)
-and in `salli --help` ("Experimental:"); `SALLI_EXPERIMENTAL=false` takes
-their tools and prompts out of what an AI agent sees over MCP (the API
-keeps them):
+and in `salli --help` ("Experimental:"); their tools and prompts are out of what
+an AI agent sees over MCP unless the owner sets `SALLI_EXPERIMENTAL=true`
+(the API keeps them either way):
 
 | Area | Docs |
 |---|---|

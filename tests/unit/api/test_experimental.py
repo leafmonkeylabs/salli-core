@@ -1,5 +1,5 @@
 """The experimental engines (docs/scope.md) are marked in the API document,
-and SALLI_EXPERIMENTAL=false takes their MCP tools out of an agent's list."""
+and SALLI_EXPERIMENTAL (off by default) keeps their MCP tools out of an agent's list."""
 
 from __future__ import annotations
 
@@ -38,8 +38,8 @@ async def _tools(monkeypatch, **settings) -> tuple[set[str], set[str]]:
 
 
 async def test_the_switch_hides_the_experimental_tools(monkeypatch):
-    tools, prompts = await _tools(monkeypatch)
+    tools, prompts = await _tools(monkeypatch, salli_experimental=True)
     assert tools >= experimental.MCP_TOOLS and prompts >= experimental.MCP_PROMPTS
-    tools, prompts = await _tools(monkeypatch, salli_experimental=False)
+    tools, prompts = await _tools(monkeypatch)  # off by default
     assert not tools & experimental.MCP_TOOLS and not prompts & experimental.MCP_PROMPTS
     assert "get_overview" in tools

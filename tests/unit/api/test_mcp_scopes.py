@@ -1,6 +1,8 @@
 """
-What an MCP connection may do: read always; change only with `mcp:write`,
-checked in one place for every tool that isn't read-only. Every call of one
+What an MCP connection may do: read always; change only the parts the
+person allowed (`mcp:ledger`, `mcp:planning`, `mcp:documents`,
+`mcp:settings`; `mcp:write`, from before the parts, holds all four), checked
+in one place for every tool that isn't read-only. Every call of one
 is audited with the person, the client, the tool, its arguments and the
 outcome, never a decision nobody made; every read with the tool, the client
 and the outcome.
@@ -55,14 +57,14 @@ async def _request(services, tool: str, args: dict, scopes: list[str]) -> types.
 REMINDER = {"description": "Renew the lease", "due_date": "2027-03-01"}
 
 
-@pytest.mark.parametrize("scopes", [[], ["mcp:read"], ["salli"]])
+@pytest.mark.parametrize("scopes", [[], ["mcp:read"], ["salli"], ["mcp:read", "mcp:ledger"]])
 async def test_a_write_on_a_read_only_connection_is_refused_and_does_nothing(services, scopes):
     result = await _request(services, "create_reminder", REMINDER, scopes)
 
     assert result.isError is True
     [text] = result.content
     assert isinstance(text, types.TextContent)
-    assert "can only read" in text.text and "Allow changes" in text.text
+    assert "may not change documents" in text.text and "Allow changes" in text.text
     assert result.structuredContent is not None
     assert result.structuredContent["error"]["code"] == "scope"
     services.reminders.create_reminder.assert_not_awaited()
@@ -81,6 +83,22 @@ async def test_a_write_with_the_write_scope_is_made_and_audited(services):
     services.audit.log.assert_awaited_once_with(
         "u1", "create_reminder", REMINDER, "succeeded", client_id="claude-1"
     )
+
+
+async def test_a_write_with_its_part_s_scope_is_made(services):
+    result = await _request(services, "create_reminder", REMINDER, ["mcp:read", "mcp:documents"])
+    assert result.isError is False
+    services.reminders.create_reminder.assert_awaited_once()
+
+
+async def test_every_write_tool_belongs_to_one_part(services):
+    server = mcp_server.build_mcp_server(services, "https://api.test", experimental_tools=True)
+    writes = {
+        t.name
+        for t in await server.list_tools()
+        if not (t.annotations and t.annotations.readOnlyHint)
+    }
+    assert writes == set(mcp_server.WRITE_PARTS)
 
 
 async def test_a_write_that_fails_is_audited_as_failed(services):

@@ -4,6 +4,33 @@
 
 ### Added
 
+- **MCP catches up with the API, round 8.** Budget and debt writes
+  (`set_monthly_budget`, `add_debt`, `update_debt`, each with
+  `confirmed_by_user`); `client_ref` on `import_statement` (which is also
+  kept once under the file's hash and its account), `record_decision`,
+  `create_rule`, `update_document`, `save_memory`, `recategorise_entry` and
+  the new writes; `limit` and `cursor` on every `list_` tool; the five
+  conversation prompts each say their purpose, the tools to call and the
+  guardrails once.
+- **Changes by part on the consent page.** An AI connection is let change
+  the books (`mcp:ledger`), plans (`mcp:planning`), documents
+  (`mcp:documents`) or settings (`mcp:settings`), each ticked separately and
+  unticked to begin with (`allow` on `POST /mcp/oauth/consent`); a
+  connection holding `mcp:write` keeps all four.
+- **The fidelity benchmark scores retractions structurally.** After the
+  headline, words disowning it, a change aimed at it or another figure
+  restating it fail an answer; a negation before it in its clause does;
+  honest answers ("paid twice a month", "rather than transfers") pass
+  (docs/benchmark.md).
+- **`server.json`** for the official MCP registry, and how to publish it
+  (docs/connectors.md).
+- **A bank-feed port for aggregators.** `BankConnector` may renew its
+  credential while reading (`BankSnapshot.credential`), report pending
+  transactions (never imported) and give access up on disconnect (`revoke`);
+  SimpleFIN implements it as before.
+- **examples/entitlements**: a reference `EntitlementPolicy` mapping tiers to
+  the hypotheses in business/thesis.md.
+
 - **Push preferences, debt and trend totals.** Each person chooses which push
   alerts their phones take (over budget, cash low ahead, reminders due) and
   quiet hours in their time zone (`push_items`, `quiet_hours` on
@@ -382,6 +409,14 @@
 ### Breaking
 
 #### Changed
+
+- **`SALLI_EXPERIMENTAL` is off by default.** The experimental engines'
+  MCP tools and prompts (the investment policy, FI odds, the decision lab)
+  are left out of what AI agents see until the owner sets
+  `SALLI_EXPERIMENTAL=true`; the API keeps them either way.
+- **The consent and device pages send `allow`, one per part ticked**, in place
+  of `allow_changes`; an MCP write refused for want of its part says which
+  part to tick.
 
 - **Capital-market packs say each rate's basis.** In `salli.cma/1`, every
   asset class's `real_return` and the `cash_yield` need `"basis": "real"` or

@@ -15,7 +15,7 @@ from salli.domain.taxrules.explain import UnknownLine
 from salli.interfaces.api import mcp_server
 from tests.tax_views import computation_view
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 
 @pytest.fixture

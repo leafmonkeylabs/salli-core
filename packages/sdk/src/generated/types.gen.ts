@@ -3035,6 +3035,10 @@ export type ConsentDecisionRequest = {
      * Allow Changes
      */
     allow_changes?: boolean;
+    /**
+     * Allow
+     */
+    allow?: Array<'mcp:ledger' | 'mcp:planning' | 'mcp:documents' | 'mcp:settings'>;
 };
 
 /**
