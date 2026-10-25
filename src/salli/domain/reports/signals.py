@@ -21,6 +21,8 @@ from decimal import Decimal
 from statistics import median
 from typing import Literal
 
+from salli.domain.budget.monthly import CurrentLine
+from salli.domain.currency import quantize
 from salli.domain.fi.assumptions import PLACEHOLDERS
 from salli.domain.reports.insights import MonthFlow, Recurring, SpendingLine
 
@@ -35,6 +37,8 @@ SignalKind = Literal[
     "decision_review_due",
     "emergency_fund_low",
     "expensive_debt",
+    "budget_over",
+    "budget_pace",
 ]
 #: What the user can look at or do about it, for a client to link to.
 Action = Literal[
@@ -45,6 +49,7 @@ Action = Literal[
     "see_debts",
     "review",
     "review_decision",
+    "see_budget",
 ]
 
 #: The yearly rate at or above which a debt is described as costly: the
@@ -256,6 +261,47 @@ def review_waiting(
             date=oldest,
         )
     ]
+
+
+def budget_lines(lines: Sequence[CurrentLine], currency: str) -> list[Signal]:
+    """The monthly budget this month: a line spent past what is available
+    (`budget_over`, medium), or past the share of it matching the share of
+    the month gone (`budget_pace`, low)."""
+
+    def q(amount: Decimal) -> Decimal:
+        return quantize(amount, currency, strict=False)
+
+    found: list[Signal] = []
+    for line in lines:
+        if line.left < 0:
+            found.append(
+                Signal(
+                    "budget_over",
+                    "medium",
+                    f"{line.category} is over its budget this month",
+                    f"{q(line.spent)} {currency} spent of {q(line.available)} {currency} available.",
+                    "see_budget",
+                    -line.left,
+                    currency,
+                    refs=(line.account_id,),
+                )
+            )
+        elif line.pace == "over":
+            found.append(
+                Signal(
+                    "budget_pace",
+                    "low",
+                    f"{line.category} is running faster than its budget",
+                    f"{q(line.spent)} {currency} spent of {q(line.available)} {currency}; at an "
+                    f"even pace it would be {q(line.expected_by_now)} {currency} by now.",
+                    "see_budget",
+                    line.spent,
+                    currency,
+                    refs=(line.account_id,),
+                    rationale="Spending against the share of the month gone, today included.",
+                )
+            )
+    return found
 
 
 def decision_reviews_due(due: Sequence[tuple[str, str, str]]) -> list[Signal]:

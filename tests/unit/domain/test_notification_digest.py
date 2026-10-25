@@ -268,7 +268,7 @@ def _every_message() -> list[Notification]:
 
 def test_no_message_ranks_presses_counts_down_or_exclaims():
     messages = _every_message()
-    assert len(messages) == (2**5 - 1) * 2 * 2
+    assert len(messages) == (2 ** len(ITEM_KINDS) - 1) * 2 * 2
     for n in messages:
         assert_never_urges(view(n))
 

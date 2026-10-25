@@ -18,7 +18,9 @@ class Direction(int, Enum):
 
 AccountType = Literal["asset", "liability", "equity", "income", "expense"]
 
-Source = Literal["manual", "statement", "sms", "system", "reversal", "year_end_close"]
+Source = Literal[
+    "manual", "statement", "sms", "system", "reversal", "year_end_close", "recategorise"
+]
 
 
 class BooksLocked(ValueError):

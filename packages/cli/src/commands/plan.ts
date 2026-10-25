@@ -6,7 +6,11 @@
 import { Option, type Command } from '@commander-js/extra-typings';
 import {
   budgetsCreate,
+  budgetsCurrent,
   budgetsDelete,
+  budgetsMonthlyGet,
+  budgetsMonthlySet,
+  budgetsTrend,
   budgetsGet,
   budgetsList,
   budgetsSummary,
@@ -182,6 +186,90 @@ function registerBudgets(program: Command, app: App): void {
             ]),
           );
           out.note(`Amounts in ${str(cur)}. Negative “left” means over the limit.`);
+        },
+      });
+    });
+
+  budgets
+    .command('monthly')
+    .description('Show the monthly budget, or replace it with --line')
+    .option('--line <account:limit>', 'A category and its monthly limit, e.g. groceries:400 (repeatable; replaces all)', collect)
+    .option('--rollover <account>', 'This line’s unspent amount carries to the next month (repeatable)', collect)
+    .option('--clear', 'Remove every line')
+    .action(async (opts) => {
+      const api = await app.api();
+      let data;
+      if (opts.clear || opts.line) {
+        const book = await AccountBook.load(api);
+        const rolling = new Set((opts.rollover ?? []).map((q) => book.resolve(q).id));
+        const lines = opts.clear ? [] : (await linesOf(api, opts.line ?? [])).map((l) => ({ ...l, rollover: rolling.has(l.account_id) }));
+        data = await api.call(budgetsMonthlySet, { body: { lines } });
+      } else {
+        if (opts.rollover) throw new UsageError('--rollover goes with --line.');
+        data = await api.call(budgetsMonthlyGet);
+      }
+      const book = await AccountBook.load(api);
+      app.out.emit(data, {
+        records: (d) => d.lines,
+        human: (d) => {
+          if (!d.lines.length) return app.out.note('No monthly budget. Set one with `salli budgets monthly --line groceries:400`.');
+          app.out.line(
+            app.out.table(d.lines, [
+              { header: 'CATEGORY', get: (l) => book.name(l.account_id), shrink: true },
+              { header: 'LIMIT', get: (l) => app.out.amount(l.limit_amount, d.currency), align: 'right' },
+              { header: 'ROLLOVER', get: (l) => (l.rollover ? 'yes' : '') },
+              { header: 'SINCE', get: (l) => l.since },
+            ]),
+          );
+        },
+      });
+    });
+
+  budgets
+    .command('current')
+    .alias('now')
+    .description('This month: each line’s limit, spent, left and pace')
+    .action(async () => {
+      const api = await app.api();
+      const data = await api.call(budgetsCurrent);
+      app.out.emit(data, {
+        records: (d) => d.lines,
+        human: (d) => {
+          const out = app.out;
+          if (!d.lines.length) return out.note('No monthly budget. Set one with `salli budgets monthly --line groceries:400`.');
+          out.line(out.heading(`Budget ${d.month}`));
+          out.line(
+            out.table(d.lines, [
+              { header: 'CATEGORY', get: (l) => l.category, shrink: true },
+              { header: 'AVAILABLE', get: (l) => out.amount(l.available, d.currency), align: 'right' },
+              { header: 'SPENT', get: (l) => out.amount(l.spent, d.currency), align: 'right' },
+              { header: 'LEFT', get: (l) => out.amount(l.left, d.currency), align: 'right', style: (t, l) => out.signed(t, l.left) },
+              { header: 'PACE', get: (l) => l.pace },
+            ]),
+          );
+          out.note(`Amounts in ${str(d.currency)}. Pace compares spending with the share of the month gone.`);
+        },
+      });
+    });
+
+  budgets
+    .command('trend')
+    .description('Spending per category, month by month')
+    .option('--months <n>', 'How many months, this one last (default 6)', countArg('--months'))
+    .action(async (opts) => {
+      const api = await app.api();
+      const data = await api.call(budgetsTrend, { query: opts.months !== undefined ? { months: opts.months } : {} });
+      app.out.emit(data, {
+        records: (d) => d.categories,
+        human: (d) => {
+          const out = app.out;
+          if (!d.categories.length) return out.note('No spending in these months.');
+          out.line(
+            out.table(d.categories, [
+              { header: 'CATEGORY', get: (c) => c.category, shrink: true },
+              ...d.months.map((m, i) => ({ header: m, get: (c: (typeof d.categories)[number]) => out.amount(c.spent[i] ?? '0', d.currency), align: 'right' as const })),
+            ]),
+          );
         },
       });
     });

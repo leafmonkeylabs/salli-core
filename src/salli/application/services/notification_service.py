@@ -27,6 +27,7 @@ message's contents, and one person's failure never stops the rest.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -47,6 +48,7 @@ from salli.domain.notifications.digest import (
     message_hash,
     waiting_items,
 )
+from salli.domain.notifications.push import PUSH_ITEMS, build_push
 from salli.domain.notifications.schedule import Cadence, Schedule, Weekday
 
 _log = logging.getLogger(__name__)
@@ -67,6 +69,19 @@ DEFAULTS: dict[str, Any] = {
 
 class PreferencesError(ValueError):
     """Preferences that can't be saved, and why."""
+
+
+class PushUnavailable(RuntimeError):
+    """This server sends no push alerts: no relay, or no key to seal tokens."""
+
+
+def token_hash(token: str) -> str:
+    """How a device is found and removed: the SHA-256 of its push token."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _token_aad(digest: str) -> str:
+    return f"push-device:{digest}"
 
 
 @dataclass(frozen=True)
@@ -149,6 +164,9 @@ class NotificationService:
         notifier_name: str | None = None,
         public_url: str | None = None,
         clock: Callable[[], dt.datetime] = _utc_now,
+        push_enabled: bool = False,
+        keyring: Any = None,
+        budget: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._reminders = reminders
@@ -158,6 +176,10 @@ class NotificationService:
         self.notifier_name = notifier_name
         self._link = public_url.rstrip("/") if public_url else None
         self._now = clock
+        #: Whether the deployment configured a push relay and can seal tokens.
+        self.push_enabled = push_enabled and keyring is not None and keyring.available
+        self._keyring: Any = keyring
+        self._budget: Any = budget
 
     @property
     def sender_enabled(self) -> bool:
@@ -447,3 +469,129 @@ class NotificationService:
         """When `send_due` last ran with a notifier enabled."""
         async with self._uow_factory() as uow:
             return await uow.notifications.last_run()
+
+    # ── Push alerts ──────────────────────────────────────────────────────────
+
+    async def add_device(self, user_id: str, token: str, platform: str) -> dict[str, Any]:
+        """Register a phone for push alerts: its Expo token, sealed with the
+        key ring, found by its hash (the device's id). PushUnavailable when
+        this server sends none."""
+        if not self.push_enabled:
+            raise PushUnavailable(
+                "This server sends no push alerts: its owner sets SALLI_PUSH_RELAY_URL "
+                "(and BYOK_ENCRYPTION_KEYS) to turn them on."
+            )
+        digest = token_hash(token)
+        sealed, version = self._keyring.seal(token, aad=_token_aad(digest))
+        async with self._uow_factory() as uow:
+            await uow.notifications.add_device(user_id, digest, sealed, version, platform)
+            rows = await uow.notifications.devices(user_id)
+        return next(_device_view(r) for r in rows if r["token_hash"] == digest)
+
+    async def remove_device(self, user_id: str, device_id: str) -> bool:
+        async with self._uow_factory() as uow:
+            return await uow.notifications.remove_device(user_id, device_id)
+
+    async def devices(self, user_id: str) -> list[dict[str, Any]]:
+        async with self._uow_factory() as uow:
+            rows = await uow.notifications.devices(user_id)
+        return [_device_view(r) for r in rows]
+
+    def open_token(self, device: dict[str, Any]) -> str:
+        """A stored device's push token, for the relay notifier."""
+        return self._keyring.open(
+            device["token"], aad=_token_aad(device["token_hash"]), key_version=device["key_version"]
+        )
+
+    async def _push_items(self, user_id: str, today: dt.date) -> list[Any]:
+        async with self._uow_factory() as uow:
+            rows = await uow.reminders.list_reminders(user_id, "pending")
+        facts: list[ReminderFact] = []
+        for row in rows:
+            try:
+                due = dt.date.fromisoformat(str(row["due_date"]))
+            except ValueError:
+                continue
+            facts.append(ReminderFact(row.get("source_domain"), due, row.get("status") == "done"))
+        over = 0
+        if self._budget is not None:
+            lines, _ = await self._budget.current_lines(user_id)
+            over = sum(1 for line in lines if line.left < 0)
+        waiting = Waiting(
+            facts,
+            await self._insights.cash_below_zero_on(user_id, today),
+            budgets_over=over,
+            budget_month=today.replace(day=1),
+        )
+        return list(waiting_items(waiting, today, today, PUSH_ITEMS))
+
+    async def send_pushes(self, now: dt.datetime | None = None) -> dict[str, Any]:
+        """Send each person with a device the alert for what is waiting now
+        (budget lines over, the cash forecast below zero, reminders due), once
+        per state: the delivery log's row for the alert's period (a hash of
+        its items) is claimed first. Without push, nothing: `enabled` false."""
+        counts: dict[str, Any] = {
+            "enabled": self.push_enabled,
+            "people": 0,
+            "sent": 0,
+            "nothing_waiting": 0,
+            "no_destination": 0,
+            "failed": 0,
+            "skipped": 0,
+        }
+        if not self.push_enabled:
+            return counts
+        now = now or self._now()
+        async with self._uow_factory() as uow:
+            people = await uow.notifications.device_users()
+        counts["people"] = len(people)
+        for person in people:
+            user_id = str(person["user_id"])
+            try:
+                zone = timing.zone(str(person["time_zone"] or "UTC"))
+            except timing.TimeZoneError:
+                zone = timing.zone("UTC")
+            today = now.astimezone(zone).date()
+            try:
+                outcome = await self._push(user_id, today, now)
+            except Exception as exc:  # noqa: BLE001 — one person's failure must not stop the rest
+                _log.warning("push_failed user=%s error=%s", user_id, type(exc).__name__)
+                outcome = "failed"
+            counts[outcome] += 1
+        return counts
+
+    async def _push(self, user_id: str, today: dt.date, now: dt.datetime) -> str:
+        await self._reminders.sync_alerts(user_id, today.isoformat())
+        notification = build_push(user_id, await self._push_items(user_id, today), link=self._link)
+        if notification is None:
+            return "nothing_waiting"
+        async with self._uow_factory() as uow:
+            attempt = await uow.notifications.claim(
+                user_id,
+                delivery_id=notification.id,
+                period=notification.period,
+                items=[item_record(i) for i in notification.items],
+                message_hash=message_hash(notification),
+                now=now,
+                first=True,
+                max_attempts=MAX_ATTEMPTS,
+            )
+        if attempt is None:
+            return "skipped"
+        try:
+            outcome = Delivery(await self._notifier.send(notification))
+        except Exception as exc:  # noqa: BLE001 — a sender's failure is a FAILED delivery
+            _log.warning("push_send_failed user=%s error=%s", user_id, type(exc).__name__)
+            outcome = Delivery.FAILED
+        async with self._uow_factory() as uow:
+            await uow.notifications.finish(user_id, notification.id, outcome.value, now)
+        return outcome.value
+
+
+def _device_view(row: dict[str, Any]) -> dict[str, Any]:
+    """A device as the API shows it: never its token."""
+    return {
+        "id": row["token_hash"],
+        "platform": row["platform"],
+        "created_at": _iso(row["created_at"]),
+    }

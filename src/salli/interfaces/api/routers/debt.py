@@ -90,6 +90,12 @@ class PlannedDebt(BaseModel):
     #: "declared" when it is the principal declared (no linked account).
     source: Literal["account", "declared"]
     account_id: str | None
+    #: Its yearly rate as a fraction ("0.18" is 18%).
+    apr: str
+    minimum_payment: Amount
+    #: The calendar month of its last payment ("YYYY-MM"); null when not
+    #: within the plan's horizon.
+    payoff_month: str | None = None
 
 
 class PayoffPlan(BaseModel):
@@ -129,7 +135,8 @@ async def get_payoff_plan(
 ) -> PayoffPlan:
     """Avalanche/snowball payoff plan on calendar months, from what each debt owes
     today (a linked debt: its ledger account; another: its declared principal):
-    months to payoff, the debt-free month, total interest, the schedule."""
+    each debt's balance, rate, minimum and payoff month, months to payoff, the
+    debt-free month, total interest, the schedule."""
     plan = await svc.debt.get_payoff_plan(
         user_id,
         extra_monthly_payment,

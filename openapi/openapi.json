@@ -1534,6 +1534,74 @@
         }
       }
     },
+    "/v1/entries/{entry_id}/recategorise": {
+      "post": {
+        "tags": [
+          "entries"
+        ],
+        "summary": "Recategorise Entry",
+        "description": "Move one posting to another account (a category change), in one\ntransaction: the entry's reversal and a corrected copy, both dated as a\nreversal is (its own day, or today when that day is closed or\nreconciled). Entries are never edited; refused in closed books (409).",
+        "operationId": "entries.recategorise",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecategoriseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recategorised"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/entries/postings/{posting_id}/tags": {
       "put": {
         "tags": [
@@ -7590,6 +7658,195 @@
         ]
       }
     },
+    "/v1/budget/monthly": {
+      "get": {
+        "tags": [
+          "budget"
+        ],
+        "summary": "Get Monthly Budget",
+        "operationId": "budgets.monthly.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyBudget"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "budget"
+        ],
+        "summary": "Set Monthly Budget",
+        "description": "Replace the monthly budget's lines; an empty list clears it.",
+        "operationId": "budgets.monthly.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonthlyBudgetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyBudget"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/budget/current": {
+      "get": {
+        "tags": [
+          "budget"
+        ],
+        "summary": "Get Current Budget",
+        "description": "This month's lines: limit, carried, spent, left and the pace.",
+        "operationId": "budgets.current",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentBudget"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/budget/trend": {
+      "get": {
+        "tags": [
+          "budget"
+        ],
+        "summary": "Get Spending Trend",
+        "description": "Spending per expense account, month by month, this month last.",
+        "operationId": "budgets.trend",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 24,
+              "minimum": 1,
+              "default": 6,
+              "title": "Months"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendingTrend"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/budget/{budget_id}": {
       "get": {
         "tags": [
@@ -7936,7 +8193,7 @@
           "debt"
         ],
         "summary": "Get Payoff Plan",
-        "description": "Avalanche/snowball payoff plan on calendar months, from what each debt owes\ntoday (a linked debt: its ledger account; another: its declared principal):\nmonths to payoff, the debt-free month, total interest, the schedule.",
+        "description": "Avalanche/snowball payoff plan on calendar months, from what each debt owes\ntoday (a linked debt: its ledger account; another: its declared principal):\neach debt's balance, rate, minimum and payoff month, months to payoff, the\ndebt-free month, total interest, the schedule.",
         "operationId": "debts.payoffPlan",
         "security": [
           {
@@ -15307,6 +15564,148 @@
         }
       }
     },
+    "/v1/devices/": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "List Devices",
+        "operationId": "devices.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Add Device",
+        "description": "Take push alerts on this phone: budget lines over their limit, the\ncash forecast below zero, reminders due. Registering the same token again\nreplaces it. 503 when this server sends no push alerts.",
+        "operationId": "devices.add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/devices/{device_id}": {
+      "delete": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Remove Device",
+        "description": "Stop push alerts to a device.",
+        "operationId": "devices.remove",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/access-grants": {
       "get": {
         "tags": [
@@ -15710,7 +16109,8 @@
               "sms",
               "system",
               "reversal",
-              "year_end_close"
+              "year_end_close",
+              "recategorise"
             ],
             "title": "Source"
           },
@@ -19534,6 +19934,37 @@
         ],
         "title": "CategoryInflationOut"
       },
+      "CategoryTrend": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "spent": {
+            "items": {
+              "type": "string",
+              "pattern": "^-?\\d+(\\.\\d+)?$",
+              "description": "Decimal string in the currency's own precision; never a float.",
+              "examples": [
+                "1234.50"
+              ]
+            },
+            "type": "array",
+            "title": "Spent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "category",
+          "spent"
+        ],
+        "title": "CategoryTrend"
+      },
       "ChainBreak": {
         "properties": {
           "seq": {
@@ -21197,6 +21628,134 @@
           "name"
         ],
         "title": "CreateTokenRequest"
+      },
+      "CurrentBudget": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "month_gone": {
+            "type": "string",
+            "title": "Month Gone"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/CurrentBudgetLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "as_of",
+          "currency",
+          "month_gone",
+          "lines"
+        ],
+        "title": "CurrentBudget"
+      },
+      "CurrentBudgetLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "limit_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "carried": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Carried",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "available": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Available",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "spent": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Spent",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "left": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Left",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "expected_by_now": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Expected By Now",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "pace": {
+            "type": "string",
+            "enum": [
+              "over",
+              "within"
+            ],
+            "title": "Pace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "category",
+          "limit_amount",
+          "carried",
+          "available",
+          "spent",
+          "left",
+          "expected_by_now",
+          "pace"
+        ],
+        "title": "CurrentBudgetLine"
       },
       "DailyBriefingRequest": {
         "properties": {
@@ -22962,7 +23521,8 @@
               "reminder_due",
               "filing_deadline",
               "cash_below_zero_ahead",
-              "transactions_to_review"
+              "transactions_to_review",
+              "budget_over"
             ],
             "title": "Kind"
           },
@@ -22989,6 +23549,33 @@
           "date"
         ],
         "title": "DeliveredItem"
+      },
+      "Device": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "android"
+            ],
+            "title": "Platform"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "platform",
+          "created_at"
+        ],
+        "title": "Device"
       },
       "DeviceAuthorization": {
         "properties": {
@@ -23028,6 +23615,51 @@
         ],
         "title": "DeviceAuthorization",
         "description": "RFC 8628 §3.2."
+      },
+      "DeviceList": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            },
+            "type": "array",
+            "title": "Devices"
+          },
+          "push_enabled": {
+            "type": "boolean",
+            "title": "Push Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "devices",
+          "push_enabled"
+        ],
+        "title": "DeviceList"
+      },
+      "DeviceRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Token"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ios",
+              "android"
+            ],
+            "title": "Platform"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "platform"
+        ],
+        "title": "DeviceRequest"
       },
       "Digest": {
         "properties": {
@@ -23179,7 +23811,8 @@
               "reminder_due",
               "filing_deadline",
               "cash_below_zero_ahead",
-              "transactions_to_review"
+              "transactions_to_review",
+              "budget_over"
             ],
             "title": "Kind"
           },
@@ -23758,7 +24391,8 @@
               "sms",
               "system",
               "reversal",
-              "year_end_close"
+              "year_end_close",
+              "recategorise"
             ],
             "title": "Source"
           },
@@ -24235,7 +24869,8 @@
               "sms",
               "system",
               "reversal",
-              "year_end_close"
+              "year_end_close",
+              "recategorise"
             ],
             "title": "Source"
           },
@@ -26035,7 +26670,9 @@
               "review_waiting",
               "decision_review_due",
               "emergency_fund_low",
-              "expensive_debt"
+              "expensive_debt",
+              "budget_over",
+              "budget_pace"
             ],
             "title": "Kind"
           },
@@ -26066,7 +26703,8 @@
               "see_cash_flow",
               "see_debts",
               "review",
-              "review_decision"
+              "review_decision",
+              "see_budget"
             ],
             "title": "Action"
           },
@@ -29180,7 +29818,8 @@
               "sms",
               "system",
               "reversal",
-              "year_end_close"
+              "year_end_close",
+              "recategorise"
             ],
             "title": "Source"
           },
@@ -30072,6 +30711,110 @@
         "title": "MonthFigure",
         "description": "A calendar month under each (null: not within 50 years), and how many\nmonths later the scenario's is (negative: sooner)."
       },
+      "MonthlyBudget": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "lines"
+        ],
+        "title": "MonthlyBudget",
+        "description": "A limit per expense account that recurs every calendar month."
+      },
+      "MonthlyBudgetRequest": {
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyLineRequest"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lines"
+        ],
+        "title": "MonthlyBudgetRequest"
+      },
+      "MonthlyLine": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "limit_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Amount",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "rollover": {
+            "type": "boolean",
+            "title": "Rollover"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "limit_amount",
+          "rollover",
+          "since"
+        ],
+        "title": "MonthlyLine"
+      },
+      "MonthlyLineRequest": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "limit_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Amount",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "rollover": {
+            "type": "boolean",
+            "title": "Rollover",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "limit_amount"
+        ],
+        "title": "MonthlyLineRequest"
+      },
       "MonthsFigure": {
         "properties": {
           "baseline": {
@@ -30530,7 +31273,8 @@
                 "reminder_due",
                 "filing_deadline",
                 "cash_below_zero_ahead",
-                "transactions_to_review"
+                "transactions_to_review",
+                "budget_over"
               ]
             },
             "type": "array",
@@ -30648,7 +31392,8 @@
                     "reminder_due",
                     "filing_deadline",
                     "cash_below_zero_ahead",
-                    "transactions_to_review"
+                    "transactions_to_review",
+                    "budget_over"
                   ]
                 },
                 "type": "array"
@@ -31257,6 +32002,37 @@
               }
             ],
             "title": "Fx Rate"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "examples": [
+                  "0.05"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "minimum_payment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "description": "Decimal string, read exactly; a JSON number is refused.",
+                "examples": [
+                  "1234.50"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Payment"
           }
         },
         "type": "object",
@@ -31894,6 +32670,30 @@
               }
             ],
             "title": "Account Id"
+          },
+          "apr": {
+            "type": "string",
+            "title": "Apr"
+          },
+          "minimum_payment": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Minimum Payment",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "payoff_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payoff Month"
           }
         },
         "type": "object",
@@ -31902,7 +32702,9 @@
           "name",
           "balance",
           "source",
-          "account_id"
+          "account_id",
+          "apr",
+          "minimum_payment"
         ],
         "title": "PlannedDebt",
         "description": "A debt the plan pays off, and what it starts from."
@@ -33632,6 +34434,49 @@
         },
         "type": "object",
         "title": "RebalancingRule"
+      },
+      "RecategoriseRequest": {
+        "properties": {
+          "posting_id": {
+            "type": "string",
+            "title": "Posting Id"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "posting_id",
+          "account_id",
+          "reason"
+        ],
+        "title": "RecategoriseRequest"
+      },
+      "Recategorised": {
+        "properties": {
+          "reversal_id": {
+            "type": "string",
+            "title": "Reversal Id"
+          },
+          "corrected_id": {
+            "type": "string",
+            "title": "Corrected Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reversal_id",
+          "corrected_id"
+        ],
+        "title": "Recategorised"
       },
       "ReconcilableStatement": {
         "properties": {
@@ -38138,6 +38983,40 @@
           "monthly"
         ],
         "title": "SpendingPhaseOut"
+      },
+      "SpendingTrend": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Months"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryTrend"
+            },
+            "type": "array",
+            "title": "Categories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "months",
+          "categories"
+        ],
+        "title": "SpendingTrend"
       },
       "SplitPart-Input": {
         "properties": {

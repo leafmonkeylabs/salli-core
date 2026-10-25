@@ -14,7 +14,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ from salli.adapters.db.models import (
     InstanceSettingORM,
     NotificationDeliveryORM,
     NotificationPreferencesORM,
+    PushDeviceORM,
     UserProfileORM,
 )
 from salli.application.ports import NotificationRepository
@@ -205,3 +206,54 @@ class SQLNotificationRepository(NotificationRepository):
             )
         ).scalar_one_or_none()
         return None if value is None else dt.datetime.fromisoformat(value)
+
+    async def add_device(
+        self, user_id: str, token_hash: str, token: str, key_version: int | None, platform: str
+    ) -> None:
+        values = {
+            "user_id": user_id,
+            "token": token,
+            "key_version": key_version,
+            "platform": platform,
+            "created_at": dt.datetime.now(dt.UTC),
+        }
+        await self._s.execute(
+            insert(PushDeviceORM)
+            .values(token_hash=token_hash, **values)
+            .on_conflict_do_update(index_elements=[PushDeviceORM.token_hash], set_=values)
+        )
+
+    async def remove_device(self, user_id: str, token_hash: str) -> bool:
+        result = await self._s.execute(
+            delete(PushDeviceORM).where(
+                PushDeviceORM.user_id == user_id, PushDeviceORM.token_hash == token_hash
+            )
+        )
+        return bool(getattr(result, "rowcount", 0))
+
+    async def devices(self, user_id: str) -> list[dict[str, Any]]:
+        rows = (
+            await self._s.execute(
+                select(PushDeviceORM)
+                .where(PushDeviceORM.user_id == user_id)
+                .order_by(PushDeviceORM.created_at)
+            )
+        ).scalars()
+        return [
+            {
+                "token_hash": r.token_hash,
+                "token": r.token,
+                "key_version": r.key_version,
+                "platform": r.platform,
+                "created_at": r.created_at,
+            }
+            for r in rows
+        ]
+
+    async def device_users(self) -> list[dict[str, Any]]:
+        rows = await self._s.execute(
+            select(PushDeviceORM.user_id, UserProfileORM.time_zone)
+            .outerjoin(UserProfileORM, UserProfileORM.id == PushDeviceORM.user_id)
+            .distinct()
+        )
+        return [{"user_id": u, "time_zone": tz} for u, tz in rows.all()]

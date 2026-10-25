@@ -5,7 +5,9 @@ actual ledger spend.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from typing import Literal
+
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, Ref, Updated
@@ -85,6 +87,110 @@ async def create_budget(body: BudgetRequest, user_id: CurrentUser, svc: AppServi
         user_id, body.period_start, body.period_end, [line.model_dump() for line in body.lines]
     )
     return Ref(id=budget_id)
+
+
+class MonthlyLineRequest(BaseModel):
+    #: One of your expense accounts.
+    account_id: str
+    limit_amount: AmountIn
+    #: What is left at a month's end carries to the next (an overspend
+    #: carries nothing).
+    rollover: bool = False
+
+
+class MonthlyBudgetRequest(BaseModel):
+    lines: list[MonthlyLineRequest]
+
+
+class MonthlyLine(BaseModel):
+    account_id: str
+    limit_amount: Amount
+    rollover: bool
+    #: The first month it applies to ("YYYY-MM").
+    since: str
+
+
+class MonthlyBudget(BaseModel):
+    """A limit per expense account that recurs every calendar month."""
+
+    #: The base currency, like the spending it is compared with.
+    currency: CurrencyCode
+    lines: list[MonthlyLine]
+
+
+class CurrentBudgetLine(BaseModel):
+    account_id: str
+    category: str
+    limit_amount: Amount
+    #: Rolled over from the months before (rollover lines only).
+    carried: Amount
+    #: Limit plus carried.
+    available: Amount
+    #: The account's net spending this month so far.
+    spent: Amount
+    #: Available less spent: negative means over.
+    left: Amount
+    #: The share of `available` matching the share of the month gone.
+    expected_by_now: Amount
+    #: "over" when spent is more than `expected_by_now`.
+    pace: Literal["over", "within"]
+
+
+class CurrentBudget(BaseModel):
+    #: "YYYY-MM".
+    month: str
+    as_of: str
+    currency: CurrencyCode
+    #: The share of the month gone, today included, as a decimal string.
+    month_gone: str
+    lines: list[CurrentBudgetLine]
+
+
+class CategoryTrend(BaseModel):
+    account_id: str
+    category: str
+    #: Net spending in each of `months`, in order.
+    spent: list[Amount]
+
+
+class SpendingTrend(BaseModel):
+    currency: CurrencyCode
+    #: The calendar months, oldest first; the last is this month so far.
+    months: list[str]
+    categories: list[CategoryTrend]
+
+
+@router.get("/monthly")
+async def get_monthly_budget(user_id: CurrentUser, svc: AppServices) -> MonthlyBudget:
+    return MonthlyBudget.model_validate(await svc.budget.monthly_lines(user_id))
+
+
+@router.put("/monthly")
+async def set_monthly_budget(
+    body: MonthlyBudgetRequest, user_id: CurrentUser, svc: AppServices
+) -> MonthlyBudget:
+    """Replace the monthly budget's lines; an empty list clears it."""
+    try:
+        saved = await svc.budget.set_monthly_lines(
+            user_id, [line.model_dump() for line in body.lines]
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return MonthlyBudget.model_validate(saved)
+
+
+@router.get("/current")
+async def get_current_budget(user_id: CurrentUser, svc: AppServices) -> CurrentBudget:
+    """This month's lines: limit, carried, spent, left and the pace."""
+    return CurrentBudget.model_validate(await svc.budget.current(user_id))
+
+
+@router.get("/trend")
+async def get_spending_trend(
+    user_id: CurrentUser, svc: AppServices, months: int = Query(6, ge=1, le=24)
+) -> SpendingTrend:
+    """Spending per expense account, month by month, this month last."""
+    return SpendingTrend.model_validate(await svc.budget.trend(user_id, months))
 
 
 @router.get("/{budget_id}")

@@ -839,6 +839,25 @@ def build_mcp_server(
             _refused(exc)
         return {"entry_id": entry_id, "reversed_by": reversing_id}
 
+    @mcp.tool(annotations=WRITES)
+    async def recategorise_entry(
+        entry_id: str,
+        posting_id: str,
+        account_id: str,
+        reason: str,
+        confirmed_by_user: Literal[True],
+    ) -> dict[str, Any]:
+        """Reverse an entry, rebook with posting_id moved. Ask first."""
+        if not 0 < len(reason.strip()) <= 200:
+            _fail("invalid_input", "reason is 1 to 200 characters")
+        try:
+            made = await ledger_svc.recategorise_entry(
+                _current_user_id(), entry_id, posting_id, account_id, reason
+            )
+        except (ValueError, BooksLocked) as exc:
+            _refused(exc)
+        return {"entry_id": entry_id, **made}
+
     @mcp.tool(annotations=READS)
     async def get_trial_balance(
         from_date: str | None = None,

@@ -1102,6 +1102,11 @@ class UserProfileRepository(ABC):
         given. `ProfileMissing` if there is no profile."""
         raise NotImplementedError
 
+    async def set_monthly_budget(self, user_id: str, lines: list[dict[str, Any]]) -> None:
+        """Replace the monthly budget's lines (`limit_minor` in the base
+        currency). `ProfileMissing` if there is no profile."""
+        raise NotImplementedError
+
     async def set_fi_plan(self, user_id: str, stored: dict[str, Any]) -> None:
         """Replace the user's FI plan with `stored`, as `FiPlan.as_stored()`
         writes it. `ProfileMissing` if there is no profile."""
@@ -2262,8 +2267,9 @@ class Delivery(StrEnum):
 class Notifier(ABC):
     """Delivers a message core built, to wherever the deployment sends this
     person's messages (an email, a push, a chat). It gets the user's id and
-    keeps its own destinations: core never stores an address, a push token
-    or a chat id for sending. It may restyle the message, never add to it.
+    keeps its own destinations: core never stores an address or a chat id
+    for sending (only the phone app's push tokens, for Salli's own relay
+    notifier, `adapters/net/push.py`). It may restyle the message, never add to it.
     `Notification.id` is the same for every attempt in a period, so a sender
     can drop a repeat. Must not raise for an ordinary failure: return FAILED."""
 
@@ -2274,6 +2280,29 @@ class Notifier(ABC):
 class NotificationRepository(ABC):
     """A person's digest preferences and the log of what was delivered, and
     when the digest job last ran. Every per-user query names the owner."""
+
+    @abstractmethod
+    async def add_device(
+        self, user_id: str, token_hash: str, token: str, key_version: int | None, platform: str
+    ) -> None:
+        """Register a push device (insert, or replace one with the same hash)."""
+        ...
+
+    @abstractmethod
+    async def remove_device(self, user_id: str, token_hash: str) -> bool:
+        """Remove the person's device with this hash; False if none."""
+        ...
+
+    @abstractmethod
+    async def devices(self, user_id: str) -> list[dict[str, Any]]:
+        """The person's push devices: `token`, `key_version`, `platform`,
+        `token_hash`, `created_at`."""
+        ...
+
+    @abstractmethod
+    async def device_users(self) -> list[dict[str, Any]]:
+        """Everyone with a push device: `user_id` and `time_zone`."""
+        ...
 
     @abstractmethod
     async def get_preferences(self, user_id: str) -> dict[str, Any] | None:
