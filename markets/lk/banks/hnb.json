@@ -1,0 +1,25 @@
+{
+  "schema": "salli.bankformat/1",
+  "name": "Hatton National Bank: account statement (CSV)",
+  "bank": "Hatton National Bank PLC",
+  "columns": {
+    "date": "Transaction Date",
+    "description": [
+      "Description"
+    ],
+    "debit": "Debit",
+    "credit": "Credit"
+  },
+  "date_format": "%d-%b-%Y",
+  "decimal_separator": ".",
+  "thousands_separator": ",",
+  "sources": [
+    {
+      "url": "https://www.hnb.lk/personal/digital-banking",
+      "note": "HNB online banking offers statement download; no sample file published. Retrieved 2026-10-25"
+    }
+  ],
+  "notes": "Month written as a short name (01-Oct-2026) assumed; confirm against a real export.",
+  "verified": false,
+  "sample": "samples/hnb.csv"
+}

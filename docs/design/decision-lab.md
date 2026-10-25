@@ -1,5 +1,8 @@
 # The decision lab: better money decisions, computed by Salli, reasoned by your agent
 
+> **Experimental.** Part of the decision lab, which works but may change
+> before the first pilots end: see [scope](../scope.md).
+
 Status: **approved (2026-10-11).** The decisions are recorded at the end. Each phase is its own PR.
 
 ## Why

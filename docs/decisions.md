@@ -1,5 +1,8 @@
 # Principles and the decision journal
 
+> **Experimental.** Part of the decision lab, which works but may change
+> before the first pilots end: see [scope](scope.md).
+
 Salli computes the consequences of a decision ([scenarios](scenarios.md)),
 your agent helps you reason about them, and you decide. Two things keep
 what matters to you, and what you decided, with your money:

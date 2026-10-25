@@ -789,6 +789,7 @@ class McpOAuthService:
             "grant_types_supported": ["authorization_code", "refresh_token", DEVICE_GRANT_TYPE],
             "code_challenge_methods_supported": ["S256"],
             "token_endpoint_auth_methods_supported": ["none"],
+            "scopes_supported": [MCP_READ, MCP_WRITE],
         }
 
     # ── Device authorization grant (RFC 8628) ───────────────────────────────
@@ -906,6 +907,8 @@ class McpOAuthService:
         return {
             "resource": self._resource,
             "authorization_servers": [issuer],
+            "scopes_supported": [MCP_READ, MCP_WRITE],
+            "bearer_methods_supported": ["header"],
         }
 
 

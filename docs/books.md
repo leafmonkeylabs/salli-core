@@ -62,6 +62,21 @@ are. Clearing is the one change a posting in closed books still takes
 
 ## Imports
 
+- **Bank formats.** Salli works out most statement layouts itself. When it
+  can't, or to be certain, a bank's layout can be written down as a
+  `salli.bankformat/1` JSON document and given with the import (`salli import
+  statement.csv --format bank.json`, or `--format <directory>` to try every
+  format in it; the `formats` form field of `POST /v1/statements/upload`).
+  It states the columns (by header or 0-based position: `date`,
+  `description`, and `amount`, or `debit` and `credit`, or `amount` with a
+  `direction` column; `currency`, `reference`), `date_format` (strptime) or
+  `date_order`, `decimal_separator`, `thousands_separator`, `delimiter` and
+  `invert_sign`; `sources`, `verified` and `notes` are for the people who keep
+  it. It applies to CSV files and to the tables of PDF and Excel statements.
+  With several formats, each is tried and the one that reads the most rows
+  is used; the result's `formats` says, for each, how many rows it read and
+  how many it could not, and which was used. Market packs keep their banks'
+  formats in `markets/<country>/banks/`.
 - **The bank's base amount.** A row may carry its amount in your base
   currency as the bank gave it (`base_amount`, on a drafted transaction or a
   feed's row): the rate posted is derived from it (source `bank`) rather than

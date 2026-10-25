@@ -2,8 +2,8 @@
  * Files sent to the server (statements, receipts, attachments), and text the
  * server sends back to be saved (CSV reports, plain-text ledgers, exports).
  */
-import { chmod, readFile, stat, writeFile } from 'node:fs/promises';
-import { basename, extname, resolve } from 'node:path';
+import { chmod, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { basename, extname, join, resolve } from 'node:path';
 import type { App } from '../app';
 import { CliError, UsageError } from '../errors';
 
@@ -32,6 +32,32 @@ export async function readUpload(path: string, maxBytes?: number): Promise<File>
     throw new UsageError(`${name} is larger than the server accepts (${Math.round(maxBytes / 1024 / 1024)} MB).`);
   }
   return new File([await readFile(path)], name, { type: MIME[extname(name).toLowerCase()] ?? 'application/octet-stream' });
+}
+
+/**
+ * Bank formats (`salli.bankformat/1`) from one JSON file, or every .json file
+ * in a directory, as the JSON array the server takes.
+ */
+export async function readBankFormats(path: string): Promise<string> {
+  let info;
+  try {
+    info = await stat(path);
+  } catch {
+    throw new UsageError(`No such file or directory: ${path}`);
+  }
+  const files = info.isDirectory()
+    ? (await readdir(path)).filter((f) => f.toLowerCase().endsWith('.json')).sort().map((f) => join(path, f))
+    : [path];
+  if (files.length === 0) throw new UsageError(`No .json bank formats in ${path}`);
+  const documents: unknown[] = [];
+  for (const file of files) {
+    try {
+      documents.push(JSON.parse(await readFile(file, 'utf8')));
+    } catch {
+      throw new UsageError(`${basename(file)} is not JSON`);
+    }
+  }
+  return JSON.stringify(documents);
 }
 
 /** A text response (CSV, a plain-text ledger) as the string it should be. */

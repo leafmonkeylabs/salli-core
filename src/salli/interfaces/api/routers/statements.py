@@ -20,7 +20,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Form, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
-from salli.application.services.parsing_service import transaction_view
+from salli.application.services.parsing_service import load_bank_formats, transaction_view
 from salli.domain.parsing.models import ParsedTransaction, RawRow
 from salli.interfaces.api.contract import Amount, AmountIn, CurrencyCode, FileUpload
 from salli.interfaces.api.deps import AppServices, CurrentEmail, CurrentUser
@@ -86,6 +86,26 @@ class StatementTransaction(BaseModel):
     splits: list[SplitPart] = Field(default_factory=list["SplitPart"])
 
 
+class StatementFileUpload(FileUpload):
+    """A statement file, and the bank formats to read it with."""
+
+    #: A JSON array of `salli.bankformat/1` documents stating the layout of a
+    #: CSV file or of a PDF's or workbook's tables. Each is tried, and the one
+    #: that reads the most rows is taken. Omitted: the layout is detected.
+    formats: str | None = None
+
+
+class FormatOutcomeView(BaseModel):
+    #: The format's name.
+    name: str
+    #: Rows it read.
+    parsed: int
+    #: Rows or tables it could not read.
+    failed: int
+    #: Whether it was the one taken.
+    chosen: bool
+
+
 class StatementUpload(BaseModel):
     statement_id: str
     bank: str
@@ -97,6 +117,8 @@ class StatementUpload(BaseModel):
     parsed: int
     errors: list[str]
     transactions: list[StatementTransaction]
+    #: Each bank format given, with what it read: empty when none was.
+    formats: list[FormatOutcomeView] = []
 
 
 class BankStatement(BaseModel):
@@ -137,7 +159,7 @@ class DiscardedStatementTransactions(BaseModel):
 
 @router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
-    form: Annotated[FileUpload, Form(media_type="multipart/form-data")],
+    form: Annotated[StatementFileUpload, Form(media_type="multipart/form-data")],
     user_id: CurrentUser,
     email: CurrentEmail,
     svc: AppServices,
@@ -169,7 +191,9 @@ async def upload_statement(
     names the file's account to import when the statement's account does not
     match one by name or code. `replaces` is an earlier upload of the same
     statement, imported again on purpose: its rows are not taken for
-    duplicates, and those still in review are discarded.
+    duplicates, and those still in review are discarded. `formats` (a form
+    field) states the bank's layout as `salli.bankformat/1` documents; the
+    result counts what each read and could not.
     """
     file = form.file
     if file.filename is None:
@@ -178,6 +202,10 @@ async def upload_statement(
     data = await file.read()
     if len(data) > 10 * 1024 * 1024:  # 10 MB hard cap
         raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+    try:
+        formats = load_bank_formats(form.formats) if form.formats else []
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=[str(exc)]) from exc
 
     # The usage meter is charged inside, and only if the model is about to
     # run: a statement the user's rules sort entirely costs nothing.
@@ -191,6 +219,7 @@ async def upload_statement(
         source_account=source_account,
         replaces=replaces,
         date_order=date_order,
+        bank_formats=formats,
         email=email,
     )
 
@@ -206,6 +235,7 @@ async def upload_statement(
         parsed=len(result.transactions),
         errors=result.errors,
         transactions=[_transaction(t) for t in result.transactions],
+        formats=[FormatOutcomeView(**vars(f)) for f in result.formats],
     )
 
 
