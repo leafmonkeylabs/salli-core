@@ -509,6 +509,9 @@ class TaxReturnORM(Base):
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     snapshot_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    # The hash of the user's last journal entry when this version was
+    # recorded: the ledger it was made from, as its hash chain stood.
+    chain_head_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # The authority's reference for what was filed, and the day it was.
     reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
     filed_on: Mapped[date | None] = mapped_column(Date, nullable=True)

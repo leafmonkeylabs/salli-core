@@ -228,6 +228,7 @@ export function registerLedger(program: Command, app: App): void {
           const why = { missing: 'an entry before it is missing', link: 'it does not follow the entry before it', content: 'it changed after it was posted' };
           app.out.warn(b ? `The chain breaks at entry ${b.seq} (${b.entry_id.slice(0, 8)}): ${why[b.reason]}.` : 'The chain breaks.');
           app.out.note(`${d.checked} entries before it check out.`);
+          if (b?.filed_years?.length) app.out.warn(`It falls in a tax year with a filed return: ${b.filed_years.join(', ')}.`);
         },
       });
     });

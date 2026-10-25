@@ -13,7 +13,9 @@ import logging
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
+from salli.application.services.reconciliation_service import normal_sign
 from salli.domain.export import plaintext
+from salli.domain.money import from_minor
 
 if TYPE_CHECKING:
     from salli.application.ports import ConversationStore, StoragePort
@@ -73,15 +75,39 @@ class DataPortabilityService:
         """The whole ledger as a Beancount file or an hledger journal.
 
         Every account, inactive ones included — an entry posted to an account
-        that has since been closed still has to name it — and every entry."""
+        that has since been closed still has to name it — and every entry,
+        with the postings cleared against a statement and each completed
+        reconciliation's closing balance."""
         if fmt not in ("beancount", "hledger"):
             raise ValueError(f"Unknown format {fmt!r}: beancount or hledger")
         async with self._uow_factory() as uow:
             accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
             entries = await uow.ledger.get_entries(user_id)
             base = await uow.user_profiles.base_currency(user_id)
+            by_id = {a.id: a for a in accounts}
+            assertions: list[plaintext.Assertion] = []
+            for s in await uow.reconciliations.statements(user_id):
+                account = by_id.get(s["account_id"])
+                if s["reconciliation"] is None or account is None:
+                    continue
+                closing = from_minor(s["closing_balance_minor"], account.currency)
+                assertions.append(
+                    plaintext.Assertion(
+                        account.id,
+                        str(s["period_end"]),
+                        normal_sign(account) * closing,
+                        account.currency,
+                        s["id"],
+                    )
+                )
+            cleared: set[str] = set()
+            for account in accounts:
+                rows = await uow.reconciliations.postings(
+                    user_id, account.id, "0001-01-01", "9999-12-31"
+                )
+                cleared |= {r["posting_id"] for r in rows if r["cleared"]}
         render = plaintext.beancount if fmt == "beancount" else plaintext.hledger
-        return render(accounts, entries, base)
+        return render(accounts, entries, base, cleared, assertions)
 
     async def export_all(self, user_id: str) -> dict[str, Any]:
         """

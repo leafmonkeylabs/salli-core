@@ -1221,6 +1221,11 @@ export const LATEST: LatestTaxComputation = {
         "postings": 0
       }
     ],
+    "posting_ids": {
+      "salary": [],
+      "pension": [],
+      "tax_withheld": []
+    },
     "answers": {},
     "rates": [],
     "lines": [
@@ -1309,6 +1314,7 @@ export const LATEST: LatestTaxComputation = {
     "tax_payable": "2400.00",
     "refund_due": "0.00",
     "warnings": [],
+    "provisional": [],
     "provenance": "Computed by Salli's engine from rules you or your agent entered. Salli doesn't vouch for the law: check the rules' sources."
   }
 };
@@ -1881,6 +1887,11 @@ export const COMPUTED: TaxComputation = {
       "postings": 0
     }
   ],
+  "posting_ids": {
+    "salary": [],
+    "pension": [],
+    "tax_withheld": []
+  },
   "answers": {},
   "rates": [],
   "lines": [
@@ -1969,6 +1980,7 @@ export const COMPUTED: TaxComputation = {
   "tax_payable": "2300.00",
   "refund_due": "0.00",
   "warnings": [],
+  "provisional": [],
   "provenance": "Computed by Salli's engine from rules you or your agent entered. Salli doesn't vouch for the law: check the rules' sources."
 };
 

@@ -25,6 +25,7 @@ from salli.domain.accounting.models import (
     StoredJournalEntry,
     Tag,
     TaxRole,
+    refuse_before_books_start,
     refuse_if_locked,
 )
 from salli.domain.currency import normalize_currency, quantize
@@ -128,6 +129,25 @@ def _role_refusal(role: str, declared: tuple[str, ...]) -> str:
         f"{role!r} is not a tax role any of your tax rule sets declares "
         f"({', '.join(declared)}). Add it to a rule set's `roles` first."
     )
+
+
+async def _reconciled(uow: Any, user_id: str, entry: StoredJournalEntry) -> bool:
+    """Whether a posting of `entry` is cleared, or a completed reconciliation
+    of one of its accounts covers its day."""
+    day, accounts = entry.entry_date, {p.account_id for p in entry.postings}
+    for s in await uow.reconciliations.statements(user_id):
+        if (
+            s["reconciliation"] is not None
+            and s["account_id"] in accounts
+            and s["period_start"] <= day <= s["period_end"]
+        ):
+            return True
+    mine = {p.id for p in entry.postings}
+    for account_id in accounts:
+        rows = await uow.reconciliations.postings(user_id, account_id, day, day)
+        if any(r["cleared"] and r["posting_id"] in mine for r in rows):
+            return True
+    return False
 
 
 class LedgerService:
@@ -333,7 +353,9 @@ class LedgerService:
                 )
             )
         async with self._uow_factory() as uow:
-            refuse_if_locked(entry_date, await self._lock_date(uow, user_id))
+            profile = (await uow.user_profiles.get(user_id)) or {}
+            refuse_if_locked(entry_date, profile.get("lock_date"))
+            refuse_before_books_start(entry_date, profile.get("books_start"))
             # must_balance refuses an entry that doesn't balance in the base
             # currency, once any rounding is taken up.
             entry = JournalEntry(
@@ -698,7 +720,9 @@ class LedgerService:
 
         The reversal is dated the original's day while that day's books are
         open, so a corrected month reads as corrected; when they are closed
-        (on or before the lock date), it is dated today. Its description keeps
+        (on or before the lock date), or a posting of it is cleared or a
+        completed reconciliation of one of its accounts covers that day (the
+        bank's statement agreed with it), it is dated today. Its description keeps
         the original's and says why (`reason`)."""
         reason = reason.strip()
         if not reason:
@@ -729,7 +753,9 @@ class LedgerService:
                 for p in original.postings
             ]
             locked = await self._lock_date(uow, user_id)
-            closed = locked is not None and original.entry_date <= locked
+            closed = (locked is not None and original.entry_date <= locked) or (
+                await _reconciled(uow, user_id, original)
+            )
             on = self._today().isoformat() if closed else original.entry_date
             reversing = JournalEntry(
                 entry_date=on,
@@ -746,9 +772,27 @@ class LedgerService:
 
     async def verify_chain(self, user_id: str) -> dict[str, Any]:
         """Whether the user's entries are as they were posted: their hash
-        chain checked from the first (`domain.accounting.chain.verify`)."""
+        chain checked from the first (`domain.accounting.chain.verify`). A
+        break names the tax years with a filed return (or an amendment) whose
+        period holds the broken entry's date (`filed_years`)."""
         async with self._uow_factory() as uow:
-            return await uow.ledger.verify_chain(user_id)
+            check = await uow.ledger.verify_chain(user_id)
+            broken = check["first_break"]
+            if broken is None:
+                return check
+            entry = await uow.ledger.get_entry_by_id(user_id, broken["entry_id"])
+            returns = await uow.tax_returns.list(user_id)
+        day = entry.entry_date if entry else None
+        broken["filed_years"] = sorted(
+            {
+                r["year"]
+                for r in returns
+                if r["status"] != "draft"
+                and day is not None
+                and r["period_start"].isoformat() <= day <= r["period_end"].isoformat()
+            }
+        )
+        return check
 
     async def set_retained_earnings(self, user_id: str, account_id: str) -> None:
         """Make an equity account the one a year-end close moves earnings to.

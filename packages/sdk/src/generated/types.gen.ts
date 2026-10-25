@@ -2233,6 +2233,10 @@ export type ChainBreak = {
      * Reason
      */
     reason: 'missing' | 'link' | 'content';
+    /**
+     * Filed Years
+     */
+    filed_years?: Array<string>;
 };
 
 /**
@@ -12808,6 +12812,12 @@ export type TaxComputation = {
      */
     roles: Array<TaxRuleRoleTotal>;
     /**
+     * Posting Ids
+     */
+    posting_ids?: {
+        [key: string]: Array<string>;
+    };
+    /**
      * Answers
      */
     answers: {
@@ -12843,6 +12853,10 @@ export type TaxComputation = {
      * Warnings
      */
     warnings: Array<string>;
+    /**
+     * Provisional
+     */
+    provisional?: Array<TaxRuleProvisional>;
     /**
      * Provenance
      */
@@ -13385,6 +13399,10 @@ export type TaxReturnRecord = {
      */
     snapshot_hash: string;
     /**
+     * Chain Head Hash
+     */
+    chain_head_hash?: string | null;
+    /**
      * Payments
      */
     payments: Array<TaxReturnPayment>;
@@ -13730,6 +13748,10 @@ export type TaxRuleEvaluation = {
      */
     warnings: Array<string>;
     /**
+     * Provisional
+     */
+    provisional?: Array<TaxRuleProvisional>;
+    /**
      * Provenance
      */
     provenance: string;
@@ -13925,6 +13947,22 @@ export type TaxRuleProblem = {
      * Snippet
      */
     snippet?: string | null;
+};
+
+/**
+ * TaxRuleProvisional
+ *
+ * A value of the rules not yet confirmed from a primary source.
+ */
+export type TaxRuleProvisional = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Note
+     */
+    note: string;
 };
 
 /**

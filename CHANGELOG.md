@@ -4,6 +4,21 @@
 
 ### Added
 
+- **Plain-text exports keep what the books know.** Beancount and hledger
+  flag a transaction `*` only when a posting of it is cleared (`!`
+  otherwise, the cleared postings marked), turn each completed
+  reconciliation into a balance assertion when the ledger agrees with it,
+  and carry a reversal's `reverses` link and accounts' tax, asset and
+  equity roles.
+- **A return keeps what it was made from.** A return version's snapshot
+  lists the posting ids behind each role (`posting_ids`, on computations
+  too), and the version keeps the ledger's chain head (`chain_head_hash`).
+  `salli ledger verify` names the filed tax years a break falls in
+  (`first_break.filed_years`). Migration `core_0041_return_chain_head`.
+- **Provisional rule-set values.** In `salli.tax/1`, a band table, block,
+  line, the result, a deadline or a form field may say `"provisional":
+  true` with a `note`; every computation (and the MCP tax reads) lists
+  them under `provisional`.
 - **An investment policy statement.** Target allocation by asset class with
   a band each, a rebalancing rule (bands, calendar or both), horizon,
   objectives, constraints and a review date, stored as versions and never
@@ -159,6 +174,14 @@
 
 #### Changed
 
+- **Nothing is posted before the books start.** An entry or an imported
+  row dated before the profile's `books_start` is refused (409,
+  `/problems/before-books-start`): the opening balances cover that time.
+- **A reconciled entry is reversed today.** Reversing an entry with a
+  cleared posting, or dated in a completed reconciliation's period on one
+  of its accounts, dates the reversal today, as in closed books.
+- **Plain-text exports flag uncleared transactions `!`** rather than every
+  transaction `*`.
 - **FI pack 4.0.0: debt is scored by its size too.** Half of the debt
   component is now the debt-service ratio (scheduled payments ÷ income),
   no marks at 40%. Scores with debts move (the golden household's from

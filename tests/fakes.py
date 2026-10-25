@@ -402,6 +402,9 @@ class FakeLedger:
         self.accounts: list[Any] = []
         self.entries: list[Any] = []
 
+    async def chain_head(self, user_id: str) -> str | None:
+        return None
+
     async def get_accounts(self, user_id: str, include_inactive: bool = False) -> list[Any]:
         return sorted(
             (
@@ -1085,6 +1088,7 @@ class FakeUoW:
         self.investment_policies = FakeInvestmentPolicies()
         self.audit_log = FakeAuditLog()
         self.tax_returns = FakeTaxReturns()
+        self.reconciliations = FakeReconciliations()
 
     async def __aenter__(self) -> FakeUoW:
         return self
@@ -1095,6 +1099,16 @@ class FakeUoW:
     def factory(self) -> Any:
         """A uow_factory handing out this unit of work."""
         return lambda: self
+
+
+class FakeReconciliations:
+    """No statements reconciled and no posting cleared."""
+
+    async def statements(self, user_id: str, statement_id: str | None = None) -> list[Any]:
+        return []
+
+    async def postings(self, user_id: str, account_id: str, from_date: str, to_date: str) -> list:
+        return []
 
 
 class FakeNotifications:

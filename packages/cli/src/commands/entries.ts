@@ -286,7 +286,7 @@ Examples:
   entries
     .command('reverse')
     .argument('<id>', 'Entry id (or the start of one)')
-    .description('Cancel an entry by posting its reverse, on its own day, or today if that day is closed (entries are never edited)')
+    .description('Cancel an entry by posting its reverse, on its own day, or today if that day is closed or reconciled (entries are never edited)')
     .requiredOption('--reason <text>', 'Why, in a few words; the reversal’s description keeps it')
     .option('-y, --yes', 'Do not ask for confirmation')
     .action(async (query, opts) => {

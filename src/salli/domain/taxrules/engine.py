@@ -189,7 +189,24 @@ def canonical_json(doc: RuleSet | Mapping[str, Any]) -> str:
     # Left out when unset, so documents from before it hash as they did.
     if data.get("cost_basis") is None:
         data.pop("cost_basis", None)
+    _drop_unmarked(data)
     return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _drop_unmarked(node: object) -> None:
+    """A value not marked provisional, and without a note, leaves both out,
+    so documents from before the marker hash as they did."""
+    if isinstance(node, dict):
+        fields = cast(dict[str, object], node)
+        if fields.get("provisional") is False and "note" in fields:
+            fields.pop("provisional")
+            if fields.get("note") is None:
+                fields.pop("note")
+        for value in fields.values():
+            _drop_unmarked(value)
+    elif isinstance(node, list):
+        for value in cast(list[object], node):
+            _drop_unmarked(value)
 
 
 def content_hash(doc: RuleSet | Mapping[str, Any]) -> str:

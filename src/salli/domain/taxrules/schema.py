@@ -37,6 +37,7 @@ from salli.domain.taxrules.common import (
     Model,
     NonNegativeFigure,
     Problem,
+    Provisional,
     Rate,
     RoleKey,
     RoundingSpec,
@@ -137,7 +138,7 @@ class BandSpec(Model):
     rate: Rate
 
 
-class BandTableSpec(Model):
+class BandTableSpec(Provisional):
     label: Label | None = None
     bands: Annotated[list[BandSpec], Field(min_length=1, max_length=MAX_BANDS)]
     #: Rounds each band's tax on its own before the bands are added.
@@ -170,14 +171,14 @@ class BandTableSpec(Model):
         )
 
 
-class LineSpec(Model):
+class LineSpec(Provisional):
     key: Key
     label: Label
     expr: ExprText
     source: Key | None = None
 
 
-class ResultSpec(Model):
+class ResultSpec(Provisional):
     """`net` is what the taxpayer owes after every credit, negative when they
     are owed a refund. It is rounded with `round`, then split into a payable
     amount and a refund."""
@@ -186,7 +187,7 @@ class ResultSpec(Model):
     round: RoundingSpec | None = None
 
 
-class Deadline(Model):
+class Deadline(Provisional):
     key: Key
     label: Label
     date: IsoDate
@@ -200,7 +201,7 @@ class SuggestedAccount(Model):
     tax_role: RoleKey | None = None
 
 
-class FormField(Model):
+class FormField(Provisional):
     id: Key
     label: Label
     value: ExprText
@@ -266,6 +267,20 @@ class RuleSet(Model):
     #: the average cost. None: first in, first out.
     cost_basis: Literal["fifo", "average"] | None = None
     examples: Annotated[list[Example], Field(max_length=200)] = Field(default_factory=list[Example])
+
+    def provisional_values(self) -> list[dict[str, str]]:
+        """Every value marked provisional, as {key, note}: `band_tables.<key>`,
+        `blocks.<key>`, `lines.<key>`, `result`, `deadlines.<key>` or
+        `forms.<form>.<field>`."""
+        marked: list[tuple[str, Provisional]] = [
+            *((f"band_tables.{k}", t) for k, t in self.band_tables.items()),
+            *((f"blocks.{b.key}", b) for b in self.blocks),
+            *((f"lines.{ln.key}", ln) for ln in self.lines),
+            ("result", self.result),
+            *((f"deadlines.{d.key}", d) for d in self.deadlines),
+            *((f"forms.{f.key}.{fld.id}", fld) for f in self.forms for fld in f.fields),
+        ]
+        return [{"key": key, "note": v.note or ""} for key, v in marked if v.provisional]
 
 
 # ── checks across fields ───────────────────────────────────────────────────────

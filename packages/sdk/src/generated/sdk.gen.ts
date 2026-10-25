@@ -293,7 +293,7 @@ export const entriesProvenance = <ThrowOnError extends boolean = false>(options:
  * Reverse Entry
  *
  * Cancel an entry with its opposite, dated the entry's own day, or today
- * when that day's books are closed.
+ * when that day's books are closed or the bank's statement reconciled it.
  */
 export const entriesReverse = <ThrowOnError extends boolean = false>(options: Options<EntriesReverseData, ThrowOnError>): RequestResult<EntriesReverseResponses, EntriesReverseErrors, ThrowOnError> => (options.client ?? client).post<EntriesReverseResponses, EntriesReverseErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -425,7 +425,8 @@ export const ledgerRetainedEarningsSet = <ThrowOnError extends boolean = false>(
  *
  * Check the ledger's hash chain from its first entry: each entry holds
  * the hash of the one before and its own over what it says, so a changed,
- * removed or reordered entry shows as the first break.
+ * removed or reordered entry shows as the first break, with the filed tax
+ * years it falls in.
  */
 export const ledgerVerify = <ThrowOnError extends boolean = false>(options?: Options<LedgerVerifyData, ThrowOnError>): RequestResult<LedgerVerifyResponses, LedgerVerifyErrors, ThrowOnError> => (options?.client ?? client).get<LedgerVerifyResponses, LedgerVerifyErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

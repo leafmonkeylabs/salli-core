@@ -327,7 +327,7 @@ async def reverse_entry(
     entry_id: str, body: ReverseEntryRequest, user_id: CurrentUser, svc: AppServices
 ) -> Ref:
     """Cancel an entry with its opposite, dated the entry's own day, or today
-    when that day's books are closed."""
+    when that day's books are closed or the bank's statement reconciled it."""
     try:
         reversing_id = await svc.ledger.reverse_entry(user_id, entry_id, body.reason)
     except BooksLocked:

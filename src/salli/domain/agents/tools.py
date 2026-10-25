@@ -106,6 +106,8 @@ def computation_for_agent(c: dict[str, Any]) -> dict[str, Any]:
         "tax_payable": c["tax_payable"],
         "refund_due": c["refund_due"],
         "warnings": c["warnings"],
+        # Values of the rules not yet confirmed: say so with the figures.
+        "provisional": c.get("provisional") or [],
         "provenance": c["provenance"],
         "how_to_read": _HOW_TO_READ,
     }
