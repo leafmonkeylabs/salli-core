@@ -28,7 +28,7 @@ export interface ServerIndex {
  * `.-_` only, so every other character (and `-` itself) is written as `-`
  * and its code in hex: two servers never share a key.
  */
-export function storeKeyOf(server: string, what: 'sign-in' | 'automations' | 'unread' | 'mcp' = 'sign-in'): string {
+export function storeKeyOf(server: string, what: 'sign-in' | 'automations' | 'unread' | 'mcp' | 'push' = 'sign-in'): string {
   const escaped = Array.from(server, (c) => (/[A-Za-z0-9._]/.test(c) ? c : `-${c.codePointAt(0)?.toString(16) ?? ''}`)).join('');
   return `salli.${what}.${escaped}`;
 }

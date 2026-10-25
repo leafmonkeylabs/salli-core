@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balancesOf, goalsOf, incomesOf, ROLES, rolesGiven, type Line } from '../src/lib/firstrun';
+import { balancesOf, fractionOf, goalsOf, incomesOf, ROLES, rolesGiven, type Line } from '../src/lib/firstrun';
 
 describe('first run', () => {
   it('sends only named lines with an amount, as exact strings, with codes beside the starter chart', () => {
@@ -41,6 +41,24 @@ describe('first run', () => {
     expect(goalsOf([{ name: 'House', amount: '40000', date: '2029' }, { name: 'Trip', amount: 'soon', date: '' }, { name: '', amount: '1', date: '' }])).toEqual([
       { name: 'House', target_amount: '40000', target_date: '2029-12-31' },
       { name: 'Trip' },
+    ]);
+  });
+});
+
+describe('what you owe', () => {
+  it('sends a typed percent as a fraction, exactly', () => {
+    expect(fractionOf('21.9')).toBe('0.219');
+    expect(fractionOf('6.4%')).toBe('0.064');
+    expect(fractionOf('18')).toBe('0.18');
+    expect(fractionOf('0.5')).toBe('0.005');
+    expect(fractionOf('100')).toBe('1');
+    expect(fractionOf('abc')).toBeUndefined();
+  });
+
+  it('carries a rate and minimum only when given', () => {
+    expect(balancesOf([], [{ name: 'Card', amount: '1240', rate: '21.9', minimum: '45' }, { name: 'Loan', amount: '800' }])).toEqual([
+      { code: '2500', type: 'liability', name: 'Card', amount: '1240', rate: '0.219', minimum_payment: '45' },
+      { code: '2510', type: 'liability', name: 'Loan', amount: '800' },
     ]);
   });
 });

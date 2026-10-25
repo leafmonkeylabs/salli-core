@@ -1,0 +1,117 @@
+import { baselineGet, formatAmount, formatRatio } from '@leafmonkeylabs/salli-sdk';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRead } from '../api';
+import { Body, Card, CardHead, Icon, Money, Waiting } from '../kit';
+import { displayDate, displayMonth } from '../lib/display';
+import { Page } from '../shell';
+import { strings } from '../strings';
+import { font, size, useTheme } from '../theme';
+
+const t = strings.debts;
+
+/**
+ * Debts (design HhDebts): what you owe in all, then each debt with its rate,
+ * its minimum and the month it is paid off at minimum payments, as the
+ * baseline reads them. A debt held in the books opens its account.
+ */
+export default function Debts() {
+  const theme = useTheme();
+  const baseline = useRead('baseline.get', baselineGet);
+  const data = baseline.data;
+  return (
+    <Page
+      title={t.title}
+      back={{
+        label: strings.attention.title,
+        onPress: () => (router.canGoBack() ? router.back() : router.replace('/attention')),
+      }}
+      onRefresh={() => baseline.refetch()}
+    >
+      {data ? (
+        <>
+          <Card>
+            <CardHead label={t.total(displayDate(data.as_of))} />
+            <Money amount={data.totals.debts} currency={data.currency} figure="key" />
+          </Card>
+          <Card style={{ paddingBottom: 0 }}>
+            <CardHead label={t.each(data.currency)} />
+            {data.debts.length ? (
+              data.debts.map((debt) => {
+                const row = (
+                  <>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <View style={styles.line}>
+                        <Text style={[styles.name, { color: theme.text }]}>{debt.name}</Text>
+                        <Money amount={debt.balance} currency={data.currency} style={styles.name} />
+                      </View>
+                      <View style={styles.line}>
+                        <Text style={[styles.detail, { color: theme.muted }]}>
+                          {t.terms(
+                            formatRatio(debt.apr),
+                            formatAmount(debt.minimum_payment, data.currency, {
+                              display: 'none',
+                            }),
+                          )}
+                        </Text>
+                        <Text style={[styles.detail, { color: theme.muted }]}>{debt.paid_off ? t.free(displayMonth(debt.paid_off)) : t.notPaidOff}</Text>
+                      </View>
+                    </View>
+                    {debt.account_id ? <Icon name="chevron" size={18} colour={theme.muted} /> : null}
+                  </>
+                );
+                const style = [styles.row, { borderTopColor: theme.rule }];
+                return debt.account_id ? (
+                  <Pressable
+                    key={debt.debt_id}
+                    accessibilityRole="link"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/account/[id]',
+                        params: { id: debt.account_id ?? '' },
+                      })
+                    }
+                    style={style}
+                  >
+                    {row}
+                  </Pressable>
+                ) : (
+                  <View key={debt.debt_id} accessible style={style}>
+                    {row}
+                  </View>
+                );
+              })
+            ) : (
+              <Body muted style={{ paddingVertical: 12 }}>
+                {t.none}
+              </Body>
+            )}
+          </Card>
+          <Body small muted>
+            {t.note}
+          </Body>
+        </>
+      ) : (
+        <Waiting query={baseline} what="your debts" />
+      )}
+    </Page>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 48,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  line: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  name: { fontFamily: font.medium, fontSize: size.body },
+  detail: {
+    fontFamily: font.regular,
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
+  },
+});

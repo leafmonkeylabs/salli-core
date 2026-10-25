@@ -1,10 +1,11 @@
-import { formatAmount, insightsForecast, type CashForecast } from '@leafmonkeylabs/salli-sdk';
+import { budgetsCurrent, formatAmount, insightsForecast, isNegativeAmount, type CashForecast } from '@leafmonkeylabs/salli-sdk';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 import { useRead } from '../../api';
-import { AmountRow, Body, Button, Card, CardHead, LedgerRow, Waiting } from '../../kit';
+import { AmountRow, Body, Button, Card, CardHead, LedgerRow, Row, Waiting } from '../../kit';
 import { placeLabels, stepChart } from '../../lib/chart';
 import { amountParts, displayDate, displayDay, wholeDigits } from '../../lib/display';
 import { Page } from '../../shell';
@@ -19,13 +20,16 @@ const LABEL_SIZE = 12;
 export default function Cash() {
   const { width } = useWindowDimensions();
   const forecast = useRead('insights.forecast', insightsForecast);
+  const budget = useRead('budgets.current', budgetsCurrent);
   const [days, setDays] = useState(false);
   const data = forecast.data;
+  const lines = budget.data?.lines ?? [];
+  const over = lines.filter((l) => isNegativeAmount(l.left)).length;
   const chartWidth = width - 2 * size.gutter - 32;
   const chartHeight = 180;
 
   return (
-    <Page underAI title={t.title} onRefresh={() => forecast.refetch()}>
+    <Page underAI title={t.title} onRefresh={() => Promise.all([forecast.refetch(), budget.refetch()])}>
       <Card style={{ gap: 10 }}>
         <CardHead label={data ? t.forecast(String(data.daily.length - 1)) : t.forecast('60')} {...(data ? { end: t.low(wholeDigits(data.lowest, data.currency), displayDay(data.lowest_date)) } : {})} />
         {data ? (
@@ -39,6 +43,10 @@ export default function Cash() {
         ) : (
           <Waiting query={forecast} what="the forecast" />
         )}
+      </Card>
+
+      <Card style={{ paddingVertical: 4 }}>
+        <Row title={strings.budget.title} detail={budget.data ? t.budgetDetail(lines.length, over) : undefined} onPress={() => router.push('/budget')} last />
       </Card>
 
       <Card style={{ paddingVertical: 12 }}>
