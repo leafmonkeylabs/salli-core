@@ -31,6 +31,12 @@
 - **examples/entitlements**: a reference `EntitlementPolicy` mapping tiers to
   the hypotheses in business/thesis.md.
 
+- **The risk read discloses its method.** `GET /v1/ips/risk-profile` (and
+  `salli ips risk`) carries `method`: the score buckets and the equity and
+  needed-return bands, citing docs/risk.md.
+- **Parametric odds say so.** The odds' `headline` says when they are
+  Student-t draws with no history of returns behind them.
+
 - **Household basics in the phone app.** Add picks the entry's day (Today,
   Yesterday or a calendar) instead of always today; an entry's category can
   be changed beside Reverse (a sheet of the same kind of accounts, then the
@@ -60,7 +66,9 @@
   the owner). Changing a category after booking: `POST
   /v1/entries/{id}/recategorise` (`salli entries recategorise`, MCP
   `recategorise_entry`) books the entry's reversal and a corrected copy,
-  source `recategorise`, in one transaction, dated as a reversal is. Owe
+  which keeps the original's source and external_ref (its provenance) and
+  names it in `corrects` (in reads, provenance and exports), in one
+  transaction; an inactive account is refused. Both are dated as a reversal is. Owe
   lines in first run may carry `rate` and `minimum_payment`, declaring a debt
   linked to the account; the payoff plan's debts carry `apr`,
   `minimum_payment` and `payoff_month`. A monthly budget with optional
@@ -398,6 +406,12 @@
 - **The consent and device pages send `allow`, one per part ticked**, in place
   of `allow_changes`; an MCP write refused for want of its part says which
   part to tick.
+
+- **Capital-market packs say each rate's basis.** In `salli.cma/1`, every
+  asset class's `real_return` and the `cash_yield` need `"basis": "real"` or
+  `"nominal"`; a nominal rate is deflated at import by the pack's inflation,
+  (1 + n) / (1 + i) − 1, and refused in a pack without inflation. A pack
+  without `basis` no longer imports.
 
 - `SALLI_SESSION_TTL_DAYS` is now `SALLI_SESSION_TTL_HOURS` (default 12),
   and `MCP_REFRESH_TOKEN_TTL_SECONDS` defaults to 14 days. With

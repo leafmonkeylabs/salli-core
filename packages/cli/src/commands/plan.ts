@@ -1084,6 +1084,7 @@ function riskRows(app: App, r: InvestorRiskProfile): Array<readonly [string, str
     ['Capacity', `${c.category} (${c.score})${c.missing.length ? `, without ${c.missing.join(', ')}` : ''}`],
     ['Need', r.need.category ? `${r.need.category}: ${r.need.required_return === null ? 'beyond 20%' : `${out.percent(r.need.required_return, 2)} a year after inflation`}${r.need.above_profile ? ', above the profile' : ''}` : 'no horizon (`salli ips set --horizon`)'],
     ['Profile', `${r.profile}: equity up to ${out.percent(r.equity_max)}`],
+    ['Method', str(r.method.says)],
   ];
 }
 

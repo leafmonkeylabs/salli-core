@@ -131,6 +131,10 @@ class JournalEntryORM(Base):
     reverses_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("journal_entries.id"), nullable=True
     )
+    # For a corrected copy (a recategorised entry): the entry it corrects.
+    corrects_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("journal_entries.id"), nullable=True
+    )
     # Who posted it: the signed-in person, and how they came in.
     created_by: Mapped[str] = mapped_column(String(64), nullable=False)
     created_via: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -168,7 +172,9 @@ class JournalEntryORM(Base):
             "user_id",
             "external_ref",
             unique=True,
-            postgresql_where=text("source = 'manual' AND external_ref LIKE 'client-ref:%'"),
+            postgresql_where=text(
+                "source = 'manual' AND external_ref LIKE 'client-ref:%' AND corrects_id IS NULL"
+            ),
         ),
     )
 

@@ -477,7 +477,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         }
       ],
       "label": "Pay cash",
-      "scenario_hash": "sha256:9d9310531441cd397513741ee5663a1b65e8044c20841621b975ec097a7f46e3"
+      "scenario_hash": "sha256:408fa3f4fce9cdb8a30b6f6f42614c4386db98b1e12a812baf31440423871a10"
     },
     {
       "figures": {
@@ -536,7 +536,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
         }
       ],
       "label": "Instalments",
-      "scenario_hash": "sha256:5d65146e6c32ef8d093554c745085c70f8a00507252dde140149477789244e68"
+      "scenario_hash": "sha256:eb453270fd80d4b311555618ab998bc9a1ab86a9bb8d1dc4a19bab13a7bc38a4"
     }
   ],
   "placeholders": [

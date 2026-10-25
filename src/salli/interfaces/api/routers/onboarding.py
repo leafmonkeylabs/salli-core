@@ -420,6 +420,8 @@ class ExportedJournalEntry(BaseModel):
     external_ref: str | None
     #: For a reversal, the entry it reverses.
     reverses: str | None = None
+    #: For a corrected copy, the entry it corrects.
+    corrects: str | None = None
     reversed_by: str | None
     #: Who posted it (a user id) and how they came in (console, cli,
     #: mobile, mcp:<client>, import, automation, ...).
