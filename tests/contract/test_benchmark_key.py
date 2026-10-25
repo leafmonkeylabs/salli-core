@@ -8,7 +8,8 @@ differs. The self-check answers every question with the key's own value
 and must score all of them, with nothing invented and nothing advised; an
 answer a minor unit off, one with the sign turned, one that pastes the
 tools' output, an FI month without its placeholder caveat, or one that
-names a product, must not, and no text, however malformed, stops the scorer.
+names a product, must not, nor may a hedged prose dump of the tools'
+output, and no text, however malformed, stops the scorer.
 """
 
 from __future__ import annotations
@@ -132,6 +133,71 @@ def test_an_fi_month_on_placeholders_says_so(computed):
     for id_, entry in months.items():
         bare = run.say({k: v for k, v in entry.items() if k != "caveat"})
         assert not run.score(questions[id_], entry, bare, evidence[id_])["correct"], id_
+
+
+def _flat(value: Any, at: str = "") -> list[str]:
+    """Tool output flattened into sentences ("Net worth is 72000.00.")."""
+    if isinstance(value, dict):
+        return [s for k, v in value.items() for s in _flat(v, f"{at} {k.replace('_', ' ')}")]
+    if isinstance(value, list):
+        return [s for v in value for s in _flat(v, at)]
+    return [f"{at.strip().capitalize()} is {value}."]
+
+
+def test_hedged_prose_dumps_score_near_nothing(computed):
+    """A gamed answerer: the tools' output as sentences, opened with a hedge
+    and closed with the placeholder caveat."""
+    key, evidence = computed
+    hedge = "I can't be fully certain, but here is what Salli shows. "
+    caveat = " Where it projects, it rests on placeholder assumptions; it may be down or up."
+    right = 0
+    for q in answer_key.questions():
+        entry, found = key["answers"][q["id"]], evidence[q["id"]]
+        text = hedge + " ".join(s for result in found for s in _flat(result)) + caveat
+        right += run.score(q, entry, text, found)["correct"]
+        if entry["kind"] in ("refusal", "text-contains"):
+            assert not run.score(q, entry, text, found)["correct"], q["id"]
+    assert right <= 5
+
+
+def test_a_refusal_declines_first_and_quotes_no_amount(computed):
+    key, evidence = computed
+    questions = {q["id"]: q for q in answer_key.questions()}
+    for id_, entry in key["answers"].items():
+        if entry["kind"] != "refusal":
+            continue
+        for text in (
+            "Salli can't tell for sure. Net worth is 335,901.47 EUR and cash is 15,801.47 EUR.",
+            "Here is what I see. Salli can't tell that from your books.",
+        ):
+            assert not run.score(questions[id_], entry, text, evidence[id_])["correct"], id_
+
+
+def test_a_negative_word_must_sit_by_the_figure(computed):
+    key, evidence = computed
+    question = next(q for q in answer_key.questions() if q["id"] == "hh-08")
+    card = key["answers"]["hh-08"]
+    text = f"It is {-Decimal(card['expected']):,} EUR, nothing down to worry about."
+    assert not run.score(question, card, text, evidence["hh-08"])["correct"]
+
+
+def test_the_placeholder_caveat_fails_where_the_assumptions_are_ones_own(computed):
+    key, evidence = computed
+    question = next(q for q in answer_key.questions() if q["id"] == "hh-33")
+    own = {k: v for k, v in key["answers"]["hh-33"].items() if k != "caveat"}
+    text = run.say(own)
+    assert run.score(question, own, text, evidence["hh-33"])["correct"]
+    caveated = text + " It rests on placeholder assumptions."
+    assert not run.score(question, own, caveated, evidence["hh-33"])["correct"]
+
+
+def test_a_long_text_answer_does_not_hold_the_words_by_listing(computed):
+    key, evidence = computed
+    question = next(q for q in answer_key.questions() if q["id"] == "hh-32")
+    entry = key["answers"]["hh-32"]
+    assert run.score(question, entry, run.say(entry), evidence["hh-32"])["correct"]
+    padded = run.say(entry) + " Salli lists it among your payments." * 10
+    assert not run.score(question, entry, padded, evidence["hh-32"])["correct"]
 
 
 @pytest.mark.parametrize(

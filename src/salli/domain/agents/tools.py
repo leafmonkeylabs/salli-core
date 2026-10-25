@@ -4,7 +4,7 @@ LangGraph tool definitions for the Salli agent system.
 Tools are grouped:
   - READ tools: trial balance, accounts, the tax computation and where each of its
     lines came from (no approval)
-  - WEB tools: Tavily web search (no approval)
+  - WEB tools: Tavily web search (interrupt → user approval)
   - DOCUMENT tools: save/read/list/update/delete documents and named memories (no approval)
   - WRITE tools: create account, post entry, create reminder (interrupt → user approval)
 
@@ -19,6 +19,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any
 
 from langchain_core.tools import tool
+
+from salli.domain.agents.untrusted import fence_document, untrusted
 
 # The authenticated user for the current agent run. Set per-request by AgentService
 # before the graph executes, so tools always act on the signed-in user's data —
@@ -197,7 +199,7 @@ def make_manager_tools(
 ) -> list[Any]:
     """
     Return the manager-only tools:
-      - web_search (Tavily)
+      - web_search (Tavily; needs user approval)
       - save_document, read_document, update_document, list_documents, delete_document
       - save_memory, get_memory, list_memories
       - get_financial_profile (fact-find profile: risk category, life stage, dependents)
@@ -217,25 +219,41 @@ def make_manager_tools(
 
     get_accounts = _make_get_accounts_tool(ledger_svc)
 
-    # ── Web search ────────────────────────────────────────────────────────────
+    # ── Web search (asks first: the query leaves Salli) ───────────────────────
     try:
         from langchain_community.tools.tavily_search import TavilySearchResults
 
-        web_search = TavilySearchResults(
-            max_results=5,
-            description=(
-                "Search the internet for current tax laws and revenue-authority guidance "
-                "(the user's own tax authority's publications), "
-                "exchange rates, financial news, or any other real-time information. "
-                "Always cite the source URL in your response."
-            ),
-        )
+        tavily: Any = TavilySearchResults(max_results=5)
     except Exception:
-        # Tavily not configured — provide a stub so the agent still loads
-        @tool
-        def web_search(query: Annotated[str, "Search query"]) -> str:
-            """Search the internet. (Currently unavailable — TAVILY_API_KEY not set.)"""
+        tavily = None  # Tavily not configured; the tool says so
+
+    @tool
+    async def web_search(query: Annotated[str, "Search query"]) -> Any:
+        """
+        Search the internet for current tax laws and revenue-authority guidance
+        (the user's own tax authority's publications), exchange rates, financial
+        news, or any other real-time information. Always cite the source URL.
+        The query leaves Salli, so it needs the user's approval, and it must
+        never contain the user's figures, payee names or other personal details.
+        """
+        from langgraph.types import interrupt
+
+        if tavily is None:
             return "Web search unavailable: TAVILY_API_KEY is not configured."
+        user_id = _current_user.get()
+        params = {"query": query}
+        decision = interrupt(
+            {
+                "type": "action_approval",
+                "action": "web_search",
+                "description": f"Search the web for: '{query}'",
+                "params": params,
+            }
+        )
+        await _log_audit(user_id, "web_search", params, decision)
+        if decision != "approved":
+            return "Search cancelled by user."
+        return await tavily.ainvoke({"query": query})
 
     # ── Document tools ────────────────────────────────────────────────────────
 
@@ -272,7 +290,7 @@ def make_manager_tools(
         doc = await doc_svc.get_document(user_id, doc_id)
         if not doc:
             return {"error": f"Document {doc_id} not found"}
-        return doc
+        return fence_document(doc)
 
     @tool
     async def update_document(
@@ -315,7 +333,7 @@ def make_manager_tools(
                     "namespace": d["namespace"],
                     "tags": d["tags"],
                     "source": d["source"],
-                    "description": d.get("description"),
+                    "description": untrusted(d.get("description")),
                     "updated_at": d.get("updated_at"),
                 }
                 for d in docs
@@ -359,7 +377,7 @@ def make_manager_tools(
         return {
             "slug": slug,
             "found": True,
-            "value": mem.get("content"),
+            "value": untrusted(mem.get("content")),
             "updated_at": mem.get("updated_at"),
         }
 
@@ -373,7 +391,7 @@ def make_manager_tools(
             "memories": [
                 {
                     "slug": m.get("slug"),
-                    "value": m.get("content"),
+                    "value": untrusted(m.get("content")),
                     "updated_at": m.get("updated_at"),
                 }
                 for m in mems

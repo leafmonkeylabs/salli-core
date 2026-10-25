@@ -57,7 +57,8 @@ async def test_a_run_records_the_score_it_described(monkeypatch):
 
     assert report["summary"] == "FI comes in May 2042 at this pace."
     [score] = uow.fi_scores.rows
-    assert (score["overall_score"], score["as_of"]) == ("60.08", "2026-10-11")
+    # Was 60.08: debt is scored by its rates (FI pack 3.0.0).
+    assert (score["overall_score"], score["as_of"]) == ("57.59", "2026-10-11")
 
 
 async def test_every_briefing_says_an_ai_wrote_it(monkeypatch):
