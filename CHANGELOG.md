@@ -13,11 +13,22 @@
   linked to the account; the payoff plan's debts carry `apr`,
   `minimum_payment` and `payoff_month`. A monthly budget with optional
   rollover (`/v1/budget/monthly`, `/v1/budget/current` with the pace,
-  `/v1/budget/trend`; `salli budgets monthly|current|trend`) and the `budget_over` and
-  `budget_pace` signals. Push alerts: devices (`/v1/devices`, `salli
+  `/v1/budget/trend`; `salli budgets monthly|current|trend`) and the
+  `budget_over` and `budget_pace` signals. Push alerts: devices (`/v1/devices`, `salli
   devices`), sent through `SALLI_PUSH_RELAY_URL` by `salli-server jobs
   send-push`, once per state, worded like digests. Migration
-  `core_0044_household_basics`.
+  `core_0045_household_basics`.
+- **Filing on provisional figures is acknowledged.** A return whose
+  computation uses values its rules mark provisional is filed (or amended)
+  only with `acknowledge_provisional` and a `provisional_note` (`salli tax
+  returns record --acknowledge-provisional "<why>"`); the version keeps the
+  note (migration `core_0044_return_provisional`) and its reads show the
+  provisional values. MCP and in-app tax reads with provisional values carry
+  a `provisional_warning` sentence the agent quotes.
+- **Exports show where books and bank disagree.** A reconciled statement's
+  closing balance the ledger doesn't reach is exported as a real balance
+  assertion, so `bean-check` and hledger fail on it, with a `; WARNING:` at
+  the file's head; the JSON export lists the same under `warnings`.
 
 - **Invitations, without sign-up.** `salli-server members invite <email>`
   prints a link, good once for seven days, to a server-rendered page (no

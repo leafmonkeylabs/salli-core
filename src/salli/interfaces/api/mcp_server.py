@@ -77,7 +77,7 @@ from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.unit_of_work import AuditRecord, pending_audit
 from salli.config import get_settings
 from salli.domain.accounting.models import AccountNotEmpty, BooksLocked
-from salli.domain.agents.tools import computation_for_agent
+from salli.domain.agents.tools import computation_for_agent, provisional_warning
 from salli.domain.agents.untrusted import UNTRUSTED_RULE, fence, fence_document, untrusted
 from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
@@ -554,7 +554,8 @@ GUARDRAILS = (
     "Never compute: every figure comes from Salli's tools, quoted with its currency; never "
     "add, subtract, divide, project or estimate anything yourself, not even roughly, and "
     "never work out tax or what I'd keep after it: tag an amount before tax with its tax "
-    "role and let Salli compute it. "
+    "role and let Salli compute it. When a tax read has a provisional_warning, quote it "
+    "with its figures. "
     "Never name a specific product, provider, fund or security of your own: speak of kinds "
     "of thing. You may refer to my own holdings as I named them, but never suggest buying or "
     "selling any security, mine or another, and never compare my holdings as investments. "
@@ -862,7 +863,8 @@ def build_mcp_server(
         the inputs it took, and the net owed or refunded. year: as the rules
         name it, omit for the user's current tax year; country: omit for their
         tax residency; answers: the rules' questions, by key. Quote these
-        figures exactly; never compute tax yourself. With no active rules, the
+        figures exactly, with any provisional_warning; never compute tax
+        yourself. With no active rules, the
         answer says what the user can do."""
         try:
             result = await tax_svc.compute_tax(
@@ -883,19 +885,22 @@ def build_mcp_server(
         newest year first: each version's status (draft, filed, amended),
         the authority's reference, the filing date, why it was amended, the
         figures recorded with it (net, tax payable, refund due, in its
-        currency) and the payments made against it. A filed return keeps its
-        year's books closed. Quote these figures exactly."""
+        currency) and the payments made against it, and any values its rules
+        marked provisional with why it was filed on them. A filed return keeps
+        its year's books closed. Quote these figures exactly, with any
+        provisional_warning."""
         returns = await tax_svc.list_returns(_current_user_id(), year or None)
         keep = ("net", "tax_payable", "refund_due", "currency", "rule_set_version_id", "version")
         return _jsonable(
             {
+                **provisional_warning([p for r in returns for p in r["provisional"]]),
                 "returns": [
                     {
                         **{k: v for k, v in r.items() if k != "snapshot"},
                         "figures": {k: r["snapshot"].get(k) for k in keep},
                     }
                     for r in returns
-                ]
+                ],
             }
         )
 

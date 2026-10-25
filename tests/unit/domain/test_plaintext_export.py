@@ -207,16 +207,21 @@ def test_cleared_flags_reversal_links_roles_and_reconciled_balances():
     off = Assertion("bank", "2026-10-31", Decimal("1"), "LKR", "s2")
     cleared = {"p-salary-bank"}
 
-    text = beancount(accounts, entries, "LKR", cleared, [held, off])
-    loaded, errors, _ = loader.load_string(text)
+    loaded, errors, _ = loader.load_string(beancount(accounts, entries, "LKR", cleared, [held]))
     assert errors == [], errors
+    # A statement the ledger doesn't reach is still asserted, so the check
+    # fails visibly, and the file says so at its head.
+    text = beancount(accounts, entries, "LKR", cleared, [held, off])
+    _, errors, _ = loader.load_string(text)
+    assert len(errors) == 1 and "Balance failed" in errors[0].message, errors
+    assert text.splitlines()[1].startswith("; WARNING: Assets:BankAccountLKR on 2026-10-31:")
     assert '2026-09-25 * "Salary' in text
     assert "  * Assets:BankAccountLKR  250000.50 LKR" in text
     assert '2026-09-28 ! "Groceries"' in text
     assert '  reverses: "e7"' in text
     assert '  asset-role: "cash"' in text and '  tax-role: "employment"' in text
     assert "2026-10-01 balance Assets:BankAccountLKR  350000.50 LKR" in text
-    assert "; not asserted, the ledger differs: 2026-11-01 balance" in text
+    assert "\n2026-11-01 balance Assets:BankAccountLKR  1.00 LKR" in text
 
     journal = hledger(accounts, entries, "LKR", cleared, [held, off])
     assert "2026-09-25 * Salary" in journal and "2026-09-28 ! Groceries" in journal
@@ -224,6 +229,5 @@ def test_cleared_flags_reversal_links_roles_and_reconciled_balances():
     assert "source:reversal, reverses:e7" in journal
     assert "type:A, asset-role:cash" in journal
     assert "    Assets:BankAccountLKR  0 LKR = 350000.50 LKR" in journal
-    assert (
-        "; not asserted, the ledger differs:     Assets:BankAccountLKR  0 LKR = 1.00 LKR" in journal
-    )
+    assert "\n    Assets:BankAccountLKR  0 LKR = 1.00 LKR" in journal
+    assert "statement s2 closes at 1.00 LKR" in journal.splitlines()[1]

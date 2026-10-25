@@ -84,22 +84,7 @@ class DataPortabilityService:
             accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
             entries = await uow.ledger.get_entries(user_id)
             base = await uow.user_profiles.base_currency(user_id)
-            by_id = {a.id: a for a in accounts}
-            assertions: list[plaintext.Assertion] = []
-            for s in await uow.reconciliations.statements(user_id):
-                account = by_id.get(s["account_id"])
-                if s["reconciliation"] is None or account is None:
-                    continue
-                closing = from_minor(s["closing_balance_minor"], account.currency)
-                assertions.append(
-                    plaintext.Assertion(
-                        account.id,
-                        str(s["period_end"]),
-                        normal_sign(account) * closing,
-                        account.currency,
-                        s["id"],
-                    )
-                )
+            assertions = await self._assertions(uow, user_id, accounts)
             cleared: set[str] = set()
             for account in accounts:
                 rows = await uow.reconciliations.postings(
@@ -108,6 +93,27 @@ class DataPortabilityService:
                 cleared |= {r["posting_id"] for r in rows if r["cleared"]}
         render = plaintext.beancount if fmt == "beancount" else plaintext.hledger
         return render(accounts, entries, base, cleared, assertions)
+
+    @staticmethod
+    async def _assertions(uow: Any, user_id: str, accounts: list[Any]) -> list[plaintext.Assertion]:
+        """Each completed reconciliation's closing balance, debit-positive."""
+        by_id = {a.id: a for a in accounts}
+        assertions: list[plaintext.Assertion] = []
+        for s in await uow.reconciliations.statements(user_id):
+            account = by_id.get(s["account_id"])
+            if s["reconciliation"] is None or account is None:
+                continue
+            closing = from_minor(s["closing_balance_minor"], account.currency)
+            assertions.append(
+                plaintext.Assertion(
+                    account.id,
+                    str(s["period_end"]),
+                    normal_sign(account) * closing,
+                    account.currency,
+                    s["id"],
+                )
+            )
+        return assertions
 
     async def export_all(self, user_id: str) -> dict[str, Any]:
         """
@@ -202,9 +208,20 @@ class DataPortabilityService:
             if self._notifications is not None
             else {"notification_preferences": None, "notification_deliveries": []}
         )
+        # Where the books and a reconciled statement disagree.
+        data["warnings"] = await self._warnings(user_id)
         for export in self._exporters:
             data.update(await export(user_id))
         return data
+
+    async def _warnings(self, user_id: str) -> list[str]:
+        """Where the books and a reconciled bank statement disagree: the
+        plain-text exports' balance assertions fail there."""
+        async with self._uow_factory() as uow:
+            accounts = await uow.ledger.get_accounts(user_id, include_inactive=True)
+            entries = await uow.ledger.get_entries(user_id)
+            assertions = await self._assertions(uow, user_id, accounts)
+        return plaintext.disagreements(assertions, entries, plaintext.account_names(accounts))
 
     async def _statements(self, user_id: str) -> list[dict[str, Any]]:
         """Every imported statement with its parsed transactions, in any state

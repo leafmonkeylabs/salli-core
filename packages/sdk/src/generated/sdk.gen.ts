@@ -584,7 +584,8 @@ export const taxReturnRecordsList = <ThrowOnError extends boolean = false>(optio
  * Record a version of a year's return from a stored computation: a
  * draft, what was filed, or an amendment of a filed one (with its reason).
  * It supersedes the year's latest version; after a filed one, only an
- * amendment may follow. 422 when this version can't follow the latest.
+ * amendment may follow. 422 when this version can't follow the latest, or
+ * when filing on provisional values without acknowledging them.
  */
 export const taxReturnRecordsCreate = <ThrowOnError extends boolean = false>(options: Options<TaxReturnRecordsCreateData, ThrowOnError>): RequestResult<TaxReturnRecordsCreateResponses, TaxReturnRecordsCreateErrors, ThrowOnError> => (options.client ?? client).post<TaxReturnRecordsCreateResponses, TaxReturnRecordsCreateErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

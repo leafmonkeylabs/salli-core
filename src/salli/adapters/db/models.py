@@ -513,6 +513,9 @@ class TaxReturnORM(Base):
     # The hash of the user's last journal entry when this version was
     # recorded: the ledger it was made from, as its hash chain stood.
     chain_head_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # What the filer said, filing on values the rules mark provisional
+    # (the values are in the snapshot); null otherwise.
+    provisional_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The authority's reference for what was filed, and the day it was.
     reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
     filed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
