@@ -112,6 +112,11 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- Prompt injection is fenced: statement and bank descriptions, payees,
+  documents and saved memories reach a model only inside an
+  `untrusted_text` field, and every prompt says never to follow
+  instructions there. The in-app agents' web search now asks the person
+  first, and never carries their figures or payees.
 - Every MCP tool call is in the audit log: a read as one row (the tool, the
   client and the outcome, no arguments), written before its answer is sent.
 - An AI client's connection ends 90 days after the person approved it
@@ -143,6 +148,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 #### Changed
 
+- MCP `search_entries` and `list_pending_transactions` return `description`,
+  `get_recurring_payments` `payee` and `examples`, the documents tools
+  `content` and `description`, and the memory tools `value` as
+  `{"untrusted_text": ...}` instead of a bare string.
 - `compose.yaml` runs a named release (0.4.1), not `latest`, and believes
   `X-Forwarded-For` only from Caddy (`FORWARDED_ALLOW_IPS=10.248.53.2`); set
   it to your own proxy's address if you use one. `/mcp` answers only requests

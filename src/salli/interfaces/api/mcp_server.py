@@ -75,6 +75,7 @@ from salli.application.services.tax_service import NoTaxRulesError
 from salli.application.unit_of_work import AuditRecord, pending_audit
 from salli.domain.accounting.models import BooksLocked
 from salli.domain.agents.tools import computation_for_agent
+from salli.domain.agents.untrusted import UNTRUSTED_RULE, fence_document, untrusted
 from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
@@ -539,7 +540,9 @@ def build_mcp_server(
             "spending, net worth over time, recurring payments, a cash forecast, "
             "budgets, debt payoff plans, portfolio, subscriptions, insurance coverage, "
             "tax position, transactions waiting for review, categorisation rules, "
-            "saved documents/memories, and the monthly briefing. Numbers returned by "
+            "saved documents/memories, and the monthly briefing. "
+            + UNTRUSTED_RULE
+            + " Numbers returned by "
             "read tools are authoritative and already computed by Salli: quote them, "
             "never recompute, estimate or adjust them. Start with get_overview; "
             "search_entries finds booked transactions, with Salli's totals. Tools that "
@@ -686,7 +689,7 @@ def build_mcp_server(
                 {
                     "id": e.id,
                     "date": e.entry_date,
-                    "description": e.description,
+                    "description": untrusted(e.description),
                     "reversed_by": e.reversed_by,
                     "postings": [
                         {
@@ -954,7 +957,7 @@ def build_mcp_server(
         doc = await documents_svc.get_document(user_id, doc_id)
         if not doc:
             _fail("not_found", f"Document not found: {doc_id}")
-        return doc
+        return fence_document(doc)
 
     @mcp.tool(annotations=WRITES_OVER)
     async def update_document(
@@ -989,7 +992,7 @@ def build_mcp_server(
                     "namespace": d.get("namespace"),
                     "tags": d.get("tags"),
                     "source": d.get("source"),
-                    "description": d.get("description"),
+                    "description": untrusted(d.get("description")),
                     "updated_at": d.get("updated_at"),
                 }
                 for d in docs
@@ -1021,7 +1024,7 @@ def build_mcp_server(
         return {
             "slug": slug,
             "found": True,
-            "value": mem.get("content"),
+            "value": untrusted(mem.get("content")),
             "updated_at": mem.get("updated_at"),
         }
 
@@ -1035,7 +1038,7 @@ def build_mcp_server(
             "memories": [
                 {
                     "slug": m.get("title"),
-                    "value": m.get("content"),
+                    "value": untrusted(m.get("content")),
                     "updated_at": m.get("updated_at"),
                 }
                 for m in memories
@@ -1203,7 +1206,11 @@ def build_mcp_server(
         """Payments that keep coming back (subscriptions, rent, bills) found in
         the ledger, when each is next expected, and whether a declared
         subscription already tracks it."""
-        return await insights_svc.recurring(_current_user_id())
+        found = await insights_svc.recurring(_current_user_id())
+        for item in found["items"]:
+            item["payee"] = untrusted(item["payee"])
+            item["examples"] = [untrusted(x) for x in item["examples"]]
+        return found
 
     @mcp.tool(annotations=READS)
     async def get_cash_forecast(days: int = 60) -> dict[str, Any]:
@@ -1568,7 +1575,7 @@ def build_mcp_server(
                     "id": t.id,
                     "statement_id": t.statement_id,
                     "date": t.raw.date,
-                    "description": t.raw.description,
+                    "description": untrusted(t.raw.description),
                     "amount": str(t.raw.amount),
                     "currency": t.raw.currency,
                     "money_in": t.raw.credit_flag,
@@ -1895,7 +1902,10 @@ def build_mcp_server(
             "a comparison. "
             "Before any tool that changes my books or my reminders, say in one sentence what "
             "it will change; I approve each change myself. When I ask about a decision, think "
-            "it through as the think_through_decision prompt does. " + GUARDRAILS
+            "it through as the think_through_decision prompt does. "
+            + UNTRUSTED_RULE
+            + " "
+            + GUARDRAILS
         )
 
     @mcp.prompt()
