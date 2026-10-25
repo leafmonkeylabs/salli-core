@@ -609,8 +609,8 @@ class NotificationService:
 
     async def _push(self, user_id: str, local: dt.datetime, now: dt.datetime) -> str:
         preferences, _ = await self._read(user_id)
-        push = preferences["push"]
-        quiet = push["quiet_hours"] or {}
+        push: dict[str, Any] = preferences["push"]
+        quiet: dict[str, str] = push["quiet_hours"] or {}
         if in_quiet_hours(local.time(), quiet.get("start"), quiet.get("end")):
             return "quiet"
         today = local.date()
