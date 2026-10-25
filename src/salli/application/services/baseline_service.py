@@ -423,6 +423,7 @@ def view(
         ],
         "totals": {
             "cash": _money(baseline.cash, cur),
+            "savings": _money(baseline.savings, cur),
             "liquid": _money(baseline.liquid, cur),
             "investments": _money(baseline.investments, cur),
             "other_assets": _money(baseline.other_assets, cur),

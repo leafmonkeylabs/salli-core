@@ -151,6 +151,8 @@ export const FI_SCORE: FiScore = {
   "projected_fi_months": 187,
   "projected_fi_month": "2042-05",
   "as_of": "2026-10-11",
+  "status": "ok",
+  "months_observed": 6,
   "components": [
     {
       "key": "savings_rate",

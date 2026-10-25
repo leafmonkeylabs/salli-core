@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balancesOf, goalsOf, incomesOf, rolesGiven, type Line } from '../src/lib/firstrun';
+import { balancesOf, goalsOf, incomesOf, ROLES, rolesGiven, type Line } from '../src/lib/firstrun';
 
 describe('first run', () => {
   it('sends only named lines with an amount, as exact strings, with codes beside the starter chart', () => {
@@ -27,6 +27,14 @@ describe('first run', () => {
     const own: Line[] = [{ name: 'Funds', amount: '900', role: 'investment' }, { name: 'Checking', amount: '10', role: 'cash' }];
     expect(incomesOf(incomes, own)).toEqual([{ code: '4700', name: 'Salary', deposit_account_code: '1510', deposit_account_name: 'Checking' }]);
     expect(incomesOf(incomes, [])).toEqual([{ code: '4700', name: 'Salary' }]);
+    // Never into savings: pay goes where it is spent from.
+    const kept: Line[] = [{ name: 'Rainy day', amount: '500', role: 'savings' }, ...own];
+    expect(incomesOf(incomes, kept)[0]).toMatchObject({ deposit_account_code: '1520', deposit_account_name: 'Checking' });
+  });
+
+  it('offers savings between cash to spend and investments, sent as its own role', () => {
+    expect(ROLES).toEqual(['cash', 'savings', 'investment', 'other']);
+    expect(balancesOf([{ name: 'Rainy day', amount: '500', role: 'savings' }], [])).toEqual([{ code: '1500', name: 'Rainy day', type: 'asset', amount: '500', asset_role: 'savings' }]);
   });
 
   it('keeps goals by name, with an amount and a year when given', () => {

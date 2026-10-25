@@ -96,6 +96,12 @@ async def test_an_account_is_created_and_changed_with_its_asset_role(services):
     )
     assert created["created"] is True
     assert services.ledger.add_account.await_args.kwargs["asset_role"] == "investment"
+    await _call(
+        services,
+        "create_account",
+        {"code": "1700", "name": "Rainy day", "account_type": "asset", "asset_role": "savings"},
+    )
+    assert services.ledger.add_account.await_args.kwargs["asset_role"] == "savings"
 
     existing = Account(
         id="flat", user_id=h.USER, code="1500", name="Flat", type="asset", currency="EUR"

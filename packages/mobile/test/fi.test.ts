@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { bandChart } from '../src/lib/chart';
-import { fractionOf, percentOf } from '../src/lib/fi';
+import { fractionOf, percentOf, scoreShown } from '../src/lib/fi';
 
 describe('independence', () => {
+  it('shows a score only with enough months behind it', () => {
+    expect(scoreShown({ status: 'not_enough_data' })).toBe(false);
+    expect(scoreShown({ status: 'ok' })).toBe(true);
+    expect(scoreShown({})).toBe(true); // a server from before the status
+  });
+
   it('reads and writes rates as percentages, exactly', () => {
     expect(percentOf('0.04')).toBe('4');
     expect(percentOf('0.035')).toBe('3.5');

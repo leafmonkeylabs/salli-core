@@ -2,6 +2,7 @@ import {
   accountsList,
   compareAmounts,
   decisionsReviewsDue,
+  entriesList,
   fiScoreGet,
   insightsForecast,
   insightsNetWorth,
@@ -21,6 +22,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, SectionLabel } from '../../kit';
 import { filled, lineChart } from '../../lib/chart';
+import { scoreShown } from '../../lib/fi';
 import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, sameDaysLastMonth, todayIso, wholeDigits } from '../../lib/display';
 import { useSession, labelIn } from '../../session';
 import { strings } from '../../strings';
@@ -147,8 +149,14 @@ export default function Home() {
               </Text>
             ) : null}
           </Tile>
-          <Tile label={t.fiScore} spoken={fi.data ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : undefined} figure={undefined} missing={missing}>
-            {fi.data ? <Ring share={filled(fi.data.overall_score)} text={fi.data.overall_score.replace(/\.\d+$/, '')} /> : null}
+          <Tile label={t.fiScore} spoken={fi.data ? (scoreShown(fi.data) ? t.fiSpoken(fi.data.overall_score, fi.data.grade) : `${t.fiScore}: ${t.fiTooSoon}`) : undefined} figure={undefined} missing={missing}>
+            {fi.data ? (
+              scoreShown(fi.data) ? (
+                <Ring share={filled(fi.data.overall_score)} text={fi.data.overall_score.replace(/\.\d+$/, '')} />
+              ) : (
+                <Text style={[styles.tileLabel, { color: theme.text }]}>{t.fiTooSoon}</Text>
+              )
+            ) : null}
           </Tile>
         </View>
 
@@ -289,6 +297,8 @@ function Attention({ unreachable }: { unreachable: boolean }) {
   const loading = signals.isPending || reminders.isPending || reviews.isPending;
   // Nothing can be said to need nothing when a read never came back.
   const unknown = !signals.data || !reminders.data || !reviews.data;
+  // Nothing needs attention: with empty books, the first thing to do is to fill them.
+  const entries = useRead('entries.list', entriesList, undefined, { enabled: !loading && !unknown && rows.length === 0 });
 
   return (
     <Card style={{ paddingVertical: 4 }}>
@@ -305,6 +315,8 @@ function Attention({ unreachable }: { unreachable: boolean }) {
         <Body muted style={{ paddingVertical: 12 }}>
           {strings.reach.notKnown}
         </Body>
+      ) : rows.length === 0 && entries.data?.length === 0 ? (
+        <Line title={t.importStatement} {...open(() => router.push('/import'))} last />
       ) : rows.length === 0 ? (
         <Body muted style={{ paddingVertical: 12 }}>
           {t.nothingNeedsAttention}

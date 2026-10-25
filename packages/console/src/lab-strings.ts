@@ -194,7 +194,7 @@ export const labStrings = {
     role: 'Role',
     inItsCurrency: 'In its currency',
     value: (code: string) => `Value (${code})`,
-    roles: { cash: 'Cash', investment: 'Investment', other_asset: 'Other asset', liability: 'Liability' } as Record<string, string>,
+    roles: { cash: 'Cash', savings: 'Savings', investment: 'Investment', other_asset: 'Other asset', liability: 'Liability' } as Record<string, string>,
     noRate: 'No rate published: left out of the totals',
     debtsTitle: 'Debts, counted once',
     debtsNone: 'No debts with terms.',

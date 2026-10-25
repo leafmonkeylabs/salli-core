@@ -98,10 +98,11 @@ def compare(
     chosen = _chosen(entry)
     projected = _at(chosen["projection"], as_of, at)
     actual_values = {
-        "cash": actual.cash,
+        "cash": actual.cash + actual.savings,
         "investments": actual.investments,
         "owed": actual.debts_owed + actual.other_liabilities,
         "net_worth": actual.cash
+        + actual.savings
         + actual.investments
         + actual.other_assets
         - actual.debts_owed

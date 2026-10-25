@@ -61,8 +61,9 @@ safe-to-spend show only what is scheduled.
 **The monthly timeline** (`monthly`) runs to a horizon of up to 50 years, at
 each calendar month's end, in today's money:
 
-- cash, from the plan, earning nothing: in today's money it loses what
-  inflation takes;
+- cash, from the plan, with the savings accounts beside the daily
+  timeline's (`Baseline.savings`), earning nothing: in today's money it loses
+  what inflation takes;
 - investments, growing at the base scenario's real return (a twelfth of it
   a month, compounded, as FI does); what moves into them in a month (the
   share of the regular surplus, or a scenario's investment) grows from the
@@ -495,12 +496,15 @@ def _by_month(
     return out
 
 
-def scheduled_net(baseline: Baseline, months: Sequence[Period]) -> dict[str, Decimal]:
+def scheduled_net(
+    baseline: Baseline, months: Sequence[Period], *, savings: bool = False
+) -> dict[str, Decimal]:
     """What the scheduled flows move the cash total by in each of the daily
-    timeline's months, at the as-of rates."""
+    timeline's months, at the as-of rates (with `savings`, the cash and
+    savings accounts' total, as `scheduled_flows`)."""
     window = months[:DAILY_MONTHS]
     net: dict[str, Decimal] = defaultdict(Decimal)
-    for flow in scheduled_flows(baseline, baseline.as_of, window[-1].end):
+    for flow in scheduled_flows(baseline, baseline.as_of, window[-1].end, savings=savings):
         value = in_base(baseline, flow)
         if value is not None:
             net[flow.date[:7]] += value
@@ -563,7 +567,8 @@ def cash_plan(
     # schedule (the schedule averaged over the daily timeline's twelve full
     # months), at the as-of month's own prices, not at the average of the
     # next twelve months'.
-    net = scheduled_net(baseline, months)
+    # The plan's cash counts the savings accounts, so a move into one stays in it.
+    net = scheduled_net(baseline, months, savings=True)
     schedule = [net.get(months[i].month, Decimal(0)) for i in range(1, DAILY_MONTHS)]
     average_rest = surplus * levels[0] - sum(schedule, Decimal(0)) / Decimal(len(schedule))
     planned[0] = _money(
@@ -618,11 +623,24 @@ def to_base(baseline: Baseline) -> dict[str, Decimal]:
 
 
 def scheduled_flows(
-    baseline: Baseline, start: dt.date, end: dt.date, notes: list[str] | None = None
+    baseline: Baseline,
+    start: dt.date,
+    end: dt.date,
+    notes: list[str] | None = None,
+    *,
+    savings: bool = False,
 ) -> list[forecasting.Flow]:
     """What keeps happening on the cash accounts from `start` to `end`: the
-    rhythms in the ledger, and the declared subscriptions none of them shows."""
+    rhythms in the ledger, and the declared subscriptions none of them shows.
+    With `savings`, on the savings accounts too, so a move into one is a
+    transfer within them (the monthly timeline's cash)."""
     cash = {account_id: currency for account_id, (currency, _) in baseline.cash_accounts.items()}
+    if savings:
+        cash |= {
+            b.account_id: b.currency
+            for b in baseline.balances
+            if b.role == "savings" and b.amount is not None
+        }
     return [
         *forecasting.recurring_flows(baseline.recurring, cash, start, end, notes),
         *forecasting.declared_flows(baseline.charges, baseline.currency, start, end),
@@ -855,7 +873,7 @@ def monthly(
         if day >= first:
             invested[day[:7]] += amount
 
-    cash = baseline.cash
+    cash = baseline.cash + baseline.savings
     investments = baseline.investments
     other_assets = baseline.other_assets
     other_liabilities = baseline.other_liabilities

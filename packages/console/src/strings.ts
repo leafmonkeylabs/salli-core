@@ -171,6 +171,7 @@ export const strings = {
     fi: 'Financial independence',
     fiScore: 'FI score',
     fiGrade: (grade: string) => grade,
+    fiTooSoon: 'Needs two months of data',
     fiProgress: (share: string) => `${share} of the way to financial independence`,
     savingsRate: 'Savings rate',
     savingsRateOf: (share: string) => `${share} of income`,

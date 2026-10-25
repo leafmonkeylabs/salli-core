@@ -103,7 +103,7 @@ function Figures({ today, now }: { today: string; now: Date }) {
       <KeyFigure
         label={s.fi}
         note={
-          fi.data ? (
+          fi.data && fi.data.status !== 'not_enough_data' ? (
             <>
               <span>{s.fiNote(s.fiGrade(fi.data.grade))}</span>
               {fi.data.projected_fi_month ? (
@@ -116,7 +116,9 @@ function Figures({ today, now }: { today: string; now: Date }) {
         }
       >
         <Loaded query={fi} what={s.loads.fi}>
-          {(data) => <span className="figure-number">{formatDecimal(data.overall_score, { locale })}</span>}
+          {(data) =>
+            data.status === 'not_enough_data' ? <span>{s.fiTooSoon}</span> : <span className="figure-number">{formatDecimal(data.overall_score, { locale })}</span>
+          }
         </Loaded>
       </KeyFigure>
     </KeyFigures>
