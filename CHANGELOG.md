@@ -9,6 +9,12 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Added
 
+- **Two more signals.** `emergency_fund_low`: cash and savings cover fewer
+  months of average spending than the FI method's emergency target, once a
+  full month is seen. `expensive_debt`: a declared debt charging at or above
+  8% a year, Salli's labelled line (the placeholder real return plus a 4%
+  margin, not any country's figure). A new action, `see_debts`, opens the
+  baseline's debts in the console and Decide on the phone.
 - **Two-step sign-in.** Turn it on with `salli totp enable` or in the
   console's Settings: add the secret to an authenticator app, enter a code,
   and keep the ten recovery codes, shown once. From then on every sign-in
@@ -143,6 +149,12 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 #### Changed
 
+- **FI pack 3.0.0.** "FI-ready" needs 100% progress to FI and "Strong" 50%;
+  the debt component is scored by what the debts cost (their rates weighted by
+  balance, no marks at 20%) where rates are known, by liabilities over assets
+  otherwise; and under two full months of income and spending the engine's
+  grade is "Not enough data", so every caller agrees with `status`. A
+  household's score and grade can move.
 - `compose.yaml` runs a named release (0.4.1), not `latest`, and believes
   `X-Forwarded-For` only from Caddy (`FORWARDED_ALLOW_IPS=10.248.53.2`); set
   it to your own proxy's address if you use one. `/mcp` answers only requests
