@@ -37,6 +37,8 @@ TokenVerifier protocol.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import datetime
 import json
 from collections.abc import Callable, Sequence
@@ -363,6 +365,11 @@ def _compact(tool: MCPTool) -> MCPTool:
 #: Read tools that answer only Salli's own fixed documents (schemas and the
 #: template catalogue), with nothing from outside in them: not fenced.
 OWN_DOCUMENTS = frozenset({"get_scenario_schema", "get_tax_rule_schema", "list_decision_templates"})
+#: Write tools that take a client_ref, kept in _SalliMCP.call_tool (post_journal_entry
+#: keeps its own, on the entry).
+CLIENT_REF_TOOLS = frozenset(
+    {"create_account", "create_reminder", "save_document", "add_principle"}
+)
 
 
 def _fenced(result: Any) -> Any:
@@ -412,19 +419,46 @@ class _SalliMCP(FastMCP[Any]):
         if MCP_WRITE not in _current_scopes():
             await self._audit(record, "refused")
             _fail("scope", READ_ONLY)
+        ref = arguments.get("client_ref") if name in CLIENT_REF_TOOLS else None
+        if ref is not None:
+            done = await self._claim(record.user_id, name, ref)
+            if done is not None:
+                return [TextContent(type="text", text=json.dumps(done))], done
         outcome = "failed"
         set_author(record.user_id, f"mcp:{record.client_id}")
         token = pending_audit.set(record)
         try:
             result = await self._run(name, arguments)
             outcome = "succeeded"
+            if ref is not None:
+                answer = result[1] if isinstance(result, tuple) else {}
+                async with self._audit_uow() as uow:
+                    await uow.client_refs.settle(record.user_id, name, ref, answer)
             return result
         finally:
+            if ref is not None and outcome != "succeeded":
+                async with self._audit_uow() as uow:
+                    await uow.client_refs.release(record.user_id, name, ref)
             pending_audit.reset(token)
             # A change was recorded as it committed; anything else (nothing
             # changed, or it failed after) is recorded now.
             if not record.recorded or outcome != "succeeded":
                 await self._audit(record, outcome)
+
+    async def _claim(self, user_id: str, name: str, ref: Any) -> dict[str, Any] | None:
+        """None when this call claims `ref`; else what the call first sent
+        with it answered, marked already_done."""
+        if not isinstance(ref, str) or not 0 < len(ref) <= CLIENT_REF_MAX:
+            _fail("invalid_input", f"client_ref is 1 to {CLIENT_REF_MAX} characters")
+        async with self._audit_uow() as uow:
+            done = await uow.client_refs.claim(user_id, name, ref)
+        if done == {}:
+            _fail(
+                "refused",
+                "The call first sent with this client_ref is still running",
+                retryable=True,
+            )
+        return None if done is None else {**done, "already_done": True}
 
     async def _read(
         self, name: str, arguments: dict[str, Any]
@@ -546,6 +580,16 @@ def _window(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
 
 
+def _page(items: list[Any], key: str, limit: int, cursor: str | None) -> dict[str, Any]:
+    """`limit` (1 to 200) of `items` from `cursor` on, and the cursor for
+    the rest (null at the end)."""
+    if cursor and not cursor.isdigit():
+        _fail("invalid_input", "cursor is a next_cursor this tool gave")
+    start, size = int(cursor or 0), _window(limit, 1, 200)
+    more = start + size < len(items)
+    return {key: items[start : start + size], "next_cursor": str(start + size) if more else None}
+
+
 #: What an agent keeps to whenever it helps someone decide (the
 #: think_through_decision and can_i_afford prompts; docs/ai-clients.md).
 #: tests/unit/api/test_mcp_templates.py holds them to it.
@@ -620,8 +664,7 @@ def build_mcp_server(
             "invest, a new flat or job), start from a template where one fits "
             "(list_decision_templates, start_decision), or build the options as scenarios "
             "(get_scenario_schema) and let Salli run and compare them (run_scenario, "
-            "compare_options): never subtract, add or project anything yourself; the "
-            "think_through_decision prompt walks through it. Never name specific products, "
+            "compare_options); the think_through_decision prompt walks through it. Never name specific products, "
             "providers or securities, and where a choice is regulated advice where the user "
             "lives (insurance, pensions, choosing investments), suggest a licensed "
             "professional there. Salli "
@@ -977,16 +1020,47 @@ def build_mcp_server(
         return await portfolio_svc.get_summary(user_id, parsed_target)
 
     @mcp.tool(annotations=READS)
-    async def list_holdings(include_sold: bool = False) -> dict[str, Any]:
+    async def list_holdings(
+        include_sold: bool = False, limit: int = 100, cursor: str | None = None
+    ) -> dict[str, Any]:
         """The user's holdings, each by their own id, symbol and name (their
         words for it), with its units, cost and value at their last recorded
         price, and `account_id`: the investment account in their ledger that
         holds it (null when not linked). Use an id to invest into or sell a
         holding in a scenario. Refer to holdings as the user named them;
         never suggest buying or selling one, never compare them as
-        investments, and never name a security they don't hold."""
+        investments, and never name a security they don't hold. limit 1 to
+        200; pass next_cursor as cursor for more."""
         holdings = await portfolio_svc.list_holdings(_current_user_id(), not include_sold)
-        return {"holdings": holdings}
+        return _page(holdings, "holdings", limit, cursor)
+
+    @mcp.tool(annotations=READS)
+    async def get_portfolio_performance(
+        from_date: str | None = None,
+        to_date: str | None = None,
+        holding_id: str | None = None,
+        benchmark: str | None = None,
+        cash_yield: str | None = None,
+    ) -> dict[str, Any]:
+        """Gains, income and returns from from_date to to_date (YYYY-MM-DD; a
+        tax year, say), per holding in its own currency and the base one, and
+        for the portfolio (or one holding_id); its volatility, largest fall
+        and Sharpe ratio, against cash_yield (a yearly fraction) or a
+        benchmark symbol's recorded closes. Quote these; never compute returns."""
+        try:
+            report = await portfolio_svc.get_performance(
+                _current_user_id(),
+                from_date or None,
+                to_date or None,
+                holding_id or None,
+                benchmark=benchmark or None,
+                cash_yield=_decimal(cash_yield, "cash_yield") if cash_yield else None,
+            )
+        except ValueError as exc:
+            _refused(exc)
+        if report is None:
+            _fail("not_found", f"Holding not found: {holding_id}")
+        return _jsonable(report)
 
     @mcp.tool(annotations=WRITES_OVER)
     async def link_holding(holding_id: str, account_id: str | None) -> dict[str, Any]:
@@ -1085,9 +1159,11 @@ def build_mcp_server(
         content: str | None = None,
         tags: list[str] | None = None,
         description: str | None = None,
+        client_ref: str | None = None,
     ) -> dict[str, Any]:
         """Save a text document to the user's document store. Documents persist
-        across sessions."""
+        across sessions.
+        client_ref: your id for this call; resent, it returns the first answer."""
         user_id = _current_user_id()
         doc_id = await documents_svc.save_document(
             user_id,
@@ -1128,14 +1204,17 @@ def build_mcp_server(
         namespace: str | None = None,
         tags: list[str] | None = None,
         search_query: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
     ) -> dict[str, Any]:
-        """List saved documents. Filter by namespace, tags, or a search query."""
+        """List saved documents. Filter by namespace, tags, or a search query.
+        limit 1 to 200; pass next_cursor as cursor for more."""
         user_id = _current_user_id()
         docs = await documents_svc.list_documents(
             user_id, tags=tags or None, namespace=namespace, search=search_query
         )
-        return {
-            "documents": [
+        return _page(
+            [
                 {
                     "id": d.get("id"),
                     "title": d.get("title"),
@@ -1146,8 +1225,11 @@ def build_mcp_server(
                     "updated_at": d.get("updated_at"),
                 }
                 for d in docs
-            ]
-        }
+            ],
+            "documents",
+            limit,
+            cursor,
+        )
 
     @mcp.tool(annotations=WRITES_OVER)
     async def delete_document(doc_id: str) -> dict[str, Any]:
@@ -1204,6 +1286,7 @@ def build_mcp_server(
         account_type: str,
         currency: str = "",
         asset_role: Literal["cash", "savings", "investment", "other"] | None = None,
+        client_ref: str | None = None,
     ) -> dict[str, Any]:
         """Create a new account in the chart of accounts. account_type is one of:
         asset, liability, equity, income, expense. currency is the ISO 4217 code
@@ -1211,7 +1294,8 @@ def build_mcp_server(
         asset_role, for an asset account only: cash (the default: a bank
         account, a wallet), savings (cash kept, not spent: a savings account,
         an emergency fund, a term deposit), investment (a brokerage, a pension
-        fund) or other (a home, a car)."""
+        fund) or other (a home, a car).
+        client_ref: your id for this call; resent, it returns the first answer."""
         user_id = _current_user_id()
         currency = currency or await ledger_svc.base_currency(user_id)
         try:
@@ -1261,8 +1345,11 @@ def build_mcp_server(
         }
 
     @mcp.tool(annotations=WRITES)
-    async def create_reminder(description: str, due_date: str) -> dict[str, Any]:
-        """Create a new reminder / deadline. due_date is YYYY-MM-DD."""
+    async def create_reminder(
+        description: str, due_date: str, client_ref: str | None = None
+    ) -> dict[str, Any]:
+        """Create a new reminder / deadline. due_date is YYYY-MM-DD.
+        client_ref: your id for this call; resent, it returns the first answer."""
         user_id = _current_user_id()
         reminder_id = await reminders_svc.create_reminder(user_id, description, due_date)
         return {"reminder_id": reminder_id, "description": description, "due_date": due_date}
@@ -1514,6 +1601,7 @@ def build_mcp_server(
         confirmed_by_user: Literal[True],
         account: str | None = None,
         note: str | None = None,
+        client_ref: str | None = None,
     ) -> dict[str, Any]:
         """Store one of the user's principles. You may suggest one from what
         they tell you matters to them; call this only after they have seen
@@ -1522,7 +1610,8 @@ def build_mcp_server(
         to. check is true or false over the figures list_principles gives
         ("emergency_months >= 6", "max_debt_rate_while_investing <= 0.07");
         account_lowest reads the cash account named in account (an id from
-        get_accounts). A problem comes back with its path, to fix."""
+        get_accounts). A problem comes back with its path, to fix.
+        client_ref: your id for this call; resent, it returns the first answer."""
         user_id = _current_user_id()
         try:
             stored = await principle_svc.add(
@@ -1588,11 +1677,13 @@ def build_mcp_server(
         return recorded
 
     @mcp.tool(annotations=READS)
-    async def list_decisions() -> dict[str, Any]:
+    async def list_decisions(limit: int = 100, cursor: str | None = None) -> dict[str, Any]:
         """The user's decision journal, newest first: each decision's
         question, the option chosen, its review date and whether it is
-        awaiting review, due, or reviewed. get_decision has the whole entry."""
-        return await decision_svc.list(_current_user_id())
+        awaiting review, due, or reviewed. get_decision has the whole entry.
+        limit 1 to 200; pass next_cursor as cursor for more."""
+        listed = await decision_svc.list(_current_user_id())
+        return _page(listed["decisions"], "decisions", limit, cursor)
 
     @mcp.tool(annotations=READS)
     async def get_decision(decision_id: str) -> dict[str, Any]:
@@ -1743,15 +1834,18 @@ def build_mcp_server(
     # ── Transactions waiting for review ──────────────────────────────────────
 
     @mcp.tool(annotations=READS)
-    async def list_pending_transactions(statement_id: str | None = None) -> dict[str, Any]:
+    async def list_pending_transactions(
+        statement_id: str | None = None, limit: int = 100, cursor: str | None = None
+    ) -> dict[str, Any]:
         """Transactions imported from statements or bank connections and waiting
         for review: date, description, amount (a decimal string, always
         positive), whether money came in, the statement's own account, the
         accounts a rule or a model chose so far (empty when undecided), and
-        whether it may duplicate something already booked."""
+        whether it may duplicate something already booked. limit 1 to 200;
+        pass next_cursor as cursor for more."""
         txns = await parsing_svc.get_pending(_current_user_id(), statement_id)
-        return {
-            "transactions": [
+        return _page(
+            [
                 {
                     "id": t.id,
                     "statement_id": t.statement_id,
@@ -1769,7 +1863,59 @@ def build_mcp_server(
                     "possible_duplicate_of": t.duplicate_of or None,
                 }
                 for t in txns
-            ]
+            ],
+            "transactions",
+            limit,
+            cursor,
+        )
+
+    @mcp.tool(annotations=WRITES)
+    async def import_statement(
+        file_base64: str,
+        confirmed_by_user: Literal[True],
+        format: str | None = None,
+        account_id: str | None = None,
+        currency: str | None = None,
+    ) -> dict[str, Any]:
+        """Import a bank statement file the user gave you (base64, up to 10
+        MB): format is its kind (csv, ofx, qif, camt053, mt940, xlsx, pdf),
+        else Salli detects it; account_id is the account it is for. Its
+        transactions wait for review (list_pending_transactions); nothing is
+        booked. Ask the user first; pass confirmed_by_user: true once they say yes."""
+        try:
+            data = base64.b64decode(file_base64, validate=True)
+        except binascii.Error:
+            _fail("invalid_input", "file_base64 is not base64")
+        if len(data) > 10 * 1024 * 1024:
+            _fail("invalid_input", "The file is over 10 MB")
+        try:
+            result = await parsing_svc.parse_statement(
+                user_id=_current_user_id(),
+                filename=f"statement.{format}" if format else "statement",
+                file_bytes=data,
+                currency=currency or None,
+                account_id=account_id or None,
+            )
+        except (ValueError, LookupError, PermissionError) as exc:
+            _refused(exc)
+        if result.errors and not result.transactions:
+            _fail("invalid_input", "; ".join(result.errors))
+        return {
+            "statement_id": result.statement_id,
+            "parsed": len(result.transactions),
+            "errors": [untrusted(e) for e in result.errors],
+            "transactions": [
+                {
+                    "id": t.id,
+                    "date": t.raw.date,
+                    "description": untrusted(t.raw.description),
+                    "amount": str(t.raw.amount),
+                    "currency": t.raw.currency,
+                    "money_in": t.raw.credit_flag,
+                    "possible_duplicate_of": t.duplicate_of or None,
+                }
+                for t in result.transactions
+            ],
         }
 
     @mcp.tool(annotations=WRITES_OVER)
@@ -2099,7 +2245,7 @@ def build_mcp_server(
         answers = f'price "{amount}"' + (f', what "{what}"' if what else "")
         answers += f", date {when}" if when else ""
         return (
-            f"Can I afford {amount}{thing}, {day}? Answer with Salli's figures only. "
+            f"Can I afford {amount}{thing}, {day}? "
             "1. Call get_safe_to_spend: what could go out today before money next comes in. "
             "2. Ask me how else I could pay: spread it (over how many months, at what yearly "
             "rate the lender would charge me), wait (for how many months, and how much I'd "

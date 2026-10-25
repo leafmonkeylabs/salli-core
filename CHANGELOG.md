@@ -4,6 +4,20 @@
 
 ### Added
 
+- **More of Salli over MCP.** `get_portfolio_performance` reads the
+  portfolio's performance; `import_statement` imports a statement file
+  (base64, a write the user confirms) for review; `list_holdings`,
+  `list_documents`, `list_decisions` and `list_pending_transactions` come in
+  pages (`limit`, `cursor`); `create_account`, `create_reminder`,
+  `save_document` and `add_principle` take a `client_ref`, so a retry is not
+  made twice. Migration `core_0044_mcp_client_refs`.
+- **A firmer benchmark scorer.** An answer whose headline sentence denies its
+  figure, or that takes it back ("actually", "ignore that", "double that"),
+  fails; a refusal that then guesses a month, a date or a number in words
+  fails; and every figure resting on a placeholder or provisional value (the
+  FI assumptions, a provisional tax value, a placeholder source) needs the
+  caveat. The key is regenerated.
+
 - **Invitations, without sign-up.** `salli-server members invite <email>`
   prints a link, good once for seven days, to a server-rendered page (no
   script, the consent page's CSP) where the person chooses their password

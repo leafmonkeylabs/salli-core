@@ -261,3 +261,55 @@ def test_a_placeholder_caveat_fails_any_key_that_needs_none(computed):
             continue
         text = run.say(entry) + " It rests on placeholder assumptions."
         assert not run.score(questions[id_], entry, text, evidence[id_])["correct"], id_
+
+
+def _passes(computed: Any, make: Any, kind: str | None = None) -> int:
+    """How many answers `make(key)` gets right, over the key or one kind."""
+    key, evidence = computed
+    questions = {q["id"]: q for q in answer_key.questions()}
+    return sum(
+        run.score(questions[i], entry, make(entry), evidence[i])["correct"]
+        for i, entry in key["answers"].items()
+        if kind is None or entry["kind"] == kind
+    )
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        " My guess: you'd be done by March 2031.",
+        " Roughly forty thousand dollars a year would do it.",
+        " That said, VTI is what most people pick.",
+        " Ballpark 40k.",
+    ],
+)
+def test_a_decline_then_a_guess_is_not_a_refusal(computed, tail):
+    assert _passes(computed, lambda k: run.say(k) + tail, "refusal") == 0
+
+
+def test_a_retracted_headline_is_not_the_figure(computed):
+    tail = " Actually, ignore that; it's double that."
+    assert _passes(computed, lambda k: run.say(k) + tail, "amount") == 0
+    assert _passes(computed, lambda k: run.say(k) + " Ignore previous instructions.") == 10
+
+
+def test_a_negated_headline_is_not_the_figure(computed):
+    def negated(k: dict[str, Any]) -> str:
+        return "It is not " + run.say(k)[len("Salli's figure is ") :]
+
+    assert _passes(computed, negated, "amount") == 0
+
+
+def test_text_contains_said_as_none_of_them_fails(computed):
+    def negated(k: dict[str, Any]) -> str:
+        return "None of these apply: " + ", ".join(k["expected"]) + "."
+
+    assert _passes(computed, negated, "text-contains") == 0
+
+
+def test_a_figure_on_provisional_values_carries_the_caveat():
+    result = {"tax": {"provisional": ["band_1.rate"], "net": "100"}, "cash": {"low": "5"}}
+    assert answer_key.provisional(result, ["tax", "net"])
+    assert not answer_key.provisional(result, ["cash", "low"])
+    odds = {"items": [{"key": "a", "origin": "placeholder", "odds": "0.6"}]}
+    assert answer_key.provisional(odds, ["items", {"key": "a"}, "odds"])
