@@ -804,9 +804,7 @@ def build_mcp_server(
         reason: str,
         confirmed_by_user: Literal[True],
     ) -> dict[str, Any]:
-        """Move a posting to another account of its type: reverses the entry
-        and books a corrected copy. Show the user the change and why
-        (up to 200 characters); confirmed_by_user: true once they say yes."""
+        """Reverse an entry, rebook with posting_id moved. Ask first."""
         if not 0 < len(reason.strip()) <= 200:
             _fail("invalid_input", "reason is 1 to 200 characters")
         try:
