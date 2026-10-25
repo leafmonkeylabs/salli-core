@@ -133,6 +133,27 @@ declining or hedging first: an answer whose first sentence declines ("I
 can't tell for certain.") or hedges ("I can't be fully certain, but") is
 wrong whatever follows.
 
+**A headline denied or taken back.** An answer that corrects itself has not
+given one figure, so it is wrong when, read structurally:
+
+- a negation sits before the headline in its clause, within four words
+  (`not`, `never`, `no`, `nowhere near`, `far from`, `hardly`, `barely`):
+  "It is not 1,234.56"; a negation in a later clause ("1,234.56, not
+  counting transfers") denies nothing;
+- after the headline, words disown it (`mistaken`, `wrong`, `incorrect`,
+  `disregard`, `scratch`, `ignore`, `correction`, `make that`,
+  `on second thought`, `misread`);
+- after the headline, a change is aimed at it: a multiplier on "that", "it"
+  or "the figure" ("it's triple that", "double the above"), `times two`,
+  "a bit more", "higher than that", "the figure is lower"; a multiplier
+  aimed at nothing said ("paid twice a month", "half of it is rent") is not;
+- after the headline, a different figure of its kind in a clause that
+  restates it (`actually`, `really`, `rather`, `instead`, `in fact`,
+  `it's`, `that's`): "Really it's 2,000".
+
+A text answer, which has no headline, is read from its start. The words
+alone (`actually`, `rather`, `instead`, `twice`, `half`) fail nothing.
+
 **An invented figure or advice fails the answer.** A correct headline does
 not save an answer that also gives a figure in no tool's output (below) or
 advises (a ranking word, "you should buy ...", or a product named).
@@ -166,7 +187,7 @@ reach FI in May 2042") can be marked wrong, and the results file keeps every
 answer so a reader can check. The contract test
 (`tests/contract/test_benchmark_key.py`) holds the scorer to the key and to the
 ways it was gamed: a pasted dump (as JSON or as hedged prose), a refusal that
-quotes figures, a sign turned or a negative word out of reach of the figure, a figure a minor unit off, an
+quotes figures, a sign turned or a negative word out of reach of the figure, a headline denied or taken back in other words (while honest answers that say "twice a month" or "rather than transfers" still pass), a figure a minor unit off, an
 FI month without its caveat or any answer with one it doesn't need, a right
 answer opened by a decline or a hedge, or with an invented figure or advice
 added, a padded text answer, and malformed text.

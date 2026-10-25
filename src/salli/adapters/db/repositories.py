@@ -4508,7 +4508,15 @@ class SQLBankConnectionRepository(BankConnectionRepository):
         row = await self._one(user_id, connection_id)
         if row is None:
             return
-        for key in ("name", "status", "last_error", "last_synced_at", "warnings"):
+        for key in (
+            "name",
+            "status",
+            "last_error",
+            "last_synced_at",
+            "warnings",
+            "credential_sealed",
+            "key_version",
+        ):
             if key in fields:
                 setattr(row, key, fields[key])
         await self._s.flush()

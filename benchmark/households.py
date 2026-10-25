@@ -117,7 +117,9 @@ class Salli:
     def __init__(self, household: str) -> None:
         self.household = household
         self.user, services = HOUSEHOLDS[household]()
-        self._server: FastMCP = mcp_server.build_mcp_server(services, "https://salli.test")
+        self._server: FastMCP = mcp_server.build_mcp_server(
+            services, "https://salli.test", experimental_tools=True
+        )
         self.instructions = self._server.instructions or ""
 
     async def tools(self) -> list[dict[str, Any]]:

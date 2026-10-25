@@ -20,7 +20,7 @@ from tests.golden import household as h
 from tests.unit.api.conftest import AUTH
 from tests.unit.api.test_baseline_api import USER, _household_of
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 LAPTOP = {
     "type": "one_off",

@@ -68,7 +68,7 @@ import base64
 import hashlib
 import logging
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode, urlparse
@@ -92,10 +92,17 @@ MCP = "mcp"
 API = "api"
 
 #: An MCP connection's scopes. Reading needs no scope (grants from before
-#: there were scopes still read); every tool that changes anything needs
-#: `mcp:write` (mcp_server.py checks it in one place).
+#: there were scopes still read); every tool that changes anything needs its
+#: part's scope, or `mcp:write` for all of them (mcp_server.py checks it in
+#: one place).
 MCP_READ = "mcp:read"
 MCP_WRITE = "mcp:write"
+MCP_LEDGER = "mcp:ledger"
+MCP_PLANNING = "mcp:planning"
+MCP_DOCUMENTS = "mcp:documents"
+MCP_SETTINGS = "mcp:settings"
+#: The parts a person may let an AI client change, in the consent page's order.
+MCP_WRITE_SCOPES = (MCP_LEDGER, MCP_PLANNING, MCP_DOCUMENTS, MCP_SETTINGS)
 
 #: The `salli` CLI's client: first party, seeded by core_0011, never
 #: registered. Advertised in /v1/meta so the CLI signs in as it.
@@ -162,9 +169,13 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def may_change(scope: str) -> bool:
-    """Whether a connection with this scope may change the person's data."""
-    return MCP_WRITE in scope.split()
+def may_change(scope: str, part: str | None = None) -> bool:
+    """Whether a connection with this scope may change the person's data:
+    `part` (one of MCP_WRITE_SCOPES), or any of it."""
+    held = scope.split()
+    if MCP_WRITE in held:
+        return True
+    return part in held if part else any(p in held for p in MCP_WRITE_SCOPES)
 
 
 def _verify_pkce(code_verifier: str, code_challenge: str) -> bool:
@@ -425,7 +436,7 @@ class McpOAuthService:
         *,
         password_checked: bool,
         authenticated_at: datetime | None = None,
-        allow_changes: bool = False,
+        allow_changes: bool | Collection[str] = False,
     ) -> str:
         """Returns the final redirect_uri (with ?code=... or ?error=...) to
         send the user's browser to.
@@ -439,8 +450,8 @@ class McpOAuthService:
         doesn't have. A client this server doesn't know is refused likewise.
         `authenticated_at` is when that password was checked (now, unless
         said otherwise): the sign-in records it, and the console's step-up
-        reads it. `allow_changes` is the person ticking "Allow changes": an
-        MCP connection gets `mcp:write` only with it (or as the Salli app)."""
+        reads it. `allow_changes` is the parts the person ticked (MCP_WRITE_SCOPES),
+        or True for all of them: an MCP connection changes only those."""
         payload = self._decode_art(art)
         redirect_uri = payload["redirect_uri"]
         state = payload.get("state")
@@ -484,16 +495,22 @@ class McpOAuthService:
         return _append_query(redirect_uri, {"code": code, **({"state": state} if state else {})})
 
     def _granted(
-        self, client_id: str, scope: str, resource: str | None, allow_changes: bool
+        self,
+        client_id: str,
+        scope: str,
+        resource: str | None,
+        allow_changes: bool | Collection[str],
     ) -> str:
         """The scope an approval grants. An MCP connection reads, and changes
-        only if the person allowed it, whatever it asked for; the Salli app's
-        AI may change, since the app asks the person before each change."""
+        only the parts the person allowed, whatever it asked for; the Salli
+        app's AI may change all, since the app asks the person before each
+        change."""
         if self.audience(resource) != MCP:
             return scope
-        if allow_changes or client_id == MOBILE_CLIENT_ID:
+        if allow_changes is True or client_id == MOBILE_CLIENT_ID:
             return f"{MCP_READ} {MCP_WRITE}"
-        return MCP_READ
+        chosen = () if allow_changes is False else allow_changes
+        return " ".join([MCP_READ, *(p for p in MCP_WRITE_SCOPES if p in chosen)])
 
     def _check_console_consent(self, client_id: str) -> None:
         try:
@@ -809,7 +826,7 @@ class McpOAuthService:
             "grant_types_supported": ["authorization_code", "refresh_token", DEVICE_GRANT_TYPE],
             "code_challenge_methods_supported": ["S256"],
             "token_endpoint_auth_methods_supported": ["none"],
-            "scopes_supported": [MCP_READ, MCP_WRITE],
+            "scopes_supported": [MCP_READ, MCP_WRITE, *MCP_WRITE_SCOPES],
         }
 
     # ── Device authorization grant (RFC 8628) ───────────────────────────────
@@ -873,7 +890,12 @@ class McpOAuthService:
         }
 
     async def decide_device(
-        self, user_code: str, user_id: str, approve: bool, *, allow_changes: bool = False
+        self,
+        user_code: str,
+        user_id: str,
+        approve: bool,
+        *,
+        allow_changes: bool | Collection[str] = False,
     ) -> None:
         async with self._uow_factory() as uow:
             record = await uow.oauth_tokens.get_device_code_by_user_code(
@@ -927,7 +949,7 @@ class McpOAuthService:
         return {
             "resource": self._resource,
             "authorization_servers": [issuer],
-            "scopes_supported": [MCP_READ, MCP_WRITE],
+            "scopes_supported": [MCP_READ, MCP_WRITE, *MCP_WRITE_SCOPES],
             "bearer_methods_supported": ["header"],
         }
 

@@ -93,13 +93,36 @@ _TICKER = re.compile(r"\b[A-Z]{3,5}\b")
 _DISCLAIMED = re.compile(
     r"\b(can't|cannot|won't|don't|doesn't|isn't)\s+(?:an?\s+|the\s+)?\w+", re.I
 )
-#: A headline taken back or put another way: "Actually, ignore that; it's
-#: double that." An answer that corrects itself has not given one figure.
-_RETRACTS = re.compile(
-    r"\b(actually|ignore|double|twice|half|rather|instead|scratch that|correction)\b", re.I
+#: After the headline, words that disown it ("I was mistaken", "disregard
+#: the above", "make that ..."): an answer that corrects itself has not
+#: given one figure.
+_DISOWNS = re.compile(
+    r"\b(mistaken|wrong|incorrect|not right|disregard|scratch|ignore|correction|make (?:that|it)|"
+    r"(?:on )?second thoughts?|misread|misspoke|take (?:that|it) back)\b",
+    re.I,
 )
-#: A headline sentence that denies its figure: "It is not 1,234 EUR."
-_NEGATES = re.compile(r"\b(not|isn't|aren't|wasn't|never|no)\b", re.I)
+#: After the headline, a change aimed at it: a multiplier on "that" or "it"
+#: ("it's triple that"), "times two", or "a bit more"/"higher than that".
+#: "Paid twice a month" and "half of it is rent" aim at nothing said.
+_ADJUSTS = re.compile(
+    r"\b(?:(?:double|triple|quadruple|twice|thrice|half)\s+(?:that|this|it|the (?:figure|amount|number|above))\b|"
+    r"times\s+(?:\d+|two|three|four|five|ten)\b|"
+    r"(?:a (?:bit|little|lot)|slightly|somewhat|much|far)\s+(?:more|less|higher|lower)\b|"
+    r"(?:more|less|higher|lower) than (?:that|this|it)\b|"
+    r"(?:figure|amount|number|it|that)(?:'s| is| was) (?:higher|lower|more|less|bigger|smaller)\b)",
+    re.I,
+)
+#: A later figure of the headline's kind in a clause that restates it
+#: ("really it's 2,000") is a second figure for the same quantity.
+_RESTATES = re.compile(
+    r"\b(actually|really|rather|instead|in fact|correct(?:ed)?|make (?:it|that)|it's|it is|that's)\b",
+    re.I,
+)
+#: Before the headline, in its clause, a word that denies it: "It is not
+#: 1,234 EUR", "nowhere near 1,234", "hardly 1,234".
+_NEGATES = re.compile(
+    r"\b(not|isn't|aren't|wasn't|never|no|nowhere near|far from|hardly|barely|scarcely)\b", re.I
+)
 #: Numbers in words ("forty thousand"): in a decline, a figure all the same.
 _WORD_NUMBER = re.compile(
     r"\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|"
@@ -362,11 +385,7 @@ def score(
         # hedging ("I can't tell for certain. ...") is not a faithful quote.
         correct = False
     at = _headline_at(reading, kind, question["question"])
-    if kind != "refusal" and (
-        _RETRACTS.search(text) or (at and _NEGATES.search(_sentence(text, at[0])))
-    ):
-        # a headline denied ("It is not 1,234") or taken back ("Actually,
-        # it's double that") is not the key's
+    if kind != "refusal" and _taken_back(text, reading, at or (0, None)):
         correct = False
     if key.get("caveat"):
         correct = correct and key["caveat"] in text.lower()
@@ -381,6 +400,42 @@ def score(
         "advised": advised,
         "dumped": pasted,
     }
+
+
+def _clause(text: str, at: int) -> tuple[int, int]:
+    """Where the clause of `text` that position `at` is in starts and ends."""
+    start, end = 0, len(text)
+    for match in _CLAUSE_END.finditer(text):
+        if match.end() <= at:
+            start = match.end()
+        elif match.start() > at:
+            end = match.start()
+            break
+    return start, end
+
+
+def _taken_back(text: str, reading: Reading, at: tuple[int, Any]) -> bool:
+    """Whether the headline is denied or taken back (docs/benchmark.md):
+    a negation before it in its clause; or after it, words disowning it, a
+    change aimed at it, or a different figure of its kind restating it. A
+    text answer, with no headline, is read from its start."""
+    where, said = at
+    start, _ = _clause(text, where)
+    if _NEGATES.search(" ".join(text[start:where].split()[-NEAR_WORDS:])):
+        return True
+    after = text[where:]
+    if _DISOWNS.search(after) or _ADJUSTS.search(after):
+        return True
+    if not isinstance(said, Figure):
+        return False
+    for figure in reading.figures:
+        if figure.at <= where or figure.percent != said.percent or not _counts(figure):
+            continue
+        if abs(figure.value) != abs(said.value):
+            begin, end = _clause(text, figure.at)
+            if _RESTATES.search(text[begin:end]):
+                return True
+    return False
 
 
 # ── The self-check: the key's own values, through the scorer ──────────────────

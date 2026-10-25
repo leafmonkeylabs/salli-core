@@ -23,7 +23,7 @@ from tests.golden import household as h
 from tests.guardrails import assert_never_ranks
 from tests.unit.api.test_baseline_api import USER, _household_of
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 
 @pytest.fixture

@@ -21,7 +21,12 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
-from salli.application.ports import BankConnector, BankLinkError, RemoteTransaction
+from salli.application.ports import (
+    BankConnector,
+    BankLinkError,
+    BankSnapshot,
+    RemoteTransaction,
+)
 from salli.domain.accounting.models import money_account_problem
 from salli.domain.currency import is_currency
 from salli.domain.parsing.models import RawRow
@@ -171,6 +176,7 @@ class BankConnectionService:
                     user_id, connection_id, {"status": "error", "last_error": str(exc)}
                 )
             return {"id": connection_id, "warnings": [], "error": str(exc)}
+        await self._renewed(user_id, connection_id, credential, snapshot)
         institutions = sorted({a.institution for a in snapshot.accounts if a.institution})
         async with self._uow_factory() as uow:
             fields: dict[str, Any] = {
@@ -182,6 +188,18 @@ class BankConnectionService:
             await uow.bank_connections.update(user_id, connection_id, fields)
             await uow.bank_connections.upsert_accounts(user_id, connection_id, snapshot.accounts)
         return {"id": connection_id, "warnings": snapshot.warnings, "error": None}
+
+    async def _renewed(
+        self, user_id: str, connection_id: str, credential: str, snapshot: BankSnapshot
+    ) -> None:
+        """Keep the credential a provider renewed while reading, sealed."""
+        if snapshot.credential is None or snapshot.credential == credential:
+            return
+        sealed, version = self._keyring.seal(snapshot.credential, aad=_aad(user_id, connection_id))
+        async with self._uow_factory() as uow:
+            await uow.bank_connections.update(
+                user_id, connection_id, {"credential_sealed": sealed, "key_version": version}
+            )
 
     async def list(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
@@ -304,6 +322,7 @@ class BankConnectionService:
                     user_id, connection_id, {"status": "error", "last_error": str(exc)}
                 )
             raise
+        await self._renewed(user_id, connection_id, credential, snapshot)
 
         results: list[dict[str, Any]] = []
         failures: list[str] = []
@@ -312,7 +331,11 @@ class BankConnectionService:
             if target is None or not is_currency(remote.currency):
                 continue
             rows = to_rows(
-                [t for t in snapshot.transactions if t.account_remote_id == remote.remote_id],
+                [
+                    t
+                    for t in snapshot.transactions
+                    if t.account_remote_id == remote.remote_id and not t.pending
+                ],
                 remote.currency,
                 provider,
             )
@@ -419,6 +442,20 @@ class BankConnectionService:
         }
 
     async def disconnect(self, user_id: str, connection_id: str) -> bool:
-        """Forget the connection and its credential. Booked entries stay."""
+        """Give the access up at the provider where it can be (`revoke`; a
+        failure there doesn't keep the connection), and forget the connection
+        and its credential. Booked entries stay."""
+        async with self._uow_factory() as uow:
+            secret = await uow.bank_connections.get_secret(user_id, connection_id)
+        if secret is not None and secret["provider"] in self._connectors:
+            try:
+                credential = self._keyring.open(
+                    secret["credential_sealed"],
+                    aad=_aad(user_id, connection_id),
+                    key_version=secret["key_version"],
+                )
+                await self._connectors[secret["provider"]].revoke(credential)
+            except Exception:  # noqa: BLE001 -- forgetting it matters more
+                _log.warning("Revoking a bank connection's access failed", exc_info=False)
         async with self._uow_factory() as uow:
             return await uow.bank_connections.delete(user_id, connection_id)

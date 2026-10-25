@@ -17,7 +17,7 @@ from salli.application.services.personal_access_token_service import VerifiedTok
 from salli.domain.accounting.models import Direction, Posting, StoredJournalEntry
 from salli.interfaces.api import mcp_server
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("experimental_on")]
 
 
 @pytest.fixture

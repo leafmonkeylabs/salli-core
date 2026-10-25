@@ -21192,6 +21192,20 @@
             "type": "boolean",
             "title": "Allow Changes",
             "default": false
+          },
+          "allow": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "mcp:ledger",
+                "mcp:planning",
+                "mcp:documents",
+                "mcp:settings"
+              ]
+            },
+            "type": "array",
+            "title": "Allow",
+            "default": []
           }
         },
         "type": "object",

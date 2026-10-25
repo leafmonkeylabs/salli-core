@@ -360,3 +360,44 @@ async def test_feed_rows_carry_the_providers_ids(setup):
     await service.map_account("u1", connection, "chk", create=True)
     await service.sync("u1", connection)
     assert {(r.ref_kind, r.ref_source) for r in importer.calls[0]["rows"]} == {("id", "feed:fake")}
+
+
+class Aggregator(FakeBank):
+    """An aggregator's shape through the same port: a credential renewed as it
+    is used, transactions still pending, and access given up on disconnect."""
+
+    provider = "aggregator"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.held = CREDENTIAL
+        self.revoked: list[str] = []
+
+    async def fetch(self, credential, start, balances_only=False) -> BankSnapshot:
+        assert credential == self.held
+        self.held = credential + "#renewed"
+        return BankSnapshot(
+            accounts=[RemoteAccount("chk", "Checking", "Bank", "USD", Decimal("10.00"), None)],
+            transactions=[
+                RemoteTransaction("t1", "chk", "2026-10-08", Decimal("-4.00"), "BAKERY"),
+                RemoteTransaction("t2", "chk", "2026-10-09", Decimal("-9.00"), "CAFE", True),
+            ],
+            warnings=[],
+            credential=self.held,
+        )
+
+    async def revoke(self, credential: str) -> None:
+        self.revoked.append(credential)
+
+
+async def test_an_aggregator_renews_its_credential_skips_pending_and_is_revoked(uow_factory):
+    async with uow_factory() as uow:
+        await uow.user_profiles.upsert("u1", {"base_currency": "USD"})
+    bank, importer = Aggregator(), Importer()
+    service = BankConnectionService(uow_factory, KeyRing(KEYS), {"aggregator": bank}, importer)
+    connected = await service.connect("u1", "aggregator", "good-token")
+    await service.map_account("u1", connected["id"], "chk", create=True)
+    await service.sync("u1", connected["id"])  # opens the renewed credential, or fails
+    assert [r.bank_ref for r in importer.calls[0]["rows"]] == ["t1"]
+    assert await service.disconnect("u1", connected["id"])
+    assert bank.revoked == [bank.held]

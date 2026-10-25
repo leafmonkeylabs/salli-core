@@ -221,7 +221,7 @@ is needed to start.
 | `SALLI_CONSOLE_SIGN_IN_HOURS` | `12` | How long a console sign-in lasts after its password, however often it refreshes (1 to 168). The CLI's sign-ins are not affected. |
 | `SALLI_CHATGPT_PLAN_USAGE` | `true` | Whether people may run Salli's AI on their ChatGPT plan. |
 | `SALLI_USAGE_COUNTERS` | `false` | Lets the owner see this instance's weekly usage counts with `salli-server stats` (members active, statement entries imported, reconciliations completed). Counts only, read from the database when asked; sent nowhere unless the next two are set ([usage reports](#usage-reports)). |
-| `SALLI_EXPERIMENTAL` | `true` | `false` leaves the experimental engines' tools out of what AI agents see over MCP ([scope.md](scope.md#experimental)). |
+| `SALLI_EXPERIMENTAL` | `false` | `true` lists the experimental engines' tools and prompts for AI agents over MCP; off, they are left out ([scope.md](scope.md#experimental)). |
 | `SALLI_USAGE_REPORT_URL` | (none) | Where `salli-server stats --send` and `jobs send-usage` POST the week's totals. Unset, nothing is sent. |
 | `SALLI_USAGE_INSTALL_ID` | (none) | The id a report carries: any value you pick (`uuidgen`); change it to rotate. |
 | `TAVILY_API_KEY` | none | Web search for the agents. |

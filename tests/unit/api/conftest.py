@@ -33,6 +33,18 @@ def mcp_connection_may_change():
 
 
 @pytest.fixture
+def experimental_on():
+    """SALLI_EXPERIMENTAL on (off by default): for a module whose MCP tools
+    include the experimental engines' (`pytestmark`)."""
+    from salli.config import get_settings
+    from salli.interfaces.api import mcp_server
+
+    on = get_settings().model_copy(update={"salli_experimental": True})
+    with patch.object(mcp_server, "get_settings", return_value=on):
+        yield
+
+
+@pytest.fixture
 def refused():
     """What an MCP tool's failure says (`error`: its code, message and
     whether to retry), from a call that must fail."""

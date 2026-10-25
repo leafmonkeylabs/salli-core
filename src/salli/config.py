@@ -145,10 +145,10 @@ class Settings(BaseSettings):
     salli_usage_counters: bool = False
 
     # Whether AI agents see the experimental engines' MCP tools (the
-    # investment policy, FI odds, the decision lab; docs/scope.md). On by
-    # default; false leaves them out of the tool list. The API keeps them
+    # investment policy, FI odds, the decision lab; docs/scope.md). Off by
+    # default, so they stay out of the tool list until the owner opts in. The API keeps them
     # either way, marked `x-experimental`.
-    salli_experimental: bool = True
+    salli_experimental: bool = False
     salli_usage_report_url: str = ""
     salli_usage_install_id: str = ""
 

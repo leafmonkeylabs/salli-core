@@ -229,7 +229,7 @@ async def test_the_json_consent_route_never_counts_as_a_password_check(client, c
     assert r.status_code == 200, r.text
     assert cli_consent.complete_consent.await_args.kwargs == {
         "password_checked": False,
-        "allow_changes": False,
+        "allow_changes": [],
     }
 
 
@@ -257,7 +257,7 @@ async def test_the_device_page_signs_a_device_in(client, mock_services):
     mock_services.mcp_oauth.decide_device.assert_awaited_once_with(
         "BCDF-GHJK", "test-user-1", True, allow_changes=False
     )
-    assert "allow_changes" not in page.text  # the CLI isn't an AI client
+    assert "name=allow" not in page.text  # the CLI isn't an AI client
     mock_services.mcp_oauth.set_mcp_enabled.assert_not_called()
 
 

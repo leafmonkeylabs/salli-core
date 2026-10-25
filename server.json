@@ -1,0 +1,24 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.leafmonkeylabs/salli",
+  "title": "Salli",
+  "description": "Your own Salli's books, plans and decisions: figures computed by Salli, never by the model.",
+  "websiteUrl": "https://github.com/leafmonkeylabs/salli-core",
+  "repository": {
+    "url": "https://github.com/leafmonkeylabs/salli-core",
+    "source": "github"
+  },
+  "version": "0.5.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{host}/mcp",
+      "variables": {
+        "host": {
+          "description": "Where your Salli is served (its SALLI_PUBLIC_URL's host)",
+          "isRequired": true
+        }
+      }
+    }
+  ]
+}
