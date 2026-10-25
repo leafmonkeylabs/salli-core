@@ -86,7 +86,8 @@ ENV
       compose exec -T salli salli-server setup --email "$email" --currency "$currency" --password-stdin
     fi
     compose exec -T salli salli-server doctor
-    echo "Salli is at https://$domain. Schedule nightly backups:"
+    echo "Salli is at https://$domain; push alerts go every 15 minutes (the push service)."
+    echo "Schedule the other jobs (docs/self-host.md#scheduled-jobs) and nightly backups:"
     echo "  15 2 * * * $here/deploy/host.sh backup $dir"
     echo "after putting an age public key in $dir/backup-recipient and an off-machine"
     echo "copy script in $dir/backup-copy. Keep a copy of the secrets offline:"

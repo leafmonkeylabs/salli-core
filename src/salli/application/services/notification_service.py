@@ -66,8 +66,9 @@ DEFAULTS: dict[str, Any] = {
     "items": list(DEFAULT_ITEMS),
 }
 
-#: Push alerts before a person sets anything: every kind, no quiet hours.
-PUSH_DEFAULTS: dict[str, Any] = {"items": list(PUSH_ITEMS), "quiet_hours": None}
+#: Push alerts before a person sets anything: none until they opt in, no
+#: quiet hours.
+PUSH_DEFAULTS: dict[str, Any] = {"items": [], "quiet_hours": None}
 
 
 class PreferencesError(ValueError):

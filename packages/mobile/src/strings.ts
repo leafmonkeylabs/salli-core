@@ -91,6 +91,7 @@ export const strings = {
     fiTooSoon: 'Needs two months of data',
     attention: 'Needs attention',
     nothingNeedsAttention: 'Nothing needs attention.',
+    addOwn: 'Add what you own',
     importStatement: 'Import a statement',
     reviewDue: (date: string) => `Review due ${date}`,
     overdue: 'Overdue',
@@ -350,13 +351,13 @@ export const strings = {
   debts: {
     title: 'Debts',
     total: (date: string) => `Total owed · ${date}`,
-    each: (currency: string) => `Each debt, ${currency}`,
+    each: (currency: string) => `Each debt, ${currency} · by rate, highest first`,
     minimums: 'Minimums a month',
     terms: (rate: string, minimum: string) => `${rate} · min ${minimum}/mo`,
     free: (month: string) => `Debt-free ${month}`,
     notPaidOff: 'Not paid off at the minimum',
     none: 'You have no debts recorded.',
-    note: 'Debt-free month at minimum payments.',
+    note: 'Sorted by interest rate: a fact about each debt, not advice. Debt-free month at minimum payments.',
   },
 
   attention: {
@@ -417,7 +418,7 @@ export const strings = {
     owePlaceholder: 'Credit card',
     oweName: 'Name',
     owed: (currency: string) => (currency ? `Owed, ${currency}` : 'Owed'),
-    rate: 'Rate, % a year',
+    rate: 'Yearly rate',
     minimum: (currency: string) => (currency ? `Minimum, ${currency}` : 'Minimum'),
     optional: 'optional',
     addAnother: 'Add another',

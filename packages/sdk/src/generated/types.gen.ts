@@ -3697,6 +3697,10 @@ export type DebtList = {
      */
     debts: Array<Debt>;
     /**
+     * Order
+     */
+    order?: 'rate_desc';
+    /**
      * Total Balance
      *
      * Decimal string in the currency's own precision; never a float.
@@ -18650,6 +18654,12 @@ export type OnboardingGoalsResponse = OnboardingGoalsResponses[keyof OnboardingG
 
 export type AccountExportData = {
     body?: never;
+    headers?: {
+        /**
+         * Salli-Two-Step
+         */
+        'salli-two-step'?: string | null;
+    };
     path?: never;
     query?: never;
     url: '/v1/onboarding/export';
@@ -18657,9 +18667,17 @@ export type AccountExportData = {
 
 export type AccountExportErrors = {
     /**
-     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password)
+     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)
      */
     403: Problem;
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * Too many wrong codes; `Retry-After` says when to try again
+     */
+    429: Problem;
     /**
      * An error, as RFC 9457 problem details
      */
@@ -18679,6 +18697,12 @@ export type AccountExportResponse = AccountExportResponses[keyof AccountExportRe
 
 export type AccountDeleteData = {
     body: DeleteAccountRequest;
+    headers?: {
+        /**
+         * Salli-Two-Step
+         */
+        'salli-two-step'?: string | null;
+    };
     path?: never;
     query?: never;
     url: '/v1/onboarding/account';
@@ -18686,13 +18710,17 @@ export type AccountDeleteData = {
 
 export type AccountDeleteErrors = {
     /**
-     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password)
+     * `/problems/step-up-required`: sign in again on Salli's page first (the console or the app, more than five minutes after the password); or the authenticator code in `Salli-Two-Step` is missing or wrong (needed when two-step sign-in is on, and the owner needs two-step on)
      */
     403: Problem;
     /**
      * The request failed validation; `detail` lists each field
      */
     422: Problem;
+    /**
+     * Too many wrong codes; `Retry-After` says when to try again
+     */
+    429: Problem;
     /**
      * An error, as RFC 9457 problem details
      */

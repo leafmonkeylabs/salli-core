@@ -1,6 +1,6 @@
 import { insightsSignals, remindersCreate, remindersDelete, remindersList, remindersMarkDone, type FinanceSignal, type Reminder } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../api';
@@ -13,8 +13,8 @@ import { font, size, useTheme } from '../theme';
 
 const t = strings.attention;
 
-/** Where a signal points in the app. */
-function placeOf(signal: FinanceSignal): '/cash' | '/books' | '/decide' | '/debts' | '/budget' | undefined {
+/** Where a signal points in the app: a budget signal opens its own line. */
+function placeOf(signal: FinanceSignal): Href | undefined {
   switch (signal.action) {
     case 'see_forecast':
     case 'see_recurring':
@@ -26,7 +26,7 @@ function placeOf(signal: FinanceSignal): '/cash' | '/books' | '/decide' | '/debt
     case 'see_debts':
       return '/debts';
     case 'see_budget':
-      return '/budget';
+      return signal.refs[0] ? { pathname: '/budget/[id]', params: { id: signal.refs[0] } } : '/budget';
     case 'review_decision':
       return '/decide';
     default:

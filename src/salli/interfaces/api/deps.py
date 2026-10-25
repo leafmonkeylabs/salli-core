@@ -17,11 +17,18 @@ from salli.application.entry_author import set_author, via_for
 from salli.application.permissions import Actor, is_recent, needs_step_up, permissions_for
 from salli.application.ports import IdentityProvider
 from salli.application.services.llm_credential_service import ResolvedCredentials
-from salli.application.services.login_service import is_session_token
+from salli.application.services.login_service import (
+    CodeNeeded,
+    CodeRefused,
+    SignInThrottled,
+    TwoStepState,
+    is_session_token,
+)
 from salli.application.services.mcp_oauth_service import API, has_salli_prefix
 from salli.application.services.personal_access_token_service import is_personal_access_token
 from salli.composition import Services, build_services
 from salli.config import Settings, get_settings, insecure_dev_auth
+from salli.interfaces.api import idempotency
 
 _bearer = HTTPBearer(auto_error=True)
 
@@ -165,11 +172,15 @@ async def get_principal(
     creds: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
     settings: Annotated[Settings, Depends(get_settings)],
     services: Annotated[Services, Depends(get_services)],
+    request: Request = None,  # type: ignore[assignment]  # FastAPI always passes it
 ) -> Principal:
     """The caller (`_principal`), recorded as the author of the entries this
     request posts (application/entry_author.py)."""
     principal = await _principal(creds.credentials, settings, services)
     set_author(principal.user_id, via_for(principal.method, principal.client_id))
+    # A POST's Idempotency-Key, claimed for the caller before the route runs
+    if request is not None:
+        await idempotency.claim(request, principal.user_id, services)
     return principal
 
 
@@ -344,6 +355,37 @@ def require_recent_password(what: str) -> Any:
         fresh_within = principal.fresh_within
         if fresh_within and not is_recent(principal.sign_in_age, fresh_within):
             raise StepUpRequired(what, int(fresh_within.total_seconds()))
+
+    return Depends(check)
+
+
+def require_second_step(what: str) -> Any:
+    """A dependency asking for the person's authenticator code in the
+    `Salli-Two-Step` header, for the export and erasure, when they have
+    two-step sign-in on (and the owner always: refused until it is on). A
+    403 without one or with a wrong one (counted like a failed sign-in), a
+    429 once throttled."""
+
+    async def check(
+        user_id: Annotated[str, Depends(get_current_user)],
+        services: Annotated[Services, Depends(get_services)],
+        salli_two_step: Annotated[str | None, Header(max_length=64)] = None,
+    ) -> None:
+        try:
+            await services.logins.check_second_step(user_id, salli_two_step)
+        except SignInThrottled as exc:
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(exc),
+                headers={"Retry-After": str(exc.retry_after)},
+            ) from exc
+        except CodeNeeded as exc:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail=f"{what} needs your authenticator code (Salli-Two-Step).",
+            ) from exc
+        except (CodeRefused, TwoStepState) as exc:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
     return Depends(check)
 

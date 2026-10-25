@@ -12,6 +12,26 @@
   original's day is open, so the fix lands in its month) or "today", with
   `dated_reason`; the CLI and the phone say so under the result.
 
+- **Push alerts are sent, and only once chosen.** compose.yaml gains a
+  `push` service that runs `salli-server jobs send-push` every 15 minutes
+  (docs/self-host.md's jobs list says so). On the phone, the over-budget
+  attention row opens that category's budget line; Home offers "Add what you
+  own" when there is no cash or savings account; first run takes a debt's
+  rate as a percent, with a % suffix.
+
+- **Round 9, agents.** The fidelity benchmark's retraction check is a judge
+  now, not word lists: `--judge claude|api` asks a model one fixed,
+  published question of each answer the figure checks pass, cached by the
+  answer's hash; without it the score is weaker and says so. A fixed
+  adversarial suite of honest answers and dodges holds both layers
+  (docs/benchmark.md). REST POSTs take an `Idempotency-Key` header, kept with
+  MCP's client_refs (SDK `idempotencyKey`, `salli --idempotency-key`). A
+  parity test maps every REST route to an MCP tool or a stated reason. Each
+  tool's schema carries the client_ref and paging rules, and each write's
+  description its scope.
+
+- The debts read (`GET /debts`, `list_debts`) lists debts by interest rate, highest first (ties by balance, then name; a debt without a rate last) and says so with `order: "rate_desc"`; the phone's Debts screen and `salli debts list` show that order with a footnote that it is a fact about each debt, not advice.
+
 - **MCP catches up with the API, round 8.** Budget and debt writes
   (`set_monthly_budget`, `add_debt`, `update_debt`, each with
   `confirmed_by_user`); `client_ref` on `import_statement` (which is also
@@ -377,6 +397,13 @@
 
 ### Security
 
+- **The CLI's and the app's sign-ins end** `SALLI_APP_SIGN_IN_DAYS` (90)
+  after their password, however often they refresh; core_0050 gives older
+  ones that end.
+- **The export and erasure need two-step** when it is on, and the owner
+  needs it on: an authenticator code in `Salli-Two-Step` (`salli profile
+  export|delete-account --code`, the console's Your data page).
+
 - **Invitations leave nothing identifying in the audit log.** `member.invite`
   records the invitation's token hash and a keyed hash of the email, not
   the email, since the log outlives an erased account.
@@ -423,6 +450,15 @@
   time-weighted returns; with no inflation, or no cash yield or pack, there is
   no Sharpe ratio and a note says why. The benchmark is no longer a hurdle
   (`hurdle_source` drops "benchmark"): tracking error covers it.
+
+- Push alerts are off for every kind until the person turns one on
+  (`push_items` defaults to none, not every kind).
+
+- **The push relay's signature covers the alert's id**: `Authorization:
+  Bearer t=<t>,id=<id>,v1=<hex>` over `<t>.<id>.<body>`; a relay refuses an
+  id it already accepted within its ±5 minute window (docs/self-host.md).
+- **The benchmark's word lists are gone**: words that disown or adjust a
+  headline are the judge's; without one they pass.
 
 - **`SALLI_EXPERIMENTAL` is off by default.** The experimental engines'
   MCP tools and prompts (the investment policy, FI odds, the decision lab)

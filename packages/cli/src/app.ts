@@ -47,6 +47,8 @@ export interface GlobalOptions {
   verbose?: boolean;
   /** Read another member's books, under their grant (Salli-Books). */
   books?: string;
+  /** Sent as Idempotency-Key on POST writes: a retry is not made twice. */
+  idempotencyKey?: string;
 }
 
 export interface ActiveContext {
@@ -285,7 +287,14 @@ export class App {
       // Ctrl-C ends whatever request is in flight, as an interruption (130).
       signal: this.runtime.signal,
       userAgent: this.userAgent,
-      ...(books ? { headers: { 'Salli-Books': books } } : {}),
+      ...(books || this.globals.idempotencyKey
+        ? {
+            headers: {
+              ...(books ? { 'Salli-Books': books } : {}),
+              ...(this.globals.idempotencyKey ? { 'Idempotency-Key': this.globals.idempotencyKey } : {}),
+            },
+          }
+        : {}),
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       ...(verbose
         ? {

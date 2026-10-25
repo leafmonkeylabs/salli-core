@@ -228,6 +228,9 @@ async def test_push_alerts_go_once_per_state_and_say_nothing_of_the_ledger(uow_f
     assert stored["token"] != "ExponentPushToken[abc]"
     assert svc.open_token(stored) == "ExponentPushToken[abc]"
 
+    # Nothing goes until the person opts in.
+    assert (await svc.send_pushes())["sent"] == 0
+    await svc.set_preferences("kofi", {"push_items": ["reminder_due", "budget_over"]})
     first = await svc.send_pushes()
     second = await svc.send_pushes()
     assert (first["sent"], second["skipped"]) == (1, 1)

@@ -253,3 +253,20 @@ async def test_a_secret_is_kept_with_the_version_of_the_key_that_sealed_it(salli
     async with salli.engine.connect() as conn:
         with pytest.raises(IntegrityError, match="ck_logins_totp"):
             await conn.execute(text("UPDATE logins SET totp_enabled_at = now()"))
+
+
+async def test_the_owner_s_export_needs_two_step_on_and_a_code(salli):
+    token = (await _session(salli)).json()["token"]
+    refused = await salli.get("/v1/onboarding/export", headers=_bearer(token))
+    assert refused.status_code == 403 and "two-step" in refused.json()["detail"]
+    secret, recovery = await _turn_on(salli, token)
+    no_code = await salli.get("/v1/onboarding/export", headers=_bearer(token))
+    assert no_code.status_code == 403 and "Salli-Two-Step" in no_code.json()["detail"]
+    wrong = await salli.get(
+        "/v1/onboarding/export", headers=_bearer(token) | {"Salli-Two-Step": "000000"}
+    )
+    assert wrong.status_code == 403
+    sent = await salli.get(
+        "/v1/onboarding/export", headers=_bearer(token) | {"Salli-Two-Step": recovery[0]}
+    )
+    assert sent.status_code == 200, sent.text

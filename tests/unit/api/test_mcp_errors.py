@@ -158,8 +158,9 @@ async def test_a_decimal_string_is_read_exactly():
 #: the connector directories ask; 46.5 KB until portfolio performance, statement
 #: import, pages of the longer lists and client_ref on four writes; 48.5 KB
 #: until recategorising an entry; 49 KB until the budget and debt writes,
-#: pages on every list and client_ref on every write that adds).
-TOOL_LIST_BUDGET = 52_000
+#: pages on every list and client_ref on every write that adds; 52 KB until
+#: each write named its scope and client_ref and paging their rules).
+TOOL_LIST_BUDGET = 55_000
 
 
 async def test_the_tool_list_stays_small(services):
@@ -171,3 +172,15 @@ async def test_the_tool_list_stays_small(services):
     for tool in tools:
         assert tool.outputSchema is None and "\n" not in (tool.description or ""), tool.name
         assert "title" not in tool.inputSchema, tool.name
+
+
+async def test_each_tool_carries_its_scope_client_ref_and_paging_rules(services):
+    tools = await mcp_server.build_mcp_server(services, "https://api.test").list_tools()
+    for tool in tools:
+        props = tool.inputSchema.get("properties", {})
+        for arg in ("client_ref", "cursor", "limit"):
+            if arg in props:
+                assert props[arg].get("description"), (tool.name, arg)
+        part = mcp_server.WRITE_PARTS.get(tool.name)
+        if part is not None:
+            assert (tool.description or "").endswith(f"Needs {part}."), tool.name

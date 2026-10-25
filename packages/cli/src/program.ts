@@ -50,6 +50,7 @@ export function buildProgram(app: App, output: OutputConfiguration): Command {
     .option('--server <url>', 'Talk to this server (overrides the context; SALLI_SERVER)')
     .option('--verbose', 'Log each request to stderr')
     .option('--books <member-id>', "Read another member's books, where they gave you access (SALLI_BOOKS)")
+    .option('--idempotency-key <key>', 'Send a write with this key: sent again, it is not made twice')
     .exitOverride()
     .configureOutput(output)
     .showSuggestionAfterError(true)

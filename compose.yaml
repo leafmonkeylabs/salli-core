@@ -82,6 +82,32 @@ services:
       - secrets:/var/lib/salli/secrets:ro
     networks: [database, default, proxy]
 
+  # Push alerts to phones, every 15 minutes (docs/self-host.md#scheduled-jobs).
+  # Without a relay configured the job sends nothing.
+  push:
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.5.0}
+    restart: unless-stopped
+    depends_on:
+      salli:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://salli@postgres:5432/salli
+      SALLI_SECRETS_DIR: /var/lib/salli/secrets
+      SALLI_PUBLIC_URL: ${SALLI_PUBLIC_URL:-http://localhost:8000}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while :; do salli-server jobs send-push; sleep 900; done"]
+    # It serves nothing; healthy while it runs, so `up --wait` waits for it.
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 30s
+      start_period: 1s
+    volumes:
+      - secrets:/var/lib/salli/secrets:ro
+    networks: [database, default]
+
   # HTTPS on your own domain: `docker compose --profile tls up -d`, with
   # SALLI_DOMAIN and SALLI_PUBLIC_URL (https://<domain>) in .env, and the
   # domain's DNS pointing here. Caddy gets and renews the certificate.

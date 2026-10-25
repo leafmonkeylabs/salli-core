@@ -396,16 +396,36 @@ def _optional(schema: dict[str, Any]) -> dict[str, Any]:
     return {**rest, **types[0]}
 
 
+#: The rules an argument follows, on the argument itself, so an agent reading
+#: one tool's schema has them without the server instructions.
+_RULES = {
+    "client_ref": "Your id for this call: resent, the first answer comes back.",
+    "cursor": "The last page's next_cursor.",
+    "limit": "1 to 200.",
+}
+
+
+def _ruled(name: str, schema: dict[str, Any]) -> dict[str, Any]:
+    rule = _RULES.get(name)
+    return {**schema, "description": rule} if rule and "description" not in schema else schema
+
+
 def _compact(tool: MCPTool) -> MCPTool:
     """A tool as an agent reads it, on every turn: its description on one
-    line, its arguments without generated titles, and no output schema
+    line ending with the scope a write needs, the client_ref and paging
+    rules on those arguments, its arguments without generated titles, and no output schema
     (each would only say "an object"). It carries a title for people
     (`get_overview`: "Get overview"), as the connector directories ask."""
     schema = _untitled(tool.inputSchema)
-    properties = {k: _optional(v) for k, v in schema.get("properties", {}).items()}
+    properties = {k: _ruled(k, _optional(v)) for k, v in schema.get("properties", {}).items()}
+    description = " ".join((tool.description or "").split())
+    part = WRITE_PARTS.get(tool.name)
+    if part is not None:
+        # the scope it needs, so a refusal is no surprise
+        description += f" Needs {part}."
     return tool.model_copy(
         update={
-            "description": " ".join((tool.description or "").split()),
+            "description": description,
             "inputSchema": {**schema, "properties": properties},
             "outputSchema": None,
             "title": tool.title or tool.name.replace("_", " ").capitalize(),
@@ -1132,7 +1152,8 @@ def build_mcp_server(
     async def list_debts(
         include_closed: bool = False, limit: int = 100, cursor: str | None = None
     ) -> dict[str, Any]:
-        """The user's debts: balance, rate, minimum payment, linked account."""
+        """The user's debts: balance, rate, minimum payment, linked account;
+        ordered by rate, highest first (a fact, not advice)."""
         found = await debt_svc.list_debts(_current_user_id(), not include_closed)
         return _page(_jsonable(found), "debts", limit, cursor)
 
