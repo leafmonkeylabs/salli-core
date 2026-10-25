@@ -25,8 +25,8 @@ describe('Home', () => {
     expect(within(netWorth).getByText('As of Oct 11, 2026, from your ledger')).toBeTruthy();
     expect(within(netWorth).getByText('EUR 354,618.15')).toBeTruthy();
 
-    const safeFigure = figure('Safe to spend');
-    await waitFor(() => expect(within(safeFigure).getByText('15,727.02')).toBeTruthy());
+    const safeFigure = figure('Free until payday');
+    await waitFor(() => expect(within(safeFigure).getByText('15,316.35')).toBeTruthy());
     expect(within(safeFigure).getByText('until Oct 25, 2026')).toBeTruthy();
 
     const month = figure('October 2026 so far');
@@ -38,11 +38,15 @@ describe('Home', () => {
     await waitFor(() => expect(within(fiFigure).getByText('60.08')).toBeTruthy());
     expect(within(fiFigure).getByText('FI score · Strong')).toBeTruthy();
 
-    // Safe to spend line by line: the server's figure under the double rule.
-    const safe = section('Safe to spend, line by line');
+    // Free until payday line by line: the server's figure under the double rule.
+    const safe = section('Free until payday, line by line');
     await waitFor(() => expect(within(safe).getByText('EUR 15,801.47')).toBeTruthy());
     expect(within(safe).getByText('EUR (74.45)')).toBeTruthy();
-    expect(within(safe).getByText('Safe to spend').closest('.row-total')).toBeTruthy();
+    expect(within(safe).getByText('EUR 206.96')).toBeTruthy();
+    expect(within(safe).getByText('EUR 203.71')).toBeTruthy();
+    // Nothing is set aside for goals in this household: no line for it.
+    expect(within(safe).queryByText('Less cash set aside for goals')).toBeNull();
+    expect(within(safe).getByText('Free until payday').closest('.row-total')).toBeTruthy();
     expect(within(safe).getByText('USD at 0.86, ecb, Oct 9, 2026')).toBeTruthy();
 
     const spent = section('Spent in October 2026');

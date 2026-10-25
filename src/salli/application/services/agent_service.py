@@ -945,16 +945,22 @@ class AgentService:
             {"user_id": user_id, "email": email},
             config=config,
         )
-        advice = result.get("advice")
+        from salli.domain.agents.briefing import NOTICE, WRITTEN_BY, view
+
+        draft = result.get("draft")
+        shown = view(draft, result.get("context") or {}) if draft else {}
+        body = shown.get("briefing", {})
         return {
             "thread_id": thread_id,
             "error": result.get("error", ""),
             "briefing": {
-                "summary": advice.summary if advice else "",
-                "fire_tier_assessment": advice.fire_tier_assessment if advice else "",
-                "recommendations": [r.model_dump() for r in advice.recommendations]
-                if advice
-                else [],
+                "summary": shown.get("summary", ""),
+                "notes": body.get("notes", []),
+                "figures": body.get("figures", {}),
+                "signals": body.get("signals", []),
+                "assumptions": body.get("assumptions", {}),
+                "written_by": WRITTEN_BY,
+                "notice": NOTICE,
             },
         }
 

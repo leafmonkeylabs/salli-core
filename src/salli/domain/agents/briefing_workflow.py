@@ -2,10 +2,12 @@
 Monthly financial-health briefing workflow. A StateGraph with a human review gate.
 
 Nodes:
-  gather    → metered deterministic gather (AdvisorService.gather_context)
-  narrate   → the one LLM call (advisor.generate_advice)
+  gather    → metered deterministic gather (AdvisorService.gather_context):
+              Salli's figures, signals and assumptions
+  narrate   → the one LLM call (briefing.narrate): sentences with slots,
+              checked, never a number of its own
   review    → interrupt(): human approves, edits, or rejects the draft briefing
-  finalize  → persist the approved briefing as an advisory report
+  finalize  → store the approved briefing
 
 Unlike return_workflow.py, the LLM IS invoked here (in narrate). That is the
 whole point of a briefing. The review gate sits after narrate and before
@@ -36,8 +38,8 @@ class BriefingState:
     # Populated by gather
     context: dict[str, Any] = field(default_factory=dict)
 
-    # Populated by narrate: an Advice model (see domain/agents/advisor.py)
-    advice: Any = None
+    # Populated by narrate: a briefing.Draft (domain/agents/briefing.py)
+    draft: Any = None
 
     # Set by review node
     review_decision: str = ""  # "approve" | "edit" | "reject"
@@ -59,22 +61,22 @@ async def _gather(state: BriefingState, advisor_svc: Any) -> dict[str, Any]:
 
 
 async def _narrate(state: BriefingState, advisor_svc: Any) -> dict[str, Any]:
-    from salli.domain.agents import advisor as advisor_llm
+    from salli.domain.agents import briefing
 
     try:
         # The user's own model, on whichever provider they use: resolved here,
-        # per run, exactly as a manual advisor run resolves it.
+        # per run, exactly as a manual run resolves it.
         llm = await advisor_svc.llm_for(state.user_id)
-        advice = await advisor_llm.generate_advice(state.context, llm=llm)
+        draft = await briefing.narrate(state.context, llm=llm)
     except LLMError as e:
         # Salli's own sentence (a plan's usage limit, a sign-in to renew), safe
         # to keep in state and to show.
         return {"error": e.message}
     except Exception as e:
-        # generate_advice calls the provider, so `e` can be an SDK error whose
-        # message embeds the rejected API key, see error_label.
+        # narrate calls the provider, so `e` can be an SDK error whose message
+        # embeds the rejected API key, see error_label.
         return {"error": error_label(e)}
-    return {"advice": advice}
+    return {"draft": draft}
 
 
 def _review(state: BriefingState) -> dict[str, Any]:
@@ -84,12 +86,12 @@ def _review(state: BriefingState) -> dict[str, Any]:
     interrupt payload and resumes with a Command. In Phase 2 (FastAPI), the SSE
     stream surfaces the __interrupt__ event to the client.
     """
-    advice = state.advice
+    from salli.domain.agents.briefing import view
+
+    shown = view(state.draft, state.context) if state.draft else {}
     decision = interrupt(
         {
-            "summary": advice.summary if advice else "",
-            "fire_tier_assessment": advice.fire_tier_assessment if advice else "",
-            "recommendations": [r.model_dump() for r in advice.recommendations] if advice else [],
+            **shown,
             "message": "Please review this month's financial-health briefing. "
             "Reply with 'approve', 'edit', or 'reject'.",
             "allowed_decisions": ["approve", "edit", "reject"],
@@ -104,7 +106,9 @@ async def _finalize(state: BriefingState, advisor_svc: Any) -> dict[str, Any]:
             "report": {},
             "error": f"Briefing not approved (decision: {state.review_decision})",
         }
-    report = await advisor_svc.persist_report(state.user_id, "scheduled", state.advice)
+    report = await advisor_svc.persist_report(
+        state.user_id, "scheduled", state.draft, state.context
+    )
     return {"report": report}
 
 

@@ -279,9 +279,10 @@ the app: core holds no key and runs no model for it.
   prompt, which ends with Salli's guardrails (never compute, never rank,
   never name products), so the app holds no words of its own for the model.
 - **Changes wait for the person:** a tool that only reads runs as the model
-  asks (`onlyReads` in `src/lib/ai.ts`: `get_`, `list_`, `check_` and the
-  like); any other, and any tool core adds later, shows on a card with
-  Approve and Not now (design 21), and the conversation waits on it.
+  asks (`readsOf` in `src/lib/ai.ts`: those the server's tool list marks
+  `readOnlyHint`); any other, and any tool the server doesn't mark, shows
+  on a card with Approve and Not now (design 21), and the conversation
+  waits on it.
 - **What leaves the phone:** the questions and what the tools return go to
   the chosen provider; the settings page says so in one line.
 - **Conversations:** the last 20 per server, in a file of the app's own,

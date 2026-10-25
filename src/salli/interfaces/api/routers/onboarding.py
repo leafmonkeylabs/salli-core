@@ -60,7 +60,7 @@ class OnboardingRequest(BaseModel):
     income_sources: list[
         str
     ] = []  # ["employment","freelance","rental","interest","foreign","dividends"]
-    # Goals & motivation (powers the Wealth Advisor)
+    # Goals & motivation
     primary_goal: str = ""  # financial_independence | retirement | home | emergency_fund | debt_free | wealth_growth
     #: An optional total target, in the base currency.
     goal_target_amount: AmountIn = Decimal(0)
@@ -201,6 +201,10 @@ class OpeningBalanceItem(BaseModel):
     code: str
     name: str
     type: str  # asset|liability
+    #: For an asset: "cash" (money you spend from: a bank account, cash, a
+    #: card), "investment" (funds, shares, a pension) or "other" (a home, a
+    #: car). Left out, an asset is "other": never counted as cash.
+    asset_role: Literal["cash", "investment", "other"] | None = None
     #: A decimal string: these post straight into the ledger, the tax base.
     amount: AmountIn
     #: Defaults to the base currency. Another currency is converted at
@@ -230,15 +234,13 @@ async def declare_balance_sheet(
 
 
 class IncomeItem(BaseModel):
+    """A source of income, opened as an income account so the first real pay
+    is booked to it. Nothing is posted: an amount sent is not booked."""
+
     code: str
     name: str
-    amount: AmountIn
-    #: What `amount` is denominated in; defaults to the base currency. Foreign
-    #: income is the case that needs it: booking it at face value in the base
-    #: currency misstates it by the exchange rate. Converted at `fx_rate`
-    #: (units of base per unit), or today's rate when omitted.
-    currency: str | None = None
-    fx_rate: DecimalIn | None = None
+    #: The account it is paid into (default: the starter bank account, opened
+    #: as cash when it has to be).
     deposit_account_code: str | None = None
     deposit_account_name: str | None = None
 
@@ -247,15 +249,21 @@ class IncomeDeclarationRequest(BaseModel):
     incomes: list[IncomeItem]
 
 
+class IncomeAccounts(BaseModel):
+    #: The income accounts, one per item, opened or found by code.
+    income_accounts: list[str]
+
+
 @router.post("/income")
 async def declare_income(
     body: IncomeDeclarationRequest, user_id: CurrentUser, svc: AppServices
-) -> DeclaredEntries:
-    """Post one representative monthly entry per declared income source."""
-    entry_ids = await svc.profile.declare_income(
+) -> IncomeAccounts:
+    """Open an income account per source, and the account it is paid into.
+    Nothing is posted: income enters the books when it is paid."""
+    ids = await svc.profile.open_income_accounts(
         user_id, [i.model_dump(exclude_none=True) for i in body.incomes]
     )
-    return DeclaredEntries(entries_created=entry_ids)
+    return IncomeAccounts(income_accounts=ids)
 
 
 class RiskQuestionnaireRequest(BaseModel):
@@ -409,7 +417,8 @@ class DataExport(BaseModel):
     """The FIRE strategies an earlier Salli drafted with a model, newest
     first, as stored. Salli no longer makes them."""
     advisor_reports: list[dict[str, Any]]
-    """The advisor's reports, as stored."""
+    """Every report as stored: monthly briefings, and the advisor's earlier
+    reports with their recommendations."""
     reminders_and_alerts: list[dict[str, Any]]
     """Each as in `reminders.list`."""
     documents: list[dict[str, Any]]

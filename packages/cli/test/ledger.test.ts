@@ -33,7 +33,7 @@ describe('salli status', () => {
       Net worth       USD 14,034.50
         Assets        USD 15,234.50
         Liabilities   USD  1,200.00
-      Safe to spend   USD 1,234.56 until Nov 1, 2026, when Salary comes in
+      Free to spend   USD 1,234.56 until Nov 1, 2026, when Salary comes in
 
       October 2026 so far (Oct 1 – 9, 2026)
         Income        USD 5,000.00
@@ -265,6 +265,11 @@ describe('salli status', () => {
               "currency": "USD"
             }
           ],
+          "low_point": "1774.56",
+          "low_point_date": "2026-10-31",
+          "everyday_spending": "410.00",
+          "cushion": "120.00",
+          "held_for_goals": "0.00",
           "notes": [
             "Keeps one month of spending aside."
           ]
@@ -498,6 +503,20 @@ describe('salli entries', () => {
   it('filters by account and text', async () => {
     const result = await run(['entries', 'list', '--account', 'groceries', '--search', 'weekly', '--json']);
     expect(JSON.parse(result.stdout).map((e: { description: string }) => e.description)).toEqual(['Weekly groceries']);
+  });
+
+  it('searches on the server and prints its totals, never its own', async () => {
+    const result = await run(['entries', 'search', 'rent', '--account', 'checking', '--from', '2026-10-01', '--min', '10', '--limit', '1']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Rent for October');
+    expect(result.stdout).toContain('1 in all.');
+    expect(result.stdout).toContain('expense    USD 412.35');
+    const query = mock.requestsTo('GET', '/v1/entries/search')[0]?.query;
+    expect(Object.fromEntries(query ?? [])).toMatchObject({ text: 'rent', from_date: '2026-10-01', min_amount: '10', limit: '1' });
+    expect(query?.get('account_id')).toBeTruthy();
+
+    const json = JSON.parse((await run(['entries', 'search', 'o', '--limit', '1', '--json'])).stdout);
+    expect(json.next_cursor).toBe('next-page');
   });
 
   it('shows an entry with its postings, tags and provenance', async () => {

@@ -181,9 +181,9 @@ async def test_onboarding_refuses_a_malformed_tax_id(client, mock_services):
     mock_services.onboarding.complete.assert_not_awaited()
 
 
-async def test_declarations_return_the_entries_they_posted(client, mock_services):
+async def test_declarations_return_what_they_did(client, mock_services):
     mock_services.profile.declare_opening_balances.return_value = ["e-1", "e-2"]
-    mock_services.profile.declare_income.return_value = ["e-3"]
+    mock_services.profile.open_income_accounts.return_value = ["a-4100"]
 
     balances = await client.post(
         "/v1/onboarding/balance-sheet",
@@ -197,7 +197,11 @@ async def test_declarations_return_the_entries_they_posted(client, mock_services
     )
 
     assert balances.json() == {"entries_created": ["e-1", "e-2"]}
-    assert income.json() == {"entries_created": ["e-3"]}
+    # An amount sent with an income source is not booked.
+    assert income.json() == {"income_accounts": ["a-4100"]}
+    mock_services.profile.open_income_accounts.assert_awaited_once_with(
+        "test-user-1", [{"code": "4100", "name": "Salary"}]
+    )
 
 
 async def test_declared_goals_return_their_ids(client, mock_services):
@@ -313,7 +317,7 @@ def _portability_service(exporters=()) -> DataPortabilityService:
     fi.get_score_history.return_value = [
         {"score": 61.5, "net_worth": "1234.50", "created_at": "2026-01-02T00:00:00+00:00"}
     ]
-    advisor.list_reports.return_value = []
+    advisor.export_reports.return_value = []
     reminders.list_reminders.return_value = []
     documents.list_documents.return_value = []
     return DataPortabilityService(

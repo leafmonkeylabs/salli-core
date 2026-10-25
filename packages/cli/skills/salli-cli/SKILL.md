@@ -230,7 +230,7 @@ Other ids can be shortened to any unique prefix.
 | `status` | net worth, this month, FI score and what is due, on one screen |
 | `accounts` | chart of accounts: `list --balances`, `add`, `show <account>` (balance and history); `--asset-role cash\|investment\|other` says what an asset account holds |
 | `add "<text>"` | an entry drafted by the AI from a sentence; `--dry-run` only shows the draft |
-| `entries` | journal entries: `list`, `add`, `show <id>`, `reverse <id>`, `tag` |
+| `entries` | journal entries: `list`, `search [text]` (with Salli's totals over every match: quote them, never sum), `add`, `show <id>`, `reverse <id>`, `tag` |
 | `import <file>`, `statements` | bank statements: import, then `statements pending`, `post`, `discard`, `categorize` |
 | `ledger` | `trial-balance`, `income-statement` |
 | `insights` | `cash-flow`, `spending`, `net-worth`, `recurring`, `forecast`, `safe-to-spend`, `signals` |
@@ -246,7 +246,7 @@ Other ids can be shortened to any unique prefix.
 | `fi`, `goals` | `fi score`, `history`, `projections`, `surplus`, `strategy`, `assumptions` (`set`, `clear`); `goals list`, `goals allocate` |
 | `reports` | `balance-sheet`, `net-worth`, `goal-progress`, `export` |
 | `reminders` | `list`, `add`, `seed` (filing deadlines from the active tax rules), `sync-alerts` |
-| `advisor` | `run`, `latest`, `reports`, `apply`, `dismiss` |
+| `advisor` | `run`, `latest`, `reports`, `briefing`, `daily-briefing` |
 | `notifications` | the user's digest: `show`, `set` (`--on --time-zone <zone>`, `--off`, `--weekly`/`--monthly`, `--day`, `--hour`, `--items`), `preview` (the message that would go now; sends nothing), `log`. It says what is waiting, never what it is about. Turning it on or off is the user's choice: ask first |
 | `profile` | the user's fact-find (`get`, `set`); `export` for all their data |
 | `ui` | the console's address (`ui --no-open`), for the user to open in their own browser; signing in there, and activating tax rules there, is theirs |

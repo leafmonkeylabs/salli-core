@@ -31,6 +31,7 @@ TokenVerifier protocol.
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
@@ -40,6 +41,7 @@ from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import ToolAnnotations
 from pydantic import AnyHttpUrl, BaseModel, Field, WithJsonSchema
 
 from salli.application.permissions import Actor
@@ -53,11 +55,12 @@ from salli.application.services.fi_service import decimal_arg
 from salli.application.services.mcp_oauth_service import McpOAuthService
 from salli.application.services.tax_rule_service import TaxRuleError
 from salli.domain.agents.tools import computation_for_agent
+from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
 from salli.domain.decisions.templates import TemplateError, UnknownTemplate
 from salli.domain.scenarios import schema as scenario_schema
-from salli.domain.scenarios.engine import ScenarioError
+from salli.domain.scenarios.engine import STALE_AFTER_DAYS, ScenarioError
 
 #: A scenario document, as the tools take it: its JSON Schema written out in
 #: the tool's own input schema, so an agent sees every field. Salli
@@ -182,6 +185,28 @@ class TransactionChoice(BaseModel):
     need: str | None = Field(default=None, description="essential, discretionary or savings")
 
 
+def _writes(
+    *, over: bool = False, idempotent: bool = False, open_world: bool = False
+) -> ToolAnnotations:
+    """A tool that changes something. It only adds, unless `over`: it
+    replaces or removes, so sending it again changes nothing more, as
+    `idempotent` says of any other."""
+    return ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=over,
+        idempotentHint=idempotent or over,
+        openWorldHint=open_world,
+    )
+
+
+#: Every tool says what it does to the person's data (MCP tool annotations),
+#: so a client can run reads unasked and put every write to the person: the
+#: Salli app does (packages/mobile/src/lib/ai.ts).
+READS = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
+WRITES = _writes()
+WRITES_OVER = _writes(over=True)
+
+
 def _window(value: int, low: int, high: int) -> int:
     return max(low, min(high, value))
 
@@ -239,12 +264,11 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "spending, net worth over time, recurring payments, a cash forecast, "
             "budgets, debt payoff plans, portfolio, subscriptions, insurance coverage, "
             "tax position, transactions waiting for review, categorisation rules, "
-            "saved documents/memories, and the Wealth Advisor. Numbers returned by "
+            "saved documents/memories, and the monthly briefing. Numbers returned by "
             "read tools are authoritative and already computed by Salli: quote them, "
-            "never recompute, estimate or adjust them. Tools that write "
-            "(create_account, update_account, create_reminder, post_journal_entry, "
-            "categorize_transactions, post_transactions, discard_transactions, "
-            "create_rule, set_fi_assumption, and the document/memory writers) take effect "
+            "never recompute, estimate or adjust them. Start with get_overview; "
+            "search_entries finds booked transactions, with Salli's totals. Tools that "
+            "write (their annotations say they are not read-only) take effect "
             "immediately: show the user what you will do and get their go-ahead first. "
             "Every money figure comes from one model of the user's money as of a day; "
             "get_baseline shows it with the definitions behind it (months averaged, "
@@ -303,7 +327,105 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
+    async def get_overview() -> dict[str, Any]:
+        """Start here: where the user stands today, in one call. Net worth,
+        cash, free until payday (amount, until, its low point and day), what
+        needs attention (signals), the FI month and progress (a fraction; 1
+        is FI), reminders due within 30 days or overdue, and how fresh the
+        ledger is: when is_stale, say its newest entry is from data_as_of
+        before deciding anything. Every figure is Salli's: quote it. The
+        other tools have the detail."""
+        user_id = _current_user_id()
+        baseline, safe, signals, score, reminders = await asyncio.gather(
+            baseline_svc.build(user_id),
+            insights_svc.safe_to_spend(user_id),
+            insights_svc.signals(user_id),
+            fi_svc.compute_score(user_id),
+            reminders_svc.list_reminders(user_id, "pending"),
+        )
+        today, latest = baseline.as_of, baseline.latest_entry
+        within = (today + datetime.timedelta(days=30)).isoformat()
+        return {
+            "as_of": today.isoformat(),
+            "currency": baseline.currency,
+            "net_worth": str(quantize(baseline.net_worth, baseline.currency, strict=False)),
+            "cash": safe["cash_today"],
+            "free_until_payday": {
+                k: safe[k] for k in ("amount", "until", "low_point", "low_point_date")
+            },
+            "signals": [{"kind": s["kind"], "title": s["title"]} for s in signals["signals"]],
+            "fi": {
+                "month": score["projected_fi_month"],
+                "progress": score["progress_to_fi"],
+                "assumptions": score["assumptions"]["status"],
+            },
+            "due": [
+                {"kind": r["kind"], "due_date": str(r["due_date"]), "source": r["source_domain"]}
+                for r in reminders
+                if str(r["due_date"]) <= within
+            ],
+            "data_as_of": latest,
+            "is_stale": latest is None
+            or (today - datetime.date.fromisoformat(latest)).days > STALE_AFTER_DAYS,
+        }
+
+    @mcp.tool(annotations=READS)
+    async def search_entries(
+        text: str | None = None,
+        account_id: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        min_amount: str | None = None,
+        max_amount: str | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        """Find booked entries, newest first: by text in the description
+        (where the payee is), an account id (get_accounts), dates
+        (YYYY-MM-DD) and amount (decimal strings in the base currency, on
+        any posting, or on the account's). limit 1 to 200; pass next_cursor
+        as cursor for more. totals cover every match, not just this page:
+        per account type and currency, the net (debits less credits:
+        spending is positive on expense, income negative on income). For
+        "what did I spend at X?" quote totals; never add up entries."""
+        try:
+            found = await ledger_svc.search_entries(
+                _current_user_id(),
+                text=text or None,
+                account_id=account_id or None,
+                from_date=from_date or None,
+                to_date=to_date or None,
+                min_amount=None if not min_amount else decimal_arg(min_amount, "a minimum"),
+                max_amount=None if not max_amount else decimal_arg(max_amount, "a maximum"),
+                limit=_window(limit, 1, 200),
+                cursor=cursor or None,
+            )
+        except ValueError as exc:
+            return {"error": str(exc)}
+        return {
+            "entries": [
+                {
+                    "id": e.id,
+                    "date": e.entry_date,
+                    "description": e.description,
+                    "reversed_by": e.reversed_by,
+                    "postings": [
+                        {
+                            "account_id": p.account_id,
+                            "side": "debit" if p.direction.value > 0 else "credit",
+                            "amount": str(quantize(p.amount, p.currency, strict=False)),
+                            "currency": p.currency,
+                        }
+                        for p in e.postings
+                    ],
+                }
+                for e in found["entries"]
+            ],
+            **{k: v for k, v in found.items() if k != "entries"},
+        }
+
+    @mcp.tool(annotations=READS)
     async def get_trial_balance(
         from_date: str | None = None,
         to_date: str | None = None,
@@ -316,7 +438,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "net": str(sum(balances.values(), Decimal(0))),
         }
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_accounts() -> dict[str, Any]:
         """List all accounts in the user's chart of accounts. An asset account
         has an asset_role: cash, investment or other (a home, a car); planning
@@ -337,7 +459,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             ]
         }
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_tax_computation(
         year: str | None = None,
         country: str | None = None,
@@ -364,7 +486,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return _refusal(exc)
         return _jsonable(computation_for_agent(result))
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def explain_tax_line(
         line_key: str,
         year: str | None = None,
@@ -391,14 +513,14 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except (LookupError, ValueError) as exc:
             return _refusal(exc)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_financial_profile() -> dict[str, Any]:
         """Return the user's fact-find profile: risk category, risk score, life stage,
         dependents, employment status, and residency."""
         user_id = _current_user_id()
         return await profile_svc.get_profile(user_id)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_budget_summary(budget_id: str | None = None) -> dict[str, Any]:
         """Return a budget's category limits vs. actual spend for its period."""
         user_id = _current_user_id()
@@ -412,7 +534,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return {"error": f"Budget {budget_id} not found"}
         return summary
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_payoff_plan(
         extra_monthly_payment: str = "0",
         strategy: str = "avalanche",
@@ -430,7 +552,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except (ArithmeticError, ValueError) as exc:
             return {"error": f"Could not plan that: {exc}"}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_portfolio_summary(target_allocation: str | None = None) -> dict[str, Any]:
         """Return the user's investment allocation by asset class, total gain/ROI,
         and (if a target allocation is given) rebalancing drift alerts. Target
@@ -445,7 +567,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
                     parsed_target[asset_class] = Decimal(pct)
         return await portfolio_svc.get_summary(user_id, parsed_target)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_holdings(include_sold: bool = False) -> dict[str, Any]:
         """The user's holdings, each by their own id, symbol and name (their
         words for it), with its units, cost and value at their last recorded
@@ -457,7 +579,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         holdings = await portfolio_svc.list_holdings(_current_user_id(), not include_sold)
         return {"holdings": holdings}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def link_holding(holding_id: str, account_id: str | None) -> dict[str, Any]:
         """Link one of the user's holdings to the investment account in their
         ledger that holds it (an asset account with the investment role), or
@@ -478,7 +600,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "link_holding", params)
         return {"holding_id": holding_id, "account_id": account_id, "updated": True}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_subscription_report(subscription_id: str | None = None) -> dict[str, Any]:
         """Return missed-charge/price-change report(s) for the user's recurring
         subscriptions."""
@@ -491,7 +613,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return {"error": f"Subscription {subscription_id} not found"}
         return report
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_coverage_report() -> dict[str, Any]:
         """Return the user's insurance coverage-gap report: declared target vs.
         actual coverage per policy type, uncovered policy types, and policies
@@ -500,20 +622,21 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         today = datetime.date.today().isoformat()
         return await insurance_svc.get_report(user_id, today)
 
-    @mcp.tool()
-    async def get_latest_advisor_report() -> dict[str, Any]:
-        """Return the user's most recent Wealth Advisor report (summary, FIRE tier
-        assessment, prioritised recommendations) without generating a new one."""
+    @mcp.tool(annotations=READS)
+    async def get_latest_briefing() -> dict[str, Any]:
+        """Return the user's most recent monthly briefing without writing a new
+        one: a summary and notes describing Salli's own figures and signals
+        (every figure filled in by Salli), and the figures it was written from.
+        It describes and never advises."""
         user_id = _current_user_id()
         report = await advisor_svc.get_latest_report(user_id)
-        return report or {"error": "No advisor report found yet."}
+        return report or {"error": "No briefing yet."}
 
-    @mcp.tool()
-    async def run_wealth_advisor() -> dict[str, Any]:
-        """Generate a fresh Wealth Advisor report now — a structured, strategy-linked
-        mentoring pass over the user's FI score, FIRE strategy, and goals. It is a
-        fresh model run, so prefer get_latest_advisor_report unless the user
-        explicitly asks for a fresh analysis."""
+    @mcp.tool(annotations=_writes(open_world=True))
+    async def run_briefing() -> dict[str, Any]:
+        """Write and store a fresh monthly briefing now: Salli's figures and
+        signals, narrated, never advice. It is a fresh model run, so prefer
+        get_latest_briefing unless the user asks for a new one."""
         from salli.domain.llm import LLMError
         from salli.domain.usage import UsageLimitReached
 
@@ -525,7 +648,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     # ── Documents & memories ─────────────────────────────────────────────
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def save_document(
         title: str,
         content: str | None = None,
@@ -546,7 +669,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
         return {"doc_id": doc_id, "title": title, "saved": True}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def read_document(doc_id: str) -> dict[str, Any]:
         """Retrieve a saved document by its ID."""
         user_id = _current_user_id()
@@ -555,7 +678,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return {"error": f"Document {doc_id} not found"}
         return doc
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def update_document(
         doc_id: str,
         title: str | None = None,
@@ -569,7 +692,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await documents_svc.update_document(user_id, doc_id, **updates)
         return {"doc_id": doc_id, "updated": list(updates.keys())}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_documents(
         namespace: str | None = None,
         tags: list[str] | None = None,
@@ -595,7 +718,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             ]
         }
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def delete_document(doc_id: str) -> dict[str, Any]:
         """Permanently delete a document from the user's document store."""
         user_id = _current_user_id()
@@ -603,7 +726,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "delete_document", {"doc_id": doc_id})
         return {"doc_id": doc_id, "deleted": True}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def save_memory(slug: str, value: str) -> dict[str, Any]:
         """Save or update a named memory (e.g. 'accountant_name', 'tax_year_goal').
         Calling save_memory with the same slug overwrites the previous value."""
@@ -611,7 +734,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await documents_svc.save_memory(user_id, slug=slug, value=value)
         return {"slug": slug, "saved": True}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_memory(slug: str) -> dict[str, Any]:
         """Retrieve a named memory by its slug key."""
         user_id = _current_user_id()
@@ -625,7 +748,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "updated_at": mem.get("updated_at"),
         }
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_memories() -> dict[str, Any]:
         """List all named memories stored for this user."""
         user_id = _current_user_id()
@@ -645,7 +768,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     # ── Writes (no in-chat approval step — the OAuth grant is the approval;
     # every call is still recorded to the audit log) ─────────────────────
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def create_account(
         code: str,
         name: str,
@@ -677,7 +800,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "create_account", params)
         return {"account_id": account_id, "code": code, "name": name, "created": True}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def update_account(
         account_id: str,
         code: str | None = None,
@@ -717,7 +840,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "updated": True,
         }
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def create_reminder(description: str, due_date: str) -> dict[str, Any]:
         """Create a new reminder / deadline. due_date is YYYY-MM-DD."""
         user_id = _current_user_id()
@@ -726,7 +849,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "create_reminder", params)
         return {"reminder_id": reminder_id, "description": description, "due_date": due_date}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def post_journal_entry(
         entry_date: str,
         description: str,
@@ -735,12 +858,15 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         amount: str,
         currency: str = "",
         fx_rate: str = "",
+        client_ref: str | None = None,
     ) -> dict[str, Any]:
         """Post a double-entry journal entry to the ledger. amount is a decimal
         string, e.g. '10000.00'. currency is an ISO 4217 code; leave it empty
         for the user's base currency. For another currency, fx_rate is units of
         the base currency per unit (the rate the bank used); leave it empty to
-        use the published rate for entry_date."""
+        use the published rate for entry_date. client_ref: your own id for
+        this entry (up to 200 characters); sent again, it books nothing and
+        returns the entry first booked with it, so a retry never books twice."""
         from salli.domain.accounting.models import Direction
 
         user_id = _current_user_id()
@@ -770,26 +896,36 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
                 "fx_rate": rate,
             },
         ]
+        if client_ref is not None and not 0 < len(client_ref) <= 200:
+            return {"error": "client_ref is 1 to 200 characters"}
         try:
-            entry_id = await ledger_svc.add_entry(
-                user_id, entry_date, description, "manual", postings_data
-            )
+            if client_ref is None:
+                entry_id = await ledger_svc.add_entry(
+                    user_id, entry_date, description, "manual", postings_data
+                )
+                posted = True
+            else:
+                entry_id, posted = await ledger_svc.add_entry_once(
+                    user_id, entry_date, description, postings_data, client_ref
+                )
         except (ValueError, LookupError) as exc:
             # LookupError covers FxUnavailableError: no published rate, so the
             # caller has to send fx_rate.
             return {"error": f"Could not post entry: {exc}"}
+        if not posted:
+            return {"entry_id": entry_id, "posted": False, "already_posted": True}
         await _log_audit(ledger_svc, user_id, "post_journal_entry", params)
         return {"entry_id": entry_id, "posted": True}
 
     # ── Insights and the forecast ────────────────────────────────────────────
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_cash_flow(months: int = 12) -> dict[str, Any]:
         """Income, spending, what was left and the savings rate, month by month,
         ending with this month, in the user's base currency."""
         return await insights_svc.cash_flow(_current_user_id(), _window(months, 1, 120))
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_spending(months: int = 3, by: str = "category") -> dict[str, Any]:
         """Where the money went over the last `months` months, largest first: by
         "category", "account" or "need", with each month's figure and its share."""
@@ -797,19 +933,19 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return {"error": "by is category, account or need"}
         return await insights_svc.spending(_current_user_id(), _window(months, 1, 120), by)  # type: ignore[arg-type]
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_net_worth_history(months: int = 24) -> dict[str, Any]:
         """What the user owns less what they owe, at the end of each month."""
         return await insights_svc.net_worth(_current_user_id(), _window(months, 1, 600))
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_recurring_payments() -> dict[str, Any]:
         """Payments that keep coming back (subscriptions, rent, bills) found in
         the ledger, when each is next expected, and whether a declared
         subscription already tracks it."""
         return await insights_svc.recurring(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_cash_forecast(days: int = 60) -> dict[str, Any]:
         """Each cash account's balance from today to `days` ahead (at most 366),
         the total, its lowest point and the day it falls, and the expected
@@ -817,14 +953,19 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         "will I make it to payday": never estimate a future balance yourself."""
         return await insights_svc.forecast(_current_user_id(), _window(days, 1, 366))
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_safe_to_spend() -> dict[str, Any]:
-        """How much could go out today without the user's cash forecast dropping
-        below zero before money next comes in, with what is committed until
-        then. The first thing to check for "can I afford it right now?"."""
+        """Free to spend until payday: the lowest the user's cash gets before
+        money next comes in, after scheduled bills (`committed`) and their usual
+        everyday spending, less a cushion and the cash set aside for goals.
+        `amount` is `low_point` (the lowest the cash gets, on `low_point_date`)
+        less `cushion` and `held_for_goals`; `everyday_spending` runs to
+        `until`, so it does not subtract from today's cash to give `amount`.
+        Quote figures as given. It is an estimate from past spending, not a
+        guarantee: say so when it decides an answer."""
         return await insights_svc.safe_to_spend(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_signals() -> dict[str, Any]:
         """What in the user's finances needs attention now, most pressing first:
         cash running out before payday, a subscription that got dearer, a new
@@ -832,7 +973,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         transactions waiting for review. Each comes with its evidence."""
         return await insights_svc.signals(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_scenario_schema() -> dict[str, Any]:
         """The JSON Schema of a scenario document (salli.scenario/1): the
         baseline plus changes (one_off, recurring, income_change, loan,
@@ -869,7 +1010,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         supply one."""
         return scenario_schema.json_schema()
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_decision_templates() -> dict[str, Any]:
         """Salli's decision templates: common decisions (afford-it, debt-or-invest,
         windfall, big-change, borrow, emergency-fund, rent-or-buy) as a few
@@ -886,7 +1027,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         never supply one."""
         return await template_svc.every(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def start_decision(
         template: str,
         answers: dict[str, Any] | None = None,
@@ -930,7 +1071,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except (UnknownTemplate, AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def run_scenario(scenario: ScenarioDocument) -> dict[str, Any]:
         """Run a scenario (salli.scenario/1, see get_scenario_schema) on the
         user's baseline. Every figure comes under the baseline, under the
@@ -956,7 +1097,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def compare_options(options: ScenarioOptions) -> dict[str, Any]:
         """Compare two to five options, each a scenario with its own label
         (salli.scenario/1, one as_of and one horizon for all), on the user's
@@ -981,7 +1122,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         client_id = _current_client_id()
         return await services.mcp_oauth.client_name(client_id) if client_id else None
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_principles() -> dict[str, Any]:
         """The user's principles: their own rules of thumb, each a label and a
         check over Salli's decision figures (emergency_months >= 6). Also the
@@ -992,7 +1133,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         user_id = _current_user_id()
         return {**await principle_svc.list(user_id), **principle_svc.figures()}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def add_principle(
         label: str,
         check: str,
@@ -1023,7 +1164,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "add_principle", {"label": label, "check": check})
         return stored
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def check_principles(options: CheckedOptions | None = None) -> dict[str, Any]:
         """Check the user's principles against their baseline and up to five
         options (scenarios, as run_scenario takes; none checks the baseline
@@ -1037,7 +1178,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except (AccountNotFound, DebtNotFound, HoldingNotFound) as exc:
             return {"error": str(exc)}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def record_decision(
         question: str,
         options: DecisionOptions,
@@ -1085,14 +1226,14 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
         return recorded
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_decisions() -> dict[str, Any]:
         """The user's decision journal, newest first: each decision's
         question, the option chosen, its review date and whether it is
         awaiting review, due, or reviewed. get_decision has the whole entry."""
         return await decision_svc.list(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_decision(decision_id: str) -> dict[str, Any]:
         """One decision as recorded: the options with their figures and
         projections, the principles' checks, the choice, the person's
@@ -1103,7 +1244,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except DecisionNotFound as exc:
             return {"error": str(exc)}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_due_reviews() -> dict[str, Any]:
         """Decisions whose review date has come and that have no review yet,
         each with the person's reasons and what the chosen option projected
@@ -1113,7 +1254,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         with review_decision once they agree. Stores nothing."""
         return await decision_svc.due(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def review_decision(
         decision_id: str, reflection: str, confirmed_by_user: Literal[True]
     ) -> dict[str, Any]:
@@ -1139,7 +1280,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "review_decision", {"decision_id": decision_id})
         return reviewed
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_fi_projections() -> dict[str, Any]:
         """The user's financial-independence projections: their cash and
         investments less their debts, on the baseline's monthly timeline (the
@@ -1154,14 +1295,14 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         assumptions.message. Quote the figures exactly."""
         return await fi_svc.get_projections(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_fi_assumptions() -> dict[str, Any]:
         """The planning assumptions behind the user's FI figures: which apply
         and where each came from (applied), what the user set with their
         sources (own), and the placeholders that stand in for the rest."""
         return await fi_svc.assumptions(_current_user_id())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_baseline(as_of: str | None = None, horizon_years: int = 10) -> dict[str, Any]:
         """The user's money as of a day (as_of, YYYY-MM-DD; omit for today):
         the one model FI, insights, the cash forecast and the debt plan compute
@@ -1185,7 +1326,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except ValueError as exc:
             return {"error": f"Could not read the baseline: {exc}"}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def set_fi_assumption(
         name: Literal[
             "real_return", "nominal_return", "inflation", "safe_withdrawal_rate", "surplus_invested"
@@ -1220,7 +1361,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     # ── Transactions waiting for review ──────────────────────────────────────
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_pending_transactions(statement_id: str | None = None) -> dict[str, Any]:
         """Transactions imported from statements or bank connections and waiting
         for review: date, description, amount (a decimal string, always
@@ -1250,7 +1391,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             ]
         }
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def categorize_transactions(choices: list[TransactionChoice]) -> dict[str, Any]:
         """Choose where pending transactions go (the account from get_accounts
         that the money came from or went to, and optionally a category and a
@@ -1268,7 +1409,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         await _log_audit(ledger_svc, user_id, "categorize_transactions", {"choices": len(updated)})
         return {"updated": updated}
 
-    @mcp.tool()
+    @mcp.tool(annotations=_writes(idempotent=True))
     async def post_transactions(transaction_ids: list[str]) -> dict[str, Any]:
         """Book pending transactions as journal entries, with the accounts chosen
         for them. Only after the user has approved exactly these. A transaction
@@ -1280,7 +1421,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
         return {"posted": len(entry_ids), "entry_ids": entry_ids}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES_OVER)
     async def discard_transactions(
         statement_id: str, transaction_ids: list[str] | None = None
     ) -> dict[str, Any]:
@@ -1300,13 +1441,13 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
 
     # ── Rules ────────────────────────────────────────────────────────────────
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def suggest_rules() -> dict[str, Any]:
         """Rules the user's own bookkeeping implies: payees they always book to
         the same account. Offer them; create one with create_rule if they agree."""
         return {"suggestions": await rules_svc.suggestions(_current_user_id())}
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def create_rule(
         name: str,
         description_contains: str,
@@ -1347,20 +1488,20 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         # MCP is always an agent: no sign-in through it carries tax:activate.
         return Actor.signed_in(_current_user_id(), "mcp", name=name)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     def get_tax_rule_schema() -> dict[str, Any]:
         """The JSON Schema (Draft 2020-12) of a Salli tax rule set
         (`salli.tax/1`). Write rule sets against it; the validator also checks
         unique keys, declared sources, expressions and worked examples."""
         return {"schema": tax_rules_svc.schema()}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def list_tax_rule_sets() -> dict[str, Any]:
         """The user's tax rule sets (one per jurisdiction and year), each with
         its versions' statuses and which one is active."""
         return {"rule_sets": _jsonable(await tax_rules_svc.list_rule_sets(_current_user_id()))}
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def get_tax_rule_set(rule_set_id: str, version_id: str | None = None) -> dict[str, Any]:
         """One rule set and its versions; with version_id, that version's
         document and last validation report instead."""
@@ -1373,7 +1514,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         except TaxRuleError as exc:
             return _refusal(exc)
 
-    @mcp.tool()
+    @mcp.tool(annotations=WRITES)
     async def draft_tax_rule_set(
         document: str | dict[str, Any],
         rule_set_id: str | None = None,
@@ -1397,7 +1538,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
         return _version_view(version)
 
-    @mcp.tool()
+    @mcp.tool(annotations=_writes(idempotent=True))
     async def validate_tax_rule_set(version_id: str) -> dict[str, Any]:
         """Validate a version again: its errors (with paths and the mistake in
         each expression), warnings, and every worked example, with each figure
@@ -1413,7 +1554,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         )
         return _version_view(version)
 
-    @mcp.tool()
+    @mcp.tool(annotations=_writes(idempotent=True))
     async def propose_tax_rule_set(version_id: str) -> dict[str, Any]:
         """Propose a validated version for the user to review and activate. It
         must pass validation. You can't activate it: tell the user to review
@@ -1435,7 +1576,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             ),
         }
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def diff_tax_rule_set_versions(
         rule_set_id: str, to_version_id: str, from_version_id: str | None = None
     ) -> dict[str, Any]:
@@ -1450,7 +1591,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return _refusal(exc)
         return _jsonable(diff)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def evaluate_tax_rule_set(
         version_id: str,
         answers: dict[str, str | bool] | None = None,
@@ -1469,30 +1610,42 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             return _refusal(exc)
         return _jsonable(result)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READS)
     async def suggested_tax_accounts(
-        rule_set_id: str, apply: bool = False, version_id: str | None = None
+        rule_set_id: str, version_id: str | None = None
     ) -> dict[str, Any]:
         """The accounts a rule set suggests (from its active version, else its
         newest), each with whether the user already has one with that code.
-        With apply=true, the missing ones are created in the user's base
-        currency with their tax roles; accounts that exist are left as they
-        are, so it is safe to repeat. Creating accounts takes effect at once:
-        show the user the list and get their go-ahead before applying."""
-        actor = await _agent()
+        apply_suggested_tax_accounts creates the missing ones."""
         try:
             result = await tax_rules_svc.suggested_accounts(
-                actor, rule_set_id, version_id=version_id, apply=apply
+                await _agent(), rule_set_id, version_id=version_id
             )
         except TaxRuleError as exc:
             return _refusal(exc)
-        if apply:
-            await _log_audit(
-                ledger_svc,
-                actor.user_id,
-                "suggested_tax_accounts",
-                {"rule_set_id": rule_set_id, "version_id": result["version_id"]},
+        return _jsonable(result)
+
+    @mcp.tool(annotations=_writes(idempotent=True))
+    async def apply_suggested_tax_accounts(
+        rule_set_id: str, version_id: str | None = None
+    ) -> dict[str, Any]:
+        """Create the suggested accounts the user lacks, in their base
+        currency with their tax roles; those that exist are left as they
+        are, so it is safe to repeat. Takes effect at once: show the user
+        suggested_tax_accounts' list and get their go-ahead first."""
+        actor = await _agent()
+        try:
+            result = await tax_rules_svc.suggested_accounts(
+                actor, rule_set_id, version_id=version_id, apply=True
             )
+        except TaxRuleError as exc:
+            return _refusal(exc)
+        await _log_audit(
+            ledger_svc,
+            actor.user_id,
+            "apply_suggested_tax_accounts",
+            {"rule_set_id": rule_set_id, "version_id": result["version_id"]},
+        )
         return _jsonable(result)
 
     # ── Prompts: what a user can start with in their AI client ──────────────
@@ -1500,7 +1653,7 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
     @mcp.prompt()
     def review_my_month(month: str = "") -> str:
         """A short review of the month: what came in and went out, what
-        changed, what needs attention, and a few actions."""
+        changed, and what needs attention."""
         when = f"for {month}" if month else "for this month"
         return (
             f"Review my finances {when} with Salli's tools: start with get_signals, "
@@ -1509,8 +1662,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "numbers exactly; never compute or estimate amounts yourself. Tell me, "
             "briefly: how this month compares with my usual months, anything that "
             "needs attention (a forecast low point before payday, a new or more "
-            "expensive recurring charge, a category well above usual), and at most "
-            "three concrete things I could do. Keep it short and plain."
+            "expensive recurring charge, a category well above usual). Describe; "
+            "don't tell me what to do. Keep it short and plain."
         )
 
     @mcp.prompt()
@@ -1661,7 +1814,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
             "changed (diff_tax_rule_set_versions) and the source of each figure. You "
             "can't activate rules, and shouldn't ask me for anything that would. "
             "8. Offer the accounts the rules suggest (suggested_tax_accounts), so my "
-            "ledger feeds the rules' roles; create them only if I say yes. "
+            "ledger feeds the rules' roles; create them (apply_suggested_tax_accounts) "
+            "only if I say yes. "
             "Never compute tax yourself, not even as an estimate: Salli's engine "
             "computes (evaluate_tax_rule_set), and you quote its figures."
         )
@@ -1679,8 +1833,8 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         get_portfolio_summary,
         get_subscription_report,
         get_coverage_report,
-        get_latest_advisor_report,
-        run_wealth_advisor,
+        get_latest_briefing,
+        run_briefing,
         save_document,
         read_document,
         update_document,
@@ -1733,6 +1887,9 @@ def build_mcp_server(services: Any, issuer_url: str) -> FastMCP:
         diff_tax_rule_set_versions,
         evaluate_tax_rule_set,
         suggested_tax_accounts,
+        apply_suggested_tax_accounts,
+        search_entries,
+        get_overview,
         research_tax_rules,
         review_my_month,
         sort_pending_transactions,

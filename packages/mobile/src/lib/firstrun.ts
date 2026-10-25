@@ -8,7 +8,13 @@ import { normalizeAmountInput } from '@leafmonkeylabs/salli-sdk';
 export interface Line {
   name: string;
   amount: string;
+  /** For something you own: what kind of money it is. */
+  role?: AssetRole;
 }
+
+/** Cash is what you spend from; investments grow; other (a home, a car) is neither. */
+export type AssetRole = 'cash' | 'investment' | 'other';
+export const ROLES: readonly AssetRole[] = ['cash', 'investment', 'other'];
 
 /** A typed amount as a decimal string, or undefined when it isn't one (or is nothing). */
 export function amountOf(typed: string): string | undefined {
@@ -17,30 +23,42 @@ export function amountOf(typed: string): string | undefined {
 }
 
 /** The lines worth sending: named, with an amount. */
-export function filled(lines: readonly Line[]): { name: string; amount: string }[] {
+export function filled(lines: readonly Line[]): { name: string; amount: string; role?: AssetRole }[] {
   return lines.flatMap((l) => {
     const amount = amountOf(l.amount);
-    return l.name.trim() && amount ? [{ name: l.name.trim(), amount }] : [];
+    return l.name.trim() && amount ? [{ name: l.name.trim(), amount, ...(l.role ? { role: l.role } : {}) }] : [];
   });
+}
+
+/** Whether every line you own that would be sent says what kind it is. */
+export function rolesGiven(own: readonly Line[]): boolean {
+  return filled(own).every((l) => l.role !== undefined);
 }
 
 /** Opening balances: what you own from 1500, what you owe from 2500, ten apart. */
 export function balancesOf(own: readonly Line[], owe: readonly Line[]) {
   return [
-    ...filled(own).map((l, i) => ({ code: String(1500 + i * 10), name: l.name, type: 'asset' as const, amount: l.amount })),
+    ...filled(own).map((l, i) => ({ code: String(1500 + i * 10), name: l.name, type: 'asset' as const, amount: l.amount, ...(l.role ? { asset_role: l.role } : {}) })),
     ...filled(owe).map((l, i) => ({ code: String(2500 + i * 10), name: l.name, type: 'liability' as const, amount: l.amount })),
   ];
 }
 
-/** Income sources from 4700, paid into the first account you own (or the starter bank account). */
+/**
+ * Income sources from 4700, by name only: nothing is booked until you are
+ * paid. Paid into the first cash account you own (or the starter bank account).
+ */
 export function incomesOf(incomes: readonly Line[], own: readonly Line[]) {
-  const [first] = filled(own);
-  return filled(incomes).map((l, i) => ({
-    code: String(4700 + i * 10),
-    name: l.name,
-    amount: l.amount,
-    ...(first ? { deposit_account_code: '1500', deposit_account_name: first.name } : {}),
-  }));
+  const owned = filled(own);
+  const at = owned.findIndex((l) => l.role === 'cash');
+  const into = owned[at];
+  return incomes
+    .map((l) => l.name.trim())
+    .filter(Boolean)
+    .map((name, i) => ({
+      code: String(4700 + i * 10),
+      name,
+      ...(into ? { deposit_account_code: String(1500 + at * 10), deposit_account_name: into.name } : {}),
+    }));
 }
 
 /** Goals with a name; an amount and a date when given. */

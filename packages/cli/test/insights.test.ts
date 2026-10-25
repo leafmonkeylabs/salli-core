@@ -89,8 +89,9 @@ describe('salli insights', () => {
 
   it('says what is safe to spend, and what needs attention', async () => {
     expect((await run(['insights', 'safe-to-spend'])).stdout).toMatchInlineSnapshot(`
-      "Safe to spend USD 1,234.56 until Nov 1, 2026, when Salary comes in
+      "Free until payday USD 1,234.56 until Nov 1, 2026, when Salary comes in
       Cash today USD 12,784.50; 1 payment expected before then.
+      Less everyday spending USD 410.00, a cushion of USD 120.00 and USD 0.00 set aside for goals.
       DATE          WHAT          AMOUNT
       Oct 20, 2026  Streaming  USD 15.99
       "

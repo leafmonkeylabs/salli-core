@@ -67,7 +67,8 @@ export const strings = {
     title: 'Home',
     switchServer: (host: string) => `Server: ${host}, signed in. Switch server`,
     add: 'Add an entry',
-    safe: 'Safe to spend',
+    safe: 'Free until payday',
+    safe30: 'Free for 30 days',
     safeUntil: (date: string, what: string) => `until ${date} · ${what}`,
     safeUntilSpoken: (date: string, what: string) => `until ${date}, when ${what} comes in`,
     safeNoIncome: 'No income expected',
@@ -333,8 +334,11 @@ export const strings = {
     owe: 'Owe',
     ownPlaceholder: 'Checking',
     owePlaceholder: 'Credit card',
-    monthly: 'Each month',
+    paidBy: 'Where it comes from',
     incomePlaceholder: 'Salary',
+    incomeNote: 'Nothing is booked now. Your pay goes into your books when it arrives.',
+    kindOf: (name: string) => `${name} is`,
+    roles: { cash: 'Cash to spend', investment: 'Investments', other: 'Other, like a home' } as Record<string, string>,
     another: 'Another',
     what: 'what',
     amount: 'amount',
@@ -683,7 +687,7 @@ export const strings = {
 
   /** The widgets' words: the app writes them with the figures, so the widget holds none of its own. */
   glance: {
-    safe: 'Safe to spend',
+    safe: 'Free until payday',
     hidden: 'Amount hidden',
     until: (date: string) => `until ${date}`,
     noIncome: 'No income expected',

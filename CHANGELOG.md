@@ -2,7 +2,91 @@
 
 ## Unreleased
 
-### Removed
+Every change under **Breaking** needs something written against the last
+release to change with it, so the next releases are minor bumps: the SDK and
+the CLI are 0.5.0, and the server's next release is 0.5.0
+([RELEASING.md](RELEASING.md#breaking-changes)).
+
+### Added
+
+- **Your AI starts from where you stand, and can find what you booked.**
+  MCP `get_overview` is one small read of Salli's figures: net worth, cash,
+  free until payday and its low point, signals, the FI month and progress,
+  reminders due within 30 days, and how fresh the ledger is (`data_as_of`,
+  `is_stale`). MCP `search_entries` finds entries by text, account, dates
+  and amount, a page at a time (`next_cursor`), with the server's totals
+  over every match, so "what did I spend at the bakery?" needs no sum by
+  the model. The same search is `GET /v1/entries/search` and
+  `salli entries search`.
+- **Every MCP tool says whether it only reads** (MCP tool annotations:
+  `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). The
+  Salli app now runs unasked only the tools the server marks read-only, and
+  asks about every other, in place of guessing from their names.
+- **A retried entry books once.** MCP `post_journal_entry` takes an optional
+  `client_ref`; sent again, it returns the entry first booked with it
+  (`already_posted`) and books nothing.
+
+- **A briefing says an AI wrote it.** `AdvisoryReport` and `BriefingDraft`
+  carry `written_by` (`"ai"`) and a `notice` ("Written by an AI from Salli's
+  own figures. Not financial advice."), which `salli advisor` prints under
+  every briefing in place of its own words.
+- **Security and privacy, written down.** `docs/security.md` (the threat
+  model, and the controls with the gaps still open), `docs/privacy.md` (what
+  Salli stores, who else sees it and when, retention, export and erasure,
+  and an impact assessment template), response times and supported versions
+  in `SECURITY.md`, and a breaking-change policy in `RELEASING.md`.
+- **The supply chain is checked.** Every workflow's actions are pinned to
+  commit SHAs; Dependabot updates Python, npm, actions and base images
+  weekly; CodeQL scans the Python and TypeScript; and CI runs pip-audit and
+  npm audit (reporting only, until the current findings are fixed).
+
+### Breaking
+
+#### Changed
+
+- **MCP: `suggested_tax_accounts` only reads** (breaking for MCP clients):
+  its `apply` is gone, and `apply_suggested_tax_accounts` creates the
+  missing accounts.
+
+- **The advisor is a monthly briefing.** It describes Salli's own figures and
+  signals and gives no advice: no recommendation, priority, product or rate
+  research. The model writes sentences with slots (`{spending}`) and Salli
+  fills in every figure; a draft that writes a digit, advises, judges or
+  names a kind of product is refused and asked for once more.
+  - API (still v1): `AdvisoryReport` and `BriefingDraft` now carry `summary`,
+    `notes`, `figures`, `signals` and `assumptions`, in place of
+    `fire_tier_assessment` and `recommendations`.
+    `POST /v1/advisor/reports/{report_id}/recommendations/{rec_id}/apply` and
+    `/dismiss` are gone. The reads list briefings only; the advisor's earlier
+    reports, with their recommendations, stay in the export.
+  - MCP and the agent: `get_latest_advisor_report` and `run_wealth_advisor`
+    are now `get_latest_briefing` and `run_briefing`.
+  - CLI: `salli advisor apply` and `dismiss` are gone; `run`, `latest`,
+    `reports` and `briefing` show the briefing.
+  - Migration `core_0024_briefings` adds `advisory_reports.briefing`.
+
+- **Safe to spend is "free until payday".** It used to be your cash less
+  scheduled bills only. Now it also takes off a usual day's everyday spending
+  until payday, a cushion (a tenth of a usual month's spending) and the cash
+  set aside for goals. `GET /v1/insights/safe-to-spend` adds `low_point`,
+  `low_point_date`, `everyday_spending`, `cushion` and `held_for_goals`;
+  `amount` (breaking: same field, new meaning) is the low point less the
+  cushion and goals' cash. Scenarios and principle checks read the same
+  figure.
+
+- **First run books only what is true.** An opening balance for something
+  you own takes an `asset_role` (cash, investment or other); without one it
+  is "other", never cash, so a brokerage account or a car no longer counts as
+  money to spend. An opening balance in another currency opens its account
+  in that currency (it used to open in the base currency, freezing it at the
+  day's rate), and one for an existing account in another currency is
+  refused. `POST /v1/onboarding/income` opens an income account per
+  source and posts nothing (it used to book a made-up month of pay dated
+  today); it answers `income_accounts`, and `amount`, `currency` and
+  `fx_rate` are gone from `IncomeItem`. `salli profile balance-sheet` takes
+  `CODE:NAME:TYPE:AMOUNT[:ROLE]`; `salli profile income` takes `CODE:NAME`.
+
+#### Removed
 
 - **The FIRE strategy generator.** A model no longer drafts a FIRE strategy:
   its allocation buckets, returns and withdrawal rate amounted to

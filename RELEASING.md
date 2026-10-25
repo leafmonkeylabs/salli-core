@@ -14,6 +14,39 @@ The CLI, the SDK and the console's npm package are released by
 [`release.yml`](.github/workflows/release.yml), the image by
 [`image.yml`](.github/workflows/image.yml) ([below](#the-server-image)).
 
+## Breaking changes
+
+A change is **breaking** when something written against the last release
+stops working or quietly means something else:
+
+- **REST API:** a route, method, field or enum value removed or renamed; a
+  field whose meaning changes (the same name, a different figure); a request
+  field newly required, or a value accepted before now refused; a status code
+  or problem type changed for the same request. Adding a route, an optional
+  request field or a response field is not breaking: clients ignore fields
+  they don't know.
+- **SDK:** an exported function, type or option removed or renamed, or a
+  type narrowed so that code which compiled no longer does.
+- **CLI:** a command, option or argument format removed or renamed, a
+  default changed, an exit code changed, or `--json` output reshaped.
+  Wording meant for people may change freely.
+- **MCP:** a tool or prompt removed or renamed, or a tool's arguments or
+  result reshaped. AI clients call tools by name, so a rename is breaking
+  even when the tool does the same thing.
+
+A breaking change:
+
+1. is listed in `CHANGELOG.md` under **Breaking**, saying what to do
+   instead;
+2. ships with a minor version bump while the part is before 1.0 (0.4 to
+   0.5), and a major one from 1.0 (1.x to 2.0), for each part it touches:
+   the server, the SDK, the CLI;
+3. keeps a removed REST route answering `410 Gone`, with a problem saying
+   what replaced it, for one minor release where practical.
+
+The API stays under `/v1` before 1.0; a breaking change there is announced
+by the server's version and the changelog, not by a new path.
+
 ## The CLI and SDK
 
 Pushing a tag tests, builds and packs the package, then **stages** it on npm with
@@ -144,8 +177,7 @@ can build against exactly the open console its base image carries.
 - The npm package is the console's source (`src/`), which an edition's own
   Vite build compiles; it depends on `@leafmonkeylabs/salli-sdk` at an exact
   version. **Release that SDK version first** (`sdk-v<version>`): the release
-  stops while it isn't on npm. The console in this tree needs SDK 0.4.0 (its
-  browser token provider).
+  stops while it isn't on npm. The console in this tree needs SDK 0.5.0.
 - The first release of the console is staged with the bootstrap token, like
   the others' first releases ([above](#once-the-first-release)). 0.4.0 was
   that release.

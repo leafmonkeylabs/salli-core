@@ -383,7 +383,7 @@ export function showRun(app: App, run: ScenarioRun): void {
       change: cash.lowest_date.delta_days ? `${plural(Math.abs(cash.lowest_date.delta_days), 'day')} ${cash.lowest_date.delta_days > 0 ? 'later' : 'sooner'}` : 'same day',
     },
     amountRow(out, `Cash by ${displayDate(cash.end, out.locale)}`, cash.at_end, cur),
-    amountRow(out, `Safe to spend until ${displayDate(cash.safe_until, out.locale)}`, cash.safe_to_spend, cur),
+    amountRow(out, `Free until payday, ${displayDate(cash.safe_until, out.locale)}`, cash.safe_to_spend, cur),
     ...cash.accounts.map((a) => amountRow(out, `${singleLine(a.name)} at its lowest`, a.lowest, a.currency)),
   ];
   const r = run.resilience;
@@ -536,7 +536,7 @@ export function showComparison(app: App, data: ScenarioComparison): void {
     { label: 'Lowest cash', baseline: out.amount(first.cash.lowest.baseline, cur), values: options.map((o) => out.amount(o.cash.lowest.scenario, cur)) },
     { label: 'Lowest on', baseline: displayDate(first.cash.lowest_date.baseline, out.locale), values: options.map((o) => displayDate(o.cash.lowest_date.scenario, out.locale)) },
     { label: `Cash by ${displayDate(first.cash.end, out.locale)}`, baseline: out.amount(first.cash.at_end.baseline, cur), values: options.map((o) => out.amount(o.cash.at_end.scenario, cur)) },
-    { label: 'Safe to spend', baseline: out.amount(first.cash.safe_to_spend.baseline, cur), values: options.map((o) => out.amount(o.cash.safe_to_spend.scenario, cur)) },
+    { label: 'Free until payday', baseline: out.amount(first.cash.safe_to_spend.baseline, cur), values: options.map((o) => out.amount(o.cash.safe_to_spend.scenario, cur)) },
     ...(first.resilience.basis
       ? [{ label: 'Emergency months at the low', baseline: out.decimal(first.resilience.lowest.baseline), values: options.map((o) => out.decimal(o.resilience.lowest.scenario)) }]
       : []),

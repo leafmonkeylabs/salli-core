@@ -174,7 +174,7 @@ function NetWorthOverTime() {
   );
 }
 
-/** Safe to spend, line by line: cash today, what is committed before the next income, the server's figure under a double rule. */
+/** Free until payday, line by line: cash today, what is committed before the next income, everyday spending, the cushion and goals' cash, the server's figure under a double rule. */
 function SafeToSpend() {
   const locale = useLocale();
   const query = useRead('insights.safeToSpend', insightsSafeToSpend);
@@ -193,6 +193,17 @@ function SafeToSpend() {
                   <Money amount={flow.amount} currency={flow.currency} variant="table" withCode />
                 </Row>
               ))}
+              <Row label={s.lessEveryday}>
+                <Money amount={safe.everyday_spending} currency={safe.currency} variant="table" withCode />
+              </Row>
+              <Row label={s.lessCushion}>
+                <Money amount={safe.cushion} currency={safe.currency} variant="table" withCode />
+              </Row>
+              {safe.held_for_goals !== '0.00' ? (
+                <Row label={s.lessGoals}>
+                  <Money amount={safe.held_for_goals} currency={safe.currency} variant="table" withCode />
+                </Row>
+              ) : null}
               <Row label={s.safeTotal} total>
                 <Money amount={safe.amount} currency={safe.currency} variant="table" withCode />
               </Row>

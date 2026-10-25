@@ -115,8 +115,8 @@ export const SCENARIO_RUN: ScenarioRun = {
       "delta": "15600.00"
     },
     "safe_to_spend": {
-      "baseline": "15727.02",
-      "scenario": "15727.02",
+      "baseline": "15316.35",
+      "scenario": "15316.35",
       "delta": "0.00"
     },
     "safe_until": "2026-10-25",
@@ -547,8 +547,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "-2400.00"
         },
         "safe_to_spend": {
-          "baseline": "15727.02",
-          "scenario": "15727.02",
+          "baseline": "15316.35",
+          "scenario": "15316.35",
           "delta": "0.00"
         },
         "safe_until": "2026-10-25",
@@ -975,8 +975,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "delta": "0.00"
         },
         "safe_to_spend": {
-          "baseline": "15727.02",
-          "scenario": "15727.02",
+          "baseline": "15316.35",
+          "scenario": "15316.35",
           "delta": "0.00"
         },
         "safe_until": "2026-10-25",
@@ -1802,8 +1802,8 @@ export const TAXED_RUN: ScenarioRun = {
       "delta": "0.00"
     },
     "safe_to_spend": {
-      "baseline": "23500.00",
-      "scenario": "24500.00",
+      "baseline": "23350.00",
+      "scenario": "24350.00",
       "delta": "1000.00"
     },
     "safe_until": "2031-07-25",
@@ -2692,8 +2692,8 @@ export const HOLDING_RUN: ScenarioRun = {
       "delta": "-407.60"
     },
     "safe_to_spend": {
-      "baseline": "23500.00",
-      "scenario": "23092.40",
+      "baseline": "23350.00",
+      "scenario": "22942.40",
       "delta": "-407.60"
     },
     "safe_until": "2031-07-25",
@@ -3221,8 +3221,8 @@ export const ASSET_RUN: ScenarioRun = {
       "delta": "-51750.00"
     },
     "safe_to_spend": {
-      "baseline": "71000.00",
-      "scenario": "22000.00",
+      "baseline": "70900.00",
+      "scenario": "21900.00",
       "delta": "-49000.00"
     },
     "safe_until": "2031-07-25",

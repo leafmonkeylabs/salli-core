@@ -91,27 +91,33 @@ describe('onboarding', () => {
 describe('the rest of the fact-find', () => {
   it('posts opening balances as strings, and refuses anything but an asset or a liability', async () => {
     mock.on('POST', '/v1/onboarding/balance-sheet', () => ({ status: 200, body: { entries_created: ['e1', 'e2'] } }));
-    const result = await run(['profile', 'balance-sheet', '--balance', '1100:Checking:asset:2,500.00', '--balance', '2100:Car loan:liability:8400']);
+    const result = await run(['profile', 'balance-sheet', '--balance', '1100:Checking:asset:2,500.00:cash', '--balance', '2100:Car loan:liability:8400']);
     expect(result.code).toBe(0);
     expect(result.stderr).toContain('Posted 2 opening-balance entries.');
     expect(sent('POST', '/v1/onboarding/balance-sheet')).toEqual({
       balances: [
-        { code: '1100', name: 'Checking', type: 'asset', amount: '2500.00' },
+        { code: '1100', name: 'Checking', type: 'asset', amount: '2500.00', asset_role: 'cash' },
         { code: '2100', name: 'Car loan', type: 'liability', amount: '8400' },
       ],
     });
     expect((await run(['profile', 'balance-sheet', '--balance', '5000:Food:expense:10'])).code).toBe(2);
     expect((await run(['profile', 'balance-sheet', '--balance', '1100:Checking'])).code).toBe(2);
+    // A role is for an asset, and one of three.
+    expect((await run(['profile', 'balance-sheet', '--balance', '2100:Loan:liability:10:cash'])).code).toBe(2);
+    expect((await run(['profile', 'balance-sheet', '--balance', '1100:Checking:asset:10:pension'])).code).toBe(2);
   });
 
-  it('posts income sources, naming the deposit account only when asked', async () => {
-    mock.on('POST', '/v1/onboarding/income', () => ({ status: 200, body: { entries_created: ['e1'] } }));
-    await run(['profile', 'income', '--income', '4100:Salary:5000']);
-    expect(sent('POST', '/v1/onboarding/income')).toEqual({ incomes: [{ code: '4100', name: 'Salary', amount: '5000' }] });
-    await run(['profile', 'income', '--income', '4100:Salary:5000.25', '--deposit-code', '1100', '--deposit-name', 'Checking']);
+  it('opens income sources by name, posting nothing, naming the deposit account only when asked', async () => {
+    mock.on('POST', '/v1/onboarding/income', () => ({ status: 200, body: { income_accounts: ['a1'] } }));
+    const result = await run(['profile', 'income', '--income', '4100:Salary']);
+    expect(result.stderr).toContain('nothing posted until you are paid');
+    expect(sent('POST', '/v1/onboarding/income')).toEqual({ incomes: [{ code: '4100', name: 'Salary' }] });
+    await run(['profile', 'income', '--income', '4100:Salary', '--deposit-code', '1100', '--deposit-name', 'Checking']);
     expect(sent('POST', '/v1/onboarding/income')).toEqual({
-      incomes: [{ code: '4100', name: 'Salary', amount: '5000.25', deposit_account_code: '1100', deposit_account_name: 'Checking' }],
+      incomes: [{ code: '4100', name: 'Salary', deposit_account_code: '1100', deposit_account_name: 'Checking' }],
     });
+    // An amount is not booked, so it is not taken.
+    expect((await run(['profile', 'income', '--income', '4100:Salary:5000'])).code).toBe(2);
   });
 
   it('submits the risk questionnaire and shows the score the server gave', async () => {
@@ -166,10 +172,12 @@ describe('the monthly briefing', () => {
     error: '',
     briefing: {
       summary: 'A steady month.',
-      fire_tier_assessment: 'Lean FI is 9 years away.',
-      recommendations: [
-        { title: 'Top up the emergency fund', rationale: 'Five months covered', category: 'savings', priority: 1, bucket_key: null, action: { type: 'none', label: '', due_in_days: null } },
-      ],
+      notes: [{ topic: 'cash', text: 'Your cash covers 5.0 months of spending.' }],
+      figures: { cash_cover: { label: 'Months of spending your cash covers', value: '5.0 months' } },
+      signals: [],
+      assumptions: { status: 'placeholder', placeholders: ['real_return'] },
+      written_by: 'ai',
+      notice: 'Written by an AI from the test’s figures.',
     },
   };
   beforeEach(() => {
@@ -184,8 +192,10 @@ describe('the monthly briefing', () => {
     const prompter = new ScriptedPrompter(['approve']);
     const result = await run(['advisor', 'briefing'], { prompter });
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Top up the emergency fund');
-    expect(result.stderr).toContain('Saved as advisor report report-1');
+    expect(result.stdout).toContain('Your cash covers 5.0 months of spending.');
+    // The label is the API's, not the CLI's own.
+    expect(result.stdout + result.stderr).toContain('Written by an AI from the test’s figures.');
+    expect(result.stderr).toContain('Saved briefing report-1');
     expect(sent('POST', '/v1/advisor/briefing/resume')).toEqual({ thread_id: 'thread-1', decision: 'approve' });
   });
 

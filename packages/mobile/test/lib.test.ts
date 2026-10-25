@@ -5,7 +5,7 @@ import { placeLabels, stepChart } from '../src/lib/chart';
 import { checkServer, isThisMachine, serverUrlOf } from '../src/lib/server';
 import { groupsOf } from '../src/lib/accounts';
 import { blocksOfMarkdown, spansOf } from '../src/lib/markdown';
-import { blocksOf, changeOf, keepNewest, modelsOf, onlyReads, pendingOf, providerOf, titleOf } from '../src/lib/ai';
+import { blocksOf, changeOf, keepNewest, modelsOf, pendingOf, providerOf, readsOf, titleOf } from '../src/lib/ai';
 import { amountOf, dateOf, read, readWith, type AutomationRule } from '../src/lib/automations';
 import { keepUnread, queueOf, sortInbox, type QueuedMessage } from '../src/lib/inbox';
 import { glanceOf, type GlanceReads } from '../src/lib/glance';
@@ -316,7 +316,7 @@ describe('the widgets\' snapshot', () => {
 
   it('hides the amount unless amounts outside the app are allowed', () => {
     const hidden = glanceOf(reads(), options);
-    expect(hidden.safe).toEqual({ label: 'Safe to spend', figure: 'Amount hidden', currency: '', spoken: 'Amount hidden', until: 'until Oct 25, 2026' });
+    expect(hidden.safe).toEqual({ label: 'Free until payday', figure: 'Amount hidden', currency: '', spoken: 'Amount hidden', until: 'until Oct 25, 2026' });
     expect(JSON.stringify(hidden)).not.toMatch(/1,?234/);
     const shown = glanceOf(reads(), { ...options, showAmounts: true });
     expect(shown.safe.figure).toBe('(1,234.50)');
@@ -497,13 +497,18 @@ describe('your AI', () => {
     expect(providerOf('elsewhere')).toBeUndefined();
   });
 
-  it('runs only reading tools unasked: anything else, or new, waits for approval', () => {
-    for (const reads of ['get_safe_to_spend', 'list_due_reviews', 'run_scenario', 'start_decision', 'check_principles']) {
-      expect(onlyReads(reads)).toBe(true);
-    }
-    for (const writes of ['create_reminder', 'post_journal_entry', 'record_decision', 'save_memory', 'delete_document', 'a_tool_core_adds_later']) {
-      expect(onlyReads(writes)).toBe(false);
-    }
+  it('runs unasked only the tools the server marks read-only: anything else waits for approval', () => {
+    const reads = readsOf([
+      { name: 'get_overview', annotations: { readOnlyHint: true } },
+      { name: 'run_scenario', annotations: { readOnlyHint: true } },
+      { name: 'suggested_tax_accounts', annotations: { readOnlyHint: true } },
+      { name: 'apply_suggested_tax_accounts', annotations: { readOnlyHint: false } },
+      { name: 'post_journal_entry', annotations: { readOnlyHint: false } },
+      // Named like a read, but the server says nothing: it is asked about.
+      { name: 'get_something_new' },
+      { name: 'list_things', annotations: {} },
+    ]);
+    expect([...reads].sort()).toEqual(['get_overview', 'run_scenario', 'suggested_tax_accounts']);
   });
 
   it('says a change in one line, amounts as given', () => {

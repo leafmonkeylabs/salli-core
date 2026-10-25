@@ -25,7 +25,7 @@ jobs_app = typer.Typer(help="Scheduled work across every user (for cron)", no_ar
 
 @jobs_app.command("run-advisor")
 def run_advisor() -> None:
-    """Run the advisor for every opted-in user who has not had today's report."""
+    """Write the daily briefing for every opted-in user who has not had one today."""
     from salli.domain.usage import UsageLimitReached
 
     ran: list[str] = []

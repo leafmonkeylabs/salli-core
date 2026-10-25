@@ -435,18 +435,32 @@ function registerProfile(program: Command, app: App): void {
   profile
     .command('balance-sheet')
     .description('Record what you own and owe today, as opening-balance entries (net worth starts right)')
-    .requiredOption('--balance <code:name:type:amount>', 'One account, e.g. 1100:Checking:asset:2500 or 2100:Car loan:liability:8400 (repeatable)', collect)
+    .requiredOption(
+      '--balance <code:name:type:amount[:role]>',
+      'One account, e.g. 1100:Checking:asset:2500:cash, 1500:Funds:asset:9000:investment or 2100:Car loan:liability:8400; an asset’s role is cash, investment or other (the default, never counted as cash) (repeatable)',
+      collect,
+    )
     .action(async (opts) => {
       const balances: OpeningBalanceItem[] = opts.balance.map((raw) => {
-        const [code, name, type, amount, ...rest] = raw.split(':');
+        const [code, name, type, amount, role, ...rest] = raw.split(':');
         if (!code?.trim() || !name?.trim() || !type || amount === undefined || rest.length) {
-          throw new UsageError(`--balance takes CODE:NAME:TYPE:AMOUNT, e.g. 1100:Checking:asset:2500 (got "${raw}").`);
+          throw new UsageError(`--balance takes CODE:NAME:TYPE:AMOUNT[:ROLE], e.g. 1100:Checking:asset:2500:cash (got "${raw}").`);
         }
         const kind = type.trim().toLowerCase();
         if (kind !== 'asset' && kind !== 'liability') {
           throw new UsageError(`An opening balance is an asset or a liability (got "${type}" in "${raw}").`);
         }
-        return { code: code.trim(), name: name.trim(), type: kind, amount: amountArg(amount, '--balance') };
+        const assetRole = role?.trim().toLowerCase();
+        if (assetRole !== undefined && (kind !== 'asset' || !['cash', 'investment', 'other'].includes(assetRole))) {
+          throw new UsageError(`A role is for an asset: cash, investment or other (got "${role}" in "${raw}").`);
+        }
+        return {
+          code: code.trim(),
+          name: name.trim(),
+          type: kind,
+          amount: amountArg(amount, '--balance'),
+          ...(assetRole ? { asset_role: assetRole as 'cash' | 'investment' | 'other' } : {}),
+        };
       });
       const api = await app.api();
       const result = await api.call(onboardingBalanceSheet, { body: { balances } });
@@ -456,28 +470,27 @@ function registerProfile(program: Command, app: App): void {
 
   profile
     .command('income')
-    .description('Record what you earn: one representative monthly entry per income source')
-    .requiredOption('--income <code:name:amount>', 'One source a month, e.g. 4100:Salary:5000 (repeatable)', collect)
+    .description('Open an income account per source, so your first real pay is booked to it (nothing is posted)')
+    .requiredOption('--income <code:name>', 'One source, e.g. 4100:Salary (repeatable)', collect)
     .option('--deposit-code <code>', 'The account it is paid into (default: the server’s bank account, 1200)')
     .option('--deposit-name <name>', 'That account’s name, if it has to be opened')
     .action(async (opts) => {
       const incomes: IncomeItem[] = opts.income.map((raw) => {
-        const [code, name, amount, ...rest] = raw.split(':');
-        if (!code?.trim() || !name?.trim() || amount === undefined || rest.length) {
-          throw new UsageError(`--income takes CODE:NAME:AMOUNT, e.g. 4100:Salary:5000 (got "${raw}").`);
+        const [code, name, ...rest] = raw.split(':');
+        if (!code?.trim() || !name?.trim() || rest.length) {
+          throw new UsageError(`--income takes CODE:NAME, e.g. 4100:Salary (got "${raw}").`);
         }
         return {
           code: code.trim(),
           name: name.trim(),
-          amount: amountArg(amount, '--income'),
           ...(opts.depositCode ? { deposit_account_code: opts.depositCode } : {}),
           ...(opts.depositName ? { deposit_account_name: opts.depositName } : {}),
         };
       });
       const api = await app.api();
       const result = await api.call(onboardingIncome, { body: { incomes } });
-      const n = result.entries_created.length;
-      app.out.done(result, `Posted ${n} income ${n === 1 ? 'entry' : 'entries'}.`);
+      const n = result.income_accounts.length;
+      app.out.done(result, `Ready for ${n} income ${n === 1 ? 'source' : 'sources'}: nothing posted until you are paid.`);
     });
 
   profile

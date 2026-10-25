@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from salli.application.services.agent_service import AgentService
-from salli.domain.agents.advisor import Advice
+from salli.domain.agents.briefing import Draft
 
 pytestmark = pytest.mark.asyncio
 
@@ -23,22 +23,24 @@ class FakeAdvisor:
 
     async def gather_context(self, user_id: str, email: str | None) -> dict[str, Any]:
         self.gathered.append(user_id)
-        return {"currency": "LKR"}
+        return {"figures": {}, "signals": [], "assumptions": {}}
 
     async def llm_for(self, user_id: str) -> None:
         return None
 
-    async def persist_report(self, user_id: str, trigger: str, advice: Advice) -> dict[str, Any]:
+    async def persist_report(
+        self, user_id: str, trigger: str, draft: Draft, context: dict[str, Any]
+    ) -> dict[str, Any]:
         self.persisted.append(user_id)
-        return {"id": f"report-for-{user_id}", "summary": advice.summary}
+        return {"id": f"report-for-{user_id}", "summary": draft.summary}
 
 
 @pytest.fixture
 def advisor(monkeypatch) -> FakeAdvisor:
-    async def generate_advice(context: dict[str, Any], llm: Any = None) -> Advice:
-        return Advice(summary="A's month", fire_tier_assessment="Tier 2", recommendations=[])
+    async def narrate(context: dict[str, Any], llm: Any = None) -> Draft:
+        return Draft(summary="A's month")
 
-    monkeypatch.setattr("salli.domain.agents.advisor.generate_advice", generate_advice)
+    monkeypatch.setattr("salli.domain.agents.briefing.narrate", narrate)
     return FakeAdvisor()
 
 

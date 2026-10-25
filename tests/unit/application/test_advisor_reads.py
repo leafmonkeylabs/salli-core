@@ -1,7 +1,7 @@
 """
-The advisor's gather step reads and never writes: it used to store an FI
+The briefing's gather step reads and never writes: it used to store an FI
 score every time it computed one. Its run, which writes a report, records the
-score it advised on.
+score it described.
 """
 
 from __future__ import annotations
@@ -26,9 +26,7 @@ def _advisor(uow, monkeypatch) -> AdvisorService:
         baselines=BaselineService(uow.factory(), fx=h.fx(), today=today),
         today=today,
     )
-    advisor = AdvisorService(uow.factory(), fi, SimpleNamespace(charge=AsyncMock()))
-    monkeypatch.setattr(advisor, "_research_rates", AsyncMock(return_value=""))
-    return advisor
+    return AdvisorService(uow.factory(), fi, SimpleNamespace(charge=AsyncMock()))
 
 
 async def test_gathering_the_context_stores_no_score(monkeypatch):
@@ -39,21 +37,42 @@ async def test_gathering_the_context_stores_no_score(monkeypatch):
     # 1b: was 2043-03 (197 months), then 2047-05 (247): FI's month is the
     # baseline timeline's now, with the surplus invested at the placeholder
     # 100% (tests/golden/test_household_fi.py says why).
-    assert context["fi_score"]["projected_fi_month"] == "2042-05"
-    assert context["fire_projections"]["fi_by"]["base"] == {"months": 187, "month": "2042-05"}
+    assert context["figures"]["fi_month"]["value"] == "May 2042"
+    # Salli's figures only: nothing researched, nothing about the person's
+    # goals in their own words, and no score.
+    assert set(context) == {"figures", "signals", "assumptions"}
 
 
-async def test_a_run_records_the_score_it_advised_on(monkeypatch):
-    from salli.domain.agents import advisor as advisor_llm
+async def test_a_run_records_the_score_it_described(monkeypatch):
+    import json
+
+    from tests.fakes import FakeLLM
 
     uow = h.uow()
     advisor = _advisor(uow, monkeypatch)
-    advice = SimpleNamespace(summary="Keep going.", fire_tier_assessment="", recommendations=[])
-    monkeypatch.setattr(advisor_llm, "generate_advice", AsyncMock(return_value=advice))
-    monkeypatch.setattr(advisor, "llm_for", AsyncMock(return_value=object()))
+    answer = json.dumps({"summary": "FI comes in {fi_month} at this pace.", "notes": []})
+    monkeypatch.setattr(advisor, "llm_for", AsyncMock(return_value=FakeLLM(answer)))
 
     report = await advisor.run_advisor(h.USER)
 
-    assert report["summary"] == "Keep going."
+    assert report["summary"] == "FI comes in May 2042 at this pace."
     [score] = uow.fi_scores.rows
     assert (score["overall_score"], score["as_of"]) == ("60.08", "2026-10-11")
+
+
+async def test_every_briefing_says_an_ai_wrote_it(monkeypatch):
+    import json
+
+    from salli.domain.agents.briefing import NOTICE
+    from tests.fakes import FakeLLM
+
+    uow = h.uow()
+    advisor = _advisor(uow, monkeypatch)
+    answer = json.dumps({"summary": "FI comes in {fi_month} at this pace.", "notes": []})
+    monkeypatch.setattr(advisor, "llm_for", AsyncMock(return_value=FakeLLM(answer)))
+
+    ran = await advisor.run_advisor(h.USER)
+    [listed] = await advisor.list_reports(h.USER)
+
+    for report in (ran, listed):
+        assert (report["written_by"], report["notice"]) == ("ai", NOTICE)

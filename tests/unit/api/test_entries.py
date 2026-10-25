@@ -188,3 +188,31 @@ async def test_an_amount_that_is_not_a_decimal_string_is_refused(client, mock_se
     r = await client.post("/v1/entries/", json=payload, headers=AUTH)
     assert r.status_code == 422
     mock_services.ledger.add_entry.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_search_pages_entries_with_totals_over_every_match(client, mock_services):
+    mock_services.ledger.search_entries.return_value = {
+        "entries": [make_entry()],
+        "matches": 3,
+        "totals": [{"account_type": "income", "currency": "LKR", "net": "-450000.00"}],
+        "amounts_in": "LKR",
+        "next_cursor": "c2",
+    }
+    r = await client.get(
+        "/entries/search",
+        params={"text": "salary", "min_amount": "100", "limit": 1, "cursor": "c1"},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert [e["description"] for e in body["entries"]] == ["Salary"]
+    assert (body["matches"], body["next_cursor"]) == (3, "c2")
+    assert body["totals"][0]["net"] == "-450000.00"
+    kwargs = mock_services.ledger.search_entries.await_args.kwargs
+    assert (kwargs["text"], kwargs["min_amount"], kwargs["limit"]) == ("salary", Decimal(100), 1)
+
+    assert (await client.get("/entries/search?limit=201", headers=AUTH)).status_code == 422
+    assert (await client.get("/entries/search?min_amount=1e3", headers=AUTH)).status_code == 422
+    mock_services.ledger.search_entries.side_effect = ValueError("That cursor is not one")
+    assert (await client.get("/entries/search?cursor=x", headers=AUTH)).status_code == 422

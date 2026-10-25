@@ -106,8 +106,7 @@ with the server under `salli-server`; **3** have no replacement yet (below).
 | `salli fi goals allocations` | `salli goals allocations` | goals.allocations.list |
 | `salli fi strategy show`, `history`, `generate` | removed: FI assumptions are yours or placeholders (CHANGELOG.md) | none |
 | `salli advisor run` | `salli advisor run` | advisor.run |
-| `salli advisor apply` | `salli advisor apply` | advisor.recommendations.apply |
-| `salli advisor dismiss` | `salli advisor dismiss` | advisor.recommendations.dismiss |
+| `salli advisor apply`, `dismiss` | removed: the briefing recommends nothing (CHANGELOG.md) | none |
 | `salli advisor briefing` | `salli advisor briefing` **(new)** | advisor.briefing.prepare, advisor.briefing.resume |
 | `salli advisor daily-briefing` | `salli advisor daily-briefing` | advisor.dailyBriefing.get, .set |
 | `salli advisor run-due` | `salli-server jobs run-advisor` | every due user, in-process (advisor.cron.runDue over HTTP) |

@@ -11,6 +11,8 @@ your Salli reachable over HTTPS: [docs/self-host.md](self-host.md#https-on-your-
 shows how.
 
 Once connected, your AI can:
+- start from where you stand (`get_overview`), and find what you booked, by
+  text, account, dates or amount, with Salli's totals (`search_entries`);
 - read your cash flow, spending, net worth over time, recurring payments and your
   cash forecast;
 - weigh a decision (can I afford it, cash or instalments, pay down a debt or
@@ -26,7 +28,8 @@ Once connected, your AI can:
   once you agree;
 - sort imported transactions, then book what you approve;
 - create rules, so the next statement sorts itself;
-- run the Wealth Advisor and read budgets, debts, portfolio and insurance;
+- write the monthly briefing (Salli's figures and signals, described, never advice)
+  and read budgets, debts, portfolio and insurance;
 - read your tax, computed by Salli from the tax rules you activated, and explain
   each line from its expression and the source the rules cite;
 - research your country's tax rules from official sources, write them as a Salli
@@ -35,6 +38,11 @@ Once connected, your AI can:
 
 Salli knows no country's tax law. Without rules you activated it computes no tax,
 and the tax tools say so and what you can do.
+
+Every tool says whether it only reads (MCP tool annotations, `readOnlyHint`), so
+your AI app can run reads as it likes and ask you before anything that writes; the
+Salli app does. `post_journal_entry` takes your AI's own `client_ref`: sent again,
+it books nothing and returns the entry first booked with it.
 
 Six ready-made prompts come with the server: **review my month**, **sort my pending
 transactions**, **can I afford**, **think through a decision**, **set planning
@@ -145,7 +153,8 @@ own, with their sources, replace the placeholders.
 | `propose_tax_rule_set` | Asks you to review a version that passes. |
 | `diff_tax_rule_set_versions` | What changed between versions, with each figure's source. |
 | `evaluate_tax_rule_set` | Runs Salli's engine on your ledger with a version's rules, line by line. Nothing is stored. |
-| `suggested_tax_accounts` | The accounts a rule set suggests and whether you have them; with `apply`, creates the missing ones (accounts you have are left alone). |
+| `suggested_tax_accounts` | The accounts a rule set suggests and whether you have them. |
+| `apply_suggested_tax_accounts` | Creates the missing ones (accounts you have are left alone). A write: the AI shows you the list first. |
 
 There is no tool to activate rules. An agent researching tax law reads pages anyone
 can write, so activation needs a permission (`tax:activate`) that no AI connector's

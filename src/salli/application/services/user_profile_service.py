@@ -16,7 +16,7 @@ from salli.application.ports import ProfileMissing
 from salli.application.services.document_service import DocumentService
 from salli.application.services.fi_service import FiService
 from salli.application.services.ledger_service import LedgerService, tax_residency
-from salli.domain.accounting.models import AccountType, Direction
+from salli.domain.accounting.models import AccountType, AssetRole, Direction
 from salli.domain.ai_models import DEFAULT_MODEL
 from salli.domain.currency import normalize_currency
 from salli.domain.jurisdiction import (
@@ -340,11 +340,20 @@ class UserProfileService:
     # ── Opening balances / income (reuse LedgerService, never reinvent it) ──
 
     async def _ensure_account(
-        self, user_id: str, cache: dict[str, str], code: str, name: str, type_: AccountType
+        self,
+        user_id: str,
+        cache: dict[str, str],
+        code: str,
+        name: str,
+        type_: AccountType,
+        asset_role: AssetRole | None = None,
+        currency: str | None = None,
     ) -> str:
         if code in cache:
             return cache[code]
-        new_id = await self._ledger.add_account(user_id, code, name, type_)
+        new_id = await self._ledger.add_account(
+            user_id, code, name, type_, currency=currency, asset_role=asset_role
+        )
         cache[code] = new_id
         return new_id
 
@@ -352,14 +361,18 @@ class UserProfileService:
         self, user_id: str, balances: list[dict[str, Any]]
     ) -> list[str]:
         """balances: [{"code", "name", "type": "asset"|"liability", "amount",
-        "currency"?, "fx_rate"?}].
+        "asset_role"?, "currency"?, "fx_rate"?}].
 
         Amounts are in the base currency unless an item names another, in which
         case it is converted at `fx_rate`, or today's rate when none is given.
+        An asset without an `asset_role` is opened as "other": a brokerage
+        account or a car booked as cash would be counted as money to spend.
         """
         today = datetime.date.today().isoformat()
         base = await self._ledger.base_currency(user_id)
-        cache = {a.code: a.id for a in await self._ledger.list_accounts(user_id)}
+        existing = await self._ledger.list_accounts(user_id)
+        cache = {a.code: a.id for a in existing}
+        held_in = {a.code: a.currency for a in existing}
         entry_ids: list[str] = []
 
         for item in balances:
@@ -374,9 +387,18 @@ class UserProfileService:
             if acc_type not in ("asset", "liability"):
                 raise ValueError(f"Unsupported opening-balance account type: {acc_type}")
 
+            role = (item.get("asset_role") or "other") if acc_type == "asset" else None
+            # The account is held in the balance's own currency, so it keeps
+            # its exposure and is revalued at each day's rate.
+            if held_in.get(item["code"], currency) != currency:
+                raise ValueError(
+                    f"Account {item['code']} is held in {held_in[item['code']]}, "
+                    f"not {currency}: give it its own code"
+                )
             acc_id = await self._ensure_account(
-                user_id, cache, item["code"], item["name"], acc_type
+                user_id, cache, item["code"], item["name"], acc_type, role, currency
             )
+            held_in[item["code"]] = currency
             equity_id = await self._ensure_account(
                 user_id, cache, _OPENING_EQUITY_CODE, _OPENING_EQUITY_NAME, _OPENING_EQUITY_TYPE
             )
@@ -417,60 +439,23 @@ class UserProfileService:
         no rate means FxUnavailableError, never a rate of 1."""
         return await rate_to_base(self._fx, currency, base, on_date, given)
 
-    async def declare_income(self, user_id: str, incomes: list[dict[str, Any]]) -> list[str]:
-        """incomes: [{"code", "name", "amount", "currency"?, "fx_rate"?,
-        "deposit_account_code"?, "deposit_account_name"?}].
-
-        Posts one representative monthly entry per income source so FI/cash-flow
-        calculations have real data to work from immediately after onboarding.
-        An amount in another currency is converted at `fx_rate`, or today's
-        rate when none is given.
-        """
-        today = datetime.date.today().isoformat()
-        base = await self._ledger.base_currency(user_id)
+    async def open_income_accounts(self, user_id: str, incomes: list[dict[str, Any]]) -> list[str]:
+        """incomes: [{"code", "name", "deposit_account_code"?,
+        "deposit_account_name"?}]. Opens an income account per source, and the
+        account it is paid into (as cash). Posts nothing: a made-up month of
+        pay dated today would count as real income."""
         cache = {a.code: a.id for a in await self._ledger.list_accounts(user_id)}
-        entry_ids: list[str] = []
-
+        ids: list[str] = []
         for item in incomes:
-            amount = Decimal(str(item["amount"]))
-            if amount == 0:
-                continue
-            # Foreign income is the reason this exists. Booking it at face value
-            # in the base currency misstates it by the exchange rate: a $2,000
-            # remittance into a peso ledger became 2,000 pesos.
-            currency = normalize_currency(item.get("currency") or base)
-            fx_rate, fx_source = await self._rate_to_base(
-                currency, base, today, item.get("fx_rate")
+            ids.append(
+                await self._ensure_account(user_id, cache, item["code"], item["name"], "income")
             )
-            income_id = await self._ensure_account(
-                user_id, cache, item["code"], item["name"], "income"
+            await self._ensure_account(
+                user_id,
+                cache,
+                item.get("deposit_account_code", _DEFAULT_DEPOSIT_CODE),
+                item.get("deposit_account_name", _DEFAULT_DEPOSIT_NAME),
+                "asset",
+                "cash",
             )
-            deposit_code = item.get("deposit_account_code", _DEFAULT_DEPOSIT_CODE)
-            deposit_name = item.get("deposit_account_name", _DEFAULT_DEPOSIT_NAME)
-            deposit_id = await self._ensure_account(
-                user_id, cache, deposit_code, deposit_name, "asset"
-            )
-
-            postings = [
-                {
-                    "account_id": deposit_id,
-                    "direction": Direction.DEBIT,
-                    "amount": amount,
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "fx_rate_source": fx_source,
-                },
-                {
-                    "account_id": income_id,
-                    "direction": Direction.CREDIT,
-                    "amount": amount,
-                    "currency": currency,
-                    "fx_rate": fx_rate,
-                    "fx_rate_source": fx_source,
-                },
-            ]
-            entry_id = await self._ledger.add_entry(
-                user_id, today, f"Declared income: {item['name']}", "manual", postings
-            )
-            entry_ids.append(entry_id)
-        return entry_ids
+        return ids

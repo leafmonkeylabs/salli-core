@@ -277,14 +277,15 @@ describe('adding an entry and reversing it', () => {
 });
 
 describe('cash', () => {
-  it('draws the forecast to its low point, with safe to spend and what it is committed to', async () => {
+  it('draws the forecast to its low point, with what is free until payday and what it is committed to', async () => {
     await setup({ path: '/console/cash' });
     const forecast = await screen.findByRole('region', { name: 'The next 60 days' });
     const label = (await within(forecast).findAllByRole('img'))[0]?.getAttribute('aria-label') ?? '';
     expect(label).toContain('EUR 15,801.47 today, lowest EUR 15,727.02 on Oct 18, 2026, EUR 19,626.59 at the end');
     expect(within(forecast).getByText('USD at 0.86, ecb, Oct 9, 2026')).toBeTruthy();
-    const safe = region('Safe to spend');
-    expect(within(safe).getByText('15,727.02')).toBeTruthy();
+    const safe = region('Free until payday');
+    expect(within(safe).getByText('15,316.35')).toBeTruthy();
+    expect(within(safe).getByText('EUR 206.96')).toBeTruthy();
     expect(within(safe).getByText('until Oct 25, 2026, when Acme Salary comes in')).toBeTruthy();
     expect(within(safe).getByText('Oct 18, 2026 · Bistro Novo')).toBeTruthy();
     const accounts = region('Cash accounts');

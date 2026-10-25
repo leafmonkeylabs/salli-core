@@ -137,6 +137,17 @@ function SafeToSpend() {
                   <Money amount={safe.next_income.amount} currency={safe.next_income.currency} variant="table" withCode />
                 </Row>
               ) : null}
+              <Row label={c.lessEveryday}>
+                <Money amount={safe.everyday_spending} currency={safe.currency} variant="table" withCode />
+              </Row>
+              <Row label={c.lessCushion}>
+                <Money amount={safe.cushion} currency={safe.currency} variant="table" withCode />
+              </Row>
+              {safe.held_for_goals !== '0.00' ? (
+                <Row label={c.lessGoals}>
+                  <Money amount={safe.held_for_goals} currency={safe.currency} variant="table" withCode />
+                </Row>
+              ) : null}
             </Rows>
             <p className="subhead">{c.committed}</p>
             {safe.committed.length ? (

@@ -1,4 +1,4 @@
-"""The advisor routes' responses: reports run and stored, the briefing review, the daily run."""
+"""The briefing routes' responses: briefings run and stored, the review, the daily run."""
 
 from __future__ import annotations
 
@@ -7,46 +7,35 @@ from types import SimpleNamespace
 import pytest
 
 from salli.config import get_settings
-from salli.domain.agents.advisor import Recommendation, SuggestedAction
+from salli.domain.agents.briefing import NOTICE
 from tests.unit.api.conftest import AUTH
 
 pytestmark = pytest.mark.asyncio
 
 
-def _recommendation(status: str = "pending") -> dict:
-    """A recommendation as AdvisorService stores it."""
-    return {
-        "id": "rec-1",
-        "title": "Top up the emergency moat",
-        "rationale": "It covers two months of the six it should.",
-        "category": "emergency_fund",
-        "priority": 1,
-        "bucket_key": "moat",
-        "action_type": "reminder",
-        "action_params": {"label": "Move 50,000 to savings", "due_in_days": 7},
-        "status": status,
-    }
+_BODY = {
+    "summary": "You spent 2,650.50 EUR a month on average.",
+    "notes": [{"topic": "cash", "text": "Your cash covers 4.3 months of spending."}],
+    "figures": {"spending": {"label": "Spending a month, on average", "value": "2,650.50 EUR"}},
+    "signals": [
+        {"kind": "price_change", "severity": "medium", "title": "A charge went up", "detail": "x"}
+    ],
+    "assumptions": {"status": "placeholder", "placeholders": ["real_return"]},
+    "written_by": "ai",
+    "notice": NOTICE,
+}
 
 
-async def test_a_report_just_run_and_a_stored_one_read_as_they_are(client, mock_services):
-    """A fresh report has the tier assessment but no owner or date; a stored one
-    the reverse. Neither gains the other's fields as nulls."""
-    ran = {
-        "trigger": "manual",
-        "fi_score_id": None,
-        "summary": "Thirteen years out.",
-        "fire_tier_assessment": "Standard FIRE: balance growth with stability.",
-        "recommendations": [_recommendation()],
-        "id": "report-1",
-    }
+async def test_a_briefing_just_run_and_a_stored_one_read_as_they_are(client, mock_services):
+    """A fresh briefing has no owner or date; a stored one has. Neither gains
+    the other's fields as nulls."""
+    ran = {"id": "report-1", "trigger": "manual", **_BODY}
     stored = {
         "id": "report-1",
         "user_id": "test-user-1",
         "trigger": "scheduled",
-        "fi_score_id": None,
-        "summary": "Thirteen years out.",
-        "recommendations": [_recommendation("applied")],
         "created_at": "2026-10-09T06:00:00+00:00",
+        **_BODY,
     }
     mock_services.advisor.run_advisor.return_value = ran
     mock_services.advisor.list_reports.return_value = [stored]
@@ -57,50 +46,16 @@ async def test_a_report_just_run_and_a_stored_one_read_as_they_are(client, mock_
     assert (await client.get("/v1/advisor/reports/latest", headers=AUTH)).json() == stored
 
 
-async def test_acting_on_a_recommendation_says_what_became_of_it(client, mock_services):
-    mock_services.advisor.apply_recommendation.return_value = {"id": "rec-1", "status": "applied"}
-    mock_services.advisor.dismiss_recommendation.return_value = {
-        "id": "rec-2",
-        "status": "dismissed",
-    }
-
-    applied = await client.post(
-        "/v1/advisor/reports/report-1/recommendations/rec-1/apply", headers=AUTH
-    )
-    dismissed = await client.post(
-        "/v1/advisor/reports/report-1/recommendations/rec-2/dismiss", headers=AUTH
-    )
-
-    assert applied.json() == {"id": "rec-1", "status": "applied"}
-    assert dismissed.json() == {"id": "rec-2", "status": "dismissed"}
-
-
-async def test_acting_on_a_missing_recommendation_is_a_404(client, mock_services):
-    mock_services.advisor.apply_recommendation.side_effect = ValueError("Report not found")
-
-    r = await client.post("/v1/advisor/reports/nope/recommendations/rec-1/apply", headers=AUTH)
-
-    assert r.status_code == 404
-    assert r.json()["detail"] == "Report not found"
+async def test_recommendations_can_no_longer_be_applied_or_dismissed(client):
+    for verb in ("apply", "dismiss"):
+        r = await client.post(
+            f"/v1/advisor/reports/report-1/recommendations/rec-1/{verb}", headers=AUTH
+        )
+        assert r.status_code == 404
 
 
 async def test_a_prepared_briefing_is_the_draft_held_for_review(client, mock_services):
-    draft = Recommendation(
-        title="Open a fixed deposit",
-        rationale="Idle cash earns nothing.",
-        category="savings",
-        priority=2,
-        action=SuggestedAction(type="reminder", label="Open an FD", due_in_days=14),
-    )
-    prepared = {
-        "thread_id": "thread-1",
-        "error": "",
-        "briefing": {
-            "summary": "Thirteen years out.",
-            "fire_tier_assessment": "Standard FIRE.",
-            "recommendations": [draft.model_dump()],
-        },
-    }
+    prepared = {"thread_id": "thread-1", "error": "", "briefing": _BODY}
     mock_services.agent.prepare_briefing.return_value = prepared
 
     r = await client.post("/v1/advisor/briefing/prepare", json={}, headers=AUTH)

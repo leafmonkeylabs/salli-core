@@ -1,0 +1,34 @@
+# Weekly updates for every dependency Salli pins: Python (uv.lock), npm
+# (package-lock.json, every workspace), the workflows' actions (by SHA) and
+# the Dockerfile's base images (by digest). Minor and patch updates come
+# grouped, one pull request per ecosystem.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

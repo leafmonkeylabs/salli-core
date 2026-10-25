@@ -261,72 +261,14 @@ export type AddEntryRequest = {
 };
 
 /**
- * AdvisoryActionParams
- *
- * What applying a recommendation sets up: a reminder's label and due date.
- */
-export type AdvisoryActionParams = {
-    /**
-     * Label
-     */
-    label?: string | null;
-    /**
-     * Due In Days
-     */
-    due_in_days?: number | null;
-    [key: string]: unknown;
-};
-
-/**
- * AdvisoryRecommendation
- *
- * A recommendation in an advisory report, and what became of it.
- */
-export type AdvisoryRecommendation = {
-    /**
-     * Id
-     */
-    id?: string | null;
-    /**
-     * Title
-     */
-    title?: string | null;
-    /**
-     * Rationale
-     */
-    rationale?: string | null;
-    /**
-     * Category
-     */
-    category?: string | null;
-    /**
-     * Priority
-     */
-    priority?: number | null;
-    /**
-     * Bucket Key
-     */
-    bucket_key?: string | null;
-    /**
-     * Action Type
-     */
-    action_type?: string | null;
-    action_params?: AdvisoryActionParams | null;
-    /**
-     * Status
-     */
-    status?: 'pending' | 'applied' | 'dismissed' | null;
-    [key: string]: unknown;
-};
-
-/**
  * AdvisoryReport
  *
- * A Wealth Advisor run: a summary, and recommendations to act on.
+ * A monthly briefing: a summary and notes in the AI's words, every figure
+ * in them Salli's own, and the figures, signals and assumptions it was
+ * written from. It describes; it never advises.
  *
- * A report just run carries `fire_tier_assessment`; a stored one carries
- * `user_id` and `created_at`. A deployment's entitlement policy may withhold
- * parts of it and add fields of its own, so every field is optional.
+ * A deployment's entitlement policy may withhold parts of it and add fields
+ * of its own, so every field is optional.
  */
 export type AdvisoryReport = {
     /**
@@ -342,25 +284,36 @@ export type AdvisoryReport = {
      */
     trigger?: string | null;
     /**
-     * Fi Score Id
-     */
-    fi_score_id?: string | null;
-    /**
      * Summary
      */
     summary?: string | null;
     /**
-     * Fire Tier Assessment
+     * Notes
      */
-    fire_tier_assessment?: string | null;
+    notes?: Array<BriefingNote> | null;
     /**
-     * Recommendations
+     * Figures
      */
-    recommendations?: Array<AdvisoryRecommendation> | null;
+    figures?: {
+        [key: string]: BriefingFigure;
+    } | null;
+    /**
+     * Signals
+     */
+    signals?: Array<BriefingSignal> | null;
+    assumptions?: BriefingAssumptions | null;
     /**
      * Created At
      */
     created_at?: string | null;
+    /**
+     * Written By
+     */
+    written_by?: 'ai' | null;
+    /**
+     * Notice
+     */
+    notice?: string | null;
     [key: string]: unknown;
 };
 
@@ -1668,27 +1621,25 @@ export type BaselineTotals = {
 };
 
 /**
- * BriefingAction
+ * BriefingAssumptions
  *
- * What applying the recommendation would set up.
+ * Whether the independence figures rest on placeholders.
  */
-export type BriefingAction = {
+export type BriefingAssumptions = {
     /**
-     * Type
+     * Status
      */
-    type: 'none' | 'reminder';
+    status?: 'placeholder' | 'user' | null;
     /**
-     * Label
+     * Placeholders
      */
-    label: string;
-    /**
-     * Due In Days
-     */
-    due_in_days: number | null;
+    placeholders?: Array<string>;
 };
 
 /**
  * BriefingDraft
+ *
+ * A briefing before it is stored, as `AdvisoryReport` shows one.
  */
 export type BriefingDraft = {
     /**
@@ -1696,13 +1647,60 @@ export type BriefingDraft = {
      */
     summary: string;
     /**
-     * Fire Tier Assessment
+     * Notes
      */
-    fire_tier_assessment: string;
+    notes: Array<BriefingNote>;
     /**
-     * Recommendations
+     * Figures
      */
-    recommendations: Array<BriefingRecommendation>;
+    figures: {
+        [key: string]: BriefingFigure;
+    };
+    /**
+     * Signals
+     */
+    signals: Array<BriefingSignal>;
+    assumptions: BriefingAssumptions;
+    /**
+     * Written By
+     */
+    written_by: 'ai';
+    /**
+     * Notice
+     */
+    notice: string;
+};
+
+/**
+ * BriefingFigure
+ *
+ * A figure of Salli's the briefing could name, as a person reads it.
+ */
+export type BriefingFigure = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value: string;
+};
+
+/**
+ * BriefingNote
+ *
+ * One topic, in the AI's words with Salli's figures in them.
+ */
+export type BriefingNote = {
+    /**
+     * Topic
+     */
+    topic: 'cash' | 'spending' | 'saving' | 'debt' | 'independence' | 'goals' | 'assumptions';
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -1733,35 +1731,6 @@ export type BriefingPrepared = {
 };
 
 /**
- * BriefingRecommendation
- *
- * A recommendation in a draft briefing, before it is stored with an id and a status.
- */
-export type BriefingRecommendation = {
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Rationale
-     */
-    rationale: string;
-    /**
-     * Category
-     */
-    category: string;
-    /**
-     * Priority
-     */
-    priority: number;
-    /**
-     * Bucket Key
-     */
-    bucket_key: string | null;
-    action: BriefingAction;
-};
-
-/**
  * BriefingResumeRequest
  */
 export type BriefingResumeRequest = {
@@ -1786,6 +1755,31 @@ export type BriefingResumed = {
      * Error
      */
     error: string;
+};
+
+/**
+ * BriefingSignal
+ *
+ * One of Salli's signals, in its own words (`insights.signals`).
+ */
+export type BriefingSignal = {
+    /**
+     * Kind
+     */
+    kind?: string | null;
+    /**
+     * Severity
+     */
+    severity?: string | null;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Detail
+     */
+    detail?: string | null;
+    [key: string]: unknown;
 };
 
 /**
@@ -3040,7 +3034,8 @@ export type DataExport = {
     /**
      * Advisor Reports
      *
-     * The advisor's reports, as stored.
+     * Every report as stored: monthly briefings, and the advisor's earlier
+     * reports with their recommendations.
      */
     advisor_reports: Array<{
         [key: string]: unknown;
@@ -4360,6 +4355,56 @@ export type EntryProvenance = {
      * Possible Subscriptions
      */
     possible_subscriptions: Array<ProvenanceSubscription>;
+};
+
+/**
+ * EntrySearch
+ */
+export type EntrySearch = {
+    /**
+     * Entries
+     */
+    entries: Array<JournalEntry>;
+    /**
+     * Matches
+     */
+    matches: number;
+    /**
+     * Totals
+     */
+    totals: Array<EntryTotal>;
+    /**
+     * Amounts In
+     *
+     * ISO 4217 currency code
+     */
+    amounts_in: string;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * EntryTotal
+ */
+export type EntryTotal = {
+    /**
+     * Account Type
+     */
+    account_type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+    /**
+     * Currency
+     *
+     * ISO 4217 currency code
+     */
+    currency: string;
+    /**
+     * Net
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    net: string;
 };
 
 /**
@@ -5995,6 +6040,16 @@ export type HoldingUpdateRequest = {
 };
 
 /**
+ * IncomeAccounts
+ */
+export type IncomeAccounts = {
+    /**
+     * Income Accounts
+     */
+    income_accounts: Array<string>;
+};
+
+/**
  * IncomeChange
  *
  * Your monthly income changes by an amount from a day: a raise
@@ -6043,6 +6098,9 @@ export type IncomeDeclarationRequest = {
 
 /**
  * IncomeItem
+ *
+ * A source of income, opened as an income account so the first real pay
+ * is booked to it. Nothing is posted: an amount sent is not booked.
  */
 export type IncomeItem = {
     /**
@@ -6053,20 +6111,6 @@ export type IncomeItem = {
      * Name
      */
     name: string;
-    /**
-     * Amount
-     *
-     * Decimal string, read exactly; a JSON number is refused.
-     */
-    amount: string;
-    /**
-     * Currency
-     */
-    currency?: string | null;
-    /**
-     * Fx Rate
-     */
-    fx_rate?: string | null;
     /**
      * Deposit Account Code
      */
@@ -7262,6 +7306,10 @@ export type OpeningBalanceItem = {
      * Type
      */
     type: string;
+    /**
+     * Asset Role
+     */
+    asset_role?: 'cash' | 'investment' | 'other' | null;
     /**
      * Amount
      *
@@ -8461,20 +8509,6 @@ export type RebalancingAlert = {
 };
 
 /**
- * RecommendationStatus
- */
-export type RecommendationStatus = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Status
-     */
-    status: 'applied' | 'dismissed';
-};
-
-/**
  * RecordedPrice
  */
 export type RecordedPrice = {
@@ -9112,8 +9146,10 @@ export type RuleUpdate = {
 /**
  * SafeToSpend
  *
- * What could go out today without the cash forecast going below zero
- * before money next comes in.
+ * Free to spend until payday: the lowest the cash gets before money next
+ * comes in, after what is scheduled (`committed`) and the everyday
+ * spending a usual month has beyond it, less a cushion and the cash set
+ * aside for goals. Never below zero.
  */
 export type SafeToSpend = {
     /**
@@ -9134,6 +9170,34 @@ export type SafeToSpend = {
      * Decimal string in the currency's own precision; never a float.
      */
     cash_today: string;
+    /**
+     * Low Point
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    low_point: string;
+    /**
+     * Low Point Date
+     */
+    low_point_date: string;
+    /**
+     * Everyday Spending
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    everyday_spending: string;
+    /**
+     * Cushion
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    cushion: string;
+    /**
+     * Held For Goals
+     *
+     * Decimal string in the currency's own precision; never a float.
+     */
+    held_for_goals: string;
     /**
      * Until
      */
@@ -13382,6 +13446,78 @@ export type EntriesCreateResponses = {
 
 export type EntriesCreateResponse = EntriesCreateResponses[keyof EntriesCreateResponses];
 
+export type EntriesSearchData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Text
+         *
+         * In the description, any case
+         */
+        text?: string | null;
+        /**
+         * Account Id
+         *
+         * Only entries with a posting on it
+         */
+        account_id?: string | null;
+        /**
+         * From Date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         */
+        to_date?: string | null;
+        /**
+         * Min Amount
+         *
+         * A posting at least this
+         */
+        min_amount?: string | null;
+        /**
+         * Max Amount
+         *
+         * A posting at most this
+         */
+        max_amount?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Cursor
+         *
+         * `next_cursor` from the page before
+         */
+        cursor?: string | null;
+    };
+    url: '/v1/entries/search';
+};
+
+export type EntriesSearchErrors = {
+    /**
+     * The request failed validation; `detail` lists each field
+     */
+    422: Problem;
+    /**
+     * An error, as RFC 9457 problem details
+     */
+    default: Problem;
+};
+
+export type EntriesSearchError = EntriesSearchErrors[keyof EntriesSearchErrors];
+
+export type EntriesSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: EntrySearch;
+};
+
+export type EntriesSearchResponse = EntriesSearchResponses[keyof EntriesSearchResponses];
+
 export type EntriesGetData = {
     body?: never;
     path: {
@@ -14960,7 +15096,7 @@ export type OnboardingIncomeResponses = {
     /**
      * Successful Response
      */
-    200: DeclaredEntries;
+    200: IncomeAccounts;
 };
 
 export type OnboardingIncomeResponse = OnboardingIncomeResponses[keyof OnboardingIncomeResponses];
@@ -16019,82 +16155,6 @@ export type AdvisorReportsLatestResponses = {
 };
 
 export type AdvisorReportsLatestResponse = AdvisorReportsLatestResponses[keyof AdvisorReportsLatestResponses];
-
-export type AdvisorRecommendationsApplyData = {
-    body?: never;
-    path: {
-        /**
-         * Report Id
-         */
-        report_id: string;
-        /**
-         * Rec Id
-         */
-        rec_id: string;
-    };
-    query?: never;
-    url: '/v1/advisor/reports/{report_id}/recommendations/{rec_id}/apply';
-};
-
-export type AdvisorRecommendationsApplyErrors = {
-    /**
-     * The request failed validation; `detail` lists each field
-     */
-    422: Problem;
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type AdvisorRecommendationsApplyError = AdvisorRecommendationsApplyErrors[keyof AdvisorRecommendationsApplyErrors];
-
-export type AdvisorRecommendationsApplyResponses = {
-    /**
-     * Successful Response
-     */
-    200: RecommendationStatus;
-};
-
-export type AdvisorRecommendationsApplyResponse = AdvisorRecommendationsApplyResponses[keyof AdvisorRecommendationsApplyResponses];
-
-export type AdvisorRecommendationsDismissData = {
-    body?: never;
-    path: {
-        /**
-         * Report Id
-         */
-        report_id: string;
-        /**
-         * Rec Id
-         */
-        rec_id: string;
-    };
-    query?: never;
-    url: '/v1/advisor/reports/{report_id}/recommendations/{rec_id}/dismiss';
-};
-
-export type AdvisorRecommendationsDismissErrors = {
-    /**
-     * The request failed validation; `detail` lists each field
-     */
-    422: Problem;
-    /**
-     * An error, as RFC 9457 problem details
-     */
-    default: Problem;
-};
-
-export type AdvisorRecommendationsDismissError = AdvisorRecommendationsDismissErrors[keyof AdvisorRecommendationsDismissErrors];
-
-export type AdvisorRecommendationsDismissResponses = {
-    /**
-     * Successful Response
-     */
-    200: RecommendationStatus;
-};
-
-export type AdvisorRecommendationsDismissResponse = AdvisorRecommendationsDismissResponses[keyof AdvisorRecommendationsDismissResponses];
 
 export type AdvisorBriefingPrepareData = {
     body: BriefingPrepareRequest;
