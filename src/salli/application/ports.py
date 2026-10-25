@@ -6,7 +6,7 @@ Adapters (in salli/adapters/) implement these; the domain never imports adapters
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -1506,7 +1506,9 @@ class ClientRefRepository(ABC):
 
 
 class AuditLogRepository(ABC):
-    """Append-only (core_0027's trigger): rows are added, never changed."""
+    """Append-only (core_0046's trigger): rows are added, each linked into
+    the instance's one hash chain (`domain/audit_chain.py`), never changed
+    but to pseudonymise an erased account's."""
 
     @abstractmethod
     async def log(
@@ -1519,7 +1521,12 @@ class AuditLogRepository(ABC):
     ) -> str: ...
 
     @abstractmethod
-    async def list(self, user_id: str, limit: int = 100) -> list[dict[str, Any]]: ...
+    async def list(self, user_id: str, limit: int | None = 100) -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    async def verify(self) -> dict[str, Any]:
+        """`audit_chain.verify` over every row: ok, or the first break."""
+        ...
 
 
 # ── Data portability ───────────────────────────────────────────────────────────
@@ -1527,9 +1534,14 @@ class AuditLogRepository(ABC):
 
 class DataPortabilityRepository(ABC):
     @abstractmethod
-    async def delete_all(self, user_id: str) -> dict[str, int]:
+    async def delete_all(
+        self, user_id: str, pseudonym: str = "erased:", also: Sequence[str] = ()
+    ) -> dict[str, int]:
         """Permanently delete every row belonging to this user across every
-        user-scoped table. Returns {table_name: rows_deleted}. Irreversible."""
+        user-scoped table, but their audit rows (and those under `also`, the
+        hashes failed sign-ins with their email were logged by), which keep
+        `pseudonym` and lose their arguments. Returns {table_name: rows}.
+        Irreversible."""
         ...
 
 

@@ -20,12 +20,17 @@ USER = "0b8f3c1e-5d2a-4f6b-9c7e-1a2b3c4d5e6f"
 
 def _service(order: list[str], storage: Any, conversations: Any) -> DataPortabilityService:
     class Rows:
-        async def delete_all(self, user_id: str) -> dict[str, int]:
+        async def delete_all(self, user_id: str, *_: Any) -> dict[str, int]:
             order.append("rows")
             return {"accounts": 2}
 
+    class NoLogins:
+        async def get(self, user_id: str) -> None:
+            return None
+
     class UoW:
         data_portability = Rows()
+        logins = NoLogins()
 
         async def __aenter__(self) -> Any:
             return self

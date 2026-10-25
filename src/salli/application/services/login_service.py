@@ -211,6 +211,16 @@ def _key(kind: str, value: str) -> str:
     return _sha256(f"{kind}:{value}")
 
 
+def sign_in_key(email: str) -> str:
+    """The hash failed sign-ins with this email are counted and audited by."""
+    return _key("account", email.strip().lower())
+
+
+def _sign_in_params(keys: list[tuple[str, int]]) -> dict[str, Any]:
+    # By hashes, as the throttle counts: never the email or address itself.
+    return {"address": keys[1][0]} if len(keys) > 1 else {}
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -445,6 +455,9 @@ class LoginService:
         )
         async with self._uow_factory() as uow:
             await uow.logins.clear_failures(keys[0][0])
+            await uow.audit_log.log(
+                str(login["user_id"]), "sign_in", _sign_in_params(keys), "succeeded"
+            )
             if rehash is not None:
                 await uow.logins.set_password(login["user_id"], rehash, changed_at=None)
         return SignedIn(user_id=str(login["user_id"]), email=str(login["email"]))
@@ -453,6 +466,7 @@ class LoginService:
         async with self._uow_factory() as uow:
             for key, _ in keys:
                 await uow.logins.record_failure(key, now)
+            await uow.audit_log.log(keys[0][0], "sign_in", _sign_in_params(keys), "refused")
 
     def _open(self, login: dict[str, Any]) -> str:
         from salli.adapters.crypto.keyring import aad_for

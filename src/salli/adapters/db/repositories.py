@@ -2993,7 +2993,20 @@ class SQLAuditLogRepository(AuditLogRepository):
         decision: str,
         client_id: str | None = None,
     ) -> str:
+        from salli.domain import audit_chain
+
+        # One chain for the instance: the next row waits for this
+        # transaction to end.
+        await self._s.execute(text("SELECT pg_advisory_xact_lock(hashtext('audit_logs'))"))
+        last = (
+            await self._s.execute(
+                select(AuditLogORM.seq, AuditLogORM.hash).order_by(AuditLogORM.seq.desc()).limit(1)
+            )
+        ).first()
+        seq, prev = (last[0] + 1, last[1]) if last else (1, None)
         log_id = str(uuid.uuid4())
+        at = datetime.now(UTC)
+        body = audit_chain.body_hash(user_id, params)
         self._s.add(
             AuditLogORM(
                 id=log_id,
@@ -3002,12 +3015,26 @@ class SQLAuditLogRepository(AuditLogRepository):
                 params=params,
                 decision=decision,
                 client_id=client_id,
+                created_at=at,
+                seq=seq,
+                prev_hash=prev,
+                body_hash=body,
+                hash=audit_chain.row_hash(
+                    seq=seq,
+                    prev_hash=prev,
+                    row_id=log_id,
+                    action=action,
+                    decision=decision,
+                    client_id=client_id,
+                    created_at=at.isoformat(),
+                    body=body,
+                ),
             )
         )
         await self._s.flush()
         return log_id
 
-    async def list(self, user_id: str, limit: int = 100) -> list[dict[str, Any]]:
+    async def list(self, user_id: str, limit: int | None = 100) -> list[dict[str, Any]]:
         stmt = (
             select(AuditLogORM)
             .where(AuditLogORM.user_id == user_id)
@@ -3015,6 +3042,27 @@ class SQLAuditLogRepository(AuditLogRepository):
             .limit(limit)
         )
         return [_audit_log_to_dict(r) for r in (await self._s.execute(stmt)).scalars().all()]
+
+    async def verify(self) -> dict[str, Any]:
+        from salli.domain import audit_chain
+
+        rows = (await self._s.execute(select(AuditLogORM).order_by(AuditLogORM.seq))).scalars()
+        return audit_chain.verify(
+            {
+                "seq": r.seq,
+                "prev_hash": r.prev_hash,
+                "id": r.id,
+                "user_id": r.user_id,
+                "params": r.params,
+                "action": r.action,
+                "decision": r.decision,
+                "client_id": r.client_id,
+                "created_at": r.created_at.astimezone(UTC).isoformat(),
+                "body_hash": r.body_hash,
+                "hash": r.hash,
+            }
+            for r in rows
+        )
 
 
 class SQLClientRefRepository(ClientRefRepository):
@@ -3069,7 +3117,9 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # same session, so a failure in one rolls back the whole deletion.
         self._purgers = purgers
 
-    async def delete_all(self, user_id: str) -> dict[str, int]:
+    async def delete_all(
+        self, user_id: str, pseudonym: str = "erased:", also: Sequence[str] = ()
+    ) -> dict[str, int]:
         counts: dict[str, int] = {}
 
         async def _delete(model: Any, column: Any) -> None:
@@ -3097,9 +3147,10 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         # DELETE on it (core_0017) unless the transaction says whose account
         # it is erasing. Notes and reviews point at their entry, so go first.
         await self._s.execute(
-            text("select set_config('salli.erase_user', :user_id, true)").bindparams(
-                user_id=user_id
-            )
+            text(
+                "select set_config('salli.erase_user', :user_id, true),"
+                " set_config('salli.erase_also', :also, true)"
+            ).bindparams(user_id=user_id, also=",".join(also))
         )
         await _delete(DecisionReviewORM, DecisionReviewORM.user_id)
         await _delete(DecisionNoteORM, DecisionNoteORM.user_id)
@@ -3163,7 +3214,14 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(CmaPackORM, CmaPackORM.user_id)
         await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
         await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
-        await _delete(AuditLogORM, AuditLogORM.user_id)
+        # The audit trail keeps their rows, pseudonymised (core_0046): the
+        # keyed hash in place of their id, and none of their arguments.
+        result = await self._s.execute(
+            update(AuditLogORM)
+            .where(AuditLogORM.user_id.in_([user_id, *also]))
+            .values(user_id=pseudonym, params={})
+        )
+        counts["audit_logs_pseudonymised"] = result.rowcount or 0  # type: ignore[attr-defined]
         await _delete(McpClientRefORM, McpClientRefORM.user_id)
         await _delete(OAuthRefreshTokenORM, OAuthRefreshTokenORM.user_id)
         await _delete(OAuthAccessTokenORM, OAuthAccessTokenORM.user_id)

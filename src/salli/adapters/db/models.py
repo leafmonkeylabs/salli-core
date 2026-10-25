@@ -1746,8 +1746,9 @@ class InsuranceTargetORM(Base):
 class AuditLogORM(Base):
     """Every write an agent made or asked to make: Scrooge's with the person's
     decision (approved/denied), an MCP client's with its outcome (succeeded,
-    refused, failed) and the client. Append-only: core_0027's trigger refuses
-    an UPDATE or DELETE, except erasing the user's own account."""
+    refused, failed) and the client; sign-ins, tokens issued and revoked.
+    Append-only (core_0046's trigger): erasing an account only pseudonymises
+    its rows. One hash chain over every row (`domain/audit_chain.py`)."""
 
     __tablename__ = "audit_logs"
 
@@ -1761,6 +1762,10 @@ class AuditLogORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    prev_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    body_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    hash: Mapped[str] = mapped_column(String(80), nullable=False)
 
     # This index was declared at the bottom of the file until 2026-07-27, where it
     # landed in OAuthRefreshTokenORM's __table_args__ instead — so the ORM claimed
@@ -1768,7 +1773,10 @@ class AuditLogORM(Base):
     # migration 32951ad2556e had actually created it on audit_logs. Every
     # autogenerate run emitted a spurious drop-and-recreate-on-the-wrong-table
     # pair as a result. It belongs here, next to the columns it covers.
-    __table_args__ = (Index("ix_audit_logs_user_created", "user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_audit_logs_user_created", "user_id", "created_at"),
+        UniqueConstraint("seq", name="uq_audit_logs_seq"),
+    )
 
 
 class McpClientRefORM(Base):

@@ -24,6 +24,7 @@ from salli.application.services.login_service import (
     TwoStepState,
     TwoStepUnavailable,
 )
+from tests.fakes import FakeAuditLog
 from tests.unit.application.test_login_service import PASSWORD, Clock, Hasher, Logins, Profiles
 
 pytestmark = pytest.mark.asyncio
@@ -79,10 +80,11 @@ class TwoStepLogins(Logins):
 
 def _service(logins, clock, keyring=None) -> LoginService:
     profiles = Profiles()
+    audit = FakeAuditLog()
 
     @asynccontextmanager
     async def uow():
-        yield SimpleNamespace(logins=logins, user_profiles=profiles)
+        yield SimpleNamespace(logins=logins, user_profiles=profiles, audit_log=audit)
 
     return LoginService(uow, Hasher(), clock=clock, keyring=keyring)
 

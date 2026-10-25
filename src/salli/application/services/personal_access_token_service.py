@@ -79,6 +79,12 @@ class PersonalAccessTokenService:
             row = await uow.personal_access_tokens.create(
                 user_id, name[:100], _hash(token), token[:_SHOWN], expires_at, granted
             )
+            await uow.audit_log.log(
+                user_id,
+                "personal_access_token.issue",
+                {"token_id": row["id"], "permissions": granted},
+                "succeeded",
+            )
         return {**row, "token": token}
 
     async def list(self, user_id: str) -> list[dict[str, Any]]:
@@ -87,7 +93,12 @@ class PersonalAccessTokenService:
 
     async def revoke(self, user_id: str, token_id: str) -> bool:
         async with self._uow_factory() as uow:
-            return await uow.personal_access_tokens.revoke(user_id, token_id)
+            revoked = await uow.personal_access_tokens.revoke(user_id, token_id)
+            if revoked:
+                await uow.audit_log.log(
+                    user_id, "personal_access_token.revoke", {"token_id": token_id}, "succeeded"
+                )
+            return revoked
 
     async def verify(self, token: str) -> VerifiedToken | None:
         """Whose a token is and what it may do, or None if it is unknown,

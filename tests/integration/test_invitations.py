@@ -91,7 +91,7 @@ async def test_an_invitation_is_good_once_and_stored_as_its_hash(salli):
     again = await salli.post("/join", data={"t": token, "password": "another long password"})
     assert again.status_code == 404
     actions = await _rows(salli, "select action from audit_logs order by created_at")
-    assert [a for (a,) in actions] == ["member.invite", "member.join"]
+    assert [a for (a,) in actions] == ["member.invite", "member.join", "sign_in"]
 
 
 async def test_an_expired_or_unknown_link_does_nothing(salli):

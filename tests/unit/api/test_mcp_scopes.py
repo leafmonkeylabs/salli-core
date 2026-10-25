@@ -151,7 +151,11 @@ def _session(changed: object, *, audit_fails: bool = False) -> MagicMock:
     session = MagicMock()
     flushes: list[object] = [None, RuntimeError("audit_logs refused it")] if audit_fails else []
     session.flush = AsyncMock(side_effect=flushes or None)
-    session.execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=changed)))
+    session.execute = AsyncMock(
+        return_value=MagicMock(
+            scalar=MagicMock(return_value=changed), first=MagicMock(return_value=None)
+        )
+    )
     session.commit, session.rollback, session.close = AsyncMock(), AsyncMock(), AsyncMock()
     return session
 

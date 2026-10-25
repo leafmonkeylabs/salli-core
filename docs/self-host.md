@@ -443,25 +443,39 @@ digests.
 
 ## Backup and restore
 
-A backup is three things: the database, the uploaded files, and the secrets.
+A backup is the database and the uploaded files; the secrets are kept apart.
 Without the secrets, the AI keys and bank credentials people stored can't be
-opened again.
+opened again, so a backup without them is useless to a thief, and the
+secrets alone hold no data.
 
-**Back up**, from the directory with `compose.yaml`:
+**Back up**, from the directory with `compose.yaml`, encrypted with
+[age](https://age-encryption.org) to a public key whose private key is not on
+this machine:
 
 ```bash
-docker compose exec -T postgres pg_dump --username=salli --format=custom salli > salli.dump
-docker compose exec -T salli tar -C /var/lib/salli -cf - files secrets > salli-data.tar
+docker compose exec -T postgres pg_dump --username=salli --format=custom salli | age -r <public key> > salli.dump.age
+docker compose exec -T salli tar -C /var/lib/salli -cf - files | age -r <public key> > salli-data.tar.age
 ```
 
-Both files hold everything in Salli, secrets included. Keep them encrypted, and
-somewhere other than this machine.
-
-**Restore** onto a new machine, or after `docker compose down -v`. The
-secrets go back first, so the new database is made with the old password:
+Copy both somewhere other than this machine before deleting older ones.
+**The secrets**, once after setup and after each key rotation, go to offline
+storage of their own (a password manager, an encrypted USB key), never beside
+the backups:
 
 ```bash
-docker compose run --rm --no-deps -T secrets tar -C /var/lib/salli -xf - secrets < salli-data.tar
+docker compose exec -T salli tar -C /var/lib/salli -cf - secrets | age -r <public key> > salli-secrets.tar.age
+```
+
+Keep the volumes themselves on an encrypted disk (LUKS); docs/hosting.md has
+the details.
+
+**Restore** onto a new machine, or after `docker compose down -v`. Decrypt
+each file (`age -d -i <private key> salli.dump.age > salli.dump`, and the
+others). The secrets go back first, so the new database is made with the old
+password:
+
+```bash
+docker compose run --rm --no-deps -T secrets tar -C /var/lib/salli -xf - secrets < salli-secrets.tar
 docker compose up -d --wait postgres
 docker compose exec -T postgres pg_restore --username=salli --dbname=salli --no-owner < salli.dump
 docker compose up -d --wait
