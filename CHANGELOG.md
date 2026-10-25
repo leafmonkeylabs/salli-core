@@ -4,6 +4,13 @@
 
 ### Added
 
+- **Push alerts are sent, and only once chosen.** compose.yaml gains a
+  `push` service that runs `salli-server jobs send-push` every 15 minutes
+  (docs/self-host.md's jobs list says so). On the phone, the over-budget
+  attention row opens that category's budget line; Home offers "Add what you
+  own" when there is no cash or savings account; first run takes a debt's
+  rate as a percent, with a % suffix.
+
 - **Round 9, agents.** The fidelity benchmark's retraction check is a judge
   now, not word lists: `--judge claude|api` asks a model one fixed,
   published question of each answer the figure checks pass, cached by the
@@ -429,6 +436,9 @@
 ### Breaking
 
 #### Changed
+
+- Push alerts are off for every kind until the person turns one on
+  (`push_items` defaults to none, not every kind).
 
 - **The push relay's signature covers the alert's id**: `Authorization:
   Bearer t=<t>,id=<id>,v1=<hex>` over `<t>.<id>.<body>`; a relay refuses an

@@ -263,6 +263,8 @@ function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: bo
   const reviews = useRead('decisions.reviews.due', decisionsReviewsDue);
   const statements = useRead('statements.list', statementsList, { query: { limit: 200 } });
   const accounts = useRead('accounts.list', accountsList);
+  // Nothing put by: no cash or savings account at all.
+  const noBuffer = accounts.data ? !accounts.data.some((a) => a.is_active && a.type === 'asset' && (a.asset_role === 'cash' || a.asset_role === 'savings')) : false;
   const waiting = (statements.data?.statements ?? []).filter((x) => x.status === 'pending');
   const [only] = waiting;
   // A statement's bank may be an empty string: then its account, then just "Statement".
@@ -340,6 +342,8 @@ function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: bo
         <Body muted style={{ paddingVertical: 12 }}>
           {strings.reach.notKnown}
         </Body>
+      ) : rows.length === 0 && noBuffer ? (
+        <Line title={t.addOwn} {...open(() => router.push({ pathname: '/first-run', params: { own: '1' } }))} last />
       ) : rows.length === 0 && noFlows ? (
         <Line title={t.importStatement} {...open(() => router.push('/import'))} last />
       ) : rows.length === 0 ? (

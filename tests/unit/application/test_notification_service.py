@@ -139,7 +139,7 @@ async def test_off_until_turned_on_with_salli_s_plain_defaults(uow, reminders, i
             "filing_deadline",
             "cash_below_zero_ahead",
         ],
-        "push_items": ["reminder_due", "cash_below_zero_ahead", "budget_over"],
+        "push_items": [],
         "quiet_hours": None,
         "time_zone": None,
         "next_at": None,
