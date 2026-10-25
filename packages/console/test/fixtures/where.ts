@@ -5800,7 +5800,8 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
       "base": "0.04",
       "growth": "0.06"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "own": {
     "real_return": null,
@@ -7141,7 +7142,8 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
       "base": "0.035",
       "growth": "0.055"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "own": {
     "real_return": {

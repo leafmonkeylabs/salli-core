@@ -38,6 +38,9 @@ class FakeProfiles:
     async def set_fi_assumptions(self, user_id: str, stored: dict[str, Any]) -> None:
         self.rows.setdefault(user_id, {})["fi_assumptions"] = stored
 
+    async def set_fi_plan(self, user_id: str, stored: dict[str, Any]) -> None:
+        self.rows.setdefault(user_id, {})["fi_plan"] = stored
+
     async def set_preference(self, user_id: str, field: str, value: str | None) -> None:
         self.rows.setdefault(user_id, {})[field] = value
 
@@ -556,6 +559,59 @@ class FakeStrategies:
         return [self.strategy] if self.strategy else []
 
 
+class FakeCmaPacks:
+    """Capital-market assumptions packs in memory, as the SQL repository keeps them."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+
+    async def add(
+        self, user_id: str, *, name: str, version: str, content: Any, content_hash: str
+    ) -> dict[str, Any]:
+        for row in self.rows:
+            if row["user_id"] == user_id and row["content_hash"] == content_hash:
+                return dict(row)
+        row = {
+            "id": f"cma-{len(self.rows) + 1}",
+            "user_id": user_id,
+            "name": name,
+            "version": version,
+            "content": content,
+            "content_hash": content_hash,
+            "is_active": False,
+            "created_at": datetime(2026, 10, 1, tzinfo=UTC),
+            "activated_at": None,
+        }
+        self.rows.append(row)
+        return dict(row)
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        return [
+            {k: v for k, v in r.items() if k not in ("content", "user_id")}
+            for r in reversed(self.rows)
+            if r["user_id"] == user_id
+        ]
+
+    async def get(self, user_id: str, pack_id: str) -> dict[str, Any] | None:
+        for row in self.rows:
+            if row["user_id"] == user_id and row["id"] == pack_id:
+                return dict(row)
+        return None
+
+    async def activate(self, user_id: str, pack_id: str | None) -> None:
+        for row in self.rows:
+            if row["user_id"] == user_id:
+                row["is_active"] = row["id"] == pack_id
+                if row["is_active"]:
+                    row["activated_at"] = datetime(2026, 10, 2, tzinfo=UTC)
+
+    async def active(self, user_id: str) -> dict[str, Any] | None:
+        for row in self.rows:
+            if row["user_id"] == user_id and row["is_active"]:
+                return dict(row)
+        return None
+
+
 class FakeActiveRuleSets:
     """The user's active tax rule set versions, as the repository returns
     them: none, unless a test adds some."""
@@ -987,6 +1043,7 @@ class FakeUoW:
         self.bank_connections = self.statements
         self.advisories = FakeRecords()
         self.tax_rule_sets = FakeActiveRuleSets()
+        self.cma_packs = FakeCmaPacks()
         self.principles = FakePrinciples()
         self.decisions = FakeDecisions()
         self.reminders = FakeReminders()

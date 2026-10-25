@@ -6587,6 +6587,447 @@
         }
       }
     },
+    "/v1/fi/odds": {
+      "get": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Get Odds",
+        "description": "The odds of reaching and sustaining FI: a seeded, reproducible Monte\nCarlo of returns from your capital-market assumptions (or the labelled\nplaceholder), with 10/50/90 percentile wealth paths, a horizon-derived\nwithdrawal rate beside yours, and optional guardrails. Reads only.",
+        "operationId": "fi.odds",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "retire_month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Retire Month"
+            }
+          },
+          {
+            "name": "horizon_years",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 50,
+              "title": "Horizon Years"
+            }
+          },
+          {
+            "name": "paths",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "default": 1000,
+              "title": "Paths"
+            }
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2147483648,
+              "minimum": 0,
+              "default": 1,
+              "title": "Seed"
+            }
+          },
+          {
+            "name": "success_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^0?\\.\\d+$",
+              "default": "0.9",
+              "title": "Success Level"
+            }
+          },
+          {
+            "name": "guardrail_band",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^0?\\.\\d+$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Guardrail Band"
+            }
+          },
+          {
+            "name": "guardrail_adjust",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^0?\\.\\d+$",
+              "default": "0.1",
+              "title": "Guardrail Adjust"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiOdds"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fi/plan": {
+      "get": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Get Plan",
+        "description": "Your guaranteed income streams and spending phases.",
+        "operationId": "fi.plan.get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiPlan"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Set Plan",
+        "description": "Replace your guaranteed income streams and spending phases.",
+        "operationId": "fi.plan.set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FiPlanIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/fi/cma-packs": {
+      "get": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "List Cma Packs",
+        "description": "Your capital-market assumptions packs, and the placeholder.",
+        "operationId": "fi.cma.list",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CmaPackList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Import Cma Pack",
+        "description": "Import a `salli.cma/1` pack (docs/baseline.md): stored inactive, and\nnever changed. A document that isn't valid is a 422 saying why.",
+        "operationId": "fi.cma.import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CmaPack"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/fi/cma-packs/{pack_id}": {
+      "get": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Get Cma Pack",
+        "operationId": "fi.cma.get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pack_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pack Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CmaPack"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fi/cma-packs/active": {
+      "put": {
+        "tags": [
+          "financial-independence"
+        ],
+        "summary": "Activate Cma Pack",
+        "description": "Make one of your packs the one projections, the odds and debt or\ninvest read; null for the placeholder.",
+        "operationId": "fi.cma.activate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CmaActivate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CmaPackList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/advisor/daily-briefing": {
       "get": {
         "tags": [
@@ -12313,6 +12754,167 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ScenarioComparison"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "An account, a debt or a holding a change names is not one of yours",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request failed validation; `detail` lists each field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error, as RFC 9457 problem details",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/scenarios/odds": {
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Scenario Odds",
+        "description": "The odds of the scenario's plan: the FI odds (`GET /v1/fi/odds`) on\nthe scenario's timeline and spending. Stores nothing.",
+        "operationId": "scenarios.odds",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "retire_month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Retire Month"
+            }
+          },
+          {
+            "name": "horizon_years",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 50,
+              "title": "Horizon Years"
+            }
+          },
+          {
+            "name": "paths",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "default": 1000,
+              "title": "Paths"
+            }
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2147483648,
+              "minimum": 0,
+              "default": 1,
+              "title": "Seed"
+            }
+          },
+          {
+            "name": "success_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^0?\\.\\d+$",
+              "default": "0.9",
+              "title": "Success Level"
+            }
+          },
+          {
+            "name": "guardrail_band",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^0?\\.\\d+$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Guardrail Band"
+            }
+          },
+          {
+            "name": "guardrail_adjust",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^0?\\.\\d+$",
+              "default": "0.1",
+              "title": "Guardrail Adjust"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Scenario"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiOdds"
                 }
               }
             }
@@ -18969,6 +19571,215 @@
         ],
         "title": "ClearRequest"
       },
+      "CmaActivate": {
+        "properties": {
+          "pack_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pack Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pack_id"
+        ],
+        "title": "CmaActivate"
+      },
+      "CmaPack": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CmaSummary"
+          },
+          "content": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "content_hash",
+          "is_active",
+          "created_at",
+          "summary",
+          "content"
+        ],
+        "title": "CmaPack"
+      },
+      "CmaPackList": {
+        "properties": {
+          "packs": {
+            "items": {
+              "$ref": "#/components/schemas/CmaPackRow"
+            },
+            "type": "array",
+            "title": "Packs"
+          },
+          "placeholder": {
+            "$ref": "#/components/schemas/CmaSummary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "packs",
+          "placeholder"
+        ],
+        "title": "CmaPackList"
+      },
+      "CmaPackRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "activated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "content_hash",
+          "is_active",
+          "created_at"
+        ],
+        "title": "CmaPackRow"
+      },
+      "CmaSummary": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "placeholder": {
+            "type": "boolean",
+            "title": "Placeholder"
+          },
+          "expected_real_return": {
+            "type": "string",
+            "title": "Expected Real Return"
+          },
+          "volatility": {
+            "type": "string",
+            "title": "Volatility"
+          },
+          "cash_yield": {
+            "type": "string",
+            "title": "Cash Yield"
+          },
+          "inflation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inflation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "placeholder",
+          "expected_real_return",
+          "volatility",
+          "cash_yield"
+        ],
+        "title": "CmaSummary",
+        "description": "A capital-market assumptions pack's figures, as projections use them."
+      },
       "CommittedFlow": {
         "properties": {
           "date": {
@@ -21033,6 +21844,16 @@
               }
             ]
           },
+          "odds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StartOdds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "placeholders": {
             "items": {
               "type": "string"
@@ -22788,6 +23609,16 @@
                 "type": "null"
               }
             ]
+          },
+          "cma": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CmaSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -23011,6 +23842,146 @@
         "title": "FiNominalPoint",
         "description": "A year's projected values in that year's own money, from the user's inflation."
       },
+      "FiOdds": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "description": "ISO 4217 currency code",
+            "examples": [
+              "USD"
+            ]
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "paths": {
+            "type": "integer",
+            "title": "Paths"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed"
+          },
+          "horizon_years": {
+            "type": "integer",
+            "title": "Horizon Years"
+          },
+          "real_return": {
+            "type": "string",
+            "title": "Real Return"
+          },
+          "volatility": {
+            "type": "string",
+            "title": "Volatility"
+          },
+          "cma": {
+            "$ref": "#/components/schemas/CmaSummary"
+          },
+          "fi_number": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Fi Number",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "fi_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fi Month"
+          },
+          "retire_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retire Month"
+          },
+          "success": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success"
+          },
+          "reach": {
+            "type": "string",
+            "title": "Reach"
+          },
+          "withdrawal_rate": {
+            "$ref": "#/components/schemas/OddsWithdrawalRate"
+          },
+          "guardrails": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OddsGuardrails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "percentiles": {
+            "items": {
+              "$ref": "#/components/schemas/OddsYear"
+            },
+            "type": "array",
+            "title": "Percentiles"
+          },
+          "withdrawal_tax": {
+            "$ref": "#/components/schemas/WithdrawalTax"
+          },
+          "placeholders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Placeholders"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "as_of",
+          "paths",
+          "seed",
+          "horizon_years",
+          "real_return",
+          "volatility",
+          "cma",
+          "fi_number",
+          "reach",
+          "withdrawal_rate",
+          "percentiles",
+          "withdrawal_tax",
+          "placeholders",
+          "message"
+        ],
+        "title": "FiOdds",
+        "description": "The odds of the plan, from a seeded Monte Carlo on the baseline's\nmonthly timeline, in today's money. Shares are fractions. Not a forecast."
+      },
       "FiOwnAssumption": {
         "properties": {
           "value": {
@@ -23195,6 +24166,66 @@
           "surplus_invested"
         ],
         "title": "FiPlaceholderValues"
+      },
+      "FiPlan": {
+        "properties": {
+          "income_streams": {
+            "items": {
+              "$ref": "#/components/schemas/IncomeStreamOut"
+            },
+            "type": "array",
+            "title": "Income Streams"
+          },
+          "spending_phases": {
+            "items": {
+              "$ref": "#/components/schemas/SpendingPhaseOut"
+            },
+            "type": "array",
+            "title": "Spending Phases"
+          },
+          "date_of_birth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Of Birth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "income_streams",
+          "spending_phases"
+        ],
+        "title": "FiPlan",
+        "description": "Guaranteed income and spending phases: they reduce, and step, the FI\nnumber, and the income enters the monthly timeline."
+      },
+      "FiPlanIn": {
+        "properties": {
+          "income_streams": {
+            "items": {
+              "$ref": "#/components/schemas/IncomeStream"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Income Streams",
+            "default": []
+          },
+          "spending_phases": {
+            "items": {
+              "$ref": "#/components/schemas/SpendingPhase"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Spending Phases",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "FiPlanIn"
       },
       "FiProjectionPoint": {
         "properties": {
@@ -25985,6 +27016,127 @@
         ],
         "title": "IncomeStatementLine"
       },
+      "IncomeStream": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Start"
+          },
+          "monthly": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "terms": {
+            "type": "string",
+            "enum": [
+              "real",
+              "nominal"
+            ],
+            "title": "Terms",
+            "default": "real"
+          },
+          "indexed": {
+            "type": "boolean",
+            "title": "Indexed",
+            "default": true
+          },
+          "lump_sum": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Lump Sum",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "default": "0",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "start",
+          "monthly"
+        ],
+        "title": "IncomeStream",
+        "description": "A guaranteed income: a pension, an annuity, a provident fund's payout."
+      },
+      "IncomeStreamOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "monthly": {
+            "type": "string",
+            "title": "Monthly"
+          },
+          "terms": {
+            "type": "string",
+            "enum": [
+              "real",
+              "nominal"
+            ],
+            "title": "Terms"
+          },
+          "indexed": {
+            "type": "boolean",
+            "title": "Indexed"
+          },
+          "lump_sum": {
+            "type": "string",
+            "title": "Lump Sum"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "start",
+          "monthly",
+          "terms",
+          "indexed",
+          "lump_sum"
+        ],
+        "title": "IncomeStreamOut"
+      },
       "InsurancePolicy": {
         "properties": {
           "id": {
@@ -27630,6 +28782,120 @@
           "mobile_redirect_uri"
         ],
         "title": "OAuthInfo"
+      },
+      "OddsGuardrails": {
+        "properties": {
+          "band": {
+            "type": "string",
+            "title": "Band"
+          },
+          "adjust": {
+            "type": "string",
+            "title": "Adjust"
+          },
+          "success": {
+            "type": "string",
+            "title": "Success"
+          },
+          "cut": {
+            "type": "string",
+            "title": "Cut"
+          },
+          "low_spending_p10": {
+            "type": "string",
+            "title": "Low Spending P10"
+          }
+        },
+        "type": "object",
+        "required": [
+          "band",
+          "adjust",
+          "success",
+          "cut",
+          "low_spending_p10"
+        ],
+        "title": "OddsGuardrails"
+      },
+      "OddsWithdrawalRate": {
+        "properties": {
+          "applied": {
+            "type": "string",
+            "title": "Applied"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user",
+              "placeholder"
+            ],
+            "title": "Origin"
+          },
+          "horizon_derived": {
+            "type": "string",
+            "title": "Horizon Derived"
+          },
+          "years": {
+            "type": "integer",
+            "title": "Years"
+          },
+          "success_level": {
+            "type": "string",
+            "title": "Success Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied",
+          "origin",
+          "horizon_derived",
+          "years",
+          "success_level"
+        ],
+        "title": "OddsWithdrawalRate"
+      },
+      "OddsYear": {
+        "properties": {
+          "year": {
+            "type": "integer",
+            "title": "Year"
+          },
+          "p10": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "P10",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "p50": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "P50",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "p90": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "P90",
+            "description": "Decimal string in the currency's own precision; never a float.",
+            "examples": [
+              "1234.50"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "year",
+          "p10",
+          "p50",
+          "p90"
+        ],
+        "title": "OddsYear",
+        "description": "The asset base across paths at a whole year, in today's money."
       },
       "OnboardingGoalItem": {
         "properties": {
@@ -34110,6 +35376,73 @@
         ],
         "title": "SpendingLine"
       },
+      "SpendingPhase": {
+        "properties": {
+          "from_age": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 0.0,
+            "title": "From Age"
+          },
+          "monthly": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Monthly",
+            "description": "Decimal string, read exactly; a JSON number is refused.",
+            "examples": [
+              "1234.50"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_age",
+          "monthly"
+        ],
+        "title": "SpendingPhase",
+        "description": "The monthly spending to live on, in today's money, from an age on."
+      },
+      "SpendingPhaseOut": {
+        "properties": {
+          "from_age": {
+            "type": "integer",
+            "title": "From Age"
+          },
+          "monthly": {
+            "type": "string",
+            "title": "Monthly"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_age",
+          "monthly"
+        ],
+        "title": "SpendingPhaseOut"
+      },
       "SplitPart-Input": {
         "properties": {
           "account_id": {
@@ -34228,6 +35561,50 @@
           "note"
         ],
         "title": "StartAnswer"
+      },
+      "StartOdds": {
+        "properties": {
+          "debt": {
+            "type": "string",
+            "title": "Debt"
+          },
+          "debt_real_rate": {
+            "type": "string",
+            "title": "Debt Real Rate"
+          },
+          "months": {
+            "type": "integer",
+            "title": "Months"
+          },
+          "paths": {
+            "type": "integer",
+            "title": "Paths"
+          },
+          "seed": {
+            "type": "integer",
+            "title": "Seed"
+          },
+          "invest_beats_paying_down": {
+            "type": "string",
+            "title": "Invest Beats Paying Down"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          }
+        },
+        "type": "object",
+        "required": [
+          "debt",
+          "debt_real_rate",
+          "months",
+          "paths",
+          "seed",
+          "invest_beats_paying_down",
+          "says"
+        ],
+        "title": "StartOdds",
+        "description": "For debt or invest: how often investing grows by more than paying\ndown the debt saves, under the Monte Carlo. A share, not a forecast."
       },
       "StartOption": {
         "properties": {
@@ -39040,6 +40417,62 @@
         ],
         "title": "Updated",
         "description": "What the updates that predate `Ref` return instead of an id."
+      },
+      "WithdrawalTax": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "computed",
+              "not_computed"
+            ],
+            "title": "Status"
+          },
+          "rules": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WithdrawalTaxRules"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "WithdrawalTax",
+        "description": "Whether the FI number is grossed up for tax on withdrawals."
+      },
+      "WithdrawalTaxRules": {
+        "properties": {
+          "rule_set_id": {
+            "type": "string",
+            "title": "Rule Set Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "year": {
+            "type": "string",
+            "title": "Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_set_id",
+          "version",
+          "year"
+        ],
+        "title": "WithdrawalTaxRules"
       },
       "YearEndClose": {
         "properties": {

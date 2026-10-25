@@ -170,6 +170,13 @@ OPERATION_IDS: dict[Route, str] = {
     ("GET", "/fi/surplus"): "fi.surplus",
     ("GET", "/fi/assumptions"): "fi.assumptions",
     ("PATCH", "/fi/assumptions"): "fi.assumptions.set",
+    ("GET", "/fi/odds"): "fi.odds",
+    ("GET", "/fi/plan"): "fi.plan.get",
+    ("PUT", "/fi/plan"): "fi.plan.set",
+    ("GET", "/fi/cma-packs"): "fi.cma.list",
+    ("POST", "/fi/cma-packs"): "fi.cma.import",
+    ("GET", "/fi/cma-packs/{pack_id}"): "fi.cma.get",
+    ("PUT", "/fi/cma-packs/active"): "fi.cma.activate",
     ("GET", "/fi/goals"): "goals.list",
     ("POST", "/fi/goals"): "goals.create",
     ("PATCH", "/fi/goals/{goal_id}"): "goals.update",
@@ -296,6 +303,7 @@ OPERATION_IDS: dict[Route, str] = {
     # scenarios: what-ifs on the baseline (domain/scenarios); they store nothing
     ("POST", "/scenarios/run"): "scenarios.run",
     ("POST", "/scenarios/compare"): "scenarios.compare",
+    ("POST", "/scenarios/odds"): "scenarios.odds",
     # principles: the user's own rules of thumb, checked against options
     ("GET", "/principles"): "principles.list",
     ("POST", "/principles"): "principles.create",

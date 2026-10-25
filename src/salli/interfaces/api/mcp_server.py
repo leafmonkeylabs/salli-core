@@ -40,7 +40,7 @@ import asyncio
 import datetime
 import json
 from collections.abc import Callable, Sequence
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Literal, NoReturn, cast
 from urllib.parse import urlparse
 
@@ -82,6 +82,7 @@ from salli.domain.currency import quantize
 from salli.domain.decisions.journal import JournalError
 from salli.domain.decisions.principles import PrincipleError
 from salli.domain.decisions.templates import TemplateError, UnknownTemplate
+from salli.domain.fi import montecarlo
 from salli.domain.scenarios import schema as scenario_schema
 from salli.domain.scenarios.engine import STALE_AFTER_DAYS, ScenarioError
 
@@ -1614,10 +1615,36 @@ def build_mcp_server(
         set their inflation): the FI number, and the month it is reached
         under conservative, base and growth real returns (the surplus they
         invest, surplus_invested, grows with their investments; cash earns
-        nothing). assumptions.status is "placeholder" while a stand-in is
+        the CMA cash yield). assumptions.status is "placeholder" while a stand-in is
         used (assumptions.placeholders says which): say so, and quote
         assumptions.message. Quote the figures exactly."""
         return await fi_svc.get_projections(_current_user_id())
+
+    @mcp.tool(annotations=READS)
+    async def get_fi_odds(
+        retire_month: str | None = None,
+        horizon_years: int = 50,
+        guardrail_band: str | None = None,
+        scenario: ScenarioDocument | None = None,
+    ) -> dict[str, Any]:
+        """Seeded Monte Carlo of the plan or a scenario: success, reach,
+        percentiles, a horizon-derived withdrawal rate, guardrails. Quote it;
+        never estimate odds."""
+        try:
+            band = None if guardrail_band is None else Decimal(guardrail_band)
+        except InvalidOperation:
+            _fail("invalid_input", "guardrail_band is a fraction such as 0.2")
+        options: dict[str, Any] = {
+            "retire_month": retire_month,
+            "horizon_years": horizon_years,
+            "guardrails": None if band is None else montecarlo.Guardrails(band=band),
+        }
+        try:
+            if scenario is not None:
+                return await scenario_svc.odds(_current_user_id(), scenario, **options)
+            return await fi_svc.odds(_current_user_id(), **options)
+        except (ScenarioError, AccountNotFound, DebtNotFound, HoldingNotFound, ValueError) as exc:
+            _refused(exc)
 
     @mcp.tool(annotations=READS)
     async def get_fi_assumptions() -> dict[str, Any]:

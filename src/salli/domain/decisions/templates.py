@@ -894,6 +894,9 @@ class Built:
     placeholders: tuple[str, ...] = ()
     #: When each option draws level with one, read from the timelines.
     level: Level | None = None
+    #: For debt or invest: the debt (by id) whose rate investing is set
+    #: against under the Monte Carlo (`start`'s `odds`).
+    odds_against_debt: str | None = None
 
 
 @dataclass(frozen=True)

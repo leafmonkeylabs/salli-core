@@ -460,7 +460,8 @@ export const SCENARIO_RUN: ScenarioRun = {
       "base": "0.04",
       "growth": "0.06"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "placeholders": [
     "real_return",
@@ -877,7 +878,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "base": "0.04",
           "growth": "0.06"
         },
-        "nominal_returns": null
+        "nominal_returns": null,
+        "cma": null
       },
       "placeholders": [
         "real_return",
@@ -1320,7 +1322,8 @@ export const SCENARIO_COMPARISON: ScenarioComparison = {
           "base": "0.04",
           "growth": "0.06"
         },
-        "nominal_returns": null
+        "nominal_returns": null,
+        "cma": null
       },
       "placeholders": [
         "real_return",
@@ -2513,7 +2516,8 @@ export const TAXED_RUN: ScenarioRun = {
       "base": "0.04",
       "growth": "0.06"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "placeholders": [
     "real_return",
@@ -3079,7 +3083,8 @@ export const HOLDING_RUN: ScenarioRun = {
       "base": "0.04",
       "growth": "0.06"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "placeholders": [
     "real_return",
@@ -3497,7 +3502,8 @@ export const ASSET_RUN: ScenarioRun = {
       "base": "0.04",
       "growth": "0.06"
     },
-    "nominal_returns": null
+    "nominal_returns": null,
+    "cma": null
   },
   "placeholders": [
     "real_return",

@@ -4,6 +4,28 @@
 
 ### Added
 
+- **The odds of a plan.** A seeded, reproducible Monte Carlo on the
+  baseline's monthly timeline (`GET /v1/fi/odds`, `POST /v1/scenarios/odds`,
+  `salli fi odds`, MCP `get_fi_odds`): the share of paths whose money lasts
+  to a horizon, the share reaching the FI number, 10/50/90 percentile wealth
+  paths, a horizon-derived withdrawal rate beside yours, and optional
+  spending guardrails. Debt or invest's start carries the share of paths on
+  which investing grows by more than paying down the debt saves.
+- **Capital-market assumptions as user data** (`salli.cma/1`;
+  `/v1/fi/cma-packs`, `salli fi cma`; migration core_0039): per asset class
+  a real return and volatility, correlations, a cash yield and inflation,
+  each sourced and dated, imported unchanged and activated one at a time.
+  An active pack sets the real return and inflation where you set none,
+  cash earns its yield, and the odds draw with its volatility; a labelled
+  placeholder pack stands in otherwise.
+- **Guaranteed income, spending phases and tax on withdrawals in the FI
+  number** (`/v1/fi/plan`, `salli fi plan`): pensions, annuities and
+  provident-fund payouts (start month, real or nominal, indexed or not, a
+  lump sum) reduce the FI number from their start and come into cash;
+  spending can change by age band; and with an income role `withdrawal` in
+  your active tax rules the FI number is grossed up for the tax on
+  withdrawals.
+
 - **Bank reconciliation.** A statement with the bank's opening and closing
   balance (an MT940 or camt.053 import carries them; any other is typed in)
   is reconciled by clearing the postings it shows; it completes only at a

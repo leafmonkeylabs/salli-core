@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from salli.domain.scenarios.schema import Scenario
 from salli.interfaces.api.contract import Amount, CurrencyCode, DecimalOut
 from salli.interfaces.api.deps import AppServices, CurrentUser
-from salli.interfaces.api.routers.fi import FiAssumptions
+from salli.interfaces.api.routers.fi import FiAssumptions, FiOdds, OddsQuery
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 
@@ -570,3 +570,12 @@ async def compare_scenarios(
     return ScenarioComparison.model_validate(
         await svc.scenarios.compare(user_id, body.options, timeline=timeline)
     )
+
+
+@router.post("/odds", responses=_NOT_FOUND)  # type: ignore[arg-type]
+async def scenario_odds(
+    body: Scenario, user_id: CurrentUser, svc: AppServices, query: Annotated[OddsQuery, Query()]
+) -> FiOdds:
+    """The odds of the scenario's plan: the FI odds (`GET /v1/fi/odds`) on
+    the scenario's timeline and spending. Stores nothing."""
+    return FiOdds.model_validate(await svc.scenarios.odds(user_id, body, **query.options()))
