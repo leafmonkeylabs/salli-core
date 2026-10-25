@@ -13,7 +13,6 @@ Policy summary (full prompt below):
 
 from __future__ import annotations
 
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
 from salli.domain.agents.style import WRITING_STYLE
@@ -77,8 +76,8 @@ def build_tax_agent(ledger_svc, tax_svc, checkpointer=None, *, api_key):
     that would silently read ANTHROPIC_API_KEY if it were ever revived.
 
     ledger_svc / tax_svc: real application services (from composition root)
-    checkpointer: LangGraph checkpointer; defaults to in-memory MemorySaver for
-                  Phase 1 (CLI). Phase 2 (FastAPI) will inject AsyncPostgresSaver.
+    checkpointer: LangGraph checkpointer; in memory when none is given,
+                  refused in production (checkpointing.py).
     """
     from salli.domain.agents.jurisdiction import tax_specialist_section
     from salli.domain.agents.model_factory import chat_model
@@ -88,8 +87,9 @@ def build_tax_agent(ledger_svc, tax_svc, checkpointer=None, *, api_key):
     model = chat_model(api_key=api_key, temperature=0, cache=True)
     tools = make_tools(ledger_svc, tax_svc)
 
-    if checkpointer is None:
-        checkpointer = MemorySaver()
+    from salli.domain.agents.checkpointing import checkpointer_or_memory
+
+    checkpointer = checkpointer_or_memory(checkpointer)
 
     agent = create_react_agent(
         model=model,

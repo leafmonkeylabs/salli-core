@@ -21,7 +21,7 @@ services:
   secrets:
     # A release, never :latest, so an upgrade is a choice (RELEASING.md bumps
     # it with the version; docs/self-host.md#upgrades).
-    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.4.1}
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.5.0}
     command: ["salli-server", "secrets", "init", "--dir", "/var/lib/salli/secrets"]
     volumes:
       - secrets:/var/lib/salli/secrets
@@ -53,7 +53,7 @@ services:
     networks: [database]
 
   salli:
-    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.4.1}
+    image: ${SALLI_IMAGE:-ghcr.io/leafmonkeylabs/salli:0.5.0}
     # A checkout builds the image from source (`docker compose build`); with
     # just this file, the published image is pulled.
     build: .

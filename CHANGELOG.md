@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-25
+
 Every change under **Breaking** needs something written against the last
-release to change with it, so the next releases are minor bumps: the SDK and
-the CLI are 0.5.0, and the server's next release is 0.5.0
+release to change with it, so this is a minor release of each part: the
+server (and the console with it), the SDK and the CLI are all 0.5.0
 ([RELEASING.md](RELEASING.md#breaking-changes)).
 
 ### Added
@@ -112,6 +114,10 @@ the CLI are 0.5.0, and the server's next release is 0.5.0
 
 ### Security
 
+- The tax agent and the briefing and return workflows refuse to build on the
+  in-memory checkpointer in production (`ENVIRONMENT=production`), as the
+  server's start-up already did, so nothing awaiting review can live only in
+  memory there.
 - Every MCP tool call is in the audit log: a read as one row (the tool, the
   client and the outcome, no arguments), written before its answer is sent.
 - An AI client's connection ends 90 days after the person approved it
