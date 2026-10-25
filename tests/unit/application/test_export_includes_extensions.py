@@ -36,6 +36,10 @@ def _service(
             principles=SimpleNamespace(list=AsyncMock(return_value=[])),
             investment_policies=SimpleNamespace(list=AsyncMock(return_value=[])),
             decisions=SimpleNamespace(list_full=AsyncMock(return_value=[])),
+            ledger=SimpleNamespace(
+                get_accounts=AsyncMock(return_value=[]), get_entries=AsyncMock(return_value=[])
+            ),
+            reconciliations=SimpleNamespace(statements=AsyncMock(return_value=[])),
         )
 
     return DataPortabilityService(uow, *svcs, exporters=exporters, conversations=conversations)
@@ -45,6 +49,7 @@ async def test_without_extensions_the_export_is_salli_only():
     data = await _service().export_all("u1")
     assert data["user_id"] == "u1"
     assert "bug_reports" not in data
+    assert data["warnings"] == []
 
 
 async def test_extension_data_is_appended_after_salli_keys():

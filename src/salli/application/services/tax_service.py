@@ -592,6 +592,8 @@ class TaxService:
         reference: str | None = None,
         filed_on: datetime.date | None = None,
         reason: str | None = None,
+        acknowledge_provisional: bool = False,
+        provisional_note: str | None = None,
     ) -> dict[str, Any]:
         """Record a version of the return for a stored computation's year:
         a `draft`, what was `filed` (on `filed_on`, with the authority's
@@ -602,9 +604,13 @@ class TaxService:
 
         A filed return keeps its year's books closed (LedgerService); only
         an amendment lets them open, and a later `filed` version closes
-        them again. KeyError for a computation that isn't the user's;
-        ValueError for a version that can't follow the latest."""
+        them again. A computation that used values its rules mark
+        provisional is filed (or amended) only with `acknowledge_provisional`
+        and a `provisional_note`, kept on the version. KeyError for a
+        computation that isn't the user's; ValueError for a version that
+        can't follow the latest."""
         reason = (reason or "").strip() or None
+        provisional_note = (provisional_note or "").strip() or None
         async with self._uow_factory() as uow:
             stored = await uow.tax_computations.get(user_id, computation_id)
             if stored is None:
@@ -640,6 +646,17 @@ class TaxService:
                     raise ValueError("A return can't be filed after today.")
             elif filed_on is not None:
                 raise ValueError("Only a filed return has a filing date.")
+            if status == "draft" or not snapshot["provisional"]:
+                if acknowledge_provisional or provisional_note:
+                    raise ValueError(
+                        "Only a return filed on provisional values takes their acknowledgement."
+                    )
+            elif not (acknowledge_provisional and provisional_note):
+                keys = ", ".join(p["key"] for p in snapshot["provisional"])
+                raise ValueError(
+                    f"This computation uses values its rules mark provisional ({keys}): "
+                    "confirm them, or file with acknowledge_provisional and a note saying why."
+                )
             row = await uow.tax_returns.add(
                 user_id,
                 {
@@ -660,6 +677,7 @@ class TaxService:
                     "chain_head_hash": await uow.ledger.chain_head(user_id),
                     "reference": reference,
                     "filed_on": filed_on,
+                    "provisional_note": provisional_note,
                 },
             )
         return _return_view(row, [])
@@ -860,6 +878,8 @@ def _return_view(row: Mapping[str, Any], payments: list[dict[str, Any]]) -> dict
         "snapshot": row["snapshot"],
         "snapshot_hash": row["snapshot_hash"],
         "chain_head_hash": row.get("chain_head_hash"),
+        "provisional": row["snapshot"].get("provisional") or [],
+        "provisional_note": row.get("provisional_note"),
         "payments": [
             {
                 "id": p["id"],

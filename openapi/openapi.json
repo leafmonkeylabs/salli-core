@@ -2814,7 +2814,7 @@
           "tax"
         ],
         "summary": "Record Return",
-        "description": "Record a version of a year's return from a stored computation: a\ndraft, what was filed, or an amendment of a filed one (with its reason).\nIt supersedes the year's latest version; after a filed one, only an\namendment may follow. 422 when this version can't follow the latest.",
+        "description": "Record a version of a year's return from a stored computation: a\ndraft, what was filed, or an amendment of a filed one (with its reason).\nIt supersedes the year's latest version; after a filed one, only an\namendment may follow. 422 when this version can't follow the latest, or\nwhen filing on provisional values without acknowledging them.",
         "operationId": "tax.returnRecords.create",
         "security": [
           {
@@ -40236,6 +40236,25 @@
             ],
             "title": "Chain Head Hash"
           },
+          "provisional": {
+            "items": {
+              "$ref": "#/components/schemas/TaxRuleProvisional"
+            },
+            "type": "array",
+            "title": "Provisional",
+            "default": []
+          },
+          "provisional_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Note"
+          },
           "payments": {
             "items": {
               "$ref": "#/components/schemas/TaxReturnPayment"
@@ -40323,6 +40342,23 @@
               }
             ],
             "title": "Reason"
+          },
+          "acknowledge_provisional": {
+            "type": "boolean",
+            "title": "Acknowledge Provisional",
+            "default": false
+          },
+          "provisional_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Note"
           }
         },
         "type": "object",

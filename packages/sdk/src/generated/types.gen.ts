@@ -13807,6 +13807,14 @@ export type TaxReturnRecord = {
      */
     chain_head_hash?: string | null;
     /**
+     * Provisional
+     */
+    provisional?: Array<TaxRuleProvisional>;
+    /**
+     * Provisional Note
+     */
+    provisional_note?: string | null;
+    /**
      * Payments
      */
     payments: Array<TaxReturnPayment>;
@@ -13840,6 +13848,14 @@ export type TaxReturnRecordIn = {
      * Reason
      */
     reason?: string | null;
+    /**
+     * Acknowledge Provisional
+     */
+    acknowledge_provisional?: boolean;
+    /**
+     * Provisional Note
+     */
+    provisional_note?: string | null;
 };
 
 /**
