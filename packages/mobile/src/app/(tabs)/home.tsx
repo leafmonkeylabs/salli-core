@@ -9,19 +9,21 @@ import {
   insightsSignals,
   ledgerIncomeStatement,
   remindersList,
-  remindersMarkDone,
   reportsBalanceSheet,
   statementsList,
 } from '@leafmonkeylabs/salli-sdk';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import Animated from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useApi, useRead, useReach } from '../../api';
 import { Body, Button, Card, Icon, Loading, Money, SectionLabel } from '../../kit';
 import { filled, lineChart } from '../../lib/chart';
 import { scoreShown } from '../../lib/fi';
+import { listMotion, useReducedMotion } from '../../motion';
+import { useMarkDone } from '../../reminders';
 import { amountParts, displayDate, displayDateTime, displayDay, displayMoment, displayRange, monthNameOf, monthOf, sameDaysLastMonth, todayIso, wholeDigits } from '../../lib/display';
 import { useSession, labelIn } from '../../session';
 import { strings } from '../../strings';
@@ -235,8 +237,7 @@ function Ring({ share, text }: { share: number; text: string }) {
 /** What needs attention: Salli's signals, reminders due, decisions due for review. */
 function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: boolean }) {
   const theme = useTheme();
-  const api = useApi();
-  const queryClient = useQueryClient();
+  const list = listMotion(useReducedMotion());
   const signals = useRead('insights.signals', insightsSignals);
   const reminders = useRead('reminders.list', remindersList, { query: { status: 'pending' } });
   const reviews = useRead('decisions.reviews.due', decisionsReviewsDue);
@@ -250,10 +251,7 @@ function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: bo
   const onlyName = only ? only.bank || (only.account_id ? accounts.data?.find((a) => a.id === only.account_id)?.name : undefined) || strings.imports.statement : '';
   // Away from the server, a row opens a place that can't load: it stays text.
   const open = (go: () => void) => (unreachable ? {} : { onPress: go });
-  const done = useMutation({
-    mutationFn: (id: string) => api.call(remindersMarkDone, { path: { reminder_id: id } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.server, 'reminders.list'] }),
-  });
+  const done = useMarkDone();
   const today = todayIso();
 
   const rows: { key: string; title: string; detail?: string; spoken?: string; late?: boolean; onPress?: () => void; action?: ReactNode }[] = [];
@@ -283,6 +281,7 @@ function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: bo
   }
   for (const reminder of reminders.data?.reminders ?? []) {
     if (reminder.source_domain === 'decision') continue; // the review above
+    if (reminder.status !== 'pending') continue; // just marked done, before the list is read again
     const late = reminder.due_date < today;
     rows.push({
       key: `reminder-${reminder.id}`,
@@ -295,9 +294,8 @@ function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: bo
           label={t.done}
           kind="secondary"
           accessibilityLabel={unreachable ? strings.reach.needsServer(t.markDone(reminder.kind)) : t.markDone(reminder.kind)}
-          busy={done.isPending && done.variables === reminder.id}
           disabled={unreachable}
-          onPress={() => done.mutate(reminder.id)}
+          onPress={() => done.mutate(reminder)}
         />
       ),
     });
@@ -330,7 +328,11 @@ function Attention({ unreachable, noFlows }: { unreachable: boolean; noFlows: bo
           {t.nothingNeedsAttention}
         </Body>
       ) : (
-        rows.map(({ key, ...row }, i) => <Line key={key} {...row} last={i === rows.length - 1} />)
+        rows.map(({ key, ...row }, i) => (
+          <Animated.View key={key} {...list}>
+            <Line {...row} last={i === rows.length - 1} />
+          </Animated.View>
+        ))
       )}
     </Card>
   );

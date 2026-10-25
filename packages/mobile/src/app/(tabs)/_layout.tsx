@@ -6,7 +6,7 @@ import { useRead } from '../../api';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useYourAI } from '../../ai/store';
-import { Icon, offsetOf, type IconName } from '../../kit';
+import { Icon, offsetOf, Press, type IconName } from '../../kit';
 import { strings } from '../../strings';
 import { font, useTheme } from '../../theme';
 
@@ -56,14 +56,14 @@ function AIButton() {
   const tab = usePathname().replace(/^\//, '');
   if (!ai.loaded || !ai.enabled || !['home', 'cash', 'decide', 'books'].includes(tab)) return null;
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityLabel={ai.ready ? strings.ai.open : strings.ai.openSetUp}
       onPress={() => (ai.ready ? router.push({ pathname: '/agent', params: { from: tab } }) : router.push('/ai'))}
-      style={({ pressed }) => [styles.ai, { bottom: insets.bottom + BAR + 16, borderRadius: theme.control ? Math.min(theme.control, 28) : 0, backgroundColor: theme.button, shadowColor: theme.shadow, opacity: pressed ? 0.85 : 1 }, offsetOf(theme)]}
+      style={[styles.ai, { bottom: insets.bottom + BAR + 16, borderRadius: theme.control ? Math.min(theme.control, 28) : 0, backgroundColor: theme.button, shadowColor: theme.shadow }, offsetOf(theme)]}
     >
       <Icon name="spark" size={26} colour={theme.buttonText} />
-    </Pressable>
+    </Press>
   );
 }
 

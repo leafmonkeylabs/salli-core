@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { YourAIProvider } from '../ai/store';
 import { AppearanceProvider } from '../appearance';
@@ -17,19 +18,21 @@ void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AppearanceProvider>
-        <SessionProvider>
-          <PhoneProvider>
-            <ApiProvider>
-              <YourAIProvider>
-                <Navigator />
-              </YourAIProvider>
-            </ApiProvider>
-          </PhoneProvider>
-        </SessionProvider>
-      </AppearanceProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppearanceProvider>
+          <SessionProvider>
+            <PhoneProvider>
+              <ApiProvider>
+                <YourAIProvider>
+                  <Navigator />
+                </YourAIProvider>
+              </ApiProvider>
+            </PhoneProvider>
+          </SessionProvider>
+        </AppearanceProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

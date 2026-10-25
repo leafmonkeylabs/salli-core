@@ -6,10 +6,12 @@
  */
 import { SalliNetworkError } from '@leafmonkeylabs/salli-sdk';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type PressableProps, type TextStyle, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Rect, SvgXml } from 'react-native-svg';
 import { LOGO_DARK, LOGO_LIGHT } from './brand/logo';
 import { amountParts } from './lib/display';
+import { press, useReducedMotion } from './motion';
 import { strings } from './strings';
 import { font, size, useTheme, type Theme } from './theme';
 
@@ -67,21 +69,53 @@ export function Body({ children, muted, small, style, alert }: { children: React
   );
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * Something to press, answering on the UI thread: it scales to 0.98 and
+ * dims to 0.85 while held (Reduce Motion: it only dims). `dim` draws it
+ * unavailable, at 0.45 and still: never what a press looks like.
+ */
+export function Press({ style, dim, onPressIn, onPressOut, ...rest }: Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle>; dim?: boolean }) {
+  const reduced = useReducedMotion();
+  const held = useSharedValue(0);
+  const answer = useAnimatedStyle(() => ({
+    opacity: dim ? 0.45 : 1 - held.value * (1 - press.opacity),
+    transform: [{ scale: reduced ? 1 : 1 - held.value * (1 - press.scale) }],
+  }));
+  const to = (value: number, duration: number) => (held.value = withTiming(value, { duration, easing: press.easing, reduceMotion: ReduceMotion.Never }));
+  return (
+    <AnimatedPressable
+      {...rest}
+      onPressIn={(e) => {
+        to(1, press.in);
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        to(0, press.out);
+        onPressOut?.(e);
+      }}
+      style={[style, answer]}
+    />
+  );
+}
+
 type ButtonKind = 'primary' | 'secondary' | 'tertiary';
 
-export function Button({ label, kind = 'primary', busy, icon, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean; icon?: IconName } & Omit<PressableProps, 'children'>) {
+export function Button({ label, kind = 'primary', busy, icon, ...rest }: { label: string; kind?: ButtonKind; busy?: boolean; icon?: IconName } & Omit<PressableProps, 'children' | 'style'>) {
   const theme = useTheme();
   // A secondary button that can't be used is drawn outlined and empty, as the design draws Done away from the server.
   const unavailable = kind === 'secondary' && !!rest.disabled && !busy;
   const fill = unavailable ? 'transparent' : kind === 'primary' ? theme.button : kind === 'secondary' ? theme.button2 : 'transparent';
   const colour = unavailable ? theme.muted : kind === 'primary' ? theme.buttonText : kind === 'secondary' ? theme.button2Text : theme.text;
   return (
-    <Pressable
+    <Press
       accessibilityRole="button"
       accessibilityState={{ disabled: !!rest.disabled || !!busy, busy: !!busy }}
-      style={({ pressed }) => [
+      dim={!unavailable && !!rest.disabled}
+      style={[
         styles.button,
-        { backgroundColor: fill, borderRadius: theme.control, borderColor: unavailable ? theme.fieldBorder : kind === 'secondary' ? theme.button2Border : 'transparent', opacity: unavailable ? 1 : rest.disabled ? 0.45 : pressed ? 0.8 : 1 },
+        { backgroundColor: fill, borderRadius: theme.control, borderColor: unavailable ? theme.fieldBorder : kind === 'secondary' ? theme.button2Border : 'transparent' },
         kind === 'tertiary' || unavailable ? null : offsetOf(theme),
       ]}
       {...rest}
@@ -89,7 +123,7 @@ export function Button({ label, kind = 'primary', busy, icon, ...rest }: { label
       {busy ? <ActivityIndicator color={colour} /> : null}
       <Text style={[styles.buttonText, { color: colour }, kind === 'tertiary' ? styles.underline : null]}>{label}</Text>
       {icon ? <Icon name={icon} size={18} colour={colour} /> : null}
-    </Pressable>
+    </Press>
   );
 }
 
@@ -141,9 +175,9 @@ export function Row({ title, detail, onPress, action, last }: { title: string; d
   );
   const style = [styles.row, last ? null : { borderBottomColor: theme.rule, borderBottomWidth: StyleSheet.hairlineWidth }];
   return onPress ? (
-    <Pressable accessibilityRole="link" onPress={onPress} style={style}>
+    <Press accessibilityRole="link" onPress={onPress} style={style}>
       {content}
-    </Pressable>
+    </Press>
   ) : (
     <View style={style}>{content}</View>
   );

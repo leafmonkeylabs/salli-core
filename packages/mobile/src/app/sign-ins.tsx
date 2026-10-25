@@ -8,7 +8,7 @@ import { displayDateTime } from '../lib/display';
 import { labelOf } from '../lib/servers';
 import { usePhone } from '../phone';
 import { labelIn, useSession, type Known } from '../session';
-import { Sheet } from '../sheet';
+import { Sheet, SheetTitle } from '../sheet';
 import { Page } from '../shell';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
@@ -111,9 +111,9 @@ function NameSheet({ visible, address, name, onClose, onSave }: { visible: boole
   const [typed, setTyped] = useState(name);
   return (
     <Sheet visible={visible} onClose={onClose} label={t.name}>
-      <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.text }]}>
+      <SheetTitle style={[styles.sheetTitle, { color: theme.text }]}>
         {t.nameTitle}
-      </Text>
+      </SheetTitle>
       <Text style={[styles.address, { color: theme.muted }]}>{address}</Text>
       <TextInput
         value={typed}

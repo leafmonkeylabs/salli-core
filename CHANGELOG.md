@@ -4,6 +4,17 @@
 
 ### Added
 
+- **The phone moves with purpose.** Sheets rise on a spring over a scrim
+  that fades on its own, close when dragged down (a tick as they pass the
+  point) and start VoiceOver at their title; buttons, rows, More's tiles and
+  the AI button press in on the UI thread, and look different unavailable;
+  a reminder marked done on Home or Attention leaves at once (back if the
+  server refuses), with a light tap and an announcement; booking an entry
+  is the one success haptic and its confirmation rises in and takes
+  VoiceOver's focus. Reduce Motion turns every motion into a fade, and the
+  app runs at 120 Hz. The rules and tokens are docs/design/mobile.md's
+  Motion.
+
 - **Support access: the operator's one way into a member's books.**
   `salli-server support open <email> --reason "<ticket>" [--minutes 60]`
   (at most 240) gives a read-only token for the books' GET routes; opening

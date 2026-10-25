@@ -7,7 +7,7 @@ import { Body, Button, Card, CardHead, Money, Waiting } from '../../kit';
 import { shares } from '../../lib/chart';
 import { amountParts, displayDate, displayDay } from '../../lib/display';
 import { Page } from '../../shell';
-import { Sheet } from '../../sheet';
+import { Sheet, SheetTitle } from '../../sheet';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 
@@ -109,9 +109,9 @@ function Review({ review, done, onRecorded }: { review: DueReview; done: boolean
 
       {/* The review is written in a sheet, so the comparison reads first. */}
       <Sheet visible={writing} onClose={() => setWriting(false)} label={t.reflection}>
-        <Text accessibilityRole="header" style={[styles.question, { color: theme.text }]}>
+        <SheetTitle style={[styles.question, { color: theme.text }]}>
           {review.question}
-        </Text>
+        </SheetTitle>
         <Body muted>{t.chose(review.chosen, review.reasons ?? '')}</Body>
         <View style={{ gap: 6 }}>
           <Text style={[styles.label, { color: theme.text }]}>{t.reflection}</Text>

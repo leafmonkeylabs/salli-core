@@ -1,13 +1,16 @@
 import { accountsList, accountsOverview, entriesGet, entriesProvenance, entriesRecategorise, entriesReverse, formatAmount } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, LinesTable, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
+import { success, useReducedMotion } from '../../motion';
 import { Page } from '../../shell';
-import { Sheet } from '../../sheet';
+import { Sheet, SheetTitle } from '../../sheet';
 import { strings } from '../../strings';
 import { font, size, useTheme } from '../../theme';
 
@@ -29,6 +32,7 @@ export default function Entry() {
     mutationFn: (reason: string) => api.call(entriesReverse, { path: { entry_id: id }, body: { reason } }),
     onSuccess: () => {
       setAsking(false);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return queryClient.invalidateQueries({ queryKey: [api.server] });
     },
   });
@@ -49,6 +53,12 @@ export default function Entry() {
     },
   });
   const statement = provenance.data?.statement;
+  const reduced = useReducedMotion();
+  // Just booked, VoiceOver moves to the confirmation as it arrives.
+  const confirmation = useRef<ComponentRef<typeof View>>(null);
+  useEffect(() => {
+    if (booked && confirmation.current) AccessibilityInfo.sendAccessibilityEvent(confirmation.current, 'focus');
+  }, [booked]);
 
   // The reversal as Salli will book it: each line on the other side, on its day (today if closed), with why.
   const [asking, setAsking] = useState(false);
@@ -70,9 +80,15 @@ export default function Entry() {
         : {})}
     >
       {booked ? (
-        <Card>
-          <Body alert>{`✓ ${moved && now ? t.bookedNow(moved.name, now) : t.booked}`}</Body>
-        </Card>
+        <Animated.View
+          ref={confirmation}
+          entering={success(reduced)}
+          accessible
+        >
+          <Card>
+            <Body alert>{`✓ ${moved && now ? t.bookedNow(moved.name, now) : t.booked}`}</Body>
+          </Card>
+        </Animated.View>
       ) : null}
       {dated ? (
         <Card>
@@ -151,9 +167,9 @@ export default function Entry() {
       )}
       {data && line ? (
         <Sheet visible={moving} onClose={() => setMoving(false)} label={t.changeCategory}>
-          <Text accessibilityRole="header" style={[styles.moveTitle, { color: theme.text }]}>
+          <SheetTitle style={[styles.moveTitle, { color: theme.text }]}>
             {t.moveTo(formatAmount(line.amount, line.currency))}
-          </Text>
+          </SheetTitle>
           <ScrollView accessibilityRole="radiogroup" style={{ maxHeight: 340 }}>
             {categories.map((a) => {
               const current = a.id === line.account_id;
@@ -192,9 +208,9 @@ export default function Entry() {
       ) : null}
       {data ? (
         <Sheet visible={asking} onClose={() => setAsking(false)} label={t.confirmTitle(data.description)}>
-          <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.text }]}>
+          <SheetTitle style={[styles.sheetTitle, { color: theme.text }]}>
             {t.confirmTitle(data.description)}
-          </Text>
+          </SheetTitle>
           <Body>{t.confirmBody}</Body>
           <View style={[styles.reversal, { borderColor: theme.rule, backgroundColor: theme.card, borderRadius: theme.radius }]}>
             <Text style={[styles.reversalTitle, { color: theme.text }]}>{t.reversalOf(data.description)}</Text>

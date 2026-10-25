@@ -1,13 +1,16 @@
-import { insightsSignals, remindersCreate, remindersDelete, remindersList, remindersMarkDone, type FinanceSignal, type Reminder } from '@leafmonkeylabs/salli-sdk';
+import { insightsSignals, remindersCreate, remindersDelete, remindersList, type FinanceSignal, type Reminder } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useApi, useRead } from '../api';
 import { Body, Button, Card, Icon, SectionLabel, Waiting } from '../kit';
 import { displayDate, displayDay, todayIso } from '../lib/display';
+import { listMotion, useReducedMotion } from '../motion';
+import { useMarkDone } from '../reminders';
 import { Page } from '../shell';
-import { Sheet } from '../sheet';
+import { Sheet, SheetTitle } from '../sheet';
 import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
@@ -57,7 +60,8 @@ export default function Attention() {
   const today = todayIso();
   const again = () => queryClient.invalidateQueries({ queryKey: [api.server] });
 
-  const done = useMutation({ mutationFn: (id: string) => api.call(remindersMarkDone, { path: { reminder_id: id } }), onSuccess: again });
+  const list = listMotion(useReducedMotion());
+  const done = useMarkDone();
   const remove = useMutation({ mutationFn: (id: string) => api.call(remindersDelete, { path: { reminder_id: id } }), onSuccess: again });
 
   const all = reminders.data?.reminders ?? [];
@@ -72,7 +76,7 @@ export default function Attention() {
       ? router.push('/decide')
       : Alert.alert(t.doneTitle, t.doneBody(r.kind), [
           { text: t.cancel, style: 'cancel' },
-          { text: t.done, onPress: () => done.mutate(r.id) },
+          { text: t.done, onPress: () => done.mutate(r) },
         ]);
   const askDelete = (r: Reminder) =>
     Alert.alert(t.deleteTitle, r.source_domain === 'tax_rules' ? t.deleteFiling : t.deleteBody(r.kind), [
@@ -120,14 +124,18 @@ export default function Attention() {
                 </>
               );
               const style = [styles.row, i < signals.data.signals.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null];
-              return place ? (
-                <Pressable key={`${s.kind}-${i}`} accessibilityRole="link" onPress={() => router.push(place)} style={style}>
-                  {row}
-                </Pressable>
-              ) : (
-                <View key={`${s.kind}-${i}`} accessible style={style}>
-                  {row}
-                </View>
+              return (
+                <Animated.View key={`${s.kind}-${i}`} {...list}>
+                  {place ? (
+                    <Pressable accessibilityRole="link" onPress={() => router.push(place)} style={style}>
+                      {row}
+                    </Pressable>
+                  ) : (
+                    <View accessible style={style}>
+                      {row}
+                    </View>
+                  )}
+                </Animated.View>
               );
             })
           ) : (
@@ -146,8 +154,8 @@ export default function Attention() {
         </View>
         {reminders.data ? (
           <>
-            {overdue.length ? <Group label={t.overdue} items={overdue} late onDone={askDone} /> : null}
-            {coming.length ? <Group label={t.coming} items={coming} onDone={askDone} /> : null}
+            {overdue.length ? <Group label={t.overdue} items={overdue} late onDone={askDone} list={list} /> : null}
+            {coming.length ? <Group label={t.coming} items={coming} onDone={askDone} list={list} /> : null}
             {!pending.length ? (
               <Body muted style={{ paddingVertical: 12 }}>
                 {t.nothingDue}
@@ -197,21 +205,21 @@ export default function Attention() {
   );
 }
 
-function Group({ label, items, late, onDone }: { label: string; items: Reminder[]; late?: boolean; onDone: (r: Reminder) => void }) {
+function Group({ label, items, late, onDone, list }: { label: string; items: Reminder[]; late?: boolean; onDone: (r: Reminder) => void; list: ReturnType<typeof listMotion> }) {
   const theme = useTheme();
   return (
-    <View>
+    <Animated.View {...list}>
       <Text style={[styles.sub, { color: theme.muted }]}>{label.toUpperCase()}</Text>
       {items.map((r, i) => (
-        <View key={r.id} style={[styles.row, i < items.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}>
+        <Animated.View key={r.id} {...list} style={[styles.row, i < items.length - 1 ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.rule } : null]}>
           <View accessible accessibilityLabel={`${r.kind}, ${displayDate(r.due_date)}`} style={{ flex: 1 }}>
             <Body>{r.kind}</Body>
           </View>
           <Text style={[styles.when, { color: late ? theme.negative : theme.muted }]}>{displayDay(r.due_date)}</Text>
           <Button kind="secondary" label={r.source_domain === 'decision' ? t.review : t.done} accessibilityLabel={t.doneLabel(r.kind)} onPress={() => onDone(r)} />
-        </View>
+        </Animated.View>
       ))}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -231,9 +239,9 @@ function AddSheet({ visible, onClose, onAdd }: { visible: boolean; onClose: () =
   const chosen = /^\d{4}-\d{2}-\d{2}$/.test(typed.trim()) ? typed.trim() : due;
   return (
     <Sheet visible={visible} onClose={onClose} label={t.newReminder}>
-      <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.text }]}>
+      <SheetTitle style={[styles.sheetTitle, { color: theme.text }]}>
         {t.newReminder}
-      </Text>
+      </SheetTitle>
       <TextInput
         value={kind}
         onChangeText={setKind}
