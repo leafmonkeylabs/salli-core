@@ -543,6 +543,7 @@ export const PRINCIPLE_CHECK: PrinciplesCheck = {
     "real_return",
     "safe_withdrawal_rate",
     "surplus_invested",
+    "drawdown_horizon",
     "inflation"
   ],
   "data_as_of": "2026-10-09"

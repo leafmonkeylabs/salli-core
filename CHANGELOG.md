@@ -4,6 +4,21 @@
 
 ### Added
 
+- **A withdrawal rate over your own drawdown.** A derived withdrawal rate
+  must last from your FI month to your planning age (the FI plan's new
+  `planning_age`; a labelled 95 without one, a labelled 30 years without a
+  date of birth), not a fixed 30 years; `assumptions.drawdown_horizon` and
+  the odds' `withdrawal_rate.applied_horizon` say which. Every FI response
+  carries `headline_status` (`placeholder`, `pack` or `own`) and a
+  `headline` sentence, shown beside the FI number in the console and the
+  app; the console labels the cash yield's placeholder.
+- **Disability cover in the needs analysis.** Income replaced to the
+  planning age (or `--benefit-years`) less declared `--sick-pay`, against
+  `income_protection` policies' monthly benefit (`protection_need`,
+  `protection_gap`), with a gap line in the coverage report.
+- **docs/risk.md**: the risk profile's weights and why, its tolerance items
+  grouped in the factors of Grable and Lytton's published scale.
+
 - **Plan consistency.** The odds take their mean and volatility from one
   source (your own return with your new `volatility` assumption, else your
   pack's mix, else the placeholder pack's), less your holdings' weighted
@@ -249,6 +264,9 @@
 ### Breaking
 
 #### Changed
+
+- **A CMA pack's `history` needs ten years.** At least 120 months (and,
+  as before, a source); a shorter one is refused on import.
 
 - **The FI number counts debts once and holds the emergency fund out.** Its
   spending leaves out what the average spending already pays on debts

@@ -169,6 +169,7 @@ async def test_an_entry_records_what_salli_ran_and_the_persons_words():
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
         "inflation",
     ]
     assert entry["principles"][0]["label"] == "Six months"

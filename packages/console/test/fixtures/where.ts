@@ -5772,9 +5772,12 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
     "placeholders": [
       "real_return",
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -5800,6 +5803,11 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
       "origin": "placeholder",
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
+    },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
     },
     "real_returns": {
       "conservative": "0.02",
@@ -5836,6 +5844,8 @@ export const ASSUMPTIONS: FiAssumptionsReport = {
 
 export const PROJECTIONS: FiProjections = {
   "currency": "EUR",
+  "headline_status": "placeholder",
+  "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
   "terms": "real",
   "points": [
     {
@@ -6019,9 +6029,12 @@ export const PROJECTIONS: FiProjections = {
     "placeholders": [
       "real_return",
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -6047,6 +6060,11 @@ export const PROJECTIONS: FiProjections = {
       "origin": "placeholder",
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
+    },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
     },
     "real_returns": {
       "conservative": "0.02",
@@ -7145,9 +7163,12 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
     "status": "placeholder",
     "placeholders": [
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.035",
       "origin": "user",
@@ -7173,6 +7194,11 @@ export const ASSUMPTION_SET: FiAssumptionsReport = {
       "origin": "placeholder",
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
+    },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
     },
     "real_returns": {
       "conservative": "0.015",
@@ -7237,6 +7263,8 @@ export const FI_SCORE_SET: FiScore = {
   "as_of": "2026-10-11",
   "status": "ok",
   "months_observed": 6,
+  "headline_status": "placeholder",
+  "headline": "Rests on placeholders for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
   "components": [
     {
       "key": "savings_rate",
@@ -7271,9 +7299,12 @@ export const FI_SCORE_SET: FiScore = {
     "status": "placeholder",
     "placeholders": [
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.035",
       "origin": "user",
@@ -7300,6 +7331,11 @@ export const FI_SCORE_SET: FiScore = {
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
     },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+    },
     "real_returns": {
       "conservative": "0.015",
       "base": "0.035",
@@ -7307,7 +7343,7 @@ export const FI_SCORE_SET: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "e8344727bdb1cf6d7219f94c981dfe2454c2c9b53f980f063a134f1767fdb071"
+  "inputs_hash": "dc71decaba353bb5e8cf0f82c55a65a63ded5fb7826bcbdc5ba37f587f7f2117"
 };
 
 /**
@@ -7315,6 +7351,8 @@ export const FI_SCORE_SET: FiScore = {
  */
 export const PROJECTIONS_SET: FiProjections = {
   "currency": "EUR",
+  "headline_status": "placeholder",
+  "headline": "Rests on placeholders for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
   "terms": "real",
   "points": [
     {
@@ -7503,9 +7541,12 @@ export const PROJECTIONS_SET: FiProjections = {
     "status": "placeholder",
     "placeholders": [
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.035",
       "origin": "user",
@@ -7531,6 +7572,11 @@ export const PROJECTIONS_SET: FiProjections = {
       "origin": "placeholder",
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
+    },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
     },
     "real_returns": {
       "conservative": "0.015",

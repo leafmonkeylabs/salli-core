@@ -199,6 +199,35 @@ async def test_the_insurance_needs_analysis_is_figures(client, mock_services):
         "liability_cover_need": "0.00",
         "liability_cover_held": "0.00",
         "liability_cover_gap": "0.00",
+        # No date of birth: income replaced for the replacement years.
+        "protection_months": 60,
+        "sick_pay": "0.00",
+        "protection_need": "240000.00",
+        "protection_held": "0.00",
+        "protection_gap": "240000.00",
+    }
+    # A benefit period and declared sick pay; a policy's monthly benefit held.
+    await client.post(
+        "/v1/insurance/policies",
+        json={
+            "name": "Income cover",
+            "policy_type": "income_protection",
+            "provider": "An insurer",
+            "coverage_amount": "1000",
+            "premium_amount": "20",
+            "premium_frequency": "monthly",
+            "expiry_date": "2030-01-01",
+        },
+        headers=AUTH,
+    )
+    r = await client.get("/v1/insurance/needs?benefit_years=2&sick_pay=6000", headers=AUTH)
+    # 4,000 × 24 − 6,000 = 90,000; held 1,000 × 24.
+    assert {k: v for k, v in r.json().items() if k.startswith(("protection", "sick"))} == {
+        "protection_months": 24,
+        "sick_pay": "6000.00",
+        "protection_need": "90000.00",
+        "protection_held": "24000.00",
+        "protection_gap": "66000.00",
     }
 
 
@@ -214,5 +243,13 @@ async def test_without_a_typed_target_life_cover_is_gapped_against_the_needs(cli
             "actual_coverage": "0.00",
             "gap": "480000.00",
             "basis": "needs",
-        }
+        },
+        # Income replaced for ten years without a date of birth.
+        {
+            "policy_type": "income_protection",
+            "target_amount": "480000.00",
+            "actual_coverage": "0.00",
+            "gap": "480000.00",
+            "basis": "needs",
+        },
     ]

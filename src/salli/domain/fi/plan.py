@@ -21,6 +21,10 @@ phases (docs/baseline.md#the-fi-plan). Pure domain: no I/O.
   from the as-of month (`category_uplift`). Without general inflation it
   is not applied.
 
+- **Planning age**: the age the money must last to; the drawdown a derived
+  withdrawal rate is tested over runs from the FI month to it
+  (`returns.drawdown`).
+
 Stored as `user_profiles.fi_plan`; checked here, never chosen by a model.
 """
 
@@ -99,6 +103,8 @@ class FiPlan:
     born: dt.date | None = None
     #: The person's own inflation by category of spending.
     category_inflation: tuple[CategoryInflation, ...] = ()
+    #: The age the money must last to; None for the labelled placeholder.
+    planning_age: int | None = None
 
     @property
     def empty(self) -> bool:
@@ -160,6 +166,7 @@ class FiPlan:
                 if self.category_inflation
                 else {}
             ),
+            **({"planning_age": self.planning_age} if self.planning_age is not None else {}),
         }
 
 
@@ -304,11 +311,19 @@ def parse(raw: object, born: dt.date | None = None) -> FiPlan:
         inflation.append(
             CategoryInflation(_category(key, at), value, _text(entry.get("source"), f"{at}.source"))
         )
+    planning_age = doc.get("planning_age")
+    if planning_age is not None and (
+        not isinstance(planning_age, int)
+        or isinstance(planning_age, bool)
+        or not 50 <= planning_age <= 120
+    ):
+        raise ValueError("planning_age must be a whole age from 50 to 120")
     return FiPlan(
         tuple(streams),
         tuple(sorted(phases, key=lambda p: p.from_age)),
         born,
         tuple(inflation),
+        planning_age,
     )
 
 

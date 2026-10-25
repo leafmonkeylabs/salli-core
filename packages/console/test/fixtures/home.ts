@@ -192,6 +192,8 @@ export const FI_SCORE: FiScore = {
   "as_of": "2026-10-11",
   "status": "ok",
   "months_observed": 6,
+  "headline_status": "placeholder",
+  "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
   "components": [
     {
       "key": "savings_rate",
@@ -227,9 +229,12 @@ export const FI_SCORE: FiScore = {
     "placeholders": [
       "real_return",
       "safe_withdrawal_rate",
-      "surplus_invested"
+      "surplus_invested",
+      "drawdown_horizon"
     ],
-    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate and the share of your monthly surplus invested: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
+    "headline_status": "placeholder",
+    "headline": "Rests on placeholders for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: not a forecast.",
+    "message": "Using placeholder assumptions for the real return, the safe withdrawal rate, the share of your monthly surplus invested and the years drawn down: round figures, not forecasts. Set your own, with a source, to replace them. Figures are in today's money; set your inflation to see them in future money too.",
     "real_return": {
       "value": "0.04",
       "origin": "placeholder",
@@ -256,6 +261,11 @@ export const FI_SCORE: FiScore = {
       "source": "Placeholder: cash earns nothing after inflation. Activate capital-market assumptions with a cash yield to replace it.",
       "note": null
     },
+    "drawdown_horizon": {
+      "years": 30,
+      "origin": "placeholder",
+      "source": "Placeholder: 30 years drawn down, without a date of birth to count to a planning age from. Set your date of birth and planning age to replace it."
+    },
     "real_returns": {
       "conservative": "0.02",
       "base": "0.04",
@@ -263,7 +273,7 @@ export const FI_SCORE: FiScore = {
     },
     "nominal_returns": null
   },
-  "inputs_hash": "fde92595f6dba271e9428dec635290bb3dae41aaede8c3108fba7a7a7c9d303f"
+  "inputs_hash": "3d42f94d640ad033f372b923de0647102717f33e30276d4ff2718081cf2cc740"
 };
 
 export const REMINDERS: ReminderList = {
@@ -369,7 +379,7 @@ export const REVIEWS_DUE: DueReviews = {
       "as_of": "2026-08-11",
       "review_on": "2026-09-30",
       "recorded_at": "2026-08-11T09:00:00+00:00",
-      "hash": "sha256:dc7a25db1b7f30fd4054a8740269ad1c471094ceb38bc4180011f48597f0959f",
+      "hash": "sha256:a6351417a3cb545e00b27f8090cdcb1e871c898d79b791b25805045c5db30571",
       "notes": 0,
       "reviews": 0,
       "last_reviewed_at": null,

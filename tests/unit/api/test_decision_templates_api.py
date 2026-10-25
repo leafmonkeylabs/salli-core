@@ -117,6 +117,7 @@ async def test_starting_a_decision_runs_every_option_and_records_nothing(client,
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
         "inflation",
     ]
     assert_never_ranks(body)

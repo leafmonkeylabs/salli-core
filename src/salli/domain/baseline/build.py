@@ -35,10 +35,12 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import replace
 from decimal import ROUND_HALF_UP, Decimal
 
 from salli.domain import canonical
 from salli.domain.accounting.models import Account, StoredJournalEntry
+from salli.domain.baseline import fi as fi_timeline
 from salli.domain.baseline import holdings as holdings_
 from salli.domain.baseline.flows import summarize
 from salli.domain.baseline.models import (
@@ -56,6 +58,7 @@ from salli.domain.baseline.models import (
 )
 from salli.domain.currency import quantum
 from salli.domain.fi.assumptions import resolve
+from salli.domain.fi.returns import drawdown
 from salli.domain.reports import forecast, insights
 from salli.domain.rules.history import booked_transactions
 from salli.domain.subscription.models import Subscription
@@ -368,7 +371,7 @@ def build(inputs: BaselineInputs) -> Baseline:
 
     used = sorted({b.currency for b in balances} - {base})
     rates = tuple(inputs.rates.get(c) or Rate(c, None, None, None) for c in used)
-    return Baseline(
+    result = Baseline(
         as_of=as_of,
         currency=base,
         balances=tuple(balances),
@@ -395,6 +398,19 @@ def build(inputs: BaselineInputs) -> Baseline:
                 if b.in_cash and b.value is not None and b.account_id in inputs.goal_claims
             ),
             Decimal(0),
+        ),
+    )
+    if inputs.own_assumptions.safe_withdrawal_rate is not None or inputs.plan.born is None:
+        return result
+    # The derived rate must last from the FI month (found at the default
+    # horizon; today's when it is not reached) to the planning age.
+    months = fi_timeline.outlook(result, fi_timeline.full_timeline(result)).months
+    start = fi_timeline.fi_month(result, months) or as_of.isoformat()[:7]
+    horizon = drawdown(inputs.plan.born, inputs.plan.planning_age, start)
+    return replace(
+        result,
+        assumptions=resolve(
+            inputs.own_assumptions, inputs.cma, expense_ratio(inputs, held), horizon
         ),
     )
 

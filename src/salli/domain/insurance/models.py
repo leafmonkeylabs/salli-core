@@ -16,7 +16,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
 
-PolicyType = Literal["life", "health", "motor", "property", "liability", "other"]
+PolicyType = Literal[
+    "life", "health", "income_protection", "motor", "property", "liability", "other"
+]
 PremiumFrequency = Literal["monthly", "quarterly", "yearly"]
 
 

@@ -343,6 +343,7 @@ function notesFor(app: App, run: ScenarioRun): void {
       real_return: 'the real return',
       safe_withdrawal_rate: 'the safe withdrawal rate',
       surplus_invested: 'the share of your monthly surplus invested (all of it)',
+      drawdown_horizon: 'the years drawn down (to a planning age of 95, or 30 years without a date of birth)',
       inflation: 'inflation (none set: nominal amounts keep their real value)',
       tax: 'tax (not computed: amounts tagged with a tax role count before tax)',
       tax_rules_carried_forward: 'your latest tax rules, carried forward to years with none of their own',

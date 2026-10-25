@@ -79,6 +79,7 @@ function Basis({ assumptions }: { assumptions: FiAssumptions | null | undefined 
         `${f.own}.`
       )}{' '}
       {assumptions.message}
+      {assumptions.cash_yield?.origin === 'placeholder' ? ` ${assumptions.cash_yield.source}` : null}
     </Provenance>
   );
 }
@@ -97,7 +98,19 @@ function Where({ score }: { score: FiScore }) {
       <Rows>
         <Row label={f.fiNumber}>
           <Money amount={score.fi_number} currency={cur} variant="table" withCode />
+          {score.headline_status ? (
+            <span className={score.headline_status === 'placeholder' ? 'placeholder-tag' : undefined} title={score.headline ?? undefined}>
+              {' '}
+              {score.headline_status === 'placeholder' ? (
+                <span className="warn-mark" aria-hidden="true">
+                  !
+                </span>
+              ) : null}{' '}
+              {f.headline[score.headline_status]}
+            </span>
+          ) : null}
         </Row>
+        {score.headline ? <Provenance>{score.headline}</Provenance> : null}
         {score.fi_asset_base ? (
           <Row label={f.investedNow}>
             <Money amount={score.fi_asset_base} currency={cur} variant="table" withCode />

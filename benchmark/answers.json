@@ -515,7 +515,8 @@
       "expected": [
         "return",
         "withdrawal",
-        "surplus"
+        "surplus",
+        "drawdown_horizon"
       ],
       "from": {
         "tool": "get_fi_assumptions",

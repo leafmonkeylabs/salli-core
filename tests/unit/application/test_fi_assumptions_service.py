@@ -142,6 +142,7 @@ async def test_with_nothing_set_every_currency_gets_the_same_labelled_placeholde
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
     ]
     assert assumptions["real_return"]["origin"] == "placeholder"
     assert assumptions["real_return"]["value"] == "0.04"
@@ -188,6 +189,7 @@ async def test_every_fi_figure_carries_the_flag():
             "real_return",
             "safe_withdrawal_rate",
             "surplus_invested",
+            "drawdown_horizon",
         ]
     assert projections["real_returns"]["base"] == "0.04"
 
@@ -275,6 +277,7 @@ async def test_nominal_figures_appear_only_with_the_users_inflation():
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
     ]
 
 
@@ -295,6 +298,7 @@ async def test_a_strategy_an_earlier_salli_stored_moves_no_figure():
         "real_return",
         "safe_withdrawal_rate",
         "surplus_invested",
+        "drawdown_horizon",
     ]
     assert projections["swr"] == "0.0314"
     without, *_ = _service("USD")
