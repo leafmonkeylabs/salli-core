@@ -95,6 +95,18 @@ def test_the_settings_read_secrets_from_the_directory_and_the_environment_wins(
     assert get_settings().mcp_signing_secret == "from-the-environment"
 
 
+def _owner_turns_on_two_step(user_id: str) -> None:
+    import asyncio
+    import time
+
+    from salli.application import totp
+
+    logins = support.services().logins
+    enrolment = asyncio.run(logins.begin_totp(user_id))
+    code = totp.code_at(enrolment.secret, totp.step_of(time.time()))
+    asyncio.run(logins.confirm_totp(user_id, code))
+
+
 def test_setup_makes_the_owner_once_and_members_are_added_listed_and_reset(
     server, monkeypatch, capsys, db
 ):
@@ -124,6 +136,15 @@ def test_setup_makes_the_owner_once_and_members_are_added_listed_and_reset(
     assert code == 0, err
     assert json.loads(out)["user_id"] == made["user_id"]
     assert scalar(db, "select count(*) from logins") == 1
+
+    # Without the owner's two-step sign-in, no one is let in; doctor says so.
+    code, out, err = run(monkeypatch, capsys, "members", "invite", "kid@example.org")
+    assert code == 1 and "two-step sign-in for the owner" in out + err
+    from salli.interfaces.cli.doctor import owner_check
+
+    assert owner_check().status == "warn"
+    _owner_turns_on_two_step(made["user_id"])
+    assert owner_check().status == "ok"
 
     # A weak password makes no member.
     code, out, err = run(

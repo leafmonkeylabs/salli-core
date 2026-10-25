@@ -472,7 +472,9 @@ class NotificationService:
 
     # ── Push alerts ──────────────────────────────────────────────────────────
 
-    async def add_device(self, user_id: str, token: str, platform: str) -> dict[str, Any]:
+    async def add_device(
+        self, user_id: str, token: str, platform: str, *, client_id: str | None = None
+    ) -> dict[str, Any]:
         """Register a phone for push alerts: its Expo token, sealed with the
         key ring, found by its hash (the device's id). PushUnavailable when
         this server sends none."""
@@ -485,12 +487,26 @@ class NotificationService:
         sealed, version = self._keyring.seal(token, aad=_token_aad(digest))
         async with self._uow_factory() as uow:
             await uow.notifications.add_device(user_id, digest, sealed, version, platform)
+            await uow.audit_log.log(
+                user_id,
+                "device.add",
+                {"device": digest, "platform": platform},
+                "succeeded",
+                client_id,
+            )
             rows = await uow.notifications.devices(user_id)
         return next(_device_view(r) for r in rows if r["token_hash"] == digest)
 
-    async def remove_device(self, user_id: str, device_id: str) -> bool:
+    async def remove_device(
+        self, user_id: str, device_id: str, *, client_id: str | None = None
+    ) -> bool:
         async with self._uow_factory() as uow:
-            return await uow.notifications.remove_device(user_id, device_id)
+            removed = await uow.notifications.remove_device(user_id, device_id)
+            if removed:
+                await uow.audit_log.log(
+                    user_id, "device.remove", {"device": device_id}, "succeeded", client_id
+                )
+        return removed
 
     async def devices(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:

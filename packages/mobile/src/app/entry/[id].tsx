@@ -1,8 +1,8 @@
-import { accountsList, accountsOverview, entriesGet, entriesProvenance, entriesReverse, formatAmount } from '@leafmonkeylabs/salli-sdk';
+import { accountsList, accountsOverview, entriesGet, entriesProvenance, entriesRecategorise, entriesReverse, formatAmount } from '@leafmonkeylabs/salli-sdk';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useApi, useRead } from '../../api';
 import { Body, Button, Card, LinesTable, Title, Waiting } from '../../kit';
 import { displayDate } from '../../lib/display';
@@ -34,6 +34,20 @@ export default function Entry() {
   });
   const data = entry.data;
   const names = new Map((accounts.data ?? []).map((a) => [a.id, a.name]));
+  // The category: the line on a spending or income account, moved to another of the same type.
+  const typeOf = new Map((accounts.data ?? []).map((a) => [a.id, a.type]));
+  const line = data?.postings.find((p) => typeOf.get(p.account_id) === 'expense' || typeOf.get(p.account_id) === 'income');
+  const categories = (accounts.data ?? []).filter((a) => line && a.is_active && a.type === typeOf.get(line.account_id));
+  const [moving, setMoving] = useState(false);
+  const [moveTo, setMoveTo] = useState<string | undefined>(undefined);
+  const recategorise = useMutation({
+    mutationFn: (to: string) => api.call(entriesRecategorise, { path: { entry_id: id }, body: { posting_id: line?.id ?? '', account_id: to, reason: t.recategoriseReason } }),
+    onSuccess: async (made) => {
+      setMoving(false);
+      await queryClient.invalidateQueries({ queryKey: [api.server] });
+      router.replace({ pathname: '/entry/[id]', params: { id: made.corrected_id } });
+    },
+  });
   const statement = provenance.data?.statement;
 
   // The reversal as Salli will book it: each line on the other side, on its day (today if closed), with why.
@@ -94,8 +108,23 @@ export default function Entry() {
           </Card>
 
           {data.reversed_by || reverse.isSuccess ? null : (
-            <View style={{ gap: 6 }}>
-              <Button kind="secondary" label={t.reverse} accessibilityHint={t.reverseHelp} busy={reverse.isPending} disabled={reverse.isPending} onPress={() => setAsking(true)} />
+            <View style={styles.actions}>
+              {line ? (
+                <View style={{ flex: 1 }}>
+                  <Button
+                    kind="secondary"
+                    label={t.changeCategory}
+                    accessibilityHint={t.changeCategoryHelp}
+                    onPress={() => {
+                      setMoveTo(undefined);
+                      setMoving(true);
+                    }}
+                  />
+                </View>
+              ) : null}
+              <View style={{ flex: 1 }}>
+                <Button kind="secondary" label={line ? t.reverseShort : t.reverse} accessibilityHint={t.reverseHelp} busy={reverse.isPending} disabled={reverse.isPending} onPress={() => setAsking(true)} />
+              </View>
             </View>
           )}
           {reverse.isSuccess ? (
@@ -112,6 +141,47 @@ export default function Entry() {
       ) : (
         <Waiting query={entry} what="the entry" />
       )}
+      {data && line ? (
+        <Sheet visible={moving} onClose={() => setMoving(false)} label={t.changeCategory}>
+          <Text accessibilityRole="header" style={[styles.moveTitle, { color: theme.text }]}>
+            {t.moveTo(formatAmount(line.amount, line.currency))}
+          </Text>
+          <ScrollView accessibilityRole="radiogroup" style={{ maxHeight: 340 }}>
+            {categories.map((a) => {
+              const current = a.id === line.account_id;
+              const on = a.id === moveTo;
+              return (
+                <Pressable
+                  key={a.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on, disabled: current }}
+                  disabled={current}
+                  onPress={() => setMoveTo(a.id)}
+                  style={[styles.option, { borderTopColor: theme.rule }]}
+                >
+                  <View style={[styles.radio, { borderColor: on ? theme.button : theme.muted }]}>{on ? <View style={[styles.dot, { backgroundColor: theme.button }]} /> : null}</View>
+                  <Body style={{ flex: 1 }}>{a.name}</Body>
+                  {current ? (
+                    <Body small muted>
+                      {t.current}
+                    </Body>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Body small muted>
+            {t.moveBody}
+          </Body>
+          {recategorise.error ? <Body alert>{recategorise.error.message}</Body> : null}
+          <Button
+            label={moveTo ? t.moveButton(names.get(moveTo) ?? '') : t.chooseCategory}
+            busy={recategorise.isPending}
+            disabled={!moveTo || recategorise.isPending}
+            onPress={() => moveTo && recategorise.mutate(moveTo)}
+          />
+        </Sheet>
+      ) : null}
       {data ? (
         <Sheet visible={asking} onClose={() => setAsking(false)} label={t.confirmTitle(data.description)}>
           <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.text }]}>
@@ -156,6 +226,11 @@ export default function Entry() {
 }
 
 const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', gap: 8 },
+  moveTitle: { fontFamily: font.medium, fontSize: 17 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { fontFamily: font.regular, fontSize: 13, paddingHorizontal: 8, paddingVertical: 3, borderWidth: StyleSheet.hairlineWidth },
   mono: { fontFamily: font.mono },

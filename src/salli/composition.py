@@ -358,10 +358,14 @@ def _build_notifications(
     Salli's relay notifier when `SALLI_PUSH_RELAY_URL` is set: core allows
     one notifier, so a composite routes each notification by its kind."""
     from salli.adapters.crypto.keyring import KeyRing
-    from salli.adapters.net.push import RelayPushNotifier
+    from salli.adapters.net.push import RelayPushNotifier, relay_problem
     from salli.application.defaults import CompositeNotifier
 
     relay = settings.salli_push_relay_url
+    if relay and (
+        problem := relay_problem(relay, settings.salli_push_relay_secret, settings.environment)
+    ):
+        raise ValueError(problem)
     routes: dict[str, Notifier] = {"digest": extensions.notifier}
     service = NotificationService(
         uow_factory,
@@ -375,7 +379,9 @@ def _build_notifications(
         budget=budget,
     )
     if relay:
-        routes["push"] = RelayPushNotifier(relay, uow_factory, service.open_token)
+        routes["push"] = RelayPushNotifier(
+            relay, uow_factory, service.open_token, secret=settings.salli_push_relay_secret
+        )
     return service
 
 
@@ -388,10 +394,12 @@ def _build_logins(settings: Settings, uow_factory) -> LoginService:
     return LoginService(
         uow_factory,
         Argon2PasswordHasher(),
-        session_ttl=timedelta(days=settings.salli_session_ttl_days),
+        session_ttl=timedelta(hours=settings.salli_session_ttl_hours),
+        session_idle=timedelta(minutes=settings.salli_session_idle_minutes),
         default_currency=settings.salli_default_currency,
         # Seals authenticator secrets, as it seals stored AI keys.
         keyring=KeyRing(settings.byok_encryption_keys),
+        audit_key=settings.mcp_signing_secret,
     )
 
 

@@ -15,6 +15,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi, useRead } from '../api';
 import { Body, Button, Card, CardHead, Icon, LinesTable } from '../kit';
+import { DateSheet } from '../datesheet';
 import { Picker } from '../picker';
 import { displayDate, todayIso } from '../lib/display';
 import { recentOf } from '../lib/entries';
@@ -44,7 +45,8 @@ export default function Add() {
   // The hand-filled form: opened by the person, or by a server with no model.
   const [byHand, setByHand] = useState(false);
   const [picking, setPicking] = useState<Side | undefined>(undefined);
-  const date = todayIso();
+  const [date, setDate] = useState(todayIso);
+  const [dating, setDating] = useState(false);
 
   const draft = useMutation({
     mutationFn: (text: string) => api.call(entriesParse, { body: { text } }),
@@ -140,7 +142,7 @@ export default function Add() {
 
         {byHand ? (
           <Card style={{ gap: 14, backgroundColor: theme.input }}>
-            <CardHead label={t.draftLabel} end={displayDate(date)} />
+            <DraftHead date={date} onPress={() => setDating(true)} />
             <Field label={t.description}>
               <TextInput
                 value={description}
@@ -170,7 +172,7 @@ export default function Add() {
         ) : drafted ? (
           // The design's draft: the entry as it would be booked, each account changeable in place.
           <Card style={{ gap: 8, backgroundColor: theme.input }}>
-            <CardHead label={t.draftLabel} end={displayDate(date)} />
+            <DraftHead date={date} onPress={() => setDating(true)} />
             <Text
               accessibilityLabel={exact && debit && credit ? `${description}. ${t.plain(formatAmount(exact, currency), name(credit), name(debit))} ${t.byModel}` : description}
               style={[styles.draftTitle, { color: theme.text }]}
@@ -201,6 +203,16 @@ export default function Add() {
         ) : null}
       </ScrollView>
 
+      <DateSheet
+        key={dating ? 'open' : 'closed'}
+        visible={dating}
+        value={date}
+        onClose={() => setDating(false)}
+        onPick={(day) => {
+          setDate(day);
+          setDating(false);
+        }}
+      />
       <Picker
         title={picking === 'debit' ? t.pickDebit : picking === 'credit' ? t.pickCredit : undefined}
         {...(description.trim() ? { subtitle: exact ? `${description.trim()} · ${formatAmount(exact, currency)}` : description.trim() } : {})}
@@ -216,6 +228,21 @@ export default function Add() {
           setPicking(undefined);
         }}
       />
+    </View>
+  );
+}
+
+/** The draft's head: its label, and its day, which opens the day picker. */
+function DraftHead({ date, onPress }: { date: string; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.draftHead}>
+      <View style={{ flex: 1 }}>
+        <CardHead label={t.draftLabel} />
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel={t.changeDay(displayDate(date))} onPress={onPress} style={styles.dateChip}>
+        <Text style={[styles.dateText, { color: theme.chart }]}>{displayDate(date)}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -266,5 +293,8 @@ const styles = StyleSheet.create({
   amountInput: { fontVariant: ['tabular-nums'] },
   draftTitle: { fontFamily: font.medium, fontSize: size.heading, lineHeight: size.heading * 1.3, letterSpacing: -0.2 },
   checked: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 4 },
+  draftHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  dateChip: { minHeight: size.target, marginTop: -14, justifyContent: 'center', paddingLeft: 12 },
+  dateText: { fontFamily: font.medium, fontSize: size.body, fontVariant: ['tabular-nums'] },
   choose: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });

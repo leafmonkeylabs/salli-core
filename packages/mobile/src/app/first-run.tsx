@@ -19,7 +19,7 @@ import { strings } from '../strings';
 import { font, size, useTheme } from '../theme';
 
 const t = strings.firstRun;
-type Step = 'you' | 'own' | 'income' | 'goals' | 'risk';
+type Step = 'you' | 'own' | 'owe' | 'income' | 'goals' | 'risk';
 
 /**
  * First run (designs 37 to 41): shown once after signing in to a server whose
@@ -36,7 +36,7 @@ export default function FirstRun() {
   const queryClient = useQueryClient();
   const entries = useRead('entries.list', entriesList);
   const empty = entries.data ? entries.data.length === 0 : false;
-  const steps: Step[] = empty ? ['you', 'own', 'income', 'goals', 'risk'] : ['you', 'goals', 'risk'];
+  const steps: Step[] = empty ? ['you', 'own', 'owe', 'income', 'goals', 'risk'] : ['you', 'goals', 'risk'];
   const [at, setAt] = useState(0);
   const step = steps[Math.min(at, steps.length - 1)] ?? 'you';
   const [busy, setBusy] = useState(false);
@@ -86,7 +86,9 @@ export default function FirstRun() {
           // The digest's preferences keep the time zone; only once one is known.
           if (timeZone) await api.call(notificationsPreferencesUpdate, { body: { time_zone: timeZone } }).catch(() => undefined);
         });
-      case 'own': {
+      case 'own':
+        return next();
+      case 'owe': {
         const balances = balancesOf(own, owe);
         return balances.length ? send(() => api.call(onboardingBalanceSheet, { body: { balances } })) : next();
       }
@@ -111,7 +113,7 @@ export default function FirstRun() {
 
   const ready = step === 'you' ? name.trim().length > 0 : step !== 'own' || rolesGiven(own);
   const last = at + 1 >= steps.length;
-  const cta = step === 'own' ? t.bookOpening : last ? t.finish : t.next;
+  const cta = step === 'owe' ? t.continue : last ? t.finish : t.next;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.work }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -154,8 +156,9 @@ export default function FirstRun() {
         ) : step === 'own' ? (
           <>
             <Lines label={t.own} lines={own} onChange={setOwn} placeholder={t.ownPlaceholder} roles />
-            <Lines label={t.owe} lines={owe} onChange={setOwe} placeholder={t.owePlaceholder} />
           </>
+        ) : step === 'owe' ? (
+          <Owe lines={owe} onChange={setOwe} currency={currency.trim().toUpperCase()} />
         ) : step === 'income' ? (
           <>
             <Lines label={t.paidBy} lines={incomes} onChange={setIncomes} placeholder={t.incomePlaceholder} names />
@@ -175,7 +178,19 @@ export default function FirstRun() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12, backgroundColor: theme.work }]}>
-        <Button label={cta} busy={busy} disabled={!ready || busy || (step === 'own' && !entries.data)} onPress={() => void submit()} />
+        <Button label={cta} busy={busy} disabled={!ready || busy || (step === 'owe' && !entries.data)} onPress={() => void submit()} />
+        {step === 'owe' ? (
+          <Button
+            kind="tertiary"
+            label={t.oweNothing}
+            disabled={busy || !entries.data}
+            onPress={() => {
+              setOwe([{ name: '', amount: '' }]);
+              const balances = balancesOf(own, []);
+              void (balances.length ? send(() => api.call(onboardingBalanceSheet, { body: { balances } })) : next());
+            }}
+          />
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -244,6 +259,49 @@ function Lines({ label, lines, onChange, placeholder, roles, names }: { label: s
   );
 }
 
+/** What you owe (design HhObOwe): each debt's name and amount, then its rate and minimum, both optional. */
+function Owe({ lines, onChange, currency }: { lines: Line[]; onChange: (l: Line[]) => void; currency: string }) {
+  const theme = useTheme();
+  const set = (i: number, patch: Partial<Line>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const input = [styles.input, { backgroundColor: theme.input, borderColor: theme.fieldBorder, color: theme.text, borderRadius: Math.min(theme.control, 12) }];
+  const field = (label: string, optional: boolean, value: string, onText: (v: string) => void, props: { width?: number; amount?: boolean; placeholder?: string }) => (
+    <View style={props.width ? { width: props.width, gap: 4 } : { flex: 1, gap: 4 }}>
+      <Text style={[styles.label, { color: theme.text }]}>
+        {label}
+        {optional ? <Text style={{ fontFamily: font.regular, color: theme.muted }}>{` ${t.optional}`}</Text> : null}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onText}
+        accessibilityLabel={optional ? `${label}, ${t.optional}` : label}
+        placeholder={props.placeholder}
+        placeholderTextColor={theme.muted}
+        {...(props.amount ? { keyboardType: 'decimal-pad' as const } : {})}
+        style={[...input, props.amount ? styles.figure : null]}
+      />
+    </View>
+  );
+  return (
+    <>
+      {lines.map((line, i) => (
+        <Card key={i} style={{ gap: 10 }}>
+          <View style={styles.lineRow}>
+            {field(t.oweName, false, line.name, (name) => set(i, { name }), i === 0 ? { placeholder: t.owePlaceholder } : {})}
+            {field(t.owed(currency), false, line.amount, (amount) => set(i, { amount }), { width: 132, amount: true, placeholder: '0.00' })}
+          </View>
+          <View style={styles.lineRow}>
+            {field(t.rate, true, line.rate ?? '', (rate) => set(i, { rate }), { amount: true })}
+            {field(t.minimum(currency), true, line.minimum ?? '', (minimum) => set(i, { minimum }), { amount: true })}
+          </View>
+        </Card>
+      ))}
+      <Pressable accessibilityRole="button" onPress={() => onChange([...lines, { name: '', amount: '' }])} style={[styles.another, { borderColor: theme.fieldBorder, borderRadius: Math.min(theme.control, 12) }]}>
+        <Text style={[styles.anotherText, { color: theme.text }]}>{t.addAnother}</Text>
+      </Pressable>
+    </>
+  );
+}
+
 function Goals({ goals, onChange }: { goals: (Line & { date: string })[]; onChange: (g: (Line & { date: string })[]) => void }) {
   const theme = useTheme();
   const set = (i: number, patch: Partial<Line & { date: string }>) => onChange(goals.map((g, j) => (j === i ? { ...g, ...patch } : g)));
@@ -274,6 +332,9 @@ const styles = StyleSheet.create({
   page: { padding: size.gutter, gap: 16 },
   label: { fontFamily: font.medium, fontSize: size.small },
   input: { minHeight: size.target, borderWidth: 1, paddingHorizontal: 14, fontFamily: font.regular, fontSize: size.body },
+  figure: { textAlign: 'right', fontVariant: ['tabular-nums'] },
+  another: { minHeight: size.target, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  anotherText: { fontFamily: font.medium, fontSize: size.body },
   amount: { width: 120, textAlign: 'right', fontVariant: ['tabular-nums'] },
   lineRow: { flexDirection: 'row', gap: 8 },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: size.gutter, paddingTop: 10 },
