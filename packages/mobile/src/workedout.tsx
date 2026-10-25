@@ -1,7 +1,9 @@
 /**
- * How left to spend is worked out: the server's parts top to bottom, as it
- * sends them, then its total, its low point and its notes. Every figure is
- * the server's; the app adds and takes away nothing.
+ * How left to spend is worked out, as the server works it: the lowest the
+ * cash gets before then, less a cushion and the cash held for goals, never
+ * below zero. Cash today and the everyday spending are the path to that low
+ * point, so they sit above the sum, not in it. Every figure is the server's;
+ * the app adds and takes away nothing.
  */
 import { isZeroAmount, type SafeToSpend } from '@leafmonkeylabs/salli-sdk';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,7 +18,8 @@ const t = strings.workedOut;
 export function WorkedOut({ safe, visible, onClose }: { safe: SafeToSpend; visible: boolean; onClose: () => void }) {
   const theme = useTheme();
   const { currency } = safe;
-  const low = amountParts(safe.low_point, currency);
+  const cash = amountParts(safe.cash_today, currency);
+  const everyday = amountParts(safe.everyday_spending, currency);
   return (
     <Sheet visible={visible} onClose={onClose} label={t.title}>
       <View style={styles.head}>
@@ -28,16 +31,19 @@ export function WorkedOut({ safe, visible, onClose }: { safe: SafeToSpend; visib
         </Pressable>
       </View>
       <Text style={[styles.note, { color: theme.muted }]}>{safe.next_income ? t.window(safe.next_income.description, displayDay(safe.until)) : t.window30}</Text>
+      <Text
+        accessibilityLabel={t.path(cash.spoken, everyday.spoken, displayDay(safe.low_point_date))}
+        style={[styles.note, { color: theme.muted }]}
+      >
+        {t.path(shown(cash), shown(everyday), displayDay(safe.low_point_date))}
+      </Text>
       <View>
-        <Part label={t.cashToday} amount={safe.cash_today} currency={currency} />
-        <Part label={t.everyday} amount={safe.everyday_spending} currency={currency} less />
+        <Part label={t.lowestRow(displayDay(safe.low_point_date))} amount={safe.low_point} currency={currency} />
         <Part label={t.cushion} amount={safe.cushion} currency={currency} less />
         {isZeroAmount(safe.held_for_goals) ? null : <Part label={t.goals} amount={safe.held_for_goals} currency={currency} less />}
         <Part label={t.total} amount={safe.amount} currency={currency} total />
       </View>
-      <Text accessibilityLabel={t.lowest(low.spoken, displayDay(safe.low_point_date))} style={[styles.small, { color: theme.muted }]}>
-        {t.lowest(low.negative ? `(${low.digits})` : low.digits, displayDay(safe.low_point_date))}
-      </Text>
+      {isZeroAmount(safe.amount) ? <Text style={[styles.small, { color: theme.muted }]}>{t.floor}</Text> : null}
       {safe.notes.map((note, i) => (
         <Text key={i} style={[styles.small, { color: theme.muted }]}>
           {note}
@@ -46,6 +52,11 @@ export function WorkedOut({ safe, visible, onClose }: { safe: SafeToSpend; visib
       {safe.next_income ? <Text style={[styles.small, { color: theme.muted }]}>{t.noIncome}</Text> : null}
     </Sheet>
   );
+}
+
+/** An amount in a sentence: its digits, in brackets when below zero. */
+function shown(parts: { digits: string; negative: boolean }) {
+  return parts.negative ? `(${parts.digits})` : parts.digits;
 }
 
 /** One of the server's parts: its label and amount, marked "−" where it is kept back, as the design draws it. */

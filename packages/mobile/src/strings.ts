@@ -138,13 +138,14 @@ export const strings = {
     done: 'Done',
     window: (what: string, date: string) => `From today until ${what} on ${date}.`,
     window30: 'From today, over the next 30 days.',
-    cashToday: 'Cash today',
-    everyday: 'Everyday spending until then',
+    path: (cash: string, everyday: string, date: string) =>
+      `Cash today is ${cash}. After bills and about ${everyday} of everyday spending, it is lowest on ${date}.`,
+    lowestRow: (date: string) => `Lowest your cash gets, ${date}`,
     cushion: 'A cushion, kept back',
     goals: 'Held for goals',
     total: 'Left to spend',
     less: (label: string, amount: string) => `${label}: less ${amount}`,
-    lowest: (amount: string, date: string) => `Lowest point: ${amount} on ${date}.`,
+    floor: 'It never shows less than zero.',
     noIncome: 'No income expected? It covers the next 30 days instead.',
   },
 
