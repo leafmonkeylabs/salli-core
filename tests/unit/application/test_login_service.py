@@ -28,6 +28,7 @@ from salli.application.services.login_service import (
     check_password,
     normalize_email,
 )
+from tests.fakes import FakeAuditLog
 
 pytestmark = pytest.mark.asyncio
 
@@ -201,6 +202,8 @@ def world() -> World:
         revoked["pat"] += 1
         return 2
 
+    audit = FakeAuditLog()
+
     @asynccontextmanager
     async def uow():
         yield SimpleNamespace(
@@ -208,6 +211,7 @@ def world() -> World:
             user_profiles=profiles,
             oauth_tokens=SimpleNamespace(revoke_all_for_user=revoke_all_oauth),
             personal_access_tokens=SimpleNamespace(revoke_all=revoke_all_pats),
+            audit_log=audit,
         )
 
     service = LoginService(

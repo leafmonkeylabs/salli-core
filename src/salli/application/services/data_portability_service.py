@@ -220,7 +220,7 @@ class DataPortabilityService:
 
     async def _audit_log(self, user_id: str) -> list[dict[str, Any]]:
         async with self._uow_factory() as uow:
-            return await uow.audit_log.list(user_id, limit=None)
+            return list(await uow.audit_log.list(user_id, limit=None))
 
     async def _warnings(self, user_id: str) -> list[str]:
         """Where the books and a reconciled bank statement disagree: the
