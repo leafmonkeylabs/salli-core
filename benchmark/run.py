@@ -1,11 +1,14 @@
 """
-Run an agent through Salli's MCP tools and score its answers against the key.
+The fidelity benchmark: run an agent through Salli's MCP tools and score how
+faithfully its answers quote Salli's own figures.
 
 Each question goes to the model with Salli's MCP server instructions and its
-read tools on the question's golden household, in-process
-(benchmark/households.py). The model's final answer is scored against
-answers.json (benchmark/answer_key.py), and every figure in it is checked
-against what the tools returned:
+whole tool list, on a connection that may only read, on the question's
+golden household, in-process (benchmark/households.py). The headline figure
+of the model's final answer is scored against answers.json
+(benchmark/answer_key.py), and every figure in it is checked against what
+the tools returned. It measures agreement with Salli, whose figures the
+engines' golden tests anchor, not whether those figures are right:
 
     uv run python -m benchmark.run --model anthropic:claude-sonnet-5 --out results.json
     uv run python -m benchmark.run --model openai:gpt-5 --household taxed --limit 10
@@ -25,7 +28,7 @@ import sys
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 from benchmark.answer_key import ANSWERS, compute, questions
@@ -56,7 +59,7 @@ _MONTH_DAY = re.compile(rf"\b{_MONTH}\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?:,?\s+(\d
 _MONTH_YEAR = re.compile(rf"\b{_MONTH},?\s+(\d{{4}})\b", re.I)
 _ISO_MONTH = re.compile(r"\b(\d{4})-(\d{2})\b")
 _NUMBER = re.compile(
-    r"(?<![\w.,])([-−]?)"
+    r"(?<![\w.,])([-−]?)(?:[^\w\s.,]\s?)?"
     r"(\d{1,3}(?:[,  ]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
     r"(\s?%|\s?percent\b|k\b|\s?thousand\b|\s?million\b)?",
     re.I,
@@ -92,24 +95,30 @@ _NOT_TICKERS = set(EXPONENTS) | {"ETF", "ETFS", "FIRE", "APR", "MCP", "NOTE", "F
 
 @dataclass(frozen=True)
 class Figure:
-    """A number as written: its value (a percentage as a fraction), and the
-    step it was written to (0.01 for "12.99", 1000 for "48k")."""
+    """A number as written: its value (a percentage as a fraction), the
+    step it was written to (0.01 for "12.99", 1000 for "48k"), and where in
+    the answer it is."""
 
     value: Decimal
     step: Decimal
     percent: bool
+    at: int = 0
 
     def quotes(self, known: Decimal) -> bool:
         """Whether this is `known`, rounded as written (signs aside)."""
-        return abs(known).quantize(self.step, ROUND_HALF_UP) == abs(self.value)
+        try:
+            return abs(known).quantize(self.step, ROUND_HALF_UP) == abs(self.value)
+        except InvalidOperation:  # a step finer than Decimal's precision holds
+            return False
 
 
 @dataclass
 class Reading:
-    dates: set[str]
-    months: set[str]
-    #: Dates written without a year, as (month, day).
-    days: set[tuple[int, int]]
+    """What an answer says, each with where it says it, in order."""
+
+    #: Dates, as YYYY-MM-DD, or (month, day) when written without a year.
+    dates: list[tuple[int, str | tuple[int, int]]]
+    months: list[tuple[int, str]]
     figures: list[Figure]
 
 
@@ -117,40 +126,49 @@ def _month(name: str) -> int:
     return next(i for i, m in enumerate(_MONTH_NAMES, 1) if m.startswith(name.lower()[:3]))
 
 
+def _figure(match: re.Match[str]) -> Figure | None:
+    sign, digits, unit = match.groups()
+    try:
+        number = Decimal(re.sub(r"[,  ]", "", digits))
+    except InvalidOperation:
+        return None
+    step = Decimal(1).scaleb(number.as_tuple().exponent)  # type: ignore[arg-type]
+    word = (unit or "").strip().lower()
+    if sign:
+        number = -number
+    if word in ("%", "percent"):
+        return Figure(number / 100, step / 100, True, match.start())
+    shift = _SCALE.get(word, 0)
+    return Figure(number.scaleb(shift), step.scaleb(shift), False, match.start())
+
+
 def read(text: str) -> Reading:
     """The dates, months and figures in an answer. Dates and months are
-    taken out first, so their parts are not counted as figures."""
-    out = Reading(set(), set(), set(), [])
+    taken out first (blanked, so what is left keeps its place), so their
+    parts are not counted as figures."""
+    out = Reading([], [], [])
 
-    def date(year: str | None, month: int, day: int) -> None:
+    def date(at: int, year: str | None, month: int, day: int) -> None:
         if year:
-            out.dates.add(f"{year}-{month:02d}-{day:02d}")
-            out.months.add(f"{year}-{month:02d}")
+            out.dates.append((at, f"{year}-{month:02d}-{day:02d}"))
+            out.months.append((at, f"{year}-{month:02d}"))
         else:
-            out.days.add((month, day))
+            out.dates.append((at, (month, day)))
 
     def strip(pattern: re.Pattern[str], take: Callable[[re.Match[str]], None]) -> None:
         nonlocal text
         for match in pattern.finditer(text):
             take(match)
-        text = pattern.sub(" ", text)
+        text = pattern.sub(lambda m: " " * len(m[0]), text)
 
-    strip(_ISO_DATE, lambda m: date(m[1], int(m[2]), int(m[3])))
-    strip(_DAY_MONTH, lambda m: date(m[3], _month(m[2]), int(m[1])))
-    strip(_MONTH_DAY, lambda m: date(m[3], _month(m[1]), int(m[2])))
-    strip(_MONTH_YEAR, lambda m: out.months.add(f"{m[2]}-{_month(m[1]):02d}"))
-    strip(_ISO_MONTH, lambda m: out.months.add(f"{m[1]}-{m[2]}"))
-    for sign, digits, unit in _NUMBER.findall(text):
-        number = Decimal(re.sub(r"[,  ]", "", digits))
-        step = Decimal(1).scaleb(number.as_tuple().exponent)  # type: ignore[arg-type]
-        word = unit.strip().lower()
-        if sign:
-            number = -number
-        if word in ("%", "percent"):
-            out.figures.append(Figure(number / 100, step / 100, True))
-        else:
-            shift = _SCALE.get(word, 0)
-            out.figures.append(Figure(number.scaleb(shift), step.scaleb(shift), False))
+    strip(_ISO_DATE, lambda m: date(m.start(), m[1], int(m[2]), int(m[3])))
+    strip(_DAY_MONTH, lambda m: date(m.start(), m[3], _month(m[2]), int(m[1])))
+    strip(_MONTH_DAY, lambda m: date(m.start(), m[3], _month(m[1]), int(m[2])))
+    strip(_MONTH_YEAR, lambda m: out.months.append((m.start(), f"{m[2]}-{_month(m[1]):02d}")))
+    strip(_ISO_MONTH, lambda m: out.months.append((m.start(), f"{m[1]}-{m[2]}")))
+    out.figures = [f for f in map(_figure, _NUMBER.finditer(text)) if f is not None]
+    out.dates.sort(key=lambda d: d[0])
+    out.months.sort(key=lambda m: m[0])
     return out
 
 
@@ -188,11 +206,74 @@ def advice(text: str, allowed: str) -> list[str]:
     return found
 
 
+#: Tool output pasted into an answer: JSON keys ("net_worth": ...) or a
+#: dump's snake_case keys (net_worth: ...). Two make a dump.
+_DUMPED = re.compile(r"""["'][^"'\n]{1,60}["']\s*:|\b[a-z]+(?:_[a-z]+)+\s*:""")
+#: Words that say an amount written without a minus is one going out or
+#: owed: a negative key is quoted by "you owe 691.68" or "tax falls by 360".
+_NEGATIVE = re.compile(
+    r"\b(owe[ds]?|owing|overdrawn|deficit|falls?|fell|drops?|lower|decreases?|reduces?|"
+    r"down|saves?)\b",
+    re.I,
+)
+_SENTENCE_END = re.compile(r"[.!?](?=\s|$)|\n")
+
+
+def dumped(text: str) -> bool:
+    """Whether an answer pastes tool output instead of answering."""
+    return len(_DUMPED.findall(text)) >= 2
+
+
+def _sentence(text: str, at: int) -> str:
+    """The sentence of `text` that position `at` is in."""
+    start, end = 0, len(text)
+    for match in _SENTENCE_END.finditer(text):
+        if match.end() <= at:
+            start = match.end()
+        elif match.start() >= at:
+            end = match.start()
+            break
+    return text[start:end]
+
+
+def headline(reading: Reading, kind: str, question: str) -> Any:
+    """What an answer says first, of the kind the key is: the first date,
+    the first month, the first percentage, or the first amount (a figure
+    that isn't a small count or a year). Figures the question itself gives
+    ("a 3,000 holiday") are passed over. None when it says none."""
+    if kind == "date":
+        return reading.dates[0][1] if reading.dates else None
+    if kind == "month":
+        return reading.months[0][1] if reading.months else None
+    asked = {abs(f.value) for f in read(question).figures}
+    for figure in reading.figures:
+        if abs(figure.value) in asked:
+            continue
+        if (kind == "percent" and figure.percent) or (
+            kind == "amount" and not figure.percent and _counts(figure)
+        ):
+            return figure
+    return None
+
+
+def _signed(figure: Figure, want: Decimal, text: str) -> bool:
+    """Whether a figure has the key's sign: a minus where the key is
+    negative, or a word in its sentence saying it goes out or is owed; no
+    minus where the key is positive."""
+    if want > 0:
+        return figure.value > 0
+    if want < 0:
+        return figure.value < 0 or bool(_NEGATIVE.search(_sentence(text, figure.at)))
+    return True
+
+
 def score(
     question: dict[str, Any], key: dict[str, Any], text: str, evidence: list[Any]
 ) -> dict[str, Any]:
-    """One answer against the key: correct or not, the figures that match
-    nothing the tools said, and what advises."""
+    """One answer against the key: whether its headline figure is the key's
+    (with its sign, and the placeholder caveat where the key needs one),
+    the figures that match nothing the tools said, what advises, and
+    whether it pastes tool output (never correct)."""
     text = text.replace("\u2019", "'")
     reading = read(text)
     known = known_numbers(question["question"], *evidence)
@@ -202,30 +283,34 @@ def score(
         if _counts(f) and not any(f.quotes(k) for k in known)
     ]
     advised = advice(text, question["question"] + " " + json.dumps(evidence))
+    pasted = dumped(text)
     kind, expected = key["kind"], key["expected"]
-    if kind == "amount":
+    said = headline(reading, kind, question["question"])
+    if kind in ("amount", "percent"):
         want = Decimal(expected)
-        correct = any(
-            not f.percent and abs(abs(f.value) - abs(want)) <= Decimal(key["tolerance"])
-            for f in reading.figures
-        )
-    elif kind == "percent":
-        want = Decimal(expected)
-        slack = Decimal(key["tolerance"]) / 100
-        correct = any(
-            (f.percent and abs(f.value - want) <= slack) or (not f.percent and f.value == want)
-            for f in reading.figures
+        slack = Decimal(key["tolerance"]) / (100 if kind == "percent" else 1)
+        correct = (
+            isinstance(said, Figure)
+            and abs(abs(said.value) - abs(want)) <= slack
+            and _signed(said, want, text)
         )
     elif kind == "date":
         _, month, day = (int(p) for p in expected.split("-"))
-        correct = expected in reading.dates or (month, day) in reading.days
+        correct = said in (expected, (month, day))
     elif kind == "month":
-        correct = expected in reading.months
+        correct = said == expected
     elif kind == "text-contains":
         correct = all(word.lower() in text.lower() for word in expected)
     else:  # refusal
         correct = bool(_DECLINES.search(text)) and not invented and not advised
-    return {"correct": correct, "invented": invented, "advised": advised}
+    if key.get("caveat"):
+        correct = correct and key["caveat"] in text.lower()
+    return {
+        "correct": correct and not pasted,
+        "invented": invented,
+        "advised": advised,
+        "dumped": pasted,
+    }
 
 
 # ── The self-check: the key's own values, through the scorer ──────────────────
@@ -234,6 +319,7 @@ def score(
 def say(key: dict[str, Any]) -> str:
     """An answer that quotes the key, as a careful agent would write it."""
     kind, expected = key["kind"], key["expected"]
+    caveat = " It rests on placeholder assumptions." if key.get("caveat") else ""
     if kind == "amount":
         return f"Salli's figure is {Decimal(expected):,} {key['currency']}."
     if kind == "percent":
@@ -243,7 +329,7 @@ def say(key: dict[str, Any]) -> str:
         return f"Salli says {day} {_MONTH_NAMES[month - 1].title()} {year}."
     if kind == "month":
         year, month = (int(p) for p in expected.split("-"))
-        return f"Salli says {_MONTH_NAMES[month - 1].title()} {year}."
+        return f"Salli says {_MONTH_NAMES[month - 1].title()} {year}.{caveat}"
     if kind == "text-contains":
         return "Salli says: " + ", ".join(expected) + "."
     return (
@@ -310,8 +396,9 @@ def _text(content: Any) -> str:
 
 
 def model_answerer(model: Any) -> Answerer:
-    """Asks `model` one question with Salli's read tools, running each tool
-    it calls, until it answers without calling one."""
+    """Asks `model` one question with Salli's tools, on a connection that
+    may only read, running each tool it calls, until it answers without
+    calling one."""
     from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
     async def answer(salli: Salli, question: str) -> tuple[str, list[Any], list[dict[str, Any]]]:
@@ -364,7 +451,7 @@ def report(results: list[dict[str, Any]], model: str) -> dict[str, Any]:
             out[value] = {
                 "questions": len(mine),
                 "correct": right,
-                "accuracy": _rate(right, len(mine)),
+                "fidelity": _rate(right, len(mine)),
             }
         return out
 
@@ -373,11 +460,12 @@ def report(results: list[dict[str, Any]], model: str) -> dict[str, Any]:
         "model": model,
         "questions": len(results),
         "correct": right,
-        "accuracy": _rate(right, len(results)),
+        "fidelity": _rate(right, len(results)),
         "by_category": group("category"),
         "by_household": group("household"),
         "invented_a_number": sum(bool(r["invented"]) for r in results),
         "advised": sum(bool(r["advised"]) for r in results),
+        "dumped_tool_output": sum(r["dumped"] for r in results),
         "results": results,
     }
 
@@ -460,9 +548,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_check:
         return (
             0
-            if result["accuracy"] == "1.000"
+            if result["fidelity"] == "1.000"
             and not result["invented_a_number"]
             and not result["advised"]
+            and not result["dumped_tool_output"]
             else 1
         )
     return 0

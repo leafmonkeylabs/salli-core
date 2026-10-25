@@ -129,7 +129,7 @@ async def test_without_the_persons_confirmation_nothing_is_stored(services):
     assert (await services.decisions.list(USER))["decisions"] == []
 
 
-async def test_a_principle_the_person_confirmed_is_marked_as_the_agents(services):
+async def test_a_principle_the_person_confirmed_is_marked_as_the_agents(services, refused):
     added = await _call(
         services,
         "add_principle",
@@ -139,12 +139,14 @@ async def test_a_principle_the_person_confirmed_is_marked_as_the_agents(services
     listed = await _call(services, "list_principles", {})
     assert [p["label"] for p in listed["principles"]] == ["Six months"]
     assert "emergency_months" in {f["name"] for f in listed["figures"]}
-    refused = await _call(
-        services,
-        "add_principle",
-        {"label": "x", "check": "emergency_month >= 6", "confirmed_by_user": True},
+    unknown = await refused(
+        _call(
+            services,
+            "add_principle",
+            {"label": "x", "check": "emergency_month >= 6", "confirmed_by_user": True},
+        )
     )
-    assert refused["problems"][0]["path"] == "check"
+    assert unknown["problems"][0]["path"] == "check"
 
 
 async def test_checking_and_recording_a_decision(services):

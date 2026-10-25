@@ -88,14 +88,20 @@ async def test_a_holding_links_to_its_investment_account_and_unlinks(services):
     assert (await services.portfolio.get_holding(USER, fund))["account_id"] is None
 
 
-async def test_a_link_to_anything_but_the_persons_investment_account_is_refused(services):
+async def test_a_link_to_anything_but_the_persons_investment_account_is_refused(services, refused):
     fund = await _fund(services)
-    cash = await _call(services, "link_holding", {"holding_id": fund, "account_id": "bank"})
-    assert "role cash" in cash["error"]
-    theirs = await _call(services, "link_holding", {"holding_id": fund, "account_id": "nope"})
-    assert theirs == {"error": "Account not found: nope"}
-    missing = await _call(services, "link_holding", {"holding_id": "x", "account_id": "brk"})
-    assert missing == {"error": "Holding not found: x"}
+    cash = await refused(
+        _call(services, "link_holding", {"holding_id": fund, "account_id": "bank"})
+    )
+    assert cash["code"] == "invalid_input" and "role cash" in cash["message"]
+    theirs = await refused(
+        _call(services, "link_holding", {"holding_id": fund, "account_id": "nope"})
+    )
+    assert (theirs["code"], theirs["message"]) == ("not_found", "Account not found: nope")
+    missing = await refused(
+        _call(services, "link_holding", {"holding_id": "x", "account_id": "brk"})
+    )
+    assert (missing["code"], missing["message"]) == ("not_found", "Holding not found: x")
     assert (await services.portfolio.get_holding(USER, fund))["account_id"] is None
 
 
@@ -109,7 +115,9 @@ async def test_the_tools_say_what_an_agent_may_say_about_holdings(services):
         in tools["list_holdings"]
     )
     assert "get their go-ahead" in tools["link_holding"]
-    schema = tools["get_scenario_schema"]
-    assert "a `sell` sells part of one" in schema
-    assert "Fees are the user's own figure: never assume one" in schema
-    assert "forecasts no price" in schema
+    # How holdings go into a scenario: in the schema get_scenario_schema gives.
+    assert "how tax, holdings and assets go into one" in tools["get_scenario_schema"]
+    guide = mcp_server.SCENARIO_GUIDE
+    assert "a `sell` sells part of one" in guide
+    assert "Fees are the user's own figure: never assume one" in guide
+    assert "forecasts no price" in guide

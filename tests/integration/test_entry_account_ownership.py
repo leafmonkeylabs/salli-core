@@ -121,8 +121,9 @@ async def test_the_mcp_tool_refuses_it(ledgers):
     with (
         patch.object(mcp_server, "_current_user_id", return_value="bob"),
         patch.object(mcp_server, "_current_scopes", return_value=["mcp:write"]),
+        pytest.raises(mcp_server.ToolFailure) as failure,
     ):
-        _, result = await server.call_tool(
+        await server.call_tool(
             "post_journal_entry",
             {
                 "entry_date": "2026-10-10",
@@ -132,7 +133,10 @@ async def test_the_mcp_tool_refuses_it(ledgers):
                 "amount": "50.00",
             },
         )
-    assert result == {"error": f"Could not post entry: Account not found: {ledgers.alice_cash}"}
+    assert (failure.value.code, str(failure.value)) == (
+        "not_found",
+        f"Account not found: {ledgers.alice_cash}",
+    )
     await _nothing_posted(ledgers.ledger)
     async with ledgers.ledger._uow_factory() as uow:
         [row] = await uow.audit_log.list("bob")

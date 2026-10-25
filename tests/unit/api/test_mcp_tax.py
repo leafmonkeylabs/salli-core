@@ -68,22 +68,24 @@ async def test_the_computation_is_read_only_lines_with_their_sources(services):
     assert "Never recompute" in result["how_to_read"]
 
 
-async def test_no_active_rules_is_an_answer_saying_what_to_do(services):
+async def test_no_active_rules_is_an_answer_saying_what_to_do(services, refused):
     services.tax.compute_tax.side_effect = NoTaxRulesError(
         "no_rule_set", "You have no tax rules for the United Kingdom. " + ADD_RULES
     )
-    result = await _call(services, "get_tax_computation", {})
-    assert "research_tax_rules" in result["error"]
-    assert "salli tax rules create" in result["error"]
+    error = await refused(_call(services, "get_tax_computation", {}))
+    assert error["code"] == "not_enough_data"
+    assert "research_tax_rules" in error["message"]
+    assert "salli tax rules create" in error["message"]
 
 
-async def test_a_line_is_explained_or_the_lines_there_are_are_named(services):
+async def test_a_line_is_explained_or_the_lines_there_are_are_named(services, refused):
     services.tax.explain.return_value = {"line": {"key": "tax", "amount": "3000"}}
     assert (await _call(services, "explain_tax_line", {"line_key": "tax"}))["line"]["key"] == "tax"
 
     services.tax.explain.side_effect = UnknownLine("band", ["allowance", "tax"])
-    result = await _call(services, "explain_tax_line", {"line_key": "band"})
-    assert "no line 'band'" in result["error"] and "allowance, tax" in result["error"]
+    error = await refused(_call(services, "explain_tax_line", {"line_key": "band"}))
+    assert error["code"] == "not_found"
+    assert "no line 'band'" in error["message"] and "allowance, tax" in error["message"]
 
 
 async def test_suggested_accounts_are_shown_then_applied_and_audited(services):
@@ -110,9 +112,9 @@ async def test_suggested_accounts_are_shown_then_applied_and_audited(services):
     assert tools["apply_suggested_tax_accounts"].readOnlyHint is False
 
 
-async def test_a_refused_suggestion_is_explained(services):
+async def test_a_refused_suggestion_is_explained(services, refused):
     services.tax_rules.suggested_accounts.side_effect = RuleSetStateError(
         "Version 1 was superseded"
     )
-    result = await _call(services, "suggested_tax_accounts", {"rule_set_id": "rs1"})
-    assert result == {"error": "Version 1 was superseded"}
+    error = await refused(_call(services, "suggested_tax_accounts", {"rule_set_id": "rs1"}))
+    assert error == {"code": "refused", "message": "Version 1 was superseded", "retryable": False}

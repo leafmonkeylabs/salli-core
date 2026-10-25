@@ -73,7 +73,7 @@ common criteria, C confidentiality, PI processing integrity, P privacy.
 | Disclosure | Private reporting, response times, supported versions | `SECURITY.md` | CC2.3, CC7.3 |
 | Processors | Who else sees personal data, what and when | `docs/privacy.md` | CC9.2 |
 | **Not yet:** encryption at rest | Only the secrets above are sealed. The database and uploaded files are as encrypted as the operator's disk and backups | | CC6.1, C1.1 |
-| **Not yet:** database-enforced ledger | Entries are kept unchanged by the code, not by a trigger as the decision journal and the audit log are | | PI1 |
+| **Not yet:** an append-only ledger in open periods | Closed books are refused by triggers on entries and postings; in an open period a posted entry is kept unchanged by the code only, and the reversal link is written onto the original | | PI1 |
 | **Not yet:** complete audit trail | Changes a person makes through the API, and sign-ins, are not in the audit log | | CC7.2 |
 | **Not yet:** signed artefacts | Images carry provenance but no signature; the macOS and Windows binaries are not code-signed | `RELEASING.md` | CC8.1 |
 | **Not yet:** penetration test | No external test or audit has been done | | CC4.1 |

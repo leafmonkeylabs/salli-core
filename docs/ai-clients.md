@@ -44,6 +44,12 @@ your AI app can run reads as it likes and ask you before anything that writes; t
 Salli app does. `post_journal_entry` takes your AI's own `client_ref`: sent again,
 it books nothing and returns the entry first booked with it.
 
+A tool that can't answer returns an MCP error result (`isError`) whose `error`
+says why in a `code` (`invalid_input`, `not_found`, `refused`, `scope`,
+`not_enough_data`, `unavailable`), a short `message`, whether the same call may
+work if tried again (`retryable`), and, for input, the `problems` with their
+paths to fix.
+
 Six ready-made prompts come with the server: **review my month**, **sort my pending
 transactions**, **can I afford**, **think through a decision**, **set planning
 assumptions** and **research tax rules** (for a country and year).

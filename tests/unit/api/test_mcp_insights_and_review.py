@@ -41,7 +41,7 @@ async def _call(services, tool: str, args: dict):
     return structured
 
 
-async def test_insights_and_the_forecast_are_salli_s_numbers(services):
+async def test_insights_and_the_forecast_are_salli_s_numbers(services, refused):
     services.insights.forecast.return_value = {"currency": "USD", "lowest": "240.00"}
     assert await _call(services, "get_cash_forecast", {"days": 9999}) == {
         "currency": "USD",
@@ -52,9 +52,8 @@ async def test_insights_and_the_forecast_are_salli_s_numbers(services):
     services.insights.spending.return_value = {"lines": []}
     await _call(services, "get_spending", {"months": 6, "by": "need"})
     services.insights.spending.assert_awaited_once_with("u1", 6, "need")
-    assert await _call(services, "get_spending", {"by": "mood"}) == {
-        "error": "by is category, account or need"
-    }
+    mood = await refused(_call(services, "get_spending", {"by": "mood"}))
+    assert (mood["code"], mood["message"]) == ("invalid_input", "by is category, account or need")
 
 
 async def test_pending_transactions_say_what_is_decided_and_what_is_not(services):
@@ -73,7 +72,7 @@ async def test_pending_transactions_say_what_is_decided_and_what_is_not(services
     assert (txn["statement_account_id"], txn["debit_account_id"]) == ("checking", None)
 
 
-async def test_choices_are_validated_by_salli_and_audited(services):
+async def test_choices_are_validated_by_salli_and_audited(services, refused):
     services.parsing.categorize.return_value = ["t1"]
     result = await _call(
         services,
@@ -87,12 +86,14 @@ async def test_choices_are_validated_by_salli_and_audited(services):
     services.audit.log.assert_awaited()
 
     services.parsing.categorize.side_effect = ValueError("No active account 'made-up'")
-    refused = await _call(
-        services,
-        "categorize_transactions",
-        {"choices": [{"transaction_id": "t1", "account_id": "made-up"}]},
+    made_up = await refused(
+        _call(
+            services,
+            "categorize_transactions",
+            {"choices": [{"transaction_id": "t1", "account_id": "made-up"}]},
+        )
     )
-    assert refused == {"error": "No active account 'made-up'"}
+    assert made_up["message"] == "No active account 'made-up'"
 
 
 async def test_posting_books_exactly_what_was_approved(services):
@@ -102,7 +103,7 @@ async def test_posting_books_exactly_what_was_approved(services):
     services.parsing.post_approved.assert_awaited_once_with("u1", ["t1"])
 
 
-async def test_a_rule_is_a_description_and_an_account(services):
+async def test_a_rule_is_a_description_and_an_account(services, refused):
     services.rules.create.return_value = "r1"
     result = await _call(
         services,
@@ -116,10 +117,12 @@ async def test_a_rule_is_a_description_and_an_account(services):
     assert rule["actions"] == {"account_id": "transport"}
 
     services.rules.create.side_effect = InvalidRule("The rule's account doesn't exist")
-    refused = await _call(
-        services, "create_rule", {"name": "x", "description_contains": "x", "account_id": "no"}
+    rule = await refused(
+        _call(
+            services, "create_rule", {"name": "x", "description_contains": "x", "account_id": "no"}
+        )
     )
-    assert refused == {"error": "The rule's account doesn't exist"}
+    assert rule["message"] == "The rule's account doesn't exist"
 
 
 async def test_the_prompts_lean_on_salli_s_tools_not_the_model_s_arithmetic():
@@ -157,7 +160,7 @@ async def test_fi_projections_and_assumptions_are_salli_s_with_the_placeholder_f
     assert await _call(services, "get_fi_assumptions", {}) == {"applied": flagged["assumptions"]}
 
 
-async def test_an_agent_sets_an_assumption_with_its_source_and_it_is_audited(services):
+async def test_an_agent_sets_an_assumption_with_its_source_and_it_is_audited(services, refused):
     services.fi.set_assumptions.return_value = {"applied": {"status": "user"}}
     result = await _call(
         services,
@@ -176,13 +179,13 @@ async def test_an_agent_sets_an_assumption_with_its_source_and_it_is_audited(ser
     assert services.fi.set_assumptions.await_args.args[1] == {"inflation": None}
     services.fi.set_assumptions.side_effect = ValueError("inflation must be a yearly fraction")
     services.audit.log.reset_mock()
-    refused = await _call(services, "set_fi_assumption", {"name": "inflation", "value": "3"})
-    assert refused == {"error": "inflation must be a yearly fraction"}
+    error = await refused(_call(services, "set_fi_assumption", {"name": "inflation", "value": "3"}))
+    assert error["message"] == "inflation must be a yearly fraction"
     services.audit.log.assert_awaited_once()
     assert services.audit.log.await_args.args[3] == "failed"
 
 
-async def test_an_agent_sets_the_share_of_the_surplus_invested_within_its_bounds(services):
+async def test_an_agent_sets_the_share_of_the_surplus_invested_within_its_bounds(services, refused):
     """Through the real service: a share from 0 to 1, with its source; out
     of range is refused with how to write it, nothing changes, and it is
     audited as failed."""
@@ -210,10 +213,10 @@ async def test_an_agent_sets_the_share_of_the_surplus_invested_within_its_bounds
 
     services.audit.log.reset_mock()
     for value in ("80", "1.2", "-0.5"):
-        refused = await _call(
-            services, "set_fi_assumption", {"name": "surplus_invested", "value": value}
+        error = await refused(
+            _call(services, "set_fi_assumption", {"name": "surplus_invested", "value": value})
         )
-        assert "a share from 0 to 1 (0.8 for 80%)" in refused["error"], value
+        assert "a share from 0 to 1 (0.8 for 80%)" in error["message"], value
     assert uow.user_profiles.rows["u1"]["fi_assumptions"]["surplus_invested"]["value"] == "0.8"
     assert [c.args[3] for c in services.audit.log.await_args_list] == ["failed"] * 3
 

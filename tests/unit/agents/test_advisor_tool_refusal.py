@@ -45,8 +45,13 @@ async def test_the_mcp_tool_returns_the_meter_message():
     with (
         patch.object(mcp_server, "_current_user_id", return_value="u1"),
         patch.object(mcp_server, "_current_scopes", return_value=["mcp:write"]),
+        pytest.raises(mcp_server.ToolFailure) as failure,
     ):
-        _, structured = await server.call_tool("run_briefing", {})
+        await server.call_tool("run_briefing", {})
 
-    assert structured == {"error": "The meter's own words."}
+    assert failure.value.error() == {
+        "code": "refused",
+        "message": "The meter's own words.",
+        "retryable": False,
+    }
     assert audit.log.await_args.args[3] == "failed"

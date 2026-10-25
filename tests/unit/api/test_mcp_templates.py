@@ -202,14 +202,15 @@ async def test_starting_a_decision_and_recording_it_in_one_step(services):
     assert recorded["entry"]["chosen"] == "Pay down Student loan"
 
 
-async def test_problems_come_back_with_their_paths(services):
-    refused = await _call(
-        services, "start_decision", {"template": "afford-it", "answers": {"price": "-5"}}
+async def test_problems_come_back_with_their_paths(services, refused):
+    price = await refused(
+        _call(services, "start_decision", {"template": "afford-it", "answers": {"price": "-5"}})
     )
-    paths = {p["path"] for p in refused["problems"]}
-    assert paths == {"answers.price"}
-    unknown = await _call(services, "start_decision", {"template": "lottery"})
-    assert unknown["error"].startswith("No decision template 'lottery'")
+    assert price["code"] == "invalid_input"
+    assert {p["path"] for p in price["problems"]} == {"answers.price"}
+    unknown = await refused(_call(services, "start_decision", {"template": "lottery"}))
+    assert unknown["code"] == "not_found"
+    assert unknown["message"].startswith("No decision template 'lottery'")
 
 
 async def test_think_through_decision_walks_the_six_steps_within_the_guardrails(services):

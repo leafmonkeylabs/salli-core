@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
-from typing import Annotated, Any, Literal, Self, cast
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AfterValidator,
@@ -639,42 +639,6 @@ def json_schema() -> dict[str, Any]:
     }
 
 
-def inline_json_schema() -> dict[str, Any]:
-    """The JSON Schema with every `$ref` written out in place: for a tool's
-    input schema, where a nested `#/$defs/...` would point nowhere."""
-    schema = json_schema()
-    defs: dict[str, Any] = schema.pop("$defs", {})
-
-    def walk(node: Any) -> Any:
-        if isinstance(node, dict):
-            mapping = cast("dict[str, Any]", node)
-            ref = mapping.get("$ref")
-            if isinstance(ref, str) and ref.startswith("#/$defs/"):
-                rest = {k: v for k, v in mapping.items() if k != "$ref"}
-                return {**walk(defs[ref.removeprefix("#/$defs/")]), **walk(rest)}
-            return {k: walk(v) for k, v in mapping.items() if k != "$schema"}
-        if isinstance(node, list):
-            return [walk(v) for v in cast("list[Any]", node)]
-        return node
-
-    inlined = walk(schema)
-    # The discriminator's mapping names $refs, gone now; oneOf carries it.
-    for key in ("discriminator",):
-        _strip(inlined, key)
-    return inlined
-
-
-def _strip(node: Any, key: str) -> None:
-    if isinstance(node, dict):
-        mapping = cast("dict[str, Any]", node)
-        mapping.pop(key, None)
-        for value in mapping.values():
-            _strip(value, key)
-    elif isinstance(node, list):
-        for value in cast("list[Any]", node):
-            _strip(value, key)
-
-
 __all__ = [
     "CHANGE_TYPES",
     "MAX_GROWTH",
@@ -702,7 +666,6 @@ __all__ = [
     "StopRecurringChange",
     "WITH_HOLDING",
     "hashable",
-    "inline_json_schema",
     "json_schema",
     "load",
     "problems",
