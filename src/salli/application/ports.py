@@ -1483,7 +1483,7 @@ class InsuranceTargetRepository(ABC):
 
 
 class AuditLogRepository(ABC):
-    """Append-only (core_0044's trigger): rows are added, each linked into
+    """Append-only (core_0045's trigger): rows are added, each linked into
     the instance's one hash chain (`domain/audit_chain.py`), never changed
     but to pseudonymise an erased account's."""
 

@@ -4,6 +4,18 @@
 
 ### Added
 
+- **Filing on provisional figures is acknowledged.** A return whose
+  computation uses values its rules mark provisional is filed (or amended)
+  only with `acknowledge_provisional` and a `provisional_note` (`salli tax
+  returns record --acknowledge-provisional "<why>"`); the version keeps the
+  note (migration `core_0044_return_provisional`) and its reads show the
+  provisional values. MCP and in-app tax reads with provisional values carry
+  a `provisional_warning` sentence the agent quotes.
+- **Exports show where books and bank disagree.** A reconciled statement's
+  closing balance the ledger doesn't reach is exported as a real balance
+  assertion, so `bean-check` and hledger fail on it, with a `; WARNING:` at
+  the file's head; the JSON export lists the same under `warnings`.
+
 - **Invitations, without sign-up.** `salli-server members invite <email>`
   prints a link, good once for seven days, to a server-rendered page (no
   script, the consent page's CSP) where the person chooses their password
@@ -260,7 +272,7 @@
 ### Security
 
 - **A hash-chained audit trail.** Every `audit_logs` row on an instance is
-  numbered and carries the previous row's hash and its own (core_0044;
+  numbered and carries the previous row's hash and its own (core_0045;
   `salli-server audit verify` reports the first break). Sign-ins (succeeded
   or refused, by the throttle's hashes of the email and address), personal
   access tokens issued and revoked, and OAuth grants revoked are recorded.

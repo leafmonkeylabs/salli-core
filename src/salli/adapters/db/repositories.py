@@ -3163,7 +3163,7 @@ class SQLDataPortabilityRepository(DataPortabilityRepository):
         await _delete(CmaPackORM, CmaPackORM.user_id)
         await _delete(TaxRuleSetORM, TaxRuleSetORM.user_id)
         await _delete(TaxRuleSetVersionORM, TaxRuleSetVersionORM.user_id)
-        # The audit trail keeps their rows, pseudonymised (core_0044): the
+        # The audit trail keeps their rows, pseudonymised (core_0045): the
         # keyed hash in place of their id, and none of their arguments.
         result = await self._s.execute(
             update(AuditLogORM)

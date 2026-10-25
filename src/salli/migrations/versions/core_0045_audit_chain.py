@@ -9,8 +9,8 @@
   rows that only replaces the user id with a pseudonym (`erased:`) and
   empties the arguments.
 
-Revision ID: core_0044_audit_chain
-Revises: core_0043_invitations
+Revision ID: core_0045_audit_chain
+Revises: core_0044_return_provisional
 Create Date: 2026-10-25
 """
 
@@ -22,8 +22,8 @@ from alembic import op
 
 from salli.domain import audit_chain
 
-revision: str = "core_0044_audit_chain"
-down_revision: str | None = "core_0043_invitations"
+revision: str = "core_0045_audit_chain"
+down_revision: str | None = "core_0044_return_provisional"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

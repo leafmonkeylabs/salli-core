@@ -16,8 +16,9 @@ balances in the base currency exactly as it does in Salli.
 A transaction is flagged `*` when one of its postings has been cleared against
 a bank statement, and `!` otherwise; the cleared postings carry `*` themselves.
 A completed reconciliation goes out as a balance assertion (Beancount's
-`balance`, hledger's `= `) on its closing balance, when the ledger agrees with
-it on that day; a reversal names the entry it reverses, and an account its
+`balance`, hledger's `= `) on its closing balance, always: where the ledger
+doesn't reach it on that day the file's own check fails, and a warning at its
+head (and in the JSON export) says which; a reversal names the entry it reverses, and an account its
 tax, asset and equity roles. Pure: no I/O.
 """
 
@@ -25,7 +26,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from collections.abc import Collection, Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -116,12 +117,14 @@ def _roles(account: Account) -> list[tuple[str, str]]:
     return [(key, value) for key, value in roles if value]
 
 
-def _held(
-    assertions: Sequence[Assertion], entries: Sequence[StoredJournalEntry]
-) -> Iterator[tuple[Assertion, bool]]:
-    """The assertions the ledger itself agrees with: a statement's balance
-    that the ledger doesn't reach on that day (history before the statement
-    left out, say) would make the file fail its own check."""
+def disagreements(
+    assertions: Sequence[Assertion],
+    entries: Sequence[StoredJournalEntry],
+    names: dict[str, str] | None = None,
+) -> list[str]:
+    """A sentence for each completed reconciliation whose closing balance
+    the ledger doesn't reach on that day: its balance assertion fails."""
+    out: list[str] = []
     for a in assertions:
         total = sum(
             (
@@ -133,11 +136,23 @@ def _held(
             ),
             Decimal(0),
         )
-        yield (
-            a,
-            quantize(total, a.currency, strict=False)
-            == quantize(a.balance, a.currency, strict=False),
-        )
+        ledger = quantize(total, a.currency, strict=False)
+        statement = quantize(a.balance, a.currency, strict=False)
+        if ledger != statement:
+            name = (names or {}).get(a.account_id, a.account_id)
+            out.append(
+                f"{name} on {a.on}: the ledger has {ledger} {a.currency}, statement "
+                f"{a.statement_id} closes at {statement} {a.currency}; its balance "
+                "assertion fails until they agree."
+            )
+    return out
+
+
+def _warnings(
+    assertions: Sequence[Assertion], entries: Sequence[StoredJournalEntry], names: dict[str, str]
+) -> list[str]:
+    known = [a for a in assertions if a.account_id in names]
+    return [f"; WARNING: {w}" for w in disagreements(known, entries, names)]
 
 
 def _first_date(entries: Iterable[StoredJournalEntry]) -> str:
@@ -156,9 +171,11 @@ def beancount(
     opened = _first_date(entries)
     lines = [
         "; Exported from Salli. Every transaction carries its Salli id (salli-id).",
+        *_warnings(assertions, entries, names),
         f'option "operating_currency" "{base_currency}"',
         "",
     ]
+    head = len(lines)
     for account in sorted(accounts, key=lambda a: names[a.id]):
         lines.append(f"{opened} open {names[account.id]}")
         if not account.is_active:
@@ -182,14 +199,13 @@ def beancount(
             lines.append(line)
             for axis, slug in sorted(posting.tags.items()):
                 lines.append(f"    {axis}: {_string(slug)}")
-    for a, held in _held(assertions, entries):
+    for a in assertions:
         if a.account_id not in names:
             continue
         # Beancount checks a balance at the start of its day.
         day = dt.date.fromisoformat(a.on) + dt.timedelta(days=1)
-        text = f"{day} balance {names[a.account_id]}  {_amount(a.balance, a.currency)}"
-        lines += ["", text if held else f"; not asserted, the ledger differs: {text}"]
-        lines.append(f"{'  ' if held else ';   '}salli-statement: {_string(a.statement_id)}")
+        lines += ["", f"{day} balance {names[a.account_id]}  {_amount(a.balance, a.currency)}"]
+        lines.append(f"  salli-statement: {_string(a.statement_id)}")
     # An entry posted to an account that no longer exists still has to parse.
     unknown = sorted(
         {
@@ -200,7 +216,7 @@ def beancount(
         }
     )
     if unknown:
-        lines[3:3] = [f"{opened} open {name}" for name in unknown]
+        lines[head:head] = [f"{opened} open {name}" for name in unknown]
     return "\n".join(lines) + "\n"
 
 
@@ -213,7 +229,11 @@ def hledger(
 ) -> str:
     """The ledger as an hledger journal (also readable by Ledger)."""
     names = account_names(accounts)
-    lines = ["; Exported from Salli. Every transaction carries its Salli id (salli-id).", ""]
+    lines = [
+        "; Exported from Salli. Every transaction carries its Salli id (salli-id).",
+        *_warnings(assertions, entries, names),
+        "",
+    ]
     for account in sorted(accounts, key=lambda a: names[a.id]):
         note = "" if account.is_active else ", salli-status:inactive"
         note += "".join(f", {key}:{value}" for key, value in _roles(account))
@@ -235,10 +255,9 @@ def hledger(
             tags = ", ".join(f"{axis}:{slug}" for axis, slug in sorted(posting.tags.items()))
             lines.append(line + (f"  ; {tags}" if tags else ""))
     # After every entry, so a same-day entry is inside the asserted balance.
-    for a, held in _held(assertions, entries):
+    for a in assertions:
         if a.account_id not in names:
             continue
         text = f"    {names[a.account_id]}  0 {a.currency} = {_amount(a.balance, a.currency)}"
-        head = f"{a.on} * Reconciled statement  ; salli-statement:{a.statement_id}"
-        lines += ["", head, text] if held else ["", f"; not asserted, the ledger differs: {text}"]
+        lines += ["", f"{a.on} * Reconciled statement  ; salli-statement:{a.statement_id}", text]
     return "\n".join(lines) + "\n"

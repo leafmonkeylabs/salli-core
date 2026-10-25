@@ -512,6 +512,9 @@ class TaxReturnORM(Base):
     # The hash of the user's last journal entry when this version was
     # recorded: the ledger it was made from, as its hash chain stood.
     chain_head_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # What the filer said, filing on values the rules mark provisional
+    # (the values are in the snapshot); null otherwise.
+    provisional_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The authority's reference for what was filed, and the day it was.
     reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
     filed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -1716,7 +1719,7 @@ class AuditLogORM(Base):
     """Every write an agent made or asked to make: Scrooge's with the person's
     decision (approved/denied), an MCP client's with its outcome (succeeded,
     refused, failed) and the client; sign-ins, tokens issued and revoked.
-    Append-only (core_0044's trigger): erasing an account only pseudonymises
+    Append-only (core_0045's trigger): erasing an account only pseudonymises
     its rows. One hash chain over every row (`domain/audit_chain.py`)."""
 
     __tablename__ = "audit_logs"
